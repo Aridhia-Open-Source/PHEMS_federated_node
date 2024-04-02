@@ -13,15 +13,15 @@ DEV_ENV_FILE=webserver/dev.env
 if [[ -n $1 ]]; then
     DEV_ENV_FILE=$1
 fi
-KC_NAMESPACE=$(grep -oP '(?<=keycloak:\s).*' k8s/federated_node/dev.values.yaml)
-TASK_NAMESPACE=$(grep -oP '(?<=tasks:\s).*' k8s/federated_node/dev.values.yaml)
+KC_NAMESPACE=$(grep -oP '(?<=keycloak:\s).*' k8s/federated-node/dev.values.yaml)
+TASK_NAMESPACE=$(grep -oP '(?<=tasks:\s).*' k8s/federated-node/dev.values.yaml)
 BASE_NAMESPACE=$(helm list -A --output json | jq -r '.[] | select(.name=="federatednode")| .namespace')
 
 if [[ -z $KC_NAMESPACE ]]; then
-    KC_NAMESPACE=$(grep -oP '(?<=keycloak:\s).*' k8s/federated_node/values.yaml)
+    KC_NAMESPACE=$(grep -oP '(?<=keycloak:\s).*' k8s/federated-node/values.yaml)
 fi
 if [[ -z $TASK_NAMESPACE ]]; then
-    TASK_NAMESPACE=$(grep -oP '(?<=tasks:\s).*' k8s/federated_node/dev.values.yaml)
+    TASK_NAMESPACE=$(grep -oP '(?<=tasks:\s).*' k8s/federated-node/dev.values.yaml)
 fi
 
 PASS=$(kubectl get secret -n "${KC_NAMESPACE}" kc-secrets -o json | jq -r '.data.KEYCLOAK_ADMIN_PASSWORD' | base64 -d)

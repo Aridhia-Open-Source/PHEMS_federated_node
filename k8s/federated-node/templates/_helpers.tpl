@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "federated_node.name" -}}
+{{- define "federated-node.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "federated_node.fullname" -}}
+{{- define "federated-node.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -26,16 +26,16 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "federated_node.chart" -}}
+{{- define "federated-node.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "federated_node.labels" -}}
-helm.sh/chart: {{ include "federated_node.chart" . }}
-{{ include "federated_node.selectorLabels" . }}
+{{- define "federated-node.labels" -}}
+helm.sh/chart: {{ include "federated-node.chart" . }}
+{{ include "federated-node.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -45,17 +45,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "federated_node.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "federated_node.name" . }}
+{{- define "federated-node.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "federated-node.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Create the name of the service account to use
 */}}
-{{- define "federated_node.serviceAccountName" -}}
+{{- define "federated-node.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "federated_node.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "federated-node.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}

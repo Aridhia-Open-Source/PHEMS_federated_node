@@ -1,4 +1,4 @@
-![phems_logo](https://github.com/aridhia/federated_node/assets/94359606/d95796b0-6fad-4dfb-b0c6-5b3e17ac4846)
+![phems_logo](https://github.com/aridhia/federated-node/assets/94359606/d95796b0-6fad-4dfb-b0c6-5b3e17ac4846)
 ## Federated Node service for PHEMS project
 The development of the PHEMS ecosystem will entail the design and implementation of federated analytics, algorithms, governance framework and an implementation playbook.
 
@@ -6,12 +6,12 @@ The development of the PHEMS ecosystem will entail the design and implementation
 
 _Will be updated with the `helm add repo` once a build is created_
 ```sh
-helm install federatednode ./k8s/federated_node
+helm install federatednode ./k8s/federated-node
 ```
 
 # Update
 ```sh
-helm upgrade federatednode ./k8s/federated_node
+helm upgrade federatednode ./k8s/federated-node
 ```
 
 # Run locally

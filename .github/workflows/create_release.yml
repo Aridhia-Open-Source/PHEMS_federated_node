@@ -4,6 +4,9 @@ on:
   push:
     tags:
     - '*'
+    # To remove before merging
+    branches:
+      - FN-5
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -12,9 +15,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Build helm archive
+      working-directory: k8s/federated-node
       run: |
         helm package . -d ../../artifacts/ --app-version ${{ vars.VERSION }}
+    - name: Push to GitLab Package Artifact
+      run: |
+        curl --request POST \
+          --form 'chart=@artifacts/federated-node-${{ vars.VERSION }}.tgz' \
+          --user r-casula:${{ secrets.HELM_TOKEN }} \
+          https://gitlab.com/api/v4/projects/aridhia%2Ffederated-node/packages/helm/api/devel/charts
+        exit $?
     - name: Publish Release
       uses: ncipollo/release-action@v1
       with:
-        artifacts: "artifacts/*.tgz"
+        artifacts: "artifacts/federated-node-${{ vars.VERSION }}.tgz"
+        tag: ${{ vars.VERSION }}
+        skipIfReleaseExists: true

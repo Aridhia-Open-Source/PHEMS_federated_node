@@ -1,5 +1,5 @@
 apiVersion: v2
-name: federated_node
+name: federated-node
 description: A Helm chart for deploying the Federated Node on Kubernetes
 
 # A chart can be either an 'application' or a 'library' chart.

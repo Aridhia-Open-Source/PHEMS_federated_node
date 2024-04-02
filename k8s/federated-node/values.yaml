@@ -1,4 +1,4 @@
-# Default values for federated_node.
+# Default values for federated-node.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
@@ -25,9 +25,9 @@ db:
   password:
   name:
   host:
-  ## If a configmap with host user exists, use that
+  # If a configmap with host user exists, use that
   # configMap:
-  ## If a secret with password exists, use that
+  # If a secret with password exists, use that
   # secret:
   #   name:
   #   key:

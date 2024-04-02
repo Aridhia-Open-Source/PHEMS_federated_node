@@ -5,7 +5,7 @@ on:
     branches:
       - main
       # To remove before merging
-      - FN-5
+      # - FN-5
   pull_request:
     branches:
       - main
@@ -76,5 +76,5 @@ jobs:
         with:
           context: webserver
           file: webserver/build/Dockerfile
-          tags: ${{ vars.DOCKER_ACR }}/${{ env.OWNER_LC }}/federated_node_run:${{ vars.VERSION }}
+          tags: ${{ vars.DOCKER_ACR }}/${{ env.OWNER_LC }}/federated-node_run:${{ vars.VERSION }}
           push: true

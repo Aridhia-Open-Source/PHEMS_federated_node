@@ -42,7 +42,7 @@ services:
       KEYCLOAK_LOGLEVEL: DEBUG
       KEYCLOAK_TOKEN_LIFE: 3600
     volumes:
-      - ../k8s/federated_node/scripts/realms.json:/opt/keycloak/data/import/realms.json
+      - ../k8s/federated-node/scripts/realms.json:/opt/keycloak/data/import/realms.json
   kc_init:
     image: python:3.12.1-slim-bullseye
     container_name: keycloak_test_initializer
@@ -57,7 +57,7 @@ services:
       KEYCLOAK_ADMIN:
       KEYCLOAK_URL:
     volumes:
-      - ../k8s/federated_node/scripts/job_init.py:/scripts/setup_realm.py
+      - ../k8s/federated-node/scripts/job_init.py:/scripts/setup_realm.py
   app:
     container_name: flask_app_test
     image: federated_node_app_test

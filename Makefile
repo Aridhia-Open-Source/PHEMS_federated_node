@@ -16,4 +16,4 @@ pylint:
 	./scripts/pylint.sh
 
 chart:
-	helm package k8s/federated_node -d artifacts/
+	helm package k8s/federated-node -d artifacts/

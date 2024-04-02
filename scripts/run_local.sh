@@ -11,22 +11,22 @@ echo "applying definitions"
 
 HELM_CHART_NAME=federatednode
 INSTALLED_VERSION=$(helm list --filter "^$HELM_CHART_NAME" -o json | jq -r .[].chart)
-CHART_VERSION=federated_node-$(grep 'version:' k8s/federated_node/Chart.yaml | sed 's/^.*: //')
-DEV_VALUES="-f k8s/federated_node/values.yaml"
+CHART_VERSION=federated-node-$(grep 'version:' k8s/federated-node/Chart.yaml | sed 's/^.*: //')
+DEV_VALUES="-f k8s/federated-node/values.yaml"
 
-if [[ -f "k8s/federated_node/dev.values.yaml" ]]; then
-    DEV_VALUES="$DEV_VALUES -f k8s/federated_node/dev.values.yaml"
+if [[ -f "k8s/federated-node/dev.values.yaml" ]]; then
+    DEV_VALUES="$DEV_VALUES -f k8s/federated-node/dev.values.yaml"
 fi
 
 if [[ -z "$INSTALLED_VERSION" ]]; then
     echo "Applying helm chart"
-    helm install $HELM_CHART_NAME k8s/federated_node $DEV_VALUES
+    helm install $HELM_CHART_NAME k8s/federated-node $DEV_VALUES
 else
     if [[ $INSTALLED_VERSION = "$CHART_VERSION" ]]; then
         echo "Current version is the latest!"
     else
         echo "Upgrading installed helm chart"
-        helm upgrade $HELM_CHART_NAME k8s/federated_node $DEV_VALUES
+        helm upgrade $HELM_CHART_NAME k8s/federated-node $DEV_VALUES
     fi
 fi
 
@@ -36,10 +36,10 @@ kubectl apply -f dev.k8s/deployments
 echo "If new images are needed, load them up with:"
 echo "minikube -p $CLUSTER_NAME image load <image_name>"
 
-NGINX_NAMESPACE=$(grep -oP '(?<=nginx:\s).*' k8s/federated_node/dev.values.yaml)
+NGINX_NAMESPACE=$(grep -oP '(?<=nginx:\s).*' k8s/federated-node/dev.values.yaml)
 
 if [[ -z $NGINX_NAMESPACE ]]; then
-    NGINX_NAMESPACE=$(grep -oP '(?<=nginx:\s).*' k8s/federated_node/values.yaml)
+    NGINX_NAMESPACE=$(grep -oP '(?<=nginx:\s).*' k8s/federated-node/values.yaml)
 fi
 
 echo "You can reach the FN on https://<host-url>"
