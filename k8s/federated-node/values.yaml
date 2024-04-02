@@ -95,9 +95,9 @@ ingress:
   blacklist:
     enabled: false
     ips: []
-  tls:
-    keyFile:
-    certFile:
+  # tls:
+  #   keyFile:
+  #   certFile:
     # secretName:
 
 resources: {}
