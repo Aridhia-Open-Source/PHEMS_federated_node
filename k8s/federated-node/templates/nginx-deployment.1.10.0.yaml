@@ -1,4 +1,3 @@
----
 {{- if .Values.ingress.tls }}
 apiVersion: v1
 kind: Secret
