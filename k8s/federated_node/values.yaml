@@ -25,12 +25,12 @@ db:
   password:
   name:
   host:
-  # If a configmap with host user exists, use that
-  configMap:
-  # If a secret with password exists, use that
-  secret:
-    name:
-    key:
+  ## If a configmap with host user exists, use that
+  # configMap:
+  ## If a secret with password exists, use that
+  # secret:
+  #   name:
+  #   key:
 
 federatedNode:
   port: 5000
