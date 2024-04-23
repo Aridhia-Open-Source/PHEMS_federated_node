@@ -14,12 +14,10 @@ class Request(db.Model, BaseModel):
     __tablename__ = 'requests'
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String(256), nullable=False)
-    description = Column(String(2048))
-
-    # This will be a FK or a Keycloak UUID. Something to track a user
-    requested_by = Column(String(64), nullable=False)
-    project_name = Column(String(64), nullable=False)
-    status = Column(String(32), default='pending')
+    description = Column(String(4096))
+    requested_by = Column(String(256), nullable=False)
+    project_name = Column(String(256), nullable=False)
+    status = Column(String(256), default='pending')
     proj_start = Column(DateTime(timezone=False), nullable=False)
     proj_end = Column(DateTime(timezone=False), nullable=False)
     created_at = Column(DateTime(timezone=False), server_default=func.now())

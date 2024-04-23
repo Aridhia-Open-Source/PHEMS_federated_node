@@ -45,7 +45,10 @@
         "summary": "List all datasets available to the user",
         "responses": {
           "200":{
-            "$ref": "#/components/responses/DatasetList"
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "400":{
+            "$ref": "#/components/responses/Unauthorized"
           },
           "401":{
             "$ref": "#/components/responses/Unauthorized"
@@ -74,6 +77,9 @@
         "responses":{
           "201":{
             "$ref": "#/components/responses/DatasetPost"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
           },
           "401":{
             "$ref": "#/components/responses/Unauthorized"
@@ -227,6 +233,9 @@
           "201":{
             "$ref": "#/components/responses/TransferTokenPost"
           },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
           "401":{
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -336,6 +345,9 @@
           "201":{
             "$ref": "#/components/responses/TaskPost"
           },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
           "401":{
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -368,6 +380,9 @@
         "responses":{
           "201":{
             "$ref": "#/components/responses/SimpleOk"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
           },
           "401":{
             "$ref": "#/components/responses/Unauthorized"
@@ -724,6 +739,9 @@
       "NotFound": {
         "description": "Not found."
       },
+      "InvalidBody": {
+        "description": "The request body cannot be parsed or is missing required values."
+      },
       "Unauthorized": {
         "description": "Unauthorized."
       },
@@ -843,19 +861,21 @@
           "created_at": {"type": "string", "example": "Mon, 19 Feb 2024 10:00:45 GMT"},
           "updated_at": {"type": "string", "example": "Mon, 19 Feb 2024 10:00:45 GMT"},
           "dataset_id": {"type": "integer", "example": 1},
-          "description": {"type": "string", "example": "Blood Analysis results"},
-          "field_name": {"type": "string", "example": "glucose_perc"},
-          "table_name": {"type": "string", "example": "analysis"},
-          "label": {"type": "string"}
+          "description": {"type": "string", "maxLength": 2048, "example": "Blood Analysis results"},
+          "field_name": {"type": "string", "maxLength": 50, "example": "glucose_perc"},
+          "table_name": {"type": "string", "maxLength": 50, "example": "analysis"},
+          "label": {"type": "string", "maxLength": 64}
         }
       },
       "CataloguePostBody": {
         "type": "object",
         "properties": {
           "title":{
+            "maxLength": 256,
             "example": "Catalogue 1"
           },
           "description": {
+            "maxLength": 2048,
             "example": ""
           }
         }
@@ -866,9 +886,11 @@
           "type": "object",
           "properties": {
             "table_name":{
+              "maxLength": 50,
               "example": "patient"
             },
 			      "description": {
+              "maxLength": 2048,
               "example": "Patients' general information"
             }
           }
@@ -883,6 +905,7 @@
           },
           "project_name": {
             "type": "string",
+            "maxLength": 64,
             "example": "eu_research_2024"
           },
           "requested_by": {
@@ -890,12 +913,14 @@
             "properties": {
               "email": {
                 "type": "string",
+                "maxLength": 64,
                 "example": "user@email.com"
               }
             }
           },
           "description": {
             "type": "string",
+            "maxLength": 2048,
             "description": "Project/Data access request description"
           },
           "proj_start": {
@@ -939,13 +964,13 @@
       "TaskPostBody": {
         "type": "object",
         "properties": {
-          "name": { "type": "string"},
-          "description": { "type": "string"},
+          "name": { "type": "string", "maxLength": 256},
+          "description": { "type": "string", "maxLength": 2048},
           "executors": {
             "type": "object",
             "properties": {
               "image":{
-                "type": "string"
+                "type": "string", "maxLength": 256
               },
               "command":{
                 "type": "array",

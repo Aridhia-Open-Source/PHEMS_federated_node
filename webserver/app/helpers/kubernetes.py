@@ -39,7 +39,6 @@ class KubernetesBase:
         Given a dictionary with a pod config deconstruct it
         and assemble it with the different sdk objects
         """
-        acr_url = os.getenv('ACR_URL')
         # Create a dedicated VPC for each task so that we can keep results indefinitely
         self.create_persistent_storage(pod_spec["name"])
         pvc_name = f"{pod_spec["name"]}-volclaim"
@@ -51,10 +50,10 @@ class KubernetesBase:
         )
         container = client.V1Container(
             name=pod_spec["name"],
-            image=f"{acr_url}/{pod_spec["image"]}",
+            image=pod_spec["image"],
             env=self.create_env_from_dict(pod_spec.get("environment", {})),
-            # For testing purposes now - Should this be dynamic?
-            volume_mounts=[vol_mount]
+            volume_mounts=[vol_mount],
+            resources = pod_spec.get("resources", {})
         )
         if pod_spec["command"]:
             container.command = pod_spec["command"]

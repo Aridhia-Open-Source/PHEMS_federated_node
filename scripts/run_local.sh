@@ -1,11 +1,18 @@
 #!/bin/bash
-set -e
-export CLUSTER_NAME=federatednode
-echo "Starting MK"
-minikube start -p $CLUSTER_NAME --driver=docker
 
-echo "Switching context"
-kubectl config use-context $CLUSTER_NAME
+set -e
+
+LOCAL_CLUSTER=$1
+if [[ "$LOCAL_CLUSTER" == "minikube" ]]; then
+    export CLUSTER_NAME=federatednode
+    echo "Starting MK"
+    minikube start -p $CLUSTER_NAME --driver=docker
+    echo "Switching context"
+    kubectl config use-context $CLUSTER_NAME
+else
+    echo "Switching context"
+    kubectl config use-context microk8s
+fi
 
 echo "applying definitions"
 
@@ -34,8 +41,12 @@ echo "Creating a separate test db"
 kubectl apply -f dev.k8s/deployments
 
 echo "If new images are needed, load them up with:"
-echo "minikube -p $CLUSTER_NAME image load <image_name>"
-
+if [[ "$LOCAL_CLUSTER" == "minikube" ]]; then
+    echo "minikube -p $CLUSTER_NAME image load <image_name>"
+else
+    echo "docker save <image_name> > fn.tar"
+    echo "microk8s ctr image import fn.tar"
+fi
 NGINX_NAMESPACE=$(grep -oP '(?<=nginx:\s).*' k8s/federated-node/dev.values.yaml)
 
 if [[ -z $NGINX_NAMESPACE ]]; then

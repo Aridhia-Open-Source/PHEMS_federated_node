@@ -3,6 +3,7 @@
   "enabled": true,
   "registrationEmailAsUsername": false,
   "offlineSessionIdleTimeout": "${KEYCLOAK_TOKEN_LIFE}",
+  "ssoSessionIdleTimeout": "${KEYCLOAK_TOKEN_LIFE}",
   "ssoSessionMaxLifespan": "${KEYCLOAK_TOKEN_LIFE}",
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,

@@ -9,7 +9,6 @@ data:
   PGPORT: {{ .Values.db.port | default "5432" | quote }}
   PGDATABASE: {{ .Values.db.name | default "fndb" | quote }}
   PGUSER: {{ .Values.db.user | default "admin" | quote }}
-  ACR_URL: {{ .Values.federatedNode.acr_url }}
   KEYCLOAK_URL: "http://keycloak.{{ .Values.namespaces.keycloak }}.svc.cluster.local:8080"
   DEFAULT_NAMESPACE: {{ .Release.Namespace }}
   KEYCLOAK_NAMESPACE: {{ .Values.namespaces.keycloak }}

@@ -11,9 +11,9 @@ class Catalogue( db.Model, BaseModel):
         UniqueConstraint('title', 'dataset_id'),
     )
     id = Column(Integer, primary_key=True, autoincrement=True)
-    version = Column(String(10))
+    version = Column(String(256))
     title = Column(String(256), nullable=False)
-    description = Column(String(2048), nullable=False)
+    description = Column(String(4096), nullable=False)
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     updated_at = Column(DateTime(timezone=False), onupdate=func.now())
 

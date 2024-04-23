@@ -11,10 +11,10 @@ class Dictionary( db.Model, BaseModel):
         UniqueConstraint('table_name', 'dataset_id', 'field_name'),
     )
     id = Column(Integer, primary_key=True, autoincrement=True)
-    table_name = Column(String(50), nullable=False)
-    field_name = Column(String(50))
-    label = Column(String(64))
-    description = Column(String(2048), nullable=False)
+    table_name = Column(String(256), nullable=False)
+    field_name = Column(String(256))
+    label = Column(String(256))
+    description = Column(String(4096), nullable=False)
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     updated_at = Column(DateTime(timezone=False), onupdate=func.now())
 

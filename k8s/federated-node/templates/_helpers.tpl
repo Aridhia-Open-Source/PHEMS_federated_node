@@ -115,3 +115,13 @@ Just need to append the NEW_DB env var
 {{- define "randomSecret" -}}
 {{ randAlphaNum 24 | b64enc | quote }}
 {{- end -}}
+
+{{- define "nonRootSC" -}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ "ALL" ]
+{{- end -}}

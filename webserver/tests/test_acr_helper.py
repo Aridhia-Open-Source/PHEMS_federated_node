@@ -43,7 +43,7 @@ def test_acr_metadata_empty(
             json=[],
             status=200
         )
-        assert not acr_class.has_image_metadata(image)
+        assert not acr_class.find_image_repo(image)
 
 def test_acr_metadata_tag_not_in_api_response(
         acr_class,
@@ -69,4 +69,4 @@ def test_acr_metadata_tag_not_in_api_response(
             json={"tags": ["latest", "1.0"]},
             status=200
         )
-        assert not acr_class.has_image_metadata(image)
+        assert not acr_class.find_image_repo(image)

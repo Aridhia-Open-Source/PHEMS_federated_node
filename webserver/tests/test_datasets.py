@@ -184,7 +184,7 @@ class TestDatasets:
         )
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
-        post_dataset(client, post_json_admin_header, data_body, 500)
+        post_dataset(client, post_json_admin_header, data_body, 400)
 
         query = run_query(select(Dataset).where(Dataset.name == data_body["name"]))
         assert len(query) == 0
@@ -301,7 +301,7 @@ class TestDatasets:
             "table_name": "test",
             "description": "test description"
         }
-        response = post_dataset(client, post_json_admin_header, data_body, 500)
+        response = post_dataset(client, post_json_admin_header, data_body, 400)
         assert response == {'error': 'dictionaries should be a list.'}
 
         # Make sure any db entry is created

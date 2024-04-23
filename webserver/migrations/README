@@ -1,1 +1,38 @@
-Generic single-database configuration.
+# Generic info on how-to-use alembic
+
+## Create new migrations
+
+```sh
+alembic revision --autogenerate -m ""
+```
+
+As `-m` arg use something descriptive, that string will be used as a file name prefixed with a random hex of 12 chars (revision ID). Spaces will be replaced by `_`
+
+## Apply/update migrations
+
+```sh
+alembic upgrade head
+```
+
+## Revert migration
+
+All migrations:
+```sh
+alembic downgrade base
+```
+
+Specific migration id (migration file revision ID)
+```sh
+alembic downgrade "<revision_ID>"
+```
+
+
+## Useful info
+All migrations are tracked in a db table called `alembic_version`. If only has one column and one value, i.e.:
+```
+ version_num
+--------------
+ 56982b4a5714
+ ```
+
+ This is the latest migration file hex prefix string. Deleting this entry, and re running `upgrade head` will try to apply ALL migrations, which would fail if the tables involved in those migrations are not dropped.

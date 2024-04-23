@@ -4,9 +4,11 @@ The development of the PHEMS ecosystem will entail the design and implementation
 
 # Deployment
 
-_Will be updated with the `helm add repo` once a build is created_
+You will need a set of credentials to the GitLab repo for the time being. It will be open in as we approach v1.0
+
 ```sh
-helm install federatednode ./k8s/federated-node
+helm repo add --username $username --password $token federated_node https://gitlab.com/api/v4/projects/aridhia%2Ffederated_node/packages/helm/stable
+helm install federatednode ./k8s/federated-node -f <custom_value.yaml>
 ```
 
 # Update
@@ -15,12 +17,14 @@ helm upgrade federatednode ./k8s/federated-node
 ```
 
 # Run locally
-Minikube is required.
+Minikube or microk8s is required.
 ```sh
-./scripts/run_local.sh
+./scripts/run_local.sh minikube
+# or
+./scripts/run_local.sh micro
 ```
 
-This will launch a Minikube cluster called `federatednode`, and apply the helm chart with the default `values.yaml`.
+This will launch a Minikube cluster called `federatednode` (if using minikube), and apply the helm chart with the default `values.yaml`.
 
 Open the nginx port with
 ```sh

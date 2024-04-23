@@ -11,6 +11,7 @@ from uuid import uuid4
 
 import urllib3
 from app.helpers.acr import ACRClient
+from app.helpers.const import MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX
 from app.helpers.db import BaseModel, db
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import TASK_NAMESPACE, KubernetesBatchClient, KubernetesClient
@@ -28,13 +29,11 @@ class Task(db.Model, BaseModel):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(256), nullable=False)
     docker_image = Column(String(256), nullable=False)
-    description = Column(String(2048))
-    status = Column(String(64), default='scheduled')
+    description = Column(String(4096))
+    status = Column(String(256), default='scheduled')
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     updated_at = Column(DateTime(timezone=False), onupdate=func.now())
-
-    # This will be a FK or a Keycloak UUID. Something to track a user
-    requested_by = Column(String(64), nullable=False)
+    requested_by = Column(String(256), nullable=False)
     dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
     dataset = relationship("Dataset")
 
@@ -84,17 +83,100 @@ class Task(db.Model, BaseModel):
             raise InvalidRequest(
                 f"{data["docker_image"]} does not have a tag. Please provide one in the format <image>:<tag>"
             )
-        cls.can_image_be_found(data["docker_image"])
+        data["docker_image"] = cls.get_image_with_repo(data["docker_image"])
+
+        # Validate resource values
+        if "resources" in data:
+            cls.validate_cpu_resources(
+                data["resources"].get("limits", {}).get("cpu"),
+                data["resources"].get("requests", {}).get("cpu")
+            )
+            cls.validate_memory_resources(
+                data["resources"].get("limits", {}).get("memory"),
+                data["resources"].get("requests", {}).get("memory")
+            )
         return data
 
     @classmethod
-    def can_image_be_found(cls, docker_image):
+    def validate_cpu_resources(cls, limit_value:str, request_value:str):
         """
-        Looks through the ACR if the image exists
+        Given a value for the cpu limits or requests, make sure it conforms to
+        accepted k8s values.
+        e.g.
+            - 100m
+            - 0.1
+            - 1
+        """
+        for value in [limit_value, request_value]:
+            if value is None or value == "":
+                return
+            cpu_error_message = f"Cpu resource value {value} not valid."
+            if not re.match(CPU_RESOURCE_REGEX, value):
+                raise InvalidRequest(cpu_error_message)
+        if cls.convert_cpu_values_to_int(limit_value) < cls.convert_cpu_values_to_int(request_value):
+            raise InvalidRequest("Cpu limit cannot be lower than request")
+
+    @classmethod
+    def validate_memory_resources(cls, limit_value:str, request_value:str):
+        """
+        Given a value for the memory limits or requests, make sure it conforms to
+        accepted k8s values.
+        e.g.
+            - 128974848
+            - 129e6
+            - 129M
+            - 128974848000m
+            - 123Mi
+        """
+        for value in [limit_value, request_value]:
+            if value is None or value == "":
+                return
+            memory_error_msg = f"Memory resource value {value} not valid."
+            if not re.match(MEMORY_RESOURCE_REGEX, value):
+                raise InvalidRequest(memory_error_msg)
+        if cls.convert_memory_values_to_int(limit_value) < cls.convert_memory_values_to_int(request_value):
+            raise InvalidRequest("Memory limit cannot be lower than request")
+
+    @classmethod
+    def convert_cpu_values_to_int(cls, val:str) -> float:
+        """
+        Since cpu values can come with different units,
+        they should be standardized to float, so that they can
+        be compared and validated to have limits > requests
+        """
+        if re.match(r'^\d+$', val):
+            return float(val)
+        if re.match(r'^\d+\.\d+$', val):
+            return float(val)
+        return float(val[:-1]) / 1000
+
+    @classmethod
+    def convert_memory_values_to_int(cls, val:str) -> int:
+        """
+        Since memory values can come with different units,
+        they should be standardized to int, so that they can
+        be compared and validated to have limits > requests
+        """
+        if re.match(r'^\d+$', val):
+            return int(val)
+        if re.match(r'^\d+e\d+$', val):
+            base, exp = val.split('e')
+            return int(base) * 10**(int(exp))
+        base = val[:-2]
+        unit = val[-2:]
+        return int(base) * MEMORY_UNITS[unit]
+
+    @classmethod
+    def get_image_with_repo(cls, docker_image):
+        """
+        Looks through the ACRs for the image and if exists,
+        returns the full image name with the repo prefixing the image.
         """
         acr_client = ACRClient()
-        if not acr_client.has_image_metadata(docker_image):
+        full_docker_image_name = acr_client.find_image_repo(docker_image)
+        if not full_docker_image_name:
             raise TaskImageException(f"Image {docker_image} not found on our repository")
+        return full_docker_image_name
 
     def pod_name(self):
         return f"{self.name.lower().replace(' ', '-')}-{self.requested_by}"
@@ -116,7 +198,8 @@ class Task(db.Model, BaseModel):
             "dry_run": 'true' if validate else 'false',
             "environment": self.executors[0]["env"],
             "command": self.executors[0]["command"],
-            "mount_path": TASK_POD_RESULTS_PATH
+            "mount_path": TASK_POD_RESULTS_PATH,
+            "resources": self.resources
         })
         try:
             current_pod = self.get_current_pod()
@@ -231,6 +314,8 @@ class Task(db.Model, BaseModel):
             v1.delete_pod(job_pod.metadata.name)
             v1_batch.delete_job(job_name)
         except ApiException as e:
+            if 'job_pod' in locals() and self.get_current_pod(job_pod.metadata.name):
+                v1_batch.delete_job(job_name)
             logger.error(getattr(e, 'reason'))
             raise InvalidRequest(f"Failed to run pod: {e.reason}")
         except urllib3.exceptions.MaxRetryError:

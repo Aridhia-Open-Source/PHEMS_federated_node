@@ -368,7 +368,7 @@ def test_get_results_job_creation_failure(
         f'/tasks/{response.json["task_id"]}/results',
         headers=simple_admin_header
     )
-    assert response.status_code == 500
+    assert response.status_code == 400
     assert response.json["error"] == 'Failed to run pod: Something went wrong'
 
 def test_get_task_status_running_and_waiting(
@@ -469,3 +469,151 @@ def test_get_task_status_terminated(
         }
     }
     assert response_id.json["status"] == expected_status
+
+class TestResourceValidators:
+    def test_valid_values(
+            self,
+            mocker,
+            user_uuid,
+            acr_client,
+            task_body
+        ):
+        """
+        Tests that the expected resource values are accepted
+        """
+        task_body["resources"] = {
+            "limits": {
+                "cpu": "100m",
+                "memory": "100Mi"
+            },
+            "requests": {
+                "cpu": "0.1",
+                "memory": "100Mi"
+            }
+        }
+        mocker.patch("app.helpers.keycloak.Keycloak.get_token_from_headers",
+                     return_value="")
+        mocker.patch("app.helpers.keycloak.Keycloak.decode_token",
+                     return_value={"sub": user_uuid})
+        Task.validate(task_body)
+
+    def test_invalid_memory_values(
+            self,
+            mocker,
+            user_uuid,
+            acr_client,
+            task_body
+        ):
+        """
+        Tests that the unexpected memory values are not accepted
+        """
+        mocker.patch("app.helpers.keycloak.Keycloak.get_token_from_headers",
+                     return_value="")
+        mocker.patch("app.helpers.keycloak.Keycloak.decode_token",
+                     return_value={"sub": user_uuid})
+
+        invalid_values = ["hundredMi", "100ki", "100mi", "0.1Ki", "Mi100"]
+        for in_val in invalid_values:
+            task_body["resources"] = {
+                "limits": {
+                    "cpu": "100m",
+                    "memory": "100Mi"
+                },
+                "requests": {
+                    "cpu": "0.1",
+                    "memory": in_val
+                }
+            }
+            with pytest.raises(InvalidRequest) as ir:
+                Task.validate(task_body)
+            assert ir.value.description == f'Memory resource value {in_val} not valid.'
+
+    def test_invalid_cpu_values(
+            self,
+            mocker,
+            user_uuid,
+            acr_client,
+            task_body
+        ):
+        """
+        Tests that the unexpected cpu values are not accepted
+        """
+        mocker.patch("app.helpers.keycloak.Keycloak.get_token_from_headers",
+                     return_value="")
+        mocker.patch("app.helpers.keycloak.Keycloak.decode_token",
+                     return_value={"sub": user_uuid})
+
+        invalid_values = ["5.24.1", "hundredm", "100Ki", "100mi", "0.1m"]
+
+        for in_val in invalid_values:
+            task_body["resources"] = {
+                "limits": {
+                    "cpu": in_val,
+                    "memory": "100Mi"
+                },
+                "requests": {
+                    "cpu": "0.1",
+                    "memory": "100Mi"
+                }
+            }
+            with pytest.raises(InvalidRequest) as ir:
+                Task.validate(task_body)
+            assert ir.value.description == f'Cpu resource value {in_val} not valid.'
+
+    def test_mem_limit_lower_than_request_fails(
+            self,
+            mocker,
+            user_uuid,
+            acr_client,
+            task_body
+        ):
+        """
+        Tests that the unexpected cpu values are not accepted
+        """
+        mocker.patch("app.helpers.keycloak.Keycloak.get_token_from_headers",
+                     return_value="")
+        mocker.patch("app.helpers.keycloak.Keycloak.decode_token",
+                     return_value={"sub": user_uuid})
+
+        task_body["resources"] = {
+            "limits": {
+                "cpu": "100m",
+                "memory": "100Mi"
+            },
+            "requests": {
+                "cpu": "0.1",
+                "memory": "200000Ki"
+            }
+        }
+        with pytest.raises(InvalidRequest) as ir:
+            Task.validate(task_body)
+        assert ir.value.description == 'Memory limit cannot be lower than request'
+
+    def test_cpu_limit_lower_than_request_fails(
+            self,
+            mocker,
+            user_uuid,
+            acr_client,
+            task_body
+        ):
+        """
+        Tests that the unexpected cpu values are not accepted
+        """
+        mocker.patch("app.helpers.keycloak.Keycloak.get_token_from_headers",
+                     return_value="")
+        mocker.patch("app.helpers.keycloak.Keycloak.decode_token",
+                     return_value={"sub": user_uuid})
+
+        task_body["resources"] = {
+            "limits": {
+                "cpu": "100m",
+                "memory": "100Mi"
+            },
+            "requests": {
+                "cpu": "0.2",
+                "memory": "100Mi"
+            }
+        }
+        with pytest.raises(InvalidRequest) as ir:
+            Task.validate(task_body)
+        assert ir.value.description == 'Cpu limit cannot be lower than request'

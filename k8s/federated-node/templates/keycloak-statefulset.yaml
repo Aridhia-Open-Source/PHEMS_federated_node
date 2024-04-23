@@ -6,6 +6,7 @@ metadata:
   labels:
     app: keycloak
 spec:
+  replicas: 2
   selector:
     matchLabels:
       app: keycloak
@@ -22,16 +23,20 @@ spec:
                 name: keycloak-config
                 key: KC_DB_URL_DATABASE
       containers:
-        - image: quay.io/keycloak/keycloak:23.0.4
+        - image: ghcr.io/arihdia-federated-node/federated_keycloak:0.0.1
           args: [
             "start",
+            "--cache=ispn",
+            "--cache-config-file=cache-ispn.xml",
             "--import-realm",
             "--features=preview",
             "--http-enabled=true",
             "--hostname-strict=false",
-            "--hostname-strict-https=false"
+            "--hostname-strict-https=false",
+            "-Dkeycloak.infinispan.ignoreSkipCacheStore=true"
           ]
           name: keycloak
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
               containerPort: 8080
@@ -42,9 +47,6 @@ spec:
               port: 8080
             initialDelaySeconds: 20
             periodSeconds: 30
-          envFrom:
-          - configMapRef:
-              name: keycloak-config
           env:
             - name: KC_DB_PASSWORD
               valueFrom:
@@ -75,6 +77,8 @@ spec:
             - name: quarkus
               mountPath: /opt/keycloak/conf/quarkus.properties
               subPath: quarkus.properties
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecrets }}
       volumes:
         - name: config
           configMap:

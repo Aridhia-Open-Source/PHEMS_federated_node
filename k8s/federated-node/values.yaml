@@ -34,10 +34,6 @@ db:
 
 federatedNode:
   port: 5000
-  acr_url: ''
-  acr_username: ''
-  acr_password: ''
-  acr_email: ''
   volumes:
     results_path: /mnt/results
     task_pod_results_path: /mnt/data
@@ -46,9 +42,13 @@ federatedNode:
 # expanded to the flask docker lookup in a second instance
 acrs:
   - url:
-    password:
-    username:
-    email:
+    secret:
+      name:
+      userKey:
+      passKey:
+    # password:
+    # username:
+    # email:
 
 storage:
   azure:
@@ -66,8 +66,7 @@ storage:
 token:
   life:
 
-imagePullSecrets:
-  - name: regcred
+imagePullSecrets: regcred
 
 serviceAccount:
   # Specifies whether a service account should be created
