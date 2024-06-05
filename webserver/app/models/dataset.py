@@ -1,12 +1,9 @@
-import base64
 import os
 import re
 from sqlalchemy import Column, Integer, String
 from app.helpers.db import BaseModel, db
-from app.helpers.exceptions import InvalidRequest
 from app.helpers.keycloak import Keycloak
-from kubernetes import client, config
-from kubernetes.client.exceptions import ApiException
+from app.helpers.kubernetes import KubernetesClient
 
 TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
 
@@ -26,48 +23,24 @@ class Dataset(db.Model, BaseModel):
         self.host = host
         self.port = port
 
-        # Create secrets for credentials
-        if os.getenv('KUBERNETES_SERVICE_HOST'):
-            # Get configuration for an in-cluster setup
-            config.load_incluster_config()
-        else:
-            # Get config from outside the cluster. Mostly DEV
-            config.load_kube_config()
-        v1 = client.CoreV1Api()
-        body = client.V1Secret()
-        body.api_version = 'v1'
-        body.data = {
-            "PGPASSWORD": base64.b64encode(password.encode()).decode(),
-            "PGUSER": base64.b64encode(username.encode()).decode()
-        }
-        body.kind = 'Secret'
-        body.metadata = {'name': self.get_creds_secret_name()}
-        body.type = 'Opaque'
-        try:
-            for ns in ["default", TASK_NAMESPACE]:
-                v1.create_namespaced_secret(ns, body=body, pretty='true')
-        except ApiException as e:
-            if e.status == 409:
-                pass
-            else:
-                raise InvalidRequest(e.reason)
+        v1 = KubernetesClient()
+        v1.create_secret(
+            name=self.get_creds_secret_name(),
+            data={
+                "PGPASSWORD":password,
+                "PGUSER": username
+            },
+            namespaces=["default", TASK_NAMESPACE]
+        )
 
     def get_creds_secret_name(self):
         cleaned_up_host = re.sub('http(s)*://', '', self.host)
         return f"{cleaned_up_host}-{self.name.lower().replace(' ', '-')}-creds"
 
     def get_credentials(self) -> tuple:
-        if os.getenv('KUBERNETES_SERVICE_HOST'):
-            # Get configuration for an in-cluster setup
-            config.load_incluster_config()
-        else:
-            # Get config from outside the cluster. Mostly DEV
-            config.load_kube_config()
-        v1 = client.CoreV1Api()
-        secret = v1.read_namespaced_secret(self.get_creds_secret_name(), 'default', pretty='pretty')
-        user = base64.b64decode(secret.data['PGUSER'].encode()).decode()
-        password = base64.b64decode(secret.data['PGPASSWORD'].encode()).decode()
-        return user, password
+        v1 = KubernetesClient()
+        secret = v1.get_secret(self.get_creds_secret_name())
+        return secret['PGUSER'], secret['PGPASSWORD']
 
     def add(self, commit=True, user_id=None):
         super().add(commit)

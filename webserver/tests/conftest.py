@@ -4,12 +4,13 @@ import pytest
 import requests
 import responses
 from datetime import datetime as dt, timedelta
+from kubernetes.client.exceptions import ApiException
 from sqlalchemy.orm.session import close_all_sessions
 from unittest.mock import Mock
 from app import create_app
 from app.helpers.acr import ACRClient
 from app.helpers.db import db
-from app.helpers.kubernetes import KubernetesBatchClient
+from app.helpers.kubernetes import KubernetesClient, KubernetesBatchClient
 from app.models.dataset import Dataset
 from app.models.request import Request
 from app.helpers.keycloak import Keycloak, URLS, KEYCLOAK_SECRET, KEYCLOAK_CLIENT
@@ -153,6 +154,27 @@ def k8s_client(mocker, k8s_config):
     )
 
 @pytest.fixture
+def k8s_client_dataset(mocker, k8s_config):
+    return mocker.patch(
+        'app.models.dataset.KubernetesClient',
+        return_value=MockKubernetesClient()
+    )
+
+@pytest.fixture
+def k8s_client_secret(mocker, k8s_config):
+    mocker.patch.object(
+        KubernetesClient,
+        'create_namespaced_secret', new=Mock()
+    )
+    mocker.patch.object(
+        KubernetesClient,
+        'read_namespaced_secret',
+        new=Mock(
+            data={"1": "2"}
+        )
+    )
+
+@pytest.fixture
 def k8s_client_task(mocker, k8s_config):
     return mocker.patch(
         'app.models.task.KubernetesClient',
@@ -241,7 +263,7 @@ def dataset_post_body():
     }
 
 @pytest.fixture
-def dataset(client, user_uuid, k8s_client):
+def dataset(client, user_uuid, k8s_client, k8s_client_dataset):
     dataset = Dataset(name="TestDs", host="example.com", password='pass', username='user')
     dataset.add(user_id=user_uuid)
     return dataset

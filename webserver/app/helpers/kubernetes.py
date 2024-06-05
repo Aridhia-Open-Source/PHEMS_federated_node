@@ -1,3 +1,4 @@
+import base64
 import os
 import logging
 import tarfile
@@ -315,6 +316,39 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
                 watcher.stop()
                 return
             logger.info(f"Pod is in state {event["object"].status.phase}")
+
+    def create_secret(self, name:str, data:dict, namespaces:list=["default"]):
+        """
+        Given a dict, creates a secret with a given name
+        where the keys are used as data fields.
+        """
+        body = client.V1Secret()
+        body.api_version = 'v1'
+        body.data = {}
+        for k, v in data.items():
+            body.data[k] = base64.b64encode(v.encode()).decode()
+        body.kind = 'Secret'
+        body.metadata = {'name': name}
+        body.type = 'Opaque'
+        try:
+            for ns in namespaces:
+                self.create_namespaced_secret(ns, body=body, pretty='true')
+        except ApiException as e:
+            if e.status == 409:
+                pass
+            else:
+                raise InvalidRequest(e.reason)
+
+    def get_secret(self, name:str, namespace:str='default') -> dict:
+        """
+        From a name and optional namespace, fetch a secret, decodes
+        all fields, and returns it as a dictionary
+        """
+        fetched_secret = self.read_namespaced_secret(name, namespace, pretty='pretty')
+        secret = {}
+        for k, v in fetched_secret.data.items():
+            secret[k] = base64.b64decode(v.encode()).decode()
+        return secret
 
 class KubernetesBatchClient(KubernetesBase, client.BatchV1Api):
     pass

@@ -1,11 +1,13 @@
 import logging
+import jwt
 import os
 import random
 import requests
 from base64 import b64encode
 from flask import request
-from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
 from app.helpers.const import PASS_GENERATOR_SET
+from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
+from app.helpers.kubernetes import KubernetesClient
 
 logger = logging.getLogger('keycloak_helper')
 logger.setLevel(logging.INFO)
@@ -17,6 +19,8 @@ KEYCLOAK_CLIENT = os.getenv("KEYCLOAK_CLIENT", "global")
 KEYCLOAK_SECRET = os.getenv("KEYCLOAK_SECRET")
 KEYCLOAK_ADMIN = os.getenv("KEYCLOAK_ADMIN")
 KEYCLOAK_ADMIN_PASSWORD = os.getenv("KEYCLOAK_ADMIN_PASSWORD")
+CERT_CRT = os.getenv("CERT_CRT")
+CERT_KEY = os.getenv("CERT_KEY")
 URLS = {
     "health_check": f"{KEYCLOAK_URL}/realms/master",
     "get_token": f"{KEYCLOAK_URL}/realms/{REALM}/protocol/openid-connect/token",
@@ -34,11 +38,15 @@ URLS = {
     "permission": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/permission/scope",
     "permissions_check": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/policy/evaluate",
     "user": f"{KEYCLOAK_URL}/admin/realms/{REALM}/users",
-    "user_role": f"{KEYCLOAK_URL}/admin/realms/{REALM}/users/%s/role-mappings/realm"
+    "user_role": f"{KEYCLOAK_URL}/admin/realms/{REALM}/users/%s/role-mappings/realm",
+    "idp_list": f"{KEYCLOAK_URL}/admin/realms/{REALM}/identity-provider/instances"
 }
+
 
 class Keycloak:
     def __init__(self, client='global') -> None:
+        self.requests = requests.Session()
+        self.requests.cert = CERT_CRT
         self.client_secret = KEYCLOAK_SECRET
         self.client_name = client
         self.admin_token = self.get_admin_token()
@@ -71,7 +79,7 @@ class Keycloak:
             'grant_type': 'refresh_token',
             'refresh_token': token
         }
-        ac_resp = requests.post(
+        ac_resp = self.requests.post(
             URLS["get_token"],
             data=acpayload,
             headers={
@@ -92,7 +100,7 @@ class Keycloak:
             'subject_token': access_token,
             'audience': self.client_name
         }
-        exchange_resp = requests.post(
+        exchange_resp = self.requests.post(
             URLS["get_token"],
             data=payload,
             headers={
@@ -118,7 +126,7 @@ class Keycloak:
             'requested_subject': user_id,
             'audience': KEYCLOAK_CLIENT
         }
-        exchange_resp = requests.post(
+        exchange_resp = self.requests.post(
             URLS["get_token"],
             data=payload,
             headers={
@@ -167,7 +175,7 @@ class Keycloak:
                 'password': password
             }
 
-        response_auth = requests.post(
+        response_auth = self.requests.post(
             URLS["get_token"],
             data=payload,
             headers={
@@ -183,7 +191,7 @@ class Keycloak:
         """
         Given a token checks if the owner is an Admin or SuperAdmin
         """
-        response_auth = requests.post(
+        response_auth = self.requests.post(
             URLS["validate"],
             data={
                 "client_secret": self.client_secret,
@@ -230,7 +238,7 @@ class Keycloak:
         """
         is_access_token = tok_type == 'access_token'
         if is_access_token:
-            response_auth = requests.post(
+            response_auth = self.requests.post(
                 URLS["validate"],
                 data={
                     "client_secret": self.client_secret,
@@ -254,14 +262,17 @@ class Keycloak:
                     'Content-Type': 'application/x-www-form-urlencoded'
                 }
             )
-        return response_auth.ok and self.check_permissions(token, scope, resource, is_access_token)
+        if not response_auth.ok:
+            token = self.verify_idp_token(token)
+            is_access_token = True
+        return self.check_permissions(token, scope, resource, is_access_token)
 
     def decode_token(self, token:str) -> dict:
         """
         Simple token decode, mostly to fetch user general info or exp date
         """
         b64_auth = b64encode(f"{self.client_name}:{self.client_secret}".encode()).decode()
-        response_validate = requests.post(
+        response_validate = self.requests.post(
             URLS["validate"],
             data=f"token={token}",
             headers={
@@ -329,7 +340,7 @@ class Keycloak:
         """
         Get the realm roles
         """
-        realm_resp = requests.get(
+        realm_resp = self.requests.get(
             URLS["roles"],
             headers={
                 'Authorization': f'Bearer {self.admin_token}',
@@ -362,7 +373,7 @@ class Keycloak:
         headers={
             'Authorization': f'Bearer {self.admin_token}'
         }
-        policy_response = requests.get(
+        policy_response = self.requests.get(
             (URLS["get_policies"] % self.client_id) + f'&name={name}',
             headers=headers
         )
@@ -380,7 +391,7 @@ class Keycloak:
         headers={
             'Authorization': f'Bearer {self.admin_token}'
         }
-        scope_response = requests.get(
+        scope_response = self.requests.get(
             (URLS["scopes"] % self.client_id) + f'?permission=false&name={name}',
             headers=headers
         )
@@ -396,7 +407,7 @@ class Keycloak:
             return that one
         : token_lifetime : time in seconds for the
         """
-        client_post_rest = requests.post(
+        client_post_rest = self.requests.post(
             URLS['client'],
             json={
                 "clientId": client_name,
@@ -417,7 +428,7 @@ class Keycloak:
             logger.info(client_post_rest.content.decode())
             raise KeycloakError("Failed to create a project")
 
-        update_req = requests.put(
+        update_req = self.requests.put(
             URLS["client_auth"] % self.get_client_id(client_name),
             json={
                 "decisionStrategy": "AFFIRMATIVE",
@@ -434,7 +445,7 @@ class Keycloak:
         """
         Create a custom scope for the instanced client
         """
-        scope_post_rest = requests.post(
+        scope_post_rest = self.requests.post(
             URLS["scopes"] % self.client_id,
             json={"name": scope_name},
             headers=self._post_json_headers()
@@ -451,7 +462,7 @@ class Keycloak:
         """
         Creates a custom policy for a resource
         """
-        policy_response = requests.post(
+        policy_response = self.requests.post(
             (URLS["policies"] % self.client_id) + policy_type,
             json=payload,
             headers=self._post_json_headers()
@@ -468,7 +479,7 @@ class Keycloak:
         payload["owner"] = {
             "id": self.client_id, "name": client_name
         }
-        resource_response = requests.post(
+        resource_response = self.requests.post(
             URLS["resource"] % self.client_id,
             json=payload,
             headers=self._post_json_headers()
@@ -482,7 +493,7 @@ class Keycloak:
         return resource_response.json()
 
     def create_permission(self, payload:dict) -> dict:
-        permission_response = requests.post(
+        permission_response = self.requests.post(
             URLS["permission"] % self.client_id,
             json=payload,
             headers=self._post_json_headers()
@@ -503,7 +514,7 @@ class Keycloak:
         """
         random_password = ''.join(random.choice(PASS_GENERATOR_SET) for _ in range(12))
         username = kwargs.get("username", kwargs.get("email"))
-        user_response = requests.post(
+        user_response = self.requests.post(
             URLS["user"],
             json={
                 "firstName": kwargs.get("firstName", ""),
@@ -537,7 +548,7 @@ class Keycloak:
         Keycloak REST API can't handle role assignation to a user on creation
         has to be a separate call
         """
-        user_role_response = requests.post(
+        user_role_response = self.requests.post(
             URLS["user_role"] % user_id,
             json=[self.get_role("Users")],
             headers=self._post_json_headers()
@@ -550,7 +561,7 @@ class Keycloak:
         """
         Method to return a dictionary representing a Keycloak user
         """
-        user_response = requests.get(
+        user_response = self.requests.get(
             f"{URLS["user"]}?username={username}&exact=true",
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
@@ -564,7 +575,7 @@ class Keycloak:
         Method to automate the setup for this client to
         allow token exchange on behalf of a user for admin-level
         """
-        client_permission_resp = requests.put(
+        client_permission_resp = self.requests.put(
             URLS["client_exchange"] % self.client_id,
             json={"enabled": True},
             headers = self._post_json_headers()
@@ -576,7 +587,7 @@ class Keycloak:
         global_client_id = self.get_client_id('global')
 
         # Fetching the token exchange scope
-        client_te_scope_resp = requests.get(
+        client_te_scope_resp = self.requests.get(
             (URLS["scopes"] % rm_client_id) + '?permission=false&name=token-exchange',
             headers = {
                 'Authorization': f'Bearer {self.admin_token}'
@@ -586,7 +597,7 @@ class Keycloak:
             raise KeycloakError("Error on keycloak")
 
         token_exch_scope = client_te_scope_resp.json()[0]["id"]
-        resource_scope_resp = requests.get(
+        resource_scope_resp = self.requests.get(
             (URLS["resource"] % rm_client_id) + f"?name=client.resource.{self.client_id}",
             headers = {
                 'Authorization': f'Bearer {self.admin_token}'
@@ -595,7 +606,7 @@ class Keycloak:
         resource_id = resource_scope_resp.json()[0]["_id"]
 
         # Create a custom client exchange policy
-        global_client_policy_resp = requests.post(
+        global_client_policy_resp = self.requests.post(
             (URLS["policies"] % rm_client_id) + "/client",
             json={
                 "name": f"token-exchange-{self.client_name}",
@@ -605,7 +616,7 @@ class Keycloak:
             headers = self._post_json_headers()
         )
         if global_client_policy_resp.status_code == 409:
-            global_policy_id = requests.get(
+            global_policy_id = self.requests.get(
                 (URLS["policies"] % rm_client_id) + f"/client?name=token-exchange-{self.client_name}",
                 headers = self._post_json_headers()
             ).json()[0]["id"]
@@ -615,7 +626,7 @@ class Keycloak:
             global_policy_id = global_client_policy_resp.json()["id"]
 
         token_exch_name = f"token-exchange.permission.client.{self.client_id}"
-        token_exch_permission_resp = requests.get(
+        token_exch_permission_resp = self.requests.get(
             (URLS["permission"] % rm_client_id) + f"?name={token_exch_name}",
             headers = {
                 'Authorization': f'Bearer {self.admin_token}'
@@ -623,7 +634,7 @@ class Keycloak:
         )
         token_exch_permission_id = token_exch_permission_resp.json()[0]["id"]
         # Updating the permission
-        client_permission_resp = requests.put(
+        client_permission_resp = self.requests.put(
             (URLS["permission"] % rm_client_id) + f"/{token_exch_permission_id}",
             json={
                 "name": token_exch_name,
@@ -637,3 +648,126 @@ class Keycloak:
         )
         if not client_permission_resp.ok:
             raise KeycloakError("Failed to update the exchange permission")
+
+    ### Identity Providers
+    def get_identity_provider_list(self) -> list[dict]:
+        """
+        Returns a list of available Identity Providers
+        """
+        idp_list_resp = self.requests.get(
+            URLS["idp_list"],
+            headers={"Authorization": f"Bearer {self.admin_token}"}
+        )
+        if not idp_list_resp.ok:
+            raise KeycloakError("Failed to retrieve IdP list")
+        return idp_list_resp.json()
+
+    def get_identity_provider_by_alias(self, alias:str) -> dict:
+        """
+        Returns a dict with the Identity Providers with given alias
+        """
+        idp_list_resp = self.requests.get(
+            URLS["idp_list"] + f"/{alias}",
+            headers={"Authorization": f"Bearer {self.admin_token}"}
+        )
+        if not idp_list_resp.ok:
+            raise KeycloakError(f"Failed to retrieve IdP {alias}")
+        return idp_list_resp.json()
+
+    def get_identity_provider_by_issuer(self, iss:str) -> dict:
+        """
+        Returns a dict with the Identity Providers with given alias
+        """
+        for idp in self.get_identity_provider_list():
+            if idp["config"]["issuer"] == iss.replace("http", "https").replace("/realms", "/keycloak/realms"):
+                return idp
+
+    def verify_idp_token(self, token:str) -> dict:
+        """
+        Given a token, check on all idps if it's valid, return on
+        valid hit.
+        Return a dict with the introspect response
+        """
+        issuer = jwt.decode(token, options={"verify_signature": False}).get('iss')
+        idp = self.get_identity_provider_by_issuer(issuer)
+        # for idp in self.get_identity_provider_list():
+        alias = idp["alias"]
+        v1 = KubernetesClient()
+        idp["config"]["clientSecret"] = v1.get_secret(f"kc-idp-{alias.replace('_', '-')}-secret").get("client")
+
+        valid_token_resp = self.requests.post(
+            idp["config"]["issuer"] + "/protocol/openid-connect/token/introspect",
+            data={
+                'client_secret': idp["config"]["clientSecret"],
+                'client_id': "global",
+                'token_type_hint': "refresh_token",
+                'token': token,
+            },
+            headers={'Content-Type': 'application/x-www-form-urlencoded'}
+        )
+        if valid_token_resp.ok:
+            ac_idp = self.exchange_idp_refresh_for_access_idp(token, idp["config"])
+            return self.exchange_idp_token_for_local(ac_idp, alias)
+
+        raise KeycloakError("Token non valid")
+
+    def exchange_idp_refresh_for_access_idp(self, refresh_token:str, idp_config:dict) -> str:
+        """
+        idp_config comes from keycloak's response, and has the following fields:
+            - "userInfoUrl"
+            - "validateSignature"
+            - "clientId"
+            - "tokenUrl"
+            - "jwksUrl"
+            - "issuer"
+            - "useJwksUrl"
+            - "metadataDescriptorUrl"
+            - "pkceEnabled"
+            - "authorizationUrl"
+            - "clientAuthMethod"
+            - "logoutUrl"
+            - "clientSecret"
+        """
+        acpayload = {
+            'client_secret': idp_config["clientSecret"],
+            'client_id': 'global',
+            'grant_type': 'refresh_token',
+            'refresh_token': refresh_token
+        }
+        ac_resp = self.requests.post(
+            idp_config["tokenUrl"],
+            data=acpayload,
+            headers={
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        )
+        if not ac_resp.ok:
+            logger.info(ac_resp.content.decode())
+            raise KeycloakError("Cannot get an access token")
+        return ac_resp.json()["access_token"]
+
+    def exchange_idp_token_for_local(self, idp_token:str, idp_alias:str) -> str:
+        """
+        Give an access token from an IdP, echange it for a local one
+        so the permissions can be checked. Returns a refresh token for
+        the local Keycloak instance
+        """
+        exchange_payload = {
+            'client_secret': KEYCLOAK_SECRET,
+            'client_id': KEYCLOAK_CLIENT,
+            'audience': KEYCLOAK_CLIENT,
+            'subject_issuer': idp_alias,
+            'subject_token': idp_token,
+            'grant_type': 'urn:ietf:params:oauth:grant-type:token-exchange',
+            'requested_token_type': 'urn:ietf:params:oauth:token-type:refresh_token',
+            'scope': 'openid'
+        }
+        exchange_resp = self.requests.post(
+            URLS["get_token"],
+            data=exchange_payload,
+            headers={'Content-Type': 'application/x-www-form-urlencoded'}
+        )
+        if not exchange_resp.ok:
+            logger.info(exchange_resp.content.decode())
+            raise KeycloakError("Cannot get an access token")
+        return exchange_resp.json()["refresh_token"]

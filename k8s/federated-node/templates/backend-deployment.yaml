@@ -108,6 +108,10 @@ spec:
               secretKeyRef:
                 name: kc-secrets
                 key: KEYCLOAK_GLOBAL_CLIENT_SECRET
+          - name: CERT_CRT
+            value: /app/certs/tls.crt
+          - name: CERT_KEY
+            value: /app/certs/tls.key
           - name: KEYCLOAK_ADMIN_PASSWORD
             valueFrom:
               secretKeyRef:
@@ -116,6 +120,8 @@ spec:
           volumeMounts:
             - name: respv
               mountPath: {{ .Values.federatedNode.volumes.results_path }}
+            - name: tls
+              mountPath: /app/certs/
             - name: acr-list
               mountPath: /app/acr/
       imagePullSecrets:
@@ -124,6 +130,9 @@ spec:
         - name: respv
           persistentVolumeClaim:
             claimName: flask-results-pv-volclaim
+        - name: tls
+          secret:
+            secretName: tls
         - name: acr-list
           secret:
             secretName: backend-acr-config-secret

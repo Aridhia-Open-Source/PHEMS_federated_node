@@ -143,6 +143,14 @@
       }
     ]
   },
+  "scopeMappings": [{
+    "clientScope": "openid",
+    "roles": [
+      "Administrator",
+      "Users",
+      "Super Administrator"
+    ]
+  }],
   "clients": [
     {
       "clientId": "global",
@@ -173,8 +181,7 @@
       "frontchannelLogout": true,
       "protocol": "openid-connect",
       "defaultClientScopes": [
-        "web-origins",
-        "acr",
+        "openid",
         "roles",
         "profile",
         "email"
