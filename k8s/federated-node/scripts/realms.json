@@ -173,7 +173,6 @@
       "frontchannelLogout": true,
       "protocol": "openid-connect",
       "defaultClientScopes": [
-        "openid",
         "roles",
         "profile",
         "email"
