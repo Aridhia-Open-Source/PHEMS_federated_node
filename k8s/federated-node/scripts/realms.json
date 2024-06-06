@@ -143,14 +143,6 @@
       }
     ]
   },
-  "scopeMappings": [{
-    "clientScope": "openid",
-    "roles": [
-      "Administrator",
-      "Users",
-      "Super Administrator"
-    ]
-  }],
   "clients": [
     {
       "clientId": "global",
