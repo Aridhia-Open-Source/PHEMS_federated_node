@@ -24,9 +24,9 @@ spec:
                   name: kc-secrets
                   key: KEYCLOAK_ADMIN_PASSWORD
             - name: CERT_CRT
-              value: ./certs/tls.crt
+              value: /scripts/certs/tls.crt
             - name: CERT_KEY
-              value: ./certs/tls.key
+              value: /scripts/certs/tls.key
           envFrom:
           - configMapRef:
               name: keycloak-config
