@@ -6,6 +6,7 @@ These won't have any restrictions and won't go through
 import requests
 from flask import Blueprint, redirect, url_for, request
 from app.helpers.keycloak import Keycloak, URLS
+from app.helpers.const import CERT_CRT
 
 bp = Blueprint('main', __name__, url_prefix='/')
 
@@ -24,7 +25,7 @@ def health_check():
         Checks the connection to keycloak and returns a jsonized summary
     """
     try:
-        kc_request = requests.get(URLS["health_check"], timeout=30)
+        kc_request = requests.get(URLS["health_check"], timeout=30, cert=CERT_CRT)
         kc_status = kc_request.ok
         status_text = "ok" if kc_request.ok else "non operational"
         code = 200 if kc_request.ok else 500

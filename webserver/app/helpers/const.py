@@ -30,3 +30,5 @@ MEMORY_UNITS = {
     "k": 10**3,
     "m": 1000
 }
+CERT_CRT = os.getenv("CERT_CRT")
+CERT_KEY = os.getenv("CERT_KEY")

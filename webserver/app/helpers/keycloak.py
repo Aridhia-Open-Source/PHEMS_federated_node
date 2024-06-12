@@ -5,7 +5,7 @@ import random
 import requests
 from base64 import b64encode
 from flask import request
-from app.helpers.const import PASS_GENERATOR_SET
+from app.helpers.const import PASS_GENERATOR_SET, CERT_CRT
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
 from app.helpers.kubernetes import KubernetesClient
 
@@ -19,8 +19,6 @@ KEYCLOAK_CLIENT = os.getenv("KEYCLOAK_CLIENT", "global")
 KEYCLOAK_SECRET = os.getenv("KEYCLOAK_SECRET")
 KEYCLOAK_ADMIN = os.getenv("KEYCLOAK_ADMIN")
 KEYCLOAK_ADMIN_PASSWORD = os.getenv("KEYCLOAK_ADMIN_PASSWORD")
-CERT_CRT = os.getenv("CERT_CRT")
-CERT_KEY = os.getenv("CERT_KEY")
 URLS = {
     "health_check": f"{KEYCLOAK_URL}/realms/master",
     "get_token": f"{KEYCLOAK_URL}/realms/{REALM}/protocol/openid-connect/token",
