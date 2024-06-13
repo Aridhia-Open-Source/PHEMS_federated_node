@@ -239,7 +239,7 @@ class Task(db.Model, BaseModel):
         v1 = KubernetesClient()
         running_pods = v1.list_namespaced_pod(
             TASK_NAMESPACE,
-            label_selector=f"dataset_id={self.dataset_id},requested_by={self.requested_by}"
+            label_selector=f"task_id={self.id}"
         )
         try:
             running_pods.items.sort(key=lambda x: x.metadata.creation_timestamp, reverse=True)
@@ -325,7 +325,7 @@ class Task(db.Model, BaseModel):
                 }
             ],
             "labels": {
-                "task_id": str(self.id),
+                "result_task_id": str(self.id),
                 "requested_by": self.requested_by
             }
         })
@@ -337,11 +337,11 @@ class Task(db.Model, BaseModel):
             )
             # Get the job's pod
             v1 = KubernetesClient()
-            job_pod = v1.list_namespaced_pod(namespace=TASK_NAMESPACE, label_selector=f"job-name={job_name}").items[0]
-
             v1.is_pod_ready(label=f"job-name={job_name}")
 
-            res_file = v1.cp_from_pod(job_pod.metadata.name, TASK_POD_RESULTS_PATH, f"{RESULTS_PATH}/{self.id}")
+            job_pod = v1.list_namespaced_pod(namespace=TASK_NAMESPACE, label_selector=f"job-name={job_name}").items[0]
+
+            res_file = v1.cp_from_pod(job_pod.metadata.name, f"{TASK_POD_RESULTS_PATH}/{self.id}", f"{RESULTS_PATH}/{self.id}")
             v1.delete_pod(job_pod.metadata.name)
             v1_batch.delete_job(job_name)
         except ApiException as e:
