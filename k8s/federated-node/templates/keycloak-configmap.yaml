@@ -12,15 +12,21 @@ data:
   KC_DB_USERNAME: {{ .Values.db.user | default "admin" | quote }}
   KEYCLOAK_TOKEN_LIFE: {{ .Values.token.life | default 2592000 | quote }}
   KEYCLOAK_NAMESPACE: {{ .Values.namespaces.keycloak }}
-  KC_HOSTNAME: https://{{ .Values.ingress.host }}/keycloak
-  # PROXY_ADDRESS_FORWARDING: true
+  KC_HOSTNAME: "{{ .Values.ingress.host }}/keycloak"
+  PROXY_ADDRESS_FORWARDING: "true"
+  KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+  KC_HOSTNAME_DEBUG: "true"
+  KC_PROXY_HEADERS: "xforwarded"
+  KC_HOSTNAME_STRICT_HTTPS: "false"
+  KC_HOSTNAME_STRICT: "false"
+  {{/*
+  */}}
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: keycloak-config
   namespace: {{ .Release.Namespace }}
-
 data:
   KEYCLOAK_ADMIN: admin
   KC_DB_URL_HOST: {{ .Values.db.host | default (print "db." .Release.Namespace ".svc.cluster.local") | quote }}

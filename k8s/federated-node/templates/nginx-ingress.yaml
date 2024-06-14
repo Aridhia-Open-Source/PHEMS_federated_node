@@ -43,6 +43,10 @@ metadata:
     {{- if .Values.ingress.blacklist.enabled }}
     nginx.ingress.kubernetes.io/denylist-source-range: {{ join "," .Values.ingress.blacklist.ips | quote }}
     {{- end }}
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header X-Forwarded-For $proxy_protocol_addr;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header Host $host;
 spec:
   ingressClassName: fn-nginx
   tls:
@@ -58,4 +62,4 @@ spec:
             service:
               name: keycloak
               port:
-                number: 8080
+                name: http

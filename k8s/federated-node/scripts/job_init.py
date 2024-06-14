@@ -5,7 +5,7 @@ import os
 import time
 
 KEYCLOAK_NAMESPACE = os.getenv("KEYCLOAK_NAMESPACE")
-KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", f"http://keycloak.{KEYCLOAK_NAMESPACE}.svc.cluster.local:8080")
+KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", f"http://keycloak.{KEYCLOAK_NAMESPACE}.svc.cluster.local")
 REALM = 'master'
 KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "FederatedNode")
 KEYCLOAK_CLIENT = os.getenv("KEYCLOAK_CLIENT", "global")
@@ -13,9 +13,12 @@ KEYCLOAK_USER = os.getenv("KEYCLOAK_ADMIN")
 KEYCLOAK_PASS = os.getenv("KEYCLOAK_ADMIN_PASSWORD")
 CERT_CRT = os.getenv("CERT_CRT")
 CERT_KEY = os.getenv("CERT_KEY")
+VERIFY_REQUEST = os.getenv("VERIFY_SSL") is None
 
 s = requests.Session()
-if CERT_CRT:
+if VERIFY_REQUEST:
+   s.verify = VERIFY_REQUEST
+elif CERT_CRT:
   s.cert = CERT_CRT
 
 def is_response_good(response:Response) -> None:
@@ -250,8 +253,8 @@ is_response_good(client_permission_resp)
 add_scope_resp = s.post(
   f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/client-scopes",
   json={
-    "name": "oidc",
-    "description": "Mandatory oidc scope to get userinfo working",
+    "name": "openid",
+    "description": "Mandatory openid  scope to get userinfo working",
     "type": "default",
     "protocol": "openid-connect",
     "attributes": {
@@ -279,7 +282,7 @@ if not get_scope_id.ok:
   exit(1)
 
 for scope in get_scope_id.json():
-  if scope["name"] == "oidc":
+  if scope["name"] == "openid":
     break
 if scope is None:
   exit(1)

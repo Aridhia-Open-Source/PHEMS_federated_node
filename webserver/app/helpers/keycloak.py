@@ -1,11 +1,12 @@
 import logging
 import jwt
 import os
+import re
 import random
 import requests
 from base64 import b64encode
 from flask import request
-from app.helpers.const import PASS_GENERATOR_SET, CERT_CRT
+from app.helpers.const import PASS_GENERATOR_SET, VERIFY_REQUEST
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
 from app.helpers.kubernetes import KubernetesClient
 
@@ -13,7 +14,7 @@ logger = logging.getLogger('keycloak_helper')
 logger.setLevel(logging.INFO)
 
 KEYCLOAK_NAMESPACE = os.getenv("KEYCLOAK_NAMESPACE")
-KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", f"http://keycloak.{KEYCLOAK_NAMESPACE}.svc.cluster.local:8080")
+KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", f"http://keycloak.{KEYCLOAK_NAMESPACE}.svc.cluster.local")
 REALM = os.getenv("KEYCLOAK_REALM", "FederatedNode")
 KEYCLOAK_CLIENT = os.getenv("KEYCLOAK_CLIENT", "global")
 KEYCLOAK_SECRET = os.getenv("KEYCLOAK_SECRET")
@@ -44,7 +45,7 @@ URLS = {
 class Keycloak:
     def __init__(self, client='global') -> None:
         self.requests = requests.Session()
-        self.requests.cert = CERT_CRT
+        self.requests.verify = VERIFY_REQUEST
         self.client_secret = KEYCLOAK_SECRET
         self.client_name = client
         self.admin_token = self.get_admin_token()
@@ -149,7 +150,7 @@ class Keycloak:
         """
         Given the client id, fetches the client's secret if has one.
         """
-        secret_resp = requests.get(
+        secret_resp = self.requests.get(
             URLS["client_secret"] % self.client_id,
             headers={
                 "Authorization": f"Bearer {self.admin_token}"
@@ -248,7 +249,7 @@ class Keycloak:
                 }
             )
         else:
-            response_auth = requests.post(
+            response_auth = self.requests.post(
                 URLS["get_token"],
                 data={
                     "client_secret": self.client_secret,
@@ -293,7 +294,7 @@ class Keycloak:
         if client_name is None:
             client_name = self.client_name
 
-        client_id_resp = requests.get(
+        client_id_resp = self.requests.get(
             URLS["client_id"] + client_name,
             headers=headers
         )
@@ -319,7 +320,7 @@ class Keycloak:
             'Content-Type': 'application/x-www-form-urlencoded',
         }
 
-        request_perm = requests.post(
+        request_perm = self.requests.post(
             URLS["get_token"],
             data={
                 "grant_type": "urn:ietf:params:oauth:grant-type:uma-ticket",
@@ -353,7 +354,7 @@ class Keycloak:
         headers={
             'Authorization': f'Bearer {self.admin_token}'
         }
-        response_res = requests.get(
+        response_res = self.requests.get(
             (URLS["resource"] % self.client_id) + f"?name={resource_name}",
             headers=headers
         )
@@ -677,7 +678,7 @@ class Keycloak:
         Returns a dict with the Identity Providers with given alias
         """
         for idp in self.get_identity_provider_list():
-            if idp["config"]["issuer"] == iss.replace("http", "https").replace("/realms", "/keycloak/realms"):
+            if idp["config"]["issuer"] == re.sub(r'http\W', 'https', iss).replace("/realms", "/keycloak/realms"):
                 return idp
 
     def verify_idp_token(self, token:str) -> dict:

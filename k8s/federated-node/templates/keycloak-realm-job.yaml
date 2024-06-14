@@ -23,6 +23,10 @@ spec:
                 secretKeyRef:
                   name: kc-secrets
                   key: KEYCLOAK_ADMIN_PASSWORD
+            {{ if .Values.local_development }}
+            - name: VERIFY_SSL
+              value: "false"
+            {{ end }}
             - name: CERT_CRT
               value: /scripts/certs/tls.crt
             - name: CERT_KEY

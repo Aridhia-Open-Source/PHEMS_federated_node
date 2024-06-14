@@ -6,7 +6,7 @@ These won't have any restrictions and won't go through
 import requests
 from flask import Blueprint, redirect, url_for, request
 from app.helpers.keycloak import Keycloak, URLS
-from app.helpers.const import CERT_CRT
+from app.helpers.const import VERIFY_REQUEST
 
 bp = Blueprint('main', __name__, url_prefix='/')
 
@@ -18,6 +18,14 @@ def index():
     """
     return redirect(url_for('main.health_check'))
 
+@bp.route("/ready_check")
+def ready_check():
+    """
+    GET /ready_check endpoint
+        Mostly to tell k8s Flask has started
+    """
+    return {"status": "ready"}, 200
+
 @bp.route("/health_check")
 def health_check():
     """
@@ -25,7 +33,7 @@ def health_check():
         Checks the connection to keycloak and returns a jsonized summary
     """
     try:
-        kc_request = requests.get(URLS["health_check"], timeout=30, cert=CERT_CRT)
+        kc_request = requests.get(URLS["health_check"], timeout=30, verify=VERIFY_REQUEST)
         kc_status = kc_request.ok
         status_text = "ok" if kc_request.ok else "non operational"
         code = 200 if kc_request.ok else 500

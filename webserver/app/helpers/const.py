@@ -30,5 +30,4 @@ MEMORY_UNITS = {
     "k": 10**3,
     "m": 1000
 }
-CERT_CRT = os.getenv("CERT_CRT")
-CERT_KEY = os.getenv("CERT_KEY")
+VERIFY_REQUEST = os.getenv("VERIFY_SSL") is None

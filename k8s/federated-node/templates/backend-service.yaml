@@ -6,7 +6,7 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: {{ .Values.federatedNode.port | default 5000 }}
+    - port: 80
       name: http
       targetPort: {{ .Values.federatedNode.port | default 5000 }}
       protocol: TCP

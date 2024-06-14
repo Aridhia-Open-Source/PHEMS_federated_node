@@ -41,6 +41,10 @@ federatedNode:
     results_path: /mnt/results
     task_pod_results_path: /mnt/data
 
+# This is used to disable SSL verification on develop environments.
+# setting it to true ONLY ON DEVELOPMENT scenarios
+local_development: false
+
 # Base to support multiple ACRs. This is for regcreds initially. Will be
 # expanded to the flask docker lookup in a second instance
 acrs:

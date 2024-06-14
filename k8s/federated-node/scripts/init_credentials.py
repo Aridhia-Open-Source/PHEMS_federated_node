@@ -6,7 +6,7 @@ KC_OLD_PASS = os.getenv("KEYCLOAK_ADMIN_PASSWORD")
 KC_OLD_SECRET = os.getenv("KEYCLOAK_GLOBAL_CLIENT_SECRET")
 KC_NEW_PASS = os.getenv("NEW_KEYCLOAK_ADMIN_PASSWORD")
 KC_NEW_SECRET = os.getenv("NEW_KEYCLOAK_GLOBAL_CLIENT_SECRET")
-KC_URL = "http://keycloak:8080"
+KC_URL = "http://keycloak"
 
 def login():
     print("Logging in...")
