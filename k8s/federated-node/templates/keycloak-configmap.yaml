@@ -19,8 +19,6 @@ data:
   KC_PROXY_HEADERS: "xforwarded"
   KC_HOSTNAME_STRICT_HTTPS: "false"
   KC_HOSTNAME_STRICT: "false"
-  {{/*
-  */}}
 ---
 apiVersion: v1
 kind: ConfigMap
