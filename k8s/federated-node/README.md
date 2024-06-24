@@ -25,6 +25,13 @@ The necessary values are:
 |db.secret|key|Secret key where the password is stored|
 |db.secret|name|Secret name|
 |-|-|-|
+|firstUserSecret|name|Secret name where the first user info are stored|
+|firstUserSecret|unKey|Secret key where the username is stored at|
+|firstUserSecret|pswKey|Secret key where the desired password is stored at|
+|firstUserSecret|firstNameKey|Secret key where the first name is stored at. Keycloak won't consider the user valid without it|
+|firstUserSecret|lastNameKey|Secret key where the last name is stored at. Keycloak won't consider the user valid without it|
+|firstUserSecret|emailKey|Secret key where the user's email is stored at|
+|-|-|-|
 |ingress|host|The URL where the FN will be hosted at|
 |ingress.whitelist|enabled|Enable the whitelist of IP CIDRs|
 |ingress.whitelist|ips|List of IP CIDRs|
@@ -41,3 +48,4 @@ It is highly suggested to have some secrets pre-set in the namespace this helm c
 - acr credentials
 - azure storage credentials
 - tls cert
+- first user credentials (this can be deleted after first setup)

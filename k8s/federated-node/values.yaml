@@ -22,6 +22,13 @@ namespaces:
 
 # token:
 #   life:
+firstUserSecret:
+  name: first-user
+  unKey: username
+  pswKey: password
+  firstNameKey: firstName
+  lastNameKey: lastName
+  emailKey: email
 
 db:
   user:

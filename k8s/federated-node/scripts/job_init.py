@@ -17,6 +17,85 @@ def is_response_good(response:Response) -> None:
     print(f"{response.status_code} - {response.text}")
     exit(1)
 
+def create_new_admin_user(
+      username: str,
+      password: str,
+      first_name:str = "Admin",
+      last_name:str = "Admin",
+      email:str = "",
+):
+  new_user_payload = json.dumps({
+    "firstName": first_name,
+    "lastName": last_name,
+    "email": email,
+    "enabled": "true",
+    "username": username,
+    "credentials": [
+      {
+        "type": "password",
+        "temporary": False,
+        "value": password
+      }
+    ]
+  })
+  headers = {
+    'Cache-Control': 'no-cache',
+    'Content-Type': 'application/json',
+    'Authorization': f'Bearer {admin_token}'
+  }
+
+  response = requests.post(
+    f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users",
+    headers=headers,
+    data=new_user_payload
+  )
+  is_response_good(response)
+
+  print("Getting realms roles id")
+  headers = {
+    'Authorization': f'Bearer {admin_token}'
+  }
+
+  response = requests.get(
+      f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/roles",
+      headers=headers
+  )
+  is_response_good(response)
+  role_id = [role for role in response.json() if role["name"] == "Super Administrator"][0]["id"]
+  print("Got role")
+
+  headers = {
+    'Cache-Control': 'no-cache',
+    'Authorization': f'Bearer {admin_token}'
+  }
+
+  response = requests.get(
+      f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users?username={KEYCLOAK_USER}",
+      headers=headers
+  )
+  is_response_good(response)
+  user_id = response.json()[0]["id"]
+
+  print("Assigning role to user")
+
+  payload = json.dumps([
+    {
+      "id": role_id,
+      "name": "Super Administrator"
+    }
+  ])
+  headers = {
+    'Content-Type': 'application/json',
+    'Authorization': f'Bearer {admin_token}'
+  }
+
+  response = requests.post(
+      f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}/role-mappings/realm",
+      headers=headers,
+      data=payload
+  )
+  is_response_good(response)
+
 print("Health check on keycloak pod before starting")
 for i in range(1, 5):
     print(f"Health check {i}/5")
@@ -53,79 +132,10 @@ is_response_good(response)
 admin_token = response.json()["access_token"]
 
 print("Got the token...Creating user in new Realm")
-payload = json.dumps({
-  "firstName": "Admin",
-  "lastName": "Admin",
-  "email": "",
-  "enabled": "true",
-  "username": KEYCLOAK_USER,
-  "credentials": [
-    {
-      "type": "password",
-      "temporary": False,
-      "value": KEYCLOAK_PASS
-    }
-  ]
-})
-headers = {
-  'Cache-Control': 'no-cache',
-  'Content-Type': 'application/json',
-  'Authorization': f'Bearer {admin_token}'
-}
-
-response = requests.post(
-  f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users",
-  headers=headers,
-  data=payload
+create_new_admin_user(
+  KEYCLOAK_USER,
+  KEYCLOAK_PASS
 )
-is_response_good(response)
-
-
-print("Getting realms roles id")
-headers = {
-  'Authorization': f'Bearer {admin_token}'
-}
-
-response = requests.get(
-    f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/roles",
-    headers=headers
-)
-is_response_good(response)
-role_id = [role for role in response.json() if role["name"] == "Super Administrator"][0]["id"]
-print("Got realm")
-
-headers = {
-  'Cache-Control': 'no-cache',
-  'Authorization': f'Bearer {admin_token}'
-}
-
-response = requests.get(
-    f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users?username={KEYCLOAK_USER}",
-    headers=headers
-)
-is_response_good(response)
-user_id = response.json()[0]["id"]
-
-print("Assigning role to user")
-
-payload = json.dumps([
-  {
-    "id": role_id,
-    "name": "Super Administrator"
-  }
-])
-headers = {
-  'Content-Type': 'application/json',
-  'Authorization': f'Bearer {admin_token}'
-}
-
-response = requests.post(
-    f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}/role-mappings/realm",
-    headers=headers,
-    data=payload
-)
-is_response_good(response)
-
 
 print("Setting up the token exchange for global client")
 all_clients = requests.get(
@@ -237,5 +247,13 @@ client_permission_resp = requests.put(
 )
 is_response_good(client_permission_resp)
 
+## Create new user from secret?
+create_new_admin_user(
+  os.getenv("FIRST_USER"),
+  os.getenv("FIRST_USER_PASS"),
+  os.getenv("FIRST_USER_FIRST_NAME"),
+  os.getenv("FIRST_USER_LAST_NAME"),
+  os.getenv("FIRST_USER_EMAIL")
+)
 print("Done!")
 exit(0)

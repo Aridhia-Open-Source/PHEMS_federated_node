@@ -10,6 +10,7 @@ __pycache__/
 k8s/*/*.values.yaml
 *.crt
 *.key
+*.pem
 
 # Ingore helm charts archives
 artifacts/*.tgz
