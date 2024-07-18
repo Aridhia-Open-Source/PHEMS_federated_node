@@ -173,8 +173,6 @@
       "frontchannelLogout": true,
       "protocol": "openid-connect",
       "defaultClientScopes": [
-        "web-origins",
-        "acr",
         "roles",
         "profile",
         "email"

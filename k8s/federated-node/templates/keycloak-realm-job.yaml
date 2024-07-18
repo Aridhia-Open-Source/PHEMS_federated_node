@@ -23,12 +23,22 @@ spec:
                 secretKeyRef:
                   name: kc-secrets
                   key: KEYCLOAK_ADMIN_PASSWORD
+            {{ if .Values.local_development }}
+            - name: VERIFY_SSL
+              value: "false"
+            {{ end }}
+            - name: CERT_CRT
+              value: /scripts/certs/tls.crt
+            - name: CERT_KEY
+              value: /scripts/certs/tls.key
           envFrom:
           - configMapRef:
               name: keycloak-config
           volumeMounts:
             - name: config
               mountPath: /scripts/
+            - name: tls
+              mountPath: /scripts/certs/
       volumes:
         - name: config
           configMap:
@@ -36,3 +46,6 @@ spec:
             items:
             - key: setup_realm.py
               path: setup_realm.py
+        - name: tls
+          secret:
+            secretName: tls

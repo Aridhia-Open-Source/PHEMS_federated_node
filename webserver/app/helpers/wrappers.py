@@ -2,8 +2,7 @@ import logging
 from functools import wraps
 from flask import request
 from sqlalchemy import text
-from sqlalchemy.orm import Session
-from app.helpers.db import db, engine
+from app.helpers.db import db
 from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, DBRecordNotFoundError
 from app.models.audit import Audit
@@ -38,24 +37,22 @@ def auth(scope:str, check_dataset=True):
                     ds = q[0]._mapping
                     if ds is not None:
                         resource = f"{ds["id"]}-{ds["name"]}"
+
             requested_project = request.headers.get("project-name")
             client = 'global'
             token_type = 'refresh_token'
+
+            if not Keycloak(client).is_token_valid(token, scope, resource, token_type):
+                raise UnauthorizedError("Token is not valid, or the user has not enough permissions.")
             if requested_project:
                 token_info = Keycloak().decode_token(token)
                 client = f"Request {token_info['username']} - {requested_project}"
                 token = Keycloak(client).exchange_global_token(token)
                 token_type = 'access_token'
 
-            if Keycloak(client).is_token_valid(token, scope, resource, token_type):
-                return func(*args, **kwargs)
-            else:
-                raise UnauthorizedError("Token is not valid, or the user has not enough permissions.")
+            return func(*args, **kwargs)
         return _auth
     return auth_wrapper
-
-
-session = Session(engine)
 
 def audit(func):
     @wraps(func)

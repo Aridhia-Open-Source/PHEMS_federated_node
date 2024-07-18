@@ -48,7 +48,7 @@ kubectl get secrets -n keycloak kc-secrets -o jsonpath='{.data}' | jq
 If you are using microk8s, to send an image to the cluster:
 ```sh
 docker tag ghcr.io/aridhia/federated_node_run:0.0.1-dev federated_node_run:0.0.1-dev
-docker savefederated_node_run:0.0.1-dev > fndev.tar
+docker save federated_node_run:0.0.1-dev > fndev.tar
 microk8s ctr image import fndev.tar
 ```
 #### minikube

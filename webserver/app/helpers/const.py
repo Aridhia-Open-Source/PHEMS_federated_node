@@ -30,3 +30,4 @@ MEMORY_UNITS = {
     "k": 10**3,
     "m": 1000
 }
+VERIFY_REQUEST = os.getenv("VERIFY_SSL") is None

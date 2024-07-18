@@ -51,5 +51,5 @@ else
     echo "KEYCLOAK_NAMESPACE=${KC_NAMESPACE}" >> "$DEV_ENV_FILE"
 fi
 
-echo "run kubectl port-forward -n ${KC_NAMESPACE} svc/keycloak 8080"
+echo "run kubectl port-forward -n ${KC_NAMESPACE} svc/keycloak 8080:80"
 echo "and kubectl port-forward -n ${BASE_NAMESPACE} svc/db 5432"

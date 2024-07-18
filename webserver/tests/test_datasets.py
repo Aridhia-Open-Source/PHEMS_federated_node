@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import ProgrammingError
 from unittest.mock import Mock
 from app.helpers.db import db
+from app.models.dataset import KubernetesClient
 from app.models.dataset import Dataset
 from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
@@ -118,18 +119,6 @@ class TestDatasets:
     def test_get_dataset_by_id_404(
             self,
             simple_admin_header,
-            client,
-            dataset
-        ):
-        """
-        /datasets/{id} GET returns 404 for a non-existent dataset
-        """
-        response = client.get(f"/datasets/1000", headers=simple_admin_header)
-        assert response.status_code == 404
-
-    def test_get_dataset_by_id_404(
-            self,
-            simple_admin_header,
             client
         ):
         """
@@ -174,13 +163,11 @@ class TestDatasets:
         """
         /datasets POST fails if the k8s secrets cannot be created successfully
         """
-        mocker.patch(
-            'kubernetes.client.CoreV1Api',
-            return_value=Mock(
-                create_namespaced_secret=Mock(
+        mocker.patch.object(
+            KubernetesClient,
+            'create_namespaced_secret', new=Mock(
                     side_effect=ApiException(status=500, reason="Failed")
                 )
-            )
         )
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
@@ -192,6 +179,7 @@ class TestDatasets:
     def test_post_dataset_k8s_secrets_exists(
             self,
             post_json_admin_header,
+            k8s_client_dataset,
             client,
             k8s_config,
             dataset_post_body,
@@ -451,8 +439,8 @@ class TestCatalogues:
     def test_admin_get_catalogue(
             self,
             client,
-            dataset,
             dataset_post_body,
+            dataset,
             post_json_admin_header,
             simple_admin_header
     ):
@@ -529,7 +517,7 @@ class TestDictionaryTable:
         cannot see the catalogue for a given dataset
         """
         response = client.get(
-            f"/datasets/100/dictionaries/test",
+            "/datasets/100/dictionaries/test",
             headers=simple_admin_header
         )
         assert response.status_code == 404
