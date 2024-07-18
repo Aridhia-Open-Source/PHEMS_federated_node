@@ -81,7 +81,7 @@ class TestTransfers:
             data=json.dumps(request_base_body),
             headers=post_json_user_header
         )
-        assert response.status_code == 401
+        assert response.status_code == 403
 
     def test_workspace_token_transfer_admin(
             self,
@@ -109,4 +109,4 @@ class TestTransfers:
             "/datasets/workspace/token",
             headers=simple_user_header
         )
-        assert response.status_code == 401
+        assert response.status_code == 403

@@ -44,7 +44,7 @@ class TestAudits:
         Test that the endpoint returns 401 for non-admin users
         """
         response = client.get("/audit", headers=simple_user_header)
-        assert response.status_code == 401
+        assert response.status_code == 403
 
     def test_get_filtered_audit_events(
             self,

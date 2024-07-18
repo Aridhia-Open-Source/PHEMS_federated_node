@@ -28,6 +28,7 @@ def pod_dict():
         "labels": {
             "task_id": 1
         },
+        "env_from": "db_secret",
         "command": "cmd",
         "mount_path": "/mnt"
     }

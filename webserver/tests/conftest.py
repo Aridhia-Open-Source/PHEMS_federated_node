@@ -30,6 +30,9 @@ sample_ds_body = {
         "description": "test description"
     }]
 }
+@pytest.fixture
+def image_name():
+    return "example:latest"
 
 @pytest.fixture
 def user_token(basic_user):
@@ -79,7 +82,7 @@ def login_admin(client):
         password=os.getenv("KEYCLOAK_ADMIN_PASSWORD")
     )
 
-@pytest.fixture()
+@pytest.fixture
 def basic_user():
     return Keycloak().create_user(**{"email": "test@basicuser.com"})
 
@@ -138,7 +141,7 @@ def k8s_config(mocker):
         side_effect=Mock()
     )
 
-@pytest.fixture()
+@pytest.fixture
 def k8s_client(mocker, k8s_config):
     mocker.patch(
         'kubernetes.client.CoreV1Api',
@@ -149,7 +152,7 @@ def k8s_client(mocker, k8s_config):
         return_value=KubernetesBatchClient()
     )
 
-@pytest.fixture()
+@pytest.fixture
 def k8s_client_task(mocker, k8s_config):
     return mocker.patch(
         'app.models.task.KubernetesClient',
@@ -157,17 +160,17 @@ def k8s_client_task(mocker, k8s_config):
     )
 
 # ACR mocking
-@pytest.fixture()
-def acr_client(mocker):
+@pytest.fixture
+def acr_client(mocker, image_name):
     mocker.patch(
         'app.models.task.ACRClient',
         return_value=Mock(
             login=Mock(return_value="access_token"),
-            find_image_repo=Mock(return_value=True)
+            find_image_repo=Mock(return_value=image_name)
         )
     )
 
-@pytest.fixture()
+@pytest.fixture
 def acr_http(mocker):
     rsps = responses.RequestsMock()
     # with responses.RequestsMock() as rsps:
@@ -187,7 +190,7 @@ def acr_http(mocker):
     )
     return rsps
 
-@pytest.fixture()
+@pytest.fixture
 def acr_client_404(mocker):
     mocker.patch(
         'app.models.task.ACRClient',
@@ -213,7 +216,7 @@ def acr_json_loader(mocker, acr_config):
     load=Mock(return_value=acr_config)
 )
 
-@pytest.fixture()
+@pytest.fixture
 def acr_class(mocker, acr_json_loader):
     mocker.patch('app.helpers.acr.open')
     return ACRClient()

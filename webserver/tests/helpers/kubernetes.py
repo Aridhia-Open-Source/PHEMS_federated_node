@@ -23,7 +23,7 @@ class MockKubernetesClient(KubernetesBase):
     def create_namespaced_persistent_volume_claim(self, namespace, **kwargs):
         return Mock()
 
-    def list_namespaced_pod(self, namespace):
+    def list_namespaced_pod(self, namespace, **kwargs):
         obj = Mock(name='namespace_list_pod')
         obj.items = []
         return obj

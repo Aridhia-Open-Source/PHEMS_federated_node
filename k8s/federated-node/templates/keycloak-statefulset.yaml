@@ -23,7 +23,7 @@ spec:
                 name: keycloak-config
                 key: KC_DB_URL_DATABASE
       containers:
-        - image: ghcr.io/arihdia-federated-node/federated_keycloak:0.0.1
+        - image: ghcr.io/arihdia-federated-node/federated_keycloak:{{ .Values.keycloak.tag }}
           args: [
             "start",
             "--cache=ispn",

@@ -17,6 +17,7 @@ bp = Blueprint('requests', __name__, url_prefix='/requests')
 session = db.session
 
 @bp.route('/', methods=['GET'])
+@bp.route('', methods=['GET'])
 @audit
 @auth(scope='can_admin_request')
 def get_requests():

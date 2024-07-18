@@ -4,7 +4,7 @@ import random
 import requests
 from base64 import b64encode
 from flask import request
-from app.helpers.exceptions import AuthenticationError, KeycloakError
+from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
 from app.helpers.const import PASS_GENERATOR_SET
 
 logger = logging.getLogger('keycloak_helper')
@@ -179,6 +179,25 @@ class Keycloak:
             raise AuthenticationError("Failed to login")
         return response_auth.json()[token_type]
 
+    def is_user_admin(self, token:str) -> bool:
+        """
+        Given a token checks if the owner is an Admin or SuperAdmin
+        """
+        response_auth = requests.post(
+            URLS["validate"],
+            data={
+                "client_secret": self.client_secret,
+                "client_id": self.client_name,
+                "token": token
+            },
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        )
+        if not response_auth.ok:
+            logger.info(response_auth.content.decode())
+            raise AuthenticationError("Failed to login")
+        return "Administrator" in response_auth.json()["realm_access"]["roles"]
 
     def get_admin_token_global(self) -> str:
         """
@@ -303,7 +322,7 @@ class Keycloak:
         )
         if not request_perm.ok:
             logger.info(request_perm.content.decode())
-            raise AuthenticationError("User is not authorized")
+            raise UnauthorizedError("User is not authorized")
         return True
 
     def get_role(self, role_name:str) -> dict:

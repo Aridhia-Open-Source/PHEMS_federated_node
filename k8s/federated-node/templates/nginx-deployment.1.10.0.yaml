@@ -309,6 +309,9 @@ spec:
   ipFamilyPolicy: SingleStack
   ipFamilies:
     - IPv4
+  {{ if .Values.ingress.on_aks }}
+  externalTrafficPolicy: Local
+  {{ end }}
   ports:
     - name: http
       port: 80

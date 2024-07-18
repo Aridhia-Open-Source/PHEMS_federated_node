@@ -4,12 +4,7 @@ The development of the PHEMS ecosystem will entail the design and implementation
 
 # Deployment
 
-You will need a set of credentials to the GitLab repo for the time being. It will be open in as we approach v1.0
-
-```sh
-helm repo add --username $username --password $token federated_node https://gitlab.com/api/v4/projects/aridhia%2Ffederated_node/packages/helm/stable
-helm install federatednode ./k8s/federated-node -f <custom_value.yaml>
-```
+See the [DEPLOYMENT](./DEPLOYMENT.md) document.
 
 # Update
 ```sh

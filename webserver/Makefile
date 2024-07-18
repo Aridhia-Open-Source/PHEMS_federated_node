@@ -11,7 +11,7 @@ build_docker:
 	docker build . -f build/Dockerfile -t ghcr.io/arihdia-federated-node/federated_node_run:${VERSION}
 
 build_docker_dev:
-	docker build . -f build/Dockerfile -t ghcr.io/arihdia-federated-node/federated_node_run:${VERSION}-dev
+	docker build . -f build/Dockerfile -t ghcr.io/arihdia-federated-node/federated_node_run:${VERSION}-$(shell git rev-parse --short HEAD)
 
 tests_local:
 	./run_tests.sh

@@ -37,6 +37,10 @@ class InvalidRequest(HTTPException):
 
 class AuthenticationError(LogAndException):
     code = 401
+    description = "Unauthenticated"
+
+class UnauthorizedError(LogAndException):
+    code = 403
     description = "Unauthorized"
 
 class KeycloakError(LogAndException):

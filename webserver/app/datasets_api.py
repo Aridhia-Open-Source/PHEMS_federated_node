@@ -29,6 +29,7 @@ bp = Blueprint('datasets', __name__, url_prefix='/datasets')
 session = db.session
 
 @bp.route('/', methods=['GET'])
+@bp.route('', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
 def get_datasets():
@@ -40,6 +41,7 @@ def get_datasets():
     }, 200
 
 @bp.route('/', methods=['POST'])
+@bp.route('', methods=['POST'])
 @audit
 @auth(scope='can_admin_dataset')
 def post_datasets():

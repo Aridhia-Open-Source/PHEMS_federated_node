@@ -8,6 +8,8 @@ from app.helpers.keycloak import Keycloak
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 
+TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
+
 class Dataset(db.Model, BaseModel):
     __tablename__ = 'datasets'
     # No duplicated name/host entries
@@ -42,7 +44,8 @@ class Dataset(db.Model, BaseModel):
         body.metadata = {'name': self.get_creds_secret_name()}
         body.type = 'Opaque'
         try:
-            v1.create_namespaced_secret('default', body=body, pretty='true')
+            for ns in ["default", TASK_NAMESPACE]:
+                v1.create_namespaced_secret(ns, body=body, pretty='true')
         except ApiException as e:
             if e.status == 409:
                 pass

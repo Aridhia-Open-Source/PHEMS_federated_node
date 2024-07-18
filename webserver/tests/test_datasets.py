@@ -113,7 +113,7 @@ class TestDatasets:
         /datasets/{id} GET returns 401 for non-approved users
         """
         response = client.get(f"/datasets/{dataset.id}", headers=simple_user_header)
-        assert response.status_code == 401
+        assert response.status_code == 403
 
     def test_get_dataset_by_id_404(
             self,
@@ -227,7 +227,7 @@ class TestDatasets:
         """
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
-        post_dataset(client, post_json_user_header, data_body, 401)
+        post_dataset(client, post_json_user_header, data_body, 403)
 
         query = run_query(select(Dataset).where(Dataset.name == data_body["name"]))
         assert len(query) == 0
@@ -441,7 +441,7 @@ class TestDictionaries:
             f"/datasets/{resp_ds["dataset_id"]}/dictionaries",
             headers=simple_user_header
         )
-        assert response.status_code == 401
+        assert response.status_code == 403
 
 
 class TestCatalogues:
@@ -488,7 +488,7 @@ class TestCatalogues:
             f"/datasets/{resp_ds["dataset_id"]}/catalogue",
             headers=simple_user_header
         )
-        assert response.status_code == 401
+        assert response.status_code == 403
 
 
 class TestDictionaryTable:
@@ -553,7 +553,7 @@ class TestDictionaryTable:
             f"/datasets/{resp_ds["dataset_id"]}/dictionaries/test",
             headers=simple_user_header
         )
-        assert response.status_code == 401
+        assert response.status_code == 403
 
 class TestBeacon:
     def test_beacon_available_to_admin(

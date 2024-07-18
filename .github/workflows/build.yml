@@ -1,11 +1,9 @@
 name: Build Docker Image
-run-name: Building flask image
+run-name: Building images
 on:
   push:
     branches:
       - main
-      # To remove before merging
-      - FN-5
   pull_request:
     branches:
       - main
@@ -20,6 +18,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check for vulnerabilities
+        run: |
+          docker run --entrypoint /bin/sh \
+            -v ./webserver/app/Pipfile:/app/Pipfile \
+            -v ./webserver/app/Pipfile.lock:/app/Pipfile.lock \
+            -v ./webserver/vuln.sh:/vuln.sh \
+            python:3.12 \
+            /vuln.sh
 
       - name: Run pylint
         run: |
@@ -63,7 +69,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Set Tag for dev branches
-        if: github.ref != 'refs/heads/master'
+        if: github.ref != 'refs/heads/main'
         run: echo "TAG=${TAG}-${GITHUB_SHA::6}" >> ${GITHUB_ENV}
 
       # Need to get an ACR where to push the image

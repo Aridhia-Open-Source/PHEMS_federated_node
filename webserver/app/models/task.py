@@ -11,10 +11,10 @@ from uuid import uuid4
 
 import urllib3
 from app.helpers.acr import ACRClient
-from app.helpers.const import MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX
+from app.helpers.const import MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, TASK_NAMESPACE
 from app.helpers.db import BaseModel, db
 from app.helpers.keycloak import Keycloak
-from app.helpers.kubernetes import TASK_NAMESPACE, KubernetesBatchClient, KubernetesClient
+from app.helpers.kubernetes import KubernetesBatchClient, KubernetesClient
 from app.helpers.exceptions import DBError, InvalidRequest, TaskImageException, TaskExecutionException
 from app.models.dataset import Dataset
 
@@ -179,7 +179,7 @@ class Task(db.Model, BaseModel):
         return full_docker_image_name
 
     def pod_name(self):
-        return f"{self.name.lower().replace(' ', '-')}-{self.requested_by}"
+        return f"{self.name.lower().replace(' ', '-')}-{uuid4()}"
 
     def run(self, validate=False):
         """
@@ -188,18 +188,28 @@ class Task(db.Model, BaseModel):
             Defaults to False
         """
         v1 = KubernetesClient()
+        secret_name = self.dataset.get_creds_secret_name()
+        provided_env = self.executors[0]["env"]
+        provided_env.update(self.get_db_environment_variables())
+
+        command=None
+        if len(self.executors):
+            command=self.executors[0].get("command", '')
+
         body = v1.create_pod_spec({
             "name": self.pod_name(),
             "image": self.docker_image,
             "labels": {
                 "task_id": str(self.id),
-                "requested_by": self.requested_by
+                "requested_by": self.requested_by,
+                "dataset_id": str(self.dataset_id)
             },
             "dry_run": 'true' if validate else 'false',
-            "environment": self.executors[0]["env"],
-            "command": self.executors[0]["command"],
+            "environment": provided_env,
+            "command": command,
             "mount_path": TASK_POD_RESULTS_PATH,
-            "resources": self.resources
+            "resources": self.resources,
+            "env_from": v1.create_from_env_object(secret_name)
         })
         try:
             current_pod = self.get_current_pod()
@@ -215,13 +225,31 @@ class Task(db.Model, BaseModel):
             logger.error(json.loads(e.body))
             raise InvalidRequest(f"Failed to run pod: {e.reason}")
 
-    def get_current_pod(self, pod_name:str=None):
-        if pod_name is None:
-            pod_name = self.pod_name()
+    def get_db_environment_variables(self) -> dict:
+        """
+        Creates a dictionary with the standard value for Psql credentials
+        """
+        return {
+            "PGHOST": self.dataset.host,
+            "PGDATABASE": self.dataset.name,
+            "PGPORT": self.dataset.port
+        }
+
+    def get_current_pod(self, pod_name:str=None, is_running:bool=True):
         v1 = KubernetesClient()
-        running_pods = v1.list_namespaced_pod(TASK_NAMESPACE)
+        running_pods = v1.list_namespaced_pod(
+            TASK_NAMESPACE,
+            label_selector=f"task_id={self.id}"
+        )
         try:
-            return [pod for pod in running_pods.items if pod.metadata.name == pod_name][0]
+            running_pods.items.sort(key=lambda x: x.metadata.creation_timestamp, reverse=True)
+            for pod in running_pods.items:
+                images = [im.image for im in pod.spec.containers]
+                statuses = []
+                if pod.status.container_statuses and is_running:
+                    statuses = [st.state.terminated for st in pod.status.container_statuses]
+                if self.docker_image in images and not statuses:
+                    return pod
         except IndexError:
             return
 
@@ -235,7 +263,12 @@ class Task(db.Model, BaseModel):
             :str: if the pod is not found or deleted
         """
         try:
-            status_obj = self.get_current_pod(pod_name).status.container_statuses[0].state
+            status_obj = self.get_current_pod(is_running=False).status.container_statuses
+            if status_obj is None:
+                return self.status
+
+            status_obj = status_obj[0].state
+
             for status in ['running', 'waiting', 'terminated']:
                 st = getattr(status_obj, status)
                 if st is not None:
@@ -286,13 +319,13 @@ class Task(db.Model, BaseModel):
             "name": job_name,
             "persistent_volumes": [
                 {
-                    "name": f"{self.pod_name()}-volclaim",
+                    "name": f"{self.get_current_pod(is_running=False).metadata.name}-volclaim",
                     "mount_path": TASK_POD_RESULTS_PATH,
                     "vol_name": "data"
                 }
             ],
             "labels": {
-                "task_id": str(self.id),
+                "result_task_id": str(self.id),
                 "requested_by": self.requested_by
             }
         })
@@ -304,13 +337,11 @@ class Task(db.Model, BaseModel):
             )
             # Get the job's pod
             v1 = KubernetesClient()
-            job_pod = list(filter(lambda x: x.metadata.labels.get('job-name') == job_name, v1.list_namespaced_pod(namespace=TASK_NAMESPACE).items))[0]
+            v1.is_pod_ready(label=f"job-name={job_name}")
 
-            while True:
-                job_status = self.get_status(job_pod.metadata.name)
-                if 'running' in job_status:
-                    break
-            res_file = v1.cp_from_pod(job_pod.metadata.name, TASK_POD_RESULTS_PATH, f"{RESULTS_PATH}/{self.id}")
+            job_pod = v1.list_namespaced_pod(namespace=TASK_NAMESPACE, label_selector=f"job-name={job_name}").items[0]
+
+            res_file = v1.cp_from_pod(job_pod.metadata.name, f"{TASK_POD_RESULTS_PATH}/{self.id}", f"{RESULTS_PATH}/{self.id}")
             v1.delete_pod(job_pod.metadata.name)
             v1_batch.delete_job(job_name)
         except ApiException as e:

@@ -9,6 +9,9 @@ image:
   tag: 0.0.1
   pullPolicy: IfNotPresent
 
+keycloak:
+  tag: 0.0.1
+
 autoscaling:
   enabled: false
 
@@ -61,7 +64,10 @@ storage:
     # url:
     # path:
   local:
+    # Local storage that will be shared with the backend
     # path:
+    # Local storage that will be shared with the db
+    # dbpath: /data/db
 
 token:
   life:
@@ -88,6 +94,7 @@ securityContext: {}
 
 ingress:
   host:
+  on_aks: false
   whitelist:
     enabled: false
     ips: []

@@ -3,7 +3,7 @@ kind: Ingress
 metadata:
   name: federated-ingress
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
     {{- if .Values.ingress.whitelist.enabled }}
     nginx.ingress.kubernetes.io/whitelist-source-range: {{ join "," .Values.ingress.whitelist.ips | quote }}
     {{- end }}
@@ -22,10 +22,40 @@ spec:
     - host: {{ .Values.ingress.host }}
       http:
         paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: backend
-                port:
-                  name: http
+        - path: /(.*)
+          pathType: Prefix
+          backend:
+            service:
+              name: backend
+              port:
+                name: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: federated-ingress-keycloak
+  namespace: {{ .Values.namespaces.keycloak }}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    {{- if .Values.ingress.whitelist.enabled }}
+    nginx.ingress.kubernetes.io/whitelist-source-range: {{ join "," .Values.ingress.whitelist.ips | quote }}
+    {{- end }}
+    {{- if .Values.ingress.blacklist.enabled }}
+    nginx.ingress.kubernetes.io/denylist-source-range: {{ join "," .Values.ingress.blacklist.ips | quote }}
+    {{- end }}
+spec:
+  ingressClassName: fn-nginx
+  tls:
+  - hosts:
+    - {{ .Values.ingress.host }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+        - path: /keycloak/(.*)
+          pathType: Prefix
+          backend:
+            service:
+              name: keycloak
+              port:
+                number: 8080

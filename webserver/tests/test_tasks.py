@@ -2,19 +2,21 @@ import json
 import pytest
 from kubernetes.client.exceptions import ApiException
 from unittest.mock import Mock
+
+from app.helpers.db import db
 from app.helpers.exceptions import InvalidRequest
 from app.models.task import Task
 from tests.helpers.kubernetes import MockKubernetesClient
 
 
 @pytest.fixture(scope='function')
-def task_body(dataset):
+def task_body(dataset, image_name):
     return {
         "name": "Test Task",
         "requested_by": "das9908-as098080c-9a80s9",
         "executors": [
             {
-                "image": "example:latest",
+                "image": image_name,
                 "command": ["R", "-e", "df <- as.data.frame(installed.packages())[,c('Package', 'Version')];write.csv(df, file='/mnt/data/packages.csv', row.names=FALSE);Sys.sleep(10000)\""],
                 "env": {
                     "VARIABLE_UNIQUE": 123,
@@ -96,7 +98,7 @@ def test_get_list_tasks_base_user(
         '/tasks/',
         headers=simple_user_header
     )
-    assert response.status_code == 401
+    assert response.status_code == 403
 
 def test_create_task(
         acr_client,
@@ -155,7 +157,7 @@ def test_create_unauthorized_task(
         data=json.dumps(data),
         headers=post_json_user_header
     )
-    assert response.status_code == 401
+    assert response.status_code == 403
 
 def test_create_task_image_not_found(
         acr_client_404,
@@ -173,6 +175,86 @@ def test_create_task_image_not_found(
     )
     assert response.status_code == 500
     assert response.json == {"error": f"Image {task_body["executors"][0]["image"]} not found on our repository"}
+
+def test_get_task_by_id_admin(
+        acr_client,
+        k8s_client_task,
+        post_json_admin_header,
+        post_json_user_header,
+        simple_admin_header,
+        client,
+        task_body
+    ):
+    """
+    If an admin wants to check a specific task they should be allowed regardless
+    of who requested it
+    """
+    resp = client.post(
+        '/tasks/',
+        data=json.dumps(task_body),
+        headers=post_json_user_header
+    )
+    assert resp.status_code == 201
+    task_id = resp.json["task_id"]
+
+    resp = client.get(
+        f'/tasks/{task_id}',
+        headers=simple_admin_header
+    )
+    assert resp.status_code == 200
+
+def test_get_task_by_id_non_admin_owner(
+        acr_client,
+        k8s_client_task,
+        simple_user_header,
+        post_json_user_header,
+        client,
+        task_body
+    ):
+    """
+    If a user wants to check a specific task they should be allowed if they did request it
+    """
+    resp = client.post(
+        '/tasks/',
+        data=json.dumps(task_body),
+        headers=post_json_user_header
+    )
+    assert resp.status_code == 201
+    task_id = resp.json["task_id"]
+
+    resp = client.get(
+        f'/tasks/{task_id}',
+        headers=simple_user_header
+    )
+    assert resp.status_code == 200
+
+def test_get_task_by_id_non_admin_non_owner(
+        acr_client,
+        k8s_client_task,
+        post_json_user_header,
+        simple_user_header,
+        client,
+        task_body
+    ):
+    """
+    If a user wants to check a specific task they should not be allowed if they did not request it
+    """
+    resp = client.post(
+        '/tasks/',
+        data=json.dumps(task_body),
+        headers=post_json_user_header
+    )
+    assert resp.status_code == 201
+    task_id = resp.json["task_id"]
+
+    task_obj = db.session.get(Task, task_id)
+    task_obj.requested_by = "some random uuid"
+
+    resp = client.get(
+        f'/tasks/{task_id}',
+        headers=simple_user_header
+    )
+    assert resp.status_code == 403
 
 def test_cancel_task(
         client,
@@ -319,6 +401,8 @@ def test_get_results(
     pod_mock = Mock()
     pod_mock.metadata.labels = {"job-name": "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"}
     pod_mock.metadata.name = "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"
+    pod_mock.spec.containers = [Mock(image=task_body["executors"][0]["image"])]
+    pod_mock.status.container_statuses = [Mock(ready=True)]
     k8s_client.return_value.list_namespaced_pod.return_value.items = [pod_mock]
 
     mocker.patch(
@@ -363,6 +447,17 @@ def test_get_results_job_creation_failure(
     # Get results - creating a job fails
     k8s_batch = mocker.patch('app.models.task.KubernetesBatchClient')
     k8s_batch.return_value.create_namespaced_job.side_effect = ApiException(status=500, reason="Something went wrong")
+
+    k8s_client = mocker.patch(
+        'app.models.task.KubernetesClient',
+        return_value=Mock(list_namespaced_pod=Mock())
+    )
+    pod_mock = Mock()
+    pod_mock.metadata.labels = {"job-name": "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"}
+    pod_mock.metadata.name = "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"
+    pod_mock.spec.containers = [Mock(image=task_body["executors"][0]["image"])]
+    pod_mock.status.container_statuses = [Mock(ready=True)]
+    k8s_client.return_value.list_namespaced_pod.return_value.items = [pod_mock]
 
     response = client.get(
         f'/tasks/{response.json["task_id"]}/results',
