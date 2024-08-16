@@ -1,0 +1,31 @@
+repoServer:
+  volumes:
+  - name: helm-replace
+    configMap:
+      name: config-map-helm-replace
+      defaultMode: 0777
+  volumeMounts:
+  - name: helm-replace
+    mountPath: /usr/local/sbin/helm
+    subPath: helm
+  env:
+  - name: HELM_BIN
+    value: /usr/local/bin/helm
+configs:
+  cm:
+    "resource.customizations": |
+      networking.k8s.io/Ingress:
+        ignoreDifferences: |
+          jsonPointers:
+          - /status
+      networking.k8s.io/Ingress:
+        health.lua: |
+          hs = {}
+          hs.status = "Healthy"
+          hs.message = "Not verifying for Ingress"
+          return  hs
+      Service:
+        health.lua: |
+          hs = {}
+          hs.status = "Healthy"
+          return hs

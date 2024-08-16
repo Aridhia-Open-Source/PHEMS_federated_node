@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: 'federatednode'
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/Arihdia-Federated-Node/federated_node'
+    path: k8s/federated-node
+    targetRevision: main
+    helm:
+      # There can be a values file in this same folder
+      valueFiles:
+        - dev.values.yaml
+      # and/or paste its content in here, respecting the indentation
+      values: |
+        image:
+          repository: ghcr.io/arihdia-federated-node/federated_node_run
+    chart: federated-node
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: default
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
