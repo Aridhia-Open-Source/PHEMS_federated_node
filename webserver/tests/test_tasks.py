@@ -137,7 +137,7 @@ def test_create_task_with_non_existing_dataset(
         headers=post_json_admin_header
     )
     assert response.status_code == 404
-    assert response.json == {"error": "Dataset with id 123456 does not exist"}
+    assert response.json == {"error": "Dataset with 123456 does not exist"}
 
 def test_create_unauthorized_task(
         acr_client,

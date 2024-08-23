@@ -28,6 +28,12 @@ from .models.dictionary import Dictionary
 bp = Blueprint('datasets', __name__, url_prefix='/datasets')
 session = db.session
 
+def get_dataset_by_name(dataset_name):
+    dataset = Dataset.query.filter(Dataset.name==dataset_name).first()
+    if not dataset:
+        raise DBRecordNotFoundError(f"Dataset {dataset_name} does not exist")
+    return dataset.id
+
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
 @audit
@@ -78,7 +84,7 @@ def post_datasets():
         session.rollback()
         raise
 
-@bp.route('/<dataset_id>', methods=['GET'])
+@bp.route('/<int:dataset_id>', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
 def get_datasets_by_id(dataset_id):
@@ -90,13 +96,30 @@ def get_datasets_by_id(dataset_id):
         raise DBRecordNotFoundError(f"Dataset with id {dataset_id} does not exist")
     return Dataset.sanitized_dict(ds), 200
 
-@bp.route('/<dataset_id>/catalogue', methods=['GET'])
+@bp.route('/<dataset_name>', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
-def get_datasets_catalogue_by_id(dataset_id):
+def get_datasets_by_name(dataset_name):
     """
+    GET /datasets/id endpoint. Gets dataset with a give id
+    """
+    ds = Dataset.query.filter(Dataset.name==dataset_name).first()
+    if ds is None:
+        raise DBRecordNotFoundError(f"Dataset {dataset_name} does not exist")
+    return Dataset.sanitized_dict(ds), 200
+
+@bp.route('/<dataset_name>/catalogue', methods=['GET'])
+@bp.route('/<int:dataset_id>/catalogue', methods=['GET'])
+@audit
+@auth(scope='can_access_dataset')
+def get_datasets_catalogue_by_id(dataset_id=None, dataset_name=None):
+    """
+    GET /datasets/dataset_name/catalogue endpoint. Gets dataset's catalogue
     GET /datasets/id/catalogue endpoint. Gets dataset's catalogue
     """
+    if dataset_name:
+        dataset_id = get_dataset_by_name(dataset_name)
+
     cata = select(Catalogue).where(Catalogue.dataset_id == dataset_id).limit(1)
     res = session.execute(cata).all()
     if res:
@@ -104,14 +127,19 @@ def get_datasets_catalogue_by_id(dataset_id):
         return res, 200
     raise DBRecordNotFoundError(f"Dataset {dataset_id} has no catalogue.")
 
-@bp.route('/<dataset_id>/dictionaries', methods=['GET'])
+@bp.route('/<dataset_name>/dictionaries', methods=['GET'])
+@bp.route('/<int:dataset_id>/dictionaries', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
-def get_datasets_dictionaries_by_id(dataset_id):
+def get_datasets_dictionaries_by_id(dataset_id=None, dataset_name=None):
     """
+    GET /datasets/dataset_name/dictionaries endpoint.
     GET /datasets/id/dictionaries endpoint.
         Gets the dataset's list of dictionaries
     """
+    if dataset_name:
+        dataset_id = get_dataset_by_name(dataset_name)
+
     dictionary = select(Dictionary).where(Dictionary.dataset_id == dataset_id)
     res = session.execute(dictionary).all()
     if res:
@@ -122,15 +150,20 @@ def get_datasets_dictionaries_by_id(dataset_id):
         f"Dataset {dataset_id} has no dictionaries."
     )
 
-@bp.route('/<dataset_id>/dictionaries/<table_name>', methods=['GET'])
+@bp.route('/<dataset_name>/dictionaries/<table_name>', methods=['GET'])
+@bp.route('/<int:dataset_id>/dictionaries/<table_name>', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
 
-def get_datasets_dictionaries_table_by_id(dataset_id, table_name):
+def get_datasets_dictionaries_table_by_id(table_name, dataset_id=None, dataset_name=None):
     """
+    GET /datasets/dataset_name/dictionaries/table_name endpoint.
     GET /datasets/id/dictionaries/table_name endpoint.
         Gets the dataset's table within its dictionaries
     """
+    if dataset_name:
+        dataset_id = get_dataset_by_name(dataset_name)
+
     dictionary = select(Dictionary).where(
         Dictionary.dataset_id == dataset_id,
         Dictionary.table_name == table_name

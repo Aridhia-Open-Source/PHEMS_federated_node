@@ -22,19 +22,27 @@ def auth(scope:str, check_dataset=True):
 
             session = db.session
             resource = 'endpoints'
+            ds_name = None
             ds_id = None
             if check_dataset:
                 path = request.path.split('/')
 
-                if 'datasets' in path and len(path) > 2:
-                    ds_id = path[path.index('datasets') + 1]
+                if 'datasets' in path:
+                    ds_id = kwargs.get("dataset_id")
+                    ds_name = kwargs.get("dataset_name")
+
                 elif request.headers.get('Content-Type'):
                     ds_id = request.json.get("dataset_id")
 
-                if ds_id and check_dataset:
-                    q = session.execute(text("SELECT * FROM datasets WHERE id=:ds_id"), dict(ds_id=ds_id)).all()
+                if ds_id or ds_name:
+                    if ds_id:
+                        error_msg = f"Dataset with {ds_id} does not exist"
+                        q = session.execute(text("SELECT * FROM datasets WHERE id=:ds_id"), dict(ds_id=ds_id)).all()
+                    elif ds_name:
+                        error_msg = f"Dataset {ds_name} does not exist"
+                        q = session.execute(text("SELECT * FROM datasets WHERE name=:ds_name"), dict(ds_name=ds_name)).all()
                     if not q:
-                        raise DBRecordNotFoundError(f"Dataset with id {ds_id} does not exist")
+                        raise DBRecordNotFoundError(error_msg)
                     ds = q[0]._mapping
                     if ds is not None:
                         resource = f"{ds["id"]}-{ds["name"]}"

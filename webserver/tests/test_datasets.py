@@ -124,22 +124,41 @@ class TestDatasets:
         """
         /datasets/{id} GET returns 404 for a non-existent dataset
         """
-        response = client.get(f"/datasets/1000", headers=simple_admin_header)
+        invalid_id = 100
+        response = client.get(f"/datasets/{invalid_id}", headers=simple_admin_header)
         assert response.status_code == 404
 
-    def test_get_dataset_by_id_404(
+    def test_get_dataset_by_name_200(
             self,
             simple_admin_header,
+            dataset,
             client
         ):
         """
-        /datasets/{id} GET returns a valid list
+        /datasets/{name} GET returns a valid list
         """
-        invalid_id = 100
-        response = client.get(f"/datasets/{invalid_id}", headers=simple_admin_header)
+        expected_ds_entry = {
+            "id": dataset.id,
+            "name": dataset.name,
+            "host": dataset.host,
+            "port": 5432
+        }
+        response = client.get(f"/datasets/{dataset.name}", headers=simple_admin_header)
+        assert response.status_code == 200
+        assert response.json == expected_ds_entry
 
+    def test_get_dataset_by_name_404(
+            self,
+            simple_admin_header,
+            dataset,
+            client
+        ):
+        """
+        /datasets/{name} GET returns a valid list
+        """
+        response = client.get("/datasets/anothername", headers=simple_admin_header)
         assert response.status_code == 404
-        assert response.json == {"error": f"Dataset with id {invalid_id} does not exist"}
+        assert response.json == {"error": "Dataset anothername does not exist"}
 
     def test_post_dataset_is_successful(
             self,
@@ -422,6 +441,28 @@ class TestDictionaries:
         for i in range(0, len(data_body["dictionaries"])):
             assert response.json[i].items() >= data_body["dictionaries"][i].items()
 
+    def test_admin_get_dictionaries_dataset_name(
+            self,
+            client,
+            dataset,
+            dataset_post_body,
+            post_json_admin_header,
+            simple_admin_header
+    ):
+        """
+        Check that admin can see the dictionaries for a given dataset
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        post_dataset(client, post_json_admin_header, data_body)
+        response = client.get(
+            f"/datasets/{data_body['name']}/dictionaries",
+            headers=simple_admin_header
+        )
+        assert response.status_code == 200
+        for i in range(0, len(data_body["dictionaries"])):
+            assert response.json[i].items() >= data_body["dictionaries"][i].items()
+
     def test_get_dictionaries_not_allowed_user(
             self,
             client,
@@ -464,6 +505,27 @@ class TestCatalogues:
         resp_ds = post_dataset(client, post_json_admin_header, data_body)
         response = client.get(
             f"/datasets/{resp_ds["dataset_id"]}/catalogue",
+            headers=simple_admin_header
+        )
+        assert response.status_code == 200
+        assert response.json.items() >= data_body["catalogue"].items()
+
+    def test_admin_get_catalogue_dataset_name(
+            self,
+            client,
+            dataset,
+            dataset_post_body,
+            post_json_admin_header,
+            simple_admin_header
+    ):
+        """
+        Check that admin can see the catalogue for a given dataset
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        post_dataset(client, post_json_admin_header, data_body)
+        response = client.get(
+            f"/datasets/{data_body['name']}/catalogue",
             headers=simple_admin_header
         )
         assert response.status_code == 200
@@ -516,7 +578,7 @@ class TestDictionaryTable:
         )
         assert response.status_code == 200
 
-    def test_admin_get_dictionary_table_dataset_not_found(
+    def test_admin_get_dictionary_table_dataset_name(
             self,
             client,
             dataset,
@@ -528,8 +590,27 @@ class TestDictionaryTable:
         Check that non-admin or non DAR approved users
         cannot see the catalogue for a given dataset
         """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        post_dataset(client, post_json_admin_header, data_body)
         response = client.get(
-            f"/datasets/100/dictionaries/test",
+            f"/datasets/{data_body['name']}/dictionaries/test",
+            headers=simple_admin_header
+        )
+        assert response.status_code == 200
+
+    def test_admin_get_dictionary_table_dataset_not_found(
+            self,
+            client,
+            dataset,
+            simple_admin_header
+    ):
+        """
+        Check that non-admin or non DAR approved users
+        cannot see the catalogue for a given dataset
+        """
+        response = client.get(
+            "/datasets/100/dictionaries/test",
             headers=simple_admin_header
         )
         assert response.status_code == 404
