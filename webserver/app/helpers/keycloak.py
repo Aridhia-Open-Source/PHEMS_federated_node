@@ -565,6 +565,7 @@ class Keycloak:
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
         if not user_response.ok:
+            logger.info(user_response.content.decode())
             raise KeycloakError("Failed to fetch the user")
 
         return user_response.json()[0]
@@ -580,6 +581,7 @@ class Keycloak:
             headers = self._post_json_headers()
         )
         if not client_permission_resp.ok:
+            logger.info(client_permission_resp.content.decode())
             raise KeycloakError("Failed to set exchange permissions")
 
         rm_client_id = self.get_client_id('realm-management')
@@ -593,6 +595,7 @@ class Keycloak:
             }
         )
         if not client_te_scope_resp.ok:
+            logger.info(client_te_scope_resp.content.decode())
             raise KeycloakError("Error on keycloak")
 
         token_exch_scope = client_te_scope_resp.json()[0]["id"]
@@ -620,6 +623,7 @@ class Keycloak:
                 headers = self._post_json_headers()
             ).json()[0]["id"]
         elif not global_client_policy_resp.ok:
+            logger.info(global_client_policy_resp.content.decode())
             raise KeycloakError("Error on keycloak")
         else:
             global_policy_id = global_client_policy_resp.json()["id"]
@@ -646,6 +650,7 @@ class Keycloak:
             headers = self._post_json_headers()
         )
         if not client_permission_resp.ok:
+            logger.info(client_permission_resp.content.decode())
             raise KeycloakError("Failed to update the exchange permission")
 
     ### Identity Providers
@@ -658,6 +663,7 @@ class Keycloak:
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
         if not idp_list_resp.ok:
+            logger.info(idp_list_resp.content.decode())
             raise KeycloakError("Failed to retrieve IdP list")
         return idp_list_resp.json()
 
@@ -670,6 +676,7 @@ class Keycloak:
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
         if not idp_list_resp.ok:
+            logger.info(idp_list_resp.content.decode())
             raise KeycloakError(f"Failed to retrieve IdP {alias}")
         return idp_list_resp.json()
 
@@ -678,7 +685,7 @@ class Keycloak:
         Returns a dict with the Identity Providers with given alias
         """
         for idp in self.get_identity_provider_list():
-            if idp["config"]["issuer"] == re.sub(r'http\W', 'https', iss).replace("/realms", "/keycloak/realms"):
+            if idp["config"]["issuer"] == re.sub(r'http\W', 'https:', iss):
                 return idp
 
     def verify_idp_token(self, token:str) -> dict:
@@ -689,7 +696,6 @@ class Keycloak:
         """
         issuer = jwt.decode(token, options={"verify_signature": False}).get('iss')
         idp = self.get_identity_provider_by_issuer(issuer)
-        # for idp in self.get_identity_provider_list():
         alias = idp["alias"]
         v1 = KubernetesClient()
         idp["config"]["clientSecret"] = v1.get_secret(f"kc-idp-{alias.replace('_', '-')}-secret").get("client")
