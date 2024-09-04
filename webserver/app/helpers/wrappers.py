@@ -1,12 +1,13 @@
 import logging
 from functools import wraps
 from flask import request
-from sqlalchemy import text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.helpers.db import db, engine
 from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, DBRecordNotFoundError
 from app.models.audit import Audit
+from app.models.dataset import Dataset
 
 
 logger = logging.getLogger('wrappers')
@@ -22,30 +23,27 @@ def auth(scope:str, check_dataset=True):
 
             session = db.session
             resource = 'endpoints'
-            ds_name = None
-            ds_id = None
+            ds_name = ''
+            ds_id = ''
             if check_dataset:
                 path = request.path.split('/')
 
                 if 'datasets' in path:
-                    ds_id = kwargs.get("dataset_id")
-                    ds_name = kwargs.get("dataset_name")
+                    ds_id = kwargs.get("dataset_id", '')
+                    ds_name = kwargs.get("dataset_name", '')
 
-                elif request.headers.get('Content-Type'):
+                elif request.headers.get("Content-Type"):
                     ds_id = request.json.get("dataset_id")
 
                 if ds_id or ds_name:
                     if ds_id:
-                        error_msg = f"Dataset with {ds_id} does not exist"
-                        q = session.execute(text("SELECT * FROM datasets WHERE id=:ds_id"), dict(ds_id=ds_id)).all()
+                        q = session.execute(select(Dataset).where(Dataset.id == ds_id)).one_or_none()
                     elif ds_name:
-                        error_msg = f"Dataset {ds_name} does not exist"
-                        q = session.execute(text("SELECT * FROM datasets WHERE name=:ds_name"), dict(ds_name=ds_name)).all()
+                        q = session.execute(select(Dataset).where(Dataset.name == ds_name)).one_or_none()
                     if not q:
-                        raise DBRecordNotFoundError(error_msg)
-                    ds = q[0]._mapping
-                    if ds is not None:
-                        resource = f"{ds["id"]}-{ds["name"]}"
+                        raise DBRecordNotFoundError(f"Dataset {ds_id}{ds_name} does not exist")
+                    ds = q[0]
+                    resource = f"{ds.id}-{ds.name}"
             requested_project = request.headers.get("project-name")
             client = 'global'
             token_type = 'refresh_token'
