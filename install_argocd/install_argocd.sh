@@ -37,7 +37,7 @@ sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
 rm argocd-linux-amd64
 
 # Add Repo from github
-for repo in "https://github.com/Aridhia-Open-Source/federated_node" "https://github.com/Aridhia-Open-Source/go-controller"
+for repo in "https://github.com/Aridhia-Open-Source/PHEMS_federated_node" "https://github.com/Aridhia-Open-Source/go-controller"
 do
     argocd repo add "${repo}" --username "${username}" --password "${password}"
 done
