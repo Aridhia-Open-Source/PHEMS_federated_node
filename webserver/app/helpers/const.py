@@ -30,4 +30,5 @@ MEMORY_UNITS = {
     "k": 10**3,
     "m": 1000
 }
+CLEANUP_AFTER_DAYS = int(os.getenv("CLEANUP_AFTER_DAYS"))
 VERIFY_REQUEST = os.getenv("VERIFY_SSL") is None

@@ -23,16 +23,16 @@ class LogAndException(HTTPException):
         if code:
             self.code = code
 
-class InvalidDBEntry(HTTPException):
+class InvalidDBEntry(LogAndException):
     code = 400
 
-class DBError(HTTPException):
+class DBError(LogAndException):
     code = 400
 
-class DBRecordNotFoundError(HTTPException):
+class DBRecordNotFoundError(LogAndException):
     code = 404
 
-class InvalidRequest(HTTPException):
+class InvalidRequest(LogAndException):
     code = 400
 
 class AuthenticationError(LogAndException):

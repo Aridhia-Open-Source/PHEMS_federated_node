@@ -39,7 +39,8 @@ class Request(db.Model, BaseModel):
                  proj_start:datetime,
                  proj_end:datetime,
                  description:str='',
-                 created_at:datetime=datetime.now()
+                 created_at:datetime=datetime.now(),
+                 **kwargs
         ):
         self.title = title
         self.description = description

@@ -25,7 +25,8 @@ class Catalogue( db.Model, BaseModel):
                  description:str,
                  dataset:Dataset,
                  version:str='1',
-                 created_at:datetime=datetime.now()
+                 created_at:datetime=datetime.now(),
+                 **kwargs
         ):
         self.version = version
         self.title = title

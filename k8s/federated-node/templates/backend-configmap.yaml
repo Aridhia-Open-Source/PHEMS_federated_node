@@ -13,6 +13,7 @@ data:
   DEFAULT_NAMESPACE: {{ .Release.Namespace }}
   KEYCLOAK_NAMESPACE: {{ .Values.namespaces.keycloak }}
   TASK_NAMESPACE: {{ .Values.namespaces.tasks }}
+  CLEANUP_AFTER_DAYS: {{ .Values.cleanupTime }}
 {{ if .Values.local_development }}
   VERIFY_SSL: "false"
 {{ end }}
