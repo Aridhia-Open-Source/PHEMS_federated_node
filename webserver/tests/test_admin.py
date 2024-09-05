@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from sqlalchemy import select
 
@@ -27,7 +28,7 @@ class TestAudits:
         # We do not check the entire dict due to the datetime and id
         assert response.json[0].items() >= {
             'api_function': 'get_datasets',
-            'details': f'Requested by {user_uuid} - ',
+            'details': None,
             'endpoint': '/datasets/',
             'requested_by': user_uuid,
             'http_method': 'GET',
@@ -60,3 +61,30 @@ class TestAudits:
 
         assert response.status_code == 200, response.json
         assert len(response.json) == 0
+
+    def test_sensitive_data_is_purged(
+        self,
+        client,
+        post_json_admin_header,
+        dataset_post_body,
+        k8s_client
+    ):
+        """
+        Tests that sensitive information are not included in the audit logs details
+        """
+        data = dataset_post_body.copy()
+        data["dictionaries"][0]["password"] = "2ecr3t!"
+        resp = client.post(
+            '/datasets/',
+            data=json.dumps(data),
+            headers=post_json_admin_header
+        )
+
+        # Request will fail as secret is not recognized as dictionaries field
+        assert resp.status_code == 201
+        audit_list = Audit.get_all()[-1]
+        details = json.loads(audit_list["details"].replace("'", "\""))
+
+        assert details["password"] == '*****'
+        assert details["username"] == '*****'
+        assert details["dictionaries"][0]["password"] == '*****'

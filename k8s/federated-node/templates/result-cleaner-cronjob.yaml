@@ -1,0 +1,90 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cleaner-configmap
+  namespace: {{ .Release.Namespace }}
+data:
+  cleanup.sh: |-
+    find ${RESULTS_PATH} -type d -mtime +${CLEANUP_AFTER_DAYS} -name '*' -print0 | xargs -r0 rm -r --
+    kubectl delete pods -n ${NAMESPACE} -l "delete_by=$(date +%Y%m%d)"
+    kubectl delete pvc -n ${NAMESPACE} -l "delete_by=$(date +%Y%m%d)"
+    kubectl delete pv -n ${NAMESPACE} -l "delete_by=$(date +%Y%m%d)"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cleaner-role
+rules:
+- apiGroups: ["", "batch"]
+  resources: ["pods", "persistentvolumes", "persistentvolumeclaims", "jobs", "pods/exec"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cleaner-role
+subjects:
+  - kind: ServiceAccount
+    namespace: {{ .Release.Namespace }}
+    name: task-cleaner-handler
+roleRef:
+  kind: ClusterRole
+  name: cleaner-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: task-cleaner-handler
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: result-cleaner
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: "0 12 * * *"
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 60
+      template:
+        spec:
+          serviceAccountName: task-cleaner-handler
+          containers:
+          - name: result-cleaner
+            image: alpine/k8s:1.29.4
+            imagePullPolicy: IfNotPresent
+            env:
+            - name: NAMESPACE
+              value: {{ .Values.namespaces.tasks }}
+            - name: RESULTS_PATH
+              value: {{ .Values.federatedNode.volumes.results_path }}
+            - name: CLEANUP_AFTER_DAYS
+              value: "{{ .Values.cleanupTime }}"
+            volumeMounts:
+            - name: respv
+              mountPath: {{ .Values.federatedNode.volumes.results_path }}
+            - name: scripts
+              mountPath: /scripts/
+
+            command:
+            - /bin/sh
+            - -c
+            - /scripts/cleanup.sh
+          restartPolicy: Never
+          volumes:
+          - name: respv
+            persistentVolumeClaim:
+              claimName: flask-results-pv-volclaim
+          - name: scripts
+            configMap:
+              name: cleaner-configmap
+              items:
+              - key: cleanup.sh
+                path: cleanup.sh
+                mode: 0777
