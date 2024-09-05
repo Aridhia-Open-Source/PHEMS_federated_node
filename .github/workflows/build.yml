@@ -70,7 +70,9 @@ jobs:
 
       - name: Set Tag for dev branches
         if: github.ref != 'refs/heads/main'
-        run: echo "TAG=${TAG}-${GITHUB_SHA::6}" >> ${GITHUB_ENV}
+        run: |
+          TAG=$(grep 'appVersion:' k8s/federated-node/Chart.yaml | cut -f2 -d '"')
+          echo "TAG=${TAG}-${GITHUB_SHA::6}" >> ${GITHUB_ENV}
 
       # Need to get an ACR where to push the image
       - name: Login to Docker Hub
