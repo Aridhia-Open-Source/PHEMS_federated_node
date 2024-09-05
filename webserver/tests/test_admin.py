@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from app.helpers.db import db
 from app.models.audit import Audit
-
+from tests.conftest import sample_ds_body
 
 class TestAudits:
     def test_get_audit_events(
@@ -66,13 +66,12 @@ class TestAudits:
         self,
         client,
         post_json_admin_header,
-        dataset_post_body,
-        k8s_client
+        data_body=sample_ds_body
     ):
         """
         Tests that sensitive information are not included in the audit logs details
         """
-        data = dataset_post_body.copy()
+        data = data_body.copy()
         data["dictionaries"][0]["password"] = "2ecr3t!"
         resp = client.post(
             '/datasets/',
