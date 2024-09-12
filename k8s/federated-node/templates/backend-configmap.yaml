@@ -13,7 +13,7 @@ data:
   DEFAULT_NAMESPACE: {{ .Release.Namespace }}
   KEYCLOAK_NAMESPACE: {{ .Values.namespaces.keycloak }}
   TASK_NAMESPACE: {{ .Values.namespaces.tasks }}
-  CLEANUP_AFTER_DAYS: {{ .Values.cleanupTime }}
+  CLEANUP_AFTER_DAYS: {{ .Values.cleanupTime | quote }}
 {{ if .Values.storage.azure }}
   AZURE_STORAGE_ENABLED: "true"
   AZURE_SHARE_NAME: {{ .Values.storage.azure.shareName }}/results
