@@ -73,7 +73,7 @@ def audit(func):
         except LogAndException as exc:
             response_object = { "error": exc.description }
             http_status = exc.code
-        except IntegrityError as exc:
+        except IntegrityError:
             response_object = { "error": "Record already exists" }
             http_status = 500
 

@@ -14,7 +14,6 @@ import json
 from flask import Blueprint, request
 from sqlalchemy import select
 
-from app.models.request import Request
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from .helpers.db import db
 from .helpers.keycloak import Keycloak
@@ -23,12 +22,16 @@ from .helpers.wrappers import auth, audit
 from .models.dataset import Dataset
 from .models.catalogue import Catalogue
 from .models.dictionary import Dictionary
+from .models.request import Request
 
 
 bp = Blueprint('datasets', __name__, url_prefix='/datasets')
 session = db.session
 
 def get_dataset_by_name(dataset_name):
+    """
+    Common funcion to get a dataset by name
+    """
     dataset = Dataset.query.filter(Dataset.name==dataset_name).first()
     if not dataset:
         raise DBRecordNotFoundError(f"Dataset {dataset_name} does not exist")

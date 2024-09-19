@@ -99,7 +99,7 @@ class Dataset(db.Model, BaseModel):
 
         resource_ds = kc_client.create_resource({
             "name": f"{self.id}-{self.name}",
-            "displayName": f"{self.id}-{self.name}",
+            "displayName": f"{self.id} - {self.name}",
             "scopes": admin_ds_scope,
             "uris": []
         })

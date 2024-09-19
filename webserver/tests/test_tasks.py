@@ -2,6 +2,7 @@ import json
 import pytest
 from datetime import datetime, timedelta
 from kubernetes.client.exceptions import ApiException
+from unittest import mock
 from unittest.mock import Mock
 
 from app.helpers.const import CLEANUP_AFTER_DAYS
@@ -141,7 +142,9 @@ def test_create_task_with_non_existing_dataset(
     assert response.status_code == 404
     assert response.json == {"error": "Dataset 123456 does not exist"}
 
+@mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
 def test_create_unauthorized_task(
+        kc_valid_mock,
         acr_client,
         post_json_user_header,
         dataset,

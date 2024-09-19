@@ -2,8 +2,11 @@ import json
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import select
 from sqlalchemy.exc import ProgrammingError
+from unittest import mock
 from unittest.mock import Mock
+
 from app.helpers.db import db
+from app.helpers.exceptions import KeycloakError
 from app.models.dataset import Dataset
 from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
@@ -103,8 +106,10 @@ class TestDatasets:
         assert response.status_code == 200
         assert response.json == expected_ds_entry
 
+    @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
     def test_get_dataset_by_id_401(
             self,
+            kc_valid_mock,
             simple_user_header,
             client,
             dataset
@@ -113,7 +118,95 @@ class TestDatasets:
         /datasets/{id} GET returns 401 for non-approved users
         """
         response = client.get(f"/datasets/{dataset.id}", headers=simple_user_header)
-        assert response.status_code == 403
+        assert response.status_code == 403, response.json
+
+    @mock.patch(
+        'app.helpers.wrappers.Keycloak.exchange_global_token',
+        side_effect=KeycloakError("Could not find project", 400)
+    )
+    def test_get_dataset_by_id_project_not_valid(
+            self,
+            kc_egt_mock,
+            simple_user_header,
+            client,
+            dataset
+        ):
+        """
+        /datasets/{id} GET returns 400 for non-existing project
+        """
+        header = simple_user_header.copy()
+        header["project-name"] = "test project"
+        response = client.get(f"/datasets/{dataset.id}", headers=header)
+        assert response.status_code == 400
+        assert response.json == {"error": "Could not find project"}
+
+    @mock.patch('app.datasets_api.Request.add')
+    @mock.patch('app.helpers.wrappers.Keycloak')
+    @mock.patch('app.datasets_api.Request.approve', return_value={"token": "token"})
+    def test_get_dataset_by_id_project_approved(
+            self,
+            req_add_mock,
+            KeycloakMock,
+            req_approve_mock,
+            mocker,
+            post_json_admin_header,
+            request_base_body,
+            client,
+            dataset
+        ):
+        """
+        /datasets/{id} GET returns 200 for project-approved users
+        """
+        KeycloakMock.return_value.is_token_valid.return_value = True
+        KeycloakMock.return_value.decode_token.return_value = {"username": "test_user", "sub": "123-123abc"}
+        KeycloakMock.return_value.exchange_global_token.return_value = ""
+
+        response = client.post(
+            "/datasets/token_transfer",
+            data=json.dumps(request_base_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        assert list(response.json.keys()) == ["token"]
+
+        token = response.json["token"]
+
+        response = client.get(f"/datasets/{dataset.id}", headers={
+            "Authorization": f"Bearer {token}",
+            "project-name": request_base_body["project_name"]
+        })
+        assert response.status_code == 200, response.json
+        assert response.json == {'host': dataset.host, 'id': dataset.id, 'name': dataset.name, 'port': dataset.port}
+
+    @mock.patch('app.datasets_api.Request.approve', return_value={"token": "somejwttoken"})
+    def test_get_dataset_by_id_project_non_approved(
+            self,
+            req_mock,
+            project_not_found,
+            post_json_admin_header,
+            request_base_body,
+            login_user,
+            client,
+            dataset
+        ):
+        """
+        /datasets/{id} GET returns 401 for non-approved users
+        """
+        response = client.post(
+            "/datasets/token_transfer",
+            data=json.dumps(request_base_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        assert list(response.json.keys()) == ["token"]
+
+        token = response.json["token"]
+        response = client.get(f"/datasets/{dataset.id}", headers={
+            "Authorization": f"Bearer {token}",
+            "project-name": "test project"
+        })
+        assert response.status_code == 400
+        assert response.json == {"error": "Could not find project"}
 
     def test_get_dataset_by_id_404(
             self,
@@ -160,8 +253,10 @@ class TestDatasets:
         assert response.status_code == 404
         assert response.json == {"error": "Dataset anothername does not exist"}
 
+    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_is_successful(
             self,
+            ds_add_mock,
             post_json_admin_header,
             client,
             dataset,
@@ -182,8 +277,10 @@ class TestDatasets:
             query = run_query(select(Dictionary).where(Dictionary.table_name == d["table_name"]))
             assert len(query)== 1
 
+    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_fails_k8s_secrets(
             self,
+            ds_add_mock,
             post_json_admin_header,
             client,
             k8s_config,
@@ -208,8 +305,10 @@ class TestDatasets:
         query = run_query(select(Dataset).where(Dataset.name == data_body["name"]))
         assert len(query) == 0
 
+    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_k8s_secrets_exists(
             self,
+            ds_add_mock,
             post_json_admin_header,
             client,
             k8s_config,
@@ -234,8 +333,10 @@ class TestDatasets:
         query = run_query(select(Dataset).where(Dataset.name == data_body["name"]))
         assert len(query) == 1
 
+    @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
     def test_post_dataset_is_unsuccessful_non_admin(
             self,
+            kc_tv_mock,
             post_json_user_header,
             client,
             dataset,
@@ -256,8 +357,10 @@ class TestDatasets:
             query = run_query(select(Dictionary).where(Dictionary.table_name == d["table_name"]))
             assert len(query)== 0
 
+    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_with_duplicate_dictionaries_fails(
             self,
+            ds_add_mock,
             post_json_admin_header,
             client,
             dataset,
@@ -281,8 +384,10 @@ class TestDatasets:
         query = run_query(select(Dataset).where(Dataset.name == data_body["name"]))
         assert len(query) == 0
 
+    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_with_empty_dictionaries_succeeds(
             self,
+            ds_add_mock,
             post_json_admin_header,
             client,
             dataset,
@@ -304,8 +409,10 @@ class TestDatasets:
         query = run_query(select(Dictionary).where(Dictionary.dataset_id == query_ds[0][0].id))
         assert len(query) == 0
 
+    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_with_wrong_dictionaries_format(
             self,
+            ds_add_mock,
             post_json_admin_header,
             client,
             dataset,
@@ -331,10 +438,13 @@ class TestDatasets:
         query = run_query(select(Dictionary).where(Dictionary.table_name == data_body["dictionaries"]["table_name"]))
         assert len(query) == 0
 
+    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_datasets_with_same_dictionaries_succeeds(
             self,
+            ds_add_mock,
             post_json_admin_header,
             client,
+            login_user,
             dataset,
             dataset_post_body
         ):
@@ -367,8 +477,10 @@ class TestDatasets:
             query = run_query(select(Dictionary).where(Dictionary.table_name == d["table_name"]))
             assert len(query) == 2
 
+    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_with_catalogue_only(
             self,
+            ds_add_mock,
             post_json_admin_header,
             dataset,
             client,
@@ -390,11 +502,14 @@ class TestDatasets:
         query = run_query(select(Dictionary).where(Dictionary.dataset_id == query_ds[0][0].id))
         assert len(query) == 0
 
+    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_with_dictionaries_only(
             self,
+            ds_add_mock,
             post_json_admin_header,
             dataset,
             client,
+            login_user,
             dataset_post_body
         ):
         """
@@ -465,6 +580,7 @@ class TestDictionaries:
 
     def test_get_dictionaries_not_allowed_user(
             self,
+            mocker,
             client,
             dataset,
             dataset_post_body,
@@ -478,6 +594,8 @@ class TestDictionaries:
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
         resp_ds = post_dataset(client, post_json_admin_header, data_body)
+
+        mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
         response = client.get(
             f"/datasets/{resp_ds["dataset_id"]}/dictionaries",
             headers=simple_user_header
@@ -533,6 +651,7 @@ class TestCatalogues:
 
     def test_get_catalogue_not_allowed_user(
             self,
+            mocker,
             client,
             dataset,
             dataset_post_body,
@@ -546,6 +665,8 @@ class TestCatalogues:
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
         resp_ds = post_dataset(client, post_json_admin_header, data_body)
+
+        mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
         response = client.get(
             f"/datasets/{resp_ds["dataset_id"]}/catalogue",
             headers=simple_user_header
@@ -617,6 +738,7 @@ class TestDictionaryTable:
 
     def test_unauth_user_get_dictionary_table(
             self,
+            mocker,
             client,
             dataset,
             dataset_post_body,
@@ -630,6 +752,8 @@ class TestDictionaryTable:
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
         resp_ds = post_dataset(client, post_json_admin_header, data_body)
+
+        mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
         response = client.get(
             f"/datasets/{resp_ds["dataset_id"]}/dictionaries/test",
             headers=simple_user_header
