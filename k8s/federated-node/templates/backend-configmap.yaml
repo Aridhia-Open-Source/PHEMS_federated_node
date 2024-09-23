@@ -14,6 +14,7 @@ data:
   KEYCLOAK_NAMESPACE: {{ .Values.namespaces.keycloak }}
   TASK_NAMESPACE: {{ .Values.namespaces.tasks }}
   CLEANUP_AFTER_DAYS: {{ .Values.cleanupTime | quote }}
+  PUBLIC_URL: {{ .Values.ingress.host }}
 {{ if .Values.storage.azure }}
   AZURE_STORAGE_ENABLED: "true"
   AZURE_SHARE_NAME: {{ .Values.storage.azure.shareName }}/results

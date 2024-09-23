@@ -1,6 +1,7 @@
 import base64
 import os
 import re
+import requests
 from sqlalchemy import Column, Integer, String
 from app.helpers.db import BaseModel, db
 from app.helpers.exceptions import InvalidRequest
@@ -9,6 +10,7 @@ from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 
 TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
+PUBLIC_URL = os.getenv("PUBLIC_URL")
 
 class Dataset(db.Model, BaseModel):
     __tablename__ = 'datasets'
@@ -29,7 +31,9 @@ class Dataset(db.Model, BaseModel):
                  port:int=5432,
                  **kwargs
                 ):
-        self.name = name
+        self.name = requests.utils.unquote(name).lower()
+        self.slug = self.slugify_name()
+        self.url = f"https://{PUBLIC_URL}/datasets/{self.slug}"
         self.host = host
         self.port = port
 
@@ -58,6 +62,19 @@ class Dataset(db.Model, BaseModel):
                 pass
             else:
                 raise InvalidRequest(e.reason)
+
+    def sanitized_dict(self):
+        dataset = super().sanitized_dict()
+        dataset["slug"] = self.slugify_name()
+        dataset["url"] = f"https://{PUBLIC_URL}/datasets/{dataset["slug"]}"
+        return dataset
+
+    def slugify_name(self) -> str:
+        """
+        Based on the provided name, it will return the slugified name
+        so that it will be sade to save on the DB
+        """
+        return re.sub(r'[\W_]+', '-', self.name)
 
     def get_creds_secret_name(self):
         cleaned_up_host = re.sub('http(s)*://', '', self.host)

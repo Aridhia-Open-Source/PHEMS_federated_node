@@ -1,4 +1,5 @@
 import json
+import os
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import select
 from sqlalchemy.exc import ProgrammingError
@@ -40,6 +41,14 @@ def post_dataset(
 
 
 class TestDatasets:
+    def assert_datasets_by_name(self, dataset_name:str, count:int = 1):
+        """
+        Just to reduce duplicate code, use the ILIKE operator
+        on the query to match case insensitive datasets name
+        """
+        query = run_query(select(Dataset).where(Dataset.name.ilike(dataset_name)))
+        assert len(query) == count
+
     def test_get_all_datasets(
             self,
             simple_admin_header,
@@ -53,7 +62,9 @@ class TestDatasets:
             "id": dataset.id,
             "name": dataset.name,
             "host": dataset.host,
-            "port": 5432
+            "port": 5432,
+            "slug": dataset.name,
+            "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/{dataset.name}"
         }
 
         response = client.get("/datasets/", headers=simple_admin_header)
@@ -65,6 +76,28 @@ class TestDatasets:
             ]
         }
 
+    def test_get_url_returned_in_dataset_list_is_valid(
+            self,
+            simple_admin_header,
+            client,
+            dataset
+        ):
+        """
+        Checks that GET the url field from the Datasets works
+        """
+        expected_ds_entry = {
+            "id": dataset.id,
+            "name": dataset.name,
+            "host": dataset.host,
+            "port": 5432,
+            "slug": dataset.slug,
+            "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/{dataset.name}"
+        }
+
+        response = client.get(dataset.url, headers=simple_admin_header)
+        assert response.status_code == 200
+        assert response.json == expected_ds_entry
+
     def test_get_all_datasets_no_token(
             self,
             client
@@ -75,7 +108,7 @@ class TestDatasets:
         response = client.get("/datasets/")
         assert response.status_code == 401
 
-    def test_get_all_datasets_fail_for_non_admin(
+    def test_get_all_datasets_does_not_fail_for_non_admin(
             self,
             simple_user_header,
             client,
@@ -100,7 +133,9 @@ class TestDatasets:
             "id": dataset.id,
             "name": dataset.name,
             "host": dataset.host,
-            "port": 5432
+            "port": 5432,
+            "slug": dataset.slug,
+            "url": dataset.url
         }
         response = client.get(f"/datasets/{dataset.id}", headers=simple_admin_header)
         assert response.status_code == 200
@@ -176,7 +211,14 @@ class TestDatasets:
             "project-name": request_base_body["project_name"]
         })
         assert response.status_code == 200, response.json
-        assert response.json == {'host': dataset.host, 'id': dataset.id, 'name': dataset.name, 'port': dataset.port}
+        assert response.json == {
+            "id": dataset.id,
+            "name": dataset.name,
+            "host": dataset.host,
+            "port": 5432,
+            "slug": dataset.slug,
+            "url": dataset.url
+        }
 
     @mock.patch('app.datasets_api.Request.approve', return_value={"token": "somejwttoken"})
     def test_get_dataset_by_id_project_non_approved(
@@ -234,7 +276,9 @@ class TestDatasets:
             "id": dataset.id,
             "name": dataset.name,
             "host": dataset.host,
-            "port": 5432
+            "port": 5432,
+            "slug": dataset.slug,
+            "url": dataset.url
         }
         response = client.get(f"/datasets/{dataset.name}", headers=simple_admin_header)
         assert response.status_code == 200
@@ -269,13 +313,63 @@ class TestDatasets:
         data_body['name'] = 'TestDs78'
         post_dataset(client, post_json_admin_header, data_body)
 
-        query = run_query(select(Dataset).where(Dataset.name == data_body["name"]))
-        assert len(query) == 1
+        self.assert_datasets_by_name(data_body['name'])
+
         query = run_query(select(Catalogue).where(Catalogue.title == data_body["catalogue"]["title"]))
         assert len(query)== 1
+
         for d in data_body["dictionaries"]:
             query = run_query(select(Dictionary).where(Dictionary.table_name == d["table_name"]))
             assert len(query)== 1
+
+    @mock.patch('app.datasets_api.Dataset.add')
+    def test_post_dataset_fails_with_same_name_case_sensitive(
+            self,
+            ds_add_mock,
+            post_json_admin_header,
+            client,
+            dataset,
+            dataset_post_body
+        ):
+        """
+        /datasets POST fails if the ds name is the same with case-sensitive
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = data_body['name'].upper()
+        post_dataset(client, post_json_admin_header, data_body, 500)
+
+        self.assert_datasets_by_name(data_body['name'])
+
+    @mock.patch('app.datasets_api.Dataset.add')
+    def test_post_dataset_with_url_encoded_name(
+            self,
+            ds_add_mock,
+            post_json_admin_header,
+            client,
+            dataset,
+            dataset_post_body,
+            simple_admin_header
+        ):
+        """
+        /datasets POST fails if the ds name is the same with case-sensitive
+        """
+        data_body = dataset_post_body.copy()
+
+        data_body['name'] = "test%20dataset"
+        new_ds = post_dataset(client, post_json_admin_header, data_body)
+
+        self.assert_datasets_by_name("test dataset")
+
+        response = client.get("/datasets/" + data_body['name'], headers=simple_admin_header)
+        assert response.status_code == 200
+        assert response.json == {
+            "id": new_ds["dataset_id"],
+            "name": "test dataset",
+            "host": data_body["host"],
+            "port": 5432,
+            "slug": "test-dataset",
+            "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset"
+        }
 
     @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_fails_k8s_secrets(
@@ -302,8 +396,7 @@ class TestDatasets:
         data_body['name'] = 'TestDs78'
         post_dataset(client, post_json_admin_header, data_body, 400)
 
-        query = run_query(select(Dataset).where(Dataset.name == data_body["name"]))
-        assert len(query) == 0
+        self.assert_datasets_by_name(data_body['name'], count=0)
 
     @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_k8s_secrets_exists(
@@ -330,8 +423,7 @@ class TestDatasets:
         data_body['name'] = 'TestDs78'
         post_dataset(client, post_json_admin_header, data_body)
 
-        query = run_query(select(Dataset).where(Dataset.name == data_body["name"]))
-        assert len(query) == 1
+        self.assert_datasets_by_name(data_body['name'])
 
     @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
     def test_post_dataset_is_unsuccessful_non_admin(
@@ -349,8 +441,7 @@ class TestDatasets:
         data_body['name'] = 'TestDs78'
         post_dataset(client, post_json_user_header, data_body, 403)
 
-        query = run_query(select(Dataset).where(Dataset.name == data_body["name"]))
-        assert len(query) == 0
+        self.assert_datasets_by_name(data_body['name'], count=0)
         query = run_query(select(Catalogue).where(Catalogue.title == data_body["catalogue"]["title"]))
         assert len(query)== 0
         for d in data_body["dictionaries"]:
@@ -381,8 +472,7 @@ class TestDatasets:
         assert response == {'error': 'Record already exists'}
 
         # Make sure any db entry is created
-        query = run_query(select(Dataset).where(Dataset.name == data_body["name"]))
-        assert len(query) == 0
+        self.assert_datasets_by_name(data_body['name'], count=0)
 
     @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_with_empty_dictionaries_succeeds(
@@ -399,14 +489,13 @@ class TestDatasets:
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs22'
         data_body["dictionaries"] = []
-        post_dataset(client, post_json_admin_header, data_body)
+        query_ds = post_dataset(client, post_json_admin_header, data_body)
 
         # Make sure any db entry is created
-        query_ds = run_query(select(Dataset).where(Dataset.name == data_body["name"]))
-        assert len(query_ds) == 1
+        self.assert_datasets_by_name(data_body['name'])
         query = run_query(select(Catalogue).where(Catalogue.title == data_body["catalogue"]["title"]))
         assert len(query) == 1
-        query = run_query(select(Dictionary).where(Dictionary.dataset_id == query_ds[0][0].id))
+        query = run_query(select(Dictionary).where(Dictionary.dataset_id == query_ds["dataset_id"]))
         assert len(query) == 0
 
     @mock.patch('app.datasets_api.Dataset.add')
@@ -431,8 +520,7 @@ class TestDatasets:
         assert response == {'error': 'dictionaries should be a list.'}
 
         # Make sure any db entry is created
-        query = run_query(select(Dataset).where(Dataset.name == data_body["name"]))
-        assert len(query) == 0
+        self.assert_datasets_by_name(data_body['name'], count=0)
         query = run_query(select(Catalogue).where(Catalogue.title == data_body["catalogue"]["title"]))
         assert len(query) == 0
         query = run_query(select(Dictionary).where(Dictionary.table_name == data_body["dictionaries"]["table_name"]))
@@ -456,8 +544,7 @@ class TestDatasets:
         post_dataset(client, post_json_admin_header, data_body)
 
         # Make sure db entries are created
-        query = run_query(select(Dataset).where(Dataset.name == data_body['name']))
-        assert len(query) == 1
+        self.assert_datasets_by_name(data_body['name'])
         query = run_query(select(Catalogue).where(Catalogue.title == data_body["catalogue"]["title"]))
         assert len(query) == 1
         for d in data_body["dictionaries"]:
@@ -469,8 +556,7 @@ class TestDatasets:
         ds_resp = post_dataset(client, post_json_admin_header, data_body)
 
         # Make sure any db entry is created
-        query = run_query(select(Dataset).where(Dataset.id == ds_resp["dataset_id"]))
-        assert len(query) == 1
+        self.assert_datasets_by_name(data_body['name'])
         query = run_query(select(Catalogue).where(Catalogue.title == data_body["catalogue"]["title"]))
         assert len(query) == 2
         for d in data_body["dictionaries"]:
@@ -492,14 +578,13 @@ class TestDatasets:
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs22'
         data_body.pop("dictionaries")
-        post_dataset(client, post_json_admin_header, data_body)
+        query_ds = post_dataset(client, post_json_admin_header, data_body)
 
         # Make sure any db entry is created
-        query_ds = run_query(select(Dataset).where(Dataset.name == data_body["name"]))
-        assert len(query_ds) == 1
+        self.assert_datasets_by_name(data_body['name'])
         query = run_query(select(Catalogue).where(Catalogue.title == data_body["catalogue"]["title"]))
         assert len(query) == 1
-        query = run_query(select(Dictionary).where(Dictionary.dataset_id == query_ds[0][0].id))
+        query = run_query(select(Dictionary).where(Dictionary.dataset_id == query_ds["dataset_id"]))
         assert len(query) == 0
 
     @mock.patch('app.datasets_api.Dataset.add')
@@ -518,12 +603,11 @@ class TestDatasets:
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs22'
         data_body.pop("catalogue")
-        post_dataset(client, post_json_admin_header, data_body)
+        query_ds = post_dataset(client, post_json_admin_header, data_body)
 
         # Make sure any db entry is created
-        query_ds = run_query(select(Dataset).where(Dataset.name == data_body["name"]))
-        assert len(query_ds) == 1
-        query = run_query(select(Catalogue).where(Catalogue.dataset_id == query_ds[0][0].id))
+        self.assert_datasets_by_name(data_body['name'])
+        query = run_query(select(Catalogue).where(Catalogue.dataset_id == query_ds["dataset_id"]))
         assert len(query) == 0
         for d in data_body["dictionaries"]:
             query = run_query(select(Dictionary).where(Dictionary.table_name == d["table_name"]))

@@ -23,7 +23,6 @@ def auth(scope:str, check_dataset=True):
             if scope and not token:
                 raise AuthenticationError("Token not provided")
 
-            session = db.session
             resource = 'endpoints'
             ds_name = ''
             ds_id = ''
@@ -39,12 +38,11 @@ def auth(scope:str, check_dataset=True):
 
                 if ds_id or ds_name:
                     if ds_id:
-                        q = session.execute(select(Dataset).where(Dataset.id == ds_id)).one_or_none()
+                        ds = Dataset.query.filter(Dataset.id == ds_id).one_or_none()
                     elif ds_name:
-                        q = session.execute(select(Dataset).where(Dataset.name == ds_name)).one_or_none()
-                    if not q:
+                        ds = Dataset.query.filter(Dataset.name.ilike(ds_name)).one_or_none()
+                    if not ds:
                         raise DBRecordNotFoundError(f"Dataset {ds_id}{ds_name} does not exist")
-                    ds = q[0]
                     resource = f"{ds.id}-{ds.name}"
             requested_project = request.headers.get("project-name")
             client = 'global'

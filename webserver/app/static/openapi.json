@@ -1041,7 +1041,9 @@
           "host": {"type": "string", "example": "http://dblocation"},
           "port": {"type": "integer", "example": 5432},
           "name": {"type": "string", "example": "Blood Cancer Database"},
-          "id": {"type": "integer", "example": 1}
+          "id": {"type": "integer", "example": 1},
+          "slug": {"type": "string", "example": "blood_cancer_database"},
+          "url": {"type": "string", "example": "https://federatednode.com/datasets/blood_cancer_database"}
         }
       },
       "DatasetCatalogue": {

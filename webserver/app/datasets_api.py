@@ -32,10 +32,10 @@ def get_dataset_by_name(dataset_name):
     """
     Common funcion to get a dataset by name
     """
-    dataset = Dataset.query.filter(Dataset.name==dataset_name).first()
+    dataset = Dataset.query.filter(Dataset.name.ilike(dataset_name)).first()
     if not dataset:
         raise DBRecordNotFoundError(f"Dataset {dataset_name} does not exist")
-    return dataset.id
+    return dataset
 
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
@@ -81,7 +81,7 @@ def post_datasets():
             dictionary = Dictionary(dataset=dataset, **dict_data)
             dictionary.add(commit=False)
         session.commit()
-        return { "dataset_id": dataset.id }, 201
+        return { "dataset_id": dataset.id, "url": dataset.url }, 201
 
     except:
         session.rollback()
@@ -94,7 +94,7 @@ def get_datasets_by_id(dataset_id):
     """
     GET /datasets/id endpoint. Gets dataset with a give id
     """
-    ds = session.get(Dataset, dataset_id)
+    ds = Dataset.query.filter(Dataset.id == dataset_id).one_or_none()
     if ds is None:
         raise DBRecordNotFoundError(f"Dataset with id {dataset_id} does not exist")
     return Dataset.sanitized_dict(ds), 200
@@ -106,7 +106,7 @@ def get_datasets_by_name(dataset_name):
     """
     GET /datasets/id endpoint. Gets dataset with a give id
     """
-    ds = Dataset.query.filter(Dataset.name==dataset_name).first()
+    ds = get_dataset_by_name(dataset_name)
     if ds is None:
         raise DBRecordNotFoundError(f"Dataset {dataset_name} does not exist")
     return Dataset.sanitized_dict(ds), 200
@@ -121,14 +121,12 @@ def get_datasets_catalogue_by_id(dataset_id=None, dataset_name=None):
     GET /datasets/id/catalogue endpoint. Gets dataset's catalogue
     """
     if dataset_name:
-        dataset_id = get_dataset_by_name(dataset_name)
+        dataset_id = get_dataset_by_name(dataset_name).id
 
-    cata = select(Catalogue).where(Catalogue.dataset_id == dataset_id).limit(1)
-    res = session.execute(cata).all()
-    if res:
-        res = res[0][0].sanitized_dict()
-        return res, 200
-    raise DBRecordNotFoundError(f"Dataset {dataset_id} has no catalogue.")
+    cata = Catalogue.query.filter(Catalogue.dataset_id == dataset_id).one_or_none()
+    if not cata:
+        raise DBRecordNotFoundError(f"Dataset {dataset_id} has no catalogue.")
+    return cata.sanitized_dict(), 200
 
 @bp.route('/<dataset_name>/dictionaries', methods=['GET'])
 @bp.route('/<int:dataset_id>/dictionaries', methods=['GET'])
@@ -141,17 +139,14 @@ def get_datasets_dictionaries_by_id(dataset_id=None, dataset_name=None):
         Gets the dataset's list of dictionaries
     """
     if dataset_name:
-        dataset_id = get_dataset_by_name(dataset_name)
+        dataset_id = get_dataset_by_name(dataset_name).id
 
-    dictionary = select(Dictionary).where(Dictionary.dataset_id == dataset_id)
-    res = session.execute(dictionary).all()
-    if res:
-        res = [r[0].sanitized_dict() for r in res]
-        return res, 200
+    dictionary = Dictionary.query.filter(Dictionary.dataset_id == dataset_id).all()
+    if not dictionary:
+        raise DBRecordNotFoundError(f"Dataset {dataset_id} has no dictionaries.")
 
-    raise DBRecordNotFoundError(
-        f"Dataset {dataset_id} has no dictionaries."
-    )
+    return [dc.sanitized_dict() for dc in dictionary], 200
+
 
 @bp.route('/<dataset_name>/dictionaries/<table_name>', methods=['GET'])
 @bp.route('/<int:dataset_id>/dictionaries/<table_name>', methods=['GET'])
@@ -165,20 +160,18 @@ def get_datasets_dictionaries_table_by_id(table_name, dataset_id=None, dataset_n
         Gets the dataset's table within its dictionaries
     """
     if dataset_name:
-        dataset_id = get_dataset_by_name(dataset_name)
+        dataset_id = get_dataset_by_name(dataset_name).id
 
-    dictionary = select(Dictionary).where(
+    dictionary = Dictionary.query.filter(
         Dictionary.dataset_id == dataset_id,
         Dictionary.table_name == table_name
-    )
-    res = session.execute(dictionary).all()
-    if res:
-        res = [r[0].sanitized_dict() for r in res]
-        return res, 200
+    ).all()
+    if not dictionary:
+        raise DBRecordNotFoundError(
+            f"Dataset {dataset_id} has no dictionaries with table {table_name}."
+        )
 
-    raise DBRecordNotFoundError(
-        f"Dataset {dataset_id} has no dictionaries with table {table_name}."
-    )
+    return [dc.sanitized_dict() for dc in dictionary], 200
 
 @bp.route('/token_transfer', methods=['POST'])
 @audit
@@ -196,7 +189,7 @@ def post_transfer_token():
 
         body["requested_by"] = json.dumps(body["requested_by"])
         ds_id = body.pop("dataset_id")
-        body["dataset"] = session.get(Dataset, ds_id)
+        body["dataset"] = Dataset.query.filter(Dataset.id == ds_id).one_or_none()
         if body["dataset"] is None:
             raise DBRecordNotFoundError(f"Dataset {ds_id} not found")
 
@@ -233,7 +226,7 @@ def select_beacon():
         Checks the validity of a query on a dataset
     """
     body = request.json.copy()
-    dataset = session.get(Dataset, body['dataset_id'])
+    dataset = Dataset.query.filter(Dataset.id == body['dataset_id']).one_or_none()
     if dataset is None:
         raise DBRecordNotFoundError(f"Dataset with id {body['dataset_id']} does not exist")
 
