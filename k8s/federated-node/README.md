@@ -34,6 +34,12 @@ The necessary values are:
 |ingress.tls|secretName |Secret name where the certs are. Defaults to `tls` if the `ingress.tls` section is set|
 |ingress.tls|certFile|The .cert file path. Has lower priority than the secret.|
 |ingress.tls|keyFile|The .key file path. Has lower priority than the secret.|
+|-|-|-|
+|.|local_development|Set to `false` as default, if set to `true` it will not create the certificate cron job|
+|-|-|-|
+|certs|frequency|Number of days used to set the frequency of certificate refresh cronjob. This number is divided by 30, and used to run every `frequency / 30` months|
+|certs.azure|sp_certificate|Set the Service Principal credentials for the DNS service, so that the certificate can be auto-renew. The credentials should be in a secret and its name should be set in the sp_certificate field. `DNS_SP_ID` `DNS_SP_SECRET` `AZ_DIRECTORY_ID` `SUBSCRIPTION_ID` are the fields needed in the secret|
+|certs.aws|sp_certificate|AWS needs couple of env vars, and those should be replicated in the secret `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`|
 
 ### Existing secrets
 It is highly suggested to have some secrets pre-set in the namespace this helm chart will be installed at:

@@ -56,6 +56,23 @@ acrs:
     # username:
     # email:
 
+local_development: false
+
+certs:
+  # how often the certs should be renewed in days
+  frequency: 60
+  # In case of azure setup, set the Service Principal credentials
+  # for the DNS service, so that the certificate can be auto-renew.
+  # The credentials should be in a secret and its name should be set
+  # in the sp_certificate field
+  # azure:
+    # sp_certificate:
+
+  # AWS needs couple of env vars, and those should be replicated in the secret
+  # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+  # aws:
+    # sp_certificate:
+
 storage:
   azure:
     # secretName:

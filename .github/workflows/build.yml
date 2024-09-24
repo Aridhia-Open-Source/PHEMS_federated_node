@@ -98,3 +98,10 @@ jobs:
           file: build/keycloak/keycloak.Dockerfile
           tags: ${{ vars.DOCKER_ACR }}/${{ env.OWNER_LC }}/federated_keycloak:${{ env.TAG }}
           push: true
+      - name: Build and push certificate image
+        uses: docker/build-push-action@v5
+        with:
+          context: build/certs
+          file: build/crerts/Dockerfile
+          tags: ${{ vars.DOCKER_ACR }}/${{ env.OWNER_LC }}/federated_node_certificate:${{ env.TAG }}
+          push: true

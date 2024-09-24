@@ -1,0 +1,41 @@
+{{ if not .Values.local_development }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: certibot-renewer
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: "0 11 * */{{ div .Values.certs.frequency 30 }} 1"
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 60
+      template:
+        spec:
+          containers:
+          - name: certibot-renewer
+            image: {{ .Values.image.repository }}:federated_node_certificate:{{ .Chart.AppVersion }}
+            imagePullPolicy: {{ .Values.image.pullPolicy }}
+            env:
+            - name: NAMESPACE
+              value: {{ .Release.Namespace }}
+            - name: KEYCLOAK_NAMESPACE
+              value: {{ .Values.namespaces.keycloak }}
+            - name: DOMAIN
+              value: {{ .Values.ingress.host }}
+            envFrom:
+                - secretKeyRef:
+                    {{ if .Values.certs.azure }}
+                    name: {{ .Values.certs.azure.sp_certificate }}
+                    {{ else if .Values.certs.aws }}
+                    name: {{ .Values.certs.aws.sp_certificate }}
+                    {{ end }}
+            command:
+            - /bin/sh
+            - -c
+            {{ if .Values.certs.azure }}
+            - /app/scripts/azure.sh
+            {{ else if .Values.certs.aws }}
+            - /app/scripts/aws.sh
+            {{ end }}
+          restartPolicy: Never
+{{ end }}
