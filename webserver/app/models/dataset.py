@@ -21,7 +21,14 @@ class Dataset(db.Model, BaseModel):
     host = Column(String(256), nullable=False)
     port = Column(Integer, default=5432)
 
-    def __init__(self, name:str, host:str, username:str, password:str, port:int=5432):
+    def __init__(self,
+                 name:str,
+                 host:str,
+                 username:str,
+                 password:str,
+                 port:int=5432,
+                 **kwargs
+                ):
         self.name = name
         self.host = host
         self.port = port

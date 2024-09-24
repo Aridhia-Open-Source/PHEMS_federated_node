@@ -2,7 +2,7 @@ import logging
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import Column, Integer, DateTime, String, ForeignKey
 from sqlalchemy.orm import relationship
@@ -11,7 +11,7 @@ from uuid import uuid4
 
 import urllib3
 from app.helpers.acr import ACRClient
-from app.helpers.const import MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, TASK_NAMESPACE
+from app.helpers.const import CLEANUP_AFTER_DAYS, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, TASK_NAMESPACE
 from app.helpers.db import BaseModel, db
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesBatchClient, KubernetesClient
@@ -49,7 +49,8 @@ class Task(db.Model, BaseModel):
                  outputs:dict = {},
                  volumes:dict = {},
                  description:str = '',
-                 created_at:datetime=datetime.now()
+                 created_at:datetime=datetime.now(),
+                 **kwargs
                  ):
         self.name = name
         self.status = 'scheduled'
@@ -181,6 +182,20 @@ class Task(db.Model, BaseModel):
     def pod_name(self):
         return f"{self.name.lower().replace(' ', '-')}-{uuid4()}"
 
+    def get_expiration_date(self) -> str:
+        """
+        In order to help with the cleanup process we set a lable for
+        - pod
+        - pv
+        - pvc
+
+        to bulk delete unused resources.
+        The date returned is in format `YYYYMMDD`
+        Running `kubectl delete pvc -n analytics -l "delete_by=$(date +%Y%m%d)"` will bulk delete
+        all pvcs to be deleted today.
+        """
+        return (datetime.now() + timedelta(days=CLEANUP_AFTER_DAYS)).strftime("%Y%m%d")
+
     def run(self, validate=False):
         """
         Method to spawn a new pod with the requested image
@@ -202,7 +217,8 @@ class Task(db.Model, BaseModel):
             "labels": {
                 "task_id": str(self.id),
                 "requested_by": self.requested_by,
-                "dataset_id": str(self.dataset_id)
+                "dataset_id": str(self.dataset_id),
+                "delete_by": self.get_expiration_date()
             },
             "dry_run": 'true' if validate else 'false',
             "environment": provided_env,

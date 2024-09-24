@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/arihdia-federated-node/federated_node_run
+  repository: ghcr.io/aridhia-open-source/federated_node_run
   tag: 0.0.1
   pullPolicy: IfNotPresent
 
@@ -41,6 +41,9 @@ db:
   # secret:
   #   name:
   #   key:
+
+# How many days the results and k8s resources are kept for
+cleanupTime: 3
 
 federatedNode:
   port: 5000

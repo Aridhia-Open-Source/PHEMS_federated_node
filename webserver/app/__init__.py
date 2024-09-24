@@ -25,7 +25,7 @@ def create_app():
     app = Flask(__name__)
     app.config["SQLALCHEMY_DATABASE_URI"] = build_sql_uri()
 
-    SWAGGERUI_BLUEPRINT = get_swaggerui_blueprint(
+    swagger_ui_blueprint = get_swaggerui_blueprint(
         "/docs",
         "/static/openapi.json",
         config={
@@ -33,7 +33,7 @@ def create_app():
         }
     )
 
-    app.register_blueprint(SWAGGERUI_BLUEPRINT, url_prefix="/docs")
+    app.register_blueprint(swagger_ui_blueprint, url_prefix="/docs")
 
     db.init_app(app)
     app.register_blueprint(main.bp)

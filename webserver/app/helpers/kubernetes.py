@@ -45,7 +45,7 @@ class KubernetesBase:
         and assemble it with the different sdk objects
         """
         # Create a dedicated VPC for each task so that we can keep results indefinitely
-        self.create_persistent_storage(pod_spec["name"])
+        self.create_persistent_storage(pod_spec["name"], pod_spec["labels"])
         pvc_name = f"{pod_spec["name"]}-volclaim"
 
         vol_mount = client.V1VolumeMount(
@@ -191,7 +191,7 @@ class KubernetesBase:
             if e.status != 404:
                 raise InvalidRequest(f"Failed to delete pod {name}: {e.reason}")
 
-    def create_persistent_storage(self, name:str):
+    def create_persistent_storage(self, name:str, labels:list = []):
         """
         Function to dynamically create (if doesn't already exist)
         a PV and its PVC
@@ -216,14 +216,14 @@ class KubernetesBase:
         pv = client.V1PersistentVolume(
             api_version='v1',
             kind='PersistentVolume',
-            metadata=client.V1ObjectMeta(name=name, namespace=TASK_NAMESPACE),
+            metadata=client.V1ObjectMeta(name=name, namespace=TASK_NAMESPACE, labels=labels),
             spec=pv_spec
         )
 
         pvc = client.V1PersistentVolumeClaim(
             api_version='v1',
             kind='PersistentVolumeClaim',
-            metadata=client.V1ObjectMeta(name=f"{name}-volclaim", namespace=TASK_NAMESPACE),
+            metadata=client.V1ObjectMeta(name=f"{name}-volclaim", namespace=TASK_NAMESPACE, labels=labels),
             spec=client.V1PersistentVolumeClaimSpec(
                 access_modes=['ReadWriteMany'],
                 volume_name=name,

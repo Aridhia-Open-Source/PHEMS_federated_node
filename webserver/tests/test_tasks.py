@@ -1,8 +1,10 @@
 import json
 import pytest
+from datetime import datetime, timedelta
 from kubernetes.client.exceptions import ApiException
 from unittest.mock import Mock
 
+from app.helpers.const import CLEANUP_AFTER_DAYS
 from app.helpers.db import db
 from app.helpers.exceptions import InvalidRequest
 from app.models.task import Task
@@ -361,110 +363,138 @@ def test_docker_image_regex(
         data["executors"][0]["image"] = im_format
         with pytest.raises(InvalidRequest):
             Task.validate(data)
+class TestTaskResults:
+    def test_get_results(
+        self,
+        acr_client,
+        post_json_admin_header,
+        simple_admin_header,
+        client,
+        task_body,
+        mocker
+    ):
+        """
+        A simple test with mocked PVs to test a successful result
+        fetch
+        """
+        # Create a new task
+        data = task_body
+        # The mock has to be done manually rather than use the fixture
+        # as it complains about the return value of the list_pod method
+        mocker.patch(
+            'app.models.task.KubernetesClient',
+            return_value=MockKubernetesClient()
+        )
+        mocker.patch('app.models.task.uuid4', return_value="1dc6c6d1-417f-409a-8f85-cb9d20f7c741")
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(data),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
 
-def test_get_results(
-    acr_client,
-    post_json_admin_header,
-    simple_admin_header,
-    client,
-    task_body,
-    mocker
-):
-    """
-    A simple test with mocked PVs to test a successful result
-    fetch
-    """
-    # Create a new task
-    data = task_body
-    # The mock has to be done manually rather than use the fixture
-    # as it complains about the return value of the list_pod method
-    mocker.patch(
-        'app.models.task.KubernetesClient',
-        return_value=MockKubernetesClient()
-    )
-    mocker.patch('app.models.task.uuid4', return_value="1dc6c6d1-417f-409a-8f85-cb9d20f7c741")
-    response = client.post(
-        '/tasks/',
-        data=json.dumps(data),
-        headers=post_json_admin_header
-    )
-    assert response.status_code == 201
+        # Get results
+        mocker.patch(
+            'app.models.task.KubernetesBatchClient'
+        )
+        k8s_client = mocker.patch(
+            'app.models.task.KubernetesClient',
+            return_value=Mock(list_namespaced_pod=Mock())
+        )
+        pod_mock = Mock()
+        pod_mock.metadata.labels = {"job-name": "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"}
+        pod_mock.metadata.name = "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"
+        pod_mock.spec.containers = [Mock(image=task_body["executors"][0]["image"])]
+        pod_mock.status.container_statuses = [Mock(ready=True)]
+        k8s_client.return_value.list_namespaced_pod.return_value.items = [pod_mock]
 
-    # Get results
-    mocker.patch(
-        'app.models.task.KubernetesBatchClient'
-    )
-    k8s_client = mocker.patch(
-        'app.models.task.KubernetesClient',
-        return_value=Mock(list_namespaced_pod=Mock())
-    )
-    pod_mock = Mock()
-    pod_mock.metadata.labels = {"job-name": "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"}
-    pod_mock.metadata.name = "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"
-    pod_mock.spec.containers = [Mock(image=task_body["executors"][0]["image"])]
-    pod_mock.status.container_statuses = [Mock(ready=True)]
-    k8s_client.return_value.list_namespaced_pod.return_value.items = [pod_mock]
+        mocker.patch(
+            'app.models.task.Task.get_status',
+            return_value={"running": {}}
+        )
 
-    mocker.patch(
-        'app.models.task.Task.get_status',
-        return_value={"running": {}}
-    )
+        response = client.get(
+            f'/tasks/{response.json["task_id"]}/results',
+            headers=simple_admin_header
+        )
+        assert response.status_code == 200
+        assert response.content_type == "application/x-tar"
 
-    response = client.get(
-        f'/tasks/{response.json["task_id"]}/results',
-        headers=simple_admin_header
-    )
-    assert response.status_code == 200
-    assert response.content_type == "application/x-tar"
+    def test_get_results_job_creation_failure(
+        self,
+        acr_client,
+        post_json_admin_header,
+        simple_admin_header,
+        client,
+        task_body,
+        mocker
+    ):
+        """
+        Tests that the job creation to fetch results from a PV returns a 500
+        error code
+        """
+        # Create a new task
+        data = task_body
+        # The mock has to be done manually rather than use the fixture
+        # as it complains about the return value of the list_pod method
+        mocker.patch(
+            'app.models.task.KubernetesClient',
+            return_value=MockKubernetesClient()
+        )
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(data),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
 
-def test_get_results_job_creation_failure(
-    acr_client,
-    post_json_admin_header,
-    simple_admin_header,
-    client,
-    task_body,
-    mocker
-):
-    """
-    Tests that the job creation to fetch results from a PV returns a 500
-    error code
-    """
-    # Create a new task
-    data = task_body
-    # The mock has to be done manually rather than use the fixture
-    # as it complains about the return value of the list_pod method
-    mocker.patch(
-        'app.models.task.KubernetesClient',
-        return_value=MockKubernetesClient()
-    )
-    response = client.post(
-        '/tasks/',
-        data=json.dumps(data),
-        headers=post_json_admin_header
-    )
-    assert response.status_code == 201
+        # Get results - creating a job fails
+        k8s_batch = mocker.patch('app.models.task.KubernetesBatchClient')
+        k8s_batch.return_value.create_namespaced_job.side_effect = ApiException(status=500, reason="Something went wrong")
 
-    # Get results - creating a job fails
-    k8s_batch = mocker.patch('app.models.task.KubernetesBatchClient')
-    k8s_batch.return_value.create_namespaced_job.side_effect = ApiException(status=500, reason="Something went wrong")
+        k8s_client = mocker.patch(
+            'app.models.task.KubernetesClient',
+            return_value=Mock(list_namespaced_pod=Mock())
+        )
+        pod_mock = Mock()
+        pod_mock.metadata.labels = {"job-name": "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"}
+        pod_mock.metadata.name = "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"
+        pod_mock.spec.containers = [Mock(image=task_body["executors"][0]["image"])]
+        pod_mock.status.container_statuses = [Mock(ready=True)]
+        k8s_client.return_value.list_namespaced_pod.return_value.items = [pod_mock]
 
-    k8s_client = mocker.patch(
-        'app.models.task.KubernetesClient',
-        return_value=Mock(list_namespaced_pod=Mock())
-    )
-    pod_mock = Mock()
-    pod_mock.metadata.labels = {"job-name": "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"}
-    pod_mock.metadata.name = "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"
-    pod_mock.spec.containers = [Mock(image=task_body["executors"][0]["image"])]
-    pod_mock.status.container_statuses = [Mock(ready=True)]
-    k8s_client.return_value.list_namespaced_pod.return_value.items = [pod_mock]
+        response = client.get(
+            f'/tasks/{response.json["task_id"]}/results',
+            headers=simple_admin_header
+        )
+        assert response.status_code == 400
+        assert response.json["error"] == 'Failed to run pod: Something went wrong'
 
-    response = client.get(
-        f'/tasks/{response.json["task_id"]}/results',
-        headers=simple_admin_header
-    )
-    assert response.status_code == 400
-    assert response.json["error"] == 'Failed to run pod: Something went wrong'
+    def test_results_not_found_with_expired_date(
+        self,
+        simple_admin_header,
+        client,
+        dataset
+    ):
+        """
+        A task result are being deleted after a declared number of days.
+        This test makes sure an error is returned as expected
+        """
+        task = Task(
+            name="task",
+            docker_image="image:tag",
+            description="something",
+            requested_by="abc123-412-51251-213-412",
+            dataset=dataset,
+            created_at=datetime.now() - timedelta(days=CLEANUP_AFTER_DAYS)
+        )
+        task.add()
+        response = client.get(
+            f'/tasks/{task.id}/results',
+            headers=simple_admin_header
+        )
+        assert response.status_code == 500
+        assert response.json["error"] == 'Tasks results are not available anymore. Please, run the task again'
 
 def test_get_task_status_running_and_waiting(
     acr_client,

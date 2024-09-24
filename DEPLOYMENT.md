@@ -141,7 +141,7 @@ e.g.
 keycloak:
   tag: 0.0.1-617710
 ```
-will use `ghcr.io/arihdia-federated-node/federated_keycloak:0.0.1-617710` in the statefulset.
+will use `ghcr.io/aridhia-open-source/federated_keycloak:0.0.1-617710` in the statefulset.
 
 __IMPORTANT NOTE__: If deploying on Azure AKS, set `ingress.on_aks` to `true`. This will make dedicated configuration active to run properly on that platform.
 

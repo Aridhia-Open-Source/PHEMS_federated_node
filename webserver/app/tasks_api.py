@@ -8,7 +8,9 @@ tasks-related endpoints:
 - POST /tasks/id/cancel
 """
 from flask import Blueprint, request, send_file
+from datetime import datetime, timedelta
 
+from app.helpers.const import CLEANUP_AFTER_DAYS
 from app.helpers.exceptions import DBRecordNotFoundError, UnauthorizedError
 from app.helpers.keycloak import Keycloak
 from app.helpers.wrappers import audit, auth
@@ -119,6 +121,9 @@ def get_task_results(task_id):
     task = session.get(Task, task_id)
     if task is None:
         raise DBRecordNotFoundError(f"Dataset with id {task_id} does not exist")
+
+    if task.created_at.date() + timedelta(days=CLEANUP_AFTER_DAYS) <= datetime.now().date():
+        return {"error": "Tasks results are not available anymore. Please, run the task again"}, 500
 
     results_file = task.get_results()
     return send_file(results_file, download_name="results.tar.gz"), 200

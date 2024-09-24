@@ -6,13 +6,13 @@ from app.helpers.db import BaseModel, db
 class Audit(db.Model, BaseModel):
     __tablename__ = 'audit'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    ip_address = Column(String(15), nullable=False)
-    http_method = Column(String(10), nullable=False)
-    endpoint = Column(String(50), nullable=False)
-    requested_by = Column(String(50), nullable=False)
+    ip_address = Column(String(256), nullable=False)
+    http_method = Column(String(256), nullable=False)
+    endpoint = Column(String(256), nullable=False)
+    requested_by = Column(String(256), nullable=False)
     status_code = Column(Integer)
-    api_function = Column(String(50))
-    details = Column(String(256))
+    api_function = Column(String(256))
+    details = Column(String(4096))
     event_time = Column(DateTime(timezone=False), server_default=func.now())
 
     def __init__(self,
