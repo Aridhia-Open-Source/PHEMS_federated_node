@@ -17,6 +17,14 @@ def index():
     """
     return redirect(url_for('main.health_check'))
 
+@bp.route("/ready_check")
+def ready_check():
+    """
+    GET /ready_check endpoint
+        Mostly to tell k8s Flask has started
+    """
+    return {"status": "ready"}, 200
+
 @bp.route("/health_check")
 def health_check():
     """

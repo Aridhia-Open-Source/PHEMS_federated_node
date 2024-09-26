@@ -14,25 +14,27 @@ spec:
       app: flask
   template:
     metadata:
+      annotations:
+        rollme: {{ template "rollMe" . }}
       labels:
         app: flask
     spec:
       serviceAccountName: secret-backend-handler
       initContainers:
-        {{ template "createDBInitContainer" .}}
+        {{ template "createDBInitContainer" . }}
           - name: NEW_DB
             valueFrom:
               configMapKeyRef:
                 name: backend-configmap
                 key: PGDATABASE
         - name: db-migrations
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          image: {{ template "backend-image" . }}:{{ .Values.backend.tag | default .Chart.AppVersion }}
           command: ["/bin/sh"]
           workingDir: /
           args:
             [
               "-c",
-              'python -m alembic upgrade head',
+              'python -m alembic upgrade head'
             ]
           envFrom:
             - configMapRef:
@@ -53,9 +55,9 @@ spec:
                 key: PGPASSWORD
                 {{ end }}
       containers:
-        - image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        - image: {{ template "backend-image" . }}:{{ .Values.backend.tag | default .Chart.AppVersion }}
           name: backend
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
           {{ include "nonRootSC" . }}
           resources:
             limits:
@@ -67,7 +69,7 @@ spec:
               protocol: TCP
           readinessProbe:
             httpGet:
-              path: /health_check
+              path: /ready_check
               port: http
             initialDelaySeconds: 30
             periodSeconds: 180

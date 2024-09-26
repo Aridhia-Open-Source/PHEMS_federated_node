@@ -47,13 +47,19 @@ def auth(scope:str, check_dataset=True):
             requested_project = request.headers.get("project-name")
             client = 'global'
             token_type = 'refresh_token'
-            if requested_project:
-                token_info = Keycloak().decode_token(token)
-                client = f"Request {token_info['username']} - {requested_project}"
-                token = Keycloak(client).exchange_global_token(token)
-                token_type = 'access_token'
+            # If the user is an admin or system, ignore the project
+            kc_client = Keycloak()
+            token_info = kc_client.decode_token(token)
+            user = kc_client.get_user(token_info['username'])
+            if not kc_client.has_user_roles(user["id"], {"Administrator", "System"}):
+                requested_project = request.headers.get("project-name")
+                if requested_project:
+                    client = f"Request {token_info['username']} - {requested_project}"
+                    kc_client = Keycloak(client)
+                    token = kc_client.exchange_global_token(token)
+                    token_type = 'access_token'
 
-            if Keycloak(client).is_token_valid(token, scope, resource, token_type):
+            if kc_client.is_token_valid(token, scope, resource, token_type):
                 return func(*args, **kwargs)
             else:
                 raise UnauthorizedError("Token is not valid, or the user has not enough permissions.")

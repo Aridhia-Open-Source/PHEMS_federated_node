@@ -6,17 +6,12 @@ The federated node is deployed as an Helm Chart, so helm should be installed in 
 See their installation instructions [here](https://helm.sh/docs/intro/install/).
 
 ### Setup helm repo
-__Until v1.0__ a set of credentials will need to be required to pull docker images and the helm chart. These credentials will be set in a shared note in LastPass, called `FN setup notes`. If you don't have access to it, ask [@r-casula](https://github.com/r-casula) to manually provide them beforehand.
-
-__From v1.0__ there will be no need for credentials as the helm repo will be public.
-
-Set the two env vars `$username` and `$password`, based on the note above.
 ```sh
-helm repo add --username $username --password $token federated-node https://gitlab.com/api/v4/projects/aridhia%2Ffederated_node/packages/helm/stable
+helm repo add federated-node https://gitlab.com/api/v4/projects/aridhia%2Ffederated-node/packages/helm/stable
 ```
 If you want to run a development chart
 ```sh
-helm repo add --username $username --password $token federated-node https://gitlab.com/api/v4/projects/aridhia%2Ffederated_node/packages/helm/develop
+helm repo add federated-node https://gitlab.com/api/v4/projects/aridhia%2Ffederated-node/packages/helm/develop
 ```
 
 Now you should be all set to pull the chart from gitLab.
@@ -133,7 +128,7 @@ In order to deploy a `yaml` file is needed to customize certain configurations f
 Download it in your working folder (the one you're going to run the deployment command from, see below) and change values as needed.
 
 If you want to use develop images, you can set
-`image.tag` for the flask backend
+`backend.tag` for the flask backend
 `keycloak.tag` for the keycloak service
 
 e.g.

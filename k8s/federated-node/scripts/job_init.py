@@ -5,7 +5,7 @@ import os
 import time
 
 KEYCLOAK_NAMESPACE = os.getenv("KEYCLOAK_NAMESPACE")
-KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", f"http://keycloak.{KEYCLOAK_NAMESPACE}.svc.cluster.local:8080")
+KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", f"http://keycloak.{KEYCLOAK_NAMESPACE}.svc.cluster.local")
 REALM = 'master'
 KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "FederatedNode")
 KEYCLOAK_CLIENT = os.getenv("KEYCLOAK_CLIENT", "global")
@@ -45,7 +45,7 @@ headers = {
 }
 
 response = requests.post(
-    f"{KEYCLOAK_URL}/realms/master/protocol/openid-connect/token",
+    f"{KEYCLOAK_URL}/realms/{REALM}/protocol/openid-connect/token",
     headers=headers,
     data=payload
 )

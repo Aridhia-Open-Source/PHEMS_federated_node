@@ -787,9 +787,9 @@ class TestDictionaryTable:
             self,
             client,
             dataset,
-            dataset_post_body,
+            simple_admin_header,
             post_json_admin_header,
-            simple_admin_header
+            dataset_post_body
     ):
         """
         Check that non-admin or non DAR approved users
