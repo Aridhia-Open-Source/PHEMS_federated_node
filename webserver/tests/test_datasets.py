@@ -119,10 +119,11 @@ class TestDatasets:
     def test_get_dataset_by_id_404(
             self,
             simple_admin_header,
-            client
+            client,
+            dataset
         ):
         """
-        /datasets/{id} GET returns a valid list
+        /datasets/{id} GET returns 404 for a non-existent dataset
         """
         invalid_id = 100
         response = client.get(f"/datasets/{invalid_id}", headers=simple_admin_header)
@@ -508,8 +509,6 @@ class TestDictionaryTable:
             self,
             client,
             dataset,
-            dataset_post_body,
-            post_json_admin_header,
             simple_admin_header
     ):
         """

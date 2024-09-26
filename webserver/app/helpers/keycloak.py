@@ -570,6 +570,25 @@ class Keycloak:
 
         return user_response.json()[0]
 
+    def get_user_role(self, user_id:str):
+        """
+        From a user id, get all of their realm roles
+        """
+        role_response = requests.get(
+            URLS["user_role"] % user_id,
+            headers={"Authorization": f"Bearer {self.admin_token}"}
+        )
+        if not role_response.ok:
+            raise KeycloakError("Failed to get the user's role")
+
+        return [role["name"] for role in role_response.json()]
+
+    def has_user_roles(self, user_id:str, roles:set) -> bool:
+        """
+        With the user id checks if it has certain realm roles
+        """
+        return roles.intersection(self.get_user_role(user_id))
+
     def enable_token_exchange(self):
         """
         Method to automate the setup for this client to

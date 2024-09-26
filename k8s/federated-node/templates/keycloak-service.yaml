@@ -3,6 +3,15 @@ kind: Service
 metadata:
   name: keycloak
   namespace: {{ .Values.namespaces.keycloak }}
+  # Exception, so that init jobs can pick up the new port change.
+  # Need to manually add the default annotations as well
+  labels:
+    {{ include "defaultLabels" . }}
+  annotations:
+    {{ include "defaultAnnotations" . }}
+    helm.sh/hook: pre-upgrade
+    helm.sh/hook-weight: "-4"
+    helm.sh/resource-policy: keep
 spec:
   ports:
     - port: 80

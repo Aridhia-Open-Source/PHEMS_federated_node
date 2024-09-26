@@ -42,7 +42,7 @@ class Dataset(db.Model, BaseModel):
 
     def get_creds_secret_name(self):
         cleaned_up_host = re.sub('http(s)*://', '', self.host)
-        return f"{cleaned_up_host}-{self.name.lower().replace(' ', '-')}-creds"
+        return f"{cleaned_up_host}-{re.sub('\\s|_', '-', self.name.lower())}-creds"
 
     def get_credentials(self) -> tuple:
         v1 = KubernetesClient()

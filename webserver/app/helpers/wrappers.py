@@ -46,6 +46,7 @@ def auth(scope:str, check_dataset=True):
 
             if not Keycloak(client).is_token_valid(token, scope, resource, token_type):
                 raise UnauthorizedError("Token is not valid, or the user has not enough permissions.")
+
             if requested_project:
                 token_info = Keycloak().decode_token(token)
                 client = f"Request {token_info['username']} - {requested_project}"
@@ -53,6 +54,7 @@ def auth(scope:str, check_dataset=True):
                 token_type = 'access_token'
 
             return func(*args, **kwargs)
+
         return _auth
     return auth_wrapper
 

@@ -30,6 +30,10 @@ Create chart name and version as used by the chart label.
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{- define "backend-image" -}}
+ghcr.io/aridhia-open-source/federated_node_run
+{{- end }}
+
 {{/*
 Common labels
 */}}
@@ -116,6 +120,10 @@ Just need to append the NEW_DB env var
 {{ randAlphaNum 24 | b64enc | quote }}
 {{- end -}}
 
+{{- define "rollMe" -}}
+{{ randAlphaNum 5 | quote }}
+{{- end -}}
+
 {{- define "nonRootSC" -}}
           securityContext:
             allowPrivilegeEscalation: false
@@ -124,4 +132,14 @@ Just need to append the NEW_DB env var
               type: RuntimeDefault
             capabilities:
               drop: [ "ALL" ]
+{{- end -}}
+
+# In case of updating existing entities in hooks, use these default labels/annotations
+# so helm knows they are part of this chart on future updates
+{{- define "defaultLabels" -}}
+    app.kubernetes.io/managed-by: Helm
+{{- end -}}
+{{- define "defaultAnnotations" -}}
+    meta.helm.sh/release-name: {{ .Release.Name }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace }}
 {{- end -}}
