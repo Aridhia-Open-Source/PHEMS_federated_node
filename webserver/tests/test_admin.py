@@ -66,6 +66,7 @@ class TestAudits:
         self,
         client,
         post_json_admin_header,
+        k8s_client_secret,
         data_body=sample_ds_body
     ):
         """
