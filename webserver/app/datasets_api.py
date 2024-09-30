@@ -12,7 +12,6 @@ datasets-related endpoints:
 """
 import json
 from flask import Blueprint, request
-from sqlalchemy import select
 
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from .helpers.db import db
@@ -28,14 +27,6 @@ from .models.request import Request
 bp = Blueprint('datasets', __name__, url_prefix='/datasets')
 session = db.session
 
-def get_dataset_by_name(dataset_name):
-    """
-    Common funcion to get a dataset by name
-    """
-    dataset = Dataset.query.filter(Dataset.name.ilike(dataset_name)).first()
-    if not dataset:
-        raise DBRecordNotFoundError(f"Dataset {dataset_name} does not exist")
-    return dataset
 
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
@@ -106,7 +97,7 @@ def get_datasets_by_name(dataset_name):
     """
     GET /datasets/id endpoint. Gets dataset with a give id
     """
-    ds = get_dataset_by_name(dataset_name)
+    ds = Dataset.get_dataset_by_name(dataset_name)
     if ds is None:
         raise DBRecordNotFoundError(f"Dataset {dataset_name} does not exist")
     return Dataset.sanitized_dict(ds), 200
@@ -121,7 +112,7 @@ def get_datasets_catalogue_by_id(dataset_id=None, dataset_name=None):
     GET /datasets/id/catalogue endpoint. Gets dataset's catalogue
     """
     if dataset_name:
-        dataset_id = get_dataset_by_name(dataset_name).id
+        dataset_id = Dataset.get_dataset_by_name(dataset_name).id
 
     cata = Catalogue.query.filter(Catalogue.dataset_id == dataset_id).one_or_none()
     if not cata:
@@ -139,7 +130,7 @@ def get_datasets_dictionaries_by_id(dataset_id=None, dataset_name=None):
         Gets the dataset's list of dictionaries
     """
     if dataset_name:
-        dataset_id = get_dataset_by_name(dataset_name).id
+        dataset_id = Dataset.get_dataset_by_name(dataset_name).id
 
     dictionary = Dictionary.query.filter(Dictionary.dataset_id == dataset_id).all()
     if not dictionary:
@@ -160,7 +151,7 @@ def get_datasets_dictionaries_table_by_id(table_name, dataset_id=None, dataset_n
         Gets the dataset's table within its dictionaries
     """
     if dataset_name:
-        dataset_id = get_dataset_by_name(dataset_name).id
+        dataset_id = Dataset.get_dataset_by_name(dataset_name).id
 
     dictionary = Dictionary.query.filter(
         Dictionary.dataset_id == dataset_id,

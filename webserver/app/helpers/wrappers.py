@@ -1,11 +1,10 @@
 import logging
 from functools import wraps
 from flask import request
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.helpers.db import db, engine
+from app.helpers.db import engine
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, DBRecordNotFoundError, LogAndException
 from app.helpers.keycloak import Keycloak
 from app.models.audit import Audit

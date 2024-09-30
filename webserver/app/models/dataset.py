@@ -4,7 +4,7 @@ import re
 import requests
 from sqlalchemy import Column, Integer, String
 from app.helpers.db import BaseModel, db
-from app.helpers.exceptions import InvalidRequest
+from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.keycloak import Keycloak
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
@@ -130,6 +130,17 @@ class Dataset(db.Model, BaseModel):
             "resources": [resource_ds["_id"]],
             "scopes": [scope["id"] for scope in admin_ds_scope]
         })
+
+    @classmethod
+    def get_dataset_by_name(cls, dataset_name):
+        """
+        Common funcion to get a dataset by name.
+        Returns an instance of Datset, or an exception if not found
+        """
+        dataset = cls.query.filter(Dataset.name.ilike(dataset_name)).first()
+        if not dataset:
+            raise DBRecordNotFoundError(f"Dataset {dataset_name} does not exist")
+        return dataset
 
     def __repr__(self):
         return f'<Dataset {self.name!r}>'
