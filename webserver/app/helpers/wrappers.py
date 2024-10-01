@@ -23,6 +23,10 @@ def auth(scope:str, check_dataset=True):
                 raise AuthenticationError("Token not provided")
 
             resource = 'endpoints'
+            requested_project = request.headers.get("project-name")
+            client = 'global'
+            token_type = 'refresh_token'
+
             if check_dataset:
                 ds_id = kwargs.get("dataset_id")
                 ds_name = kwargs.get("dataset_name", '')
@@ -36,13 +40,12 @@ def auth(scope:str, check_dataset=True):
                         raise DBRecordNotFoundError(f"Dataset {ds_id or ''}{ds_name} does not exist")
 
                     resource = f"{ds.id}-{ds.name}"
-            requested_project = request.headers.get("project-name")
-            client = 'global'
-            token_type = 'refresh_token'
-            # If the user is an admin or system, ignore the project
+
             kc_client = Keycloak()
             token_info = kc_client.decode_token(token)
             user = kc_client.get_user(token_info['username'])
+
+            # If the user is an admin or system, ignore the project
             if not kc_client.has_user_roles(user["id"], {"Administrator", "System"}):
                 requested_project = request.headers.get("project-name")
                 if requested_project:
