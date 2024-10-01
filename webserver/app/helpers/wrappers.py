@@ -23,25 +23,18 @@ def auth(scope:str, check_dataset=True):
                 raise AuthenticationError("Token not provided")
 
             resource = 'endpoints'
-            ds_name = ''
-            ds_id = ''
             if check_dataset:
-                path = request.path.split('/')
+                ds_id = kwargs.get("dataset_id")
+                ds_name = kwargs.get("dataset_name", '')
 
-                if 'datasets' in path:
-                    ds_id = kwargs.get("dataset_id", '')
-                    ds_name = kwargs.get("dataset_name", '')
-
-                elif request.headers.get("Content-Type"):
+                if request.is_json:
                     ds_id = request.json.get("dataset_id")
 
                 if ds_id or ds_name:
-                    if ds_id:
-                        ds = Dataset.query.filter(Dataset.id == ds_id).one_or_none()
-                    elif ds_name:
-                        ds = Dataset.query.filter(Dataset.name.ilike(ds_name)).one_or_none()
+                    ds = Dataset.query.filter((Dataset.name.ilike(ds_name) | (Dataset.id == ds_id))).one_or_none()
                     if not ds:
-                        raise DBRecordNotFoundError(f"Dataset {ds_id}{ds_name} does not exist")
+                        raise DBRecordNotFoundError(f"Dataset {ds_id or ''}{ds_name} does not exist")
+
                     resource = f"{ds.id}-{ds.name}"
             requested_project = request.headers.get("project-name")
             client = 'global'
