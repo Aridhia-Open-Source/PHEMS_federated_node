@@ -42,6 +42,14 @@ az network vnet create --name "vnet-${RG}" \
                        --subnet-prefixes 10.3.0.0/24
 ```
 
+### Create a subnet for Federated Node in the virtual network
+```
+az network vnet subnet create --name federatedNode \
+                              --resource-group "$RG" \
+                              --vnet-name "vnet-${RG}" \
+                              --address-prefixes 10.3.2.0/23
+```
+
 ### Create another subnet for the kubernetes cluster in the virtual network
 ```
 az network vnet subnet create --name kubernetes \
@@ -64,7 +72,7 @@ az aks create --name "${RG}-k8s" \
               --api-server-authorized-ip-ranges "$AUTHORISED_IP_RANGES" \
               --enable-managed-identity \
               --load-balancer-sku standard \
-              --vnet-subnet-id "$K8S_SUBNET_ID"
+              --vnet-subnet-id "$K8S_SUBNET_ID" \
               --network-plugin azure \
               --nodepool-name agentpool \
               --enable-cluster-autoscaler \
@@ -85,7 +93,7 @@ az network private-dns zone create -g "${RG}" -n "${RG}.private.postgres.databas
 
 ### Get the private DNS zone ID for PostgresSQL creation
 ```
-PRIVATE_DNS_ZONE_ID=$(az network private-dns zone show -n "${RG}-pg.private.postgres.database.azure.com" -g "$RG" --query id -o tsv)
+PRIVATE_DNS_ZONE_ID=$(az network private-dns zone show -n "${RG}.private.postgres.database.azure.com" -g "$RG" --query id -o tsv)
 ```
 
 ### Create Azure PostgreSQL flexible server
