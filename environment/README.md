@@ -134,6 +134,12 @@ az network vnet subnet update -g "$RG" -n "kubernetes" --vnet-name "vnet-${RG}" 
 az storage account network-rule add --resource-group "$RG" --account-name "$SA_NAME" --subnet "$K8S_SUBNET_ID"
 ```
 
+### Open public access and restrict it to the subnet just added
+```
+az storage account update --name $SA_NAME --resource-group $RG --public-network-access Enabled
+az storage account update --name $SA_NAME --resource-group $RG --default-action Deny
+```
+
 ### Create the container (blob storage)
 ```
 az storage container create --name federatednode \
