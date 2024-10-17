@@ -97,9 +97,7 @@ def get_datasets_by_name(dataset_name):
     """
     GET /datasets/id endpoint. Gets dataset with a give id
     """
-    ds = Dataset.get_dataset_by_name(dataset_name)
-    if ds is None:
-        raise DBRecordNotFoundError(f"Dataset {dataset_name} does not exist")
+    ds = Dataset.get_dataset_by_name_or_id(name=dataset_name)
     return Dataset.sanitized_dict(ds), 200
 
 @bp.route('/<dataset_name>/catalogue', methods=['GET'])
@@ -111,12 +109,11 @@ def get_datasets_catalogue_by_id(dataset_id=None, dataset_name=None):
     GET /datasets/dataset_name/catalogue endpoint. Gets dataset's catalogue
     GET /datasets/id/catalogue endpoint. Gets dataset's catalogue
     """
-    if dataset_name:
-        dataset_id = Dataset.get_dataset_by_name(dataset_name).id
+    dataset = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
 
-    cata = Catalogue.query.filter(Catalogue.dataset_id == dataset_id).one_or_none()
+    cata = Catalogue.query.filter(Catalogue.dataset_id == dataset.id).one_or_none()
     if not cata:
-        raise DBRecordNotFoundError(f"Dataset {dataset_id} has no catalogue.")
+        raise DBRecordNotFoundError(f"Dataset {dataset.name} has no catalogue.")
     return cata.sanitized_dict(), 200
 
 @bp.route('/<dataset_name>/dictionaries', methods=['GET'])
@@ -129,12 +126,11 @@ def get_datasets_dictionaries_by_id(dataset_id=None, dataset_name=None):
     GET /datasets/id/dictionaries endpoint.
         Gets the dataset's list of dictionaries
     """
-    if dataset_name:
-        dataset_id = Dataset.get_dataset_by_name(dataset_name).id
+    dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id, name=dataset_name)
 
-    dictionary = Dictionary.query.filter(Dictionary.dataset_id == dataset_id).all()
+    dictionary = Dictionary.query.filter(Dictionary.dataset_id == dataset).all()
     if not dictionary:
-        raise DBRecordNotFoundError(f"Dataset {dataset_id} has no dictionaries.")
+        raise DBRecordNotFoundError(f"Dataset {dataset.name} has no dictionaries.")
 
     return [dc.sanitized_dict() for dc in dictionary], 200
 
@@ -150,16 +146,15 @@ def get_datasets_dictionaries_table_by_id(table_name, dataset_id=None, dataset_n
     GET /datasets/id/dictionaries/table_name endpoint.
         Gets the dataset's table within its dictionaries
     """
-    if dataset_name:
-        dataset_id = Dataset.get_dataset_by_name(dataset_name).id
+    dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id, name=dataset_name)
 
     dictionary = Dictionary.query.filter(
-        Dictionary.dataset_id == dataset_id,
+        Dictionary.dataset_id == dataset.id,
         Dictionary.table_name == table_name
     ).all()
     if not dictionary:
         raise DBRecordNotFoundError(
-            f"Dataset {dataset_id} has no dictionaries with table {table_name}."
+            f"Dataset {dataset.name} has no dictionaries with table {table_name}."
         )
 
     return [dc.sanitized_dict() for dc in dictionary], 200

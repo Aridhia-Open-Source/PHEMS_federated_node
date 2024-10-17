@@ -1208,8 +1208,10 @@
           },
           "tags": {
             "type": "object",
+            "description": "Either dataset_id or dataset_name has to be set",
             "properties": {
-              "dataset_id":{ "type": "string" }
+              "dataset_id":{ "type": "string" },
+              "dataset_name":{ "type": "string" }
             },
             "example": {
               "dataset_id": 1,

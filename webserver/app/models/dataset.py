@@ -14,10 +14,7 @@ PUBLIC_URL = os.getenv("PUBLIC_URL")
 
 class Dataset(db.Model, BaseModel):
     __tablename__ = 'datasets'
-    # No duplicated name/host entries
-    # __table_args__ = (
-    #     UniqueConstraint('name', 'host'),
-    # )
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(256), unique=True, nullable=False)
     host = Column(String(256), nullable=False)
@@ -132,14 +129,15 @@ class Dataset(db.Model, BaseModel):
         })
 
     @classmethod
-    def get_dataset_by_name(cls, dataset_name):
+    def get_dataset_by_name_or_id(cls, id=None, name=""):
         """
-        Common funcion to get a dataset by name.
-        Returns an instance of Datset, or an exception if not found
+        Common funcion to get a dataset by name or id.
+        Returns an instance of Datset, or raises an exception if not found
         """
-        dataset = cls.query.filter(Dataset.name.ilike(dataset_name)).first()
+        dataset = cls.query.filter((Dataset.name.ilike(name) | Dataset.id == id)).one_or_none()
         if not dataset:
-            raise DBRecordNotFoundError(f"Dataset {dataset_name} does not exist")
+            raise DBRecordNotFoundError(f"Dataset {name if name else id} does not exist")
+
         return dataset
 
     def __repr__(self):

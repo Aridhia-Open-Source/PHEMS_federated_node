@@ -2,9 +2,7 @@ import logging
 from functools import wraps
 from flask import request
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 
-from app.helpers.db import engine
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, DBRecordNotFoundError, LogAndException
 from app.helpers.keycloak import Keycloak
 from app.models.audit import Audit
@@ -29,10 +27,12 @@ def auth(scope:str, check_dataset=True):
 
             if check_dataset:
                 ds_id = kwargs.get("dataset_id")
-                ds_name = kwargs.get("dataset_name", '')
+                ds_name = kwargs.get("dataset_name", "")
 
                 if request.is_json:
-                    ds_id = request.json.get("dataset_id")
+                    flat_json = flatten_dict(request.json)
+                    ds_id = flat_json.get("dataset_id")
+                    ds_name = flat_json.get("dataset_name", "")
 
                 if ds_id or ds_name:
                     ds = Dataset.query.filter((Dataset.name.ilike(ds_name) | (Dataset.id == ds_id))).one_or_none()
@@ -61,8 +61,6 @@ def auth(scope:str, check_dataset=True):
         return _auth
     return auth_wrapper
 
-
-session = Session(engine)
 
 def audit(func):
     @wraps(func)
@@ -135,3 +133,17 @@ def find_and_redact_key(obj: dict, key: str):
                     find_and_redact_key(item, key)
         elif k == key:
             obj[k] = '*****'
+
+def flatten_dict(to_flatten:dict) -> dict:
+    """
+    Does exactly what the name means. If a value is an array of dicts
+    it will stay untouched.
+    """
+    test = dict()
+    for k, v in to_flatten.items():
+        if isinstance(v, dict):
+            test[k] = {}
+            test.update(flatten_dict(v))
+        else:
+            test[k] = v
+    return test

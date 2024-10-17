@@ -78,7 +78,13 @@ class Task(db.Model, BaseModel):
         data = super().validate(data)
 
         ds_id = data.get("tags", {}).get("dataset_id")
-        data["dataset"] = db.session.get(Dataset, ds_id)
+        ds_name = data.get("tags", {}).get("dataset_name")
+        if ds_name or ds_id:
+            data["dataset"] = Dataset.query.filter((Dataset.name.ilike(ds_name) | (Dataset.id == ds_id))).one_or_none()
+
+        if data["dataset"] is None:
+            logger.error(f"Dataset id: {ds_id} or name: {ds_name} not found")
+            raise InvalidRequest("Dataset not found")
 
         if not re.match(r'^((\w+|-|\.)\/?+)+:(\w+(\.|-)?)+$', data["docker_image"]):
             raise InvalidRequest(
