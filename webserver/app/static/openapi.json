@@ -897,6 +897,14 @@
             "description": "Password for the Federated Node to access the DB",
             "example": "password"
           },
+          "type": {
+            "type": "string",
+            "description": "Type of DB engine",
+            "oneOf": [
+              {"type": "string", "example": "postgres"},
+              {"type": "string", "example": "mssql"}
+            ]
+          },
           "catalogue": {
             "$ref": "#/components/schemas/CataloguePostBody"
           },
@@ -911,10 +919,11 @@
       "DatasetById": {
         "type": "object",
         "properties": {
+          "id": {"type": "integer", "example": 1},
           "host": {"type": "string", "example": "http://dblocation"},
           "port": {"type": "integer", "example": 5432},
           "name": {"type": "string", "example": "Blood Cancer Database"},
-          "id": {"type": "integer", "example": 1}
+          "type": {"type": "string", "example": "mssql"}
         }
       },
       "DatasetCatalogue": {

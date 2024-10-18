@@ -9,17 +9,16 @@ from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 
 TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
+SUPPORTED_TYPES = ["postgres", "mssql"]
 
 class Dataset(db.Model, BaseModel):
     __tablename__ = 'datasets'
-    # No duplicated name/host entries
-    # __table_args__ = (
-    #     UniqueConstraint('name', 'host'),
-    # )
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(256), unique=True, nullable=False)
     host = Column(String(256), nullable=False)
     port = Column(Integer, default=5432)
+    type = Column(String(256), server_default="postgres", nullable=False)
 
     def __init__(self,
                  name:str,
@@ -27,11 +26,13 @@ class Dataset(db.Model, BaseModel):
                  username:str,
                  password:str,
                  port:int=5432,
+                 type:str="postgres",
                  **kwargs
                 ):
         self.name = name
         self.host = host
         self.port = port
+        self.type = type
 
         # Create secrets for credentials
         if os.getenv('KUBERNETES_SERVICE_HOST'):
@@ -43,10 +44,19 @@ class Dataset(db.Model, BaseModel):
         v1 = client.CoreV1Api()
         body = client.V1Secret()
         body.api_version = 'v1'
-        body.data = {
-            "PGPASSWORD": base64.b64encode(password.encode()).decode(),
-            "PGUSER": base64.b64encode(username.encode()).decode()
-        }
+        if self.type not in SUPPORTED_TYPES:
+            raise InvalidRequest(f"DB type {self.type} is not supported.")
+
+        if self.type == "postgres":
+            body.data = {
+                "PGPASSWORD": base64.b64encode(password.encode()).decode(),
+                "PGUSER": base64.b64encode(username.encode()).decode()
+            }
+        elif self.type == "mssql":
+            body.data = {
+                "MSSQL_PASSWORD": base64.b64encode(password.encode()).decode(),
+                "MSSQL_USER": base64.b64encode(username.encode()).decode()
+            }
         body.kind = 'Secret'
         body.metadata = {'name': self.get_creds_secret_name()}
         body.type = 'Opaque'
@@ -72,8 +82,13 @@ class Dataset(db.Model, BaseModel):
             config.load_kube_config()
         v1 = client.CoreV1Api()
         secret = v1.read_namespaced_secret(self.get_creds_secret_name(), 'default', pretty='pretty')
-        user = base64.b64decode(secret.data['PGUSER'].encode()).decode()
-        password = base64.b64decode(secret.data['PGPASSWORD'].encode()).decode()
+        if self.type == "postgres":
+            user = base64.b64decode(secret.data['PGUSER'].encode()).decode()
+            password = base64.b64decode(secret.data['PGPASSWORD'].encode()).decode()
+        elif self.type == "mssql":
+            user = base64.b64decode(secret.data['MSSQL_USER'].encode()).decode()
+            password = base64.b64decode(secret.data['MSSQL_PASSWORD'].encode()).decode()
+
         return user, password
 
     def add(self, commit=True, user_id=None):

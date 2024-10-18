@@ -245,11 +245,18 @@ class Task(db.Model, BaseModel):
         """
         Creates a dictionary with the standard value for Psql credentials
         """
-        return {
-            "PGHOST": self.dataset.host,
-            "PGDATABASE": self.dataset.name,
-            "PGPORT": self.dataset.port
-        }
+        if self.dataset.type == "postgres":
+            return {
+                "PGHOST": self.dataset.host,
+                "PGDATABASE": self.dataset.name,
+                "PGPORT": self.dataset.port
+            }
+        elif self.dataset.type == "mssql":
+            return {
+                "MSSQL_HOST": self.dataset.host,
+                "MSSQL_DATABASE": self.dataset.name,
+                "MSSQL_PORT": self.dataset.port
+            }
 
     def get_current_pod(self, pod_name:str=None, is_running:bool=True):
         v1 = KubernetesClient()

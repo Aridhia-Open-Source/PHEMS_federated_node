@@ -37,6 +37,15 @@ def post_dataset(
 
 
 class TestDatasets:
+    def expected_ds_entry(self, dataset:Dataset):
+        return {
+            "id": dataset.id,
+            "name": dataset.name,
+            "host": dataset.host,
+            "port": 5432,
+            "type": "postgres"
+        }
+
     def test_get_all_datasets(
             self,
             simple_admin_header,
@@ -46,19 +55,12 @@ class TestDatasets:
         """
         Get all dataset is possible only for admin users
         """
-        expected_ds_entry = {
-            "id": dataset.id,
-            "name": dataset.name,
-            "host": dataset.host,
-            "port": 5432
-        }
-
         response = client.get("/datasets/", headers=simple_admin_header)
 
         assert response.status_code == 200
         assert response.json == {
             "datasets": [
-                expected_ds_entry
+                self.expected_ds_entry(dataset)
             ]
         }
 
@@ -93,15 +95,9 @@ class TestDatasets:
         """
         /datasets/{id} GET returns a valid dictionary representation for admin users
         """
-        expected_ds_entry = {
-            "id": dataset.id,
-            "name": dataset.name,
-            "host": dataset.host,
-            "port": 5432
-        }
         response = client.get(f"/datasets/{dataset.id}", headers=simple_admin_header)
         assert response.status_code == 200
-        assert response.json == expected_ds_entry
+        assert response.json == self.expected_ds_entry(dataset)
 
     def test_get_dataset_by_id_401(
             self,
@@ -151,6 +147,45 @@ class TestDatasets:
         for d in data_body["dictionaries"]:
             query = run_query(select(Dictionary).where(Dictionary.table_name == d["table_name"]))
             assert len(query)== 1
+
+    def test_post_dataset_mssql_type(
+            self,
+            post_json_admin_header,
+            client,
+            dataset,
+            dataset_post_body
+        ):
+        """
+        /datasets POST is successful with the type set
+        to mssql as one of the supported engines
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        data_body['type'] = 'mssql'
+        post_dataset(client, post_json_admin_header, data_body)
+
+        query = run_query(select(Dataset).where(Dataset.name == data_body["name"], Dataset.type == "mssql"))
+        assert len(query) == 1
+
+    def test_post_dataset_invalid_type(
+            self,
+            post_json_admin_header,
+            client,
+            dataset,
+            dataset_post_body
+        ):
+        """
+        /datasets POST is successful with the type set
+        to something not supported
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        data_body['type'] = 'invalid'
+        resp = post_dataset(client, post_json_admin_header, data_body, code=400)
+        assert resp["error"] == "DB type invalid is not supported."
+
+        query = run_query(select(Dataset).where(Dataset.name == data_body["name"], Dataset.type == "mssql"))
+        assert len(query) == 0
 
     def test_post_dataset_fails_k8s_secrets(
             self,

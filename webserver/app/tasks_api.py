@@ -7,8 +7,8 @@ tasks-related endpoints:
 - GET /tasks/id
 - POST /tasks/id/cancel
 """
-from flask import Blueprint, request, send_file
 from datetime import datetime, timedelta
+from flask import Blueprint, request, send_file
 
 from app.helpers.const import CLEANUP_AFTER_DAYS
 from app.helpers.exceptions import DBRecordNotFoundError, UnauthorizedError
