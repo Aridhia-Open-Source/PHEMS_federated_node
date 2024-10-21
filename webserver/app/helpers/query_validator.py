@@ -13,6 +13,7 @@ from sqlalchemy.exc import ProgrammingError, OperationalError, InternalError
 
 from app.helpers.const import build_sql_uri
 from app.models.dataset import Dataset
+from app.helpers.exceptions import DBError
 
 logger = logging.getLogger('query_validator')
 logger.setLevel(logging.INFO)
@@ -56,6 +57,9 @@ def validate(query:str, dataset:Dataset) -> bool:
                 session.execute(query)
                 session.fetchall()
         return True
-    except (ProgrammingError, OperationalError, InternalError) as exc:
+    except OperationalError as exc:
+        logger.info(f"Connection to the DB failed: \n{str(exc)}")
+        raise DBError("Could not connect to the database", 500)
+    except (ProgrammingError, InternalError) as exc:
         logger.info(f"Query validation failed\n{str(exc)}")
         return False

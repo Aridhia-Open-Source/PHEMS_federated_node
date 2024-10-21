@@ -316,7 +316,7 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "500":{
-            "$ref": "#/components/responses/InternalError"
+            "$ref": "#/components/responses/DBConnectionFailed"
           }
         }
       }
@@ -820,6 +820,9 @@
       },
       "InternalError": {
         "description": "An internal error occurred."
+      },
+      "DBConnectionFailed": {
+        "description": "Could not connect to the database."
       },
       "Conflict": {
         "description": "Conflict. Resource already exists",

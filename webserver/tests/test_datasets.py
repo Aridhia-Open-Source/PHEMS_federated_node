@@ -1,7 +1,7 @@
 import json
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import select
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.exc import ProgrammingError, OperationalError
 from unittest.mock import Mock
 from app.helpers.db import db
 from app.models.dataset import Dataset
@@ -628,3 +628,34 @@ class TestBeacon:
         )
         assert response.status_code == 500
         assert response.json['result'] == 'Invalid'
+
+    def test_beacon_connection_failed(
+            self,
+            client,
+            post_json_admin_header,
+            mocker,
+            dataset
+    ):
+        """
+        Test that the beacon endpoint is accessible to admin users
+        but returns an appropriate error message in case of connection
+        failed
+        """
+        mocker.patch('app.helpers.query_validator.create_engine')
+        mocker.patch(
+            'app.helpers.query_validator.sessionmaker',
+            side_effect = OperationalError(
+                statement="Unable to connect: Adaptive Server is unavailable or does not exist",
+                params={}, orig="error test"
+            )
+        )
+        response = client.post(
+            "/datasets/selection/beacon",
+            json={
+                "query": "SELECT * FROM table",
+                "dataset_id": dataset.id
+            },
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 500
+        assert response.json['error'] == 'Could not connect to the database'
