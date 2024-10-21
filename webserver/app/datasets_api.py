@@ -128,7 +128,7 @@ def get_datasets_dictionaries_by_id(dataset_id=None, dataset_name=None):
     """
     dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id, name=dataset_name)
 
-    dictionary = Dictionary.query.filter(Dictionary.dataset_id == dataset).all()
+    dictionary = Dictionary.query.filter(Dictionary.dataset_id == dataset.id).all()
     if not dictionary:
         raise DBRecordNotFoundError(f"Dataset {dataset.name} has no dictionaries.")
 

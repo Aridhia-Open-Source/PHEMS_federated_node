@@ -35,10 +35,7 @@ def auth(scope:str, check_dataset=True):
                     ds_name = flat_json.get("dataset_name", "")
 
                 if ds_id or ds_name:
-                    ds = Dataset.query.filter((Dataset.name.ilike(ds_name) | (Dataset.id == ds_id))).one_or_none()
-                    if not ds:
-                        raise DBRecordNotFoundError(f"Dataset {ds_id or ''}{ds_name} does not exist")
-
+                    ds = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
                     resource = f"{ds.id}-{ds.name}"
 
             kc_client = Keycloak()

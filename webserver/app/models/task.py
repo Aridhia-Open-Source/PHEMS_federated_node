@@ -80,7 +80,7 @@ class Task(db.Model, BaseModel):
         ds_id = data.get("tags", {}).get("dataset_id")
         ds_name = data.get("tags", {}).get("dataset_name")
         if ds_name or ds_id:
-            data["dataset"] = Dataset.query.filter((Dataset.name.ilike(ds_name) | (Dataset.id == ds_id))).one_or_none()
+            data["dataset"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
 
         if data["dataset"] is None:
             logger.error(f"Dataset id: {ds_id} or name: {ds_name} not found")

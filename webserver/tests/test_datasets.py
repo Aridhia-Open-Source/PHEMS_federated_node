@@ -46,8 +46,7 @@ class TestDatasets:
         Just to reduce duplicate code, use the ILIKE operator
         on the query to match case insensitive datasets name
         """
-        query = run_query(select(Dataset).where(Dataset.name.ilike(dataset_name)))
-        assert len(query) == count
+        assert Dataset.query.filter(Dataset.name.ilike(dataset_name)).count() == count
 
     def test_get_all_datasets(
             self,

@@ -134,7 +134,7 @@ class Dataset(db.Model, BaseModel):
         Common funcion to get a dataset by name or id.
         Returns an instance of Datset, or raises an exception if not found
         """
-        dataset = cls.query.filter((Dataset.name.ilike(name) | Dataset.id == id)).one_or_none()
+        dataset = cls.query.filter((Dataset.name.ilike(name or "") | (Dataset.id == id))).one_or_none()
         if not dataset:
             raise DBRecordNotFoundError(f"Dataset {name if name else id} does not exist")
 
