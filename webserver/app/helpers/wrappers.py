@@ -136,11 +136,11 @@ def flatten_dict(to_flatten:dict) -> dict:
     Does exactly what the name means. If a value is an array of dicts
     it will stay untouched.
     """
-    test = dict()
+    flat = dict()
     for k, v in to_flatten.items():
         if isinstance(v, dict):
-            test[k] = {}
-            test.update(flatten_dict(v))
+            flat[k] = {}
+            flat.update(flatten_dict(v))
         else:
-            test[k] = v
-    return test
+            flat[k] = v
+    return flat
