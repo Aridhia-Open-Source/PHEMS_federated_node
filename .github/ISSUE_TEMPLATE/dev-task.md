@@ -8,11 +8,12 @@ assignees: ''
 
 ---
 
-|Action|Yes/No|
-|-------|--------|
-|Change affects authentication or authorization||
-|Change affects role based model||
-|Audit and notifications updated||
-|Test Coverage improved or stable||
-|Documentation updated||
-|Outdated libraries updated||
+|Action|Yes|No|N/A|
+|-------|----|----|---|
+|Change affects authentication or authorization||||
+|Change affects role based model||||
+|Change affects dataset mapping||||
+|Audit and notifications updated||||
+|Test Coverage improved||||
+|Documentation updated||||
+|Outdated libraries updated||||
