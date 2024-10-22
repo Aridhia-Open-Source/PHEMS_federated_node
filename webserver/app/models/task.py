@@ -82,10 +82,6 @@ class Task(db.Model, BaseModel):
         if ds_name or ds_id:
             data["dataset"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
 
-        if data["dataset"] is None:
-            logger.error(f"Dataset id: {ds_id} or name: {ds_name} not found")
-            raise InvalidRequest("Dataset not found")
-
         if not re.match(r'^((\w+|-|\.)\/?+)+:(\w+(\.|-)?)+$', data["docker_image"]):
             raise InvalidRequest(
                 f"{data["docker_image"]} does not have a tag. Please provide one in the format <image>:<tag>"
