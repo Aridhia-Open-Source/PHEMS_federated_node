@@ -1,5 +1,16 @@
 # Releases Changelog
 
+## 0.0.7
+
+- Helm chart values `acrs` moved to `registries`
+
+### Bugfixes
+
+- Fixed some issues with deploying the helm chart not respecting the desired order
+- Fixed an issue with audit log causing a failure  when a request is set with `Content-Type: application/json` but no body is sent
+- Added support on the `select/beacon` to query a MS SQL DB. Also the tasks involving these databses will inject credentials prefixed with `MSSQL_`
+
+
 ## 0.0.6
 
 We skipped few patch numbers due to local testing on updates.
@@ -23,6 +34,7 @@ We skipped few patch numbers due to local testing on updates.
 - Fixed an issue where admin users were incorrectly required to provide a project name in the headers
 - Fixed an issue where audit logs were not considering failed requests
 
+
 ## 0.0.2
 
 - Added Task execution service
@@ -44,6 +56,7 @@ We skipped few patch numbers due to local testing on updates.
 - Standardized column sizes (256 for smaller inputs, 4096 for larger ones)
 - Added docker-compose setup for running tests on the CI and locally
 - Optional DB pod deployment (mostly for local dev)
+
 
 ## 0.0.1
 
