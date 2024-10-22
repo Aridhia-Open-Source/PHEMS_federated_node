@@ -79,25 +79,14 @@ def post_datasets():
         raise
 
 @bp.route('/<int:dataset_id>', methods=['GET'])
-@audit
-@auth(scope='can_access_dataset')
-def get_datasets_by_id(dataset_id):
-    """
-    GET /datasets/id endpoint. Gets dataset with a give id
-    """
-    ds = Dataset.query.filter(Dataset.id == dataset_id).one_or_none()
-    if ds is None:
-        raise DBRecordNotFoundError(f"Dataset with id {dataset_id} does not exist")
-    return Dataset.sanitized_dict(ds), 200
-
 @bp.route('/<dataset_name>', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
-def get_datasets_by_name(dataset_name):
+def get_datasets_by_id(dataset_id:int=None, dataset_name:str=None):
     """
     GET /datasets/id endpoint. Gets dataset with a give id
     """
-    ds = Dataset.get_dataset_by_name_or_id(name=dataset_name)
+    ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
     return Dataset.sanitized_dict(ds), 200
 
 @bp.route('/<dataset_name>/catalogue', methods=['GET'])
