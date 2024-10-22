@@ -129,14 +129,27 @@ class Dataset(db.Model, BaseModel):
         })
 
     @classmethod
-    def get_dataset_by_name_or_id(cls, id=None, name=""):
+    def get_dataset_by_name_or_id(cls, id:int=None, name:str="") -> "Dataset":
         """
         Common funcion to get a dataset by name or id.
-        Returns an instance of Datset, or raises an exception if not found
+        If both arguments are provided, then tries to find as an AND condition
+            rather than an OR.
+
+        Returns:
+         Datset:
+
+        Raises:
+            DBRecordNotFoundError: if no record is found
         """
-        dataset = cls.query.filter((Dataset.name.ilike(name or "") | (Dataset.id == id))).one_or_none()
+        if id and name:
+            error_msg = f"Dataset \"{name}\" with id {id} does not exist"
+            dataset = cls.query.filter((Dataset.name.ilike(name or "") & (Dataset.id == id))).one_or_none()
+        else:
+            error_msg = f"Dataset {name if name else id} does not exist"
+            dataset = cls.query.filter((Dataset.name.ilike(name or "") | (Dataset.id == id))).one_or_none()
+
         if not dataset:
-            raise DBRecordNotFoundError(f"Dataset {name if name else id} does not exist")
+            raise DBRecordNotFoundError(error_msg)
 
         return dataset
 
