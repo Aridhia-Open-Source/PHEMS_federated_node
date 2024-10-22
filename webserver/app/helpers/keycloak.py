@@ -11,7 +11,7 @@ logger = logging.getLogger('keycloak_helper')
 logger.setLevel(logging.INFO)
 
 KEYCLOAK_NAMESPACE = os.getenv("KEYCLOAK_NAMESPACE")
-KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", f"http://keycloak.{KEYCLOAK_NAMESPACE}.svc.cluster.local:8080")
+KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", f"http://keycloak.{KEYCLOAK_NAMESPACE}.svc.cluster.local")
 REALM = os.getenv("KEYCLOAK_REALM", "FederatedNode")
 KEYCLOAK_CLIENT = os.getenv("KEYCLOAK_CLIENT", "global")
 KEYCLOAK_SECRET = os.getenv("KEYCLOAK_SECRET")
@@ -558,6 +558,25 @@ class Keycloak:
             raise KeycloakError("Failed to fetch the user")
 
         return user_response.json()[0]
+
+    def get_user_role(self, user_id:str):
+        """
+        From a user id, get all of their realm roles
+        """
+        role_response = requests.get(
+            URLS["user_role"] % user_id,
+            headers={"Authorization": f"Bearer {self.admin_token}"}
+        )
+        if not role_response.ok:
+            raise KeycloakError("Failed to get the user's role")
+
+        return [role["name"] for role in role_response.json()]
+
+    def has_user_roles(self, user_id:str, roles:set) -> bool:
+        """
+        With the user id checks if it has certain realm roles
+        """
+        return roles.intersection(self.get_user_role(user_id))
 
     def enable_token_exchange(self):
         """

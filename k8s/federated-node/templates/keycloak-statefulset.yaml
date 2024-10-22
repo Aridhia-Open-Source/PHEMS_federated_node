@@ -12,18 +12,20 @@ spec:
       app: keycloak
   template:
     metadata:
+      annotations:
+        rollme: {{ template "rollMe" . }}
       labels:
         app: keycloak
     spec:
       initContainers:
-        {{ template "createDBInitContainer" .}}
+        {{ template "createDBInitContainer" . }}
           - name: NEW_DB
             valueFrom:
               configMapKeyRef:
                 name: keycloak-config
                 key: KC_DB_URL_DATABASE
       containers:
-        - image: ghcr.io/aridhia-open-source/federated_keycloak:{{ .Values.keycloak.tag }}
+        - image: ghcr.io/aridhia-open-source/federated_keycloak:{{ .Values.keycloak.tag | default .Chart.AppVersion }}
           args: [
             "start",
             "--cache=ispn",
@@ -36,7 +38,7 @@ spec:
             "-Dkeycloak.infinispan.ignoreSkipCacheStore=true"
           ]
           name: keycloak
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
           ports:
             - name: http
               containerPort: 8080

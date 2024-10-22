@@ -124,17 +124,6 @@ class TestDatasets:
         """
         /datasets/{id} GET returns 404 for a non-existent dataset
         """
-        response = client.get(f"/datasets/1000", headers=simple_admin_header)
-        assert response.status_code == 404
-
-    def test_get_dataset_by_id_404(
-            self,
-            simple_admin_header,
-            client
-        ):
-        """
-        /datasets/{id} GET returns a valid list
-        """
         invalid_id = 100
         response = client.get(f"/datasets/{invalid_id}", headers=simple_admin_header)
 
@@ -520,8 +509,6 @@ class TestDictionaryTable:
             self,
             client,
             dataset,
-            dataset_post_body,
-            post_json_admin_header,
             simple_admin_header
     ):
         """
@@ -529,7 +516,7 @@ class TestDictionaryTable:
         cannot see the catalogue for a given dataset
         """
         response = client.get(
-            f"/datasets/100/dictionaries/test",
+            "/datasets/100/dictionaries/test",
             headers=simple_admin_header
         )
         assert response.status_code == 404

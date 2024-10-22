@@ -30,7 +30,7 @@ def auth(scope:str, check_dataset=True):
 
                 if 'datasets' in path and len(path) > 2:
                     ds_id = path[path.index('datasets') + 1]
-                elif request.headers.get('Content-Type'):
+                elif request.is_json and request.data:
                     ds_id = request.json.get("dataset_id")
 
                 if ds_id and check_dataset:
@@ -40,16 +40,22 @@ def auth(scope:str, check_dataset=True):
                     ds = q[0]._mapping
                     if ds is not None:
                         resource = f"{ds["id"]}-{ds["name"]}"
-            requested_project = request.headers.get("project-name")
+
             client = 'global'
             token_type = 'refresh_token'
-            if requested_project:
-                token_info = Keycloak().decode_token(token)
-                client = f"Request {token_info['username']} - {requested_project}"
-                token = Keycloak(client).exchange_global_token(token)
-                token_type = 'access_token'
+            # If the user is an admin or system, ignore the project
+            kc_client = Keycloak()
+            token_info = kc_client.decode_token(token)
+            user = kc_client.get_user(token_info['username'])
+            if not kc_client.has_user_roles(user["id"], {"Administrator", "System"}):
+                requested_project = request.headers.get("project-name")
+                if requested_project:
+                    client = f"Request {token_info['username']} - {requested_project}"
+                    kc_client = Keycloak(client)
+                    token = kc_client.exchange_global_token(token)
+                    token_type = 'access_token'
 
-            if Keycloak(client).is_token_valid(token, scope, resource, token_type):
+            if kc_client.is_token_valid(token, scope, resource, token_type):
                 return func(*args, **kwargs)
             else:
                 raise UnauthorizedError("Token is not valid, or the user has not enough permissions.")
@@ -78,16 +84,16 @@ def audit(func):
             source_ip = request.environ['REMOTE_ADDR']
 
         details = None
-        # details should include the request body. If a json
-        if request.is_json:
-            details = request.json
-            # Remove any of the following fields that contain
-            # sensitive data, so far only username and password on dataset POST
-            for field in ["username", "password"]:
-                find_and_redact_key(details, field)
-            details = str(details)
-        elif request.data:
+        if request.data:
             details = request.data.decode()
+            # details should include the request body. If a json and the body is not empty
+            if request.is_json:
+                details = request.json
+                # Remove any of the following fields that contain
+                # sensitive data, so far only username and password on dataset POST
+                for field in ["username", "password"]:
+                    find_and_redact_key(details, field)
+                details = str(details)
 
         requested_by = ""
         if "Authorization" in request.headers:
