@@ -40,8 +40,8 @@ The following examples aims to setup container registries (ACRs) credentials.
 In general, to create a k8s secret you run a command like the following:
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=username=(echo -n $username | base64) \
-    --from-literal=password=(echo -n $password | base64)
+    --from-literal=username=$(echo -n $username | base64) \
+    --from-literal=password=$(echo -n $password | base64)
 ```
 or using the yaml template:
 ```yaml
@@ -70,7 +70,7 @@ In case you want to set DB secrets the structure is slightly different:
 
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=value=(echo -n $password | base64)
+    --from-literal=value=$(echo -n $password | base64)
 ```
 or using the yaml template:
 ```yaml
@@ -90,8 +90,8 @@ type: Opaque
 #### Azure Storage
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=azurestorageaccountkey=(echo -n $accountkey | base64) \
-    --from-literal=azurestorageaccountname=(echo -n $accountname | base64)
+    --from-literal=azurestorageaccountkey=$(echo -n $accountkey | base64) \
+    --from-literal=azurestorageaccountname=$(echo -n $accountname | base64)
 ```
 or using the yaml template:
 ```yaml

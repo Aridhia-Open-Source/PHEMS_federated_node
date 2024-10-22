@@ -28,8 +28,7 @@ The Common API provides the structure of the API calls, Keycloak is used for tok
 | 4    | The webserver reads the zip contents from the live job pod and saves it in its own storage account environment.                                      |
 | 5    | The resulting archive is returned to the end user                                                                                                    |
 
-
-
+Licences for the component projects can be found [here](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/main/sub%20licenses).
 # Deployment
 
 See the [DEPLOYMENT](./DEPLOYMENT.md) document.
