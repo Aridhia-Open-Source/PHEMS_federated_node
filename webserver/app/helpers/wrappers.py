@@ -29,7 +29,7 @@ def auth(scope:str, check_dataset=True):
                 ds_id = kwargs.get("dataset_id")
                 ds_name = kwargs.get("dataset_name", "")
 
-                if request.is_json:
+                if request.is_json and request.data:
                     flat_json = flatten_dict(request.json)
                     ds_id = flat_json.get("dataset_id")
                     ds_name = flat_json.get("dataset_name", "")
@@ -78,16 +78,16 @@ def audit(func):
             source_ip = request.environ['REMOTE_ADDR']
 
         details = None
-        # details should include the request body. If a json
-        if request.is_json:
-            details = request.json
-            # Remove any of the following fields that contain
-            # sensitive data, so far only username and password on dataset POST
-            for field in ["username", "password"]:
-                find_and_redact_key(details, field)
-            details = str(details)
-        elif request.data:
+        if request.data:
             details = request.data.decode()
+            # details should include the request body. If a json and the body is not empty
+            if request.is_json:
+                details = request.json
+                # Remove any of the following fields that contain
+                # sensitive data, so far only username and password on dataset POST
+                for field in ["username", "password"]:
+                    find_and_redact_key(details, field)
+                details = str(details)
 
         requested_by = ""
         if "Authorization" in request.headers:

@@ -12,6 +12,7 @@ data:
     {{ .Files.Get .Values.ingress.tls.certFile | b64enc | indent 4 }}
 ---
 {{- end }}
+{{- if eq .Values.ingress.nginx.enabled true }}
 # Source: ingress-nginx/templates/controller-serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -377,7 +378,7 @@ spec:
             - --publish-service=$(POD_NAMESPACE)/ingress-nginx-controller
             - --election-id=ingress-nginx-leader
             - --controller-class=k8s.io/ingress-nginx
-            - --ingress-class=nginx
+            - --ingress-class={{ .Values.ingress.ingressClass | default "fn-nginx" }}
             - --configmap=$(POD_NAMESPACE)/ingress-nginx-controller
             - --validating-webhook=:8443
             - --validating-webhook-certificate=/usr/local/certificates/cert
@@ -466,8 +467,7 @@ metadata:
     app.kubernetes.io/version: "1.10.0"
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/component: controller
-  name: fn-nginx
-  namespace: {{ .Release.Namespace }}
+  name: {{ .Values.ingress.ingressClass | default "fn-nginx" }}
 spec:
   controller: k8s.io/ingress-nginx
 ---
@@ -486,7 +486,6 @@ metadata:
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/component: admission-webhook
   name: ingress-nginx-admission
-  namespace: {{ .Release.Namespace }}
 webhooks:
   - name: validate.nginx.ingress.kubernetes.io
     matchPolicy: Equivalent
@@ -744,3 +743,4 @@ spec:
       serviceAccountName: ingress-nginx-admission
       nodeSelector:
         kubernetes.io/os: linux
+{{- end }}

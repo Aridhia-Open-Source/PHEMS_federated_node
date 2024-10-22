@@ -72,11 +72,11 @@ jobs:
         if: github.ref != 'refs/heads/main'
         run: echo "TAG=${TAG}-${GITHUB_SHA::6}" >> ${GITHUB_ENV}
 
-      # Need to get an ACR where to push the image
+      # Need to get a registry where to push the image
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ${{ vars.DOCKER_ACR }}
+          registry: ${{ vars.DOCKER_CR }}
           username: ${{ github.actor }}
           password: ${{ secrets.DOCKER_TOKEN }}
       - name: set lower case owner name
@@ -89,12 +89,12 @@ jobs:
         with:
           context: webserver
           file: webserver/build/Dockerfile
-          tags: ${{ vars.DOCKER_ACR }}/${{ env.OWNER_LC }}/federated_node_run:${{ env.TAG }}
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_node_run:${{ env.TAG }}
           push: true
       - name: Build and push Keycloak image
         uses: docker/build-push-action@v5
         with:
           context: build/keycloak
           file: build/keycloak/keycloak.Dockerfile
-          tags: ${{ vars.DOCKER_ACR }}/${{ env.OWNER_LC }}/federated_keycloak:${{ env.TAG }}
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_keycloak:${{ env.TAG }}
           push: true

@@ -118,18 +118,18 @@ spec:
           volumeMounts:
             - name: respv
               mountPath: {{ .Values.federatedNode.volumes.results_path }}
-            - name: acr-list
-              mountPath: /app/acr/
+            - name: cr-list
+              mountPath: /app/registries/
       imagePullSecrets:
         - name: {{ .Values.imagePullSecrets }}
       volumes:
         - name: respv
           persistentVolumeClaim:
             claimName: flask-results-pv-volclaim
-        - name: acr-list
+        - name: cr-list
           secret:
-            secretName: backend-acr-config-secret
+            secretName: backend-cr-config-secret
             items:
-            - key: acrlist.json
-              path: acrlist.json
+            - key: registries-list.json
+              path: registries-list.json
         {{ template "dbInitVolume" . }}

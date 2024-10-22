@@ -104,7 +104,7 @@ def test_get_list_tasks_base_user(
     assert response.status_code == 403
 
 def test_create_task(
-        acr_client,
+        cr_client,
         k8s_client_task,
         post_json_admin_header,
         client,
@@ -123,7 +123,7 @@ def test_create_task(
     assert response.status_code == 201
 
 def test_create_task_with_non_existing_dataset(
-        acr_client,
+        cr_client,
         post_json_admin_header,
         client,
         task_body
@@ -145,7 +145,7 @@ def test_create_task_with_non_existing_dataset(
 @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
 def test_create_unauthorized_task(
         kc_valid_mock,
-        acr_client,
+        cr_client,
         post_json_user_header,
         dataset,
         client,
@@ -165,7 +165,7 @@ def test_create_unauthorized_task(
     assert response.status_code == 403
 
 def test_create_task_image_not_found(
-        acr_client_404,
+        cr_client_404,
         post_json_admin_header,
         client,
         task_body
@@ -182,7 +182,7 @@ def test_create_task_image_not_found(
     assert response.json == {"error": f"Image {task_body["executors"][0]["image"]} not found on our repository"}
 
 def test_get_task_by_id_admin(
-        acr_client,
+        cr_client,
         k8s_client_task,
         post_json_admin_header,
         post_json_user_header,
@@ -209,7 +209,7 @@ def test_get_task_by_id_admin(
     assert resp.status_code == 200
 
 def test_get_task_by_id_non_admin_owner(
-        acr_client,
+        cr_client,
         k8s_client_task,
         simple_user_header,
         post_json_user_header,
@@ -234,7 +234,7 @@ def test_get_task_by_id_non_admin_owner(
     assert resp.status_code == 200
 
 def test_get_task_by_id_non_admin_non_owner(
-        acr_client,
+        cr_client,
         k8s_client_task,
         post_json_user_header,
         simple_user_header,
@@ -263,7 +263,7 @@ def test_get_task_by_id_non_admin_non_owner(
 
 def test_cancel_task(
         client,
-        acr_client,
+        cr_client,
         k8s_client_task,
         simple_admin_header,
         post_json_admin_header,
@@ -301,7 +301,7 @@ def test_cancel_404_task(
 def test_validate_task(
         client,
         task_body,
-        acr_client,
+        cr_client,
         post_json_admin_header
     ):
     """
@@ -317,7 +317,7 @@ def test_validate_task(
 def test_validate_task_basic_user(
         client,
         task_body,
-        acr_client,
+        cr_client,
         post_json_user_header
     ):
     """
@@ -332,7 +332,7 @@ def test_validate_task_basic_user(
 
 def test_docker_image_regex(
         task_body,
-        acr_client,
+        cr_client,
         mocker,
         client
 ):
@@ -369,7 +369,7 @@ def test_docker_image_regex(
 class TestTaskResults:
     def test_get_results(
         self,
-        acr_client,
+        cr_client,
         post_json_admin_header,
         simple_admin_header,
         client,
@@ -425,7 +425,7 @@ class TestTaskResults:
 
     def test_get_results_job_creation_failure(
         self,
-        acr_client,
+        cr_client,
         post_json_admin_header,
         simple_admin_header,
         client,
@@ -500,7 +500,7 @@ class TestTaskResults:
         assert response.json["error"] == 'Tasks results are not available anymore. Please, run the task again'
 
 def test_get_task_status_running_and_waiting(
-    acr_client,
+    cr_client,
     k8s_client_task,
     running_state,
     waiting_state,
@@ -555,7 +555,7 @@ def test_get_task_status_running_and_waiting(
     assert response_id.json["status"] == {'waiting': {'started_at': '1/1/2024'}}
 
 def test_get_task_status_terminated(
-    acr_client,
+    cr_client,
     k8s_client_task,
     terminated_state,
     post_json_admin_header,
@@ -603,7 +603,7 @@ class TestResourceValidators:
             self,
             mocker,
             user_uuid,
-            acr_client,
+            cr_client,
             task_body
         ):
         """
@@ -629,7 +629,7 @@ class TestResourceValidators:
             self,
             mocker,
             user_uuid,
-            acr_client,
+            cr_client,
             task_body
         ):
         """
@@ -660,7 +660,7 @@ class TestResourceValidators:
             self,
             mocker,
             user_uuid,
-            acr_client,
+            cr_client,
             task_body
         ):
         """
@@ -692,7 +692,7 @@ class TestResourceValidators:
             self,
             mocker,
             user_uuid,
-            acr_client,
+            cr_client,
             task_body
         ):
         """
@@ -721,7 +721,7 @@ class TestResourceValidators:
             self,
             mocker,
             user_uuid,
-            acr_client,
+            cr_client,
             task_body
         ):
         """

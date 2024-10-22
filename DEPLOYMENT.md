@@ -21,7 +21,7 @@ In order to not store credentials in plain text within the `values.yaml` file, t
 
 The secrets to be created are:
 - Db credentials for the FN webserver to use (not where the dataset is)
-- ACR credentials (for the basic ghcr.io repo, you can create a personal access token with the `repo` and `write:packages` permissions. Use the generated token as password, and your github username)
+- CR credentials (for the basic ghcr.io repo, you can create a personal access token with the `repo` and `write:packages` permissions. Use the generated token as password, and your github username)
 - Azure storage account credentials (if used)
 
 If you plan to deploy on a dedicated namespace, create it manually first or the secrets creation will fail
@@ -35,13 +35,13 @@ echo -n "value" | base64
 ```
 
 #### Container Registries
-The following examples aims to setup container registries (ACRs) credentials.
+The following examples aims to setup container registries (CRs) credentials.
 
 In general, to create a k8s secret you run a command like the following:
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=username=(echo -n $username | base64) \
-    --from-literal=password=(echo -n $password | base64)
+    --from-literal=username=$(echo -n $username | base64) \
+    --from-literal=password=$(echo -n $password | base64)
 ```
 or using the yaml template:
 ```yaml
@@ -70,7 +70,7 @@ In case you want to set DB secrets the structure is slightly different:
 
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=value=(echo -n $password | base64)
+    --from-literal=value=$(echo -n $password | base64)
 ```
 or using the yaml template:
 ```yaml
@@ -90,8 +90,8 @@ type: Opaque
 #### Azure Storage
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=azurestorageaccountkey=(echo -n $accountkey | base64) \
-    --from-literal=azurestorageaccountname=(echo -n $accountname | base64)
+    --from-literal=azurestorageaccountkey=$(echo -n $accountkey | base64) \
+    --from-literal=azurestorageaccountname=$(echo -n $accountname | base64)
 ```
 or using the yaml template:
 ```yaml
@@ -160,9 +160,9 @@ storage:
     shareName: files
 ```
 
-#### acrs
+#### CRs
 ```yaml
-acrs:
+registries:
 # env specific
   - url: .azurecr.io
     email: ''
