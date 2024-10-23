@@ -22,7 +22,8 @@ In order to not store credentials in plain text within the `values.yaml` file, t
 The secrets to be created are:
 - Db credentials for the FN webserver to use (not where the dataset is)
 - CR credentials (for the basic ghcr.io repo, you can create a personal access token with the `repo` and `write:packages` permissions. Use the generated token as password, and your github username)
-- Azure storage account credentials (if used)
+- Azure storage account credentials (if deploying on azure)
+- Certificate auto-renewal credentials (if needed)
 
 If you plan to deploy on a dedicated namespace, create it manually first or the secrets creation will fail
 ```sh
@@ -108,6 +109,56 @@ data:
   azurestorageaccountname:
 type: Opaque
 ```
+
+#### Certificate credentials
+If deploying on azure:
+```sh
+kubectl create secret generic $secret_name \
+    --from-literal=DNS_SP_ID=$(echo -n $sp_id | base64) \
+    --from-literal=DNS_SP_SECRET=$(echo -n $sp_secret | base64) \
+    --from-literal=AZ_DIRECTORY_ID=$(echo -n $directory_id | base64) \
+    --from-literal=SUBSCRIPTION_ID=$(echo -n $sub_id | base64)
+```
+or using the yaml template:
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+    # set a name of your choosing
+    name:
+    # use the namespace name in case you plan to deploy in a non-default one.
+    # Otherwise you can set to default, or not use the next field altogether
+    namespace:
+data:
+  DNS_SP_ID:
+  DNS_SP_SECRET:
+  AZ_DIRECTORY_ID:
+  SUBSCRIPTION_ID:
+type: Opaque
+```
+Or on AWS:
+```sh
+kubectl create secret generic $secret_name \
+    --from-literal=AWS_ACCESS_KEY_ID=$(echo -n $key_id | base64) \
+    --from-literal=AWS_SECRET_ACCESS_KEY=$(echo -n $key_secret | base64)
+```
+or using the yaml template:
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+    # set a name of your choosing
+    name:
+    # use the namespace name in case you plan to deploy in a non-default one.
+    # Otherwise you can set to default, or not use the next field altogether
+    namespace:
+data:
+  AWS_ACCESS_KEY_ID:
+  AWS_SECRET_ACCESS_KEY:
+type: Opaque
+```
+
+The secret name set in here should be re-used in the values file under `certs.azure.sp_certificate` or `certs.aws.sp_certificate` according to your cloud provider.
 
 ### Copying existing secrets
 If the secret(s) exist in another namespace, you can "copy" them with this command:
