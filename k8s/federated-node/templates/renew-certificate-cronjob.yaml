@@ -22,6 +22,8 @@ spec:
               value: {{ .Values.namespaces.keycloak }}
             - name: DOMAIN
               value: {{ .Values.ingress.host }}
+            - name: SSL_SECRET_NAME
+              value: {{ .Values.ingress.tls.secretName | default "tls"}}
             envFrom:
                 - secretKeyRef:
                     {{ if .Values.certs.azure }}
