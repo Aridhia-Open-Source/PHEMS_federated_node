@@ -13,24 +13,24 @@ spec:
         spec:
           containers:
           - name: certibot-renewer
-            image: {{ .Values.image.repository }}:federated_node_certificate:{{ .Chart.AppVersion }}
-            imagePullPolicy: {{ .Values.image.pullPolicy }}
+            image: ghcr.io/aridhia-open-source/federated_node_certificate:{{ .Chart.AppVersion }}
+            imagePullPolicy: {{ .Values.pullPolicy }}
             env:
             - name: NAMESPACE
               value: {{ .Release.Namespace }}
             - name: KEYCLOAK_NAMESPACE
               value: {{ .Values.namespaces.keycloak }}
             - name: DOMAIN
-              value: {{ .Values.ingress.host }}
+              value: qc.aridhiatest.net
             - name: SSL_SECRET_NAME
               value: {{ .Values.ingress.tls.secretName | default "tls"}}
             envFrom:
-                - secretKeyRef:
-                    {{ if .Values.certs.azure }}
-                    name: {{ .Values.certs.azure.sp_certificate }}
-                    {{ else if .Values.certs.aws }}
-                    name: {{ .Values.certs.aws.sp_certificate }}
-                    {{ end }}
+            - secretRef:
+                {{ if .Values.certs.azure }}
+                name: {{ .Values.certs.azure.sp_certificate }}
+                {{ else if .Values.certs.aws }}
+                name: {{ .Values.certs.aws.sp_certificate }}
+                {{ end }}
             command:
             - /bin/sh
             - -c
@@ -40,4 +40,6 @@ spec:
             - /app/scripts/aws.sh
             {{ end }}
           restartPolicy: Never
+          imagePullSecrets:
+            - name: {{ .Values.imagePullSecrets }}
 {{ end }}

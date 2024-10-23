@@ -2,6 +2,8 @@
 
 mkdir -p "${CERTBOT_FOLDER}"
 
+. "${VENV_DIR}"/bin/activate
+
 cat <<EOF> "${CERTBOT_FOLDER}/azure.ini"
 dns_azure_sp_client_id = ${DNS_SP_ID}
 dns_azure_sp_client_secret = ${DNS_SP_SECRET}
@@ -24,4 +26,4 @@ certbot certonly -v \
     --work-dir . \
     --preferred-chain='ISRG Root X1'
 
-./apply_secret.sh
+/app/scripts/apply_secret.sh

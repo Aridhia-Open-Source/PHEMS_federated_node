@@ -1,5 +1,6 @@
 #!/bin/bash
 
+. "${VENV_DIR}"/bin/activate
 ## This is not tested yet, it's just to provide a base to work with
 CERTBOT_FOLDER=~/.aws/config
 export AWS_CONFIG_FILE="${CERTBOT_FOLDER}/aws.ini"
@@ -18,4 +19,4 @@ certbot certonly \
   --dns-route53 \
   -d "${DOMAIN}"
 
-./apply_secret.sh
+/app/scripts/apply_secret.sh
