@@ -21,7 +21,7 @@ spec:
             - name: KEYCLOAK_NAMESPACE
               value: {{ .Values.namespaces.keycloak }}
             - name: DOMAIN
-              value: qc.aridhiatest.net
+              value: {{ .Values.ingress.host }}
             - name: SSL_SECRET_NAME
               value: {{ .Values.ingress.tls.secretName | default "tls"}}
             envFrom:
