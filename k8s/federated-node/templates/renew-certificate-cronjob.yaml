@@ -20,6 +20,8 @@ spec:
               value: {{ .Release.Namespace }}
             - name: KEYCLOAK_NAMESPACE
               value: {{ .Values.namespaces.keycloak }}
+            - name: NGINX_NAMESPACE
+              value: {{ .Values.namespaces.nginx }}
             - name: DOMAIN
               value: {{ .Values.ingress.host }}
             - name: SSL_SECRET_NAME
