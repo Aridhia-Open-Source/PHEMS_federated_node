@@ -1,4 +1,3 @@
-import base64
 import os
 import re
 from sqlalchemy import Column, Integer, String
@@ -6,7 +5,7 @@ from app.helpers.db import BaseModel, db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
-from kubernetes import client, config
+from kubernetes import client
 from kubernetes.client.exceptions import ApiException
 
 
