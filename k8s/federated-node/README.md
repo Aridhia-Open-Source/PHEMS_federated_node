@@ -4,12 +4,12 @@
 The necessary values are:
 |path|subpath|description|
 |-|-|-|
-|acrs[]|url|This element should report the ACR host that is used to host the analytics images|
-|acrs[].secret|name|The existing secret name that holds the ACR's credentials|
-|acrs[].secret|userKey|The secret's key that holds the ACR's username|
-|acrs[].secret|passKey|The secret's key that holds the ACR's password/token|
-|acrs[]|username|The ACR's username. Has lower priority than the secret|
-|acrs[]|password|The ACR's password/token. Has lower priority than the secret.|
+|registries[]|url|This element should report the CR host that is used to host the analytics images|
+|registries[].secret|name|The existing secret name that holds the CR's credentials|
+|registries[].secret|userKey|The secret's key that holds the CR's username|
+|registries[].secret|passKey|The secret's key that holds the CR's password/token|
+|registries[]|username|The CR's username. Has lower priority than the secret|
+|registries[]|password|The CR's password/token. Has lower priority than the secret.|
 |-|-|-|
 |storage|local|If running a cluster off the cloud, this will be the suggested config|
 |storage.local|path|Where to persist files in the host machine|
@@ -38,6 +38,6 @@ The necessary values are:
 ### Existing secrets
 It is highly suggested to have some secrets pre-set in the namespace this helm chart will be installed at:
 - db password
-- acr credentials
+- registries credentials
 - azure storage credentials
 - tls cert

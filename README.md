@@ -1,4 +1,4 @@
-![phems_logo](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/readme_update/images/phems_logo_RGB_color_cropped_left%20align.JPG)
+![phems_logo](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/main/images/phems_logo_RGB_color_cropped_left%20align.JPG)
 ## The PHEMS Project
 
 [PHEMS](https://phems.eu/) (short for “Pediatric Hospitals as European drivers for multi-party computation and synthetic data generation capabilities across clinical specialities and data types”) is a Europe-wide consortium of paediatric hospitals that:
@@ -17,7 +17,7 @@ The Federated Node is based on three existing open source projects:
 
 The Common API provides the structure of the API calls, Keycloak is used for token and user management, and Nginx is used as a reverse proxy. The FN needs to be deployed to a Kubernetes cluster, and requires a Postgres database for storing user credentials.
 
-![FN_ACR_Diagram](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/readme_update/images/FN%20Diagram.jpg)
+![FN_ACR_Diagram](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/main/images/FN%20Diagram.jpg)
 
 |  | Description                                                                                                                                          |
 |------|------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -28,7 +28,7 @@ The Common API provides the structure of the API calls, Keycloak is used for tok
 | 4    | The webserver reads the zip contents from the live job pod and saves it in its own storage account environment.                                      |
 | 5    | The resulting archive is returned to the end user                                                                                                    |
 
-Licences for the component projects can be found [here](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/main/sub%20licenses).
+Licences for the component projects can be found [here](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/main/sub-licenses).
 # Deployment
 
 See the [DEPLOYMENT](./DEPLOYMENT.md) document.

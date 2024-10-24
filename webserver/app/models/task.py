@@ -10,7 +10,7 @@ from sqlalchemy.sql import func
 from uuid import uuid4
 
 import urllib3
-from app.helpers.acr import ACRClient
+from app.helpers.container_registries import ContainerRegistryClient
 from app.helpers.const import CLEANUP_AFTER_DAYS, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, TASK_NAMESPACE
 from app.helpers.db import BaseModel, db
 from app.helpers.keycloak import Keycloak
@@ -170,11 +170,11 @@ class Task(db.Model, BaseModel):
     @classmethod
     def get_image_with_repo(cls, docker_image):
         """
-        Looks through the ACRs for the image and if exists,
+        Looks through the CRs for the image and if exists,
         returns the full image name with the repo prefixing the image.
         """
-        acr_client = ACRClient()
-        full_docker_image_name = acr_client.find_image_repo(docker_image)
+        registry_client = ContainerRegistryClient()
+        full_docker_image_name = registry_client.find_image_repo(docker_image)
         if not full_docker_image_name:
             raise TaskImageException(f"Image {docker_image} not found on our repository")
         return full_docker_image_name

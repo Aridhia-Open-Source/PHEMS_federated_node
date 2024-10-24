@@ -7,7 +7,7 @@ from datetime import datetime as dt, timedelta
 from sqlalchemy.orm.session import close_all_sessions
 from unittest.mock import Mock
 from app import create_app
-from app.helpers.acr import ACRClient
+from app.helpers.container_registries import ContainerRegistryClient
 from app.helpers.db import db
 from app.helpers.kubernetes import KubernetesBatchClient
 from app.models.dataset import Dataset
@@ -159,11 +159,11 @@ def k8s_client_task(mocker, k8s_config):
         return_value=MockKubernetesClient()
     )
 
-# ACR mocking
+# CR mocking
 @pytest.fixture
-def acr_client(mocker, image_name):
+def cr_client(mocker, image_name):
     mocker.patch(
-        'app.models.task.ACRClient',
+        'app.models.task.ContainerRegistryClient',
         return_value=Mock(
             login=Mock(return_value="access_token"),
             find_image_repo=Mock(return_value=image_name)
@@ -171,7 +171,7 @@ def acr_client(mocker, image_name):
     )
 
 @pytest.fixture
-def acr_http(mocker):
+def cr_http(mocker):
     rsps = responses.RequestsMock()
     # with responses.RequestsMock() as rsps:
     # Mock the request in the order they are submitted.
@@ -191,35 +191,35 @@ def acr_http(mocker):
     return rsps
 
 @pytest.fixture
-def acr_client_404(mocker):
+def cr_client_404(mocker):
     mocker.patch(
-        'app.models.task.ACRClient',
+        'app.models.task.ContainerRegistryClient',
         return_value=Mock(
             login=Mock(return_value="access_token"),
             find_image_repo=Mock(return_value=False)
         )
     )
 @pytest.fixture
-def acr_name():
+def cr_name():
     return "acr.azurecr.io"
 
 @pytest.fixture
-def acr_config(acr_name):
+def cr_config(cr_name):
     return {
-        acr_name: {"username": "user", "password": "pass"}
+        cr_name: {"username": "user", "password": "pass"}
     }
 
 @pytest.fixture
-def acr_json_loader(mocker, acr_config):
+def cr_json_loader(mocker, cr_config):
     return mocker.patch(
-    'app.helpers.acr.json',
-    load=Mock(return_value=acr_config)
+    'app.helpers.container_registries.json',
+    load=Mock(return_value=cr_config)
 )
 
 @pytest.fixture
-def acr_class(mocker, acr_json_loader):
-    mocker.patch('app.helpers.acr.open')
-    return ACRClient()
+def cr_class(mocker, cr_json_loader):
+    mocker.patch('app.helpers.container_registries.open')
+    return ContainerRegistryClient()
 
 # Dataset Mocking
 @pytest.fixture(scope='function')
