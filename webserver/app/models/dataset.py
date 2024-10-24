@@ -5,8 +5,10 @@ from sqlalchemy import Column, Integer, String
 from app.helpers.db import BaseModel, db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.keycloak import Keycloak
+from app.helpers.kubernetes import KubernetesClient
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
+
 
 TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
 SUPPORTED_TYPES = ["postgres", "mssql"]
@@ -19,6 +21,7 @@ class Dataset(db.Model, BaseModel):
     host = Column(String(256), nullable=False)
     port = Column(Integer, default=5432)
     type = Column(String(256), server_default="postgres", nullable=False)
+    extra_connection_args = Column(String(4096), nullable=True)
 
     def __init__(self,
                  name:str,
@@ -27,36 +30,30 @@ class Dataset(db.Model, BaseModel):
                  password:str,
                  port:int=5432,
                  type:str="postgres",
+                 extra_connection_args:str=None,
                  **kwargs
                 ):
         self.name = name
         self.host = host
         self.port = port
         self.type = type
+        self.extra_connection_args = extra_connection_args
 
-        # Create secrets for credentials
-        if os.getenv('KUBERNETES_SERVICE_HOST'):
-            # Get configuration for an in-cluster setup
-            config.load_incluster_config()
-        else:
-            # Get config from outside the cluster. Mostly DEV
-            config.load_kube_config()
-        v1 = client.CoreV1Api()
+        v1 = KubernetesClient()
         body = client.V1Secret()
         body.api_version = 'v1'
         if self.type not in SUPPORTED_TYPES:
             raise InvalidRequest(f"DB type {self.type} is not supported.")
 
-        if self.type == "postgres":
-            body.data = {
-                "PGPASSWORD": base64.b64encode(password.encode()).decode(),
-                "PGUSER": base64.b64encode(username.encode()).decode()
-            }
-        elif self.type == "mssql":
-            body.data = {
-                "MSSQL_PASSWORD": base64.b64encode(password.encode()).decode(),
-                "MSSQL_USER": base64.b64encode(username.encode()).decode()
-            }
+        encoded_psw = KubernetesClient.encode_secret_value(password)
+        encoded_un = KubernetesClient.encode_secret_value(username)
+
+        body.data = {
+            "PGPASSWORD": encoded_psw,
+            "PGUSER": encoded_un,
+            "MSSQL_PASSWORD": encoded_psw,
+            "MSSQL_USER": encoded_un
+        }
         body.kind = 'Secret'
         body.metadata = {'name': self.get_creds_secret_name()}
         body.type = 'Opaque'
@@ -74,20 +71,16 @@ class Dataset(db.Model, BaseModel):
         return f"{cleaned_up_host}-{re.sub('\\s|_', '-', self.name.lower())}-creds"
 
     def get_credentials(self) -> tuple:
-        if os.getenv('KUBERNETES_SERVICE_HOST'):
-            # Get configuration for an in-cluster setup
-            config.load_incluster_config()
-        else:
-            # Get config from outside the cluster. Mostly DEV
-            config.load_kube_config()
-        v1 = client.CoreV1Api()
+        """
+        Mostly used to create a direct connection to the DB, i.e. /beacon endpoint
+        This is not involved in the Task Execution Service
+        """
+        v1 = KubernetesClient()
         secret = v1.read_namespaced_secret(self.get_creds_secret_name(), 'default', pretty='pretty')
-        if self.type == "postgres":
-            user = base64.b64decode(secret.data['PGUSER'].encode()).decode()
-            password = base64.b64decode(secret.data['PGPASSWORD'].encode()).decode()
-        elif self.type == "mssql":
-            user = base64.b64decode(secret.data['MSSQL_USER'].encode()).decode()
-            password = base64.b64decode(secret.data['MSSQL_PASSWORD'].encode()).decode()
+        # Doesn't matter which key it's being picked up, the value it's the same
+        # in terms of *USER or *PASSWORD
+        user = KubernetesClient.decode_secret_value(secret.data['PGUSER'])
+        password = KubernetesClient.decode_secret_value(secret.data['PGPASSWORD'])
 
         return user, password
 

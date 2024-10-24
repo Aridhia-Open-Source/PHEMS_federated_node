@@ -43,7 +43,8 @@ class TestDatasets:
             "name": dataset.name,
             "host": dataset.host,
             "port": 5432,
-            "type": "postgres"
+            "type": "postgres",
+            "extra_connection_args": None
         }
 
     def test_get_all_datasets(
@@ -167,6 +168,28 @@ class TestDatasets:
         query = run_query(select(Dataset).where(Dataset.name == data_body["name"], Dataset.type == "mssql"))
         assert len(query) == 1
 
+    def test_post_dataset_with_extra_args(
+            self,
+            post_json_admin_header,
+            client,
+            dataset,
+            dataset_post_body
+        ):
+        """
+        /datasets POST is successful with the extra_connection_args set
+        to a non null value
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        data_body['extra_connection_args'] = 'read_only=true'
+        post_dataset(client, post_json_admin_header, data_body)
+
+        ds = Dataset.query.filter(
+            Dataset.name == data_body["name"],
+            Dataset.type == data_body['extra_connection_args']
+        ).one_or_none()
+        assert ds is not None
+
     def test_post_dataset_invalid_type(
             self,
             post_json_admin_header,
@@ -199,7 +222,7 @@ class TestDatasets:
         /datasets POST fails if the k8s secrets cannot be created successfully
         """
         mocker.patch(
-            'kubernetes.client.CoreV1Api',
+            'app.models.dataset.KubernetesClient',
             return_value=Mock(
                 create_namespaced_secret=Mock(
                     side_effect=ApiException(status=500, reason="Failed")
@@ -225,7 +248,7 @@ class TestDatasets:
         /datasets POST is successful if the k8s secrets already exists
         """
         mocker.patch(
-            'kubernetes.client.CoreV1Api',
+            'app.models.dataset.KubernetesClient',
             return_value=Mock(
                 create_namespaced_secret=Mock(
                     side_effect=ApiException(status=409, reason="Conflict")

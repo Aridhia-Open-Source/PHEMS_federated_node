@@ -9,6 +9,7 @@ from app.helpers.db import db
 from app.helpers.exceptions import InvalidRequest
 from app.models.task import Task
 from tests.helpers.kubernetes import MockKubernetesClient
+from app.helpers.kubernetes import KubernetesBase
 
 
 @pytest.fixture(scope='function')
