@@ -186,7 +186,7 @@ class TestDatasets:
 
         ds = Dataset.query.filter(
             Dataset.name == data_body["name"],
-            Dataset.type == data_body['extra_connection_args']
+            Dataset.extra_connection_args == data_body['extra_connection_args']
         ).one_or_none()
         assert ds is not None
 
