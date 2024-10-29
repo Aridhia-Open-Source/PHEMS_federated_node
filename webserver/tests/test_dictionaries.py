@@ -28,6 +28,26 @@ class TestDictionaries(MixinTestDataset):
         for i in range(0, len(data_body["dictionaries"])):
             assert response.json[i].items() >= data_body["dictionaries"][i].items()
 
+    def test_add_invalid_dict_format_fails(
+            self,
+            client,
+            dataset_post_body,
+            post_json_admin_header,
+            dataset
+        ):
+        """
+        Tests that sending a POST /dataset fails if the dictionary is not
+        a list of dict
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        data_body["dictionaries"] = dataset_post_body["dictionaries"][0]["description"]
+
+        resp_ds = self.post_dataset(client, post_json_admin_header, data_body, 400)
+
+        assert resp_ds["error"] == "dictionaries should be a list."
+        assert Dictionary.query.count() == 0
+
     def test_edit_existing_dictionary(
             self,
             client,

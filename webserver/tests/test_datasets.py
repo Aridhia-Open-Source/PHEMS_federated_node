@@ -25,7 +25,7 @@ class MixinTestDataset:
             headers,
             data_body=sample_ds_body,
             code=201
-        ):
+        ) -> dict:
         """
         Helper method that created a given dataset, if none specified
         uses dataset_post_body
