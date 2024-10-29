@@ -3,5 +3,5 @@ kind: Namespace
 metadata:
   name: {{ .Values.namespaces.keycloak }}
   annotations:
-    "helm.sh/hook": "pre-install"
-    "helm.sh/hook-weight": "-6"
+    helm.sh/hook: "pre-install"
+    helm.sh/hook-weight: "-6"
