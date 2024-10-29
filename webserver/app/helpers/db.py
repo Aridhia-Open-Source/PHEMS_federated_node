@@ -35,8 +35,15 @@ class BaseModel():
         return cls.__table__.columns._all_columns
 
     @classmethod
-    def is_field_required(cls, attribute: Column):
-        return not (attribute.nullable or attribute.primary_key)
+    def is_field_required(cls, attribute: Column) -> bool:
+        """
+        Generalized check for a column to be required in a request body
+        The column, to be required, needs to:
+            - not be nullable
+            - not have a default value
+            - not be a primary key (e.g. id is not allowed as a request body)
+        """
+        return not (attribute.nullable or attribute.primary_key or attribute.server_default is not None)
 
     @classmethod
     def _get_required_fields(cls):

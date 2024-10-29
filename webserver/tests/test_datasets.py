@@ -1,7 +1,7 @@
 import json
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import select
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.exc import ProgrammingError, OperationalError
 from unittest.mock import Mock
 from app.helpers.db import db
 from app.models.dataset import Dataset
@@ -39,6 +39,16 @@ class MixinTestDataset:
         return response.json
 
 class TestDatasets(MixinTestDataset):
+    def expected_ds_entry(self, dataset:Dataset):
+        return {
+            "id": dataset.id,
+            "name": dataset.name,
+            "host": dataset.host,
+            "port": 5432,
+            "type": "postgres",
+            "extra_connection_args": None
+        }
+
     def test_get_all_datasets(
             self,
             simple_admin_header,
@@ -48,19 +58,12 @@ class TestDatasets(MixinTestDataset):
         """
         Get all dataset is possible only for admin users
         """
-        expected_ds_entry = {
-            "id": dataset.id,
-            "name": dataset.name,
-            "host": dataset.host,
-            "port": 5432
-        }
-
         response = client.get("/datasets/", headers=simple_admin_header)
 
         assert response.status_code == 200
         assert response.json == {
             "datasets": [
-                expected_ds_entry
+                self.expected_ds_entry(dataset)
             ]
         }
 
@@ -95,15 +98,9 @@ class TestDatasets(MixinTestDataset):
         """
         /datasets/{id} GET returns a valid dictionary representation for admin users
         """
-        expected_ds_entry = {
-            "id": dataset.id,
-            "name": dataset.name,
-            "host": dataset.host,
-            "port": 5432
-        }
         response = client.get(f"/datasets/{dataset.id}", headers=simple_admin_header)
         assert response.status_code == 200
-        assert response.json == expected_ds_entry
+        assert response.json == self.expected_ds_entry(dataset)
 
     def test_get_dataset_by_id_401(
             self,
@@ -154,6 +151,67 @@ class TestDatasets(MixinTestDataset):
             query = self.run_query(select(Dictionary).where(Dictionary.table_name == d["table_name"]))
             assert len(query)== 1
 
+    def test_post_dataset_mssql_type(
+            self,
+            post_json_admin_header,
+            client,
+            dataset,
+            dataset_post_body
+        ):
+        """
+        /datasets POST is successful with the type set
+        to mssql as one of the supported engines
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        data_body['type'] = 'mssql'
+        self.post_dataset(client, post_json_admin_header, data_body)
+
+        query = self.run_query(select(Dataset).where(Dataset.name == data_body["name"], Dataset.type == "mssql"))
+        assert len(query) == 1
+
+    def test_post_dataset_with_extra_args(
+            self,
+            post_json_admin_header,
+            client,
+            dataset,
+            dataset_post_body
+        ):
+        """
+        /datasets POST is successful with the extra_connection_args set
+        to a non null value
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        data_body['extra_connection_args'] = 'read_only=true'
+        self.post_dataset(client, post_json_admin_header, data_body)
+
+        ds = Dataset.query.filter(
+            Dataset.name == data_body["name"],
+            Dataset.extra_connection_args == data_body['extra_connection_args']
+        ).one_or_none()
+        assert ds is not None
+
+    def test_post_dataset_invalid_type(
+            self,
+            post_json_admin_header,
+            client,
+            dataset,
+            dataset_post_body
+        ):
+        """
+        /datasets POST is successful with the type set
+        to something not supported
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        data_body['type'] = 'invalid'
+        resp = self.post_dataset(client, post_json_admin_header, data_body, code=400)
+        assert resp["error"] == "DB type invalid is not supported."
+
+        query = self.run_query(select(Dataset).where(Dataset.name == data_body["name"], Dataset.type == "mssql"))
+        assert len(query) == 0
+
     def test_post_dataset_fails_k8s_secrets(
             self,
             post_json_admin_header,
@@ -166,7 +224,7 @@ class TestDatasets(MixinTestDataset):
         /datasets POST fails if the k8s secrets cannot be created successfully
         """
         mocker.patch(
-            'kubernetes.client.CoreV1Api',
+            'app.models.dataset.KubernetesClient',
             return_value=Mock(
                 create_namespaced_secret=Mock(
                     side_effect=ApiException(status=500, reason="Failed")
@@ -192,7 +250,7 @@ class TestDatasets(MixinTestDataset):
         /datasets POST is successful if the k8s secrets already exists
         """
         mocker.patch(
-            'kubernetes.client.CoreV1Api',
+            'app.models.dataset.KubernetesClient',
             return_value=Mock(
                 create_namespaced_secret=Mock(
                     side_effect=ApiException(status=409, reason="Conflict")
@@ -434,3 +492,34 @@ class TestBeacon:
         )
         assert response.status_code == 500
         assert response.json['result'] == 'Invalid'
+
+    def test_beacon_connection_failed(
+            self,
+            client,
+            post_json_admin_header,
+            mocker,
+            dataset
+    ):
+        """
+        Test that the beacon endpoint is accessible to admin users
+        but returns an appropriate error message in case of connection
+        failed
+        """
+        mocker.patch('app.helpers.query_validator.create_engine')
+        mocker.patch(
+            'app.helpers.query_validator.sessionmaker',
+            side_effect = OperationalError(
+                statement="Unable to connect: Adaptive Server is unavailable or does not exist",
+                params={}, orig="error test"
+            )
+        )
+        response = client.post(
+            "/datasets/selection/beacon",
+            json={
+                "query": "SELECT * FROM table",
+                "dataset_id": dataset.id
+            },
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 500
+        assert response.json['error'] == 'Could not connect to the database'

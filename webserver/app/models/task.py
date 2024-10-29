@@ -243,12 +243,16 @@ class Task(db.Model, BaseModel):
 
     def get_db_environment_variables(self) -> dict:
         """
-        Creates a dictionary with the standard value for Psql credentials
+        Creates a dictionary with the standard value for DB credentials
         """
         return {
             "PGHOST": self.dataset.host,
             "PGDATABASE": self.dataset.name,
-            "PGPORT": self.dataset.port
+            "PGPORT": self.dataset.port,
+            "MSSQL_HOST": self.dataset.host,
+            "MSSQL_DATABASE": self.dataset.name,
+            "MSSQL_PORT": self.dataset.port,
+            "CONNECTION_ARGS": self.dataset.extra_connection_args
         }
 
     def get_current_pod(self, pod_name:str=None, is_running:bool=True):

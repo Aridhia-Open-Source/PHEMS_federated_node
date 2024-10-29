@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mssqldb
+  labels:
+    app: testmssql
+spec:
+  selector:
+    matchLabels:
+      app: testmssql
+  template:
+    metadata:
+      labels:
+        app: testmssql
+    spec:
+      containers:
+        - image: mcr.microsoft.com/mssql/server:2019-latest
+          name: mssql
+          env:
+            - name: ACCEPT_EULA
+              value: "Y"
+            - name: POSTGRES_DB
+              value: "testing21"
+            - name: POSTGRES_USER
+              value: "user"
+            - name: MSSQL_SA_PASSWORD
+              value: "Password1!"
+          volumeMounts:
+            - name: mssqldata
+              mountPath: /var/opt/mssql
+      volumes:
+        - name: mssqldata
+          persistentVolumeClaim:
+            claimName: pv0002-volclaim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: testmssql
+spec:
+  ports:
+    - port: 1433
+      targetPort: 1433
+  selector:
+    app: testmssql
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv0002
+spec:
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: 100Mi
+  hostPath:
+    path: /data/pv0002/
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pv0002-volclaim
+spec:
+  resources:
+    requests:
+      storage: 100Mi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany

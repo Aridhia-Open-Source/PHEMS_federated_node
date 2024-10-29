@@ -144,11 +144,11 @@ def k8s_config(mocker):
 @pytest.fixture
 def k8s_client(mocker, k8s_config):
     mocker.patch(
-        'kubernetes.client.CoreV1Api',
+        'app.models.dataset.KubernetesClient',
         return_value=MockKubernetesClient()
     )
     mocker.patch(
-        'kubernetes.client.BatchV1Api',
+        'app.models.task.KubernetesBatchClient',
         return_value=KubernetesBatchClient()
     )
 
