@@ -12,6 +12,7 @@ datasets-related endpoints:
 """
 import json
 from flask import Blueprint, request
+from datetime import datetime
 from sqlalchemy import select
 
 from app.models.request import Request
@@ -83,12 +84,68 @@ def post_datasets():
 @auth(scope='can_access_dataset')
 def get_datasets_by_id(dataset_id):
     """
-    GET /datasets/id endpoint. Gets dataset with a give id
+    GET /datasets/id endpoint. Gets dataset with a given id
     """
     ds = session.get(Dataset, dataset_id)
     if ds is None:
         raise DBRecordNotFoundError(f"Dataset with id {dataset_id} does not exist")
     return Dataset.sanitized_dict(ds), 200
+
+@bp.route('/<dataset_id>', methods=['PATCH'])
+@audit
+@auth(scope='can_admin_dataset')
+def patch_datasets_by_id(dataset_id):
+    """
+    PATCH /datasets/id endpoint. Edits an existing dataset with a given id
+    """
+    ds = Dataset.query.get(dataset_id)
+    if ds is None:
+        raise DBRecordNotFoundError(f"Dataset with id {dataset_id} does not exist")
+
+    old_ds_name = ds.name
+    # Update validation doesn't have required fields
+    body = request.json
+    body.pop("id", None)
+    cata_body = body.pop("catalogue", {})
+    dict_body = body.pop("dictionaries", [])
+
+    # Dictionary should be a list of dict. If not raise an error and revert changes
+    if not isinstance(dict_body, list):
+        session.rollback()
+        raise InvalidRequest("dictionaries should be a list.")
+
+    for k in body:
+        if not hasattr(ds, k) and k not in ["username", "password"]:
+            raise InvalidRequest(f"Field {k} is not a valid one")
+
+    try:
+        ds.update(**body)
+        # Also make sure all the request clients are updated with this
+        if body.get("name", None) is not None and body.get("name", None) != old_ds_name:
+            dars = Request.query.with_entities(Request.requested_by, Request.project_name)\
+                .filter(Request.dataset_id == ds.id, Request.proj_end > datetime.now())\
+                .group_by(Request.requested_by, Request.project_name).all()
+            for dar in dars:
+                update_args = {
+                    "name": f"{ds.id}-{ds.name}",
+                    "displayName": f"{ds.id} - {ds.name}"
+                }
+
+                req_by = json.loads(dar[0]).get("email")
+                kc_client = Keycloak(client=f"Request {req_by} - {dar[1]}")
+                kc_client.patch_resource(f"{ds.id}-{old_ds_name}", **update_args)
+        # Update catalogue and dictionaries
+        if cata_body:
+            Catalogue.update_or_create(cata_body, ds)
+
+        for d in dict_body:
+            Dictionary.update_or_create(d, ds)
+    except:
+        session.rollback()
+        raise
+
+    session.commit()
+    return Dataset.sanitized_dict(ds), 204
 
 @bp.route('/<dataset_id>/catalogue', methods=['GET'])
 @audit

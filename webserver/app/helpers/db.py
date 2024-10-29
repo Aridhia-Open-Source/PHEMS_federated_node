@@ -38,7 +38,9 @@ class BaseModel():
     @classmethod
     def is_field_required(cls, f):
         attribute = getattr(cls, f)
-        return not getattr(attribute, 'nullable', True) and f != 'id' and isinstance(attribute.prop, Relationship)
+        return not getattr(attribute, 'nullable', True)  \
+            and f != 'id' \
+            and isinstance(getattr(attribute, 'prop', None), Relationship)
 
     @classmethod
     def _get_required_fields(cls):

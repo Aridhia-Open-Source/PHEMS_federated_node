@@ -236,6 +236,7 @@ def dataset_post_body():
         },
         "dictionaries": [{
             "table_name": "test",
+            "field_name": "column1",
             "description": "test description"
         }]
     }
