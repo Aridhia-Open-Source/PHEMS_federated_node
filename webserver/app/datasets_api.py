@@ -86,7 +86,7 @@ def get_datasets_by_id(dataset_id):
     """
     GET /datasets/id endpoint. Gets dataset with a given id
     """
-    ds = session.get(Dataset, dataset_id)
+    ds = Dataset.query.filter(Dataset.id == dataset_id).one_or_none()
     if ds is None:
         raise DBRecordNotFoundError(f"Dataset with id {dataset_id} does not exist")
     return Dataset.sanitized_dict(ds), 200
@@ -98,7 +98,7 @@ def patch_datasets_by_id(dataset_id):
     """
     PATCH /datasets/id endpoint. Edits an existing dataset with a given id
     """
-    ds = Dataset.query.get(dataset_id)
+    ds = Dataset.query.filter(Dataset.id == dataset_id).one_or_none()
     if ds is None:
         raise DBRecordNotFoundError(f"Dataset with id {dataset_id} does not exist")
 

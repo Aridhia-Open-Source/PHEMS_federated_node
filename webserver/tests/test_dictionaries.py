@@ -137,8 +137,8 @@ class TestDictionaries(MixinTestDataset):
             json=data_body,
             headers=post_json_admin_header
         )
-        assert response.status_code == 500
-        assert response.json["error"] == "Filed \"field_name\" is required"
+        assert response.status_code == 400
+        assert response.json["error"] == "Field \"field_name\" missing"
 
     def test_get_dictionaries_not_allowed_user(
             self,
