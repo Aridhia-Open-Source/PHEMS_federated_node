@@ -4,8 +4,8 @@ metadata:
   name: keycloak-start-config
   namespace: {{ .Values.namespaces.keycloak }}
   annotations:
-    "helm.sh/hook": pre-upgrade
-    "helm.sh/hook-weight": "-5"
+    helm.sh/hook: pre-upgrade
+    helm.sh/hook-weight: "-5"
     "helm.sh/resource-policy": keep
 data:
   config.json: |-

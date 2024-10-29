@@ -1,0 +1,14 @@
+{
+    "acruksouthatdev.azurecr.io": {
+        "username": "phems-riccardo",
+        "password": "WUbOUSo9OP8KXrYE9Ax+D8k+oBNn2oN0kZPudy4TRA+ACRDU+IRH",
+        "email": "",
+        "auth": "cGhlbXMtcmljY2FyZG86V1ViT1VTbzlPUDhLWHJZRTlBeCtEOGsrb0JObjJvTjBrWlB1ZHk0VFJBK0FDUkRVK0lSSA=="
+    },
+    "ghcr.io": {
+        "username": "r-casula",
+        "password": "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",
+        "email": "",
+        "auth": "ci1jYXN1bGE6Z2xwYXQtU1VlUUxkYTVlcnlQcGtzdjI3eTc="
+    }
+}
