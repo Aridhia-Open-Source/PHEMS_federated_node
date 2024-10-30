@@ -12,6 +12,7 @@ from app.helpers.db import db
 from app.models.dataset import Dataset
 from app.models.request import Request
 from app.helpers.keycloak import Keycloak, URLS, KEYCLOAK_SECRET, KEYCLOAK_CLIENT
+from tests.helpers.keycloak import clean_kc
 
 sample_ds_body = {
     "name": "TestDs",
@@ -128,6 +129,7 @@ def client():
             yield tclient
             close_all_sessions()
             db.drop_all()
+            clean_kc()
 
 # K8s
 @pytest.fixture
