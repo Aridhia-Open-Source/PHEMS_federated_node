@@ -316,7 +316,7 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "500":{
-            "$ref": "#/components/responses/InternalError"
+            "$ref": "#/components/responses/DBConnectionFailed"
           }
         }
       }
@@ -821,6 +821,9 @@
       "InternalError": {
         "description": "An internal error occurred."
       },
+      "DBConnectionFailed": {
+        "description": "Could not connect to the database."
+      },
       "Conflict": {
         "description": "Conflict. Resource already exists",
         "content": {
@@ -897,6 +900,19 @@
             "description": "Password for the Federated Node to access the DB",
             "example": "password"
           },
+          "extra_connection_args": {
+            "type": "string",
+            "description": "Extra argument to use for connecting to the DB. Eventually this is passed to the tasks' pod as environment variable",
+            "example": "TrustServerCertificate=Yes"
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of DB engine",
+            "oneOf": [
+              {"type": "string", "example": "postgres"},
+              {"type": "string", "example": "mssql"}
+            ]
+          },
           "catalogue": {
             "$ref": "#/components/schemas/CataloguePostBody"
           },
@@ -911,10 +927,12 @@
       "DatasetById": {
         "type": "object",
         "properties": {
+          "id": {"type": "integer", "example": 1},
           "host": {"type": "string", "example": "http://dblocation"},
           "port": {"type": "integer", "example": 5432},
           "name": {"type": "string", "example": "Blood Cancer Database"},
-          "id": {"type": "integer", "example": 1}
+          "type": {"type": "string", "example": "mssql"},
+          "extra_connection_args": {"type": "string", "example": "TrustServerCertificate=Yes"}
         }
       },
       "DatasetCatalogue": {
