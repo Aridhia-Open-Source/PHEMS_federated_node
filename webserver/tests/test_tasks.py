@@ -1,5 +1,6 @@
 import json
 import pytest
+from unittest import mock
 from datetime import datetime, timedelta
 from kubernetes.client.exceptions import ApiException
 from unittest.mock import Mock
@@ -8,7 +9,6 @@ from app.helpers.const import CLEANUP_AFTER_DAYS
 from app.helpers.db import db
 from app.helpers.exceptions import InvalidRequest
 from app.models.task import Task
-from tests.helpers.kubernetes import MockKubernetesClient
 
 
 @pytest.fixture(scope='function')
@@ -141,7 +141,9 @@ def test_create_task_with_non_existing_dataset(
     assert response.status_code == 404
     assert response.json == {"error": "Dataset with id 123456 does not exist"}
 
+@mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
 def test_create_unauthorized_task(
+        mock_token_valid,
         cr_client,
         post_json_user_header,
         dataset,
@@ -149,7 +151,8 @@ def test_create_unauthorized_task(
         task_body
     ):
     """
-    Tests task creation returns 201
+    Tests task creation returns 403 if a user is not authorized to
+    access the dataset
     """
     data = task_body
     data["dataset_id"] = dataset.id
@@ -363,6 +366,7 @@ def test_docker_image_regex(
         data["executors"][0]["image"] = im_format
         with pytest.raises(InvalidRequest):
             Task.validate(data)
+
 class TestTaskResults:
     def test_get_results(
         self,
@@ -371,7 +375,8 @@ class TestTaskResults:
         simple_admin_header,
         client,
         task_body,
-        mocker
+        mocker,
+        mock_k8s_client
     ):
         """
         A simple test with mocked PVs to test a successful result
@@ -383,7 +388,7 @@ class TestTaskResults:
         # as it complains about the return value of the list_pod method
         mocker.patch(
             'app.models.task.KubernetesClient',
-            return_value=MockKubernetesClient()
+            return_value=mock_k8s_client
         )
         mocker.patch('app.models.task.uuid4', return_value="1dc6c6d1-417f-409a-8f85-cb9d20f7c741")
         response = client.post(
@@ -427,7 +432,8 @@ class TestTaskResults:
         simple_admin_header,
         client,
         task_body,
-        mocker
+        mocker,
+        mock_k8s_client
     ):
         """
         Tests that the job creation to fetch results from a PV returns a 500
@@ -439,7 +445,7 @@ class TestTaskResults:
         # as it complains about the return value of the list_pod method
         mocker.patch(
             'app.models.task.KubernetesClient',
-            return_value=MockKubernetesClient()
+            return_value=mock_k8s_client
         )
         response = client.post(
             '/tasks/',

@@ -376,7 +376,7 @@ class Keycloak:
         )
         if not response_res.ok:
             logger.info(response_res.content.decode())
-            raise KeycloakError("Failed to fetch the resource")
+            raise KeycloakError("Failed to patch the resource")
 
     def get_policy(self, name:str) -> dict:
         """

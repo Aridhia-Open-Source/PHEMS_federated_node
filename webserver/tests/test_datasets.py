@@ -1,18 +1,24 @@
+import os
 import json
+
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import select
 from sqlalchemy.exc import ProgrammingError, OperationalError
+from unittest import mock
 from unittest.mock import Mock
 from app.helpers.db import db
 from app.models.dataset import Dataset
 from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
 from tests.conftest import sample_ds_body
+from app.helpers.exceptions import KeycloakError
 
 missing_dict_cata_message = {"error": "Missing field. Make sure \"catalogue\" and \"dictionaries\" entries are there"}
 
 
 class MixinTestDataset:
+    expected_namespaces = [os.getenv("DEFAULT_NAMESPACE"), os.getenv("TASK_NAMESPACE")]
+
     def run_query(self, query):
         """
         Helper to run query through the ORM
@@ -102,14 +108,16 @@ class TestDatasets(MixinTestDataset):
         assert response.status_code == 200
         assert response.json == self.expected_ds_entry(dataset)
 
-    def test_get_dataset_by_id_401(
+    @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
+    def test_get_dataset_by_id_403(
             self,
+            mock_token_valid,
             simple_user_header,
             client,
             dataset
         ):
         """
-        /datasets/{id} GET returns 401 for non-approved users
+        /datasets/{id} GET returns 403 for non-approved users
         """
         response = client.get(f"/datasets/{dataset.id}", headers=simple_user_header)
         assert response.status_code == 403
@@ -439,6 +447,200 @@ class TestDatasets(MixinTestDataset):
         for d in data_body["dictionaries"]:
             query = self.run_query(select(Dictionary).where(Dictionary.table_name == d["table_name"]))
             assert len(query)== 1
+
+    @mock.patch('app.models.dataset.Keycloak.patch_resource', return_value=Mock())
+    def test_patch_dataset_name_is_successful(
+            self,
+            mock_kc_patch,
+            dataset,
+            post_json_admin_header,
+            client,
+            k8s_client
+    ):
+        """
+        Tests that the PATCH request works as intended
+        by changing an existing dataset's name.
+        Also asserts that the appropriate keycloak method
+        is invoked
+        """
+        ds_old_name = dataset.name
+        data_body = {"name": "new_name"}
+
+        response = client.patch(
+            f"/datasets/{dataset.id}",
+            json=data_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 204
+        ds = Dataset.query.filter(Dataset.id == dataset.id).one_or_none()
+        assert ds.name == "new_name"
+
+        expected_body = k8s_client.return_value.read_namespaced_secret.return_value
+        expected_secret_name = f'{dataset.host}-{ds_old_name.lower()}-creds'
+
+        for ns in self.expected_namespaces:
+            k8s_client.return_value.create_namespaced_secret.assert_any_call(
+                ns, **{'body': expected_body, 'pretty': 'true'}
+            )
+            k8s_client.return_value.delete_namespaced_secret.assert_any_call(
+                **{'namespace':ns, 'name':expected_secret_name}
+            )
+
+        mock_kc_patch.assert_called_with(
+            f'{dataset.id}-{ds_old_name}',
+            **{'displayName': f'{dataset.id} - new_name','name': f'{dataset.id}-new_name'}
+        )
+
+    @mock.patch('app.models.dataset.Keycloak.patch_resource', return_value=Mock())
+    @mock.patch('app.datasets_api.Keycloak', return_value=Mock())
+    def test_patch_dataset_name_with_dars(
+            self,
+            mock_kc_patch_api,
+            mock_kc_patch,
+            dataset,
+            post_json_admin_header,
+            client,
+            access_request,
+            dar_user,
+            k8s_client
+    ):
+        """
+        Tests that the PATCH request works as intended
+        by changing an existing dataset's name.
+        Also asserts that the appropriate keycloak method
+        is invoked for each DAR client in keycloak
+        """
+        ds_old_name = dataset.name
+        data_body = {"name": "new_name"}
+        expected_client = f'Request {dar_user} - {dataset.host}'
+
+        mock_kc_patch_api.return_value.patch_resource.return_value = Mock()
+
+        response = client.patch(
+            f"/datasets/{dataset.id}",
+            json=data_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 204
+        ds = Dataset.query.filter(Dataset.id == dataset.id).one_or_none()
+        assert ds.name == "new_name"
+
+        mock_kc_patch.assert_called_with(
+            f'{dataset.id}-{ds_old_name}',
+            **{'displayName': f'{dataset.id} - new_name','name': f'{dataset.id}-new_name'}
+        )
+        mock_kc_patch_api.assert_any_call(**{'client':expected_client})
+        mock_kc_patch_api.return_value.patch_resource.assert_called_with(
+            f'{dataset.id}-{ds_old_name}',
+            **{'displayName': f'{dataset.id} - new_name','name': f'{dataset.id}-new_name'}
+        )
+
+    def test_patch_dataset_credentials_is_successful(
+            self,
+            dataset,
+            post_json_admin_header,
+            client,
+            k8s_client
+    ):
+        """
+        Tests that the PATCH request works as intended
+        by changing an existing dataset's credential secret.
+        Also asserts that the appropriate keycloak method
+        is invoked
+        """
+        expected_secret_name = f'{dataset.host}-{dataset.name.lower()}-creds'
+        data_body = {
+            "username": "john",
+            "password": "johnsmith"
+        }
+        response = client.patch(
+            f"/datasets/{dataset.id}",
+            json=data_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 204
+
+        expected_body = k8s_client.return_value.read_namespaced_secret.return_value
+        for ns in self.expected_namespaces:
+            k8s_client.return_value.read_namespaced_secret.assert_any_call(
+                expected_secret_name,
+                ns, pretty='pretty'
+            )
+            k8s_client.return_value.patch_namespaced_secret.assert_any_call(
+                **{'name':expected_secret_name, 'namespace':ns, 'body': expected_body}
+            )
+
+    def test_patch_dataset_fails_on_k8s_error(
+            self,
+            dataset,
+            post_json_admin_header,
+            client,
+            k8s_client
+    ):
+        """
+        Tests that the PATCH request returns a 400 in case
+        k8s secret creation goes wrong
+        """
+        data_body = {"name": "new_name"}
+        ds_old_name = dataset.name
+
+        k8s_client.return_value.create_namespaced_secret.side_effect = ApiException(reason="Error occurred")
+
+        response = client.patch(
+            f"/datasets/{dataset.id}",
+            json=data_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        ds = Dataset.query.filter(Dataset.id == dataset.id).one_or_none()
+        assert ds.name == ds_old_name
+
+    @mock.patch('app.models.dataset.Keycloak.patch_resource', side_effect=KeycloakError("Failed to patch the resource"))
+    def test_patch_dataset_fails_on_keycloak_update(
+            self,
+            mock_kc_patch,
+            dataset,
+            post_json_admin_header,
+            client
+    ):
+        """
+        Tests that the PATCH request returns a 400 in case
+        keycloak resource update goes wrong
+        """
+        data_body = {
+            "name": "new_name"
+        }
+        ds_old_name = dataset.name
+        response = client.patch(
+            f"/datasets/{dataset.id}",
+            json=data_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 500
+        ds = Dataset.query.filter(Dataset.id == dataset.id).one_or_none()
+        assert ds.name == ds_old_name
+
+    @mock.patch('app.models.dataset.Keycloak.patch_resource', side_effect=KeycloakError("Failed to patch the resource"))
+    def test_patch_dataset_not_found(
+            self,
+            mock_kc_patch,
+            dataset,
+            post_json_admin_header,
+            client
+    ):
+        """
+        Tests that the PATCH request returns a 400 in case
+        keycloak resource update goes wrong
+        """
+        data_body = {
+            "name": "new_name"
+        }
+        response = client.patch(
+            f"/datasets/{dataset.id + 1}",
+            json=data_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 404
 
 
 class TestBeacon:
