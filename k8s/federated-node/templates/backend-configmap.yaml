@@ -10,6 +10,7 @@ data:
   PGDATABASE: {{ .Values.db.name | default "fndb" | quote }}
   PGUSER: {{ .Values.db.user | default "admin" | quote }}
   KEYCLOAK_URL: "http://keycloak.{{ .Values.namespaces.keycloak }}.svc.cluster.local"
+  RELEASE_NAME: {{ .Release.Name }}
   DEFAULT_NAMESPACE: {{ .Release.Namespace }}
   KEYCLOAK_NAMESPACE: {{ .Values.namespaces.keycloak }}
   TASK_NAMESPACE: {{ .Values.namespaces.tasks }}

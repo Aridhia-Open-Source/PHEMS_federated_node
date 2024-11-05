@@ -12,6 +12,8 @@ def build_sql_uri(
 
 PASS_GENERATOR_SET = string.ascii_letters + string.digits + "!$@#.-_"
 TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
+DEFAULT_NAMESPACE = os.getenv("DEFAULT_NAMESPACE")
+RELEASE_NAME = os.getenv("RELEASE_NAME")
 # Pod resource validation constants
 CPU_RESOURCE_REGEX = r'^\d*(m|\.\d+){0,1}$'
 MEMORY_RESOURCE_REGEX = r'^\d*(e\d|(E|P|T|G|M|K)(i*)|k|m)*$'

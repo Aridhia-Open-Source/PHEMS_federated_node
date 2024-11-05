@@ -1,4 +1,3 @@
-import os
 import re
 from sqlalchemy import Column, Integer, String
 from app.helpers.db import BaseModel, db
@@ -7,9 +6,9 @@ from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
 from kubernetes import client
 from kubernetes.client.exceptions import ApiException
+from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, RELEASE_NAME
 
 
-TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
 SUPPORTED_TYPES = ["postgres", "mssql"]
 
 class Dataset(db.Model, BaseModel):
@@ -54,10 +53,20 @@ class Dataset(db.Model, BaseModel):
             "MSSQL_USER": encoded_un
         }
         body.kind = 'Secret'
-        body.metadata = {'name': self.get_creds_secret_name()}
+        body.metadata = client.V1ObjectMeta(
+            name=self.get_creds_secret_name(),
+            annotations={
+                "helm.sh/release-name": RELEASE_NAME,
+                "meta.helm.sh/release-namespace": DEFAULT_NAMESPACE
+            },
+            labels={
+                "app.kubernetes.io/managed-by": "Helm",
+                "dataset_name": str(self.name)
+            }
+        )
         body.type = 'Opaque'
         try:
-            for ns in ["default", TASK_NAMESPACE]:
+            for ns in [DEFAULT_NAMESPACE, TASK_NAMESPACE]:
                 v1.create_namespaced_secret(ns, body=body, pretty='true')
         except ApiException as e:
             if e.status == 409:
