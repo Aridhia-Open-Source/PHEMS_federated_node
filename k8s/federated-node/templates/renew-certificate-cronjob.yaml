@@ -15,6 +15,13 @@ spec:
           - name: certibot-renewer
             image: ghcr.io/aridhia-open-source/federated_node_certificate:{{ .Chart.AppVersion }}
             imagePullPolicy: {{ .Values.pullPolicy }}
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              seccompProfile:
+                type: RuntimeDefault
+              capabilities:
+                drop: ["ALL"]
             env:
             - name: NAMESPACE
               value: {{ .Release.Namespace }}
