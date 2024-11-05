@@ -31,7 +31,7 @@ def auth(scope:str, check_dataset=True):
                 if 'datasets' in path and len(path) > 2:
                     ds_id = path[path.index('datasets') + 1]
                 elif request.is_json and request.data:
-                    ds_id = request.json.get("dataset_id")
+                    ds_id = request.json.get("dataset_id") or request.json.get("tags", {}).get("dataset_id")
 
                 if ds_id and check_dataset:
                     q = session.execute(text("SELECT * FROM datasets WHERE id=:ds_id"), dict(ds_id=ds_id)).all()
