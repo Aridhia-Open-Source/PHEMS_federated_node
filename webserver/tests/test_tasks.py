@@ -181,7 +181,9 @@ def test_create_task_image_not_found(
     assert response.status_code == 500
     assert response.json == {"error": f"Image {task_body["executors"][0]["image"]} not found on our repository"}
 
+@mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
 def test_get_task_by_id_admin(
+        token_valid_mock,
         cr_client,
         k8s_client_task,
         post_json_admin_header,
@@ -208,7 +210,9 @@ def test_get_task_by_id_admin(
     )
     assert resp.status_code == 200
 
+@mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
 def test_get_task_by_id_non_admin_owner(
+        token_valid_mock,
         cr_client,
         k8s_client_task,
         simple_user_header,
@@ -233,9 +237,12 @@ def test_get_task_by_id_non_admin_owner(
     )
     assert resp.status_code == 200
 
+@mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
 def test_get_task_by_id_non_admin_non_owner(
+        token_valid_mock,
         cr_client,
         k8s_client_task,
+        access_request,
         post_json_user_header,
         simple_user_header,
         client,
