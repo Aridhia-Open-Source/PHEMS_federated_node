@@ -2,8 +2,8 @@ import json
 import os
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import select
-from sqlalchemy.exc import ProgrammingError
 from unittest import mock
+from sqlalchemy.exc import ProgrammingError, OperationalError
 from unittest.mock import Mock
 
 from app.helpers.db import db
@@ -41,12 +41,25 @@ def post_dataset(
 
 
 class TestDatasets:
+    hostname = os.getenv("PUBLIC_URL")
     def assert_datasets_by_name(self, dataset_name:str, count:int = 1):
         """
         Just to reduce duplicate code, use the ILIKE operator
         on the query to match case insensitive datasets name
         """
         assert Dataset.query.filter(Dataset.name.ilike(dataset_name)).count() == count
+
+    def expected_ds_entry(self, dataset:Dataset):
+        return {
+            "id": dataset.id,
+            "name": dataset.name,
+            "host": dataset.host,
+            "port": 5432,
+            "type": "postgres",
+            "url": f"https://{self.hostname}/datasets/{dataset.name}",
+            "slug": dataset.name,
+            "extra_connection_args": None
+        }
 
     def test_get_all_datasets(
             self,
@@ -57,21 +70,12 @@ class TestDatasets:
         """
         Get all dataset is possible only for admin users
         """
-        expected_ds_entry = {
-            "id": dataset.id,
-            "name": dataset.name,
-            "host": dataset.host,
-            "port": 5432,
-            "slug": dataset.name,
-            "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/{dataset.name}"
-        }
-
         response = client.get("/datasets/", headers=simple_admin_header)
 
         assert response.status_code == 200
         assert response.json == {
             "datasets": [
-                expected_ds_entry
+                self.expected_ds_entry(dataset)
             ]
         }
 
@@ -84,18 +88,9 @@ class TestDatasets:
         """
         Checks that GET the url field from the Datasets works
         """
-        expected_ds_entry = {
-            "id": dataset.id,
-            "name": dataset.name,
-            "host": dataset.host,
-            "port": 5432,
-            "slug": dataset.slug,
-            "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/{dataset.name}"
-        }
-
         response = client.get(dataset.url, headers=simple_admin_header)
         assert response.status_code == 200
-        assert response.json == expected_ds_entry
+        assert response.json == self.expected_ds_entry(dataset)
 
     def test_get_all_datasets_no_token(
             self,
@@ -128,17 +123,9 @@ class TestDatasets:
         """
         /datasets/{id} GET returns a valid dictionary representation for admin users
         """
-        expected_ds_entry = {
-            "id": dataset.id,
-            "name": dataset.name,
-            "host": dataset.host,
-            "port": 5432,
-            "slug": dataset.slug,
-            "url": dataset.url
-        }
         response = client.get(f"/datasets/{dataset.id}", headers=simple_admin_header)
         assert response.status_code == 200
-        assert response.json == expected_ds_entry
+        assert response.json == self.expected_ds_entry(dataset)
 
     @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
     def test_get_dataset_by_id_401(
@@ -210,14 +197,7 @@ class TestDatasets:
             "project-name": request_base_body["project_name"]
         })
         assert response.status_code == 200, response.json
-        assert response.json == {
-            "id": dataset.id,
-            "name": dataset.name,
-            "host": dataset.host,
-            "port": 5432,
-            "slug": dataset.slug,
-            "url": dataset.url
-        }
+        assert response.json == self.expected_ds_entry(dataset)
 
     @mock.patch('app.datasets_api.Request.approve', return_value={"token": "somejwttoken"})
     def test_get_dataset_by_id_project_non_approved(
@@ -271,17 +251,9 @@ class TestDatasets:
         """
         /datasets/{name} GET returns a valid list
         """
-        expected_ds_entry = {
-            "id": dataset.id,
-            "name": dataset.name,
-            "host": dataset.host,
-            "port": 5432,
-            "slug": dataset.slug,
-            "url": dataset.url
-        }
         response = client.get(f"/datasets/{dataset.name}", headers=simple_admin_header)
         assert response.status_code == 200
-        assert response.json == expected_ds_entry
+        assert response.json == self.expected_ds_entry(dataset)
 
     def test_get_dataset_by_name_404(
             self,
@@ -366,9 +338,72 @@ class TestDatasets:
             "name": "test dataset",
             "host": data_body["host"],
             "port": 5432,
+            "type": "postgres",
             "slug": "test-dataset",
+            "extra_connection_args": None,
             "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset"
         }
+
+    def test_post_dataset_mssql_type(
+            self,
+            post_json_admin_header,
+            client,
+            dataset,
+            dataset_post_body
+        ):
+        """
+        /datasets POST is successful with the type set
+        to mssql as one of the supported engines
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        data_body['type'] = 'mssql'
+        post_dataset(client, post_json_admin_header, data_body)
+
+        query = run_query(select(Dataset).where(Dataset.name == data_body["name"].lower(), Dataset.type == "mssql"))
+        assert len(query) == 1
+
+    def test_post_dataset_with_extra_args(
+            self,
+            post_json_admin_header,
+            client,
+            dataset,
+            dataset_post_body
+        ):
+        """
+        /datasets POST is successful with the extra_connection_args set
+        to a non null value
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        data_body['extra_connection_args'] = 'read_only=true'
+        post_dataset(client, post_json_admin_header, data_body)
+
+        ds = Dataset.query.filter(
+            Dataset.name == data_body["name"].lower(),
+            Dataset.extra_connection_args == data_body['extra_connection_args']
+        ).one_or_none()
+        assert ds is not None
+
+    def test_post_dataset_invalid_type(
+            self,
+            post_json_admin_header,
+            client,
+            dataset,
+            dataset_post_body
+        ):
+        """
+        /datasets POST is successful with the type set
+        to something not supported
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        data_body['type'] = 'invalid'
+        resp = post_dataset(client, post_json_admin_header, data_body, code=400)
+        assert resp["error"] == "DB type invalid is not supported."
+
+        query = run_query(select(Dataset).where(Dataset.name == data_body["name"], Dataset.type == "mssql"))
+        assert len(query) == 0
 
     @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_fails_k8s_secrets(
@@ -384,7 +419,7 @@ class TestDatasets:
         /datasets POST fails if the k8s secrets cannot be created successfully
         """
         mocker.patch(
-            'kubernetes.client.CoreV1Api',
+            'app.models.dataset.KubernetesClient',
             return_value=Mock(
                 create_namespaced_secret=Mock(
                     side_effect=ApiException(status=500, reason="Failed")
@@ -411,7 +446,7 @@ class TestDatasets:
         /datasets POST is successful if the k8s secrets already exists
         """
         mocker.patch(
-            'kubernetes.client.CoreV1Api',
+            'app.models.dataset.KubernetesClient',
             return_value=Mock(
                 create_namespaced_secret=Mock(
                     side_effect=ApiException(status=409, reason="Conflict")
@@ -894,3 +929,34 @@ class TestBeacon:
         )
         assert response.status_code == 500
         assert response.json['result'] == 'Invalid'
+
+    def test_beacon_connection_failed(
+            self,
+            client,
+            post_json_admin_header,
+            mocker,
+            dataset
+    ):
+        """
+        Test that the beacon endpoint is accessible to admin users
+        but returns an appropriate error message in case of connection
+        failed
+        """
+        mocker.patch('app.helpers.query_validator.create_engine')
+        mocker.patch(
+            'app.helpers.query_validator.sessionmaker',
+            side_effect = OperationalError(
+                statement="Unable to connect: Adaptive Server is unavailable or does not exist",
+                params={}, orig="error test"
+            )
+        )
+        response = client.post(
+            "/datasets/selection/beacon",
+            json={
+                "query": "SELECT * FROM table",
+                "dataset_id": dataset.id
+            },
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 500
+        assert response.json['error'] == 'Could not connect to the database'
