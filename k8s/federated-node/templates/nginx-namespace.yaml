@@ -3,4 +3,4 @@ kind: Namespace
 metadata:
   name: {{ .Values.namespaces.nginx }}
   annotations:
-    "helm.sh/hook": pre-install
+    helm.sh/hook: pre-install
