@@ -109,6 +109,15 @@ data:
 type: Opaque
 ```
 
+#### TLS Certificates
+If a certificate needs to be generated, follow the official nginx [documentation article](https://github.com/kubernetes/ingress-nginx/blob/main/docs/user-guide/tls.md#tls-secrets).
+
+Granted that the `pem` and `crt` file already in the current working folder, run:
+```sh
+kubectl create secret tls tls --key key.pem --cert cert.crt
+```
+This will create a special kubernetes secret in the default namespace, append `-n namespace_name` to create it in a specific namespace (i.e. the one where the chart is going to be deployed on)
+
 ### Copying existing secrets
 If the secret(s) exist in another namespace, you can "copy" them with this command:
 ```sh
