@@ -30,14 +30,22 @@ jobs:
 
     - name: Push to GitLab Package Artifact
       run: |
+        echo "Setting version according to the Chart.yaml"
+        version=$(grep 'version:.*' Chart.yaml | sed 's/^.*: //')
+        echo "CHART_VERSION=${version}" >> ${GITHUB_ENV}
+        echo "Chart version: ${version}"
+
+        echo "Setting the appVersion on the Chart.yaml"
+        sed -i "s/appVersion:.*/appVersion: \"${{ vars.VERSION }}\"/" Chart.yaml
+
         curl --request POST \
-          --form 'chart=@artifacts/federated-node-${{ vars.VERSION }}.tgz' \
+          --form 'chart=@artifacts/federated-node-${version}.tgz' \
           --user ${{ vars.USER_HELM }}:${{ secrets.HELM_TOKEN }} \
           ${{ vars.HELM_REPO }}/helm/api/${{ env.HELM_CHANNEL }}/charts
 
     - name: Publish Release
       uses: ncipollo/release-action@v1
       with:
-        artifacts: "artifacts/federated-node-${{ vars.VERSION }}.tgz"
-        tag: ${{ vars.VERSION }}
+        artifacts: "artifacts/federated-node-${{ env.CHART_VERSION }}.tgz"
+        tag: ${{ env.CHART_VERSION }}
         skipIfReleaseExists: true
