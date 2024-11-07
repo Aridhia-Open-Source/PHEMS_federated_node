@@ -11,6 +11,7 @@ on:
       completed
 env:
   HELM_CHANNEL: stable
+  GH_TOKEN: ${{ secrets.SA_TOKEN }}
 
 jobs:
   release:
@@ -19,6 +20,10 @@ jobs:
       contents: write
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.head_ref }}
+        token: ${{ env.GH_TOKEN }}
+
     - name: Build helm archive
       working-directory: k8s/federated-node
       run: |
