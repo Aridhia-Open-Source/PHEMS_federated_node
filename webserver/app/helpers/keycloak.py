@@ -290,7 +290,9 @@ class Keycloak:
         )
         if not client_id_resp.ok:
             logger.info(client_id_resp.content.decode())
-            raise KeycloakError("Could not check client")
+            raise KeycloakError("Could not find client")
+        if not len(client_id_resp.json()):
+            raise KeycloakError("Could not find project", 400)
 
         return client_id_resp.json()[0]["id"]
 

@@ -21,7 +21,7 @@ In order to not store credentials in plain text within the `values.yaml` file, t
 
 The secrets to be created are:
 - Db credentials for the FN webserver to use (not where the dataset is)
-- ACR credentials (for the basic ghcr.io repo, you can create a personal access token with the `repo` and `write:packages` permissions. Use the generated token as password, and your github username)
+- CR credentials (for the basic ghcr.io repo, you can create a personal access token with the `repo` and `write:packages` permissions. Use the generated token as password, and your github username)
 - Azure storage account credentials (if used)
 
 If you plan to deploy on a dedicated namespace, create it manually first or the secrets creation will fail
@@ -35,7 +35,7 @@ echo -n "value" | base64
 ```
 
 #### Container Registries
-The following examples aims to setup container registries (ACRs) credentials.
+The following examples aims to setup container registries (CRs) credentials.
 
 In general, to create a k8s secret you run a command like the following:
 ```sh
@@ -109,6 +109,15 @@ data:
 type: Opaque
 ```
 
+#### TLS Certificates
+If a certificate needs to be generated, follow the official nginx [documentation article](https://github.com/kubernetes/ingress-nginx/blob/main/docs/user-guide/tls.md#tls-secrets).
+
+Granted that the `pem` and `crt` file already in the current working folder, run:
+```sh
+kubectl create secret tls tls --key key.pem --cert cert.crt
+```
+This will create a special kubernetes secret in the default namespace, append `-n namespace_name` to create it in a specific namespace (i.e. the one where the chart is going to be deployed on)
+
 ### Copying existing secrets
 If the secret(s) exist in another namespace, you can "copy" them with this command:
 ```sh
@@ -160,9 +169,9 @@ storage:
     shareName: files
 ```
 
-#### acrs
+#### CRs
 ```yaml
-acrs:
+registries:
 # env specific
   - url: .azurecr.io
     email: ''

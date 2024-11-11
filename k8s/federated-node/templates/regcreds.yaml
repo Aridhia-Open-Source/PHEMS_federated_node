@@ -1,6 +1,6 @@
 {{- define "imagePullSecret" }}
 {{- $content := "" -}}
-  {{- range $v := .Values.acrs -}}
+  {{- range $v := .Values.registries -}}
     {{ if .secret }}
       {{ $sec := lookup "v1" "Secret" $.Release.Namespace .secret.name | default dict }}
       {{ if $sec }}

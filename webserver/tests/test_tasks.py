@@ -2,6 +2,7 @@ import json
 import pytest
 from datetime import datetime, timedelta
 from kubernetes.client.exceptions import ApiException
+from unittest import mock
 from unittest.mock import Mock
 
 from app.helpers.const import CLEANUP_AFTER_DAYS
@@ -103,7 +104,7 @@ def test_get_list_tasks_base_user(
     assert response.status_code == 403
 
 def test_create_task(
-        acr_client,
+        cr_client,
         k8s_client_task,
         post_json_admin_header,
         client,
@@ -121,8 +122,74 @@ def test_create_task(
     )
     assert response.status_code == 201
 
+def test_create_task_with_ds_name(
+        cr_client,
+        k8s_client_task,
+        post_json_admin_header,
+        client,
+        dataset,
+        task_body
+    ):
+    """
+    Tests task creation with a dataset name returns 201
+    """
+    data = task_body
+    data["tags"].pop("dataset_id")
+    data["tags"]["dataset_name"] = dataset.name
+
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(data),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 201
+
+def test_create_task_with_ds_name_and_id(
+        cr_client,
+        k8s_client_task,
+        post_json_admin_header,
+        client,
+        dataset,
+        task_body
+    ):
+    """
+    Tests task creation with a dataset name and id returns 201
+    """
+    data = task_body
+    data["tags"]["dataset_name"] = dataset.name
+
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(data),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 201
+
+def test_create_task_with_conflicting_ds_name_and_id(
+        cr_client,
+        k8s_client_task,
+        post_json_admin_header,
+        client,
+        dataset,
+        task_body
+    ):
+    """
+    Tests task creation with a dataset name that does not exists
+    and a valid id returns 201
+    """
+    data = task_body
+    data["tags"]["dataset_name"] = "something else"
+
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(data),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 404
+    assert response.json["error"] == f"Dataset \"something else\" with id {dataset.id} does not exist"
+
 def test_create_task_with_non_existing_dataset(
-        acr_client,
+        cr_client,
         post_json_admin_header,
         client,
         task_body
@@ -139,10 +206,35 @@ def test_create_task_with_non_existing_dataset(
         headers=post_json_admin_header
     )
     assert response.status_code == 404
-    assert response.json == {"error": "Dataset with id 123456 does not exist"}
+    assert response.json == {"error": "Dataset 123456 does not exist"}
 
+def test_create_task_with_non_existing_dataset_name(
+        cr_client,
+        post_json_admin_header,
+        client,
+        dataset,
+        task_body
+    ):
+    """
+    Tests task creation returns 404 when the
+    requested dataset name doesn't exist
+    """
+    data = task_body
+    data["tags"].pop("dataset_id")
+    data["tags"]["dataset_name"] = "something else"
+
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(data),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 404
+    assert response.json == {"error": "Dataset something else does not exist"}
+
+@mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
 def test_create_unauthorized_task(
-        acr_client,
+        kc_valid_mock,
+        cr_client,
         post_json_user_header,
         dataset,
         client,
@@ -162,7 +254,7 @@ def test_create_unauthorized_task(
     assert response.status_code == 403
 
 def test_create_task_image_not_found(
-        acr_client_404,
+        cr_client_404,
         post_json_admin_header,
         client,
         task_body
@@ -179,7 +271,7 @@ def test_create_task_image_not_found(
     assert response.json == {"error": f"Image {task_body["executors"][0]["image"]} not found on our repository"}
 
 def test_get_task_by_id_admin(
-        acr_client,
+        cr_client,
         k8s_client_task,
         post_json_admin_header,
         post_json_user_header,
@@ -206,7 +298,7 @@ def test_get_task_by_id_admin(
     assert resp.status_code == 200
 
 def test_get_task_by_id_non_admin_owner(
-        acr_client,
+        cr_client,
         k8s_client_task,
         simple_user_header,
         post_json_user_header,
@@ -231,7 +323,7 @@ def test_get_task_by_id_non_admin_owner(
     assert resp.status_code == 200
 
 def test_get_task_by_id_non_admin_non_owner(
-        acr_client,
+        cr_client,
         k8s_client_task,
         post_json_user_header,
         simple_user_header,
@@ -260,7 +352,7 @@ def test_get_task_by_id_non_admin_non_owner(
 
 def test_cancel_task(
         client,
-        acr_client,
+        cr_client,
         k8s_client_task,
         simple_admin_header,
         post_json_admin_header,
@@ -298,7 +390,7 @@ def test_cancel_404_task(
 def test_validate_task(
         client,
         task_body,
-        acr_client,
+        cr_client,
         post_json_admin_header
     ):
     """
@@ -314,7 +406,7 @@ def test_validate_task(
 def test_validate_task_basic_user(
         client,
         task_body,
-        acr_client,
+        cr_client,
         post_json_user_header
     ):
     """
@@ -329,7 +421,7 @@ def test_validate_task_basic_user(
 
 def test_docker_image_regex(
         task_body,
-        acr_client,
+        cr_client,
         mocker,
         client
 ):
@@ -363,10 +455,12 @@ def test_docker_image_regex(
         data["executors"][0]["image"] = im_format
         with pytest.raises(InvalidRequest):
             Task.validate(data)
+
+
 class TestTaskResults:
     def test_get_results(
         self,
-        acr_client,
+        cr_client,
         post_json_admin_header,
         simple_admin_header,
         client,
@@ -422,7 +516,7 @@ class TestTaskResults:
 
     def test_get_results_job_creation_failure(
         self,
-        acr_client,
+        cr_client,
         post_json_admin_header,
         simple_admin_header,
         client,
@@ -497,7 +591,7 @@ class TestTaskResults:
         assert response.json["error"] == 'Tasks results are not available anymore. Please, run the task again'
 
 def test_get_task_status_running_and_waiting(
-    acr_client,
+    cr_client,
     k8s_client_task,
     running_state,
     waiting_state,
@@ -552,7 +646,7 @@ def test_get_task_status_running_and_waiting(
     assert response_id.json["status"] == {'waiting': {'started_at': '1/1/2024'}}
 
 def test_get_task_status_terminated(
-    acr_client,
+    cr_client,
     k8s_client_task,
     terminated_state,
     post_json_admin_header,
@@ -600,7 +694,7 @@ class TestResourceValidators:
             self,
             mocker,
             user_uuid,
-            acr_client,
+            cr_client,
             task_body
         ):
         """
@@ -626,7 +720,7 @@ class TestResourceValidators:
             self,
             mocker,
             user_uuid,
-            acr_client,
+            cr_client,
             task_body
         ):
         """
@@ -657,7 +751,7 @@ class TestResourceValidators:
             self,
             mocker,
             user_uuid,
-            acr_client,
+            cr_client,
             task_body
         ):
         """
@@ -689,7 +783,7 @@ class TestResourceValidators:
             self,
             mocker,
             user_uuid,
-            acr_client,
+            cr_client,
             task_body
         ):
         """
@@ -718,7 +812,7 @@ class TestResourceValidators:
             self,
             mocker,
             user_uuid,
-            acr_client,
+            cr_client,
             task_body
         ):
         """

@@ -13,4 +13,4 @@ k8s/*/*.values.yaml
 
 # Ingore helm charts archives
 artifacts/*.tgz
-webserver/app/acr/*.json
+webserver/app/registries/*.json

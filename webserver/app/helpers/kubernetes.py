@@ -1,3 +1,4 @@
+import base64
 import os
 import logging
 import tarfile
@@ -21,6 +22,22 @@ class KubernetesBase:
             # Get config from outside the cluster. Mostly DEV
             config.load_kube_config()
         super().__init__()
+
+    @classmethod
+    def encode_secret_value(cls, value:str) -> str:
+        """
+        Given a plain text secret it will perform the
+        base64 encoding
+        """
+        return base64.b64encode(value.encode()).decode()
+
+    @classmethod
+    def decode_secret_value(cls, value:str) -> str:
+        """
+        Given a plain text secret it will perform the
+        base64 decoding
+        """
+        return base64.b64decode(value.encode()).decode()
 
     def create_from_env_object(self, secret_name) -> list[client.V1EnvFromSource]:
         """
