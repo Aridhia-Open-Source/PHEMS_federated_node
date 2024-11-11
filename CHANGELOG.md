@@ -1,5 +1,14 @@
 # Releases Changelog
 
+## 0.0.8
+
+- Added the capability to use a dataset name as an alternative to their ids
+
+### Bugfixes
+
+- An issue with the ingress with the path type being migrated from `Prefix` to `ImplementationSpecific`
+  
+
 ## 0.0.7
 
 - Helm chart values `acrs` moved to `registries`
