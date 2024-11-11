@@ -2,8 +2,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: {{ .Values.namespaces.keycloak }}
+  {{- if .Release.IsInstall }}
   annotations:
-  {{ if .Release.IsInstall }}
     helm.sh/hook: pre-install
     helm.sh/hook-weight: "-6"
-  {{ end }}
+  {{- end }}
