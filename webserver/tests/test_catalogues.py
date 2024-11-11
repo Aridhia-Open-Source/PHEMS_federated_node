@@ -27,6 +27,27 @@ class TestCatalogues(MixinTestDataset):
         assert response.status_code == 200
         assert response.json.items() >= data_body["catalogue"].items()
 
+    def test_admin_get_catalogue_dataset_name(
+            self,
+            client,
+            dataset,
+            dataset_post_body,
+            post_json_admin_header,
+            simple_admin_header
+    ):
+        """
+        Check that admin can see the catalogue for a given dataset
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        self.post_dataset(client, post_json_admin_header, data_body)
+        response = client.get(
+            f"/datasets/{data_body['name']}/catalogue",
+            headers=simple_admin_header
+        )
+        assert response.status_code == 200
+        assert response.json.items() >= data_body["catalogue"].items()
+
     def test_edit_existing_catalogue(
             self,
             client,
