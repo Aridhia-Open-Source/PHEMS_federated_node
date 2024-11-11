@@ -24,7 +24,7 @@ spec:
       http:
         paths:
         - path: /(.*)
-          pathType: Prefix
+          pathType: ImplementationSpecific
           backend:
             service:
               name: backend
@@ -44,6 +44,7 @@ metadata:
     {{- if .Values.ingress.blacklist.enabled }}
     nginx.ingress.kubernetes.io/denylist-source-range: {{ join "," .Values.ingress.blacklist.ips | quote }}
     {{- end }}
+    helm.sh/hook-weight: "1"
 spec:
   ingressClassName: {{ .Values.ingress.ingressClass | default "fn-nginx" }}
   tls:
@@ -54,7 +55,7 @@ spec:
       http:
         paths:
         - path: /keycloak/(.*)
-          pathType: Prefix
+          pathType: ImplementationSpecific
           backend:
             service:
               name: keycloak

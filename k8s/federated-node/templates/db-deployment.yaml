@@ -1,4 +1,4 @@
-{{ if and (not .Values.db.secret) (not .Values.db.configMap) }}
+{{ if .Values.local_development }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -24,7 +24,10 @@ spec:
             - name: POSTGRES_USER
               value: {{ .Values.db.user | default "admin" | quote }}
             - name: POSTGRES_PASSWORD
-              value: {{ .Values.db.password | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{.Values.db.secret.name}}
+                  key: {{.Values.db.secret.key}}
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data

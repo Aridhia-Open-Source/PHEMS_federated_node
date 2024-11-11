@@ -10,7 +10,7 @@ from sqlalchemy.sql import func
 from uuid import uuid4
 
 import urllib3
-from app.helpers.acr import ACRClient
+from app.helpers.container_registries import ContainerRegistryClient
 from app.helpers.const import CLEANUP_AFTER_DAYS, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, TASK_NAMESPACE
 from app.helpers.db import BaseModel, db
 from app.helpers.keycloak import Keycloak
@@ -78,7 +78,9 @@ class Task(db.Model, BaseModel):
         data = super().validate(data)
 
         ds_id = data.get("tags", {}).get("dataset_id")
-        data["dataset"] = db.session.get(Dataset, ds_id)
+        ds_name = data.get("tags", {}).get("dataset_name")
+        if ds_name or ds_id:
+            data["dataset"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
 
         if not re.match(r'^((\w+|-|\.)\/?+)+:(\w+(\.|-)?)+$', data["docker_image"]):
             raise InvalidRequest(
@@ -170,11 +172,11 @@ class Task(db.Model, BaseModel):
     @classmethod
     def get_image_with_repo(cls, docker_image):
         """
-        Looks through the ACRs for the image and if exists,
+        Looks through the CRs for the image and if exists,
         returns the full image name with the repo prefixing the image.
         """
-        acr_client = ACRClient()
-        full_docker_image_name = acr_client.find_image_repo(docker_image)
+        registry_client = ContainerRegistryClient()
+        full_docker_image_name = registry_client.find_image_repo(docker_image)
         if not full_docker_image_name:
             raise TaskImageException(f"Image {docker_image} not found on our repository")
         return full_docker_image_name
@@ -243,12 +245,16 @@ class Task(db.Model, BaseModel):
 
     def get_db_environment_variables(self) -> dict:
         """
-        Creates a dictionary with the standard value for Psql credentials
+        Creates a dictionary with the standard value for DB credentials
         """
         return {
             "PGHOST": self.dataset.host,
             "PGDATABASE": self.dataset.name,
-            "PGPORT": self.dataset.port
+            "PGPORT": self.dataset.port,
+            "MSSQL_HOST": self.dataset.host,
+            "MSSQL_DATABASE": self.dataset.name,
+            "MSSQL_PORT": self.dataset.port,
+            "CONNECTION_ARGS": self.dataset.extra_connection_args
         }
 
     def get_current_pod(self, pod_name:str=None, is_running:bool=True):

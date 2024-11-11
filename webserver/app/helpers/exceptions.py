@@ -55,5 +55,5 @@ class TaskExecutionException(LogAndException):
 class KubernetesException(LogAndException):
     description = "A kubernetes error occurred. Check the logs for more info"
 
-class AcrException(LogAndException):
+class ContainerRegistryException(LogAndException):
     description = "Failed to communicate with the Container Registry"

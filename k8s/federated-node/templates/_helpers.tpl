@@ -93,13 +93,8 @@ Just need to append the NEW_DB env var
           - name: PGPASSWORD
             valueFrom:
               secretKeyRef:
-                {{ if .Values.db.secret }}
                 name: {{.Values.db.secret.name}}
                 key: {{.Values.db.secret.key}}
-                {{ else }}
-                name: kc-secrets
-                key: KC_DB_PASSWORD
-                {{ end }}
 {{- end -}}
 
 {{- define "dbInitVolume" -}}

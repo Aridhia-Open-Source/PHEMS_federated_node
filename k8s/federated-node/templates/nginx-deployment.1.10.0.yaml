@@ -516,8 +516,8 @@ metadata:
   name: ingress-nginx-admission
   namespace: {{ .Values.namespaces.nginx }}
   annotations:
-    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    helm.sh/hook: pre-install,pre-upgrade,post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
   labels:
     helm.sh/chart: ingress-nginx-4.10.0
     app.kubernetes.io/name: ingress-nginx
@@ -532,8 +532,8 @@ kind: ClusterRole
 metadata:
   name: ingress-nginx-admission
   annotations:
-    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    helm.sh/hook: pre-install,pre-upgrade,post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
   labels:
     helm.sh/chart: ingress-nginx-4.10.0
     app.kubernetes.io/name: ingress-nginx
@@ -556,8 +556,8 @@ kind: ClusterRoleBinding
 metadata:
   name: ingress-nginx-admission
   annotations:
-    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    helm.sh/hook: pre-install,pre-upgrade,post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
   labels:
     helm.sh/chart: ingress-nginx-4.10.0
     app.kubernetes.io/name: ingress-nginx
@@ -581,8 +581,8 @@ metadata:
   name: ingress-nginx-admission
   namespace: {{ .Values.namespaces.nginx }}
   annotations:
-    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    helm.sh/hook: pre-install,pre-upgrade,post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
   labels:
     helm.sh/chart: ingress-nginx-4.10.0
     app.kubernetes.io/name: ingress-nginx
@@ -606,8 +606,8 @@ metadata:
   name: ingress-nginx-admission
   namespace: {{ .Values.namespaces.nginx }}
   annotations:
-    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    helm.sh/hook: pre-install,pre-upgrade,post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
   labels:
     helm.sh/chart: ingress-nginx-4.10.0
     app.kubernetes.io/name: ingress-nginx
@@ -631,8 +631,8 @@ metadata:
   name: ingress-nginx-admission-create
   namespace: {{ .Values.namespaces.nginx }}
   annotations:
-    "helm.sh/hook": pre-install,pre-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
   labels:
     helm.sh/chart: ingress-nginx-4.10.0
     app.kubernetes.io/name: ingress-nginx
@@ -690,8 +690,8 @@ metadata:
   name: ingress-nginx-admission-patch
   namespace: {{ .Values.namespaces.nginx }}
   annotations:
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
   labels:
     helm.sh/chart: ingress-nginx-4.10.0
     app.kubernetes.io/name: ingress-nginx

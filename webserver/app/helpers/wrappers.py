@@ -1,14 +1,12 @@
 import logging
 from functools import wraps
 from flask import request
-from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 
-from app.helpers.db import db, engine
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, DBRecordNotFoundError, LogAndException
 from app.helpers.keycloak import Keycloak
 from app.models.audit import Audit
+from app.models.dataset import Dataset
 
 
 logger = logging.getLogger('wrappers')
@@ -22,31 +20,29 @@ def auth(scope:str, check_dataset=True):
             if scope and not token:
                 raise AuthenticationError("Token not provided")
 
-            session = db.session
             resource = 'endpoints'
-            ds_id = None
-            if check_dataset:
-                path = request.path.split('/')
-
-                if 'datasets' in path and len(path) > 2:
-                    ds_id = path[path.index('datasets') + 1]
-                elif request.is_json and request.data:
-                    ds_id = request.json.get("dataset_id")
-
-                if ds_id and check_dataset:
-                    q = session.execute(text("SELECT * FROM datasets WHERE id=:ds_id"), dict(ds_id=ds_id)).all()
-                    if not q:
-                        raise DBRecordNotFoundError(f"Dataset with id {ds_id} does not exist")
-                    ds = q[0]._mapping
-                    if ds is not None:
-                        resource = f"{ds["id"]}-{ds["name"]}"
-
+            requested_project = request.headers.get("project-name")
             client = 'global'
             token_type = 'refresh_token'
-            # If the user is an admin or system, ignore the project
+
+            if check_dataset:
+                ds_id = kwargs.get("dataset_id")
+                ds_name = kwargs.get("dataset_name", "")
+
+                if request.is_json and request.data:
+                    flat_json = flatten_dict(request.json)
+                    ds_id = flat_json.get("dataset_id")
+                    ds_name = flat_json.get("dataset_name", "")
+
+                if ds_id or ds_name:
+                    ds = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
+                    resource = f"{ds.id}-{ds.name}"
+
             kc_client = Keycloak()
             token_info = kc_client.decode_token(token)
             user = kc_client.get_user(token_info['username'])
+
+            # If the user is an admin or system, ignore the project
             if not kc_client.has_user_roles(user["id"], {"Administrator", "System"}):
                 requested_project = request.headers.get("project-name")
                 if requested_project:
@@ -63,8 +59,6 @@ def auth(scope:str, check_dataset=True):
     return auth_wrapper
 
 
-session = Session(engine)
-
 def audit(func):
     @wraps(func)
     def _audit(*args, **kwargs):
@@ -73,7 +67,7 @@ def audit(func):
         except LogAndException as exc:
             response_object = { "error": exc.description }
             http_status = exc.code
-        except IntegrityError as exc:
+        except IntegrityError:
             response_object = { "error": "Record already exists" }
             http_status = 500
 
@@ -136,3 +130,17 @@ def find_and_redact_key(obj: dict, key: str):
                     find_and_redact_key(item, key)
         elif k == key:
             obj[k] = '*****'
+
+def flatten_dict(to_flatten:dict) -> dict:
+    """
+    Does exactly what the name means. If a value is an array of dicts
+    it will stay untouched.
+    """
+    flat = dict()
+    for k, v in to_flatten.items():
+        if isinstance(v, dict):
+            flat[k] = {}
+            flat.update(flatten_dict(v))
+        else:
+            flat[k] = v
+    return flat

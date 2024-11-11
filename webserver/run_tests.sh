@@ -18,6 +18,7 @@ export TASK_POD_RESULTS_PATH=/mnt/data
 export TASK_NAMESPACE=tasks
 export KEYCLOAK_NAMESPACE=keycloak
 export CLEANUP_AFTER_DAYS=1
+export PUBLIC_URL=localhost:5000
 
 is_ci=$1
 

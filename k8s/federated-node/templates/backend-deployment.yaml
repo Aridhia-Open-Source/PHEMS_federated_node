@@ -47,13 +47,8 @@ spec:
           - name: PGPASSWORD
             valueFrom:
               secretKeyRef:
-                {{ if .Values.db.secret }}
                 name: {{.Values.db.secret.name}}
                 key: {{.Values.db.secret.key}}
-                {{else}}
-                name: backend-secrets
-                key: PGPASSWORD
-                {{ end }}
       containers:
         - image: {{ template "backend-image" . }}:{{ .Values.backend.tag | default .Chart.AppVersion }}
           name: backend
@@ -98,13 +93,8 @@ spec:
           - name: PGPASSWORD
             valueFrom:
               secretKeyRef:
-                {{ if .Values.db.secret }}
                 name: {{.Values.db.secret.name}}
                 key: {{.Values.db.secret.key}}
-                {{else}}
-                name: backend-secrets
-                key: PGPASSWORD
-                {{ end }}
           - name: KEYCLOAK_SECRET
             valueFrom:
               secretKeyRef:
@@ -118,18 +108,18 @@ spec:
           volumeMounts:
             - name: respv
               mountPath: {{ .Values.federatedNode.volumes.results_path }}
-            - name: acr-list
-              mountPath: /app/acr/
+            - name: cr-list
+              mountPath: /app/registries/
       imagePullSecrets:
         - name: {{ .Values.imagePullSecrets }}
       volumes:
         - name: respv
           persistentVolumeClaim:
             claimName: flask-results-pv-volclaim
-        - name: acr-list
+        - name: cr-list
           secret:
-            secretName: backend-acr-config-secret
+            secretName: backend-cr-config-secret
             items:
-            - key: acrlist.json
-              path: acrlist.json
+            - key: registries-list.json
+              path: registries-list.json
         {{ template "dbInitVolume" . }}

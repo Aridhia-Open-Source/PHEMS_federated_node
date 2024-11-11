@@ -53,13 +53,8 @@ spec:
             - name: KC_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  {{ if .Values.db.secret }}
                   name: {{.Values.db.secret.name}}
                   key: {{.Values.db.secret.key}}
-                  {{ else }}
-                  name: kc-secrets
-                  key: KC_DB_PASSWORD
-                  {{ end }}
             - name: KEYCLOAK_SECRET
               valueFrom:
                 secretKeyRef:

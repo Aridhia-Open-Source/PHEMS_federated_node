@@ -14,6 +14,7 @@ joserfc = "*"
 pyjwt = "*"
 waitress = "*"
 flask-swagger-ui = "*"
+pymssql = "*"
 
 [dev-packages]
 pylint=">=3.0.3"
