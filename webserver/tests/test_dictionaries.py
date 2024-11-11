@@ -48,6 +48,28 @@ class TestDictionaries(MixinTestDataset):
         assert resp_ds["error"] == "dictionaries should be a list."
         assert Dictionary.query.count() == 0
 
+    def test_admin_get_dictionaries_dataset_name(
+            self,
+            client,
+            dataset,
+            dataset_post_body,
+            post_json_admin_header,
+            simple_admin_header
+    ):
+        """
+        Check that admin can see the dictionaries for a given dataset
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        self.post_dataset(client, post_json_admin_header, data_body)
+        response = client.get(
+            f"/datasets/{data_body['name']}/dictionaries",
+            headers=simple_admin_header
+        )
+        assert response.status_code == 200
+        for i in range(0, len(data_body["dictionaries"])):
+            assert response.json[i].items() >= data_body["dictionaries"][i].items()
+
     def test_edit_existing_dictionary(
             self,
             client,
@@ -166,7 +188,8 @@ class TestDictionaries(MixinTestDataset):
             dataset,
             dataset_post_body,
             post_json_admin_header,
-            simple_user_header
+            simple_user_header,
+            mocker
     ):
         """
         Check that non-admin or non DAR approved users
@@ -175,6 +198,8 @@ class TestDictionaries(MixinTestDataset):
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
         resp_ds = self.post_dataset(client, post_json_admin_header, data_body)
+
+        mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
         response = client.get(
             f"/datasets/{resp_ds["dataset_id"]}/dictionaries",
             headers=simple_user_header
@@ -207,6 +232,27 @@ class TestDictionaryTable(MixinTestDataset):
         )
         assert response.status_code == 200
 
+    def test_admin_get_dictionary_table_dataset_name(
+            self,
+            client,
+            dataset,
+            simple_admin_header,
+            post_json_admin_header,
+            dataset_post_body
+    ):
+        """
+        Check that non-admin or non DAR approved users
+        cannot see the catalogue for a given dataset
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        self.post_dataset(client, post_json_admin_header, data_body)
+        response = client.get(
+            f"/datasets/{data_body['name']}/dictionaries/test",
+            headers=simple_admin_header
+        )
+        assert response.status_code == 200
+
     def test_admin_get_dictionary_table_dataset_not_found(
             self,
             client,
@@ -229,7 +275,8 @@ class TestDictionaryTable(MixinTestDataset):
             dataset,
             dataset_post_body,
             post_json_admin_header,
-            simple_user_header
+            simple_user_header,
+            mocker
     ):
         """
         Check that non-admin or non DAR approved users
@@ -238,6 +285,8 @@ class TestDictionaryTable(MixinTestDataset):
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
         resp_ds = self.post_dataset(client, post_json_admin_header, data_body)
+
+        mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
         response = client.get(
             f"/datasets/{resp_ds["dataset_id"]}/dictionaries/test",
             headers=simple_user_header

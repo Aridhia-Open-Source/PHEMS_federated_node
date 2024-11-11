@@ -118,7 +118,8 @@ class TestCatalogues(MixinTestDataset):
             dataset,
             dataset_post_body,
             post_json_admin_header,
-            simple_user_header
+            simple_user_header,
+            mocker
     ):
         """
         Check that non-admin or non DAR approved users
@@ -127,6 +128,8 @@ class TestCatalogues(MixinTestDataset):
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
         resp_ds = self.post_dataset(client, post_json_admin_header, data_body)
+
+        mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
         response = client.get(
             f"/datasets/{resp_ds["dataset_id"]}/catalogue",
             headers=simple_user_header
