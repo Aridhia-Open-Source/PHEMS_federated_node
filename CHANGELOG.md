@@ -1,5 +1,9 @@
 # Releases Changelog
 
+## 0.5.0
+
+- First OpenSource version!
+
 ## 0.0.8
 
 - Added the capability to use a dataset name as an alternative to their ids
