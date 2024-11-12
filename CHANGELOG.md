@@ -34,13 +34,13 @@ We skipped few patch numbers due to local testing on updates.
 - Added support to dynamically set the frequency the cleanup job runs on (3 days default)
 - `pullPolicy` setting is on the root level of values
 - Added priorities on what runs when during updates
-- Expanded autid logs to include request bodies, excluding sensitive informations
+- Expanded autid logs to include request bodies, excluding sensitive information
 - Covered GitHub organization rename
 - Added License file
 
 ### Bugfixes
 
-- Some pre-upgrade jobs were not correctly detected and be replaced due to a lack of labels
+- Some pre-upgrade jobs were not correctly detected and replaced due to a lack of labels
 - Added webOrigins in Keycloak to allow token validation from both within the cluster and from outside requests
 - Fixed an issue with keycloak init credential job failing during updates
 - Fixed an issue with keycloak wiping all configurations and auth backbone due to a incorrect body in the init script.
