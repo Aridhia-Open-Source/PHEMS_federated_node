@@ -8,11 +8,11 @@ on:
   pull_request:
     branches:
       - main
-  # workflow_run:
-  #   workflows:
-  #     Build Docker Image
-  #   types:
-  #     completed
+  workflow_run:
+    workflows:
+      Build Docker Image
+    types:
+      completed
 
 env:
   HELM_CHANNEL: stable

@@ -13,18 +13,19 @@ on:
       - 'Makefile'
       - '.gitignore'
       - 'sub-license/**'
-  # pull_request:
-  #   branches:
-  #     - main
-  #   paths-ignore:
-  #     - '*.md'
-  #     - 'README'
-  #     - 'LICENSE'
-  #     - 'DEPLOYMENT'
-  #     - 'images/**'
-  #     - 'Makefile'
-  #     - '.gitignore'
-  #     - 'sub-license/**'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '*.md'
+      - 'README'
+      - 'LICENSE'
+      - 'DEPLOYMENT'
+      - 'images/**'
+      - 'Makefile'
+      - '.gitignore'
+      - 'sub-license/**'
+
 env:
   TAG: ${{ vars.VERSION }}
 
