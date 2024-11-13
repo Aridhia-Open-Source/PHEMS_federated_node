@@ -78,7 +78,9 @@ class Task(db.Model, BaseModel):
         data = super().validate(data)
 
         ds_id = data.get("tags", {}).get("dataset_id")
-        data["dataset"] = db.session.get(Dataset, ds_id)
+        ds_name = data.get("tags", {}).get("dataset_name")
+        if ds_name or ds_id:
+            data["dataset"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
 
         if not re.match(r'^((\w+|-|\.)\/?+)+:(\w+(\.|-)?)+$', data["docker_image"]):
             raise InvalidRequest(

@@ -1,22 +1,11 @@
 import json
-import pytest
-from datetime import datetime as dt, timedelta
+from unittest import mock
 
-@pytest.fixture
-def request_base_body(dataset):
-    return {
-        "title": "Test Task",
-        "dataset_id": dataset.id,
-        "project_name": "project1",
-        "requested_by": { "email": "test@test.com" },
-        "description": "First task ever!",
-        "proj_start": dt.now().date().strftime("%Y-%m-%d"),
-        "proj_end": (dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")
-    }
 
 class TestTransfers:
     def test_token_transfer_admin(
             self,
+            approve_request,
             client,
             request_base_body,
             post_json_admin_header
@@ -67,8 +56,10 @@ class TestTransfers:
         assert response.status_code == 404
         assert response.json == {"error": "Dataset 5012 not found"}
 
+    @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
     def test_token_transfer_standard_user(
             self,
+            kc_valid_mock,
             client,
             request_base_body,
             post_json_user_header

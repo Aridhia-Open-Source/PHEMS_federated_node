@@ -1,8 +1,9 @@
 import os
 import re
+import requests
 from sqlalchemy import Column, Integer, String
 from app.helpers.db import BaseModel, db
-from app.helpers.exceptions import InvalidRequest
+from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
 from kubernetes import client
@@ -10,6 +11,7 @@ from kubernetes.client.exceptions import ApiException
 
 
 TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
+PUBLIC_URL = os.getenv("PUBLIC_URL")
 SUPPORTED_TYPES = ["postgres", "mssql"]
 
 class Dataset(db.Model, BaseModel):
@@ -32,7 +34,9 @@ class Dataset(db.Model, BaseModel):
                  extra_connection_args:str=None,
                  **kwargs
                 ):
-        self.name = name
+        self.name = requests.utils.unquote(name).lower()
+        self.slug = self.slugify_name()
+        self.url = f"https://{PUBLIC_URL}/datasets/{self.slug}"
         self.host = host
         self.port = port
         self.type = type
@@ -64,6 +68,19 @@ class Dataset(db.Model, BaseModel):
                 pass
             else:
                 raise InvalidRequest(e.reason)
+
+    def sanitized_dict(self):
+        dataset = super().sanitized_dict()
+        dataset["slug"] = self.slugify_name()
+        dataset["url"] = f"https://{PUBLIC_URL}/datasets/{dataset["slug"]}"
+        return dataset
+
+    def slugify_name(self) -> str:
+        """
+        Based on the provided name, it will return the slugified name
+        so that it will be sade to save on the DB
+        """
+        return re.sub(r'[\W_]+', '-', self.name)
 
     def get_creds_secret_name(self):
         cleaned_up_host = re.sub('http(s)*://', '', self.host)
@@ -106,7 +123,7 @@ class Dataset(db.Model, BaseModel):
 
         resource_ds = kc_client.create_resource({
             "name": f"{self.id}-{self.name}",
-            "displayName": f"{self.id}-{self.name}",
+            "displayName": f"{self.id} - {self.name}",
             "scopes": admin_ds_scope,
             "uris": []
         })
@@ -120,6 +137,31 @@ class Dataset(db.Model, BaseModel):
             "resources": [resource_ds["_id"]],
             "scopes": [scope["id"] for scope in admin_ds_scope]
         })
+
+    @classmethod
+    def get_dataset_by_name_or_id(cls, id:int=None, name:str="") -> "Dataset":
+        """
+        Common funcion to get a dataset by name or id.
+        If both arguments are provided, then tries to find as an AND condition
+            rather than an OR.
+
+        Returns:
+         Datset:
+
+        Raises:
+            DBRecordNotFoundError: if no record is found
+        """
+        if id and name:
+            error_msg = f"Dataset \"{name}\" with id {id} does not exist"
+            dataset = cls.query.filter((Dataset.name.ilike(name or "") & (Dataset.id == id))).one_or_none()
+        else:
+            error_msg = f"Dataset {name if name else id} does not exist"
+            dataset = cls.query.filter((Dataset.name.ilike(name or "") | (Dataset.id == id))).one_or_none()
+
+        if not dataset:
+            raise DBRecordNotFoundError(error_msg)
+
+        return dataset
 
     def __repr__(self):
         return f'<Dataset {self.name!r}>'

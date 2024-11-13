@@ -2,6 +2,7 @@ import json
 import pytest
 from datetime import datetime, timedelta
 from kubernetes.client.exceptions import ApiException
+from unittest import mock
 from unittest.mock import Mock
 
 from app.helpers.const import CLEANUP_AFTER_DAYS
@@ -121,6 +122,72 @@ def test_create_task(
     )
     assert response.status_code == 201
 
+def test_create_task_with_ds_name(
+        cr_client,
+        k8s_client_task,
+        post_json_admin_header,
+        client,
+        dataset,
+        task_body
+    ):
+    """
+    Tests task creation with a dataset name returns 201
+    """
+    data = task_body
+    data["tags"].pop("dataset_id")
+    data["tags"]["dataset_name"] = dataset.name
+
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(data),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 201
+
+def test_create_task_with_ds_name_and_id(
+        cr_client,
+        k8s_client_task,
+        post_json_admin_header,
+        client,
+        dataset,
+        task_body
+    ):
+    """
+    Tests task creation with a dataset name and id returns 201
+    """
+    data = task_body
+    data["tags"]["dataset_name"] = dataset.name
+
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(data),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 201
+
+def test_create_task_with_conflicting_ds_name_and_id(
+        cr_client,
+        k8s_client_task,
+        post_json_admin_header,
+        client,
+        dataset,
+        task_body
+    ):
+    """
+    Tests task creation with a dataset name that does not exists
+    and a valid id returns 201
+    """
+    data = task_body
+    data["tags"]["dataset_name"] = "something else"
+
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(data),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 404
+    assert response.json["error"] == f"Dataset \"something else\" with id {dataset.id} does not exist"
+
 def test_create_task_with_non_existing_dataset(
         cr_client,
         post_json_admin_header,
@@ -139,9 +206,34 @@ def test_create_task_with_non_existing_dataset(
         headers=post_json_admin_header
     )
     assert response.status_code == 404
-    assert response.json == {"error": "Dataset with id 123456 does not exist"}
+    assert response.json == {"error": "Dataset 123456 does not exist"}
 
+def test_create_task_with_non_existing_dataset_name(
+        cr_client,
+        post_json_admin_header,
+        client,
+        dataset,
+        task_body
+    ):
+    """
+    Tests task creation returns 404 when the
+    requested dataset name doesn't exist
+    """
+    data = task_body
+    data["tags"].pop("dataset_id")
+    data["tags"]["dataset_name"] = "something else"
+
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(data),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 404
+    assert response.json == {"error": "Dataset something else does not exist"}
+
+@mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
 def test_create_unauthorized_task(
+        kc_valid_mock,
         cr_client,
         post_json_user_header,
         dataset,
@@ -363,6 +455,8 @@ def test_docker_image_regex(
         data["executors"][0]["image"] = im_format
         with pytest.raises(InvalidRequest):
             Task.validate(data)
+
+
 class TestTaskResults:
     def test_get_results(
         self,

@@ -51,7 +51,7 @@ def get_task_id(task_id):
     """
     GET /tasks/id endpoint. Gets a single task
     """
-    task = session.get(Task, task_id)
+    task = Task.query.filter(Task.id == task_id).one_or_none()
     if task is None:
         raise DBRecordNotFoundError(f"Dataset with id {task_id} does not exist")
 
@@ -73,7 +73,7 @@ def cancel_tasks(task_id):
     """
     POST /tasks/id/cancel endpoint. Cancels a task either scheduled or running one
     """
-    task = session.get(Task, task_id)
+    task = Task.query.filter(Task.id == task_id).one_or_none()
     if task is None:
         raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
 
@@ -118,7 +118,7 @@ def get_task_results(task_id):
     GET /tasks/id/results endpoint.
         Allows to get tasks results
     """
-    task = session.get(Task, task_id)
+    task = Task.query.filter(Task.id == task_id).one_or_none()
     if task is None:
         raise DBRecordNotFoundError(f"Dataset with id {task_id} does not exist")
 

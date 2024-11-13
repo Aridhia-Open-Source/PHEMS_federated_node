@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import pytest
@@ -14,6 +15,8 @@ from app.models.dataset import Dataset
 from app.models.request import Request
 from app.helpers.keycloak import Keycloak, URLS, KEYCLOAK_SECRET, KEYCLOAK_CLIENT
 from tests.helpers.kubernetes import MockKubernetesClient
+from tests.helpers.keycloak import clean_kc
+from app.helpers.exceptions import KeycloakError
 
 sample_ds_body = {
     "name": "TestDs",
@@ -87,8 +90,18 @@ def basic_user():
     return Keycloak().create_user(**{"email": "test@basicuser.com"})
 
 @pytest.fixture
-def login_user(client, basic_user):
+def login_user(client, basic_user, mocker):
+    mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
+    mocker.patch('app.helpers.wrappers.Keycloak.decode_token', return_value={"username": "test@basicuser.com", "sub": "123-123abc"})
+
     return Keycloak().get_impersonation_token(basic_user["id"])
+
+@pytest.fixture
+def project_not_found(mocker):
+    return mocker.patch(
+        'app.helpers.wrappers.Keycloak.exchange_global_token',
+        side_effect=KeycloakError("Could not find project", 400)
+    )
 
 @pytest.fixture
 def simple_admin_header(login_admin):
@@ -130,6 +143,7 @@ def client():
             yield tclient
             close_all_sessions()
             db.drop_all()
+            clean_kc()
 
 # K8s
 @pytest.fixture
@@ -224,24 +238,12 @@ def cr_class(mocker, cr_json_loader):
 # Dataset Mocking
 @pytest.fixture(scope='function')
 def dataset_post_body():
-    return {
-        "name": "TestDs",
-        "host": "db",
-        "port": 5432,
-        "username": "Username",
-        "password": "pass",
-        "catalogue": {
-            "title": "test",
-            "description": "test description"
-        },
-        "dictionaries": [{
-            "table_name": "test",
-            "description": "test description"
-        }]
-    }
+    return copy.deepcopy(sample_ds_body)
 
 @pytest.fixture
-def dataset(client, user_uuid, k8s_client):
+def dataset(mocker, client, user_uuid, k8s_client):
+    mocker.patch('app.models.dataset.Keycloak')
+    mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
     dataset = Dataset(name="TestDs", host="example.com", password='pass', username='user')
     dataset.add(user_id=user_uuid)
     return dataset
@@ -293,3 +295,22 @@ def side_effect(dict_mock:dict):
             status=200, data=default_body
         )
     return _url_side_effects
+
+@pytest.fixture
+def request_base_body(dataset):
+    return {
+        "title": "Test Task",
+        "dataset_id": dataset.id,
+        "project_name": "project1",
+        "requested_by": { "email": "test@test.com" },
+        "description": "First task ever!",
+        "proj_start": dt.now().date().strftime("%Y-%m-%d"),
+        "proj_end": (dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")
+    }
+
+@pytest.fixture
+def approve_request(mocker):
+    return mocker.patch(
+        'app.datasets_api.Request.approve',
+        return_value={"token": "somejwttoken"}
+    )

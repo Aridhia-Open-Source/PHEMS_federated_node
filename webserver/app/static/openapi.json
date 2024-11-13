@@ -101,21 +101,14 @@
         "operationId": "getDatasetById",
         "parameters": [
           {
-            "in": "path",
-            "name": "id",
-            "schema":{"type": "integer"},
-            "required": true
+            "$ref": "#/components/parameters/datasetIdPath"
           },
           {
-            "in": "header",
-            "name": "project_name",
-            "schema":{"type": "string"},
-            "required": false,
-            "description": "Used by non admin users. The value should match the project decalred on the roken_transfer endpoint"
+            "$ref": "#/components/parameters/projectNamePath"
           }
         ],
         "tags": ["Datasets"],
-        "summary": "List all datasets available to the user",
+        "summary": "Get a datasets by id if available to the user",
         "responses": {
           "200":{
             "$ref": "#/components/responses/DatasetById"
@@ -140,21 +133,14 @@
         "operationId": "getDatasetCatalogue",
         "parameters": [
           {
-            "in": "path",
-            "name": "id",
-            "schema":{"type": "integer"},
-            "required": true
+            "$ref": "#/components/parameters/datasetIdPath"
           },
           {
-            "in": "header",
-            "name": "project_name",
-            "schema":{"type": "string"},
-            "required": false,
-            "description": "Used by non admin users. The value should match the project decalred on the roken_transfer endpoint"
+            "$ref": "#/components/parameters/projectNamePath"
           }
         ],
         "tags": ["Datasets"],
-        "summary": "List all datasets available to the user",
+        "summary": "Get the catalogue in a given dataset",
         "responses": {
           "200":{
             "$ref": "#/components/responses/DatasetCatalogue"
@@ -179,21 +165,14 @@
         "operationId": "getDatasetDictionaries",
         "parameters": [
           {
-            "in": "path",
-            "name": "id",
-            "schema":{"type": "integer"},
-            "required": true
+            "$ref": "#/components/parameters/datasetIdPath"
           },
           {
-            "in": "header",
-            "name": "project_name",
-            "schema":{"type": "string"},
-            "required": false,
-            "description": "Used by non admin users. The value should match the project decalred on the roken_transfer endpoint"
+            "$ref": "#/components/parameters/projectNamePath"
           }
         ],
         "tags": ["Datasets"],
-        "summary": "List all datasets available to the user",
+        "summary": "Get the dictionaries in a given dataset",
         "responses": {
           "200":{
             "$ref": "#/components/responses/DatasetDictionary"
@@ -218,27 +197,148 @@
         "operationId": "getDatasetDictionariesTable",
         "parameters": [
           {
-            "in": "path",
-            "name": "id",
-            "schema":{"type": "integer"},
-            "required": true
+            "$ref": "#/components/parameters/datasetIdPath"
           },
           {
-            "in": "path",
-            "name": "table_name",
-            "schema":{"type": "string"},
-            "required": true
+            "$ref": "#/components/parameters/dictionaryTablePath"
           },
           {
-            "in": "header",
-            "name": "project_name",
-            "schema":{"type": "string"},
-            "required": false,
-            "description": "Used by non admin users. The value should match the project decalred on the roken_transfer endpoint"
+            "$ref": "#/components/parameters/projectNamePath"
           }
         ],
         "tags": ["Datasets"],
-        "summary": "List all datasets available to the user",
+        "summary": "Get the dictionary for a given table in a given dataset",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/DatasetDictionaryTable"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/{name}": {
+      "get": {
+        "operationId": "getDatasetByName",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetNamePath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Get a datasets by name if available to the user",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/DatasetById"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/{name}/catalogue": {
+      "get": {
+        "operationId": "getDatasetCatalogue",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetNamePath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Get the catalogue in a given dataset",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/DatasetCatalogue"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/{name}/dictionaries": {
+      "get": {
+        "operationId": "getDatasetDictionaries",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetNamePath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Get the dictionaries in a given dataset",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/DatasetDictionary"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/{name}/dictionaries/{table_name}": {
+      "get": {
+        "operationId": "getDatasetDictionariesTable",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetNamePath"
+          },
+          {
+            "$ref": "#/components/parameters/dictionaryTablePath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Get the dictionary for a given table in a given dataset",
         "responses": {
           "200":{
             "$ref": "#/components/responses/DatasetDictionaryTable"
@@ -613,7 +713,34 @@
         "bearerFormat": "JWT"
       }
     },
-    "parameters": {},
+    "parameters": {
+      "datasetIdPath": {
+        "in": "path",
+        "name": "dataset_id",
+        "schema":{"type": "integer"},
+        "required": true
+      },
+      "datasetNamePath": {
+        "in": "path",
+        "name": "dataset_name",
+        "schema":{"type": "string"},
+        "required": true,
+        "description": "Dataset name, the same set from the POST /dataset, or fetched from the dataset list"
+      },
+      "dictionaryTablePath": {
+        "in": "path",
+        "name": "table_name",
+        "schema":{"type": "string"},
+        "required": true
+      },
+      "projectNamePath": {
+        "in": "header",
+        "name": "project_name",
+        "schema":{"type": "string"},
+        "required": false,
+        "description": "Used by non admin users. The value should match the project decalred on the roken_transfer endpoint"
+      }
+    },
     "responses": {
       "DatasetPost": {
         "description": "Successfully added",
@@ -931,6 +1058,8 @@
           "host": {"type": "string", "example": "http://dblocation"},
           "port": {"type": "integer", "example": 5432},
           "name": {"type": "string", "example": "Blood Cancer Database"},
+          "slug": {"type": "string", "example": "blood_cancer_database"},
+          "url": {"type": "string", "example": "https://federatednode.com/datasets/blood_cancer_database"},
           "type": {"type": "string", "example": "mssql"},
           "extra_connection_args": {"type": "string", "example": "TrustServerCertificate=Yes"}
         }
@@ -1097,8 +1226,10 @@
           },
           "tags": {
             "type": "object",
+            "description": "Either dataset_id or dataset_name has to be set",
             "properties": {
-              "dataset_id":{ "type": "string" }
+              "dataset_id":{ "type": "string" },
+              "dataset_name":{ "type": "string" }
             },
             "example": {
               "dataset_id": 1,
