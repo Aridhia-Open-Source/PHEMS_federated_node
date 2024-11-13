@@ -9,6 +9,7 @@ on:
       Build Docker Image
     types:
       completed
+
 env:
   HELM_CHANNEL: stable
   GH_TOKEN: ${{ secrets.SA_TOKEN }}
@@ -16,12 +17,13 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: write
     steps:
     - uses: actions/checkout@v4
       with:
-        ref: ${{ github.head_ref }}
+        ref: ${{ github.event.workflow_run.head_branch }}
         token: ${{ env.GH_TOKEN }}
 
     - name: Build helm archive
