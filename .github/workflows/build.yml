@@ -90,8 +90,10 @@ jobs:
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
       - name: Set Tags from Chart.yaml
         id: chart_version
+        working-directory: k8s/federated-node
         run: |
           echo "Setting version according to the Chart.yaml"
 
