@@ -4,39 +4,17 @@ on:
   push:
     tags:
     - '*'
-  workflow_dispatch:
-  pull_request:
-    branches:
-      - main
-  workflow_run:
-    workflows:
-      Build Docker Image
-    types:
-      completed
 
 env:
   HELM_CHANNEL: stable
-  GH_TOKEN: ${{ secrets.SA_TOKEN }}
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: test envs
-        run: |
-          echo "pr ${{ github.event.workflow_run.pull_requests }}"
-          echo "prh ${{ github.event.workflow_run.pull_requests.head }}"
-          echo "hb ${{ github.event.workflow_run.head_branch }}"
   release:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: write
     steps:
     - uses: actions/checkout@v4
-      with:
-        ref: ${{ github.event.workflow_run.pull_requests && github.event.workflow_run.pull_requests.head || github.event.workflow_run.head_branch }}
-        token: ${{ env.GH_TOKEN }}
 
     - name: Build helm archive
       working-directory: k8s/federated-node
@@ -53,9 +31,6 @@ jobs:
         version=$(grep 'version:.*' Chart.yaml | sed 's/^.*: //')
         echo "CHART_VERSION=${version}" >> ${GITHUB_ENV}
         echo "Chart version: ${version}"
-
-        echo "Setting the appVersion on the Chart.yaml"
-        sed -i "s/appVersion:.*/appVersion: \"${{ vars.VERSION }}\"/" Chart.yaml
 
         curl --request POST \
           --form 'chart=@artifacts/federated-node-${version}.tgz' \
