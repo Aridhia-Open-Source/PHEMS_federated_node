@@ -23,7 +23,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        ref: ${{ github.event.workflow_run.head_branch }}
+        ref: ${{ github.event.workflow_run.pull_requests && github.event.workflow_run.pull_requests.head || github.event.workflow_run.head_branch }}
         token: ${{ env.GH_TOKEN }}
 
     - name: Build helm archive
