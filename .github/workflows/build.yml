@@ -99,7 +99,7 @@ jobs:
 
           version=$(grep 'version:.*' Chart.yaml | sed 's/^.*: //')
           echo "Chart version: ${version}"
-          appVersion=$(grep 'appVersion:.*' Chart.yaml | sed 's/^.*: //')
+          appVersion=$(grep 'appVersion:.*' Chart.yaml | sed 's/^.*: \"//'| sed 's/\"//')
           echo "Chart appVersion: ${appVersion}"
 
           echo "CHART_VERSION=${version}" >> ${GITHUB_OUTPUT}
