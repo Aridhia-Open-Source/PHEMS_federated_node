@@ -15,6 +15,7 @@ export KEYCLOAK_ADMIN_PASSWORD=password1
 export PYTHONPATH=/app
 export RESULTS_PATH=/tmp/results
 export TASK_POD_RESULTS_PATH=/mnt/data
+export DEFAULT_NAMESPACE=default
 export TASK_NAMESPACE=tasks
 export KEYCLOAK_NAMESPACE=keycloak
 export CLEANUP_AFTER_DAYS=1

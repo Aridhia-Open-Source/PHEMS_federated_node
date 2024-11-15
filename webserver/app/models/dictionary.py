@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, UniqueCons
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.helpers.db import BaseModel, db
+from app.helpers.exceptions import InvalidRequest
 from app.models.dataset import Dataset
 
 class Dictionary( db.Model, BaseModel):
@@ -12,7 +13,7 @@ class Dictionary( db.Model, BaseModel):
     )
     id = Column(Integer, primary_key=True, autoincrement=True)
     table_name = Column(String(256), nullable=False)
-    field_name = Column(String(256))
+    field_name = Column(String(256), nullable=False)
     label = Column(String(256))
     description = Column(String(4096), nullable=False)
     created_at = Column(DateTime(timezone=False), server_default=func.now())
@@ -36,3 +37,26 @@ class Dictionary( db.Model, BaseModel):
         self.field_name = field_name
         self.created_at = created_at
         self.updated_at = datetime.now()
+
+    def update(self, **data):
+        for k, v in data.items():
+            if not hasattr(self, k):
+                raise InvalidRequest(f"Field {k} is not a valid one")
+            else:
+                setattr(self, k, v)
+        self.query.filter(Dictionary.id == self.id).update(data, synchronize_session='evaluate')
+
+    @classmethod
+    def update_or_create(cls, data:dict, ds:Dataset):
+        cls.validate(data)
+        current_dict = cls.query.filter(
+            cls.dataset_id == ds.id,
+            cls.field_name == data["field_name"],
+            cls.table_name == data["table_name"]
+        ).one_or_none()
+        if current_dict:
+            current_dict.update(**data)
+        else:
+            dict_body = cls.validate(data)
+            dictionary = cls(dataset=ds, **dict_body)
+            dictionary.add(commit=False)

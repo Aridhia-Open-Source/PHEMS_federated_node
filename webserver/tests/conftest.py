@@ -10,11 +10,9 @@ from unittest.mock import Mock
 from app import create_app
 from app.helpers.container_registries import ContainerRegistryClient
 from app.helpers.db import db
-from app.helpers.kubernetes import KubernetesBatchClient
 from app.models.dataset import Dataset
 from app.models.request import Request
 from app.helpers.keycloak import Keycloak, URLS, KEYCLOAK_SECRET, KEYCLOAK_CLIENT
-from tests.helpers.kubernetes import MockKubernetesClient
 from tests.helpers.keycloak import clean_kc
 from app.helpers.exceptions import KeycloakError
 
@@ -30,6 +28,7 @@ sample_ds_body = {
     },
     "dictionaries": [{
         "table_name": "test",
+        "field_name": "column1",
         "description": "test description"
     }]
 }
@@ -156,22 +155,55 @@ def k8s_config(mocker):
     )
 
 @pytest.fixture
-def k8s_client(mocker, k8s_config):
-    mocker.patch(
-        'app.models.dataset.KubernetesClient',
-        return_value=MockKubernetesClient()
-    )
-    mocker.patch(
-        'app.models.task.KubernetesBatchClient',
-        return_value=KubernetesBatchClient()
+def mock_k8s_client(mocker):
+    obj_list_pods = Mock(name='namespace_list_pod')
+    obj_list_pods.items = []
+    return Mock(
+        read_namespaced_secret=Mock(
+            return_value=Mock(data={'PGUSER': 'YWJjMTIz', 'PGPASSWORD': 'YWJjMTIz'})
+        ),
+        create_namespaced_secret=Mock(),
+        patch_namespaced_secret=Mock(),
+        create_namespaced_pod=Mock(),
+        delete_namespaced_pod=Mock(),
+        create_persistent_volume=Mock(),
+        create_namespaced_persistent_volume_claim=Mock(),
+        list_namespaced_pod=Mock(return_value=obj_list_pods)
     )
 
 @pytest.fixture
-def k8s_client_task(mocker, k8s_config):
-    return mocker.patch(
-        'app.models.task.KubernetesClient',
-        return_value=MockKubernetesClient()
+def mock_k8s_batch_client(mocker):
+    return Mock(
+        create_namespaced_job=Mock(),
+        delete_namespaced_job=Mock()
     )
+
+@pytest.fixture
+def k8s_client(mocker, k8s_config, mock_k8s_client):
+    client_mock = mocker.patch(
+        'app.models.dataset.KubernetesClient',
+        return_value=mock_k8s_client
+    )
+    client_mock.encode_secret_value.return_value = Mock()
+    client_mock.decode_secret_value.return_value = Mock()
+    return client_mock
+
+@pytest.fixture
+def k8s_batch_client(mocker, k8s_config, mock_k8s_batch_client):
+    return mocker.patch(
+        'app.models.task.KubernetesBatchClient',
+        return_value=mock_k8s_batch_client
+    )
+
+@pytest.fixture
+def k8s_client_task(mocker, k8s_config, mock_k8s_client):
+    client_mock = mocker.patch(
+        'app.models.task.KubernetesClient',
+        return_value=mock_k8s_client
+    )
+    client_mock.encode_secret_value.return_value = Mock()
+    client_mock.decode_secret_value.return_value = Mock()
+    return client_mock
 
 # CR mocking
 @pytest.fixture
@@ -242,24 +274,27 @@ def dataset_post_body():
 
 @pytest.fixture
 def dataset(mocker, client, user_uuid, k8s_client):
-    mocker.patch('app.models.dataset.Keycloak')
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
     dataset = Dataset(name="TestDs", host="example.com", password='pass', username='user')
     dataset.add(user_id=user_uuid)
     return dataset
 
 @pytest.fixture
-def dataset2(client, user_uuid, k8s_client):
+def dataset2(client, user_uuid, k8s_client, k8s_batch_client):
     dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user')
     dataset.add(user_id=user_uuid)
     return dataset
 
 @pytest.fixture
-def access_request(client, dataset, user_uuid, k8s_client):
+def dar_user():
+    return "some@test.com"
+
+@pytest.fixture
+def access_request(client, dataset, user_uuid, k8s_client, k8s_batch_client,dar_user):
     request = Request(
         title="TestRequest",
         project_name="example.com",
-        requested_by=json.dumps({"email": "some@test.com"}),
+        requested_by=json.dumps({"email": dar_user}),
         dataset=dataset,
         proj_start=dt.now().date().strftime("%Y-%m-%d"),
         proj_end=(dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")

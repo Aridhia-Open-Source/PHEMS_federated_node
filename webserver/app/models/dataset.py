@@ -11,6 +11,7 @@ from kubernetes.client.exceptions import ApiException
 
 
 TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
+DEFAULT_NAMESPACE = os.getenv("DEFAULT_NAMESPACE")
 PUBLIC_URL = os.getenv("PUBLIC_URL")
 SUPPORTED_TYPES = ["postgres", "mssql"]
 
@@ -61,13 +62,20 @@ class Dataset(db.Model, BaseModel):
         body.metadata = {'name': self.get_creds_secret_name()}
         body.type = 'Opaque'
         try:
-            for ns in ["default", TASK_NAMESPACE]:
+            for ns in [DEFAULT_NAMESPACE, TASK_NAMESPACE]:
                 v1.create_namespaced_secret(ns, body=body, pretty='true')
         except ApiException as e:
             if e.status == 409:
                 pass
             else:
                 raise InvalidRequest(e.reason)
+
+    def get_creds_secret_name(self, host=None, name=None):
+        host = host or self.host
+        name = name or self.name
+
+        cleaned_up_host = re.sub('http(s)*://', '', host)
+        return f"{cleaned_up_host}-{re.sub('\\s|_', '-', name.lower())}-creds"
 
     def sanitized_dict(self):
         dataset = super().sanitized_dict()
@@ -81,10 +89,6 @@ class Dataset(db.Model, BaseModel):
         so that it will be sade to save on the DB
         """
         return re.sub(r'[\W_]+', '-', self.name)
-
-    def get_creds_secret_name(self):
-        cleaned_up_host = re.sub('http(s)*://', '', self.host)
-        return f"{cleaned_up_host}-{re.sub('\\s|_', '-', self.name.lower())}-creds"
 
     def get_credentials(self) -> tuple:
         """
@@ -138,6 +142,63 @@ class Dataset(db.Model, BaseModel):
             "scopes": [scope["id"] for scope in admin_ds_scope]
         })
 
+    def update(self, **kwargs):
+        """
+        Updates the instance with new values. These should be
+        already validated.
+        """
+        # Nothing to validate, i.e updating the dictionaries only
+        if not kwargs:
+            return
+
+        kc_client = Keycloak()
+        v1 = KubernetesClient()
+        new_username = kwargs.pop("username", None)
+
+        # Get existing secret
+        secret = v1.read_namespaced_secret(self.get_creds_secret_name(), DEFAULT_NAMESPACE, pretty='pretty')
+        secret_task = v1.read_namespaced_secret(self.get_creds_secret_name(), TASK_NAMESPACE, pretty='pretty')
+
+        # Update secret if credentials are provided
+        new_name = kwargs.get("name", None)
+        if new_username:
+            secret.data["PGUSER"] = KubernetesClient.encode_secret_value(new_username)
+        new_pass = kwargs.pop("password", None)
+        if new_pass:
+            secret.data["PGPASSWORD"] = KubernetesClient.encode_secret_value(new_pass)
+
+        secret_task.data = secret.data
+        # Check secret names
+        new_host = kwargs.get("host", None)
+        try:
+            # Create new secret if name is different
+            if (new_host != self.host and new_host) or (new_name != self.name and new_name):
+                secret.metadata = {'name': self.get_creds_secret_name(new_host, new_name)}
+                secret_task.metadata = secret.metadata
+                v1.create_namespaced_secret(DEFAULT_NAMESPACE, body=secret, pretty='true')
+                v1.create_namespaced_secret(TASK_NAMESPACE, body=secret_task, pretty='true')
+                v1.delete_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=self.get_creds_secret_name())
+                v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=self.get_creds_secret_name())
+            else:
+                v1.patch_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=self.get_creds_secret_name(), body=secret)
+                v1.patch_namespaced_secret(namespace=TASK_NAMESPACE, name=self.get_creds_secret_name(), body=secret_task)
+        except ApiException as e:
+            # Host and name are unique so there shouldn't be duplicates. If so
+            # let the exception to be re-raised with the internal one
+            raise InvalidRequest(e.reason)
+
+        # Check resource names on KC and update them
+        if new_name and new_name != self.name:
+            update_args = {
+                "name": f"{self.id}-{kwargs["name"]}",
+                "displayName": f"{self.id} - {kwargs["name"]}"
+            }
+            kc_client.patch_resource(f"{self.id}-{self.name}", **update_args)
+
+        # Update table
+        if kwargs:
+            self.query.filter(Dataset.id == self.id).update(kwargs, synchronize_session='evaluate')
+
     @classmethod
     def get_dataset_by_name_or_id(cls, id:int=None, name:str="") -> "Dataset":
         """
@@ -164,4 +225,4 @@ class Dataset(db.Model, BaseModel):
         return dataset
 
     def __repr__(self):
-        return f'<Dataset {self.name!r}>'
+        return f'<Dataset {self.name}>'

@@ -1,5 +1,6 @@
 import json
 import pytest
+from unittest import mock
 from datetime import datetime, timedelta
 from kubernetes.client.exceptions import ApiException
 from unittest import mock
@@ -9,7 +10,6 @@ from app.helpers.const import CLEANUP_AFTER_DAYS
 from app.helpers.db import db
 from app.helpers.exceptions import InvalidRequest
 from app.models.task import Task
-from tests.helpers.kubernetes import MockKubernetesClient
 
 
 @pytest.fixture(scope='function')
@@ -241,7 +241,8 @@ def test_create_unauthorized_task(
         task_body
     ):
     """
-    Tests task creation returns 201
+    Tests task creation returns 403 if a user is not authorized to
+    access the dataset
     """
     data = task_body
     data["dataset_id"] = dataset.id
@@ -270,7 +271,9 @@ def test_create_task_image_not_found(
     assert response.status_code == 500
     assert response.json == {"error": f"Image {task_body["executors"][0]["image"]} not found on our repository"}
 
+@mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
 def test_get_task_by_id_admin(
+        token_valid_mock,
         cr_client,
         k8s_client_task,
         post_json_admin_header,
@@ -297,7 +300,9 @@ def test_get_task_by_id_admin(
     )
     assert resp.status_code == 200
 
+@mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
 def test_get_task_by_id_non_admin_owner(
+        token_valid_mock,
         cr_client,
         k8s_client_task,
         simple_user_header,
@@ -322,9 +327,12 @@ def test_get_task_by_id_non_admin_owner(
     )
     assert resp.status_code == 200
 
+@mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
 def test_get_task_by_id_non_admin_non_owner(
+        token_valid_mock,
         cr_client,
         k8s_client_task,
+        access_request,
         post_json_user_header,
         simple_user_header,
         client,
@@ -465,7 +473,8 @@ class TestTaskResults:
         simple_admin_header,
         client,
         task_body,
-        mocker
+        mocker,
+        mock_k8s_client
     ):
         """
         A simple test with mocked PVs to test a successful result
@@ -477,7 +486,7 @@ class TestTaskResults:
         # as it complains about the return value of the list_pod method
         mocker.patch(
             'app.models.task.KubernetesClient',
-            return_value=MockKubernetesClient()
+            return_value=mock_k8s_client
         )
         mocker.patch('app.models.task.uuid4', return_value="1dc6c6d1-417f-409a-8f85-cb9d20f7c741")
         response = client.post(
@@ -521,7 +530,8 @@ class TestTaskResults:
         simple_admin_header,
         client,
         task_body,
-        mocker
+        mocker,
+        mock_k8s_client
     ):
         """
         Tests that the job creation to fetch results from a PV returns a 500
@@ -533,7 +543,7 @@ class TestTaskResults:
         # as it complains about the return value of the list_pod method
         mocker.patch(
             'app.models.task.KubernetesClient',
-            return_value=MockKubernetesClient()
+            return_value=mock_k8s_client
         )
         response = client.post(
             '/tasks/',
