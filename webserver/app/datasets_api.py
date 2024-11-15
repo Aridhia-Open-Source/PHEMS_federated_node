@@ -83,7 +83,7 @@ def post_datasets():
 @bp.route('/<dataset_name>', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
-def get_datasets_by_id(dataset_id:int=None, dataset_name:str=None):
+def get_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
     """
     GET /datasets/id endpoint. Gets dataset with a give id
     """
@@ -94,7 +94,7 @@ def get_datasets_by_id(dataset_id:int=None, dataset_name:str=None):
 @bp.route('/<dataset_name>', methods=['PATCH'])
 @audit
 @auth(scope='can_admin_dataset')
-def patch_datasets_by_id(dataset_id:int=None, dataset_name:str=None):
+def patch_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
     """
     PATCH /datasets/id endpoint. Edits an existing dataset with a given id
     """
@@ -149,7 +149,7 @@ def patch_datasets_by_id(dataset_id:int=None, dataset_name:str=None):
 @bp.route('/<int:dataset_id>/catalogue', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
-def get_datasets_catalogue_by_id(dataset_id=None, dataset_name=None):
+def get_datasets_catalogue_by_id_or_name(dataset_id=None, dataset_name=None):
     """
     GET /datasets/dataset_name/catalogue endpoint. Gets dataset's catalogue
     GET /datasets/id/catalogue endpoint. Gets dataset's catalogue
@@ -165,7 +165,7 @@ def get_datasets_catalogue_by_id(dataset_id=None, dataset_name=None):
 @bp.route('/<int:dataset_id>/dictionaries', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
-def get_datasets_dictionaries_by_id(dataset_id=None, dataset_name=None):
+def get_datasets_dictionaries_by_id_or_name(dataset_id=None, dataset_name=None):
     """
     GET /datasets/dataset_name/dictionaries endpoint.
     GET /datasets/id/dictionaries endpoint.
@@ -185,7 +185,7 @@ def get_datasets_dictionaries_by_id(dataset_id=None, dataset_name=None):
 @audit
 @auth(scope='can_access_dataset')
 
-def get_datasets_dictionaries_table_by_id(table_name, dataset_id=None, dataset_name=None):
+def get_datasets_dictionaries_table_by_id_or_name(table_name, dataset_id=None, dataset_name=None):
     """
     GET /datasets/dataset_name/dictionaries/table_name endpoint.
     GET /datasets/id/dictionaries/table_name endpoint.
