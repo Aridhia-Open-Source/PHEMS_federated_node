@@ -132,7 +132,6 @@ kubectl create secret generic $secret_name \
     --from-literal=AZ_DIRECTORY_ID=$(echo -n $directory_id | base64) \
     --from-literal=DNS_SP_ID=$(echo -n $sp_id | base64) \
     --from-literal=DNS_SP_SECRET=$(echo -n $sp_secret | base64) \
-    --from-literal=EMAIL_CERT=$(echo -n $email_cert | base64) \
     --from-literal=SUBSCRIPTION_ID=$(echo -n $sub_id | base64)
 ```
 or using the yaml template:
@@ -150,7 +149,6 @@ data:
   DNS_SP_SECRET:
   AZ_DIRECTORY_ID:
   SUBSCRIPTION_ID:
-  EMAIL_CERT:
 type: Opaque
 ```
 Or on AWS:
