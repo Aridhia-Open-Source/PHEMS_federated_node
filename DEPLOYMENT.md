@@ -110,6 +110,21 @@ data:
 type: Opaque
 ```
 
+#### TLS Certificates
+If a certificate needs to be generated, follow the official nginx [documentation article](https://github.com/kubernetes/ingress-nginx/blob/main/docs/user-guide/tls.md#tls-secrets).
+
+Granted that the `pem` and `crt` file already in the current working folder, run:
+```sh
+kubectl create secret tls tls --key key.pem --cert cert.crt
+```
+This will create a special kubernetes secret in the default namespace, append `-n namespace_name` to create it in a specific namespace (i.e. the one where the chart is going to be deployed on)
+
+### Copying existing secrets
+If the secret(s) exist in another namespace, you can "copy" them with this command:
+```sh
+kubectl get secret $secretname  --namespace=$old_namespace -oyaml | grep -v '^\s*namespace:\s' | kubectl apply --namespace=$new_namespace -f -
+```
+
 #### Certificate credentials
 If deploying on azure:
 ```sh
@@ -162,11 +177,6 @@ type: Opaque
 
 The secret name set in here should be re-used in the values file under `certs.azure.sp_certificate` or `certs.aws.sp_certificate` according to your cloud provider.
 
-### Copying existing secrets
-If the secret(s) exist in another namespace, you can "copy" them with this command:
-```sh
-kubectl get secret $secretname  --namespace=$old_namespace -oyaml | grep -v '^\s*namespace:\s' | kubectl apply --namespace=$new_namespace -f -
-```
 
 ### Values.yaml
 Few conventions to begin with. Some nested field will be referred by a dot-path notation. An example would be:

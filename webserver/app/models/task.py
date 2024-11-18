@@ -78,7 +78,9 @@ class Task(db.Model, BaseModel):
         data = super().validate(data)
 
         ds_id = data.get("tags", {}).get("dataset_id")
-        data["dataset"] = db.session.get(Dataset, ds_id)
+        ds_name = data.get("tags", {}).get("dataset_name")
+        if ds_name or ds_id:
+            data["dataset"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
 
         if not re.match(r'^((\w+|-|\.)\/?+)+:(\w+(\.|-)?)+$', data["docker_image"]):
             raise InvalidRequest(
@@ -243,12 +245,16 @@ class Task(db.Model, BaseModel):
 
     def get_db_environment_variables(self) -> dict:
         """
-        Creates a dictionary with the standard value for Psql credentials
+        Creates a dictionary with the standard value for DB credentials
         """
         return {
             "PGHOST": self.dataset.host,
             "PGDATABASE": self.dataset.name,
-            "PGPORT": self.dataset.port
+            "PGPORT": self.dataset.port,
+            "MSSQL_HOST": self.dataset.host,
+            "MSSQL_DATABASE": self.dataset.name,
+            "MSSQL_PORT": self.dataset.port,
+            "CONNECTION_ARGS": self.dataset.extra_connection_args
         }
 
     def get_current_pod(self, pod_name:str=None, is_running:bool=True):

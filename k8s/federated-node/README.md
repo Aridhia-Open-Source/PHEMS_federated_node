@@ -20,7 +20,6 @@ The necessary values are:
 |db|host|DB hostname|
 |db|name|Database name|
 |db|user|DB username|
-|db|password|DB password (unless testing is not adviced to store passwords in plain text). Has lower priority than the secret.|
 |db|secret|Secret for DB credentials|
 |db.secret|key|Secret key where the password is stored|
 |db.secret|name|Secret name|

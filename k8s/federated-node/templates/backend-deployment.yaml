@@ -47,13 +47,8 @@ spec:
           - name: PGPASSWORD
             valueFrom:
               secretKeyRef:
-                {{ if .Values.db.secret }}
                 name: {{.Values.db.secret.name}}
                 key: {{.Values.db.secret.key}}
-                {{else}}
-                name: backend-secrets
-                key: PGPASSWORD
-                {{ end }}
       containers:
         - image: {{ template "backend-image" . }}:{{ .Values.backend.tag | default .Chart.AppVersion }}
           name: backend
@@ -98,13 +93,8 @@ spec:
           - name: PGPASSWORD
             valueFrom:
               secretKeyRef:
-                {{ if .Values.db.secret }}
                 name: {{.Values.db.secret.name}}
                 key: {{.Values.db.secret.key}}
-                {{else}}
-                name: backend-secrets
-                key: PGPASSWORD
-                {{ end }}
           - name: KEYCLOAK_SECRET
             valueFrom:
               secretKeyRef:
