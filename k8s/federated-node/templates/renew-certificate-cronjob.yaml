@@ -11,17 +11,11 @@ spec:
       ttlSecondsAfterFinished: 60
       template:
         spec:
+          serviceAccountName: secret-cert-handler
           containers:
           - name: certibot-renewer
             image: ghcr.io/aridhia-open-source/federated_node_certificate:{{ .Chart.AppVersion }}
             imagePullPolicy: {{ .Values.pullPolicy }}
-            securityContext:
-              allowPrivilegeEscalation: false
-              runAsNonRoot: true
-              seccompProfile:
-                type: RuntimeDefault
-              capabilities:
-                drop: ["ALL"]
             env:
             - name: NAMESPACE
               value: {{ .Release.Namespace }}
@@ -30,10 +24,12 @@ spec:
             - name: NGINX_NAMESPACE
               value: {{ .Values.namespaces.nginx }}
             - name: DOMAIN
-              value: {{ .Values.ingress.host }}
+              value: {{ .Values.certs.domain }}
             - name: SSL_SECRET_NAME
               value: {{ .Values.ingress.tls.secretName | default "tls"}}
             envFrom:
+            - configMapRef:
+                name: renew-cert-configmap
             - secretRef:
                 {{ if .Values.certs.azure }}
                 name: {{ .Values.certs.azure.sp_certificate }}
@@ -51,4 +47,12 @@ spec:
           restartPolicy: Never
           imagePullSecrets:
             - name: {{ .Values.imagePullSecrets }}
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: renew-cert-configmap
+  namespace: {{ .Release.Namespace }}
+data:
+  EMAIL_CERT: {{ .Values.certs.azure.email }}
 {{ end }}
