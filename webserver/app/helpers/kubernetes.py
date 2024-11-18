@@ -66,11 +66,7 @@ class KubernetesBase:
         pvc_name = f"{pod_spec["name"]}-volclaim"
         pvc = client.V1PersistentVolumeClaimVolumeSource(claim_name=pvc_name)
 
-        vol_mounts = [client.V1VolumeMount(
-            mount_path=TASK_POD_RESULTS_PATH,
-            sub_path=pod_spec['labels']['task_id'],
-            name="data"
-        )]
+        vol_mounts = []
 
         for mount_name, mount_path in pod_spec.get("mount_path", {}).items():
             vol_mounts.append(client.V1VolumeMount(

@@ -90,6 +90,8 @@ class Task(db.Model, BaseModel):
 
         if not isinstance(data.get("outputs", {}), dict):
             raise InvalidRequest("\"outputs\" filed muct be a json object or dictionary")
+        if not data.get("outputs", {}):
+            data["outputs"] = {"results": TASK_POD_RESULTS_PATH}
 
         # Validate resource values
         if "resources" in data:
