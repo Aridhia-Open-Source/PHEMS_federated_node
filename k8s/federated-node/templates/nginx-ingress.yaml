@@ -10,6 +10,7 @@ metadata:
     {{- if .Values.ingress.blacklist.enabled }}
     nginx.ingress.kubernetes.io/denylist-source-range: {{ join "," .Values.ingress.blacklist.ips | quote }}
     {{- end }}
+    helm.sh/hook: pre-install
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
   ingressClassName: {{ .Values.ingress.ingressClass | default "fn-nginx" }}
@@ -44,7 +45,7 @@ metadata:
     {{- if .Values.ingress.blacklist.enabled }}
     nginx.ingress.kubernetes.io/denylist-source-range: {{ join "," .Values.ingress.blacklist.ips | quote }}
     {{- end }}
-    helm.sh/hook-weight: "1"
+    helm.sh/hook-weight: "5"
 spec:
   ingressClassName: {{ .Values.ingress.ingressClass | default "fn-nginx" }}
   tls:
