@@ -1,16 +1,34 @@
 name: Build Docker Image
-run-name: Building flask image
+run-name: Building images
 on:
   push:
     branches:
       - main
-      # To remove before merging
-      - FN-5
+    paths-ignore:
+      - '*.md'
+      - 'README'
+      - 'LICENSE'
+      - 'DEPLOYMENT'
+      - 'images/**'
+      - 'Makefile'
+      - '.gitignore'
+      - 'sub-license/**'
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - '*.md'
+      - 'README'
+      - 'LICENSE'
+      - 'DEPLOYMENT'
+      - 'images/**'
+      - 'Makefile'
+      - '.gitignore'
+      - 'sub-license/**'
+
 env:
   TAG: ${{ vars.VERSION }}
+  HELM_CHANNEL: stable
 
 jobs:
   linters:
@@ -20,6 +38,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check for vulnerabilities
+        run: |
+          docker run --entrypoint /bin/sh \
+            -v ./webserver/app/Pipfile:/app/Pipfile \
+            -v ./webserver/app/Pipfile.lock:/app/Pipfile.lock \
+            -v ./webserver/vuln.sh:/vuln.sh \
+            python:3.12 \
+            /vuln.sh
 
       - name: Run pylint
         run: |
@@ -54,6 +80,9 @@ jobs:
       run:
         shell: bash
     runs-on: ubuntu-latest
+    outputs:
+      chart_version: ${{ steps.chart_version.outputs.CHART_VERSION }}
+      tag: ${{ steps.chart_version.outputs.TAG }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,15 +91,31 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Set Tags from Chart.yaml
+        id: chart_version
+        working-directory: k8s/federated-node
+        run: |
+          echo "Setting version according to the Chart.yaml"
+
+          version=$(grep 'version:.*' Chart.yaml | sed 's/^.*: //')
+          echo "Chart version: ${version}"
+          appVersion=$(grep 'appVersion:.*' Chart.yaml | sed 's/^.*: \"//'| sed 's/\"//')
+          echo "Chart appVersion: ${appVersion}"
+
+          echo "CHART_VERSION=${version}" >> ${GITHUB_OUTPUT}
+
+          echo "TAG=${appVersion}" >> ${GITHUB_OUTPUT}
+          echo "TAG=${appVersion}" >> ${GITHUB_ENV}
+
       - name: Set Tag for dev branches
-        if: github.ref != 'refs/heads/master'
+        if: github.ref != 'refs/heads/main'
         run: echo "TAG=${TAG}-${GITHUB_SHA::6}" >> ${GITHUB_ENV}
 
-      # Need to get an ACR where to push the image
+      # Need to get a registry where to push the image
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ${{ vars.DOCKER_ACR }}
+          registry: ${{ vars.DOCKER_CR }}
           username: ${{ github.actor }}
           password: ${{ secrets.DOCKER_TOKEN }}
       - name: set lower case owner name
@@ -83,12 +128,42 @@ jobs:
         with:
           context: webserver
           file: webserver/build/Dockerfile
-          tags: ${{ vars.DOCKER_ACR }}/${{ env.OWNER_LC }}/federated_node_run:${{ env.TAG }}
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_node_run:${{ env.TAG }}
           push: true
       - name: Build and push Keycloak image
         uses: docker/build-push-action@v5
         with:
           context: build/keycloak
           file: build/keycloak/keycloak.Dockerfile
-          tags: ${{ vars.DOCKER_ACR }}/${{ env.OWNER_LC }}/federated_keycloak:${{ env.TAG }}
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_keycloak:${{ env.TAG }}
           push: true
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build helm archive
+      working-directory: k8s/federated-node
+      run: |
+        helm package . -d ../../artifacts/
+
+    - name: Set helm channel to develop for dev branches
+      if: github.ref != 'refs/heads/main'
+      run: echo "HELM_CHANNEL=develop" >> ${GITHUB_ENV}
+
+    - name: Push to GitLab Package Artifact
+      run: |
+        curl --request POST \
+          --form 'chart=@artifacts/federated-node-${{ needs.build.outputs.chart_version }}.tgz' \
+          --user ${{ vars.USER_HELM }}:${{ secrets.HELM_TOKEN }} \
+          ${{ vars.HELM_REPO }}/helm/api/${{ env.HELM_CHANNEL }}/charts
+
+    - name: Publish Release
+      uses: ncipollo/release-action@v1
+      with:
+        artifacts: "artifacts/federated-node-${{ needs.build.outputs.chart_version }}.tgz"
+        tag: ${{ needs.build.outputs.chart_version }}
+        skipIfReleaseExists: true

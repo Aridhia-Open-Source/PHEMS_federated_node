@@ -4,14 +4,14 @@ import random
 import requests
 from base64 import b64encode
 from flask import request
-from app.helpers.exceptions import AuthenticationError, KeycloakError
+from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
 from app.helpers.const import PASS_GENERATOR_SET
 
 logger = logging.getLogger('keycloak_helper')
 logger.setLevel(logging.INFO)
 
 KEYCLOAK_NAMESPACE = os.getenv("KEYCLOAK_NAMESPACE")
-KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", f"http://keycloak.{KEYCLOAK_NAMESPACE}.svc.cluster.local:8080")
+KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", f"http://keycloak.{KEYCLOAK_NAMESPACE}.svc.cluster.local")
 REALM = os.getenv("KEYCLOAK_REALM", "FederatedNode")
 KEYCLOAK_CLIENT = os.getenv("KEYCLOAK_CLIENT", "global")
 KEYCLOAK_SECRET = os.getenv("KEYCLOAK_SECRET")
@@ -179,6 +179,25 @@ class Keycloak:
             raise AuthenticationError("Failed to login")
         return response_auth.json()[token_type]
 
+    def is_user_admin(self, token:str) -> bool:
+        """
+        Given a token checks if the owner is an Admin or SuperAdmin
+        """
+        response_auth = requests.post(
+            URLS["validate"],
+            data={
+                "client_secret": self.client_secret,
+                "client_id": self.client_name,
+                "token": token
+            },
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        )
+        if not response_auth.ok:
+            logger.info(response_auth.content.decode())
+            raise AuthenticationError("Failed to login")
+        return "Administrator" in response_auth.json()["realm_access"]["roles"]
 
     def get_admin_token_global(self) -> str:
         """
@@ -271,7 +290,9 @@ class Keycloak:
         )
         if not client_id_resp.ok:
             logger.info(client_id_resp.content.decode())
-            raise KeycloakError("Could not check client")
+            raise KeycloakError("Could not find client")
+        if not len(client_id_resp.json()):
+            raise KeycloakError("Could not find project", 400)
 
         return client_id_resp.json()[0]["id"]
 
@@ -303,7 +324,7 @@ class Keycloak:
         )
         if not request_perm.ok:
             logger.info(request_perm.content.decode())
-            raise AuthenticationError("User is not authorized")
+            raise UnauthorizedError("User is not authorized")
         return True
 
     def get_role(self, role_name:str) -> dict:
@@ -539,6 +560,25 @@ class Keycloak:
             raise KeycloakError("Failed to fetch the user")
 
         return user_response.json()[0]
+
+    def get_user_role(self, user_id:str):
+        """
+        From a user id, get all of their realm roles
+        """
+        role_response = requests.get(
+            URLS["user_role"] % user_id,
+            headers={"Authorization": f"Bearer {self.admin_token}"}
+        )
+        if not role_response.ok:
+            raise KeycloakError("Failed to get the user's role")
+
+        return [role["name"] for role in role_response.json()]
+
+    def has_user_roles(self, user_id:str, roles:set) -> bool:
+        """
+        With the user id checks if it has certain realm roles
+        """
+        return roles.intersection(self.get_user_role(user_id))
 
     def enable_token_exchange(self):
         """

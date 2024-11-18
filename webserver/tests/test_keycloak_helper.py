@@ -139,7 +139,7 @@ class TestKeycloakResponseFailures:
             )
             with pytest.raises(KeycloakError) as exc:
                 Keycloak()
-            assert exc.value.details == 'Could not check client'
+            assert exc.value.details == 'Could not find client'
 
     def test_get_role(
             self
@@ -171,7 +171,7 @@ class TestKeycloakResponseFailures:
         with responses.RequestsMock() as rsps:
             rsps.add(
                 responses.GET,
-                (URLS["resource"] % kc_client.client_id) + f"?name=some_resource",
+                (URLS["resource"] % kc_client.client_id) + "?name=some_resource",
                 json=self.common_error_response,
                 status=500
             )
@@ -190,7 +190,7 @@ class TestKeycloakResponseFailures:
         with responses.RequestsMock() as rsps:
             rsps.add(
                 responses.GET,
-                (URLS["get_policies"] % kc_client.client_id) + f"&name=some_policy",
+                (URLS["get_policies"] % kc_client.client_id) + "&name=some_policy",
                 json=self.common_error_response,
                 status=500
             )
@@ -209,7 +209,7 @@ class TestKeycloakResponseFailures:
         with responses.RequestsMock() as rsps:
             rsps.add(
                 responses.GET,
-                (URLS["scopes"] % kc_client.client_id) + f"?permission=false&name=some_scope",
+                (URLS["scopes"] % kc_client.client_id) + "?permission=false&name=some_scope",
                 json=self.common_error_response,
                 status=500
             )

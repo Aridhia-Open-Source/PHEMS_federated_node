@@ -7,13 +7,16 @@ tasks-related endpoints:
 - GET /tasks/id
 - POST /tasks/id/cancel
 """
+from datetime import datetime, timedelta
 from flask import Blueprint, request, send_file
 
-from .helpers.exceptions import DBRecordNotFoundError
-from .helpers.wrappers import audit, auth
-from .helpers.db import db
-from .helpers.query_filters import parse_query_params
-from .models.task import Task
+from app.helpers.const import CLEANUP_AFTER_DAYS
+from app.helpers.exceptions import DBRecordNotFoundError, UnauthorizedError
+from app.helpers.keycloak import Keycloak
+from app.helpers.wrappers import audit, auth
+from app.helpers.db import db
+from app.helpers.query_filters import parse_query_params
+from app.models.task import Task
 
 bp = Blueprint('tasks', __name__, url_prefix='/tasks')
 session = db.session
@@ -28,6 +31,7 @@ def get_service_info():
     return "WIP", 200
 
 @bp.route('/', methods=['GET'])
+@bp.route('', methods=['GET'])
 @audit
 @auth(scope='can_admin_task')
 def get_tasks():
@@ -42,14 +46,22 @@ def get_tasks():
 
 @bp.route('/<task_id>', methods=['GET'])
 @audit
-@auth(scope='can_admin_task')
+@auth(scope='can_exec_task')
 def get_task_id(task_id):
     """
     GET /tasks/id endpoint. Gets a single task
     """
-    task = session.get(Task, task_id)
+    task = Task.query.filter(Task.id == task_id).one_or_none()
     if task is None:
         raise DBRecordNotFoundError(f"Dataset with id {task_id} does not exist")
+
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    kc_client = Keycloak()
+    dec_token = kc_client.decode_token(token)
+
+    if task.requested_by != dec_token['sub'] and not kc_client.is_user_admin(token):
+        raise UnauthorizedError("User does not have enough permissions")
+
     task_dict = task.sanitized_dict()
     task_dict["status"] = task.get_status()
     return task_dict, 200
@@ -61,7 +73,7 @@ def cancel_tasks(task_id):
     """
     POST /tasks/id/cancel endpoint. Cancels a task either scheduled or running one
     """
-    task = session.get(Task, task_id)
+    task = Task.query.filter(Task.id == task_id).one_or_none()
     if task is None:
         raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
 
@@ -69,6 +81,7 @@ def cancel_tasks(task_id):
     return task.terminate_pod(), 201
 
 @bp.route('/', methods=['POST'])
+@bp.route('', methods=['POST'])
 @audit
 @auth(scope='can_exec_task')
 def post_tasks():
@@ -105,9 +118,12 @@ def get_task_results(task_id):
     GET /tasks/id/results endpoint.
         Allows to get tasks results
     """
-    task = session.get(Task, task_id)
+    task = Task.query.filter(Task.id == task_id).one_or_none()
     if task is None:
         raise DBRecordNotFoundError(f"Dataset with id {task_id} does not exist")
+
+    if task.created_at.date() + timedelta(days=CLEANUP_AFTER_DAYS) <= datetime.now().date():
+        return {"error": "Tasks results are not available anymore. Please, run the task again"}, 500
 
     results_file = task.get_results()
     return send_file(results_file, download_name="results.tar.gz"), 200

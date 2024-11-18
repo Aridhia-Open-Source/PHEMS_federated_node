@@ -4,10 +4,11 @@
 
 replicaCount: 1
 
-image:
-  repository: ghcr.io/arihdia-federated-node/federated_node_run
-  tag: 0.0.1
-  pullPolicy: IfNotPresent
+backend:
+  tag:
+
+keycloak:
+  tag:
 
 autoscaling:
   enabled: false
@@ -32,21 +33,23 @@ db:
   #   name:
   #   key:
 
+# How many days the results and k8s resources are kept for
+cleanupTime: 3
+
 federatedNode:
   port: 5000
   volumes:
     results_path: /mnt/results
     task_pod_results_path: /mnt/data
 
-# Base to support multiple ACRs. This is for regcreds initially. Will be
+# Base to support multiple CRs. This is for regcreds initially. Will be
 # expanded to the flask docker lookup in a second instance
-acrs:
+registries:
   - url:
     secret:
       name:
       userKey:
       passKey:
-    # password:
     # username:
     # email:
 
@@ -61,12 +64,16 @@ storage:
     # url:
     # path:
   local:
+    # Local storage that will be shared with the backend
     # path:
+    # Local storage that will be shared with the db
+    # dbpath: /data/db
 
 token:
   life:
 
 imagePullSecrets: regcred
+pullPolicy: Always
 
 serviceAccount:
   # Specifies whether a service account should be created
@@ -88,6 +95,7 @@ securityContext: {}
 
 ingress:
   host:
+  on_aks: false
   whitelist:
     enabled: false
     ips: []

@@ -1,0 +1,16 @@
+## This assumes for certain secrets to be present in the release namespace
+# Basically duplicates them to the keycloak's namespace
+{{- range list .Values.db.secret.name }}
+{{ $sec := lookup "v1" "Secret" $.Release.Namespace . | default dict }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ . }}
+  namespace: {{ $.Values.namespaces.keycloak }}
+data:
+{{- with $sec.data  }}
+{{ toYaml . | indent 2 }}
+{{- end }}
+type: {{ $sec.type}}
+---
+{{- end }}

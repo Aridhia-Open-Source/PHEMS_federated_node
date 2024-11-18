@@ -45,16 +45,16 @@
         "summary": "List all datasets available to the user",
         "responses": {
           "200":{
-            "$ref": "#/components/responses/InvalidBody"
+            "$ref": "#/components/responses/DatasetList"
           },
           "400":{
-            "$ref": "#/components/responses/Unauthorized"
+            "$ref": "#/components/responses/InvalidBody"
           },
           "401":{
-            "$ref": "#/components/responses/Unauthorized"
+            "$ref": "#/components/responses/Unauthenticated"
           },
-          "404":{
-            "$ref": "#/components/responses/NotFound"
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
           },
           "500":{
             "$ref": "#/components/responses/InternalError"
@@ -82,6 +82,9 @@
             "$ref": "#/components/responses/InvalidBody"
           },
           "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
             "$ref": "#/components/responses/Unauthorized"
           },
           "404":{
@@ -98,19 +101,22 @@
         "operationId": "getDatasetById",
         "parameters": [
           {
-            "in": "path",
-            "name": "id",
-            "schema":{"type": "integer"},
-            "required": true
+            "$ref": "#/components/parameters/datasetIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
           }
         ],
         "tags": ["Datasets"],
-        "summary": "List all datasets available to the user",
+        "summary": "Get a datasets by id if available to the user",
         "responses": {
           "200":{
             "$ref": "#/components/responses/DatasetById"
           },
           "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
             "$ref": "#/components/responses/Unauthorized"
           },
           "404":{
@@ -127,19 +133,22 @@
         "operationId": "getDatasetCatalogue",
         "parameters": [
           {
-            "in": "path",
-            "name": "id",
-            "schema":{"type": "integer"},
-            "required": true
+            "$ref": "#/components/parameters/datasetIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
           }
         ],
         "tags": ["Datasets"],
-        "summary": "List all datasets available to the user",
+        "summary": "Get the catalogue in a given dataset",
         "responses": {
           "200":{
             "$ref": "#/components/responses/DatasetCatalogue"
           },
           "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
             "$ref": "#/components/responses/Unauthorized"
           },
           "404":{
@@ -156,19 +165,22 @@
         "operationId": "getDatasetDictionaries",
         "parameters": [
           {
-            "in": "path",
-            "name": "id",
-            "schema":{"type": "integer"},
-            "required": true
+            "$ref": "#/components/parameters/datasetIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
           }
         ],
         "tags": ["Datasets"],
-        "summary": "List all datasets available to the user",
+        "summary": "Get the dictionaries in a given dataset",
         "responses": {
           "200":{
             "$ref": "#/components/responses/DatasetDictionary"
           },
           "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
             "$ref": "#/components/responses/Unauthorized"
           },
           "404":{
@@ -185,29 +197,160 @@
         "operationId": "getDatasetDictionariesTable",
         "parameters": [
           {
-            "in": "path",
-            "name": "id",
-            "schema":{"type": "integer"},
-            "required": true
+            "$ref": "#/components/parameters/datasetIdPath"
           },
           {
-            "in": "path",
-            "name": "table_name",
-            "schema":{"type": "string"},
-            "required": true
+            "$ref": "#/components/parameters/dictionaryTablePath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
           }
         ],
         "tags": ["Datasets"],
-        "summary": "List all datasets available to the user",
+        "summary": "Get the dictionary for a given table in a given dataset",
         "responses": {
           "200":{
             "$ref": "#/components/responses/DatasetDictionaryTable"
           },
           "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/{name}": {
+      "get": {
+        "operationId": "getDatasetByName",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetNamePath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Get a datasets by name if available to the user",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/DatasetById"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
             "$ref": "#/components/responses/Unauthorized"
           },
           "404":{
             "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/{name}/catalogue": {
+      "get": {
+        "operationId": "getDatasetCatalogue",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetNamePath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Get the catalogue in a given dataset",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/DatasetCatalogue"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/{name}/dictionaries": {
+      "get": {
+        "operationId": "getDatasetDictionaries",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetNamePath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Get the dictionaries in a given dataset",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/DatasetDictionary"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/{name}/dictionaries/{table_name}": {
+      "get": {
+        "operationId": "getDatasetDictionariesTable",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetNamePath"
+          },
+          {
+            "$ref": "#/components/parameters/dictionaryTablePath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Get the dictionary for a given table in a given dataset",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/DatasetDictionaryTable"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
           },
           "500":{
             "$ref": "#/components/responses/InternalError"
@@ -231,16 +374,16 @@
         },
         "responses":{
           "201":{
-            "$ref": "#/components/responses/TransferTokenPost"
+            "$ref": "#/components/responses/TokenResponse"
           },
           "400":{
             "$ref": "#/components/responses/InvalidBody"
           },
           "401":{
-            "$ref": "#/components/responses/Unauthorized"
+            "$ref": "#/components/responses/Unauthenticated"
           },
-          "404":{
-            "$ref": "#/components/responses/NotFound"
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
           },
           "500":{
             "$ref": "#/components/responses/InternalError"
@@ -267,13 +410,13 @@
             "$ref": "#/components/responses/SelectBeaconPost"
           },
           "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
             "$ref": "#/components/responses/Unauthorized"
           },
-          "404":{
-            "$ref": "#/components/responses/NotFound"
-          },
           "500":{
-            "$ref": "#/components/responses/InternalError"
+            "$ref": "#/components/responses/DBConnectionFailed"
           }
         }
       }
@@ -297,6 +440,9 @@
             "$ref": "#/components/responses/Task"
           },
           "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
             "$ref": "#/components/responses/Unauthorized"
           },
           "404":{
@@ -318,6 +464,9 @@
             "$ref": "#/components/responses/TaskList"
           },
           "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
             "$ref": "#/components/responses/Unauthorized"
           },
           "404":{
@@ -349,6 +498,9 @@
             "$ref": "#/components/responses/InvalidBody"
           },
           "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
             "$ref": "#/components/responses/Unauthorized"
           },
           "404":{
@@ -385,10 +537,10 @@
             "$ref": "#/components/responses/InvalidBody"
           },
           "401":{
-            "$ref": "#/components/responses/Unauthorized"
+            "$ref": "#/components/responses/Unauthenticated"
           },
-          "404":{
-            "$ref": "#/components/responses/NotFound"
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
           },
           "500":{
             "$ref": "#/components/responses/InternalError"
@@ -396,16 +548,28 @@
         }
       }
     },
-    "/tasks/cancel": {
+    "/tasks/{id}/cancel": {
       "post": {
         "operationId": "cancel_task",
         "tags": ["Tasks"],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {"type": "integer"}
+          }
+        ],
         "summary": "Cancel a running task",
         "responses":{
           "201":{
             "$ref": "#/components/responses/SimpleOk"
           },
           "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
             "$ref": "#/components/responses/Unauthorized"
           },
           "404":{
@@ -436,6 +600,9 @@
             "$ref": "#/components/responses/TaskResults"
           },
           "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
             "$ref": "#/components/responses/Unauthorized"
           },
           "404":{
@@ -463,11 +630,11 @@
           }
         },
         "responses":{
-          "200":{
-            "$ref": "#/components/responses/TransferTokenPost"
+          "201":{
+            "$ref": "#/components/responses/TokenResponse"
           },
           "401":{
-            "$ref": "#/components/responses/Unauthorized"
+            "$ref": "#/components/responses/Unauthenticated"
           }
         }
       }
@@ -508,6 +675,9 @@
             "$ref": "#/components/responses/AuditList"
           },
           "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
             "$ref": "#/components/responses/Unauthorized"
           }
         }
@@ -543,7 +713,34 @@
         "bearerFormat": "JWT"
       }
     },
-    "parameters": {},
+    "parameters": {
+      "datasetIdPath": {
+        "in": "path",
+        "name": "dataset_id",
+        "schema":{"type": "integer"},
+        "required": true
+      },
+      "datasetNamePath": {
+        "in": "path",
+        "name": "dataset_name",
+        "schema":{"type": "string"},
+        "required": true,
+        "description": "Dataset name, the same set from the POST /dataset, or fetched from the dataset list"
+      },
+      "dictionaryTablePath": {
+        "in": "path",
+        "name": "table_name",
+        "schema":{"type": "string"},
+        "required": true
+      },
+      "projectNamePath": {
+        "in": "header",
+        "name": "project_name",
+        "schema":{"type": "string"},
+        "required": false,
+        "description": "Used by non admin users. The value should match the project decalred on the roken_transfer endpoint"
+      }
+    },
     "responses": {
       "DatasetPost": {
         "description": "Successfully added",
@@ -675,7 +872,7 @@
           }
         }
       },
-      "TransferTokenPost": {
+      "TokenResponse": {
         "description": "Token created",
         "content": {
           "application/json":{
@@ -742,11 +939,17 @@
       "InvalidBody": {
         "description": "The request body cannot be parsed or is missing required values."
       },
+      "Unauthenticated": {
+        "description": "Unauthenticated."
+      },
       "Unauthorized": {
         "description": "Unauthorized."
       },
       "InternalError": {
         "description": "An internal error occurred."
+      },
+      "DBConnectionFailed": {
+        "description": "Could not connect to the database."
       },
       "Conflict": {
         "description": "Conflict. Resource already exists",
@@ -800,12 +1003,14 @@
           "name": {
             "type": "string",
             "description": "Human-readable name for the dataset",
-            "example": "Blood cancer database"
+            "example": "Blood cancer database",
+            "maxLength": 256
           },
           "host": {
             "type": "string",
             "description": "Url where the database is hosted at",
-            "example": "http://somewhere"
+            "example": "http://somewhere",
+            "maxLength": 256
           },
           "port": {
             "type": "number",
@@ -822,6 +1027,19 @@
             "description": "Password for the Federated Node to access the DB",
             "example": "password"
           },
+          "extra_connection_args": {
+            "type": "string",
+            "description": "Extra argument to use for connecting to the DB. Eventually this is passed to the tasks' pod as environment variable",
+            "example": "TrustServerCertificate=Yes"
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of DB engine",
+            "oneOf": [
+              {"type": "string", "example": "postgres"},
+              {"type": "string", "example": "mssql"}
+            ]
+          },
           "catalogue": {
             "$ref": "#/components/schemas/CataloguePostBody"
           },
@@ -836,10 +1054,14 @@
       "DatasetById": {
         "type": "object",
         "properties": {
+          "id": {"type": "integer", "example": 1},
           "host": {"type": "string", "example": "http://dblocation"},
           "port": {"type": "integer", "example": 5432},
           "name": {"type": "string", "example": "Blood Cancer Database"},
-          "id": {"type": "integer", "example": 1}
+          "slug": {"type": "string", "example": "blood_cancer_database"},
+          "url": {"type": "string", "example": "https://federatednode.com/datasets/blood_cancer_database"},
+          "type": {"type": "string", "example": "mssql"},
+          "extra_connection_args": {"type": "string", "example": "TrustServerCertificate=Yes"}
         }
       },
       "DatasetCatalogue": {
@@ -861,10 +1083,10 @@
           "created_at": {"type": "string", "example": "Mon, 19 Feb 2024 10:00:45 GMT"},
           "updated_at": {"type": "string", "example": "Mon, 19 Feb 2024 10:00:45 GMT"},
           "dataset_id": {"type": "integer", "example": 1},
-          "description": {"type": "string", "maxLength": 2048, "example": "Blood Analysis results"},
-          "field_name": {"type": "string", "maxLength": 50, "example": "glucose_perc"},
-          "table_name": {"type": "string", "maxLength": 50, "example": "analysis"},
-          "label": {"type": "string", "maxLength": 64}
+          "description": {"type": "string", "maxLength": 4096, "example": "Blood Analysis results"},
+          "field_name": {"type": "string", "maxLength": 256, "example": "glucose_perc"},
+          "table_name": {"type": "string", "maxLength": 256, "example": "analysis"},
+          "label": {"type": "string", "maxLength": 256}
         }
       },
       "CataloguePostBody": {
@@ -875,7 +1097,7 @@
             "example": "Catalogue 1"
           },
           "description": {
-            "maxLength": 2048,
+            "maxLength": 4096,
             "example": ""
           }
         }
@@ -886,11 +1108,11 @@
           "type": "object",
           "properties": {
             "table_name":{
-              "maxLength": 50,
+              "maxLength": 256,
               "example": "patient"
             },
 			      "description": {
-              "maxLength": 2048,
+              "maxLength": 4096,
               "example": "Patients' general information"
             }
           }
@@ -901,11 +1123,12 @@
         "properties": {
           "title": {
             "type": "string",
+            "maxLength": 256,
             "example": "Data Access Request 1"
           },
           "project_name": {
             "type": "string",
-            "maxLength": 64,
+            "maxLength": 256,
             "example": "eu_research_2024"
           },
           "requested_by": {
@@ -913,14 +1136,15 @@
             "properties": {
               "email": {
                 "type": "string",
-                "maxLength": 64,
+                "maxLength": 256,
                 "example": "user@email.com"
               }
-            }
+            },
+            "required": ["email"]
           },
           "description": {
             "type": "string",
-            "maxLength": 2048,
+            "maxLength": 4096,
             "description": "Project/Data access request description"
           },
           "proj_start": {
@@ -935,7 +1159,16 @@
             "type": "string",
             "example": "1"
           }
-        }
+        },
+        "required": [
+          "title",
+          "project_name",
+          "requested_by",
+          "description",
+          "dataset_id",
+          "proj_start",
+          "proj_end"
+        ]
       },
       "BeaconPostBody": {
         "type": "object",
@@ -948,7 +1181,10 @@
             "type": "integer",
             "example": 1
           }
-        }
+        },
+        "required": [
+          "query", "dataset_id"
+        ]
       },
       "LoginBody": {
         "type": "object",
@@ -965,7 +1201,7 @@
         "type": "object",
         "properties": {
           "name": { "type": "string", "maxLength": 256},
-          "description": { "type": "string", "maxLength": 2048},
+          "description": { "type": "string", "maxLength": 4096},
           "executors": {
             "type": "object",
             "properties": {
@@ -985,12 +1221,15 @@
                   "PARAMETER1": 2
                 }
               }
-            }
+            },
+            "required": ["image"]
           },
           "tags": {
             "type": "object",
+            "description": "Either dataset_id or dataset_name has to be set",
             "properties": {
-              "dataset_id":{ "type": "string" }
+              "dataset_id":{ "type": "string" },
+              "dataset_name":{ "type": "string" }
             },
             "example": {
               "dataset_id": 1,

@@ -13,8 +13,8 @@ from app import main, admin_api, datasets_api, tasks_api, requests_api
 from app.helpers.db import build_sql_uri, db
 from app.helpers.exceptions import (
     InvalidDBEntry, DBError, DBRecordNotFoundError, InvalidRequest,
-    AuthenticationError, KeycloakError, TaskImageException, TaskExecutionException,
-    KubernetesException, exception_handler, unknown_exception_handler
+    AuthenticationError, UnauthorizedError, KeycloakError, TaskImageException,
+    TaskExecutionException, KubernetesException, exception_handler, unknown_exception_handler
 )
 logging.basicConfig(level=logging.WARN)
 
@@ -25,7 +25,7 @@ def create_app():
     app = Flask(__name__)
     app.config["SQLALCHEMY_DATABASE_URI"] = build_sql_uri()
 
-    SWAGGERUI_BLUEPRINT = get_swaggerui_blueprint(
+    swagger_ui_blueprint = get_swaggerui_blueprint(
         "/docs",
         "/static/openapi.json",
         config={
@@ -33,7 +33,7 @@ def create_app():
         }
     )
 
-    app.register_blueprint(SWAGGERUI_BLUEPRINT, url_prefix="/docs")
+    app.register_blueprint(swagger_ui_blueprint, url_prefix="/docs")
 
     db.init_app(app)
     app.register_blueprint(main.bp)
@@ -47,6 +47,7 @@ def create_app():
     app.register_error_handler(DBRecordNotFoundError, exception_handler)
     app.register_error_handler(InvalidRequest, exception_handler)
     app.register_error_handler(AuthenticationError, exception_handler)
+    app.register_error_handler(UnauthorizedError, exception_handler)
     app.register_error_handler(KeycloakError, exception_handler)
     app.register_error_handler(TaskImageException, exception_handler)
     app.register_error_handler(TaskExecutionException, exception_handler)

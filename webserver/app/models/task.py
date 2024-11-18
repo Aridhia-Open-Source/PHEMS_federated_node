@@ -2,7 +2,7 @@ import logging
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import Column, Integer, DateTime, String, ForeignKey
 from sqlalchemy.orm import relationship
@@ -10,8 +10,8 @@ from sqlalchemy.sql import func
 from uuid import uuid4
 
 import urllib3
-from app.helpers.acr import ACRClient
-from app.helpers.const import MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, TASK_NAMESPACE
+from app.helpers.container_registries import ContainerRegistryClient
+from app.helpers.const import CLEANUP_AFTER_DAYS, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, TASK_NAMESPACE
 from app.helpers.db import BaseModel, db
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesBatchClient, KubernetesClient
@@ -49,7 +49,8 @@ class Task(db.Model, BaseModel):
                  outputs:dict = {},
                  volumes:dict = {},
                  description:str = '',
-                 created_at:datetime=datetime.now()
+                 created_at:datetime=datetime.now(),
+                 **kwargs
                  ):
         self.name = name
         self.status = 'scheduled'
@@ -77,7 +78,9 @@ class Task(db.Model, BaseModel):
         data = super().validate(data)
 
         ds_id = data.get("tags", {}).get("dataset_id")
-        data["dataset"] = db.session.get(Dataset, ds_id)
+        ds_name = data.get("tags", {}).get("dataset_name")
+        if ds_name or ds_id:
+            data["dataset"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
 
         if not re.match(r'^((\w+|-|\.)\/?+)+:(\w+(\.|-)?)+$', data["docker_image"]):
             raise InvalidRequest(
@@ -169,17 +172,31 @@ class Task(db.Model, BaseModel):
     @classmethod
     def get_image_with_repo(cls, docker_image):
         """
-        Looks through the ACRs for the image and if exists,
+        Looks through the CRs for the image and if exists,
         returns the full image name with the repo prefixing the image.
         """
-        acr_client = ACRClient()
-        full_docker_image_name = acr_client.find_image_repo(docker_image)
+        registry_client = ContainerRegistryClient()
+        full_docker_image_name = registry_client.find_image_repo(docker_image)
         if not full_docker_image_name:
             raise TaskImageException(f"Image {docker_image} not found on our repository")
         return full_docker_image_name
 
     def pod_name(self):
         return f"{self.name.lower().replace(' ', '-')}-{uuid4()}"
+
+    def get_expiration_date(self) -> str:
+        """
+        In order to help with the cleanup process we set a lable for
+        - pod
+        - pv
+        - pvc
+
+        to bulk delete unused resources.
+        The date returned is in format `YYYYMMDD`
+        Running `kubectl delete pvc -n analytics -l "delete_by=$(date +%Y%m%d)"` will bulk delete
+        all pvcs to be deleted today.
+        """
+        return (datetime.now() + timedelta(days=CLEANUP_AFTER_DAYS)).strftime("%Y%m%d")
 
     def run(self, validate=False):
         """
@@ -194,7 +211,7 @@ class Task(db.Model, BaseModel):
 
         command=None
         if len(self.executors):
-            self.executors[0]["command"]
+            command=self.executors[0].get("command", '')
 
         body = v1.create_pod_spec({
             "name": self.pod_name(),
@@ -202,7 +219,8 @@ class Task(db.Model, BaseModel):
             "labels": {
                 "task_id": str(self.id),
                 "requested_by": self.requested_by,
-                "dataset_id": str(self.dataset_id)
+                "dataset_id": str(self.dataset_id),
+                "delete_by": self.get_expiration_date()
             },
             "dry_run": 'true' if validate else 'false',
             "environment": provided_env,
@@ -227,19 +245,23 @@ class Task(db.Model, BaseModel):
 
     def get_db_environment_variables(self) -> dict:
         """
-        Creates a dictionary with the standard value for Psql credentials
+        Creates a dictionary with the standard value for DB credentials
         """
         return {
             "PGHOST": self.dataset.host,
             "PGDATABASE": self.dataset.name,
-            "PGPORT": self.dataset.port
+            "PGPORT": self.dataset.port,
+            "MSSQL_HOST": self.dataset.host,
+            "MSSQL_DATABASE": self.dataset.name,
+            "MSSQL_PORT": self.dataset.port,
+            "CONNECTION_ARGS": self.dataset.extra_connection_args
         }
 
     def get_current_pod(self, pod_name:str=None, is_running:bool=True):
         v1 = KubernetesClient()
         running_pods = v1.list_namespaced_pod(
             TASK_NAMESPACE,
-            label_selector=f"dataset_id={self.dataset_id},requested_by={self.requested_by}"
+            label_selector=f"task_id={self.id}"
         )
         try:
             running_pods.items.sort(key=lambda x: x.metadata.creation_timestamp, reverse=True)
@@ -263,7 +285,12 @@ class Task(db.Model, BaseModel):
             :str: if the pod is not found or deleted
         """
         try:
-            status_obj = self.get_current_pod(pod_name).status.container_statuses[0].state
+            status_obj = self.get_current_pod(is_running=False).status.container_statuses
+            if status_obj is None:
+                return self.status
+
+            status_obj = status_obj[0].state
+
             for status in ['running', 'waiting', 'terminated']:
                 st = getattr(status_obj, status)
                 if st is not None:
@@ -320,7 +347,7 @@ class Task(db.Model, BaseModel):
                 }
             ],
             "labels": {
-                "task_id": str(self.id),
+                "result_task_id": str(self.id),
                 "requested_by": self.requested_by
             }
         })
@@ -332,12 +359,11 @@ class Task(db.Model, BaseModel):
             )
             # Get the job's pod
             v1 = KubernetesClient()
+            v1.is_pod_ready(label=f"job-name={job_name}")
+
             job_pod = v1.list_namespaced_pod(namespace=TASK_NAMESPACE, label_selector=f"job-name={job_name}").items[0]
 
-            while not job_pod.status.container_statuses[0].ready:
-                job_pod = v1.list_namespaced_pod(namespace=TASK_NAMESPACE, label_selector=f"job-name={job_name}").items[0]
-
-            res_file = v1.cp_from_pod(job_pod.metadata.name, TASK_POD_RESULTS_PATH, f"{RESULTS_PATH}/{self.id}")
+            res_file = v1.cp_from_pod(job_pod.metadata.name, f"{TASK_POD_RESULTS_PATH}/{self.id}", f"{RESULTS_PATH}/{self.id}")
             v1.delete_pod(job_pod.metadata.name)
             v1_batch.delete_job(job_name)
         except ApiException as e:
