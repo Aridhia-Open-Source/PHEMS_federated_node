@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import pytest
@@ -7,13 +8,15 @@ from datetime import datetime as dt, timedelta
 from sqlalchemy.orm.session import close_all_sessions
 from unittest.mock import Mock
 from app import create_app
-from app.helpers.acr import ACRClient
+from app.helpers.container_registries import ContainerRegistryClient
 from app.helpers.db import db
 from app.helpers.kubernetes import KubernetesBatchClient
 from app.models.dataset import Dataset
 from app.models.request import Request
 from app.helpers.keycloak import Keycloak, URLS, KEYCLOAK_SECRET, KEYCLOAK_CLIENT
 from tests.helpers.kubernetes import MockKubernetesClient
+from tests.helpers.keycloak import clean_kc
+from app.helpers.exceptions import KeycloakError
 
 sample_ds_body = {
     "name": "TestDs",
@@ -87,8 +90,18 @@ def basic_user():
     return Keycloak().create_user(**{"email": "test@basicuser.com"})
 
 @pytest.fixture
-def login_user(client, basic_user):
+def login_user(client, basic_user, mocker):
+    mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
+    mocker.patch('app.helpers.wrappers.Keycloak.decode_token', return_value={"username": "test@basicuser.com", "sub": "123-123abc"})
+
     return Keycloak().get_impersonation_token(basic_user["id"])
+
+@pytest.fixture
+def project_not_found(mocker):
+    return mocker.patch(
+        'app.helpers.wrappers.Keycloak.exchange_global_token',
+        side_effect=KeycloakError("Could not find project", 400)
+    )
 
 @pytest.fixture
 def simple_admin_header(login_admin):
@@ -130,6 +143,7 @@ def client():
             yield tclient
             close_all_sessions()
             db.drop_all()
+            clean_kc()
 
 # K8s
 @pytest.fixture
@@ -144,11 +158,11 @@ def k8s_config(mocker):
 @pytest.fixture
 def k8s_client(mocker, k8s_config):
     mocker.patch(
-        'kubernetes.client.CoreV1Api',
+        'app.models.dataset.KubernetesClient',
         return_value=MockKubernetesClient()
     )
     mocker.patch(
-        'kubernetes.client.BatchV1Api',
+        'app.models.task.KubernetesBatchClient',
         return_value=KubernetesBatchClient()
     )
 
@@ -159,11 +173,11 @@ def k8s_client_task(mocker, k8s_config):
         return_value=MockKubernetesClient()
     )
 
-# ACR mocking
+# CR mocking
 @pytest.fixture
-def acr_client(mocker, image_name):
+def cr_client(mocker, image_name):
     mocker.patch(
-        'app.models.task.ACRClient',
+        'app.models.task.ContainerRegistryClient',
         return_value=Mock(
             login=Mock(return_value="access_token"),
             find_image_repo=Mock(return_value=image_name)
@@ -171,7 +185,7 @@ def acr_client(mocker, image_name):
     )
 
 @pytest.fixture
-def acr_http(mocker):
+def cr_http(mocker):
     rsps = responses.RequestsMock()
     # with responses.RequestsMock() as rsps:
     # Mock the request in the order they are submitted.
@@ -191,57 +205,45 @@ def acr_http(mocker):
     return rsps
 
 @pytest.fixture
-def acr_client_404(mocker):
+def cr_client_404(mocker):
     mocker.patch(
-        'app.models.task.ACRClient',
+        'app.models.task.ContainerRegistryClient',
         return_value=Mock(
             login=Mock(return_value="access_token"),
             find_image_repo=Mock(return_value=False)
         )
     )
 @pytest.fixture
-def acr_name():
+def cr_name():
     return "acr.azurecr.io"
 
 @pytest.fixture
-def acr_config(acr_name):
+def cr_config(cr_name):
     return {
-        acr_name: {"username": "user", "password": "pass"}
+        cr_name: {"username": "user", "password": "pass"}
     }
 
 @pytest.fixture
-def acr_json_loader(mocker, acr_config):
+def cr_json_loader(mocker, cr_config):
     return mocker.patch(
-    'app.helpers.acr.json',
-    load=Mock(return_value=acr_config)
+    'app.helpers.container_registries.json',
+    load=Mock(return_value=cr_config)
 )
 
 @pytest.fixture
-def acr_class(mocker, acr_json_loader):
-    mocker.patch('app.helpers.acr.open')
-    return ACRClient()
+def cr_class(mocker, cr_json_loader):
+    mocker.patch('app.helpers.container_registries.open')
+    return ContainerRegistryClient()
 
 # Dataset Mocking
 @pytest.fixture(scope='function')
 def dataset_post_body():
-    return {
-        "name": "TestDs",
-        "host": "db",
-        "port": 5432,
-        "username": "Username",
-        "password": "pass",
-        "catalogue": {
-            "title": "test",
-            "description": "test description"
-        },
-        "dictionaries": [{
-            "table_name": "test",
-            "description": "test description"
-        }]
-    }
+    return copy.deepcopy(sample_ds_body)
 
 @pytest.fixture
-def dataset(client, user_uuid, k8s_client):
+def dataset(mocker, client, user_uuid, k8s_client):
+    mocker.patch('app.models.dataset.Keycloak')
+    mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
     dataset = Dataset(name="TestDs", host="example.com", password='pass', username='user')
     dataset.add(user_id=user_uuid)
     return dataset
@@ -293,3 +295,22 @@ def side_effect(dict_mock:dict):
             status=200, data=default_body
         )
     return _url_side_effects
+
+@pytest.fixture
+def request_base_body(dataset):
+    return {
+        "title": "Test Task",
+        "dataset_id": dataset.id,
+        "project_name": "project1",
+        "requested_by": { "email": "test@test.com" },
+        "description": "First task ever!",
+        "proj_start": dt.now().date().strftime("%Y-%m-%d"),
+        "proj_end": (dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")
+    }
+
+@pytest.fixture
+def approve_request(mocker):
+    return mocker.patch(
+        'app.datasets_api.Request.approve',
+        return_value={"token": "somejwttoken"}
+    )

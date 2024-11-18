@@ -6,17 +6,12 @@ The federated node is deployed as an Helm Chart, so helm should be installed in 
 See their installation instructions [here](https://helm.sh/docs/intro/install/).
 
 ### Setup helm repo
-__Until v1.0__ a set of credentials will need to be required to pull docker images and the helm chart. These credentials will be set in a shared note in LastPass, called `FN setup notes`. If you don't have access to it, ask [@r-casula](https://github.com/r-casula) to manually provide them beforehand.
-
-__From v1.0__ there will be no need for credentials as the helm repo will be public.
-
-Set the two env vars `$username` and `$password`, based on the note above.
 ```sh
-helm repo add --username $username --password $token federated-node https://gitlab.com/api/v4/projects/aridhia%2Ffederated_node/packages/helm/stable
+helm repo add federated-node https://gitlab.com/api/v4/projects/aridhia%2Ffederated-node/packages/helm/stable
 ```
 If you want to run a development chart
 ```sh
-helm repo add --username $username --password $token federated-node https://gitlab.com/api/v4/projects/aridhia%2Ffederated_node/packages/helm/develop
+helm repo add federated-node https://gitlab.com/api/v4/projects/aridhia%2Ffederated-node/packages/helm/develop
 ```
 
 Now you should be all set to pull the chart from gitLab.
@@ -26,7 +21,7 @@ In order to not store credentials in plain text within the `values.yaml` file, t
 
 The secrets to be created are:
 - Db credentials for the FN webserver to use (not where the dataset is)
-- ACR credentials (for the basic ghcr.io repo, you can create a personal access token with the `repo` and `write:packages` permissions. Use the generated token as password, and your github username)
+- CR credentials (for the basic ghcr.io repo, you can create a personal access token with the `repo` and `write:packages` permissions. Use the generated token as password, and your github username)
 - Azure storage account credentials (if used)
 
 If you plan to deploy on a dedicated namespace, create it manually first or the secrets creation will fail
@@ -40,13 +35,13 @@ echo -n "value" | base64
 ```
 
 #### Container Registries
-The following examples aims to setup container registries (ACRs) credentials.
+The following examples aims to setup container registries (CRs) credentials.
 
 In general, to create a k8s secret you run a command like the following:
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=username=(echo -n $username | base64) \
-    --from-literal=password=(echo -n $password | base64)
+    --from-literal=username=$(echo -n $username | base64) \
+    --from-literal=password=$(echo -n $password | base64)
 ```
 or using the yaml template:
 ```yaml
@@ -75,7 +70,7 @@ In case you want to set DB secrets the structure is slightly different:
 
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=value=(echo -n $password | base64)
+    --from-literal=value=$(echo -n $password | base64)
 ```
 or using the yaml template:
 ```yaml
@@ -95,8 +90,8 @@ type: Opaque
 #### Azure Storage
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=azurestorageaccountkey=(echo -n $accountkey | base64) \
-    --from-literal=azurestorageaccountname=(echo -n $accountname | base64)
+    --from-literal=azurestorageaccountkey=$(echo -n $accountkey | base64) \
+    --from-literal=azurestorageaccountname=$(echo -n $accountname | base64)
 ```
 or using the yaml template:
 ```yaml
@@ -113,6 +108,15 @@ data:
   azurestorageaccountname:
 type: Opaque
 ```
+
+#### TLS Certificates
+If a certificate needs to be generated, follow the official nginx [documentation article](https://github.com/kubernetes/ingress-nginx/blob/main/docs/user-guide/tls.md#tls-secrets).
+
+Granted that the `pem` and `crt` file already in the current working folder, run:
+```sh
+kubectl create secret tls tls --key key.pem --cert cert.crt
+```
+This will create a special kubernetes secret in the default namespace, append `-n namespace_name` to create it in a specific namespace (i.e. the one where the chart is going to be deployed on)
 
 ### Copying existing secrets
 If the secret(s) exist in another namespace, you can "copy" them with this command:
@@ -133,7 +137,7 @@ In order to deploy a `yaml` file is needed to customize certain configurations f
 Download it in your working folder (the one you're going to run the deployment command from, see below) and change values as needed.
 
 If you want to use develop images, you can set
-`image.tag` for the flask backend
+`backend.tag` for the flask backend
 `keycloak.tag` for the keycloak service
 
 e.g.
@@ -141,7 +145,7 @@ e.g.
 keycloak:
   tag: 0.0.1-617710
 ```
-will use `ghcr.io/arihdia-federated-node/federated_keycloak:0.0.1-617710` in the statefulset.
+will use `ghcr.io/aridhia-open-source/federated_keycloak:0.0.1-617710` in the statefulset.
 
 __IMPORTANT NOTE__: If deploying on Azure AKS, set `ingress.on_aks` to `true`. This will make dedicated configuration active to run properly on that platform.
 
@@ -165,9 +169,9 @@ storage:
     shareName: files
 ```
 
-#### acrs
+#### CRs
 ```yaml
-acrs:
+registries:
 # env specific
   - url: .azurecr.io
     email: ''

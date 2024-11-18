@@ -28,7 +28,7 @@ class Dictionary( db.Model, BaseModel):
                  label:str='',
                  field_name:str='',
                  created_at:datetime=datetime.now(),
-                 ):
+                 **kwargs):
         self.table_name = table_name
         self.description = description
         self.dataset = dataset

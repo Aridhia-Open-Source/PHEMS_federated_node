@@ -14,25 +14,27 @@ spec:
       app: flask
   template:
     metadata:
+      annotations:
+        rollme: {{ template "rollMe" . }}
       labels:
         app: flask
     spec:
       serviceAccountName: secret-backend-handler
       initContainers:
-        {{ template "createDBInitContainer" .}}
+        {{ template "createDBInitContainer" . }}
           - name: NEW_DB
             valueFrom:
               configMapKeyRef:
                 name: backend-configmap
                 key: PGDATABASE
         - name: db-migrations
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          image: {{ template "backend-image" . }}:{{ .Values.backend.tag | default .Chart.AppVersion }}
           command: ["/bin/sh"]
           workingDir: /
           args:
             [
               "-c",
-              'python -m alembic upgrade head',
+              'python -m alembic upgrade head'
             ]
           envFrom:
             - configMapRef:
@@ -45,17 +47,12 @@ spec:
           - name: PGPASSWORD
             valueFrom:
               secretKeyRef:
-                {{ if .Values.db.secret }}
                 name: {{.Values.db.secret.name}}
                 key: {{.Values.db.secret.key}}
-                {{else}}
-                name: backend-secrets
-                key: PGPASSWORD
-                {{ end }}
       containers:
-        - image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        - image: {{ template "backend-image" . }}:{{ .Values.backend.tag | default .Chart.AppVersion }}
           name: backend
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
           {{ include "nonRootSC" . }}
           resources:
             limits:
@@ -67,7 +64,7 @@ spec:
               protocol: TCP
           readinessProbe:
             httpGet:
-              path: /health_check
+              path: /ready_check
               port: http
             initialDelaySeconds: 30
             periodSeconds: 180
@@ -96,13 +93,8 @@ spec:
           - name: PGPASSWORD
             valueFrom:
               secretKeyRef:
-                {{ if .Values.db.secret }}
                 name: {{.Values.db.secret.name}}
                 key: {{.Values.db.secret.key}}
-                {{else}}
-                name: backend-secrets
-                key: PGPASSWORD
-                {{ end }}
           - name: KEYCLOAK_SECRET
             valueFrom:
               secretKeyRef:
@@ -116,18 +108,18 @@ spec:
           volumeMounts:
             - name: respv
               mountPath: {{ .Values.federatedNode.volumes.results_path }}
-            - name: acr-list
-              mountPath: /app/acr/
+            - name: cr-list
+              mountPath: /app/registries/
       imagePullSecrets:
         - name: {{ .Values.imagePullSecrets }}
       volumes:
         - name: respv
           persistentVolumeClaim:
             claimName: flask-results-pv-volclaim
-        - name: acr-list
+        - name: cr-list
           secret:
-            secretName: backend-acr-config-secret
+            secretName: backend-cr-config-secret
             items:
-            - key: acrlist.json
-              path: acrlist.json
+            - key: registries-list.json
+              path: registries-list.json
         {{ template "dbInitVolume" . }}

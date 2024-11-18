@@ -157,7 +157,10 @@
       "redirectUris": [
         "/*"
       ],
-      "webOrigins": ["+"],
+      "webOrigins": [
+        "http://keycloak.identities.svc.cluster.local",
+        "${KEYCLOAK_HOSTNAME}"
+      ],
       "attributes": {
         "client.session.idle.timeout": "${KEYCLOAK_TOKEN_LIFE}"
       },
