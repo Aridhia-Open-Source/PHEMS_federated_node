@@ -496,12 +496,8 @@ class TestDatasets:
         """
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs22'
-        data_body["dictionaries"].append(
-            {
-                "table_name": "test",
-                "description": "test description"
-            }
-        )
+        data_body["dictionaries"] += data_body["dictionaries"]
+
         response = post_dataset(client, post_json_admin_header, data_body, 500)
         assert response == {'error': 'Record already exists'}
 

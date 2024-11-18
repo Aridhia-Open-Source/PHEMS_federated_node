@@ -5,16 +5,15 @@ import pytest
 import requests
 import responses
 from datetime import datetime as dt, timedelta
+from kubernetes.client import V1Pod
 from sqlalchemy.orm.session import close_all_sessions
 from unittest.mock import Mock
 from app import create_app
 from app.helpers.container_registries import ContainerRegistryClient
 from app.helpers.db import db
-from app.helpers.kubernetes import KubernetesBatchClient
 from app.models.dataset import Dataset
 from app.models.request import Request
 from app.helpers.keycloak import Keycloak, URLS, KEYCLOAK_SECRET, KEYCLOAK_CLIENT
-from tests.helpers.kubernetes import MockKubernetesClient
 from tests.helpers.keycloak import clean_kc
 from app.helpers.exceptions import KeycloakError
 
@@ -149,29 +148,60 @@ def client():
 @pytest.fixture
 def k8s_config(mocker):
     mocker.patch('kubernetes.config.load_kube_config', return_value=Mock())
-
-    mocker.patch(
-        'app.helpers.kubernetes.config',
-        side_effect=Mock()
-    )
+    mocker.patch('app.helpers.kubernetes.config.load_kube_config', Mock())
 
 @pytest.fixture
-def k8s_client(mocker, k8s_config):
-    mocker.patch(
-        'app.models.dataset.KubernetesClient',
-        return_value=MockKubernetesClient()
-    )
-    mocker.patch(
-        'app.models.task.KubernetesBatchClient',
-        return_value=KubernetesBatchClient()
-    )
+def v1_mock(mocker):
+    return {
+        "create_namespaced_pod_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.create_namespaced_pod'
+        ),
+        "create_persistent_volume_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.create_persistent_volume'
+        ),
+        "create_namespaced_persistent_volume_claim_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.create_namespaced_persistent_volume_claim'
+        ),
+        "read_namespaced_secret_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.read_namespaced_secret'
+        ),
+        "create_namespaced_secret_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.create_namespaced_secret'
+        ),
+        "list_namespaced_pod_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.list_namespaced_pod'
+        ),
+        "delete_namespaced_pod_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.delete_namespaced_pod'
+        )
+    }
 
 @pytest.fixture
-def k8s_client_task(mocker, k8s_config):
-    return mocker.patch(
-        'app.models.task.KubernetesClient',
-        return_value=MockKubernetesClient()
-    )
+def v1_batch_mock(mocker):
+    return {
+        "create_namespaced_job_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesBatchClient.create_namespaced_job'
+        )
+    }
+
+@pytest.fixture
+def pod_listed(mocker):
+    pod = Mock(spec=V1Pod)
+    pod.spec.containers = [Mock(image="some_image")]
+    pod.status.container_statuses = [Mock(terminated=Mock())]
+    return Mock(items=[pod])
+
+@pytest.fixture
+def k8s_client(mocker, pod_listed, v1_mock, v1_batch_mock, k8s_config):
+    all_clients = {}
+    all_clients.update(v1_mock)
+    all_clients.update(v1_batch_mock)
+    all_clients["read_namespaced_secret_mock"].return_value.data = {
+        "PGUSER": "YWJjMTIz",
+        "PGPASSWORD": "YWJjMTIz"
+    }
+    all_clients["list_namespaced_pod_mock"].return_value = pod_listed
+    return all_clients
 
 # CR mocking
 @pytest.fixture
@@ -242,24 +272,27 @@ def dataset_post_body():
 
 @pytest.fixture
 def dataset(mocker, client, user_uuid, k8s_client):
-    mocker.patch('app.models.dataset.Keycloak')
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
     dataset = Dataset(name="TestDs", host="example.com", password='pass', username='user')
     dataset.add(user_id=user_uuid)
     return dataset
 
 @pytest.fixture
-def dataset2(client, user_uuid, k8s_client):
+def dataset2(client, user_uuid, k8s_client, k8s_batch_client):
     dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user')
     dataset.add(user_id=user_uuid)
     return dataset
 
 @pytest.fixture
-def access_request(client, dataset, user_uuid, k8s_client):
+def dar_user():
+    return "some@test.com"
+
+@pytest.fixture
+def access_request(client, dataset, user_uuid, k8s_client, k8s_batch_client,dar_user):
     request = Request(
         title="TestRequest",
         project_name="example.com",
-        requested_by=json.dumps({"email": "some@test.com"}),
+        requested_by=json.dumps({"email": dar_user}),
         dataset=dataset,
         proj_start=dt.now().date().strftime("%Y-%m-%d"),
         proj_end=(dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")
