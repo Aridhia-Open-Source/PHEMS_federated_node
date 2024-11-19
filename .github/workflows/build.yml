@@ -142,7 +142,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: build/certs
-          file: build/crerts/Dockerfile
+          file: build/certs/Dockerfile
           tags: ${{ vars.DOCKER_ACR }}/${{ env.OWNER_LC }}/federated_node_certificate:${{ env.TAG }}
           push: true
   release:
