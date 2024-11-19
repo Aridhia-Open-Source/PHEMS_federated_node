@@ -9,6 +9,7 @@ spec:
   jobTemplate:
     spec:
       ttlSecondsAfterFinished: 60
+      backoffLimit: 3
       template:
         spec:
           serviceAccountName: secret-cert-handler
@@ -16,7 +17,7 @@ spec:
           - name: certibot-renewer
             image: ghcr.io/aridhia-open-source/federated_node_certificate:{{ .Chart.AppVersion }}
             imagePullPolicy: {{ .Values.pullPolicy }}
-            {{ include "nonRootSC" . }}
+            {{- include "nonRootSC" . | indent 12 }}
             env:
             - name: NAMESPACE
               value: {{ .Release.Namespace }}
@@ -32,19 +33,19 @@ spec:
             - configMapRef:
                 name: renew-cert-configmap
             - secretRef:
-                {{ if .Values.certs.azure }}
+                {{- if .Values.certs.azure }}
                 name: {{ .Values.certs.azure.sp_certificate }}
-                {{ else if .Values.certs.aws }}
+                {{- else if .Values.certs.aws }}
                 name: {{ .Values.certs.aws.sp_certificate }}
-                {{ end }}
+                {{- end }}
             command:
             - /bin/sh
             - -c
-            {{ if .Values.certs.azure }}
+            {{- if .Values.certs.azure }}
             - /app/scripts/azure.sh
-            {{ else if .Values.certs.aws }}
+            {{- else if .Values.certs.aws }}
             - /app/scripts/aws.sh
-            {{ end }}
+            {{- end }}
           restartPolicy: Never
           imagePullSecrets:
             - name: {{ .Values.imagePullSecrets }}
