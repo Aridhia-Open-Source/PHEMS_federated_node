@@ -1,5 +1,7 @@
 #!/bin/bash
 
+CURRENT_DIR=$( dirname -- "${BASH_SOURCE[0]}" )
+
 . "${VENV_DIR}"/bin/activate
 ## This is not tested yet, it's just to provide a base to work with
 CERTBOT_FOLDER=~/.aws/config
@@ -19,4 +21,4 @@ certbot certonly \
   --dns-route53 \
   -d "${DOMAIN}"
 
-/app/scripts/apply_secret.sh
+"${CURRENT_DIR}"/apply_secret.sh

@@ -1,6 +1,7 @@
 #!/bin/bash
 
 CONFIG_DIR=${CONFIG_DIR:-"/etc/letsencrypt"}
+CURRENT_DIR=$( dirname -- "${BASH_SOURCE[0]}" )
 
 mkdir -p "${CERTBOT_FOLDER}"
 
@@ -29,7 +30,6 @@ certbot certonly -v \
     --email "${EMAIL_CERT}" \
     --work-dir . \
     --config-dir "${CONFIG_DIR}" \
-    --preferred-chain='ISRG Root X1' \
-    --dry-run
+    --preferred-chain='ISRG Root X1' "$1"
 
-./apply_secret.sh
+./"${CURRENT_DIR}"/apply_secret.sh

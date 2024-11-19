@@ -15,3 +15,4 @@ k8s/*/*.values.yaml
 artifacts/*.tgz
 webserver/app/registries/*.json
 build/certs/cert-env
+build/certs/.certbot.lock
