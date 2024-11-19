@@ -88,6 +88,7 @@ class Task(db.Model, BaseModel):
             )
         data["docker_image"] = cls.get_image_with_repo(data["docker_image"])
 
+        # Output volumes validation
         if not isinstance(data.get("outputs", {}), dict):
             raise InvalidRequest("\"outputs\" filed muct be a json object or dictionary")
         if not data.get("outputs", {}):

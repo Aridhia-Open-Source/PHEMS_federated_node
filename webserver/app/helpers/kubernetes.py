@@ -165,20 +165,6 @@ class KubernetesBase:
             spec=specs
         )
 
-    def get_pre_stop_hook(self, paths:list, task_id:str) -> client.V1Lifecycle:
-        """
-        Based on the `outputs` copies all contents of those
-        folders into the PV.
-        """
-        paths_cp = " ".join(paths)
-        return client.V1Lifecycle(
-            pre_stop=client.V1LifecycleHandler(
-                _exec=client.V1ExecAction(
-                    command=['/bin/sh', '-c', f'cp -r {paths_cp} {TASK_POD_RESULTS_PATH}/']
-                )
-            )
-        )
-
     def get_task_pod_init_container(self, task_id:str):
         """
         This will return a common spec for initContainer
