@@ -1,5 +1,7 @@
 #!/bin/bash
 
+CONFIG_DIR=${CONFIG_DIR:-"/etc/letsencrypt"}
+
 mkdir -p "${CERTBOT_FOLDER}"
 
 . "${VENV_DIR}"/bin/activate
@@ -26,6 +28,8 @@ certbot certonly -v \
     --redirect \
     --email "${EMAIL_CERT}" \
     --work-dir . \
-    --preferred-chain='ISRG Root X1'
+    --config-dir "${CONFIG_DIR}" \
+    --preferred-chain='ISRG Root X1' \
+    --dry-run
 
 ./apply_secret.sh

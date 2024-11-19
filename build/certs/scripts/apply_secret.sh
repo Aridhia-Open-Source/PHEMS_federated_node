@@ -2,7 +2,9 @@
 
 set -e
 
-cp /etc/letsencrypt/live/"${DOMAIN}"/{privkey.pem,fullchain.pem} .
+CONFIG_DIR=${CONFIG_DIR:-"/etc/letsencrypt"}
+
+cp "${CONFIG_DIR}"/live/"${DOMAIN}"/{privkey.pem,fullchain.pem} .
 chmod 644 privkey.pem fullchain.pem
 
 kubectl delete secret "${SSL_SECRET_NAME}" --ignore-not-found
