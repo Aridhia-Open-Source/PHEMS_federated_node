@@ -1,7 +1,7 @@
 FROM alpine/k8s:1.29.4
 
 ENV VENV_DIR=/usr/venv
-ENV CERTBOT_FOLDER=/app/.secrets/certbot/
+ENV CERTBOT_FOLDER=/app/.secrets/certbot
 ENV RUNTIME_GRP=cert
 ENV RUNTIME_USER=certuser
 ENV USER_UID=1200
@@ -20,8 +20,7 @@ RUN apk update \
     && . "${VENV_DIR}"/bin/activate \
     && python3 -m pip install --no-cache-dir -r requirements.txt \
     && mkdir /etc/letsencrypt \
-    && chown ${RUNTIME_USER}:${RUNTIME_GRP} -R /var/log /etc/letsencrypt \
-    && chown ${RUNTIME_USER}:${RUNTIME_GRP} -R /var/log /apps
+    && chown ${RUNTIME_USER}:${RUNTIME_GRP} -R /var/log /etc/letsencrypt /app
 
 COPY --chown=${RUNTIME_USER}:${RUNTIME_USER} --chmod=755 scripts/*.sh /app/scripts/
 USER ${USER_UID}
