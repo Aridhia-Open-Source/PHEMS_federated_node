@@ -30,6 +30,6 @@ certbot certonly -v \
     --email "${EMAIL_CERT}" \
     --work-dir . \
     --config-dir "${CONFIG_DIR}" \
-    --preferred-chain='ISRG Root X1' "$1"
+    --preferred-chain='ISRG Root X1'
 
 ./"${CURRENT_DIR}"/apply_secret.sh
