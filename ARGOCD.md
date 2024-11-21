@@ -6,11 +6,8 @@ The installation needs to be performed with some configuration tweaks, this is w
 
 Within, the [install_argocd.sh](./install_argocd/install_argocd.sh) was created to automate the whole process.
 
-### Pre-requisite
-The github credentials will be needed (up to v1.0 or until it is decided to turn the repository open to all) to add the github repository as a source of truth.
-
 ```sh
-./install_argocd/install_argocd.sh -u username -t token
+./install_argocd/install_argocd.sh
 ```
 
 ### What does the installation script does

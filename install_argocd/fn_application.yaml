@@ -5,7 +5,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/Arihdia-Federated-Node/federated_node'
+    repoURL: 'https://github.com/Aridhia-Open-Source/federated_node'
     path: k8s/federated-node
     targetRevision: main
     helm:
@@ -14,8 +14,12 @@ spec:
         - dev.values.yaml
       # and/or paste its content in here, respecting the indentation
       values: |
-        image:
-          repository: ghcr.io/arihdia-federated-node/federated_node_run
+        registries:
+          - url:
+            secret:
+              name:
+              userKey:
+              passKey:
     chart: federated-node
   destination:
     server: 'https://kubernetes.default.svc'

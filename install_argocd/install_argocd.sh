@@ -1,27 +1,5 @@
 #!/bin/bash
 
-this=$(basename "$0")
-
-show_help() {
-    echo "$this [-u username] [-t token]"
-}
-while getopts "h?u:t:" opt; do
-  case "$opt" in
-    h|\?)
-      show_help
-      exit 0
-      ;;
-    u) username="$OPTARG"
-      ;;
-    t) password="$OPTARG"
-      ;;
-  esac
-done
-
-if [[ -z "$username" || -z "$password" ]]; then
-    echo "Missing credentials. Run $this -h to check how to provide these options"
-    exit 1
-fi
 echo "Installing ArgoCD"
 kubectl create namespace argocd
 
@@ -37,9 +15,9 @@ sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
 rm argocd-linux-amd64
 
 # Add Repo from github
-for repo in "https://github.com/Aridhia-Open-Source/PHEMS_federated_node" "https://github.com/Aridhia-Open-Source/go-controller"
+for repo in "https://github.com/Aridhia-Open-Source/PHEMS_federated_node" "https://github.com/Aridhia-Open-Source/federated-node-task-controller"
 do
-    argocd repo add "${repo}" --username "${username}" --password "${password}"
+    argocd repo add "${repo}"
 done
 
 # Add app via k8s manifest
