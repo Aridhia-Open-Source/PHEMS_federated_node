@@ -29,9 +29,6 @@ spec:
               value: {{ .Values.certs.domain }}
             - name: SSL_SECRET_NAME
               value: {{ .Values.ingress.tls.secretName | default "tls"}}
-            envFrom:
-            - configMapRef:
-                name: renew-cert-configmap
             - secretRef:
                 {{- if .Values.certs.azure }}
                 name: {{ .Values.certs.azure.sp_certificate }}
