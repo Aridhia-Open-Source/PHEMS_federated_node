@@ -9,7 +9,7 @@ spec:
   jobTemplate:
     spec:
       ttlSecondsAfterFinished: 60
-      backoffLimit: 3
+      backoffLimit: 1
       template:
         spec:
           serviceAccountName: secret-cert-handler
