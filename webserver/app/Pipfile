@@ -12,9 +12,10 @@ kubernetes = "*"
 flask-sqlalchemy = "*"
 joserfc = "*"
 pyjwt = "*"
-waitress = "*"
+waitress = ">=3.0.1"
 flask-swagger-ui = "*"
 pymssql = "*"
+werkzeug = ">=3.0.6"
 
 [dev-packages]
 pylint=">=3.0.3"

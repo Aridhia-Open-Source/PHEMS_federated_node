@@ -3,7 +3,10 @@ kind: Namespace
 metadata:
   name: {{ .Values.namespaces.keycloak }}
   {{- if .Release.IsInstall }}
+  labels:
+    {{ template "defaultLabels" . }}
   annotations:
     helm.sh/hook: pre-install
     helm.sh/hook-weight: "-6"
+    {{ template "defaultAnnotations" . }}
   {{- end }}
