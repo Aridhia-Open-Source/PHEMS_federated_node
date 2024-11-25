@@ -9,7 +9,8 @@ import logging
 from flask import Flask
 from flask_swagger_ui import get_swaggerui_blueprint
 from sqlalchemy import exc
-from app import main, admin_api, datasets_api, tasks_api, requests_api
+from werkzeug.exceptions import NotFound
+from app import main, admin_api, datasets_api, tasks_api, requests_api,users_api
 from app.helpers.db import build_sql_uri, db
 from app.helpers.exceptions import (
     InvalidDBEntry, DBError, DBRecordNotFoundError, InvalidRequest,
@@ -41,6 +42,7 @@ def create_app():
     app.register_blueprint(requests_api.bp)
     app.register_blueprint(tasks_api.bp)
     app.register_blueprint(admin_api.bp)
+    app.register_blueprint(users_api.bp)
 
     app.register_error_handler(InvalidDBEntry, exception_handler)
     app.register_error_handler(DBError, exception_handler)
@@ -52,6 +54,7 @@ def create_app():
     app.register_error_handler(TaskImageException, exception_handler)
     app.register_error_handler(TaskExecutionException, exception_handler)
     app.register_error_handler(KubernetesException, exception_handler)
+    app.register_error_handler(NotFound, exception_handler)
     app.register_error_handler(Exception, unknown_exception_handler)
 
     # Need to register the exception handler this way as we need access
