@@ -53,7 +53,7 @@ spec:
         - image: {{ template "backend-image" . }}:{{ .Values.backend.tag | default .Chart.AppVersion }}
           name: backend
           imagePullPolicy: {{ .Values.pullPolicy }}
-          {{ include "nonRootSC" . }}
+          {{- include "nonRootSC" . | indent 10 }}
           resources:
             limits:
               memory: 200Mi
