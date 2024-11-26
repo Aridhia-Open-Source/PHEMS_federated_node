@@ -652,7 +652,7 @@ class Keycloak:
             }
         )
         if not auth_user.json().get("error_description") == "Account is not fully set up":
-            raise KeycloakError("The credentials are not correct. Try again")
+            raise KeycloakError("The credentials are not correct. Try again", 400)
 
         res_pass_resp = requests.put(
             URLS["user_reset"] % user_id,
