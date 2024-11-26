@@ -67,11 +67,15 @@ class KubernetesBase:
         pvc = client.V1PersistentVolumeClaimVolumeSource(claim_name=pvc_name)
 
         vol_mounts = []
+        # All results volumes will be mounted in a folder named
+        # after the task_id, so all of the "output" user-defined
+        # folders will be in i.e. /mnt/data/14/folder2
+        base_mount_folder = f"{pod_spec['labels']['task_id']}"
 
         for mount_name, mount_path in pod_spec.get("mount_path", {}).items():
             vol_mounts.append(client.V1VolumeMount(
                 mount_path=mount_path,
-                sub_path=f"{pod_spec['labels']['task_id']}/{mount_name}",
+                sub_path=f"{base_mount_folder}/{mount_name}",
                 name="data"
             ))
 
