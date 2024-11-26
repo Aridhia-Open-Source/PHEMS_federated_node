@@ -29,6 +29,7 @@ sample_ds_body = {
     },
     "dictionaries": [{
         "table_name": "test",
+        "field_name": "column1",
         "description": "test description"
     }]
 }
@@ -165,6 +166,12 @@ def v1_mock(mocker):
         "read_namespaced_secret_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.read_namespaced_secret'
         ),
+        "patch_namespaced_secret_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.patch_namespaced_secret'
+        ),
+        "delete_namespaced_secret_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.delete_namespaced_secret'
+        ),
         "create_namespaced_secret_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.create_namespaced_secret'
         ),
@@ -173,6 +180,13 @@ def v1_mock(mocker):
         ),
         "delete_namespaced_pod_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.delete_namespaced_pod'
+        ),
+        "is_pod_ready_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.is_pod_ready'
+        ),
+        "cp_from_pod_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.cp_from_pod',
+            return_value="../tests/files/results.tar.gz"
         )
     }
 
@@ -181,6 +195,9 @@ def v1_batch_mock(mocker):
     return {
         "create_namespaced_job_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesBatchClient.create_namespaced_job'
+        ),
+        "delete_job_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesBatchClient.delete_job'
         )
     }
 
@@ -278,7 +295,7 @@ def dataset(mocker, client, user_uuid, k8s_client):
     return dataset
 
 @pytest.fixture
-def dataset2(client, user_uuid, k8s_client, k8s_batch_client):
+def dataset2(client, user_uuid, k8s_client):
     dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user')
     dataset.add(user_id=user_uuid)
     return dataset
@@ -288,7 +305,7 @@ def dar_user():
     return "some@test.com"
 
 @pytest.fixture
-def access_request(client, dataset, user_uuid, k8s_client, k8s_batch_client,dar_user):
+def access_request(client, dataset, user_uuid, k8s_client, dar_user):
     request = Request(
         title="TestRequest",
         project_name="example.com",
