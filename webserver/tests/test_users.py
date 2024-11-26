@@ -22,6 +22,64 @@ class UserMixin:
         return resp.json
 
 class TestCreateUser(UserMixin):
+    def test_get_all_users(
+        self,
+        client,
+        simple_admin_header,
+        new_user,
+        new_user_email
+    ):
+        """
+        Tests that admins can get a list of all users, but
+        the one used by the backend
+        """
+        resp = client.get(
+            "/users",
+            headers=simple_admin_header
+        )
+        assert resp.status_code == 200
+        assert len(resp.json) == 1
+        assert resp.json[0]['email'] == new_user_email
+
+    def test_get_all_users_fails(
+        self,
+        client,
+        simple_admin_header,
+        new_user,
+        new_user_email
+    ):
+        """
+        Tests that if something goes wrong during the keycloak
+        request, we do return a 500
+        """
+        with responses.RequestsMock(assert_all_requests_are_fired=False) as req:
+            # Ignore all of the other calls to KC, like admin login etc
+            req.add_passthru(re.compile(".*/realms/FederatedNode/(?!users).*"))
+            req.add(
+                responses.GET,
+                URLS["user"],
+                status=400
+            )
+            resp = client.get(
+                "/users",
+                headers=simple_admin_header
+            )
+        assert resp.status_code == 500
+
+    def test_get_all_users_non_admin(
+        self,
+        client,
+        simple_user_header
+    ):
+        """
+        Tests that non-admins cannot get the list of users
+        """
+        resp = client.get(
+            "/users",
+            headers=simple_user_header
+        )
+        assert resp.status_code == 403
+
     def test_create_successfully(
         self,
         client,

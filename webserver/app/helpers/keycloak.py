@@ -347,7 +347,7 @@ class Keycloak:
         """
         Get the realm roles. Unfortunately the Keycloak API
         does not filter per specific field, but on all of them
-        but that's the first barrier to avoid looping inefficiently
+        and this is the first barrier to avoid looping inefficiently
         """
         realm_resp = requests.get(
             URLS["roles"] + f"?search={role_name}",
@@ -600,7 +600,7 @@ class Keycloak:
         Method to return a dictionary representing a Keycloak user
         """
         user_response = requests.get(
-            f"{URLS["user"]}",
+            URLS["user"],
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
         if not user_response.ok:

@@ -11,8 +11,8 @@ datasets-related endpoints:
 - POST /datasets/selection/beacon
 """
 import json
-from flask import Blueprint, request
 from datetime import datetime
+from flask import Blueprint, request
 
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from .helpers.db import db

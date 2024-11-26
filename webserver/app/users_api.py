@@ -1,3 +1,9 @@
+"""
+user-related endpoints:
+- GET /users
+- POST /users
+- PUT /users/reset-password
+"""
 from flask import Blueprint, request
 
 from app.helpers.exceptions import InvalidRequest
@@ -37,7 +43,8 @@ def create_user():
         "email": data["email"],
         "username": user_info["username"],
         "tempPassword": user_info["password"],
-        "info": f"The user should change the temp password at https://{PUBLIC_URL}/users/reset-password"
+        "info": "The user should change the temp password at " \
+            f"https://{PUBLIC_URL}/users/reset-password"
     }, 201
 
 
