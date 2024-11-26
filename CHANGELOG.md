@@ -3,6 +3,8 @@
 ## 0.5.2
 - Added a new cronjob to automatically renew the SSL certificate (instructions in the [DEPLOYMENT.md](./DEPLOYMENT.md) file)
 
+- POST `/tasks` now accepts the outputs field to dynamically mount a volume so that results can be fetched correctly. If no value is provided, the default location of `/mnt/data/` will be used.
+
 - Added PATCH /datasets/<id> endpoints, so existing datasets can be amended, or a dictionary added to them.
 
 ## 0.5.1

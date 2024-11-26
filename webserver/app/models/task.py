@@ -1,6 +1,5 @@
 import logging
 import json
-import os
 import re
 from datetime import datetime, timedelta
 from kubernetes.client.exceptions import ApiException
@@ -11,7 +10,10 @@ from uuid import uuid4
 
 import urllib3
 from app.helpers.container_registries import ContainerRegistryClient
-from app.helpers.const import CLEANUP_AFTER_DAYS, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, TASK_NAMESPACE
+from app.helpers.const import (
+    CLEANUP_AFTER_DAYS, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX,
+    TASK_NAMESPACE, TASK_POD_RESULTS_PATH, RESULTS_PATH
+)
 from app.helpers.db import BaseModel, db
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesBatchClient, KubernetesClient
@@ -21,8 +23,6 @@ from app.models.dataset import Dataset
 logger = logging.getLogger('task_model')
 logger.setLevel(logging.INFO)
 
-TASK_POD_RESULTS_PATH = os.getenv("TASK_POD_RESULTS_PATH")
-RESULTS_PATH = os.getenv("RESULTS_PATH")
 
 class Task(db.Model, BaseModel):
     __tablename__ = 'tasks'
@@ -47,7 +47,6 @@ class Task(db.Model, BaseModel):
                  resources:dict = {},
                  inputs:dict = {},
                  outputs:dict = {},
-                 volumes:dict = {},
                  description:str = '',
                  created_at:datetime=datetime.now(),
                  **kwargs
@@ -65,7 +64,6 @@ class Task(db.Model, BaseModel):
         self.resources = resources
         self.inputs = inputs
         self.outputs = outputs
-        self.volumes = volumes
 
     @classmethod
     def validate(cls, data:dict):
@@ -77,16 +75,24 @@ class Task(db.Model, BaseModel):
         data["docker_image"] = executors["image"]
         data = super().validate(data)
 
+        # Dataset validation
         ds_id = data.get("tags", {}).get("dataset_id")
         ds_name = data.get("tags", {}).get("dataset_name")
         if ds_name or ds_id:
             data["dataset"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
 
+        # Docker image validation
         if not re.match(r'^((\w+|-|\.)\/?+)+:(\w+(\.|-)?)+$', data["docker_image"]):
             raise InvalidRequest(
                 f"{data["docker_image"]} does not have a tag. Please provide one in the format <image>:<tag>"
             )
         data["docker_image"] = cls.get_image_with_repo(data["docker_image"])
+
+        # Output volumes validation
+        if not isinstance(data.get("outputs", {}), dict):
+            raise InvalidRequest("\"outputs\" filed muct be a json object or dictionary")
+        if not data.get("outputs", {}):
+            data["outputs"] = {"results": TASK_POD_RESULTS_PATH}
 
         # Validate resource values
         if "resources" in data:
@@ -225,7 +231,7 @@ class Task(db.Model, BaseModel):
             "dry_run": 'true' if validate else 'false',
             "environment": provided_env,
             "command": command,
-            "mount_path": TASK_POD_RESULTS_PATH,
+            "mount_path": self.outputs,
             "resources": self.resources,
             "env_from": v1.create_from_env_object(secret_name)
         })

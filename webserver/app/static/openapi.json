@@ -1279,24 +1279,14 @@
             },
             "required": ["dataset_id"]
           },
-          "inputs": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "path": { "type": "string" },
-                "url": { "type": "string" }
-              }
-            }
-          },
           "outputs": {
             "type": "array",
             "items": {
               "type": "object",
-              "properties": {
-                "path": { "type": "string" },
-                "url": { "type": "string" },
-                "type": { "type": "string" }
+              "description": "An object where the key is a human readable name and the value is the path to which a volume will be mounted on at run time to fetch the results. The key value, in the example folder1, will be used as folder name in the results archive as well.",
+              "example": {
+                "folder1": "/mnt/data/results",
+                "folder2": "/home/john/analysis/csvs"
               }
             }
           },
