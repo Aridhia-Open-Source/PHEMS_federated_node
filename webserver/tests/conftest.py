@@ -5,6 +5,7 @@ import pytest
 import requests
 import responses
 from datetime import datetime as dt, timedelta
+from kubernetes.client import V1Pod
 from sqlalchemy.orm.session import close_all_sessions
 from unittest.mock import Mock
 from app import create_app
@@ -148,62 +149,76 @@ def client():
 @pytest.fixture
 def k8s_config(mocker):
     mocker.patch('kubernetes.config.load_kube_config', return_value=Mock())
-
-    mocker.patch(
-        'app.helpers.kubernetes.config',
-        side_effect=Mock()
-    )
+    mocker.patch('app.helpers.kubernetes.config.load_kube_config', Mock())
 
 @pytest.fixture
-def mock_k8s_client(mocker):
-    obj_list_pods = Mock(name='namespace_list_pod')
-    obj_list_pods.items = []
-    return Mock(
-        read_namespaced_secret=Mock(
-            return_value=Mock(data={'PGUSER': 'YWJjMTIz', 'PGPASSWORD': 'YWJjMTIz'})
+def v1_mock(mocker):
+    return {
+        "create_namespaced_pod_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.create_namespaced_pod'
         ),
-        create_namespaced_secret=Mock(),
-        patch_namespaced_secret=Mock(),
-        create_namespaced_pod=Mock(),
-        delete_namespaced_pod=Mock(),
-        create_persistent_volume=Mock(),
-        create_namespaced_persistent_volume_claim=Mock(),
-        list_namespaced_pod=Mock(return_value=obj_list_pods)
-    )
+        "create_persistent_volume_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.create_persistent_volume'
+        ),
+        "create_namespaced_persistent_volume_claim_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.create_namespaced_persistent_volume_claim'
+        ),
+        "read_namespaced_secret_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.read_namespaced_secret'
+        ),
+        "patch_namespaced_secret_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.patch_namespaced_secret'
+        ),
+        "delete_namespaced_secret_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.delete_namespaced_secret'
+        ),
+        "create_namespaced_secret_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.create_namespaced_secret'
+        ),
+        "list_namespaced_pod_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.list_namespaced_pod'
+        ),
+        "delete_namespaced_pod_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.delete_namespaced_pod'
+        ),
+        "is_pod_ready_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.is_pod_ready'
+        ),
+        "cp_from_pod_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.cp_from_pod',
+            return_value="../tests/files/results.tar.gz"
+        )
+    }
 
 @pytest.fixture
-def mock_k8s_batch_client(mocker):
-    return Mock(
-        create_namespaced_job=Mock(),
-        delete_namespaced_job=Mock()
-    )
+def v1_batch_mock(mocker):
+    return {
+        "create_namespaced_job_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesBatchClient.create_namespaced_job'
+        ),
+        "delete_job_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesBatchClient.delete_job'
+        )
+    }
 
 @pytest.fixture
-def k8s_client(mocker, k8s_config, mock_k8s_client):
-    client_mock = mocker.patch(
-        'app.models.dataset.KubernetesClient',
-        return_value=mock_k8s_client
-    )
-    client_mock.encode_secret_value.return_value = Mock()
-    client_mock.decode_secret_value.return_value = Mock()
-    return client_mock
+def pod_listed(mocker):
+    pod = Mock(spec=V1Pod)
+    pod.spec.containers = [Mock(image="some_image")]
+    pod.status.container_statuses = [Mock(terminated=Mock())]
+    return Mock(items=[pod])
 
 @pytest.fixture
-def k8s_batch_client(mocker, k8s_config, mock_k8s_batch_client):
-    return mocker.patch(
-        'app.models.task.KubernetesBatchClient',
-        return_value=mock_k8s_batch_client
-    )
-
-@pytest.fixture
-def k8s_client_task(mocker, k8s_config, mock_k8s_client):
-    client_mock = mocker.patch(
-        'app.models.task.KubernetesClient',
-        return_value=mock_k8s_client
-    )
-    client_mock.encode_secret_value.return_value = Mock()
-    client_mock.decode_secret_value.return_value = Mock()
-    return client_mock
+def k8s_client(mocker, pod_listed, v1_mock, v1_batch_mock, k8s_config):
+    all_clients = {}
+    all_clients.update(v1_mock)
+    all_clients.update(v1_batch_mock)
+    all_clients["read_namespaced_secret_mock"].return_value.data = {
+        "PGUSER": "YWJjMTIz",
+        "PGPASSWORD": "YWJjMTIz"
+    }
+    all_clients["list_namespaced_pod_mock"].return_value = pod_listed
+    return all_clients
 
 # CR mocking
 @pytest.fixture
@@ -280,7 +295,7 @@ def dataset(mocker, client, user_uuid, k8s_client):
     return dataset
 
 @pytest.fixture
-def dataset2(client, user_uuid, k8s_client, k8s_batch_client):
+def dataset2(client, user_uuid, k8s_client):
     dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user')
     dataset.add(user_id=user_uuid)
     return dataset
@@ -290,7 +305,7 @@ def dar_user():
     return "some@test.com"
 
 @pytest.fixture
-def access_request(client, dataset, user_uuid, k8s_client, k8s_batch_client,dar_user):
+def access_request(client, dataset, user_uuid, k8s_client, dar_user):
     request = Request(
         title="TestRequest",
         project_name="example.com",

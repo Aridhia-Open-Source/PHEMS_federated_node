@@ -3,6 +3,8 @@
 ## 0.5.2
 - Added POST, GET `/users` admin-only endpoints to perform user management, and PUT `/users/reset-password` to allow users to reset their own credentials.
 
+- POST `/tasks` now accepts the outputs field to dynamically mount a volume so that results can be fetched correctly. If no value is provided, the default location of `/mnt/data/` will be used.
+
 - Added PATCH /datasets/<id> endpoints, so existing datasets can be amended, or a dictionary added to them.
 
 ## 0.5.1

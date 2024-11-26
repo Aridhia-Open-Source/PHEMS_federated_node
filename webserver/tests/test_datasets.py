@@ -514,7 +514,7 @@ class TestPostDataset(MixinTestDataset):
         """
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs22'
-        data_body["dictionaries"].append(data_body["dictionaries"][0])
+        data_body["dictionaries"] += data_body["dictionaries"]
 
         response = self.post_dataset(client, post_json_admin_header, data_body, 500)
         assert response == {'error': 'Record already exists'}
@@ -700,14 +700,14 @@ class TestPatchDataset(MixinTestDataset):
         ds = Dataset.query.filter(Dataset.id == dataset.id).one_or_none()
         assert ds.name == "new_name"
 
-        expected_body = k8s_client.return_value.read_namespaced_secret.return_value
+        expected_body = k8s_client["read_namespaced_secret_mock"].return_value
         expected_secret_name = f'{dataset.host}-{ds_old_name.lower()}-creds'
 
         for ns in self.expected_namespaces:
-            k8s_client.return_value.create_namespaced_secret.assert_any_call(
+            k8s_client["create_namespaced_secret_mock"].assert_any_call(
                 ns, **{'body': expected_body, 'pretty': 'true'}
             )
-            k8s_client.return_value.delete_namespaced_secret.assert_any_call(
+            k8s_client["delete_namespaced_secret_mock"].assert_any_call(
                 **{'namespace':ns, 'name':expected_secret_name}
             )
 
@@ -785,13 +785,13 @@ class TestPatchDataset(MixinTestDataset):
         )
         assert response.status_code == 204
 
-        expected_body = k8s_client.return_value.read_namespaced_secret.return_value
+        expected_body = k8s_client["read_namespaced_secret_mock"].return_value
         for ns in self.expected_namespaces:
-            k8s_client.return_value.read_namespaced_secret.assert_any_call(
+            k8s_client["read_namespaced_secret_mock"].assert_any_call(
                 expected_secret_name,
                 ns, pretty='pretty'
             )
-            k8s_client.return_value.patch_namespaced_secret.assert_any_call(
+            k8s_client["patch_namespaced_secret_mock"].assert_any_call(
                 **{'name':expected_secret_name, 'namespace':ns, 'body': expected_body}
             )
 
@@ -809,7 +809,7 @@ class TestPatchDataset(MixinTestDataset):
         data_body = {"name": "new_name"}
         ds_old_name = dataset.name
 
-        k8s_client.return_value.create_namespaced_secret.side_effect = ApiException(reason="Error occurred")
+        k8s_client["create_namespaced_secret_mock"].side_effect = ApiException(reason="Error occurred")
 
         response = client.patch(
             f"/datasets/{dataset.id}",
