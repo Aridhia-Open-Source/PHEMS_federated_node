@@ -35,6 +35,10 @@
     {
       "name": "Tokens",
       "description": "Endpoints related to the token retrieval from 3rd parties"
+    },
+    {
+      "name": "Users",
+      "description": "Endpoints related to user management"
     }
   ],
   "paths":{
@@ -740,6 +744,89 @@
           }
         }
       }
+    },
+    "/users": {
+      "get": {
+        "operationId": "get_all_users",
+        "tags": ["Users"],
+        "summary": "List of all of the users",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/UserListResponse"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "create_user",
+        "tags": ["Users"],
+        "summary": "Create a new user",
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/UserEntry"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json":{
+              "schema":{
+                "$ref": "#/components/schemas/CreateUserBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/reset-password": {
+      "put": {
+        "operationId": "reset_password",
+        "tags": ["Users"],
+        "security": [],
+        "summary": "Reset temporary password from user creation",
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/SimpleOk"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json":{
+              "schema":{
+                "$ref": "#/components/schemas/ResetPassBody"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "security": [
@@ -970,6 +1057,35 @@
                   "requested_by": {"type": "string", "example": "cea6868d-26b6-4e96-95d7-4aba8df7d06e"},
                   "status_code": {"type": "integer", "example": 200}
                 }
+              }
+            }
+          }
+        }
+      },
+      "UserEntry":{
+        "description": "User Definition",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "email": {"type": "string", "example": "user@email.com"},
+                "username": {"type": "string", "example": "user"},
+                "info": {"type": "string", "example": "The user should change the temp password at https://localhost/users/reset-password"},
+                "tempPassword": {"type": "string"}
+              }
+            }
+          }
+        }
+      },
+      "UserListResponse": {
+        "description": "List of users",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "array",
+              "items":{
+                "$ref": "#/components/schemas/UserEntry"
               }
             }
           }
@@ -1350,6 +1466,34 @@
             "type": "string",
             "example": "Mon, 19 Feb 2024 11:41:54 GMT"
           }
+        }
+      },
+      "UserEntry": {
+        "type": "object",
+        "properties": {
+          "email": {"type": "string", "example": "user@email.com"},
+          "username": {"type": "string", "example": "user"},
+          "role": {"type": "array", "items":{"type": "string", "example": "Administrator"}},
+          "firstName": {"type": "string", "example": "John"},
+          "lastName": {"type": "string", "example": "Black"}
+        }
+      },
+      "CreateUserBody": {
+        "type": "object",
+        "properties": {
+          "email": {"type": "string", "example": "user@email.com"},
+          "username": {"type": "string", "example": "user"},
+          "role": {"type": "string", "example": "Administrator"},
+          "firstName": {"type": "string", "example": "John"},
+          "lastName": {"type": "string", "example": "Black"}
+        }
+      },
+      "ResetPassBody": {
+        "type": "object",
+        "properties": {
+          "email": {"type": "string", "example": "user@email.com"},
+          "tempPassword": {"type": "string"},
+          "newPassword": {"type": "string"}
         }
       }
     }

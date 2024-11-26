@@ -1,6 +1,7 @@
 import logging
 import os
 import random
+import re
 import requests
 from base64 import b64encode
 from flask import request
@@ -155,9 +156,15 @@ class Keycloak:
             raise KeycloakError("Failed to fetch client's secret")
         return secret_resp.json()["value"]
 
-    def get_token(self, username=None, password=None, token_type='refresh_token', payload=None) -> str:
+    def get_token(self, username=None, password=None, token_type='refresh_token', payload:dict=None, raise_on_temp_pass:bool=True) -> str:
         """
         Get a token for a given set of credentials
+
+        :params token_type: one of "refresh_token" and "access_token"
+        :params payload: the body for the post request to keycloak
+        :params raise_on_temp_pass: if set to False, it will exit early and
+            return the whole response object, otherwise it will raise exceptions
+            on status code != 200
         """
         if payload is None:
             payload = {
@@ -175,8 +182,16 @@ class Keycloak:
                 'Content-Type': 'application/x-www-form-urlencoded'
             }
         )
+
+        if not raise_on_temp_pass:
+            return response_auth
+
         if not response_auth.ok:
             logger.info(response_auth.content.decode())
+
+            if re.match("Account is not fully set up", response_auth.json().get("error_description")):
+                raise AuthenticationError("Temporary password must be changed before logging in")
+
             raise AuthenticationError("Failed to login")
         return response_auth.json()[token_type]
 
@@ -330,10 +345,12 @@ class Keycloak:
 
     def get_role(self, role_name:str) -> dict:
         """
-        Get the realm roles
+        Get the realm roles. Unfortunately the Keycloak API
+        does not filter per specific field, but on all of them
+        but that's the first barrier to avoid looping inefficiently
         """
         realm_resp = requests.get(
-            URLS["roles"],
+            URLS["roles"] + f"?search={role_name}",
             headers={
                 'Authorization': f'Bearer {self.admin_token}',
             }
@@ -341,7 +358,12 @@ class Keycloak:
         if not realm_resp.ok:
             logger.info(realm_resp.content.decode())
             raise KeycloakError("Failed to fetch roles")
-        return list(filter(lambda x: x["name"] == role_name, realm_resp.json()))[0]
+
+        list_roles = list(filter(lambda x: x["name"] == role_name, realm_resp.json()))
+        if list_roles:
+            return list_roles[0]
+
+        raise KeycloakError(f"Role {role_name} does not exist", 400)
 
     def get_resource(self, resource_name:str) -> dict:
         headers={
@@ -597,7 +619,7 @@ class Keycloak:
         if not user_response.ok:
             raise KeycloakError("Failed to fetch the user")
 
-        return user_response.json()[0]
+        return user_response.json()[0] if user_response.json() else None
 
     def get_user_by_email(self, email:str) -> dict:
         """
@@ -611,7 +633,7 @@ class Keycloak:
         if not user_response.ok:
             raise KeycloakError("Failed to fetch the user")
 
-        return user_response.json()[0]
+        return user_response.json()[0] if user_response.json() else None
 
     def get_user_role(self, user_id:str):
         """
@@ -638,21 +660,12 @@ class Keycloak:
         The old_pass will be used to check if a change is needed,
             if that's the case, we'll update the password
         """
-        auth_user = requests.post(
-            URLS["get_token"],
-            data={
-                'client_id': KEYCLOAK_CLIENT,
-                'client_secret': KEYCLOAK_SECRET,
-                'grant_type': 'password',
-                'username': username,
-                'password': old_pass
-            },
-            headers={
-                'Content-Type': 'application/x-www-form-urlencoded'
-            }
-        )
-        if not auth_user.json().get("error_description") == "Account is not fully set up":
-            raise KeycloakError("The credentials are not correct. Try again", 400)
+        auth_user = self.get_token(username=username, password=old_pass, raise_on_temp_pass=False)
+
+        if not re.match("Account is not fully set up", auth_user.json().get("error_description")):
+            raise AuthenticationError(
+                "Incorrect credentials"
+            )
 
         res_pass_resp = requests.put(
             URLS["user_reset"] % user_id,

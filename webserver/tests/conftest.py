@@ -364,3 +364,11 @@ def approve_request(mocker):
         'app.datasets_api.Request.approve',
         return_value={"token": "somejwttoken"}
     )
+
+@pytest.fixture
+def new_user_email():
+    return "test@test.com"
+
+@pytest.fixture
+def new_user(new_user_email):
+    return Keycloak().create_user(temp_pass=True, **{"email": new_user_email})

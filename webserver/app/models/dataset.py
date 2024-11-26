@@ -1,8 +1,8 @@
-import os
 import re
 import requests
 from sqlalchemy import Column, Integer, String
 from app.helpers.db import BaseModel, db
+from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
@@ -10,9 +10,6 @@ from kubernetes import client
 from kubernetes.client.exceptions import ApiException
 
 
-TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
-DEFAULT_NAMESPACE = os.getenv("DEFAULT_NAMESPACE")
-PUBLIC_URL = os.getenv("PUBLIC_URL")
 SUPPORTED_TYPES = ["postgres", "mssql"]
 
 class Dataset(db.Model, BaseModel):

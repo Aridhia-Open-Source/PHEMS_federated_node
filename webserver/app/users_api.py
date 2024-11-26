@@ -2,6 +2,7 @@ from flask import Blueprint, request
 
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.keycloak import KEYCLOAK_ADMIN, Keycloak
+from app.helpers.const import PUBLIC_URL
 from app.helpers.wrappers import audit, auth
 
 bp = Blueprint('users', __name__, url_prefix='/users')
@@ -28,12 +29,15 @@ def create_user():
         data["username"] = data["email"]
 
     kc = Keycloak()
+    if kc.get_user_by_email(email=request.json.get("email")):
+        raise InvalidRequest("User already exists")
     user_info = kc.create_user(temp_pass=True, **data)
 
     return {
         "email": data["email"],
         "username": user_info["username"],
-        "tempPassword": user_info["password"]
+        "tempPassword": user_info["password"],
+        "info": f"The user should change the temp password at https://{PUBLIC_URL}/users/reset-password"
     }, 201
 
 
