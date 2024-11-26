@@ -25,7 +25,7 @@ def create_user():
 
     # If a username is not provided, use the email
     if data.get("username") is None:
-        user_info["username"] = user_info["email"]
+        data["username"] = data["email"]
 
     kc = Keycloak()
     user_info = kc.create_user(temp_pass=True, **data)

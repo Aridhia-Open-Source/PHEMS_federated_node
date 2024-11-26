@@ -1,3 +1,9 @@
+from unittest import mock
+
+import responses
+from tests.conftest import side_effect
+from app.helpers.keycloak import URLS
+
 class TestCreateUser:
     def test_create_successfully(
         self,
@@ -40,23 +46,29 @@ class TestCreateUser:
         assert resp.status_code == 400
         assert resp.json == {"error": "An email should be provided"}
 
-    def test_new_user_can_change_pass(
+    def test_create_keycloak_error(
         self,
-        client
+        client,
+        post_json_admin_header
     ):
         """
-        After a user has been created, make sure the temp
-        password can be changed
+        Basic test to ensure we get 400 in case
+        the keycloak API returns an error
         """
-        psw_resp = client.put(
-            '/users/reset-password',
-            json={
-                "email": "test@test.com",
-                "tempPassword": "test",
-                "newPassword": "asjfpoasj124124"
-            }
-        )
-        assert psw_resp.status_code == 200
+        with responses.RequestsMock(assert_all_requests_are_fired=False) as req:
+            req.add(
+               responses.POST,
+                URLS["user"],
+                status=400
+            )
+            resp = client.post(
+                "/users",
+                headers=post_json_admin_header,
+                json={"email": "test@test.com"}
+            )
+
+        assert resp.status_code == 400
+        assert resp.json == {"error": "An email should be provided"}
 
     def test_create_admin_successfully(
         self,
@@ -78,3 +90,24 @@ class TestCreateUser:
 
         assert resp.status_code == 201
         assert "tempPassword" in resp.json
+
+class TestPassChange:
+ def test_new_user_can_change_pass(
+        self,
+        client,
+        mocker
+    ):
+        """
+        After a user has been created, make sure the temp
+        password can be changed
+        """
+
+        psw_resp = client.put(
+            '/users/reset-password',
+            json={
+                "email": "test@test.com",
+                "tempPassword": "test",
+                "newPassword": "asjfpoasj124124"
+            }
+        )
+        assert psw_resp.status_code == 200
