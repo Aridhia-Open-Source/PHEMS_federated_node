@@ -3,6 +3,8 @@
 ## 0.5.2
 - Added POST, GET `/users` admin-only endpoints to perform user management, and PUT `/users/reset-password` to allow users to reset their own credentials.
 
+- Added PATCH /datasets/<id> endpoints, so existing datasets can be amended, or a dictionary added to them.
+
 ## 0.5.1
 ### Bugfixes
 - Fixed an issue with TLS termination on nginx, as the two ingress order was not respected. This caused the ssl secret to be ignored as the nginx controller takes the oldest deployed ingress with the same host as valid config. In some cases `keycloak` ingress was deployed first, and by not having a secret reference, nginx would apply the k8s default cert.

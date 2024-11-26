@@ -1,5 +1,4 @@
-import re
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, Column
 from sqlalchemy.orm import Relationship, declarative_base
 from flask_sqlalchemy import SQLAlchemy
 from app.helpers.exceptions import InvalidDBEntry
@@ -32,17 +31,23 @@ class BaseModel():
         return jsonized
 
     @classmethod
-    def _get_fields(cls):
-        return [f for f in cls.__dict__.keys() if not re.match(r'^_', f)]
+    def _get_fields(cls) -> list[Column]:
+        return cls.__table__.columns._all_columns
 
     @classmethod
-    def is_field_required(cls, f):
-        attribute = getattr(cls, f)
-        return not getattr(attribute, 'nullable', True) and f != 'id' and isinstance(attribute.prop, Relationship)
+    def is_field_required(cls, attribute: Column) -> bool:
+        """
+        Generalized check for a column to be required in a request body
+        The column, to be required, needs to:
+            - not be nullable
+            - not have a default value
+            - not be a primary key (e.g. id is not allowed as a request body)
+        """
+        return not (attribute.nullable or attribute.primary_key or attribute.server_default is not None)
 
     @classmethod
     def _get_required_fields(cls):
-        return [f for f in cls._get_fields() if cls.is_field_required(f)]
+        return [f.name for f in cls._get_fields() if cls.is_field_required(f)]
 
     @classmethod
     def validate(cls, data:dict):

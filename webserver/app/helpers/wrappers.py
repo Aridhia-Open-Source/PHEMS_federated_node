@@ -21,6 +21,7 @@ def auth(scope:str, check_dataset=True):
                 raise AuthenticationError("Token not provided")
 
             resource = 'endpoints'
+            ds_id = None
             requested_project = request.headers.get("project-name")
             client = 'global'
             token_type = 'refresh_token'
@@ -44,7 +45,6 @@ def auth(scope:str, check_dataset=True):
 
             # If the user is an admin or system, ignore the project
             if not kc_client.has_user_roles(user["id"], {"Administrator", "System"}):
-                requested_project = request.headers.get("project-name")
                 if requested_project:
                     client = f"Request {token_info['username']} - {requested_project}"
                     kc_client = Keycloak(client)
