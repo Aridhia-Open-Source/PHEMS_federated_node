@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-map-helm-replace
+  namespace: argocd
+data:
+  helm: |-
+    #!/bin/bash
+
+    HELM_BIN=${HELM_BIN:-helm}
+
+    new_args=()
+    template_found=false
+
+    for arg in "$@"; do
+      if [[ "$arg" == "template" ]]; then
+        template_found=true
+        new_args+=("$arg")
+      elif $template_found && [[ "${#new_args[@]}" -eq 1 ]]; then
+        new_args+=("--dry-run=server" "$arg")
+        template_found=false
+      else
+        new_args+=("$arg")
+      fi
+    done
+
+    $HELM_BIN "${new_args[@]}"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-repo-server-access
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-repo-server-access-binding
+subjects:
+- kind: ServiceAccount
+  name: argocd-repo-server
+  namespace: argocd
+roleRef:
+  kind: ClusterRole
+  name: argocd-repo-server-access
+  apiGroup: rbac.authorization.k8s.io
