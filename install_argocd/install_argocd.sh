@@ -14,10 +14,16 @@ curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/lat
 sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
 rm argocd-linux-amd64
 
+# login
+argocd --port-forward --port-forward-namespace argocd \
+    login \
+    --username admin \
+    --password "$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)"
+
 # Add Repo from github
 for repo in "https://github.com/Aridhia-Open-Source/PHEMS_federated_node" "https://github.com/Aridhia-Open-Source/federated-node-task-controller"
 do
-    argocd repo add "${repo}"
+    argocd --port-forward --port-forward-namespace argocd repo add "${repo}"
 done
 
 # Add app via k8s manifest
