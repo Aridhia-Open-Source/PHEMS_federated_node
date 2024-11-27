@@ -5,7 +5,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/Aridhia-Open-Source/federated_node'
+    repoURL: 'https://github.com/Aridhia-Open-Source/PHEMS_federated_node'
     path: k8s/federated-node
     targetRevision: main
     helm:
