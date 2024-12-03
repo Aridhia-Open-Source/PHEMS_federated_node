@@ -1,16 +1,4 @@
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: cleaner-configmap
-  namespace: {{ .Release.Namespace }}
-data:
-  cleanup.sh: |-
-    find ${RESULTS_PATH} -type d -mtime +${CLEANUP_AFTER_DAYS} -name '*' -print0 | xargs -r0 rm -r --
-    kubectl delete pods -n ${NAMESPACE} -l "delete_by=$(date +%Y%m%d)"
-    kubectl delete pvc -n ${NAMESPACE} -l "delete_by=$(date +%Y%m%d)"
-    kubectl delete pv -n ${NAMESPACE} -l "delete_by=$(date +%Y%m%d)"
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -57,7 +45,7 @@ spec:
           serviceAccountName: task-cleaner-handler
           containers:
           - name: result-cleaner
-            image: alpine/k8s:1.29.4
+            image: ghcr.io/aridhia-open-source/results_cleaner:{{ .Chart.AppVersion }}
             imagePullPolicy: IfNotPresent
             env:
             - name: NAMESPACE
@@ -69,22 +57,9 @@ spec:
             volumeMounts:
             - name: respv
               mountPath: {{ .Values.federatedNode.volumes.results_path }}
-            - name: scripts
-              mountPath: /scripts/
-
-            command:
-            - /bin/sh
-            - -c
-            - /scripts/cleanup.sh
           restartPolicy: Never
+          {{ include "nonRootSC" . }}
           volumes:
           - name: respv
             persistentVolumeClaim:
               claimName: flask-results-pv-volclaim
-          - name: scripts
-            configMap:
-              name: cleaner-configmap
-              items:
-              - key: cleanup.sh
-                path: cleanup.sh
-                mode: 0777

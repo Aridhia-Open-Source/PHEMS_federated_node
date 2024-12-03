@@ -16,8 +16,8 @@ spec:
       restartPolicy: Never
       containers:
         - name: post-install-job
-          image: "python:3.12.1-slim-bullseye"
-          command: ["/bin/sh", "-c", "pip install requests && python3 /scripts/setup_realm.py" ]
+          image: "ghcr.io/aridhia-open-source/keycloak_initializer:{{ .Chart.AppVersion }}"
+          command: ["/bin/sh", "-c", "python3 /scripts/setup_realm.py" ]
           env:
             - name: KEYCLOAK_ADMIN_PASSWORD
               valueFrom:
@@ -27,13 +27,4 @@ spec:
           envFrom:
           - configMapRef:
               name: keycloak-config
-          volumeMounts:
-            - name: config
-              mountPath: /scripts/
-      volumes:
-        - name: config
-          configMap:
-            name: keycloak-start-config
-            items:
-            - key: setup_realm.py
-              path: setup_realm.py
+          {{ include "nonRootSC" . }}
