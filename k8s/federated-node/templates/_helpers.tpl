@@ -70,15 +70,9 @@ Common db initializer, to use as element of initContainer
 Just need to append the NEW_DB env var
 */}}
 {{- define "createDBInitContainer" -}}
-        - image: alpine
+        - image: ghcr.io/aridhia-open-source/db_init:{{ .Chart.AppVersion }}
           name: dbinit
-          command: [
-            'sh', '-c', '/scripts/dbinit.sh'
-          ]
-          volumeMounts:
-            - name: db-init
-              mountPath: /scripts/dbinit.sh
-              subPath: dbinit.sh
+          {{ include "nonRootSC" . }}
           env:
           - name: PGUSER
             valueFrom:
@@ -95,16 +89,6 @@ Just need to append the NEW_DB env var
               secretKeyRef:
                 name: {{.Values.db.secret.name}}
                 key: {{.Values.db.secret.key}}
-{{- end -}}
-
-{{- define "dbInitVolume" -}}
-        - name: db-init
-          configMap:
-            name: db-initializer-configmap
-            defaultMode: 0777
-            items:
-            - key: dbinit.sh
-              path: dbinit.sh
 {{- end -}}
 
 {{- define "randomPass" -}}
