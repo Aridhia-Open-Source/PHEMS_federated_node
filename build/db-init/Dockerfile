@@ -4,11 +4,12 @@ ARG USERNAME=fednode
 ARG USER_UID=1001
 ARG USER_GID=1001
 
+# hadolint ignore=DL3018
 RUN addgroup -S "${USERNAME}" --gid "${USER_GID}" \
     && adduser -S "${USERNAME}" -G "${USERNAME}" -u "${USER_UID}" \
-    && apk --update add postgresql-client
+    && apk --no-cache add postgresql16-client=16.6-r0
 
-ADD --chmod=777 dbinit.sh /scripts/dbinit.sh
+COPY --chmod=777 dbinit.sh /scripts/dbinit.sh
 
 USER ${USER_UID}
 

@@ -6,14 +6,18 @@ ARG USER_GID=1001
 
 WORKDIR /scripts
 
+# hadolint detects pipenv as another invocation of pip
+# hadolint ignore=DL3013,DL3008
 RUN apt-get update \
     && apt-get upgrade -y \
-    && python -m pip install requests \
+    && python -m pip install --no-cache-dir requests \
     && groupadd -g "$USER_GID" "$USERNAME" \
     && useradd --uid "$USER_UID" --gid "$USER_GID" "$USERNAME" \
-    && chown -R "$USERNAME":"$USERNAME" /scripts
+    && chown -R "$USERNAME":"$USERNAME" /scripts \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-ADD *.py /scripts/
+COPY *.py /scripts/
 
 USER ${USER_UID}
 ENTRYPOINT [ "/bin/sh", "-c", "python3 /scripts/init_credentials.py" ]
