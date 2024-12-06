@@ -30,7 +30,7 @@ def pod_dict():
         },
         "env_from": "db_secret",
         "command": "cmd",
-        "mount_path": "/mnt"
+        "mount_path": {"folder1": "/mnt"}
     }
 
 @pytest.fixture

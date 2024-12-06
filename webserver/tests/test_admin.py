@@ -95,7 +95,7 @@ class TestAudits:
         )
 
         # Request will fail as secret is not recognized as dictionaries field
-        assert resp.status_code == 201
+        assert resp.status_code == 201, resp.json
         audit_list = Audit.get_all()[-1]
         details = json.loads(audit_list["details"].replace("'", "\""))
 

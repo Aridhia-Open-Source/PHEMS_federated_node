@@ -355,6 +355,30 @@ class Keycloak:
             raise KeycloakError("Failed to fetch the resource")
         return response_res.json()[0]
 
+    def patch_resource(self, resource_name:str, **kwargs) -> dict:
+        """
+        Given a resource name submits a PUT request by using the
+        current resource body merged with what's been passed trough
+        kwargs.
+        Most likely we're interested in:
+            - name
+            - displayName
+        as values to be merged and patched into the current resource
+        """
+        resource = self.get_resource(resource_name)
+        resource.update(kwargs)
+
+        headers={
+            'Authorization': f'Bearer {self.admin_token}'
+        }
+        response_res = requests.put(
+            (URLS["resource"] % self.client_id) + f"/{resource["_id"]}",
+            json=resource,
+            headers=headers
+        )
+        if not response_res.ok:
+            logger.info(response_res.content.decode())
+            raise KeycloakError("Failed to patch the resource")
 
     def get_policy(self, name:str) -> dict:
         """

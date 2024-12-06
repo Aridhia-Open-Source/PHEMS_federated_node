@@ -12,6 +12,7 @@ datasets-related endpoints:
 """
 import json
 from flask import Blueprint, request
+from datetime import datetime
 
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from .helpers.db import db
@@ -82,18 +83,73 @@ def post_datasets():
 @bp.route('/<dataset_name>', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
-def get_datasets_by_id(dataset_id:int=None, dataset_name:str=None):
+def get_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
     """
     GET /datasets/id endpoint. Gets dataset with a give id
     """
     ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
     return Dataset.sanitized_dict(ds), 200
 
+@bp.route('/<int:dataset_id>', methods=['PATCH'])
+@bp.route('/<dataset_name>', methods=['PATCH'])
+@audit
+@auth(scope='can_admin_dataset')
+def patch_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
+    """
+    PATCH /datasets/id endpoint. Edits an existing dataset with a given id
+    """
+    ds = Dataset.get_dataset_by_name_or_id(dataset_id, dataset_name)
+
+    old_ds_name = ds.name
+    # Update validation doesn't have required fields
+    body = request.json
+    body.pop("id", None)
+    cata_body = body.pop("catalogue", {})
+    dict_body = body.pop("dictionaries", [])
+
+    # Dictionary should be a list of dict. If not raise an error and revert changes
+    if not isinstance(dict_body, list):
+        session.rollback()
+        raise InvalidRequest("dictionaries should be a list.")
+
+    for k in body:
+        if not hasattr(ds, k) and k not in ["username", "password"]:
+            raise InvalidRequest(f"Field {k} is not a valid one")
+
+    try:
+        ds.update(**body)
+        # Also make sure all the request clients are updated with this
+        if body.get("name", None) is not None and body.get("name", None) != old_ds_name:
+            dars = Request.query.with_entities(Request.requested_by, Request.project_name)\
+                .filter(Request.dataset_id == ds.id, Request.proj_end > datetime.now())\
+                .group_by(Request.requested_by, Request.project_name).all()
+            for dar in dars:
+                update_args = {
+                    "name": f"{ds.id}-{ds.name}",
+                    "displayName": f"{ds.id} - {ds.name}"
+                }
+
+                req_by = json.loads(dar[0]).get("email")
+                kc_client = Keycloak(client=f"Request {req_by} - {dar[1]}")
+                kc_client.patch_resource(f"{ds.id}-{old_ds_name}", **update_args)
+        # Update catalogue and dictionaries
+        if cata_body:
+            Catalogue.update_or_create(cata_body, ds)
+
+        for d in dict_body:
+            Dictionary.update_or_create(d, ds)
+    except:
+        session.rollback()
+        raise
+
+    session.commit()
+    return Dataset.sanitized_dict(ds), 204
+
 @bp.route('/<dataset_name>/catalogue', methods=['GET'])
 @bp.route('/<int:dataset_id>/catalogue', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
-def get_datasets_catalogue_by_id(dataset_id=None, dataset_name=None):
+def get_datasets_catalogue_by_id_or_name(dataset_id=None, dataset_name=None):
     """
     GET /datasets/dataset_name/catalogue endpoint. Gets dataset's catalogue
     GET /datasets/id/catalogue endpoint. Gets dataset's catalogue
@@ -109,7 +165,7 @@ def get_datasets_catalogue_by_id(dataset_id=None, dataset_name=None):
 @bp.route('/<int:dataset_id>/dictionaries', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
-def get_datasets_dictionaries_by_id(dataset_id=None, dataset_name=None):
+def get_datasets_dictionaries_by_id_or_name(dataset_id=None, dataset_name=None):
     """
     GET /datasets/dataset_name/dictionaries endpoint.
     GET /datasets/id/dictionaries endpoint.
@@ -129,7 +185,7 @@ def get_datasets_dictionaries_by_id(dataset_id=None, dataset_name=None):
 @audit
 @auth(scope='can_access_dataset')
 
-def get_datasets_dictionaries_table_by_id(table_name, dataset_id=None, dataset_name=None):
+def get_datasets_dictionaries_table_by_id_or_name(table_name, dataset_id=None, dataset_name=None):
     """
     GET /datasets/dataset_name/dictionaries/table_name endpoint.
     GET /datasets/id/dictionaries/table_name endpoint.
