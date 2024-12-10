@@ -142,6 +142,27 @@ jobs:
           file: build/keycloak/keycloak.Dockerfile
           tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_keycloak:${{ env.TAG }}
           push: true
+      - name: Build and push Cleaner image
+        uses: docker/build-push-action@v5
+        with:
+          context: build/cleanup-results
+          file: build/cleanup-results/Dockerfile
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/results_cleaner:${{ env.TAG }}
+          push: true
+      - name: Build and push DB initialiser image
+        uses: docker/build-push-action@v5
+        with:
+          context: build/db-init
+          file: build/db-init/Dockerfile
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/db_init:${{ env.TAG }}
+          push: true
+      - name: Build and push KC initialiser image
+        uses: docker/build-push-action@v5
+        with:
+          context: build/kc-init
+          file: build/kc-init/Dockerfile
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/keycloak_initializer:${{ env.TAG }}
+          push: true
   release:
     needs: build
     runs-on: ubuntu-latest
