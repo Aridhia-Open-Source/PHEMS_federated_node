@@ -2,7 +2,7 @@ name: Build Docker Image
 run-name: Building images
 on:
   push:
-    tags:        
+    tags:
       - '**'
     branches:
       - main
@@ -39,6 +39,7 @@ env:
 
 jobs:
   linters:
+    if: github.ref_type != 'tag'
     defaults:
       run:
         shell: bash
@@ -67,6 +68,7 @@ jobs:
       run:
         shell: bash
     runs-on: ubuntu-latest
+    if: github.ref_type != 'tag'
     steps:
       - uses: actions/checkout@v4
 
@@ -83,6 +85,7 @@ jobs:
           thresholds: '60 80'
   build:
     needs: tests
+    if: github.ref_type != 'tag'
     defaults:
       run:
         shell: bash
@@ -179,11 +182,12 @@ jobs:
         helm package . -d ../../artifacts/
 
     - name: Set helm channel to develop for dev branches
-      if: github.ref != 'refs/heads/main'
+      if: github.ref != 'refs/heads/main' || github.ref_type != 'tag'
       run: echo "HELM_CHANNEL=develop" >> ${GITHUB_ENV}
 
     - name: Push to GitLab Package Artifact
       run: |
+        set -e
         curl --request POST \
           --form 'chart=@artifacts/federated-node-${{ needs.build.outputs.chart_version }}.tgz' \
           --user ${{ vars.USER_HELM }}:${{ secrets.HELM_TOKEN }} \

@@ -13,11 +13,20 @@ spec:
     metadata:
       name: "{{.Release.Name}}"
     spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       restartPolicy: Never
       containers:
         - name: post-install-job
           image: "ghcr.io/aridhia-open-source/keycloak_initializer:{{ .Chart.AppVersion }}"
           command: ["/bin/sh", "-c", "python3 /scripts/setup_realm.py" ]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           env:
             - name: KEYCLOAK_ADMIN_PASSWORD
               valueFrom:
@@ -27,4 +36,3 @@ spec:
           envFrom:
           - configMapRef:
               name: keycloak-config
-          {{ include "nonRootSC" . }}
