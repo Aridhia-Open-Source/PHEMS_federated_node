@@ -42,18 +42,22 @@ env:
   DEV_BUILD: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/main' }}
 
 jobs:
-  debug:
+  init:
     runs-on: ubuntu-latest
+    outputs:
+      is_not_tag: ${{ steps.vars.outputs.IS_NOT_TAG }}
+      is_tag: ${{ steps.vars.outputs.IS_TAG }}
+      dev_build: ${{ steps.vars.outputs.DEV_BUILD }}
     steps:
-      - name: Prints!
+      - name: Setting global values
+        id: vars
         run: |
-          echo "Ref type: ${{ github.ref_type }}"
-          echo "Ref: ${{ github.ref }}"
-          echo "Is tag? ${{ github.env.IS_NOT_TAG }}"
-          echo "Is tag from env ${{ env.IS_NOT_TAG }}"
-          echo "Full condition ${{ github.ref_type != 'tag' }}"
+          echo "IS_NOT_TAG=${{ env.IS_NOT_TAG }}" >> ${GITHUB_OUTPUT}
+          echo "IS_TAG=${{ env.IS_TAG }}" >> ${GITHUB_OUTPUT}
+          echo "DEV_BUILD=${{ env.DEV_BUILD }}" >> ${GITHUB_OUTPUT}
   linters:
-    if: github.env.IS_NOT_TAG
+    needs: init
+    if: ${{ needs.init.outputs.is_not_tag }}
     defaults:
       run:
         shell: bash
@@ -77,12 +81,14 @@ jobs:
         run: |
           make hadolint
   tests:
-    needs: linters
+    needs:
+      - init
+      - linters
     defaults:
       run:
         shell: bash
     runs-on: ubuntu-latest
-    if: github.env.IS_NOT_TAG
+    if: ${{ needs.init.outputs.is_not_tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -98,8 +104,10 @@ jobs:
           fail_below_min: true
           thresholds: '60 80'
   build:
-    needs: tests
-    if: github.env.IS_NOT_TAG
+    needs:
+      - init
+      - tests
+    if: ${{ needs.init.outputs.is_not_tag }}
     defaults:
       run:
         shell: bash
@@ -132,7 +140,7 @@ jobs:
           echo "TAG=${appVersion}" >> ${GITHUB_ENV}
 
       - name: Set Tag for dev branches
-        if: github.env.DEV_BUILD
+        if: ${{ needs.init.outputs.dev_build }}
         run: echo "TAG=${TAG}-${GITHUB_SHA::6}" >> ${GITHUB_ENV}
 
       # Need to get a registry where to push the image
@@ -183,7 +191,9 @@ jobs:
           tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/keycloak_initializer:${{ env.TAG }}
           push: true
   release:
-    needs: build
+    needs:
+      - init
+      - build
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -196,7 +206,7 @@ jobs:
         helm package . -d ../../artifacts/
 
     - name: Set helm channel to develop for dev branches
-      if: github.ref != 'refs/heads/main' || github.ref_type != 'tag'
+      if: ${{ needs.init.outputs.dev_build }}
       run: echo "HELM_CHANNEL=develop" >> ${GITHUB_ENV}
 
     - name: Push to GitLab Package Artifact
@@ -209,7 +219,7 @@ jobs:
 
     - name: Publish Release
       uses: ncipollo/release-action@v1
-      if: github.env.IS_TAG
+      if: ${{ needs.init.outputs.is_tag }}
       with:
         artifacts: "artifacts/federated-node-${{ needs.build.outputs.chart_version }}.tgz"
         tag: ${{ needs.build.outputs.chart_version }}
