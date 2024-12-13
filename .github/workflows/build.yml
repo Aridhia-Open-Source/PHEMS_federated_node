@@ -57,7 +57,7 @@ jobs:
           echo "DEV_BUILD=${{ env.DEV_BUILD }}" >> ${GITHUB_OUTPUT}
   linters:
     needs: init
-    if: ${{ needs.init.outputs.is_not_tag }}
+    if: ${{ needs.init.outputs.is_not_tag == 'true' }}
     defaults:
       run:
         shell: bash
