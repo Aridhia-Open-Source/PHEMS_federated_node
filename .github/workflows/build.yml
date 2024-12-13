@@ -34,8 +34,11 @@ on:
       - 'sub-license/**'
       - 'environment/*.md'
 env:
-  TAG: ${{ vars.VERSION }}
+  TAG: ''
+  OWNER_LC: ''
   HELM_CHANNEL: stable
+  IS_NOT_TAG: ${{ github.ref_type != 'tag' }}
+  DEV_BUILD: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/main' }}
 
 jobs:
   linters:
@@ -68,7 +71,7 @@ jobs:
       run:
         shell: bash
     runs-on: ubuntu-latest
-    if: github.ref_type != 'tag'
+    if: github.env.IS_NOT_TAG
     steps:
       - uses: actions/checkout@v4
 
@@ -85,7 +88,7 @@ jobs:
           thresholds: '60 80'
   build:
     needs: tests
-    if: github.ref_type != 'tag'
+    if: github.env.IS_NOT_TAG
     defaults:
       run:
         shell: bash
@@ -118,7 +121,7 @@ jobs:
           echo "TAG=${appVersion}" >> ${GITHUB_ENV}
 
       - name: Set Tag for dev branches
-        if: github.ref != 'refs/heads/main'
+        if: github.env.DEV_BUILD
         run: echo "TAG=${TAG}-${GITHUB_SHA::6}" >> ${GITHUB_ENV}
 
       # Need to get a registry where to push the image
@@ -195,7 +198,7 @@ jobs:
 
     - name: Publish Release
       uses: ncipollo/release-action@v1
-      if: github.ref_type == 'tag'
+      if: ! github.env.IS_NOT_TAG
       with:
         artifacts: "artifacts/federated-node-${{ needs.build.outputs.chart_version }}.tgz"
         tag: ${{ needs.build.outputs.chart_version }}
