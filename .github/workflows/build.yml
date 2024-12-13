@@ -191,7 +191,7 @@ jobs:
           tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/keycloak_initializer:${{ env.TAG }}
           push: true
   release:
-    if: ${{ needs.build.result == 'success' || needs.build.result == 'skipped' }}
+    if: !failure() && (!cancelled())
     needs:
       - init
       - build
