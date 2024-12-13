@@ -37,6 +37,7 @@ env:
   TAG: ''
   OWNER_LC: ''
   HELM_CHANNEL: stable
+  IS_TAG: ${{ github.ref_type == 'tag' }}
   IS_NOT_TAG: ${{ github.ref_type != 'tag' }}
   DEV_BUILD: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/main' }}
 
@@ -198,7 +199,7 @@ jobs:
 
     - name: Publish Release
       uses: ncipollo/release-action@v1
-      if: ! github.env.IS_NOT_TAG
+      if: github.env.IS_TAG
       with:
         artifacts: "artifacts/federated-node-${{ needs.build.outputs.chart_version }}.tgz"
         tag: ${{ needs.build.outputs.chart_version }}
