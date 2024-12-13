@@ -42,8 +42,16 @@ env:
   DEV_BUILD: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/main' }}
 
 jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prints!
+        run: |
+          echo "Ref type: ${{ github.ref_type }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "Is tag? ${{ github.env.IS_NOT_TAG }}"
   linters:
-    if: github.ref_type != 'tag'
+    if: github.env.IS_NOT_TAG
     defaults:
       run:
         shell: bash
