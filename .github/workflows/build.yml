@@ -61,6 +61,7 @@ jobs:
           echo "DEV_BUILD=${{ env.DEV_BUILD }}" >> ${GITHUB_OUTPUT}
 
           echo "Setting version according to the Chart.yaml"
+          cd k8s/federated-node
 
           version=$(grep 'version:.*' Chart.yaml | sed 's/^.*: //')
           echo "Chart version: ${version}"
