@@ -47,6 +47,7 @@ spec:
           - name: result-cleaner
             image: ghcr.io/aridhia-open-source/results_cleaner:{{ .Chart.AppVersion }}
             imagePullPolicy: IfNotPresent
+            {{- include "nonRootSC" . | nindent 12 }}
             env:
             - name: NAMESPACE
               value: {{ .Values.namespaces.tasks }}
@@ -58,7 +59,6 @@ spec:
             - name: respv
               mountPath: {{ .Values.federatedNode.volumes.results_path }}
           restartPolicy: Never
-          {{ include "nonRootSC" . }}
           volumes:
           - name: respv
             persistentVolumeClaim:
