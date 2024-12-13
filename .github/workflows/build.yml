@@ -48,16 +48,32 @@ jobs:
       is_not_tag: ${{ steps.vars.outputs.IS_NOT_TAG }}
       is_tag: ${{ steps.vars.outputs.IS_TAG }}
       dev_build: ${{ steps.vars.outputs.DEV_BUILD }}
+      chart_version: ${{ steps.vars.outputs.CHART_VERSION }}
+      tag: ${{ steps.vars.outputs.TAG }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Setting global values
         id: vars
         run: |
           echo "IS_NOT_TAG=${{ env.IS_NOT_TAG }}" >> ${GITHUB_OUTPUT}
           echo "IS_TAG=${{ env.IS_TAG }}" >> ${GITHUB_OUTPUT}
           echo "DEV_BUILD=${{ env.DEV_BUILD }}" >> ${GITHUB_OUTPUT}
+
+          echo "Setting version according to the Chart.yaml"
+
+          version=$(grep 'version:.*' Chart.yaml | sed 's/^.*: //')
+          echo "Chart version: ${version}"
+          appVersion=$(grep 'appVersion:.*' Chart.yaml | sed 's/^.*: \"//'| sed 's/\"//')
+          echo "Chart appVersion: ${appVersion}"
+
+          echo "CHART_VERSION=${version}" >> ${GITHUB_OUTPUT}
+
+          echo "TAG=${appVersion}" >> ${GITHUB_OUTPUT}
+          echo "TAG=${appVersion}" >> ${GITHUB_ENV}
   linters:
     needs: init
-    if: ${{ needs.init.outputs.is_not_tag == 'true' }}
+    if: needs.init.outputs.is_tag == 'false'
     defaults:
       run:
         shell: bash
@@ -88,7 +104,7 @@ jobs:
       run:
         shell: bash
     runs-on: ubuntu-latest
-    if: ${{ needs.init.outputs.is_not_tag }}
+    if: needs.init.outputs.is_tag == 'false'
     steps:
       - uses: actions/checkout@v4
 
@@ -107,14 +123,11 @@ jobs:
     needs:
       - init
       - tests
-    if: ${{ needs.init.outputs.is_not_tag }}
+    if: needs.init.outputs.is_tag == 'false'
     defaults:
       run:
         shell: bash
     runs-on: ubuntu-latest
-    outputs:
-      chart_version: ${{ steps.chart_version.outputs.CHART_VERSION }}
-      tag: ${{ steps.chart_version.outputs.TAG }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -122,22 +135,6 @@ jobs:
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Set Tags from Chart.yaml
-        id: chart_version
-        working-directory: k8s/federated-node
-        run: |
-          echo "Setting version according to the Chart.yaml"
-
-          version=$(grep 'version:.*' Chart.yaml | sed 's/^.*: //')
-          echo "Chart version: ${version}"
-          appVersion=$(grep 'appVersion:.*' Chart.yaml | sed 's/^.*: \"//'| sed 's/\"//')
-          echo "Chart appVersion: ${appVersion}"
-
-          echo "CHART_VERSION=${version}" >> ${GITHUB_OUTPUT}
-
-          echo "TAG=${appVersion}" >> ${GITHUB_OUTPUT}
-          echo "TAG=${appVersion}" >> ${GITHUB_ENV}
 
       - name: Set Tag for dev branches
         if: ${{ needs.init.outputs.dev_build }}
@@ -207,21 +204,21 @@ jobs:
         helm package . -d ../../artifacts/
 
     - name: Set helm channel to develop for dev branches
-      if: ${{ needs.init.outputs.dev_build }}
+      if: needs.init.outputs.dev_build == 'true'
       run: echo "HELM_CHANNEL=develop" >> ${GITHUB_ENV}
 
     - name: Push to GitLab Package Artifact
       run: |
         set -e
         curl --request POST \
-          --form 'chart=@artifacts/federated-node-${{ needs.build.outputs.chart_version }}.tgz' \
+          --form 'chart=@artifacts/federated-node-${{ needs.init.outputs.chart_version }}.tgz' \
           --user ${{ vars.USER_HELM }}:${{ secrets.HELM_TOKEN }} \
           ${{ vars.HELM_REPO }}/helm/api/${{ env.HELM_CHANNEL }}/charts
 
     - name: Publish Release
       uses: ncipollo/release-action@v1
-      if: ${{ needs.init.outputs.is_tag }}
+      if: needs.init.outputs.is_tag == 'true'
       with:
-        artifacts: "artifacts/federated-node-${{ needs.build.outputs.chart_version }}.tgz"
-        tag: ${{ needs.build.outputs.chart_version }}
+        artifacts: "artifacts/federated-node-${{ needs.init.outputs.chart_version }}.tgz"
+        tag: ${{ needs.init.outputs.chart_version }}
         skipIfReleaseExists: true
