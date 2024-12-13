@@ -38,14 +38,12 @@ env:
   OWNER_LC: ''
   HELM_CHANNEL: stable
   IS_TAG: ${{ github.ref_type == 'tag' }}
-  IS_NOT_TAG: ${{ github.ref_type != 'tag' }}
   DEV_BUILD: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/main' }}
 
 jobs:
   init:
     runs-on: ubuntu-latest
     outputs:
-      is_not_tag: ${{ steps.vars.outputs.IS_NOT_TAG }}
       is_tag: ${{ steps.vars.outputs.IS_TAG }}
       dev_build: ${{ steps.vars.outputs.DEV_BUILD }}
       chart_version: ${{ steps.vars.outputs.CHART_VERSION }}
@@ -56,7 +54,6 @@ jobs:
       - name: Setting global values
         id: vars
         run: |
-          echo "IS_NOT_TAG=${{ env.IS_NOT_TAG }}" >> ${GITHUB_OUTPUT}
           echo "IS_TAG=${{ env.IS_TAG }}" >> ${GITHUB_OUTPUT}
           echo "DEV_BUILD=${{ env.DEV_BUILD }}" >> ${GITHUB_OUTPUT}
 
