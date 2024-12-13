@@ -50,6 +50,7 @@ jobs:
           echo "Ref type: ${{ github.ref_type }}"
           echo "Ref: ${{ github.ref }}"
           echo "Is tag? ${{ github.env.IS_NOT_TAG }}"
+          echo "Full condition ${{ github.ref_type != 'tag' }}"
   linters:
     if: github.env.IS_NOT_TAG
     defaults:
