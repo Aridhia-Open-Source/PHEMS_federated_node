@@ -70,8 +70,11 @@ jobs:
 
           echo "CHART_VERSION=${version}" >> ${GITHUB_OUTPUT}
 
-          echo "TAG=${appVersion}" >> ${GITHUB_OUTPUT}
-          echo "TAG=${appVersion}" >> ${GITHUB_ENV}
+          if [[ "${{ env.DEV_BUILD }}" == "false" ]]; then
+            echo "TAG=${appVersion}" >> ${GITHUB_OUTPUT}
+          else
+            echo "TAG=${appVersion}-${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
+          fi
   linters:
     needs: init
     if: needs.init.outputs.is_tag == 'false'
@@ -137,10 +140,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Set Tag for dev branches
-        if: ${{ needs.init.outputs.dev_build }}
-        run: echo "TAG=${TAG}-${GITHUB_SHA::6}" >> ${GITHUB_ENV}
-
       # Need to get a registry where to push the image
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -158,35 +157,35 @@ jobs:
         with:
           context: webserver
           file: webserver/build/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_node_run:${{ env.TAG }}
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_node_run:${{ needs.init.outputs.tag }}
           push: true
       - name: Build and push Keycloak image
         uses: docker/build-push-action@v5
         with:
           context: build/keycloak
           file: build/keycloak/keycloak.Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_keycloak:${{ env.TAG }}
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_keycloak:${{ needs.init.outputs.tag }}
           push: true
       - name: Build and push Cleaner image
         uses: docker/build-push-action@v5
         with:
           context: build/cleanup-results
           file: build/cleanup-results/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/results_cleaner:${{ env.TAG }}
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/results_cleaner:${{ needs.init.outputs.tag }}
           push: true
       - name: Build and push DB initialiser image
         uses: docker/build-push-action@v5
         with:
           context: build/db-init
           file: build/db-init/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/db_init:${{ env.TAG }}
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/db_init:${{ needs.init.outputs.tag }}
           push: true
       - name: Build and push KC initialiser image
         uses: docker/build-push-action@v5
         with:
           context: build/kc-init
           file: build/kc-init/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/keycloak_initializer:${{ env.TAG }}
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/keycloak_initializer:${{ needs.init.outputs.tag }}
           push: true
   release:
     if: always() && !failure() && !cancelled()
