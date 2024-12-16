@@ -2,6 +2,8 @@ name: Build Docker Image
 run-name: Building images
 on:
   push:
+    tags:
+      - '**'
     branches:
       - main
     paths-ignore:
@@ -10,6 +12,8 @@ on:
       - 'LICENSE'
       - 'DEPLOYMENT'
       - 'images/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE/**'
       - 'Makefile'
       - '.gitignore'
       - 'sub-license/**'
@@ -23,16 +27,54 @@ on:
       - 'LICENSE'
       - 'DEPLOYMENT'
       - 'images/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE/**'
       - 'Makefile'
       - '.gitignore'
       - 'sub-license/**'
       - 'environment/*.md'
 env:
-  TAG: ${{ vars.VERSION }}
+  TAG: ''
+  OWNER_LC: ''
   HELM_CHANNEL: stable
+  IS_TAG: ${{ github.ref_type == 'tag' }}
+  DEV_BUILD: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/main' }}
 
 jobs:
+  init:
+    runs-on: ubuntu-latest
+    outputs:
+      is_tag: ${{ steps.vars.outputs.IS_TAG }}
+      dev_build: ${{ steps.vars.outputs.DEV_BUILD }}
+      chart_version: ${{ steps.vars.outputs.CHART_VERSION }}
+      tag: ${{ steps.vars.outputs.TAG }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setting global values
+        id: vars
+        run: |
+          echo "IS_TAG=${{ env.IS_TAG }}" >> ${GITHUB_OUTPUT}
+          echo "DEV_BUILD=${{ env.DEV_BUILD }}" >> ${GITHUB_OUTPUT}
+
+          echo "Setting version according to the Chart.yaml"
+          cd k8s/federated-node
+
+          version=$(grep 'version:.*' Chart.yaml | sed 's/^.*: //')
+          echo "Chart version: ${version}"
+          appVersion=$(grep 'appVersion:.*' Chart.yaml | sed 's/^.*: \"//'| sed 's/\"//')
+          echo "Chart appVersion: ${appVersion}"
+
+          echo "CHART_VERSION=${version}" >> ${GITHUB_OUTPUT}
+
+          if [[ "${{ env.DEV_BUILD }}" == "false" ]]; then
+            echo "TAG=${appVersion}" >> ${GITHUB_OUTPUT}
+          else
+            echo "TAG=${appVersion}-${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
+          fi
   linters:
+    needs: init
+    if: needs.init.outputs.is_tag == 'false'
     defaults:
       run:
         shell: bash
@@ -56,11 +98,14 @@ jobs:
         run: |
           make hadolint
   tests:
-    needs: linters
+    needs:
+      - init
+      - linters
     defaults:
       run:
         shell: bash
     runs-on: ubuntu-latest
+    if: needs.init.outputs.is_tag == 'false'
     steps:
       - uses: actions/checkout@v4
 
@@ -76,14 +121,14 @@ jobs:
           fail_below_min: true
           thresholds: '60 80'
   build:
-    needs: tests
+    needs:
+      - init
+      - tests
+    if: needs.init.outputs.is_tag == 'false'
     defaults:
       run:
         shell: bash
     runs-on: ubuntu-latest
-    outputs:
-      chart_version: ${{ steps.chart_version.outputs.CHART_VERSION }}
-      tag: ${{ steps.chart_version.outputs.TAG }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -91,26 +136,6 @@ jobs:
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Set Tags from Chart.yaml
-        id: chart_version
-        working-directory: k8s/federated-node
-        run: |
-          echo "Setting version according to the Chart.yaml"
-
-          version=$(grep 'version:.*' Chart.yaml | sed 's/^.*: //')
-          echo "Chart version: ${version}"
-          appVersion=$(grep 'appVersion:.*' Chart.yaml | sed 's/^.*: \"//'| sed 's/\"//')
-          echo "Chart appVersion: ${appVersion}"
-
-          echo "CHART_VERSION=${version}" >> ${GITHUB_OUTPUT}
-
-          echo "TAG=${appVersion}" >> ${GITHUB_OUTPUT}
-          echo "TAG=${appVersion}" >> ${GITHUB_ENV}
-
-      - name: Set Tag for dev branches
-        if: github.ref != 'refs/heads/main'
-        run: echo "TAG=${TAG}-${GITHUB_SHA::6}" >> ${GITHUB_ENV}
 
       # Need to get a registry where to push the image
       - name: Login to Docker Hub
@@ -129,14 +154,35 @@ jobs:
         with:
           context: webserver
           file: webserver/build/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_node_run:${{ env.TAG }}
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_node_run:${{ needs.init.outputs.tag }}
           push: true
       - name: Build and push Keycloak image
         uses: docker/build-push-action@v5
         with:
           context: build/keycloak
           file: build/keycloak/keycloak.Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_keycloak:${{ env.TAG }}
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_keycloak:${{ needs.init.outputs.tag }}
+          push: true
+      - name: Build and push Cleaner image
+        uses: docker/build-push-action@v5
+        with:
+          context: build/cleanup-results
+          file: build/cleanup-results/Dockerfile
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/results_cleaner:${{ needs.init.outputs.tag }}
+          push: true
+      - name: Build and push DB initialiser image
+        uses: docker/build-push-action@v5
+        with:
+          context: build/db-init
+          file: build/db-init/Dockerfile
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/db_init:${{ needs.init.outputs.tag }}
+          push: true
+      - name: Build and push KC initialiser image
+        uses: docker/build-push-action@v5
+        with:
+          context: build/kc-init
+          file: build/kc-init/Dockerfile
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/keycloak_initializer:${{ needs.init.outputs.tag }}
           push: true
       - name: Build and push certificate image
         uses: docker/build-push-action@v5
@@ -146,7 +192,10 @@ jobs:
           tags: ${{ vars.DOCKER_ACR }}/${{ env.OWNER_LC }}/federated_node_certificate:${{ env.TAG }}
           push: true
   release:
-    needs: build
+    if: always() && !failure() && !cancelled()
+    needs:
+      - init
+      - build
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -159,20 +208,21 @@ jobs:
         helm package . -d ../../artifacts/
 
     - name: Set helm channel to develop for dev branches
-      if: github.ref != 'refs/heads/main'
+      if: needs.init.outputs.dev_build == 'true'
       run: echo "HELM_CHANNEL=develop" >> ${GITHUB_ENV}
 
     - name: Push to GitLab Package Artifact
       run: |
+        set -e
         curl --request POST \
-          --form 'chart=@artifacts/federated-node-${{ needs.build.outputs.chart_version }}.tgz' \
+          --form 'chart=@artifacts/federated-node-${{ needs.init.outputs.chart_version }}.tgz' \
           --user ${{ vars.USER_HELM }}:${{ secrets.HELM_TOKEN }} \
           ${{ vars.HELM_REPO }}/helm/api/${{ env.HELM_CHANNEL }}/charts
 
     - name: Publish Release
       uses: ncipollo/release-action@v1
-      if: github.ref_type == 'tag'
+      if: needs.init.outputs.is_tag == 'true'
       with:
-        artifacts: "artifacts/federated-node-${{ needs.build.outputs.chart_version }}.tgz"
-        tag: ${{ needs.build.outputs.chart_version }}
+        artifacts: "artifacts/federated-node-${{ needs.init.outputs.chart_version }}.tgz"
+        tag: ${{ needs.init.outputs.chart_version }}
         skipIfReleaseExists: true

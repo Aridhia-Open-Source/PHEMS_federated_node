@@ -1,7 +1,10 @@
 # Releases Changelog
 
-## 0.5.2
+## 0.7.0
 - Added a new cronjob to automatically renew the SSL certificate (instructions in the [DEPLOYMENT.md](./DEPLOYMENT.md) file)
+
+## 0.6.0
+- Pods are now running as non-root users
 
 - POST `/tasks` now accepts the outputs field to dynamically mount a volume so that results can be fetched correctly. If no value is provided, the default location of `/mnt/data/` will be used.
 
