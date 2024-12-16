@@ -34,8 +34,7 @@ jobs:
           CHART_VERSION: ${{ inputs.chartVersion }}
           APP_VERSION: ${{ inputs.appVersion }}
         run: |
-          grep '${CHART_VERSION}' Chart.yaml
-          if [[ $(grep '${CHART_VERSION}' Chart.yaml) ]]; then
+          if [[ ! $(grep '${CHART_VERSION}' Chart.yaml) ]]; then
             echo "Nothing to change. Exiting early"
             exit 0
           fi
