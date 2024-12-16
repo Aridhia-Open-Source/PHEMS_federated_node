@@ -285,7 +285,7 @@ spec:
     {{- if .Values.local_development }}
     - name: http-webhook
       port: 80
-      targetPort: http
+      targetPort: webhook
       appProtocol: http
     {{- else }}
     - name: https-webhook
@@ -388,7 +388,7 @@ spec:
             - --ingress-class={{ .Values.ingress.ingressClass | default "fn-nginx" }}
             - --configmap=$(POD_NAMESPACE)/ingress-nginx-controller
             {{- if .Values.local_development }}
-            - --validating-webhook=:80
+            - --validating-webhook=:8080
             {{- else }}
             - --validating-webhook=:8443
             {{- end }}
@@ -446,7 +446,7 @@ spec:
               containerPort: 443
               protocol: TCP
             - name: webhook
-              containerPort: 8443
+              containerPort: {{ if .Values.local_development }}8080{{ else }}8443{{ end }}
               protocol: TCP
           volumeMounts:
             - name: webhook-cert
