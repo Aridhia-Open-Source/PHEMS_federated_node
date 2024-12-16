@@ -478,7 +478,6 @@ metadata:
 spec:
   controller: k8s.io/ingress-nginx
 ---
-{{ if not .Values.local_development }}
 # Source: ingress-nginx/templates/admission-webhooks/validating-webhook.yaml
 # before changing this value, check the required kubernetes version
 # https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#prerequisites
@@ -517,7 +516,6 @@ webhooks:
         namespace: {{ .Values.namespaces.nginx }}
         path: /networking/v1/ingresses
 ---
-{{ end }}
 # Source: ingress-nginx/templates/admission-webhooks/job-patch/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
