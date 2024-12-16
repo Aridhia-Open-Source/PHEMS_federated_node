@@ -1,0 +1,39 @@
+name: Version bump
+run-name: Version bump
+on:
+  workflow_dispatch:
+    inputs:
+      chartVersion:
+        description: 'New Helm Chart version'
+        required: true
+        type: string
+      appVersion:
+        description: 'New tag the docker images are going to use'
+        required: false
+        type: string
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: version-bump-pipeline
+      - name: Update Version
+        working-directory: k8s/federated-node
+        env:
+          CHART_VERSION: ${{ inputs.chartVersion }}
+          APP_VERSION: ${{ inputs.appVersion }}
+        run: |
+          sed -i "s/version: .*/version: ${CHART_VERSION}/" Chart.yaml
+
+          if [[ -z "${APP_VERSION}" ]]; then
+            echo "appVersion not provided, defaulting to chartVersion: \"{CHART_VERSION}\""
+            APP_VERSION=${CHART_VERSION}
+          fi
+          sed -i "s/version: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
+
+          git add Chart.yaml
+          git commit -m "Version bump to ${CHART_VERSION}"
+          git push
