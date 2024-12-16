@@ -189,7 +189,7 @@ jobs:
         with:
           context: build/certs
           file: build/certs/Dockerfile
-          tags: ${{ vars.DOCKER_ACR }}/${{ env.OWNER_LC }}/federated_node_certificate:${{ env.TAG }}
+          tags: ${{ vars.DOCKER_ACR }}/${{ env.OWNER_LC }}/federated_node_certificate:${{ needs.init.outputs.tag }}
           push: true
   release:
     if: always() && !failure() && !cancelled()
