@@ -1,6 +1,8 @@
 # Releases Changelog
 
-## 0.5.2
+## 0.6.0
+- Pods are now running as non-root users
+
 - POST `/tasks` now accepts the outputs field to dynamically mount a volume so that results can be fetched correctly. If no value is provided, the default location of `/mnt/data/` will be used.
 
 - Added PATCH /datasets/<id> endpoints, so existing datasets can be amended, or a dictionary added to them.

@@ -31,6 +31,7 @@ spec:
           image: {{ template "backend-image" . }}:{{ .Values.backend.tag | default .Chart.AppVersion }}
           command: ["/bin/sh"]
           workingDir: /
+          {{ include "nonRootSC" . }}
           args:
             [
               "-c",
@@ -122,4 +123,3 @@ spec:
             items:
             - key: registries-list.json
               path: registries-list.json
-        {{ template "dbInitVolume" . }}
