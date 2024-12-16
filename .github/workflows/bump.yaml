@@ -17,6 +17,9 @@ on:
         type: boolean
         default: true
 
+permissions:
+  contents: write
+
 jobs:
   bump:
     runs-on: ubuntu-latest
@@ -40,6 +43,9 @@ jobs:
           cat Chart.yaml
 
           if [[ "${{ inputs.dryRun }}" == "false" ]]; then
+            git config user.email "phemsbot@phems.com"
+            git config user.name "PHEMS bot"
+
             git add Chart.yaml
             git commit -m "Version bump to ${CHART_VERSION}"
             git push
