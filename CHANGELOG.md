@@ -1,5 +1,8 @@
 # Releases Changelog
 
+## 0.7.0
+- Added a new cronjob to automatically renew the SSL certificate (instructions in the [DEPLOYMENT.md](./DEPLOYMENT.md) file)
+
 ## 0.6.0
 - Pods are now running as non-root users
 

@@ -184,6 +184,13 @@ jobs:
           file: build/kc-init/Dockerfile
           tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/keycloak_initializer:${{ needs.init.outputs.tag }}
           push: true
+      - name: Build and push certificate image
+        uses: docker/build-push-action@v5
+        with:
+          context: build/certs
+          file: build/certs/Dockerfile
+          tags: ${{ vars.DOCKER_ACR }}/${{ env.OWNER_LC }}/federated_node_certificate:${{ needs.init.outputs.tag }}
+          push: true
   release:
     if: always() && !failure() && !cancelled()
     needs:
