@@ -34,9 +34,13 @@ jobs:
           CHART_VERSION: ${{ inputs.chartVersion }}
           APP_VERSION: ${{ inputs.appVersion }}
         run: |
+          if [[ $(grep '${CHART_VERSION}' Chart.yaml) ]]; then
+            echo "Nothing to change. Exiting early"
+            exit 0
+          fi
           sed -i "s/version: .*/version: ${CHART_VERSION}/" Chart.yaml
 
-          if [[ -z "${APP_VERSION}" ]]; then
+          if [[ -n "${APP_VERSION}" ]]; then
             sed -i "s/version: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
           fi
 
