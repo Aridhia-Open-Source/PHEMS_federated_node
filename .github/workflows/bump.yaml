@@ -12,7 +12,7 @@ on:
         required: false
         type: string
       dryRun:
-        description: 'New tag the docker images are going to use'
+        description: 'Dry run, no changes committed. Shows the new Chart.yaml contents'
         required: false
         type: boolean
         default: true
