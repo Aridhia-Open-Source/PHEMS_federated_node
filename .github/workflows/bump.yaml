@@ -18,8 +18,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: version-bump-pipeline
       - name: Update Version
         working-directory: k8s/federated-node
         env:
@@ -29,10 +27,8 @@ jobs:
           sed -i "s/version: .*/version: ${CHART_VERSION}/" Chart.yaml
 
           if [[ -z "${APP_VERSION}" ]]; then
-            echo "appVersion not provided, defaulting to chartVersion: \"{CHART_VERSION}\""
-            APP_VERSION=${CHART_VERSION}
+            sed -i "s/version: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
           fi
-          sed -i "s/version: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
 
           git add Chart.yaml
           git commit -m "Version bump to ${CHART_VERSION}"
