@@ -387,7 +387,11 @@ spec:
             - --controller-class=k8s.io/ingress-nginx
             - --ingress-class={{ .Values.ingress.ingressClass | default "fn-nginx" }}
             - --configmap=$(POD_NAMESPACE)/ingress-nginx-controller
+            {{- if .Values.local_development }}
+            - --validating-webhook=:80
+            {{- else }}
             - --validating-webhook=:8443
+            {{- end }}
             - --validating-webhook-certificate=/usr/local/certificates/cert
             - --validating-webhook-key=/usr/local/certificates/key
             - --enable-metrics=false
