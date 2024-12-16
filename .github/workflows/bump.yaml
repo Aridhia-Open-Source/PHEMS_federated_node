@@ -11,6 +11,11 @@ on:
         description: 'New tag the docker images are going to use'
         required: false
         type: string
+      dryRun:
+        description: 'New tag the docker images are going to use'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   bump:
@@ -30,6 +35,10 @@ jobs:
             sed -i "s/version: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
           fi
 
-          git add Chart.yaml
-          git commit -m "Version bump to ${CHART_VERSION}"
-          git push
+          cat Chart.yaml
+
+          if [[ "${{ inputs.dryRun }}" == "false" ]]; then
+            git add Chart.yaml
+            git commit -m "Version bump to ${CHART_VERSION}"
+            git push
+          fi
