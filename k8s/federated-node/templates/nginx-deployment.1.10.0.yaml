@@ -283,15 +283,15 @@ spec:
   type: ClusterIP
   ports:
     {{- if not .Values.local_development }}
-    - name: http-webhook
-      port: 80
-      targetPort: webhook
-      appProtocol: http
-    {{- else }}
     - name: https-webhook
       port: 443
       targetPort: webhook
       appProtocol: https
+    {{- else }}
+    - name: http-webhook
+      port: 80
+      targetPort: webhook
+      appProtocol: http
     {{- end }}
   selector:
     app.kubernetes.io/name: ingress-nginx
