@@ -282,10 +282,15 @@ metadata:
 spec:
   type: ClusterIP
   ports:
+    {{- if not .Values.local_development }}
+    - name: http-webhook
+      port: 80
+      targetPort: webhook
+      appProtocol: http
+    {{- else }}
     - name: https-webhook
       port: 443
       targetPort: webhook
-    {{- if not .Values.local_development }}
       appProtocol: https
     {{- end }}
   selector:
