@@ -510,7 +510,7 @@ webhooks:
           - UPDATE
         resources:
           - ingresses
-    failurePolicy: {{if .Values.local_development }}Fail{{ else }}Ignore{{ end }}
+    failurePolicy: {{if not .Values.local_development }}Fail{{ else }}Ignore{{ end }}
     sideEffects: None
     admissionReviewVersions:
       - v1
