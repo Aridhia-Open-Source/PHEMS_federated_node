@@ -282,16 +282,16 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    {{- if not .Values.local_development }}
-    - name: https-webhook
-      port: 443
-      targetPort: webhook
-      appProtocol: https
-    {{- else }}
+    {{- if .Values.local_development }}
     - name: http-webhook
       port: 80
       targetPort: webhook
       appProtocol: http
+    {{- else }}
+    - name: https-webhook
+      port: 443
+      targetPort: webhook
+      appProtocol: https
     {{- end }}
   selector:
     app.kubernetes.io/name: ingress-nginx
@@ -510,7 +510,9 @@ webhooks:
           - UPDATE
         resources:
           - ingresses
-    failurePolicy: {{if not .Values.local_development }}Fail{{ else }}Ignore{{ end }}
+    {{- if not .Values.local_development }}
+    failurePolicy: Fail
+    {{- end }}
     sideEffects: None
     admissionReviewVersions:
       - v1
