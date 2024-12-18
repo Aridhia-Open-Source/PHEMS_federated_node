@@ -1,3 +1,7 @@
+{{- $port := 8443 -}}
+{{- if .Values.local_development }}
+  {{- $port = 8080 -}}
+{{- end -}}
 {{- if ((.Values.ingress.tls).keyFile) }}
 apiVersion: v1
 kind: Secret
@@ -387,11 +391,7 @@ spec:
             - --controller-class=k8s.io/ingress-nginx
             - --ingress-class={{ .Values.ingress.ingressClass | default "fn-nginx" }}
             - --configmap=$(POD_NAMESPACE)/ingress-nginx-controller
-            {{- if .Values.local_development }}
-            - --validating-webhook=:8080
-            {{- else }}
-            - --validating-webhook=:8443
-            {{- end }}
+            - --validating-webhook=:{{ $port }}
             - --validating-webhook-certificate=/usr/local/certificates/cert
             - --validating-webhook-key=/usr/local/certificates/key
             - --enable-metrics=false
@@ -446,7 +446,7 @@ spec:
               containerPort: 443
               protocol: TCP
             - name: webhook
-              containerPort: {{ if .Values.local_development }}8080{{ else }}8443{{ end }}
+              containerPort: {{ $port }}
               protocol: TCP
           volumeMounts:
             - name: webhook-cert
