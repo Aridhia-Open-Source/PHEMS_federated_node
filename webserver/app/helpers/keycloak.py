@@ -345,25 +345,24 @@ class Keycloak:
 
     def get_role(self, role_name:str) -> dict:
         """
-        Get the realm roles. Unfortunately the Keycloak API
-        does not filter per specific field, but on all of them
-        and this is the first barrier to avoid looping inefficiently
+        Get the realm roles.
+        Raises a specific exception if not found
         """
         realm_resp = requests.get(
-            URLS["roles"] + f"?search={role_name}",
+            URLS["roles"] + f"/{role_name}",
             headers={
                 'Authorization': f'Bearer {self.admin_token}',
             }
         )
-        if not realm_resp.ok:
-            logger.info(realm_resp.content.decode())
-            raise KeycloakError("Failed to fetch roles")
-
-        list_roles = list(filter(lambda x: x["name"] == role_name, realm_resp.json()))
-        if list_roles:
-            return list_roles[0]
-
-        raise KeycloakError(f"Role {role_name} does not exist", 400)
+        match realm_resp.status_code:
+            case 200:
+                return realm_resp.json()
+            case 404:
+                logger.info(realm_resp.content.decode())
+                raise KeycloakError(f"Role {role_name} does not exist", 400)
+            case _:
+                logger.info(realm_resp.content.decode())
+                raise KeycloakError("Failed to fetch roles")
 
     def get_resource(self, resource_name:str) -> dict:
         headers={

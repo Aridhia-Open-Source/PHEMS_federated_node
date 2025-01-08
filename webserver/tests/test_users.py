@@ -214,7 +214,7 @@ class TestCreateUser(UserMixin):
         )
 
         assert resp.status_code == 400
-        assert resp.json["error"] == f"Role President does not exist"
+        assert resp.json["error"] == "Role President does not exist"
 
     def test_new_user_login_with_temp_pass(
         self,
