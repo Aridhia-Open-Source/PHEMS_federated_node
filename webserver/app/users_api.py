@@ -37,7 +37,7 @@ def create_user():
     kc = Keycloak()
     if kc.get_user_by_email(email=request.json.get("email")):
         raise InvalidRequest("User already exists")
-    user_info = kc.create_user(temp_pass=True, **data)
+    user_info = kc.create_user(set_temp_pass=True, **data)
 
     return {
         "email": data["email"],

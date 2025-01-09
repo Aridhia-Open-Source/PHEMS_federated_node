@@ -545,7 +545,7 @@ class Keycloak:
         return permission_response.json()
 
     ### USERS' section
-    def create_user(self, temp_pass=False, **kwargs) -> dict:
+    def create_user(self, set_temp_pass=False, **kwargs) -> dict:
         """
         Method that handles the user creation. Keycloak will need username as
         mandatory field, but we would set a temporary password so the user
@@ -568,7 +568,7 @@ class Keycloak:
                 "username": username,
                 "credentials": [{
                     "type": "password",
-                    "temporary": temp_pass,
+                    "temporary": set_temp_pass,
                     "value": random_password
                 }]
             },

@@ -371,4 +371,4 @@ def new_user_email():
 
 @pytest.fixture
 def new_user(new_user_email):
-    return Keycloak().create_user(temp_pass=True, **{"email": new_user_email})
+    return Keycloak().create_user(set_temp_pass=True, **{"email": new_user_email})
