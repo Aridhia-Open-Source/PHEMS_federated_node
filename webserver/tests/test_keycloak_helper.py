@@ -152,7 +152,7 @@ class TestKeycloakResponseFailures:
         with responses.RequestsMock() as rsps:
             rsps.add(
                 responses.GET,
-                URLS["roles"],
+                URLS["roles"] + "/some_role",
                 json=self.common_error_response,
                 status=500
             )
