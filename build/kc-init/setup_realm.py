@@ -268,5 +268,26 @@ if is_response_good(user_edit_profiles_resp):
   print(user_edit_profiles_resp.text)
   exit(1)
 
+# Enable user profiles on a realm level
+realm_settings = requests.get(
+  f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}",
+  headers={'Authorization': f'Bearer {admin_token}'}
+)
+if is_response_good(realm_settings):
+  print(realm_settings.text)
+  exit(1)
+
+r_settings = realm_settings.json()
+r_settings["attributes"]["userProfileEnabled"] = True
+
+update_settings = requests.put(
+  f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}",
+  json=r_settings,
+  headers={'Authorization': f'Bearer {admin_token}'}
+)
+if is_response_good(update_settings):
+  print(update_settings.text)
+  exit(1)
+
 print("Done!")
 exit(0)

@@ -8,6 +8,9 @@
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": false,
+  "attributes": {
+    "userProfileEnabled": true
+  },
   "groups": [
     {
       "name": "Administrator",
