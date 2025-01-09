@@ -384,6 +384,12 @@ class TestKeycloakResponseFailures:
         kc_client = Keycloak()
         with responses.RequestsMock() as rsps:
             rsps.add(
+                responses.GET,
+                URLS["roles"] + "/Users",
+                json={"name": "Users"},
+                status=200
+            )
+            rsps.add(
                 responses.POST,
                 URLS["user"],
                 json=self.common_error_response,
