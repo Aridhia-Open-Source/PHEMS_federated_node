@@ -3,6 +3,8 @@
 ## 0.7.0
 - Added POST, GET `/users` admin-only endpoints to perform user management, and PUT `/users/reset-password` to allow users to reset their own credentials.
 
+- Updated `jinja` and `pyjwt` dependencies due to vulnerablities found.
+
 ## 0.6.0
 - Pods are now running as non-root users
 
