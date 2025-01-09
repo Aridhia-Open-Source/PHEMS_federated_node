@@ -1,5 +1,9 @@
 # Releases Changelog
 
+## 0.7.0
+
+- Updated `jinja` and `pyjwt` dependencies due to vulnerablities found.
+
 ## 0.6.0
 - Pods are now running as non-root users
 
