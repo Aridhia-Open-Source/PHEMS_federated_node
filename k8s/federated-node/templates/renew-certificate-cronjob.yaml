@@ -15,7 +15,7 @@ spec:
           serviceAccountName: secret-cert-handler
           containers:
           - name: certibot-renewer
-            image: ghcr.io/aridhia-open-source/federated_node_certificate:{{ .Chart.AppVersion }}
+            image: ghcr.io/aridhia-open-source/federated_node_certificate:{{ .Values.keycloak.tag | default .Chart.AppVersion }}
             imagePullPolicy: {{ .Values.pullPolicy }}
             {{- include "nonRootSC" . | indent 12 }}
             env:

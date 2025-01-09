@@ -3,6 +3,8 @@
 ## 0.7.0
 - Added a new cronjob to automatically renew the SSL certificate (instructions in the [DEPLOYMENT.md](./DEPLOYMENT.md) file)
 
+- Updated `jinja` and `pyjwt` dependencies due to vulnerablities found.
+
 ## 0.6.0
 - Pods are now running as non-root users
 

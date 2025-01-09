@@ -16,7 +16,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: post-install-job
-          image: "ghcr.io/aridhia-open-source/keycloak_initializer:{{ .Chart.AppVersion }}"
+          image: "ghcr.io/aridhia-open-source/keycloak_initializer:{{ .Values.keycloak.tag | default .Chart.AppVersion }}"
           command: ["/bin/sh", "-c", "python3 /scripts/setup_realm.py" ]
           {{ include "nonRootSC" . }}
           env:

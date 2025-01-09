@@ -45,7 +45,7 @@ spec:
           serviceAccountName: task-cleaner-handler
           containers:
           - name: result-cleaner
-            image: ghcr.io/aridhia-open-source/results_cleaner:{{ .Chart.AppVersion }}
+            image: ghcr.io/aridhia-open-source/results_cleaner:{{ .Values.backend.tag | default .Chart.AppVersion }}
             imagePullPolicy: IfNotPresent
             {{- include "nonRootSC" . | nindent 12 }}
             env:
