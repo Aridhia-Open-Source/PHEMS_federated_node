@@ -21,7 +21,7 @@ class UserMixin:
         assert resp.status_code == 201
         return resp.json
 
-class TestCreateUser(UserMixin):
+class TestGetUsers(UserMixin):
     def test_get_all_users(
         self,
         client,
@@ -80,6 +80,8 @@ class TestCreateUser(UserMixin):
         )
         assert resp.status_code == 403
 
+
+class TestCreateUser(UserMixin):
     def test_create_successfully(
         self,
         client,
