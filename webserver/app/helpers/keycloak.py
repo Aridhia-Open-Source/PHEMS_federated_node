@@ -343,9 +343,12 @@ class Keycloak:
             raise UnauthorizedError("User is not authorized")
         return True
 
-    def get_role(self, role_name:str) -> dict:
+    def get_role(self, role_name:str) -> dict[str, str]:
         """
         Get the realm roles.
+
+        Returns a dictionary {name: str, id: str}
+
         Raises a specific exception if not found
         """
         realm_resp = requests.get(
@@ -551,6 +554,10 @@ class Keycloak:
         """
         random_password = ''.join(random.choice(PASS_GENERATOR_SET) for _ in range(12))
         username = kwargs.get("username", kwargs.get("email"))
+
+        # Make sure the role exists before creating the user
+        role = self.get_role(kwargs.get("role", "Users"))
+
         user_response = requests.post(
             URLS["user"],
             json={
@@ -574,20 +581,25 @@ class Keycloak:
 
         user_info = self.get_user(username)
         # Assign a role
-        self.assign_role_to_user(user_info["id"], kwargs.get("role", "Users"))
+        self.assign_role_to_user(user_info["id"], role)
 
         user_info["password"] = random_password
 
         return user_info
 
-    def assign_role_to_user(self, user_id:str, role:str="Users"):
+    def assign_role_to_user(self, user_id:str, role:str|dict ="Users"):
         """
         Keycloak REST API can't handle role assignation to a user on creation
-        has to be a separate call
+        has to be a separate call.
+
+        :param user_id: a string representing the user_id from keycloak
+        :param role: either a string with the role name, or a dictionary that contains role's name and id
         """
+        if isinstance(role, str):
+            role = self.get_role(role)
         user_role_response = requests.post(
             URLS["user_role"] % user_id,
-            json=[self.get_role(role)],
+            json=[role],
             headers=self._post_json_headers()
         )
         if not user_role_response.ok and user_role_response.status_code != 409:
@@ -634,7 +646,7 @@ class Keycloak:
 
         return user_response.json()[0] if user_response.json() else None
 
-    def get_user_role(self, user_id:str):
+    def get_user_role(self, user_id:str) -> list[str]:
         """
         From a user id, get all of their realm roles
         """

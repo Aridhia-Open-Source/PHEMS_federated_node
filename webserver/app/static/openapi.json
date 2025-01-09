@@ -1475,7 +1475,8 @@
           "username": {"type": "string", "example": "user"},
           "role": {"type": "array", "items":{"type": "string", "example": "Administrator"}},
           "firstName": {"type": "string", "example": "John"},
-          "lastName": {"type": "string", "example": "Black"}
+          "lastName": {"type": "string", "example": "Black"},
+          "needs_to_reset_password": {"type": "boolean"}
         }
       },
       "CreateUserBody": {

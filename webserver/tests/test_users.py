@@ -198,6 +198,7 @@ class TestCreateUser(UserMixin):
         self,
         client,
         post_json_admin_header,
+        simple_admin_header,
         new_user_email
     ):
         """
@@ -215,6 +216,13 @@ class TestCreateUser(UserMixin):
 
         assert resp.status_code == 400
         assert resp.json["error"] == "Role President does not exist"
+
+        # check the user doesn't exist in keycloak
+        resp = client.get(
+            "/users",
+            headers=simple_admin_header
+        )
+        assert new_user_email not in [user["email"] for user in resp.json]
 
     def test_new_user_login_with_temp_pass(
         self,
