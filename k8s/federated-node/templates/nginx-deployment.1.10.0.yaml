@@ -478,6 +478,7 @@ apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   annotations:
+    helm.sh/hook-weight: "4"
   labels:
     helm.sh/chart: ingress-nginx-4.10.0
     app.kubernetes.io/name: ingress-nginx
@@ -485,7 +486,6 @@ metadata:
     app.kubernetes.io/version: "1.10.0"
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/component: admission-webhook
-    helm.sh/hook-weight: "6"
   name: ingress-nginx-admission
 webhooks:
   - name: validate.nginx.ingress.kubernetes.io
