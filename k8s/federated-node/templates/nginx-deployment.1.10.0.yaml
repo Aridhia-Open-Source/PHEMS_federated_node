@@ -485,6 +485,7 @@ metadata:
     app.kubernetes.io/version: "1.10.0"
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/component: admission-webhook
+    helm.sh/hook-weight: "4"
   name: ingress-nginx-admission
 webhooks:
   - name: validate.nginx.ingress.kubernetes.io
