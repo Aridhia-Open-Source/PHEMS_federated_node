@@ -1,0 +1,4 @@
+pyopenssl==24.2.1
+certbot==2.11.0
+certbot-dns-azure==2.5.0
+certbot-dns-route53==2.11.0
