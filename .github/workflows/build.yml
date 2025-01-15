@@ -18,6 +18,7 @@ on:
       - '.gitignore'
       - 'sub-license/**'
       - 'environment/*.md'
+      - 'install_argocd/**'
   pull_request:
     branches:
       - main
@@ -33,6 +34,7 @@ on:
       - '.gitignore'
       - 'sub-license/**'
       - 'environment/*.md'
+      - 'install_argocd/**'
 env:
   TAG: ''
   OWNER_LC: ''
