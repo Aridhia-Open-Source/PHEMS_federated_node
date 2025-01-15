@@ -8,7 +8,7 @@ from kubernetes.stream import stream
 from kubernetes.client.exceptions import ApiException
 from kubernetes.watch import Watch
 from app.helpers.exceptions import InvalidRequest, KubernetesException
-from app.helpers.const import TASK_NAMESPACE
+from app.helpers.const import TASK_NAMESPACE, TASK_POD_RESULTS_PATH
 
 logger = logging.getLogger('kubernetes_helper')
 logger.setLevel(logging.INFO)
@@ -64,27 +64,38 @@ class KubernetesBase:
         # Create a dedicated VPC for each task so that we can keep results indefinitely
         self.create_persistent_storage(pod_spec["name"], pod_spec["labels"])
         pvc_name = f"{pod_spec["name"]}-volclaim"
+        pvc = client.V1PersistentVolumeClaimVolumeSource(claim_name=pvc_name)
 
-        vol_mount = client.V1VolumeMount(
-            mount_path=pod_spec["mount_path"],
-            sub_path=pod_spec['labels']['task_id'],
-            name="data"
-        )
+        vol_mounts = []
+        # All results volumes will be mounted in a folder named
+        # after the task_id, so all of the "output" user-defined
+        # folders will be in i.e. /mnt/data/14/folder2
+        base_mount_folder = f"{pod_spec['labels']['task_id']}"
+
+        for mount_name, mount_path in pod_spec.get("mount_path", {}).items():
+            vol_mounts.append(client.V1VolumeMount(
+                mount_path=mount_path,
+                sub_path=f"{base_mount_folder}/{mount_name}",
+                name="data"
+            ))
 
         container = client.V1Container(
             name=pod_spec["name"],
             image=pod_spec["image"],
             env=self.create_env_from_dict(pod_spec.get("environment", {})),
             env_from=pod_spec["env_from"],
-            volume_mounts=[vol_mount],
+            volume_mounts=vol_mounts,
+            image_pull_policy="Always",
             resources = pod_spec.get("resources", {})
         )
+
         if pod_spec["command"]:
             container.command = pod_spec["command"]
+
         secrets = [client.V1LocalObjectReference(name='regcred')]
-        pvc = client.V1PersistentVolumeClaimVolumeSource(claim_name=pvc_name)
 
         specs = client.V1PodSpec(
+            termination_grace_period_seconds=300,
             init_containers=[self.get_task_pod_init_container(pod_spec['labels']['task_id'])],
             containers=[container],
             image_pull_secrets=secrets,
@@ -296,10 +307,12 @@ class KubernetesBase:
                 # Loop through the contents of the pod's folder
                 with tarfile.open(fileobj=tar_buffer, mode='r:') as tar:
                     for member in tar.getmembers():
-                        if member.isdir():
-                            continue
-                        fname = member.name.rsplit('/', 1)[1]
-                        tar.makefile(member, dest_path + '/' + fname)
+                        fname = member.name.replace(source_path[1:], "")
+                        if fname:
+                            if member.isdir():
+                                tar.makedir(member, dest_path + '/' + fname[1:])
+                            else:
+                                tar.makefile(member, dest_path + '/' + fname[1:])
 
             # Create an archive on the Flask's pod PVC
             results_file_archive = dest_path + '/results.tar.gz'

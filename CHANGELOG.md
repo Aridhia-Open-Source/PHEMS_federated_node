@@ -1,5 +1,16 @@
 # Releases Changelog
 
+## 0.7.0
+
+- Updated `jinja` and `pyjwt` dependencies due to vulnerablities found.
+
+## 0.6.0
+- Pods are now running as non-root users
+
+- POST `/tasks` now accepts the outputs field to dynamically mount a volume so that results can be fetched correctly. If no value is provided, the default location of `/mnt/data/` will be used.
+
+- Added PATCH /datasets/<id> endpoints, so existing datasets can be amended, or a dictionary added to them.
+
 ## 0.5.1
 ### Bugfixes
 - Fixed an issue with TLS termination on nginx, as the two ingress order was not respected. This caused the ssl secret to be ignored as the nginx controller takes the oldest deployed ingress with the same host as valid config. In some cases `keycloak` ingress was deployed first, and by not having a secret reference, nginx would apply the k8s default cert.
@@ -15,7 +26,7 @@
 ### Bugfixes
 
 - An issue with the ingress with the path type being migrated from `Prefix` to `ImplementationSpecific`
-  
+
 
 ## 0.0.7
 
