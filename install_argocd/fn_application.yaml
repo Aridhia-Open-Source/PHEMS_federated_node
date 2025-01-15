@@ -10,10 +10,7 @@ spec:
     path: k8s/federated-node
     targetRevision: main
     helm:
-      # There can be a values file in this same folder
-      valueFiles:
-        - dev.values.yaml
-      # and/or paste its content in here, respecting the indentation
+      # paste the custom helm values content in here
       values: |
         registries:
           - url:
