@@ -58,14 +58,14 @@ class Dataset(db.Model, BaseModel):
         body.kind = 'Secret'
         body.metadata = {'name': self.get_creds_secret_name()}
         body.type = 'Opaque'
-        try:
-            for ns in [DEFAULT_NAMESPACE, TASK_NAMESPACE]:
-                v1.create_namespaced_secret(ns, body=body, pretty='true')
-        except ApiException as e:
-            if e.status == 409:
-                pass
-            else:
-                raise InvalidRequest(e.reason)
+        for ns in [DEFAULT_NAMESPACE, TASK_NAMESPACE]:
+            try:
+                    v1.create_namespaced_secret(ns, body=body, pretty='true')
+            except ApiException as e:
+                if e.status == 409:
+                    pass
+                else:
+                    raise InvalidRequest(e.reason)
 
     def get_creds_secret_name(self, host=None, name=None):
         host = host or self.host
@@ -93,7 +93,7 @@ class Dataset(db.Model, BaseModel):
         This is not involved in the Task Execution Service
         """
         v1 = KubernetesClient()
-        secret = v1.read_namespaced_secret(self.get_creds_secret_name(), 'default', pretty='pretty')
+        secret = v1.read_namespaced_secret(self.get_creds_secret_name(), DEFAULT_NAMESPACE, pretty='pretty')
         # Doesn't matter which key it's being picked up, the value it's the same
         # in terms of *USER or *PASSWORD
         user = KubernetesClient.decode_secret_value(secret.data['PGUSER'])
