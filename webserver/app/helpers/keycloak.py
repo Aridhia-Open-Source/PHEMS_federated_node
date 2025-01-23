@@ -565,6 +565,7 @@ class Keycloak:
                 "lastName": kwargs.get("lastName", ""),
                 "email": kwargs.get("email"),
                 "enabled": True,
+                "emailVerified": True,
                 "username": username,
                 "credentials": [{
                     "type": "password",
