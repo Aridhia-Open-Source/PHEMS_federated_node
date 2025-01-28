@@ -107,6 +107,13 @@ ingress:
     certFile:
     # secretName:
 
+# Set the domains that are allowed to send requests
+# to the federated node, in case there is a web UI that tries to
+# ping the FN
+integrations:
+  domains:
+   - '*'
+
 resources: {}
 
 nodeSelector: {}
