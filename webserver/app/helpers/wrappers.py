@@ -41,7 +41,7 @@ def auth(scope:str, check_dataset=True):
 
             kc_client = Keycloak()
             token_info = kc_client.decode_token(token)
-            user = kc_client.get_user(token_info['username'])
+            user = kc_client.get_user_by_username(token_info['username'])
 
             # If the user is an admin or system, ignore the project
             if not kc_client.has_user_roles(user["id"], {"Administrator", "System"}):

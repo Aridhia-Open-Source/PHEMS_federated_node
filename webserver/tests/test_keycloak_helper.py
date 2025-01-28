@@ -234,7 +234,7 @@ class TestKeycloakResponseFailures:
                 status=500
             )
             with pytest.raises(KeycloakError) as exc:
-                kc_client.get_user(username)
+                kc_client.get_user_by_username(username)
             assert exc.value.details == 'Failed to fetch the user'
 
     def test_create_client(
