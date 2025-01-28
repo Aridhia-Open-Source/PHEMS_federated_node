@@ -81,7 +81,7 @@ def get_users_list():
             "firstName": user.get("firstName", ''),
             "lastName": user.get("lastName", ''),
             "role": kc.get_user_role(user["id"]),
-            "needs_to_reset_password": user.get("requiredActions") is not None
+            "needs_to_reset_password": user.get("requiredActions", []) != []
         } for user in ls_users if user["username"] != KEYCLOAK_ADMIN
     ]
 
