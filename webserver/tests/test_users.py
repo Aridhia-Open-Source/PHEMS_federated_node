@@ -101,6 +101,24 @@ class TestCreateUser(UserMixin):
         assert resp.status_code == 201
         assert "tempPassword" in resp.json
 
+    def test_create_successfully_with_special_char(
+        self,
+        client,
+        post_json_admin_header
+    ):
+        """
+        Basic test to ensure we get a 201 and a temp password
+        as response. This tests that email with + are processed fine
+        """
+        resp = client.post(
+            "/users",
+            headers=post_json_admin_header,
+            json={"email": "someemail+test@email.com"}
+        )
+
+        assert resp.status_code == 201
+        assert "tempPassword" in resp.json
+
     def test_create_missing_fields(
         self,
         client,

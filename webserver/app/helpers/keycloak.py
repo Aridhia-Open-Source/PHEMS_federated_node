@@ -4,7 +4,9 @@ import random
 import re
 import requests
 from base64 import b64encode
+import urllib.parse
 from flask import request
+
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
 from app.helpers.const import PASS_GENERATOR_SET
 
@@ -581,6 +583,7 @@ class Keycloak:
             raise KeycloakError("Failed to create the user")
 
         user_info = self.get_user(username)
+
         # Assign a role
         self.assign_role_to_user(user_info["id"], role)
 
@@ -621,6 +624,22 @@ class Keycloak:
         return user_response.json()
 
     def get_user(self, username:str) -> dict:
+        """
+        Method to return a dictionary representing a Keycloak user,
+        checks for both username and email
+        """
+        username_encoded = urllib.parse.quote_plus(username)
+        by_un = self.get_user_by_username(username_encoded)
+        if by_un:
+            return by_un
+
+        by_em = self.get_user_by_email(username_encoded)
+        if by_em:
+            return by_em
+
+        raise KeycloakError("Failed to fetch the created user")
+
+    def get_user_by_username(self, username:str) -> dict:
         """
         Method to return a dictionary representing a Keycloak user
         """
