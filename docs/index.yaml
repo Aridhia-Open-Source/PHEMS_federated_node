@@ -1,3 +1,94 @@
 apiVersion: v1
-entries: {}
-generated: "2025-02-05T16:36:36.452390749Z"
+entries:
+  federated-node:
+  - apiVersion: v2
+    appVersion: 0.8.0
+    created: "2025-02-05T16:54:35.379653225Z"
+    description: A Helm chart for deploying the Federated Node on Kubernetes
+    digest: 565f883e659bb74655b5aa3300964c153c6b5594033c30b3de1096481ba43fa6
+    name: federated-node
+    type: application
+    urls:
+    - https://aridhia-open-source.github.io/PHEMS_federated_node/federated-node-0.8.0.tgz
+    version: 0.8.0
+  - apiVersion: v2
+    appVersion: 0.6.0
+    created: "2025-02-05T16:54:35.378973377Z"
+    description: A Helm chart for deploying the Federated Node on Kubernetes
+    digest: fa9fc196f2f1146812cabac940e4da5dd76c5784955cf541a25cb869909f5058
+    name: federated-node
+    type: application
+    urls:
+    - https://aridhia-open-source.github.io/PHEMS_federated_node/federated-node-0.6.0.tgz
+    version: 0.6.0
+  - apiVersion: v2
+    appVersion: 0.5.2
+    created: "2025-02-05T16:54:35.377415748Z"
+    description: A Helm chart for deploying the Federated Node on Kubernetes
+    digest: dfac3d66dfe4f2fd66d9454c3826056862f15b69768a0ba3a435510ef9acca27
+    name: federated-node
+    type: application
+    urls:
+    - https://aridhia-open-source.github.io/PHEMS_federated_node/federated-node-0.5.2.tgz
+    version: 0.5.2
+  - apiVersion: v2
+    appVersion: 0.5.0
+    created: "2025-02-05T16:54:35.376676368Z"
+    description: A Helm chart for deploying the Federated Node on Kubernetes
+    digest: 3e4044c1858f934a6854d9911f8dfcb9953a605734e8f31c7be18187b6687784
+    name: federated-node
+    type: application
+    urls:
+    - https://aridhia-open-source.github.io/PHEMS_federated_node/federated-node-0.5.1.tgz
+    version: 0.5.1
+  - apiVersion: v2
+    appVersion: 0.5.0
+    created: "2025-02-05T16:54:35.376004563Z"
+    description: A Helm chart for deploying the Federated Node on Kubernetes
+    digest: cf9cf58397f4ec70503ce4ec64b07d874acc4044f352a184c8e3c139aa189ba7
+    name: federated-node
+    type: application
+    urls:
+    - https://aridhia-open-source.github.io/PHEMS_federated_node/federated-node-0.5.0.tgz
+    version: 0.5.0
+  - apiVersion: v2
+    appVersion: 0.5.0
+    created: "2025-02-05T16:54:35.37523955Z"
+    description: A Helm chart for deploying the Federated Node on Kubernetes
+    digest: 8adbc4b385b1aada1b87af9a662d9b0d81085715cbe749a94d81617ddcf7c150
+    name: federated-node
+    type: application
+    urls:
+    - https://aridhia-open-source.github.io/PHEMS_federated_node/federated-node-0.4.1.tgz
+    version: 0.4.1
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2025-02-05T16:54:35.374602291Z"
+    description: A Helm chart for deploying the Federated Node on Kubernetes
+    digest: 8d8270f81a89ac5f14f6e6eb7c4fa46a92b460460e41ee86e31aa8346a150d28
+    name: federated-node
+    type: application
+    urls:
+    - https://aridhia-open-source.github.io/PHEMS_federated_node/federated-node-0.1.0.tgz
+    version: 0.1.0
+  - apiVersion: v2
+    appVersion: 0.0.7
+    created: "2025-02-05T16:54:35.373896088Z"
+    description: A Helm chart for deploying the Federated Node on Kubernetes
+    digest: 39039263a7379f3e92b9a1555cb894a9bd0454564f44b3f18448427051d55714
+    name: federated-node
+    type: application
+    urls:
+    - https://aridhia-open-source.github.io/PHEMS_federated_node/federated-node-0.0.7.tgz
+    version: 0.0.7
+  - apiVersion: v2
+    appVersion: 0.0.6
+    created: "2025-02-05T16:54:35.373254805Z"
+    description: A Helm chart for deploying the Federated Node on Kubernetes
+    digest: afe7f4df04bcd392c42d052d51f3e5d713e04ab7f167491189b50c928acb0729
+    name: federated-node
+    type: application
+    urls:
+    - https://aridhia-open-source.github.io/PHEMS_federated_node/federated-node-0.0.6.tgz
+    version: 0.0.6
+generated: "2025-02-05T16:54:35.37237038Z"
