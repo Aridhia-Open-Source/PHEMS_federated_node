@@ -4,7 +4,9 @@ import random
 import re
 import requests
 from base64 import b64encode
+import urllib.parse
 from flask import request
+
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
 from app.helpers.const import PASS_GENERATOR_SET
 
@@ -584,6 +586,7 @@ class Keycloak:
             raise KeycloakError("Failed to create the user")
 
         user_info = self.get_user(username)
+
         # Assign a role
         self.assign_role_to_user(user_info["id"], role)
 
@@ -625,10 +628,26 @@ class Keycloak:
 
     def get_user(self, username:str) -> dict:
         """
+        Method to return a dictionary representing a Keycloak user,
+        checks for both username and email
+        """
+        by_un = self.get_user_by_username(username)
+        if by_un:
+            return by_un
+
+        by_em = self.get_user_by_email(username)
+        if by_em:
+            return by_em
+
+        raise KeycloakError("Failed to fetch the created user")
+
+    def get_user_by_username(self, username:str) -> dict:
+        """
         Method to return a dictionary representing a Keycloak user
         """
+        username_encoded = urllib.parse.quote_plus(username)
         user_response = requests.get(
-            f"{URLS["user"]}?username={username}&exact=true",
+            f"{URLS["user"]}?username={username_encoded}&exact=true",
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
         if not user_response.ok:
@@ -641,8 +660,10 @@ class Keycloak:
         Method to return a dictionary representing a Keycloak user,
         using their email
         """
+        email_encoded = urllib.parse.quote_plus(email)
+
         user_response = requests.get(
-            f"{URLS["user"]}?email={email}&exact=true",
+            f"{URLS["user"]}?email={email_encoded}&exact=true",
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
         if not user_response.ok:

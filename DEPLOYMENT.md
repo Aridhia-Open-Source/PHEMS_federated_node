@@ -19,6 +19,8 @@ Now you should be all set to pull the chart from gitLab.
 ### Pre-existing Secrets (optional)
 In order to not store credentials in plain text within the `values.yaml` file, there is an option to pre-populate secrets in a safe matter.
 
+Just keep in mind that some characters need to be escaped. i.e. `"` has to be `\"` in the bash commands. Currently, we only detected `"` and `%` to be problematic characters.
+
 The secrets to be created are:
 - Db credentials for the FN webserver to use (not where the dataset is)
 - Azure storage account credentials (if used)
@@ -34,7 +36,7 @@ echo -n "value" | base64
 ```
 
 #### Container Registries
-The following examples aims to setup container registries (CRs) credentials.
+The following examples aims to setup container registries (CRs) credentials. The assumption is that all container registries are private, not public. That is because is expected that all the code to be run in the datasets has to be vetted, supervised by the data controllers.
 
 In general, to create a k8s secret you run a command like the following:
 ```sh
@@ -87,6 +89,8 @@ type: Opaque
 ```
 
 #### Azure Storage
+
+_Note: The azure storage account file share has to exist already_
 ```sh
 kubectl create secret generic $secret_name \
     --from-literal=azurestorageaccountkey=$(echo -n $accountkey | base64) \

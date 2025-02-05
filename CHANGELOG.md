@@ -13,8 +13,17 @@
         - GET
         - GET /id
 - Removed `regcred` automatic generation, as deployments in the helm chart are all public
-- Removed registries-list.json which was a sibling process to the `regcred`
+- Removed `registries-list.json` which was a sibling process to the `regcred`
+- In the values file, the `registries` key is deprecated.
 
+## 0.7.2
+### Bugfixes
+- Fixed an issue with the `needs_to_reset_password` field not being set correctly
+- Fixed an issue with the reset password process where sometimes the users were incorrectly not found
+
+## 0.7.1
+### Bugfixes
+- Fixed an issue with emails not being parsed correctly when special characters are included
 
 ## 0.7.0
 - Added POST, GET `/users` admin-only endpoints to perform user management, and PUT `/users/reset-password` to allow users to reset their own credentials.

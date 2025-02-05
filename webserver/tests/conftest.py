@@ -78,7 +78,7 @@ def app_ctx(app):
 # Users' section
 @pytest.fixture
 def user_uuid():
-    return Keycloak().get_user(os.getenv("KEYCLOAK_ADMIN"))["id"]
+    return Keycloak().get_user_by_username(os.getenv("KEYCLOAK_ADMIN"))["id"]
 
 @pytest.fixture
 def login_admin(client):
