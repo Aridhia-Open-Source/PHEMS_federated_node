@@ -43,6 +43,9 @@ env:
   IS_TAG: ${{ github.ref_type == 'tag' }}
   DEV_BUILD: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/main' }}
 
+permissions:
+  contents: write
+
 jobs:
   init:
     runs-on: ubuntu-latest
