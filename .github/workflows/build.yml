@@ -42,6 +42,9 @@ env:
   IS_TAG: ${{ github.ref_type == 'tag' }}
   DEV_BUILD: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/main' }}
 
+permissions:
+  contents: write
+
 jobs:
   init:
     runs-on: ubuntu-latest
@@ -67,11 +70,11 @@ jobs:
           appVersion=$(grep 'appVersion:.*' Chart.yaml | sed 's/^.*: \"//'| sed 's/\"//')
           echo "Chart appVersion: ${appVersion}"
 
-          echo "CHART_VERSION=${version}" >> ${GITHUB_OUTPUT}
-
           if [[ "${{ env.DEV_BUILD }}" == "false" ]]; then
+            echo "CHART_VERSION=${version}" >> ${GITHUB_OUTPUT}
             echo "TAG=${appVersion}" >> ${GITHUB_OUTPUT}
           else
+            echo "CHART_VERSION=${version}-${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
             echo "TAG=${appVersion}-${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
           fi
   linters:
@@ -187,37 +190,16 @@ jobs:
           tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/keycloak_initializer:${{ needs.init.outputs.tag }}
           push: true
   release:
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/helm-build.yml@main
     if: always() && !failure() && !cancelled()
     needs:
       - init
       - build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Build helm archive
-      working-directory: k8s/federated-node
-      run: |
-        helm package . -d ../../artifacts/
-
-    - name: Set helm channel to develop for dev branches
-      if: needs.init.outputs.dev_build == 'true'
-      run: echo "HELM_CHANNEL=develop" >> ${GITHUB_ENV}
-
-    - name: Push to GitLab Package Artifact
-      run: |
-        set -e
-        curl --request POST \
-          --form 'chart=@artifacts/federated-node-${{ needs.init.outputs.chart_version }}.tgz' \
-          --user ${{ vars.USER_HELM }}:${{ secrets.HELM_TOKEN }} \
-          ${{ vars.HELM_REPO }}/helm/api/${{ env.HELM_CHANNEL }}/charts
-
-    - name: Publish Release
-      uses: ncipollo/release-action@v1
-      if: needs.init.outputs.is_tag == 'true'
-      with:
-        artifacts: "artifacts/federated-node-${{ needs.init.outputs.chart_version }}.tgz"
-        tag: ${{ needs.init.outputs.chart_version }}
-        skipIfReleaseExists: true
+    with:
+      VERSION: ${{ needs.init.outputs.chart_version }}
+      APP_VERSION: ${{ needs.init.outputs.tag }}
+      PATH_BUILD: k8s/federated-node
+      CHART_NAME: federated-node
+      IS_TAG: ${{ needs.init.outputs.is_tag }}
+    secrets:
+      HELM_TOKEN: ${{ secrets.HELM_TOKEN }}
