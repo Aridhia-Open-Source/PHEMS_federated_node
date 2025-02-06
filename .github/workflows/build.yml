@@ -71,11 +71,11 @@ jobs:
           appVersion=$(grep 'appVersion:.*' Chart.yaml | sed 's/^.*: \"//'| sed 's/\"//')
           echo "Chart appVersion: ${appVersion}"
 
-          echo "CHART_VERSION=${version}" >> ${GITHUB_OUTPUT}
-
           if [[ "${{ env.DEV_BUILD }}" == "false" ]]; then
+            echo "CHART_VERSION=${version}" >> ${GITHUB_OUTPUT}
             echo "TAG=${appVersion}" >> ${GITHUB_OUTPUT}
           else
+            echo "CHART_VERSION=${version}-${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
             echo "TAG=${appVersion}-${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
           fi
   linters:
