@@ -16,7 +16,7 @@ helm search repo federated-node --versions
 helm search repo federated-node --devel --versions
 ```
 
-Now you should be all set to pull the chart from gitLab.
+Now you should be all set to pull the chart from GitHub.
 
 ### Pre-existing Secrets (optional)
 In order to not store credentials in plain text within the `values.yaml` file, there is an option to pre-populate secrets in a safe matter.
