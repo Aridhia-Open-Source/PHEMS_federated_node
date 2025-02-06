@@ -8,10 +8,12 @@ See their installation instructions [here](https://helm.sh/docs/intro/install/).
 ### Setup helm repo
 ```sh
 helm repo add federated-node https://aridhia-open-source.github.io/PHEMS_federated_node
-```
-If you want to run a development chart
-```sh
-helm repo add federated-node-dev https://gitlab.com/api/v4/projects/aridhia%2Ffederated-node/packages/helm/develop
+
+# Check available releases
+helm search repo federated-node --versions
+
+# If you want to check development builds
+helm search repo federated-node --devel --versions
 ```
 
 Now you should be all set to pull the chart from gitLab.
