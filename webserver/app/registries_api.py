@@ -1,6 +1,7 @@
 """
 containers endpoints:
 - GET /registries
+- GET /registries/<registry_id>
 - POST /registries
 """
 

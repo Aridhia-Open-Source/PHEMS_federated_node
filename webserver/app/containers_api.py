@@ -2,6 +2,7 @@
 containers endpoints:
 - GET /containers
 - POST /containers
+- GET /containers/<id>
 - PATCH /containers/<id>
 - POST /registries
 """
