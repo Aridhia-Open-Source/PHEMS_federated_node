@@ -628,12 +628,11 @@ class Keycloak:
         Method to return a dictionary representing a Keycloak user,
         checks for both username and email
         """
-        username_encoded = urllib.parse.quote_plus(username)
-        by_un = self.get_user_by_username(username_encoded)
+        by_un = self.get_user_by_username(username)
         if by_un:
             return by_un
 
-        by_em = self.get_user_by_email(username_encoded)
+        by_em = self.get_user_by_email(username)
         if by_em:
             return by_em
 
@@ -643,8 +642,9 @@ class Keycloak:
         """
         Method to return a dictionary representing a Keycloak user
         """
+        username_encoded = urllib.parse.quote_plus(username)
         user_response = requests.get(
-            f"{URLS["user"]}?username={username}&exact=true",
+            f"{URLS["user"]}?username={username_encoded}&exact=true",
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
         if not user_response.ok:
@@ -657,8 +657,10 @@ class Keycloak:
         Method to return a dictionary representing a Keycloak user,
         using their email
         """
+        email_encoded = urllib.parse.quote_plus(email)
+
         user_response = requests.get(
-            f"{URLS["user"]}?email={email}&exact=true",
+            f"{URLS["user"]}?email={email_encoded}&exact=true",
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
         if not user_response.ok:

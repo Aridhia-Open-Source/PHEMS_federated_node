@@ -41,6 +41,29 @@ class TestGetUsers(UserMixin):
         assert len(resp.json) == 1
         assert resp.json[0]['email'] == new_user_email
 
+    def test_user_needs_pass_reset_flag_true(
+        self,
+        client,
+        simple_admin_header,
+        new_user,
+        basic_user,
+        new_user_email
+    ):
+        """
+        Test that the needs_to_reset_password is set properly
+        for a new user and for existing ones
+        """
+        resp = client.get(
+            "/users",
+            headers=simple_admin_header
+        )
+        assert resp.status_code == 200
+        for us in resp.json:
+            if us["email"] == new_user_email:
+                assert us["needs_to_reset_password"] == True
+            if basic_user["email"] == new_user_email:
+                assert us["needs_to_reset_password"] == False
+
     def test_get_all_users_fails(
         self,
         client,

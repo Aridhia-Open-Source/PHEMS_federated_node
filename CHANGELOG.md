@@ -1,5 +1,10 @@
 # Releases Changelog
 
+## 0.7.2
+### Bugfixes
+- Fixed an issue with the `needs_to_reset_password` field not being set correctly
+- Fixed an issue with the reset password process where sometimes the users were incorrectly not found
+
 ## 0.7.1
 ### Bugfixes
 - Fixed an issue with emails not being parsed correctly when special characters are included
