@@ -378,7 +378,7 @@ spec:
             - --publish-service=$(POD_NAMESPACE)/ingress-nginx-controller
             - --election-id=ingress-nginx-leader
             - --controller-class=k8s.io/ingress-nginx
-            - --ingress-class={{ .Values.ingress.ingressClass | default "fn-nginx" }}
+            - --ingress-class={{ .Values.ingress.ingressClass }}
             - --configmap=$(POD_NAMESPACE)/ingress-nginx-controller
             - --validating-webhook=:8443
             - --validating-webhook-certificate=/usr/local/certificates/cert
@@ -467,7 +467,7 @@ metadata:
     app.kubernetes.io/version: "1.10.0"
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/component: controller
-  name: {{ .Values.ingress.ingressClass | default "fn-nginx" }}
+  name: {{ .Values.ingress.ingressClass }}
 spec:
   controller: k8s.io/ingress-nginx
 ---

@@ -1,0 +1,273 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "type": "object",
+    "required": [
+        "storage",
+        "db"
+    ],
+    "definitions": {
+        "tag": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-z0-9]+)$"
+        },
+        "iplist": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "enabled": {"type": "boolean"},
+                    "ips": {
+                        "$ref": "#/definitions/ip_address"
+                    }
+                }
+            }
+        },
+        "ip_address": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "pattern": "^[0-9]{1,3}/.[0-9]{1,3}/.[0-9]{1,3}/.[0-9]{1,3}(//[0-9]{1,3}){0,1}$"
+            }
+        }
+    },
+    "properties": {
+        "backend": {
+            "type": "object",
+            "required": [
+                "tag"
+            ],
+            "properties": {
+                "tag": {
+                    "$ref": "#/definitions/tag"
+                }
+            }
+        },
+        "keycloak": {
+            "type": "object",
+            "required": [
+                "tag"
+            ],
+            "properties": {
+                "tag": {
+                    "$ref": "#/definitions/tag"
+                }
+            }
+        },
+        "namespaces": {
+            "type": "object",
+            "properties": {
+                "keycloak": {
+                    "type": "string"
+                },
+                "tasks": {
+                    "type": "string"
+                },
+                "nginx": {
+                    "type": "string"
+                }
+            }
+        },
+        "db":{
+            "type": "object",
+            "required": ["user"],
+            "dependentRequired": {
+                "name": ["host"],
+                "host": ["name"]
+            },
+            "properties": {
+                "user": {"type": "string"},
+                "name": {"type": "string", "default": "db"},
+                "host": {"type": "string"},
+                "secret": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "key": {"type": "string"}
+                    }
+                }
+            }
+        },
+        "cleanupTime":{
+            "type": "integer",
+            "description": "Amount of days the result stored in the storage will be kept for"
+        },
+        "federatedNode":{
+            "type": "object",
+            "properties": {
+                "port": {"type": "integer"},
+                "volumes": {
+                    "type": "object",
+                    "properties": {
+                        "results_path": {"type": "string"},
+                        "task_pod_results_path": {"type": "string"}
+                    }
+                }
+            }
+        },
+        "storage": {
+            "type": "object",
+            "oneOf": [{
+                "azure": {
+                    "type": "object",
+                    "properties": {
+                        "secretName": {"type": "string"},
+                        "storageAccountName": {"type": "string"},
+                        "storageAccountKey": {"type": "string"},
+                        "shareName": {"type": "string"}
+                    }
+                },
+                "nfs": {
+                    "type": "object",
+                    "properties": {
+                        "provisioner": {"type": "string"},
+                        "path": {"type": "string"},
+                        "url": {"type": "string"}
+                    }
+                },
+                "local": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "dbpath": {"type": "string"}
+                    }
+                }
+            }]
+        },
+        "registries": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string"},
+                    "secret": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "passKey": {"type": "string"},
+                            "userKey": {"type": "string"}
+                        }
+                    }
+                }
+            }
+        },
+        "token":{
+            "type": "object",
+            "properties": {
+                "life": {
+                    "type": "integer",
+                    "default": 2592000,
+                    "description": "Duration in seconds for tokens"
+                }
+            }
+        },
+        "imagePullSecrets": {"type": "string"},
+        "pullPolicy": {
+            "type": "string",
+            "enum": [
+                "Always",
+                "IfNotPresent"
+            ]
+        },
+        "ingress":{
+            "type": "object",
+            "required": [
+                "host"
+            ],
+            "properties": {
+                "host": {
+                    "type": "string",
+                    "description": "The URL where the FN will be hosted at"
+                },
+                "ingressClass": {
+                    "type": "string",
+                    "description": "Ingress class name",
+                    "default": "fn-nginx"
+                },
+                "on_aks": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Flag to set custom settings for Azure"
+                },
+                "nginx": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {"type": "boolean"}
+                    }
+                },
+                "whitelist": {
+                    "type": "object",
+                    "description": "List of IPs that are allowed to connect to the service",
+                    "properties": {
+                        "ips": {
+                            "$ref": "#/definitions/iplist"
+                        }
+                    }
+                },
+                "blacklist": {
+                    "type": "object",
+                    "description": "List of IPs that are not allowed to connect to the service",
+                    "properties": {
+                        "ips": {
+                            "$ref": "#/definitions/iplist"
+                        }
+                    }
+                },
+                "tls": {
+                    "type": "object",
+                    "description": "Certificates for nginx to use to allow HTTPS. Leaving it empty or not present at all will trigger a browser warning about the connection not being secure",
+                    "required": [],
+                    "dependencies": {
+                        "keyFile": {
+                            "allOf": [
+                                {
+                                    "required": ["certFile"]
+                                }
+                            ]
+                        },
+                        "certFile": {
+                            "allOf": [
+                                {
+                                    "required": ["keyFile"]
+                                }
+                            ]
+                        },
+                        "secretName": {
+                            "allOf": [
+                                {
+                                    "required": ["keyFile", "certFile"]
+                                }
+                            ]
+                        }
+                    },
+                    "properties": {
+                        "keyFile": {
+                            "type": "string",
+                            "description": "The .key file path. Has lower priority than the secret."
+                        },
+                        "certFile": {
+                            "type": "string",
+                            "description": "The .cert file path. Has lower priority than the secret."
+                        },
+                        "secretName": {
+                            "type": "string",
+                            "description": "Secret name where the certs are. Defaults to `tls` if the `ingress.tls` section is set",
+                            "default": "tls"
+                        }
+                    }
+                }
+            }
+        },
+        "integrations":{
+            "type": "object",
+            "properties": {
+                "domains": {
+                    "type": "array",
+                    "description": "The list of third party host that can reach the Federated Node. Otherwise these will be blocked by CSP policies. This will not affect direct user API usage.",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}

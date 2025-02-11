@@ -61,7 +61,7 @@ spec:
               cpu: 100m
           ports:
             - name: http
-              containerPort: {{ .Values.federatedNode.port | default 5000 }}
+              containerPort: {{ .Values.federatedNode.port }}
               protocol: TCP
           readinessProbe:
             httpGet:

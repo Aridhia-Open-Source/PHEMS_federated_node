@@ -178,7 +178,6 @@ storage:
 registries:
 # env specific
   - url: .azurecr.io
-    email: ''
     secret:
       name: <secret name here>
       userKey: username
@@ -189,7 +188,6 @@ registries:
       name: <secret name here>
       userKey: username
       passKey: password
-    email: ''
 ```
 
 
