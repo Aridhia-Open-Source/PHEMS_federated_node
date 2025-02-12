@@ -5,6 +5,7 @@ from requests.exceptions import ConnectionError
 
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.exceptions import ContainerRegistryException
+from app.helpers.const import DEFAULT_NAMESPACE
 
 
 logger = logging.getLogger('registries_handler')
@@ -33,7 +34,7 @@ class BaseRegistry:
         Get the registry-related secret
         """
         v1 = KubernetesClient()
-        secret = v1.read_namespaced_secret(self.secret_name, 'default', pretty='pretty')
+        secret = v1.read_namespaced_secret(self.secret_name, DEFAULT_NAMESPACE, pretty='pretty')
         return {
             "user": KubernetesClient.decode_secret_value(secret.data['USER']),
             "token": KubernetesClient.decode_secret_value(secret.data['TOKEN'])
