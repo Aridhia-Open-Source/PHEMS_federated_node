@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: registry-sync
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: "0 12 * * *"
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 60
+      template:
+        spec:
+          containers:
+          - name: registry-sync
+            image: ghcr.io/aridhia-open-source/alpine:3.19
+            command: ["sync-registry"]
+            imagePullPolicy: {{ .Values.pullPolicy }}
+            {{- include "nonRootSC" . | nindent 12 }}
+            env:
+            - name: BASE_URL
+              value: http://backend:5000
+            - name: KEYCLOAK_ADMIN
+              value: admin
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kc-secrets
+                  key: KEYCLOAK_ADMIN_PASSWORD
+          restartPolicy: Never

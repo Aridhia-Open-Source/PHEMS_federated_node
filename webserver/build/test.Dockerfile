@@ -22,4 +22,5 @@ WORKDIR /app
 
 EXPOSE 5000
 COPY --chmod=777 test-entrypoint.sh /app/
+COPY setup.cfg /app/setup.cfg
 ENTRYPOINT [ "./test-entrypoint.sh" ]

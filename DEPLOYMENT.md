@@ -25,7 +25,6 @@ Just keep in mind that some characters need to be escaped. i.e. `"` has to be `\
 
 The secrets to be created are:
 - Db credentials for the FN webserver to use (not where the dataset is)
-- CR credentials (for the basic ghcr.io repo, you can create a personal access token with the `repo` and `write:packages` permissions. Use the generated token as password, and your github username)
 - Azure storage account credentials (if used)
 
 If you plan to deploy on a dedicated namespace, create it manually first or the secrets creation will fail
@@ -174,24 +173,6 @@ storage:
     secretName: <secret name here>
     shareName: files
 ```
-
-#### CRs
-```yaml
-registries:
-# env specific
-  - url: .azurecr.io
-    secret:
-      name: <secret name here>
-      userKey: username
-      passKey: password
-# from the lastpass note
-  - url: ghcr.io
-    secret:
-      name: <secret name here>
-      userKey: username
-      passKey: password
-```
-
 
 ### Deployment command
 ```sh

@@ -37,6 +37,14 @@
       "description": "Endpoints related to the token retrieval from 3rd parties"
     },
     {
+      "name": "Registries",
+      "description": "Endpoints related to the Container registry management"
+    },
+    {
+      "name": "Containers",
+      "description": "Endpoints related to the Containers management"
+    },
+    {
       "name": "Users",
       "description": "Endpoints related to user management"
     }
@@ -827,6 +835,247 @@
           }
         }
       }
+    },
+    "/containers":{
+      "get": {
+        "operationId": "getContainers",
+        "tags": ["Containers"],
+        "security": [],
+        "summary": "List all containers available to the user",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/ContainerList"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post":{
+        "operationId": "postContainers",
+        "tags": ["Containers"],
+        "summary": "Maps a new container that the Federated Node can fetch data from",
+        "requestBody": {
+          "content": {
+            "application/json":{
+              "schema":{
+                "$ref": "#/components/schemas/ContainerPostObject"
+              }
+            }
+          }
+        },
+        "responses":{
+          "201":{
+            "$ref": "#/components/responses/ContainerPost"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/containers/{id}": {
+      "get": {
+        "operationId": "getDatasetById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/containerIdPath"
+          }
+        ],
+        "tags": ["Containers"],
+        "summary": "Get a datasets by id if available to the user",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/ContainerEntry"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch":{
+        "operationId": "editContainers",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/containerIdPath"
+          }
+        ],
+        "tags": ["Containers"],
+        "summary": "Set the type of task a container can perform on the platform",
+        "requestBody": {
+          "content": {
+            "application/json":{
+              "schema":{
+                "$ref": "#/components/schemas/ContainerPatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/SimpleOk"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/containers/sync": {
+      "post":{
+        "operationId": "syncContainers",
+        "tags": ["Containers"],
+        "summary": "Synchronize ",
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/ContainerSync"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/registries":{
+      "get": {
+        "operationId": "getRegisries",
+        "tags": ["Registries"],
+        "summary": "List all container registries available",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/RegistryList"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post":{
+        "operationId": "postRegistries",
+        "tags": ["Registries"],
+        "summary": "Create a new container registry mapping from which the Federated Node can pull image from for tasks",
+        "requestBody": {
+          "content": {
+            "application/json":{
+              "schema":{
+                "$ref": "#/components/schemas/RegistryBody"
+              }
+            }
+          }
+        },
+        "responses":{
+          "201":{
+            "$ref": "#/components/responses/RegistryPost"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/registries/{id}": {
+      "get": {
+        "operationId": "getRegistryById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/registryIdPath"
+          }
+        ],
+        "tags": ["Registries"],
+        "summary": "Get a registry by id if available to the user",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/RegistryEntry"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
     }
   },
   "security": [
@@ -868,6 +1117,18 @@
         "schema":{"type": "string"},
         "required": false,
         "description": "Used by non admin users. The value should match the project decalred on the roken_transfer endpoint"
+      },
+      "containerIdPath": {
+        "in": "path",
+        "name": "container_id",
+        "schema":{"type": "integer"},
+        "required": true
+      },
+      "registryIdPath": {
+        "in": "path",
+        "name": "registry_id",
+        "schema":{"type": "integer"},
+        "required": true
       }
     },
     "responses": {
@@ -1086,6 +1347,94 @@
               "type": "array",
               "items":{
                 "$ref": "#/components/schemas/UserEntry"
+              }
+            }
+          }
+        }
+      },
+      "ContainerEntry": {
+        "description": "Container representation",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "$ref": "#/components/schemas/ContainerObject"
+            }
+          }
+        }
+      },
+      "ContainerList": {
+        "description": "List of registries",
+        "content": {
+          "application/json":{
+            "schema":{
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/ContainerObject"
+              }
+            }
+          }
+        }
+      },
+      "ContainerPost": {
+        "description": "Successfully added",
+        "content": {
+          "application/json":{
+            "schema":{
+              "type": "object",
+              "properties": {
+                "id": {"type": "integer"}
+              }
+            }
+          }
+        }
+      },
+      "ContainerSync": {
+        "description": "List of synched images from all repositories",
+        "content": {
+          "application/json":{
+            "schema":{
+              "type": "array",
+              "items": {
+                "type": "string",
+                "example": "repo.azurecr.io/beautiful_image:1.2.0"
+              }
+            }
+          }
+        }
+      },
+      "RegistryEntry": {
+        "description": "Single repository representation",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "$ref": "#/components/schemas/RegistryObject"
+            }
+          }
+        }
+      },
+      "RegistryList": {
+        "description": "List of registries",
+        "content": {
+          "application/json":{
+            "schema":{
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/RegistryObject"
+              }
+            }
+          }
+        }
+      },
+      "RegistryPost": {
+        "description": "Successfully added",
+        "content": {
+          "application/json":{
+            "schema":{
+              "type": "object",
+              "properties": {
+                "id": {"type": "integer"}
               }
             }
           }
@@ -1495,6 +1844,52 @@
           "email": {"type": "string", "example": "user@email.com"},
           "tempPassword": {"type": "string"},
           "newPassword": {"type": "string"}
+        }
+      },
+      "ContainerPostObject": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "example": "beautiful_image"},
+          "tag": {"type": "string", "example": "1.2.0"},
+          "dashboard": {"type": "boolean", "example": false},
+          "ml": {"type": "boolean", "example": false},
+          "registry_id": {"type": "integer", "example": 2}
+        }
+      },
+      "ContainerPatchBody": {
+        "type": "object",
+        "properties": {
+          "dashboard": {"type": "boolean", "example": false},
+          "ml": {"type": "boolean", "example": false}
+        }
+      },
+      "ContainerObject": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "integer", "example": 1},
+          "name": {"type": "string", "example": "beautiful_image"},
+          "tag": {"type": "string", "example": "1.2.0"},
+          "dashboard": {"type": "boolean", "example": false},
+          "ml": {"type": "boolean", "example": false},
+          "registry_id": {"type": "integer", "example": 2}
+        }
+      },
+      "RegistryObject": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "integer", "example": 1},
+          "url": {"type": "string", "example": "acrregistry.io"},
+          "needs_auth": {"type": "boolean", "example": true}
+        }
+      },
+      "RegistryBody": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "integer", "example": 1},
+          "url": {"type": "string", "example": "acrregistry.io"},
+          "username": {"type": "string", "example": "user"},
+          "password": {"type": "string", "example": "secrettoken"},
+          "needs_auth": {"type": "boolean", "example": true}
         }
       }
     }

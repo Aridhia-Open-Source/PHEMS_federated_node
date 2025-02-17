@@ -109,17 +109,7 @@ spec:
           volumeMounts:
             - name: respv
               mountPath: {{ .Values.federatedNode.volumes.results_path }}
-            - name: cr-list
-              mountPath: /app/registries/
-      imagePullSecrets:
-        - name: {{ .Values.imagePullSecrets }}
       volumes:
         - name: respv
           persistentVolumeClaim:
             claimName: flask-results-pv-volclaim
-        - name: cr-list
-          secret:
-            secretName: backend-cr-config-secret
-            items:
-            - key: registries-list.json
-              path: registries-list.json

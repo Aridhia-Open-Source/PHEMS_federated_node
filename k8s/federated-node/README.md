@@ -4,11 +4,6 @@
 The necessary values are:
 |path|subpath|description|
 |-|-|-|
-|registries[]|url|This element should report the CR host that is used to host the analytics images|
-|registries[].secret|name|The existing secret name that holds the CR's credentials|
-|registries[].secret|userKey|The secret's key that holds the CR's username|
-|registries[].secret|passKey|The secret's key that holds the CR's password/token|
-|-|-|-|
 |storage|local|If running a cluster off the cloud, this will be the suggested config|
 |storage.local|path|Where to persist files in the host machine|
 |storage|azure|If running a cluster on azure, or using an Azure Storage Class, this will be the suggested config|
@@ -40,6 +35,5 @@ The necessary values are:
 ### Existing secrets
 It is highly suggested to have some secrets pre-set in the namespace this helm chart will be installed at:
 - db password
-- registries credentials
 - azure storage credentials
 - tls cert

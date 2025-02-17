@@ -57,7 +57,10 @@ def post_datasets():
 
         kc_client = Keycloak()
         token_info = kc_client.decode_token(kc_client.get_token_from_headers())
-        dataset.add(commit=False, user_id=token_info['sub'])
+        dataset.add(
+            commit=False,
+            user_id=token_info['sub']
+        )
         if cata_body:
             cata_data = Catalogue.validate(cata_body)
             catalogue = Catalogue(dataset=dataset, **cata_data)

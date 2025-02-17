@@ -12,12 +12,11 @@ spec:
     helm:
       # paste the custom helm values content in here
       values: |
-        registries:
-          - url:
-            secret:
-              name:
-              userKey:
-              passKey:
+        federatedNode:
+          port: 5000
+          volumes:
+            results_path: /mnt/results
+            task_pod_results_path: /mnt/data
     chart: federated-node
   destination:
     server: 'https://kubernetes.default.svc'

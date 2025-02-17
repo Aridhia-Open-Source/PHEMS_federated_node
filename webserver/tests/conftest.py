@@ -1,21 +1,22 @@
+import base64
 import copy
 import json
 import os
 import pytest
 import requests
-import responses
 from datetime import datetime as dt, timedelta
 from kubernetes.client import V1Pod
 from sqlalchemy.orm.session import close_all_sessions
 from unittest.mock import Mock
+
 from app import create_app
-from app.helpers.container_registries import ContainerRegistryClient
 from app.helpers.db import db
 from app.models.dataset import Dataset
 from app.models.request import Request
 from app.helpers.keycloak import Keycloak, URLS, KEYCLOAK_SECRET, KEYCLOAK_CLIENT
 from tests.helpers.keycloak import clean_kc
 from app.helpers.exceptions import KeycloakError
+
 
 sample_ds_body = {
     "name": "TestDs",
@@ -33,6 +34,7 @@ sample_ds_body = {
         "description": "test description"
     }]
 }
+
 @pytest.fixture
 def image_name():
     return "example:latest"
@@ -215,72 +217,19 @@ def k8s_client(mocker, pod_listed, v1_mock, v1_batch_mock, k8s_config):
     all_clients.update(v1_batch_mock)
     all_clients["read_namespaced_secret_mock"].return_value.data = {
         "PGUSER": "YWJjMTIz",
-        "PGPASSWORD": "YWJjMTIz"
+        "PGPASSWORD": "YWJjMTIz",
+        "USER": "YWJjMTIz",
+        "TOKEN": "YWJjMTIz"
     }
     all_clients["list_namespaced_pod_mock"].return_value = pod_listed
     return all_clients
 
-# CR mocking
 @pytest.fixture
-def cr_client(mocker, image_name):
-    mocker.patch(
-        'app.models.task.ContainerRegistryClient',
-        return_value=Mock(
-            login=Mock(return_value="access_token"),
-            find_image_repo=Mock(return_value=image_name)
-        )
-    )
-
-@pytest.fixture
-def cr_http(mocker):
-    rsps = responses.RequestsMock()
-    # with responses.RequestsMock() as rsps:
-    # Mock the request in the order they are submitted.
-    # Unfortunately the match param doesn't detect form data
-    url = "test.acrio.com"
-    image = "example"
-    rsps.add(
-        responses.GET,
-        f"https://{url}/oauth2/token?service={url}&scope=repository:{image}:metadata_read",
-        status=200
-    )
-    rsps.add(
-        responses.GET,
-        f"https://{url}/v2/{image}/tags/list",
-        status=200
-    )
-    return rsps
-
-@pytest.fixture
-def cr_client_404(mocker):
-    mocker.patch(
-        'app.models.task.ContainerRegistryClient',
-        return_value=Mock(
-            login=Mock(return_value="access_token"),
-            find_image_repo=Mock(return_value=False)
-        )
-    )
-@pytest.fixture
-def cr_name():
-    return "acr.azurecr.io"
-
-@pytest.fixture
-def cr_config(cr_name):
-    return {
-        cr_name: {"username": "user", "password": "pass"}
-    }
-
-@pytest.fixture
-def cr_json_loader(mocker, cr_config):
-    return mocker.patch(
-    'app.helpers.container_registries.json',
-    load=Mock(return_value=cr_config)
-)
-
-@pytest.fixture
-def cr_class(mocker, cr_json_loader):
-    mocker.patch('app.helpers.container_registries.open')
-    return ContainerRegistryClient()
+def reg_k8s_client(k8s_client):
+    k8s_client["read_namespaced_secret_mock"].return_value.data.update({
+            ".dockerconfigjson": base64.b64encode("{\"auths\": {}}".encode()).decode()
+        })
+    return k8s_client
 
 # Dataset Mocking
 @pytest.fixture(scope='function')

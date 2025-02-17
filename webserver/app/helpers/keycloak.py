@@ -380,7 +380,10 @@ class Keycloak:
         if not response_res.ok:
             logger.info(response_res.content.decode())
             raise KeycloakError("Failed to fetch the resource")
-        return response_res.json()[0]
+        if len(response_res.json()) > 0:
+            return response_res.json()[0]
+
+        raise KeycloakError("Failed to fetch the resource")
 
     def patch_resource(self, resource_name:str, **kwargs) -> dict:
         """

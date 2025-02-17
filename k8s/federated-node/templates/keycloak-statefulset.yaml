@@ -75,8 +75,6 @@ spec:
               mountPath: /opt/keycloak/conf/quarkus.properties
               subPath: quarkus.properties
           {{ include "nonRootSC" . }}
-      imagePullSecrets:
-        - name: {{ .Values.imagePullSecrets }}
       volumes:
         - name: config
           configMap:

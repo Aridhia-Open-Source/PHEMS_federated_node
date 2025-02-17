@@ -171,9 +171,9 @@ jobs:
       - name: Build and push Cleaner image
         uses: docker/build-push-action@v5
         with:
-          context: build/cleanup-results
-          file: build/cleanup-results/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/results_cleaner:${{ needs.init.outputs.tag }}
+          context: build/alpine
+          file: build/alpine/Dockerfile
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/alpine:3.19
           push: true
       - name: Build and push DB initialiser image
         uses: docker/build-push-action@v5

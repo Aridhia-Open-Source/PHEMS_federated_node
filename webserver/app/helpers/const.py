@@ -11,8 +11,11 @@ def build_sql_uri(
     return f"postgresql://{username}:{password}@{host}:{port}/{database}"
 
 PASS_GENERATOR_SET = string.ascii_letters + string.digits + "!$@#.-_"
+DEFAULT_NAMESPACE = os.getenv("DEFAULT_NAMESPACE")
+PUBLIC_URL = os.getenv("PUBLIC_URL")
 TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
 DEFAULT_NAMESPACE = os.getenv("DEFAULT_NAMESPACE")
+TASK_PULL_SECRET_NAME = "taskspull"
 # Pod resource validation constants
 CPU_RESOURCE_REGEX = r'^\d*(m|\.\d+){0,1}$'
 MEMORY_RESOURCE_REGEX = r'^\d*(e\d|(E|P|T|G|M|K)(i*)|k|m)*$'
