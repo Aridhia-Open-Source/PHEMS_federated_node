@@ -21,7 +21,7 @@ metadata:
       more_set_headers "permission-policy: src";
       more_set_headers "x-content-type-options: application/json";
 spec:
-  ingressClassName: {{ .Values.ingress.ingressClass | default "fn-nginx" }}
+  ingressClassName: {{ .Values.ingress.ingressClass }}
   tls:
   - hosts:
     - {{ .Values.ingress.host }}
@@ -55,7 +55,7 @@ metadata:
     {{- end }}
     helm.sh/hook-weight: "5"
 spec:
-  ingressClassName: {{ .Values.ingress.ingressClass | default "fn-nginx" }}
+  ingressClassName: {{ .Values.ingress.ingressClass }}
   tls:
   - hosts:
     - {{ .Values.ingress.host }}
