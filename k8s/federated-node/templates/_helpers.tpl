@@ -72,7 +72,7 @@ Just need to append the NEW_DB env var
 {{- define "createDBInitContainer" -}}
         - image: ghcr.io/aridhia-open-source/db_init:{{ .Values.backend.tag | default .Chart.AppVersion }}
           name: dbinit
-          {{ include "nonRootSC" . }}
+          {{- include "nonRootSC" . | indent 10 }}
           env:
           - name: PGUSER
             valueFrom:
@@ -103,15 +103,15 @@ Just need to append the NEW_DB env var
 {{ randAlphaNum 5 | quote }}
 {{- end -}}
 
-{{- define "nonRootSC" -}}
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            seccompProfile:
-              type: RuntimeDefault
-            capabilities:
-              drop: [ "ALL" ]
-{{- end -}}
+{{- define "nonRootSC" }}
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+  capabilities:
+    drop: [ "ALL" ]
+{{- end }}
 
 # In case of updating existing entities in hooks, use these default labels/annotations
 # so helm knows they are part of this chart on future updates

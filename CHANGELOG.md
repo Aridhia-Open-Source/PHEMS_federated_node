@@ -1,5 +1,8 @@
 # Releases Changelog
 
+## 0.9.0
+- Added a new cronjob to automatically renew the SSL certificate (instructions in the [DEPLOYMENT.md](./DEPLOYMENT.md) file)
+
 ## 0.8.0
 - Added Container and Registry management:
     - /containers

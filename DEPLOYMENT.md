@@ -32,7 +32,7 @@ If you plan to deploy on a dedicated namespace, create it manually first or the 
 kubectl create namespace <new namespace name>
 ```
 
-__Please keep in mind that every secret value has to be a base64 encoded string.__ It can be achieved with the following command:
+__Please keep in mind that every secret value has to be a base64 encoded string. if using the yaml templates. Via command line this conversion is done for you__ It can be achieved with the following command:
 ```sh
 echo -n "value" | base64
 ```
@@ -43,8 +43,8 @@ The following examples aims to setup container registries (CRs) credentials. The
 In general, to create a k8s secret you run a command like the following:
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=username=$(echo -n $username | base64) \
-    --from-literal=password=$(echo -n $password | base64)
+    --from-literal=username="$username" \
+    --from-literal=password="$password"
 ```
 or using the yaml template:
 ```yaml
@@ -73,7 +73,7 @@ In case you want to set DB secrets the structure is slightly different:
 
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=value=$(echo -n $password | base64)
+    --from-literal=value="$password"
 ```
 or using the yaml template:
 ```yaml
@@ -95,8 +95,8 @@ type: Opaque
 _Note: The azure storage account file share has to exist already_
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=azurestorageaccountkey=$(echo -n $accountkey | base64) \
-    --from-literal=azurestorageaccountname=$(echo -n $accountname | base64)
+    --from-literal=azurestorageaccountkey="$accountkey" \
+    --from-literal=azurestorageaccountname="$accountname"
 ```
 or using the yaml template:
 ```yaml
@@ -128,6 +128,58 @@ If the secret(s) exist in another namespace, you can "copy" them with this comma
 ```sh
 kubectl get secret $secretname  --namespace=$old_namespace -oyaml | grep -v '^\s*namespace:\s' | kubectl apply --namespace=$new_namespace -f -
 ```
+
+#### Certificate credentials
+If deploying on azure:
+```sh
+kubectl create secret generic $secret_name \
+    --from-literal=AZ_DIRECTORY_ID="$directory_id" \
+    --from-literal=DNS_SP_ID="$sp_id" \
+    --from-literal=DNS_SP_SECRET="$sp_secret" \
+    --from-literal=EMAIL_CERT="$email_cert" \
+    --from-literal=SUBSCRIPTION_ID="$sub_id"
+```
+or using the yaml template:
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+    # set a name of your choosing
+    name:
+    # use the namespace name in case you plan to deploy in a non-default one.
+    # Otherwise you can set to default, or not use the next field altogether
+    namespace:
+data:
+  DNS_SP_ID:
+  DNS_SP_SECRET:
+  AZ_DIRECTORY_ID:
+  SUBSCRIPTION_ID:
+type: Opaque
+```
+Or on AWS:
+```sh
+kubectl create secret generic $secret_name \
+    --from-literal=AWS_ACCESS_KEY_ID="$key_id" \
+    --from-literal=AWS_SECRET_ACCESS_KEY="$key_secret"
+```
+or using the yaml template:
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+    # set a name of your choosing
+    name:
+    # use the namespace name in case you plan to deploy in a non-default one.
+    # Otherwise you can set to default, or not use the next field altogether
+    namespace:
+data:
+  AWS_ACCESS_KEY_ID:
+  AWS_SECRET_ACCESS_KEY:
+type: Opaque
+```
+
+The secret name set in here should be re-used in the values file under `certs.azure.sp_certificate` or `certs.aws.sp_certificate` according to your cloud provider.
+
 
 ### Values.yaml
 Few conventions to begin with. Some nested field will be referred by a dot-path notation. An example would be:
