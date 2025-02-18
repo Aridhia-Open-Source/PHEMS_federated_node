@@ -9,7 +9,6 @@ from sqlalchemy.sql import func
 from uuid import uuid4
 
 import urllib3
-from app.helpers.container_registries import ContainerRegistryClient
 from app.helpers.const import (
     CLEANUP_AFTER_DAYS, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX,
     TASK_NAMESPACE, TASK_POD_RESULTS_PATH, RESULTS_PATH
@@ -19,6 +18,7 @@ from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesBatchClient, KubernetesClient
 from app.helpers.exceptions import DBError, InvalidRequest, TaskImageException, TaskExecutionException
 from app.models.dataset import Dataset
+from app.models.container import Container
 
 logger = logging.getLogger('task_model')
 logger.setLevel(logging.INFO)
@@ -181,11 +181,17 @@ class Task(db.Model, BaseModel):
         Looks through the CRs for the image and if exists,
         returns the full image name with the repo prefixing the image.
         """
-        registry_client = ContainerRegistryClient()
-        full_docker_image_name = registry_client.find_image_repo(docker_image)
-        if not full_docker_image_name:
+        image_name = "/".join(docker_image.split('/')[1:])
+        image_name, tag = image_name.split(':')
+        image = Container.query.filter(Container.name==image_name, Container.tag==tag).one_or_none()
+        if image is None:
+            raise TaskExecutionException(f"Image {docker_image} could not be found")
+
+        registry_client = image.registry.get_registry_class()
+        if not registry_client.get_image_tags(image.name):
             raise TaskImageException(f"Image {docker_image} not found on our repository")
-        return full_docker_image_name
+
+        return image.full_image_name()
 
     def pod_name(self):
         return f"{self.name.lower().replace(' ', '-')}-{uuid4()}"

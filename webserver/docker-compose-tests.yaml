@@ -10,3 +10,4 @@ services:
     volumes:
       - ./tests:/app/tests
       - ./app:/app/app
+      - ./setup.cfg:/app/setup.cfg

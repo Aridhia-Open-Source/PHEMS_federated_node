@@ -24,15 +24,19 @@ class BaseModel():
 
     @classmethod
     def get_all(cls) -> list:
-        ds = db.session.execute(select(cls)).all()
+        obj_list = cls.query.all()
         jsonized = []
-        for d in ds:
-            jsonized.append(d[0].sanitized_dict())
+        for obj in obj_list:
+            jsonized.append(obj.sanitized_dict())
         return jsonized
 
     @classmethod
     def _get_fields(cls) -> list[Column]:
         return cls.__table__.columns._all_columns
+
+    @classmethod
+    def _get_fields_name(cls) -> list[str]:
+        return [col.name for col in cls._get_fields()]
 
     @classmethod
     def is_field_required(cls, attribute: Column) -> bool:

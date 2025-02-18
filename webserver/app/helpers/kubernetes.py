@@ -8,7 +8,7 @@ from kubernetes.stream import stream
 from kubernetes.client.exceptions import ApiException
 from kubernetes.watch import Watch
 from app.helpers.exceptions import InvalidRequest, KubernetesException
-from app.helpers.const import TASK_NAMESPACE, TASK_POD_RESULTS_PATH
+from app.helpers.const import TASK_NAMESPACE, TASK_PULL_SECRET_NAME
 
 logger = logging.getLogger('kubernetes_helper')
 logger.setLevel(logging.INFO)
@@ -92,7 +92,7 @@ class KubernetesBase:
         if pod_spec["command"]:
             container.command = pod_spec["command"]
 
-        secrets = [client.V1LocalObjectReference(name='regcred')]
+        secrets = [client.V1LocalObjectReference(name=TASK_PULL_SECRET_NAME)]
 
         specs = client.V1PodSpec(
             termination_grace_period_seconds=300,
@@ -345,6 +345,32 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
                 watcher.stop()
                 return
             logger.info(f"Pod is in state {event["object"].status.phase}")
+
+    def create_secret(self, name:str, values:dict[str, str], namespaces:list, type:str='Opaque'):
+        """
+        From a dict of values, encodes them,
+            and creates a secret in a given list of namespace
+            keeping the same structure as values
+        """
+        body = client.V1Secret()
+        body.api_version = 'v1'
+        for key in values.keys():
+            values[key] = KubernetesClient.encode_secret_value(values[key])
+
+        body.data = values
+        body.kind = 'Secret'
+        body.metadata = {'name': name}
+        body.type = type
+        for ns in namespaces:
+            try:
+                self.create_namespaced_secret(ns, body=body, pretty='true')
+            except ApiException as e:
+                if e.status == 409:
+                    pass
+                else:
+                    raise InvalidRequest(e.reason)
+        return body
+
 
 class KubernetesBatchClient(KubernetesBase, client.BatchV1Api):
     pass

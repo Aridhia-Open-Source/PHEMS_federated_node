@@ -1,3 +1,8 @@
+# This file acts as a Keycloak settings Migration file
+# Basically all the changes in the realms.json will not be
+# applied on existing realms, so we need a way to apply
+# those changes, hence this file
+
 import requests
 from requests import Response
 import json
@@ -236,6 +241,53 @@ client_permission_resp = requests.put(
   }
 )
 is_response_good(client_permission_resp)
+
+# Setting the users' required field to not require firstName and lastName
+user_profiles_resp = requests.get(
+  f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users/profile",
+  headers={'Authorization': f'Bearer {admin_token}'}
+)
+if is_response_good(user_profiles_resp):
+  print(user_profiles_resp.text)
+  exit(1)
+
+edit_upd = user_profiles_resp.json()
+for attribute in edit_upd["attributes"]:
+   if attribute["name"] in ["firstName", "lastName"]:
+      attribute.pop("required", None)
+
+user_edit_profiles_resp = requests.put(
+  f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users/profile",
+  json=edit_upd,
+  headers={
+    'Content-Type': 'application/json',
+    'Authorization': f'Bearer {admin_token}'
+  }
+)
+if is_response_good(user_edit_profiles_resp):
+  print(user_edit_profiles_resp.text)
+  exit(1)
+
+# Enable user profiles on a realm level
+realm_settings = requests.get(
+  f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}",
+  headers={'Authorization': f'Bearer {admin_token}'}
+)
+if is_response_good(realm_settings):
+  print(realm_settings.text)
+  exit(1)
+
+r_settings = realm_settings.json()
+r_settings["attributes"]["userProfileEnabled"] = True
+
+update_settings = requests.put(
+  f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}",
+  json=r_settings,
+  headers={'Authorization': f'Bearer {admin_token}'}
+)
+if is_response_good(update_settings):
+  print(update_settings.text)
+  exit(1)
 
 print("Done!")
 exit(0)

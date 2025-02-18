@@ -1,18 +1,14 @@
-import os
 import re
 import requests
 from sqlalchemy import Column, Integer, String
 from app.helpers.db import BaseModel, db
+from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
-from kubernetes import client
 from kubernetes.client.exceptions import ApiException
 
 
-TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
-DEFAULT_NAMESPACE = os.getenv("DEFAULT_NAMESPACE")
-PUBLIC_URL = os.getenv("PUBLIC_URL")
 SUPPORTED_TYPES = ["postgres", "mssql"]
 
 class Dataset(db.Model, BaseModel):
@@ -41,34 +37,12 @@ class Dataset(db.Model, BaseModel):
         self.host = host
         self.port = port
         self.type = type
+        self.username = username
+        self.password = password
         self.extra_connection_args = extra_connection_args
 
-        v1 = KubernetesClient()
-        body = client.V1Secret()
-        body.api_version = 'v1'
         if self.type not in SUPPORTED_TYPES:
             raise InvalidRequest(f"DB type {self.type} is not supported.")
-
-        encoded_psw = KubernetesClient.encode_secret_value(password)
-        encoded_un = KubernetesClient.encode_secret_value(username)
-
-        body.data = {
-            "PGPASSWORD": encoded_psw,
-            "PGUSER": encoded_un,
-            "MSSQL_PASSWORD": encoded_psw,
-            "MSSQL_USER": encoded_un
-        }
-        body.kind = 'Secret'
-        body.metadata = {'name': self.get_creds_secret_name()}
-        body.type = 'Opaque'
-        try:
-            for ns in [DEFAULT_NAMESPACE, TASK_NAMESPACE]:
-                v1.create_namespaced_secret(ns, body=body, pretty='true')
-        except ApiException as e:
-            if e.status == 409:
-                pass
-            else:
-                raise InvalidRequest(e.reason)
 
     def get_creds_secret_name(self, host=None, name=None):
         host = host or self.host
@@ -96,7 +70,7 @@ class Dataset(db.Model, BaseModel):
         This is not involved in the Task Execution Service
         """
         v1 = KubernetesClient()
-        secret = v1.read_namespaced_secret(self.get_creds_secret_name(), 'default', pretty='pretty')
+        secret = v1.read_namespaced_secret(self.get_creds_secret_name(), DEFAULT_NAMESPACE, pretty='pretty')
         # Doesn't matter which key it's being picked up, the value it's the same
         # in terms of *USER or *PASSWORD
         user = KubernetesClient.decode_secret_value(secret.data['PGUSER'])
@@ -106,6 +80,20 @@ class Dataset(db.Model, BaseModel):
 
     def add(self, commit=True, user_id=None):
         super().add(commit)
+        # create secrets
+        v1 = KubernetesClient()
+        v1.create_secret(
+            name=self.get_creds_secret_name(),
+            values={
+                "PGPASSWORD": self.password,
+                "PGUSER": self.username,
+                "MSSQL_PASSWORD": self.password,
+                "MSSQL_USER": self.username
+            },
+            namespaces=[DEFAULT_NAMESPACE, TASK_NAMESPACE]
+        )
+        delattr(self, "username")
+        delattr(self, "password")
         # Add to keycloak
         kc_client = Keycloak()
         admin_policy = kc_client.get_policy('admin-policy')

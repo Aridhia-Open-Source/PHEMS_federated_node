@@ -152,7 +152,7 @@ class TestKeycloakResponseFailures:
         with responses.RequestsMock() as rsps:
             rsps.add(
                 responses.GET,
-                URLS["roles"],
+                URLS["roles"] + "/some_role",
                 json=self.common_error_response,
                 status=500
             )
@@ -234,7 +234,7 @@ class TestKeycloakResponseFailures:
                 status=500
             )
             with pytest.raises(KeycloakError) as exc:
-                kc_client.get_user(username)
+                kc_client.get_user_by_username(username)
             assert exc.value.details == 'Failed to fetch the user'
 
     def test_create_client(
@@ -383,6 +383,12 @@ class TestKeycloakResponseFailures:
         """
         kc_client = Keycloak()
         with responses.RequestsMock() as rsps:
+            rsps.add(
+                responses.GET,
+                URLS["roles"] + "/Users",
+                json={"name": "Users"},
+                status=200
+            )
             rsps.add(
                 responses.POST,
                 URLS["user"],

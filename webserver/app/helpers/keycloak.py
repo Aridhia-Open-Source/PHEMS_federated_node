@@ -1,9 +1,12 @@
 import logging
 import os
 import random
+import re
 import requests
 from base64 import b64encode
+import urllib.parse
 from flask import request
+
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
 from app.helpers.const import PASS_GENERATOR_SET
 
@@ -34,7 +37,8 @@ URLS = {
     "permission": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/permission/scope",
     "permissions_check": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/policy/evaluate",
     "user": f"{KEYCLOAK_URL}/admin/realms/{REALM}/users",
-    "user_role": f"{KEYCLOAK_URL}/admin/realms/{REALM}/users/%s/role-mappings/realm"
+    "user_role": f"{KEYCLOAK_URL}/admin/realms/{REALM}/users/%s/role-mappings/realm",
+    "user_reset": f"{KEYCLOAK_URL}/admin/realms/{REALM}/users/%s/reset-password"
 }
 
 class Keycloak:
@@ -154,9 +158,15 @@ class Keycloak:
             raise KeycloakError("Failed to fetch client's secret")
         return secret_resp.json()["value"]
 
-    def get_token(self, username=None, password=None, token_type='refresh_token', payload=None) -> str:
+    def get_token(self, username=None, password=None, token_type='refresh_token', payload:dict=None, raise_on_temp_pass:bool=True) -> str:
         """
         Get a token for a given set of credentials
+
+        :params token_type: one of "refresh_token" and "access_token"
+        :params payload: the body for the post request to keycloak
+        :params raise_on_temp_pass: if set to False, it will exit early and
+            return the whole response object, otherwise it will raise exceptions
+            on status code != 200
         """
         if payload is None:
             payload = {
@@ -174,8 +184,16 @@ class Keycloak:
                 'Content-Type': 'application/x-www-form-urlencoded'
             }
         )
+
+        if not raise_on_temp_pass:
+            return response_auth
+
         if not response_auth.ok:
             logger.info(response_auth.content.decode())
+
+            if re.match("Account is not fully set up", response_auth.json().get("error_description")):
+                raise AuthenticationError("Temporary password must be changed before logging in")
+
             raise AuthenticationError("Failed to login")
         return response_auth.json()[token_type]
 
@@ -327,20 +345,29 @@ class Keycloak:
             raise UnauthorizedError("User is not authorized")
         return True
 
-    def get_role(self, role_name:str) -> dict:
+    def get_role(self, role_name:str) -> dict[str, str]:
         """
-        Get the realm roles
+        Get the realm roles.
+
+        Returns a dictionary {name: str, id: str}
+
+        Raises a specific exception if not found
         """
         realm_resp = requests.get(
-            URLS["roles"],
+            URLS["roles"] + f"/{role_name}",
             headers={
                 'Authorization': f'Bearer {self.admin_token}',
             }
         )
-        if not realm_resp.ok:
-            logger.info(realm_resp.content.decode())
-            raise KeycloakError("Failed to fetch roles")
-        return list(filter(lambda x: x["name"] == role_name, realm_resp.json()))[0]
+        match realm_resp.status_code:
+            case 200:
+                return realm_resp.json()
+            case 404:
+                logger.info(realm_resp.content.decode())
+                raise KeycloakError(f"Role {role_name} does not exist", 400)
+            case _:
+                logger.info(realm_resp.content.decode())
+                raise KeycloakError("Failed to fetch roles")
 
     def get_resource(self, resource_name:str) -> dict:
         headers={
@@ -353,7 +380,10 @@ class Keycloak:
         if not response_res.ok:
             logger.info(response_res.content.decode())
             raise KeycloakError("Failed to fetch the resource")
-        return response_res.json()[0]
+        if len(response_res.json()) > 0:
+            return response_res.json()[0]
+
+        raise KeycloakError("Failed to fetch the resource")
 
     def patch_resource(self, resource_name:str, **kwargs) -> dict:
         """
@@ -520,7 +550,7 @@ class Keycloak:
         return permission_response.json()
 
     ### USERS' section
-    def create_user(self, **kwargs) -> dict:
+    def create_user(self, set_temp_pass=False, **kwargs) -> dict:
         """
         Method that handles the user creation. Keycloak will need username as
         mandatory field, but we would set a temporary password so the user
@@ -529,6 +559,10 @@ class Keycloak:
         """
         random_password = ''.join(random.choice(PASS_GENERATOR_SET) for _ in range(12))
         username = kwargs.get("username", kwargs.get("email"))
+
+        # Make sure the role exists before creating the user
+        role = self.get_role(kwargs.get("role", "Users"))
+
         user_response = requests.post(
             URLS["user"],
             json={
@@ -536,10 +570,11 @@ class Keycloak:
                 "lastName": kwargs.get("lastName", ""),
                 "email": kwargs.get("email"),
                 "enabled": True,
+                "emailVerified": True,
                 "username": username,
                 "credentials": [{
                     "type": "password",
-                    "temporary": False,
+                    "temporary": set_temp_pass,
                     "value": random_password
                 }]
             },
@@ -551,41 +586,92 @@ class Keycloak:
             raise KeycloakError("Failed to create the user")
 
         user_info = self.get_user(username)
+
         # Assign a role
-        self.assign_role_to_user(user_info["id"])
+        self.assign_role_to_user(user_info["id"], role)
 
         user_info["password"] = random_password
 
         return user_info
 
-    def assign_role_to_user(self, user_id:str):
+    def assign_role_to_user(self, user_id:str, role:str|dict ="Users"):
         """
         Keycloak REST API can't handle role assignation to a user on creation
-        has to be a separate call
+        has to be a separate call.
+
+        :param user_id: a string representing the user_id from keycloak
+        :param role: either a string with the role name, or a dictionary that contains role's name and id
         """
+        if isinstance(role, str):
+            role = self.get_role(role)
         user_role_response = requests.post(
             URLS["user_role"] % user_id,
-            json=[self.get_role("Users")],
+            json=[role],
             headers=self._post_json_headers()
         )
         if not user_role_response.ok and user_role_response.status_code != 409:
             logger.info(user_role_response.text)
             raise KeycloakError("Failed to create the user")
 
-    def get_user(self, username:str) -> dict:
+    def list_users(self) -> list[dict]:
         """
         Method to return a dictionary representing a Keycloak user
         """
         user_response = requests.get(
-            f"{URLS["user"]}?username={username}&exact=true",
+            URLS["user"],
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
         if not user_response.ok:
             raise KeycloakError("Failed to fetch the user")
 
-        return user_response.json()[0]
+        return user_response.json()
 
-    def get_user_role(self, user_id:str):
+    def get_user(self, username:str) -> dict:
+        """
+        Method to return a dictionary representing a Keycloak user,
+        checks for both username and email
+        """
+        by_un = self.get_user_by_username(username)
+        if by_un:
+            return by_un
+
+        by_em = self.get_user_by_email(username)
+        if by_em:
+            return by_em
+
+        raise KeycloakError("Failed to fetch the created user")
+
+    def get_user_by_username(self, username:str) -> dict:
+        """
+        Method to return a dictionary representing a Keycloak user
+        """
+        username_encoded = urllib.parse.quote_plus(username)
+        user_response = requests.get(
+            f"{URLS["user"]}?username={username_encoded}&exact=true",
+            headers={"Authorization": f"Bearer {self.admin_token}"}
+        )
+        if not user_response.ok:
+            raise KeycloakError("Failed to fetch the user")
+
+        return user_response.json()[0] if user_response.json() else None
+
+    def get_user_by_email(self, email:str) -> dict:
+        """
+        Method to return a dictionary representing a Keycloak user,
+        using their email
+        """
+        email_encoded = urllib.parse.quote_plus(email)
+
+        user_response = requests.get(
+            f"{URLS["user"]}?email={email_encoded}&exact=true",
+            headers={"Authorization": f"Bearer {self.admin_token}"}
+        )
+        if not user_response.ok:
+            raise KeycloakError("Failed to fetch the user")
+
+        return user_response.json()[0] if user_response.json() else None
+
+    def get_user_role(self, user_id:str) -> list[str]:
         """
         From a user id, get all of their realm roles
         """
@@ -603,6 +689,32 @@ class Keycloak:
         With the user id checks if it has certain realm roles
         """
         return roles.intersection(self.get_user_role(user_id))
+
+    def reset_user_pass(self, user_id:str, username:str, old_pass:str, new_pass:str):
+        """
+        Simply change the temp password for the user.
+        The old_pass will be used to check if a change is needed,
+            if that's the case, we'll update the password
+        """
+        auth_user = self.get_token(username=username, password=old_pass, raise_on_temp_pass=False)
+
+        if not re.match("Account is not fully set up", auth_user.json().get("error_description")):
+            raise AuthenticationError(
+                "Incorrect credentials"
+            )
+
+        res_pass_resp = requests.put(
+            URLS["user_reset"] % user_id,
+            json={
+                "type": "password",
+                "temporary": False,
+                "value": new_pass
+            },
+            headers={"Authorization": f"Bearer {self.admin_token}"}
+        )
+        if not self.check_if_keycloak_resp_is_valid(res_pass_resp):
+            logging.error(res_pass_resp.json())
+            raise KeycloakError("Could not update the password.")
 
     def enable_token_exchange(self):
         """

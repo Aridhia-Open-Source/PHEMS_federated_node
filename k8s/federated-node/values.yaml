@@ -42,17 +42,6 @@ federatedNode:
     results_path: /mnt/results
     task_pod_results_path: /mnt/data
 
-# Base to support multiple CRs. This is for regcreds initially. Will be
-# expanded to the flask docker lookup in a second instance
-registries:
-  - url:
-    secret:
-      name:
-      userKey:
-      passKey:
-    # username:
-    # email:
-
 local_development: false
 
 certs:
@@ -89,7 +78,6 @@ storage:
 token:
   life:
 
-imagePullSecrets: regcred
 pullPolicy: Always
 
 serviceAccount:

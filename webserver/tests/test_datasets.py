@@ -415,10 +415,8 @@ class TestPostDataset(MixinTestDataset):
         query = self.run_query(select(Dataset).where(Dataset.name == data_body["name"], Dataset.type == "mssql"))
         assert len(query) == 0
 
-    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_fails_k8s_secrets(
             self,
-            ds_add_mock,
             post_json_admin_header,
             client,
             k8s_config,
@@ -429,11 +427,9 @@ class TestPostDataset(MixinTestDataset):
         /datasets POST fails if the k8s secrets cannot be created successfully
         """
         mocker.patch(
-            'app.models.dataset.KubernetesClient',
-            return_value=Mock(
-                create_namespaced_secret=Mock(
+            'app.models.dataset.KubernetesClient.create_namespaced_secret',
+            Mock(
                     side_effect=ApiException(status=500, reason="Failed")
-                )
             )
         )
         data_body = dataset_post_body.copy()

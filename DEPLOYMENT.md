@@ -7,21 +7,24 @@ See their installation instructions [here](https://helm.sh/docs/intro/install/).
 
 ### Setup helm repo
 ```sh
-helm repo add federated-node https://gitlab.com/api/v4/projects/aridhia%2Ffederated-node/packages/helm/stable
-```
-If you want to run a development chart
-```sh
-helm repo add federated-node https://gitlab.com/api/v4/projects/aridhia%2Ffederated-node/packages/helm/develop
+helm repo add federated-node https://aridhia-open-source.github.io/PHEMS_federated_node
+
+# Check available releases
+helm search repo federated-node --versions
+
+# If you want to check development builds
+helm search repo federated-node --devel --versions
 ```
 
-Now you should be all set to pull the chart from gitLab.
+Now you should be all set to pull the chart from GitHub.
 
 ### Pre-existing Secrets (optional)
 In order to not store credentials in plain text within the `values.yaml` file, there is an option to pre-populate secrets in a safe matter.
 
+Just keep in mind that some characters need to be escaped. i.e. `"` has to be `\"` in the bash commands. Currently, we only detected `"` and `%` to be problematic characters.
+
 The secrets to be created are:
 - Db credentials for the FN webserver to use (not where the dataset is)
-- CR credentials (for the basic ghcr.io repo, you can create a personal access token with the `repo` and `write:packages` permissions. Use the generated token as password, and your github username)
 - Azure storage account credentials (if used)
 
 If you plan to deploy on a dedicated namespace, create it manually first or the secrets creation will fail
@@ -35,7 +38,7 @@ echo -n "value" | base64
 ```
 
 #### Container Registries
-The following examples aims to setup container registries (CRs) credentials.
+The following examples aims to setup container registries (CRs) credentials. The assumption is that all container registries are private, not public. That is because is expected that all the code to be run in the datasets has to be vetted, supervised by the data controllers.
 
 In general, to create a k8s secret you run a command like the following:
 ```sh
@@ -88,6 +91,8 @@ type: Opaque
 ```
 
 #### Azure Storage
+
+_Note: The azure storage account file share has to exist already_
 ```sh
 kubectl create secret generic $secret_name \
     --from-literal=azurestorageaccountkey="$accountkey" \
@@ -220,26 +225,6 @@ storage:
     secretName: <secret name here>
     shareName: files
 ```
-
-#### CRs
-```yaml
-registries:
-# env specific
-  - url: .azurecr.io
-    email: ''
-    secret:
-      name: <secret name here>
-      userKey: username
-      passKey: password
-# from the lastpass note
-  - url: ghcr.io
-    secret:
-      name: <secret name here>
-      userKey: username
-      passKey: password
-    email: ''
-```
-
 
 ### Deployment command
 ```sh
