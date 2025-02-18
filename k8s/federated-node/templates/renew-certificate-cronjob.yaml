@@ -29,6 +29,7 @@ spec:
               value: {{ .Values.certs.domain }}
             - name: SSL_SECRET_NAME
               value: {{ .Values.ingress.tls.secretName | default "tls"}}
+            envFrom:
             - secretRef:
                 {{- if .Values.certs.azure }}
                 name: {{ .Values.certs.azure.sp_certificate }}
@@ -44,8 +45,6 @@ spec:
             - /app/scripts/aws.sh
             {{- end }}
           restartPolicy: Never
-          imagePullSecrets:
-            - name: {{ .Values.imagePullSecrets }}
 ---
 kind: ConfigMap
 apiVersion: v1
