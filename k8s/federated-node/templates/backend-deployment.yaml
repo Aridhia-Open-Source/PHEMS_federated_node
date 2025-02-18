@@ -31,7 +31,7 @@ spec:
           image: {{ template "backend-image" . }}:{{ .Values.backend.tag | default .Chart.AppVersion }}
           command: ["/bin/sh"]
           workingDir: /
-          {{ include "nonRootSC" . }}
+          {{- include "nonRootSC" . | indent 10 }}
           args:
             [
               "-c",

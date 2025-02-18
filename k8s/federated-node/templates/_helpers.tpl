@@ -72,7 +72,7 @@ Just need to append the NEW_DB env var
 {{- define "createDBInitContainer" -}}
         - image: ghcr.io/aridhia-open-source/db_init:{{ .Values.backend.tag | default .Chart.AppVersion }}
           name: dbinit
-          {{ include "nonRootSC" . }}
+          {{- include "nonRootSC" . | indent 10 }}
           env:
           - name: PGUSER
             valueFrom:
