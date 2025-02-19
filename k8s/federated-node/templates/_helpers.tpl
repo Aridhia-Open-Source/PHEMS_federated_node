@@ -33,6 +33,9 @@ Create chart name and version as used by the chart label.
 {{- define "backend-image" -}}
 ghcr.io/aridhia-open-source/federated_node_run
 {{- end }}
+{{- define "test-image" -}}
+ghcr.io/aridhia-open-source/alpine:3.19
+{{- end }}
 
 {{/*
 Common labels

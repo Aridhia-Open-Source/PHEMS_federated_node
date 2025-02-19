@@ -1,0 +1,68 @@
+{{- define "authEnv" }}
+env:
+- name: KEYCLOAK_ADMIN_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: kc-secrets
+      key: KEYCLOAK_ADMIN_PASSWORD
+envFrom:
+  - configMapRef:
+      name: keycloak-config
+{{- end }}
+
+{{- define "curlAuth" }}
+TOKEN=$(curl \
+  http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}/login \
+  --header "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "username=${KEYCLOAK_ADMIN}" \
+  --data-urlencode "password=${KEYCLOAK_ADMIN_PASSWORD}" | jq -r '.token')
+{{- end }}
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-test-connection"
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: test
+spec:
+  containers:
+    - name: health-check-internal
+      image: {{ include "test-image" . }}
+      command: ['curl']
+      args: ['http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}/health_check']
+    - name: login
+      image: {{ include "test-image" . }}
+      command: ['/bin/sh', '-c']
+      args:
+        - |
+          {{- include "curlAuth" . | indent 10 }}
+          echo "${TOKEN}"
+      {{- include "authEnv" . | indent 6 }}
+    - name: get-list-datasets
+      image: {{ include "test-image" . }}
+      command: ['/bin/sh', '-c']
+      args:
+        - |
+          {{- include "curlAuth" . | indent 10 }}
+
+          curl http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}/datasets \
+          --header "Authorization: Bearer ${TOKEN}" | jq
+    {{- include "authEnv" . | indent 6 }}
+    - name: get-list-containers
+      image: {{ include "test-image" . }}
+      command: ['/bin/sh', '-c']
+      args:
+        - |
+          {{- include "curlAuth" . | indent 10 }}
+
+          curl http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}/containers \
+          --header "Authorization: Bearer ${TOKEN}" | jq
+      {{- include "authEnv" . | indent 6 }}
+    {{- if not .Values.local_development }}
+    - name: health-check-public
+      image: {{ include "test-image" . }}
+      command: ['curl']
+      args: ['https://{{ .Values.ingress.host }}/health_check']
+    {{- end }}
+  restartPolicy: Never

@@ -18,8 +18,7 @@ namespaces:
   nginx: ingress-nginx
   tasks: tasks
 
-# token:
-#   life:
+local_development: false
 
 db:
   user:
