@@ -21,6 +21,7 @@ http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 {{- define "curlAuth" }}
 TOKEN=$(curl \
   {{ include "baseUrl" . }}/login \
+  --fail-with-body \
   --header "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "username=${KEYCLOAK_ADMIN}" \
   --data-urlencode "password=${KEYCLOAK_ADMIN_PASSWORD}" | jq -r '.token')
@@ -66,5 +67,73 @@ spec:
 
           curl {{ include "baseUrl" . }}/containers \
           --header "Authorization: Bearer ${TOKEN}" | jq
+      {{- include "authEnv" . | indent 6 }}
+    - name: create-user
+      image: {{ include "test-image" . }}
+      command: ['/bin/sh', '-c']
+      args:
+        - |
+          {{- include "curlAuth" . | indent 10 }}
+
+          USER_TEMP=$(curl {{ include "baseUrl" . }}/users \
+            --header "Content-Type: application/json" \
+            --header "Authorization: Bearer ${TOKEN}" \
+            --data-raw '{
+              "email": "testuser@phems.com",
+              "role": "Users"
+            }'| jq -r '.tempPassword')
+          echo "$USER_TEMP"
+          NEW_PASS="{{ randAlphaNum 24 }}"
+
+          curl --request PUT {{ include "baseUrl" . }}/users/reset-password \
+            --header "Content-Type: application/json" \
+            --data-raw "{
+              \"email\": \"testuser@phems.com\",
+              \"tempPassword\": \"${USER_TEMP}\",
+              \"newPassword\": \"${NEW_PASS}\"
+            }" | jq
+
+          curl {{ include "baseUrl" . }}/login \
+            --header "Content-Type: application/x-www-form-urlencoded" \
+            --data-urlencode "username=testuser@phems.com" \
+            --data-urlencode "password=${NEW_PASS}" | jq
+
+      {{- include "authEnv" . | indent 6 }}
+  restartPolicy: Never
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-test-cleanup"
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: test
+spec:
+  containers:
+    - name: cleanup
+      image: {{ include "test-image" . }}
+      command: ['/bin/sh', '-c']
+      args:
+        - |
+          sleep 30
+          TOKEN=$(curl http://keycloak.{{ .Values.namespaces.keycloak }}.svc/realms/FederatedNode/protocol/openid-connect/token \
+            --header "Content-Type: application/x-www-form-urlencoded" \
+            --data-urlencode "grant_type=password" \
+            --data-urlencode "username=${KEYCLOAK_ADMIN}" \
+            --data-urlencode "password=${KEYCLOAK_ADMIN_PASSWORD}" \
+            --data-urlencode "client_id=admin-cli" | jq -r '.access_token')
+
+          echo "Removing test user"
+          USER_ID=$(curl http://keycloak.{{ .Values.namespaces.keycloak }}.svc/admin/realms/FederatedNode/users?email=testuser@phems.com \
+            --header "Authorization: Bearer ${TOKEN}" | jq -r '.[].id')
+          if [[ -z "$USER_ID" ]]; then
+            echo "User not found. Exiting"
+            exit 0
+          fi
+          echo "Found user ${USER_ID}"
+
+          curl --request DELETE http://keycloak.{{ .Values.namespaces.keycloak }}.svc/admin/realms/FederatedNode/users/${USER_ID} \
+            --header "Authorization: Bearer ${TOKEN}" | jq
+
       {{- include "authEnv" . | indent 6 }}
   restartPolicy: Never
