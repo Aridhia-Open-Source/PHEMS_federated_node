@@ -10,9 +10,17 @@ envFrom:
       name: keycloak-config
 {{- end }}
 
+{{- define "baseUrl" }}
+{{- if not .Values.local_development -}}
+https://{{ .Values.ingress.host }}
+{{- else -}}
+http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
+{{- end -}}
+{{- end }}
+
 {{- define "curlAuth" }}
 TOKEN=$(curl \
-  http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}/login \
+  {{ include "baseUrl" . }}/login \
   --header "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "username=${KEYCLOAK_ADMIN}" \
   --data-urlencode "password=${KEYCLOAK_ADMIN_PASSWORD}" | jq -r '.token')
@@ -27,10 +35,10 @@ metadata:
     helm.sh/hook: test
 spec:
   containers:
-    - name: health-check-internal
+    - name: health-check
       image: {{ include "test-image" . }}
       command: ['curl']
-      args: ['http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}/health_check']
+      args: ['{{ include "baseUrl" . }}/health_check']
     - name: login
       image: {{ include "test-image" . }}
       command: ['/bin/sh', '-c']
@@ -46,7 +54,7 @@ spec:
         - |
           {{- include "curlAuth" . | indent 10 }}
 
-          curl http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}/datasets \
+          curl {{ include "baseUrl" . }}/datasets \
           --header "Authorization: Bearer ${TOKEN}" | jq
     {{- include "authEnv" . | indent 6 }}
     - name: get-list-containers
@@ -56,13 +64,7 @@ spec:
         - |
           {{- include "curlAuth" . | indent 10 }}
 
-          curl http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}/containers \
+          curl {{ include "baseUrl" . }}/containers \
           --header "Authorization: Bearer ${TOKEN}" | jq
       {{- include "authEnv" . | indent 6 }}
-    {{- if not .Values.local_development }}
-    - name: health-check-public
-      image: {{ include "test-image" . }}
-      command: ['curl']
-      args: ['https://{{ .Values.ingress.host }}/health_check']
-    {{- end }}
   restartPolicy: Never
