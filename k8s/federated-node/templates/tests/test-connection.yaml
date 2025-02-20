@@ -13,11 +13,22 @@ env:
     secretKeyRef:
       name: kc-secrets
       key: KEYCLOAK_ADMIN_PASSWORD
+- name: PGPASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.db.secret.name }}
+      key: {{ .Values.db.secret.key }}
 - name: BACKEND_URL
   value: {{ include "baseUrl" . }}
+- name: NEW_PASS
+  value: "{{ randAlphaNum 24 }}"
+- name: HASH_RAND
+  value: "{{ randAlphaNum 4 | lower }}"
 envFrom:
   - configMapRef:
       name: keycloak-config
+  - configMapRef:
+      name: backend-configmap
 {{- end }}
 ---
 apiVersion: v1
@@ -25,6 +36,8 @@ kind: ConfigMap
 metadata:
   name: smoketest-cm
   namespace: {{ .Release.Namespace }}
+  annotations:
+      helm.sh/hook: test
 data:
   tests.sh: |
 {{ .Files.Get "scripts/tests.sh" | indent 4 }}
@@ -55,41 +68,4 @@ spec:
         items:
         - key: tests.sh
           path: tests.sh
-  restartPolicy: Never
----
-apiVersion: v1
-kind: Pod
-metadata:
-  name: "{{ .Release.Name }}-test-cleanup"
-  namespace: {{ .Release.Namespace }}
-  annotations:
-    helm.sh/hook: test
-    helm.sh/hook-weight: "3"
-spec:
-  containers:
-    - name: cleanup
-      image: {{ include "test-image" . }}
-      command: ['/bin/sh', '-c']
-      args:
-        - |
-          TOKEN=$(curl http://keycloak.{{ .Values.namespaces.keycloak }}.svc/realms/FederatedNode/protocol/openid-connect/token \
-            --header "Content-Type: application/x-www-form-urlencoded" \
-            --data-urlencode "grant_type=password" \
-            --data-urlencode "username=${KEYCLOAK_ADMIN}" \
-            --data-urlencode "password=${KEYCLOAK_ADMIN_PASSWORD}" \
-            --data-urlencode "client_id=admin-cli" | jq -r '.access_token')
-
-          echo "Removing test user"
-          USER_ID=$(curl http://keycloak.{{ .Values.namespaces.keycloak }}.svc/admin/realms/FederatedNode/users?email=testuser@phems.com \
-            --header "Authorization: Bearer ${TOKEN}" | jq -r '.[].id')
-          if [[ -z "$USER_ID" ]]; then
-            echo "User not found. Exiting"
-            exit 0
-          fi
-          echo "Found user ${USER_ID}"
-
-          curl --request DELETE http://keycloak.{{ .Values.namespaces.keycloak }}.svc/admin/realms/FederatedNode/users/${USER_ID} \
-            --header "Authorization: Bearer ${TOKEN}" | jq
-
-      {{- include "authEnv" . | indent 6 }}
   restartPolicy: Never

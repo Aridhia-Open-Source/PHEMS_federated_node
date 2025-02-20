@@ -9,7 +9,8 @@ RUN addgroup -S "${USERNAME}" --gid "${USER_GID}" \
 
 RUN apk add --no-cache \
     'jq<=1.7.1-r0' \
-    'curl<=8.5.0-r0'
+    'curl<=8.5.0-r0' \
+    'postgresql16-client<=16.6-r0'
 
 USER $USER_UID
 COPY --chmod=755 sync-cron.sh /usr/bin/sync-registry
