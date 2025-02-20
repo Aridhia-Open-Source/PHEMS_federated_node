@@ -1,15 +1,3 @@
-{{- define "authEnv" }}
-env:
-- name: KEYCLOAK_ADMIN_PASSWORD
-  valueFrom:
-    secretKeyRef:
-      name: kc-secrets
-      key: KEYCLOAK_ADMIN_PASSWORD
-envFrom:
-  - configMapRef:
-      name: keycloak-config
-{{- end }}
-
 {{- define "baseUrl" }}
 {{- if not .Values.local_development -}}
 https://{{ .Values.ingress.host }}
@@ -18,15 +6,30 @@ http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 {{- end -}}
 {{- end }}
 
-{{- define "curlAuth" }}
-TOKEN=$(curl \
-  {{ include "baseUrl" . }}/login \
-  --fail-with-body \
-  --header "Content-Type: application/x-www-form-urlencoded" \
-  --data-urlencode "username=${KEYCLOAK_ADMIN}" \
-  --data-urlencode "password=${KEYCLOAK_ADMIN_PASSWORD}" | jq -r '.token')
+{{- define "authEnv" }}
+env:
+- name: KEYCLOAK_ADMIN_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: kc-secrets
+      key: KEYCLOAK_ADMIN_PASSWORD
+- name: BACKEND_URL
+  value: {{ include "baseUrl" . }}
+envFrom:
+  - configMapRef:
+      name: keycloak-config
 {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smoketest-cm
+  namespace: {{ .Release.Namespace }}
+data:
+  tests.sh: |
+{{ .Files.Get "scripts/tests.sh" | indent 4 }}
 
+---
 apiVersion: v1
 kind: Pod
 metadata:
@@ -36,69 +39,22 @@ metadata:
     helm.sh/hook: test
 spec:
   containers:
-    - name: health-check
+    - name: run-smoketests
       image: {{ include "test-image" . }}
-      command: ['curl']
-      args: ['{{ include "baseUrl" . }}/health_check']
-    - name: login
-      image: {{ include "test-image" . }}
-      command: ['/bin/sh', '-c']
-      args:
-        - |
-          {{- include "curlAuth" . | indent 10 }}
-          echo "${TOKEN}"
+      command: ['/usr/bin/tests.sh']
       {{- include "authEnv" . | indent 6 }}
-    - name: get-list-datasets
-      image: {{ include "test-image" . }}
-      command: ['/bin/sh', '-c']
-      args:
-        - |
-          {{- include "curlAuth" . | indent 10 }}
-
-          curl {{ include "baseUrl" . }}/datasets \
-          --header "Authorization: Bearer ${TOKEN}" | jq
-    {{- include "authEnv" . | indent 6 }}
-    - name: get-list-containers
-      image: {{ include "test-image" . }}
-      command: ['/bin/sh', '-c']
-      args:
-        - |
-          {{- include "curlAuth" . | indent 10 }}
-
-          curl {{ include "baseUrl" . }}/containers \
-          --header "Authorization: Bearer ${TOKEN}" | jq
-      {{- include "authEnv" . | indent 6 }}
-    - name: create-user
-      image: {{ include "test-image" . }}
-      command: ['/bin/sh', '-c']
-      args:
-        - |
-          {{- include "curlAuth" . | indent 10 }}
-
-          USER_TEMP=$(curl {{ include "baseUrl" . }}/users \
-            --header "Content-Type: application/json" \
-            --header "Authorization: Bearer ${TOKEN}" \
-            --data-raw '{
-              "email": "testuser@phems.com",
-              "role": "Users"
-            }'| jq -r '.tempPassword')
-          echo "$USER_TEMP"
-          NEW_PASS="{{ randAlphaNum 24 }}"
-
-          curl --request PUT {{ include "baseUrl" . }}/users/reset-password \
-            --header "Content-Type: application/json" \
-            --data-raw "{
-              \"email\": \"testuser@phems.com\",
-              \"tempPassword\": \"${USER_TEMP}\",
-              \"newPassword\": \"${NEW_PASS}\"
-            }" | jq
-
-          curl {{ include "baseUrl" . }}/login \
-            --header "Content-Type: application/x-www-form-urlencoded" \
-            --data-urlencode "username=testuser@phems.com" \
-            --data-urlencode "password=${NEW_PASS}" | jq
-
-      {{- include "authEnv" . | indent 6 }}
+      volumeMounts:
+        - name: tests
+          mountPath: /usr/bin/tests.sh
+          subPath: tests.sh
+  volumes:
+    - name: tests
+      configMap:
+        name: smoketest-cm
+        defaultMode: 0777
+        items:
+        - key: tests.sh
+          path: tests.sh
   restartPolicy: Never
 ---
 apiVersion: v1
@@ -108,6 +64,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   annotations:
     helm.sh/hook: test
+    helm.sh/hook-weight: "3"
 spec:
   containers:
     - name: cleanup
@@ -115,7 +72,6 @@ spec:
       command: ['/bin/sh', '-c']
       args:
         - |
-          sleep 30
           TOKEN=$(curl http://keycloak.{{ .Values.namespaces.keycloak }}.svc/realms/FederatedNode/protocol/openid-connect/token \
             --header "Content-Type: application/x-www-form-urlencoded" \
             --data-urlencode "grant_type=password" \
