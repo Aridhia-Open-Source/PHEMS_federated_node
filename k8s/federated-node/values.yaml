@@ -18,14 +18,14 @@ namespaces:
   nginx: ingress-nginx
   tasks: tasks
 
-# token:
-#   life:
+token:
+  life: 2592000
 
 db:
-  user:
-  password:
-  name:
-  host:
+  user: admin
+  name: fndb
+  host: db
+  port: 5432
   # If a configmap with host user exists, use that
   # configMap:
   # If a secret with password exists, use that
@@ -58,9 +58,6 @@ storage:
     # Local storage that will be shared with the db
     # dbpath: /data/db
 
-token:
-  life:
-
 pullPolicy: Always
 
 serviceAccount:
@@ -83,6 +80,7 @@ securityContext: {}
 
 ingress:
   host:
+  ingressClass: fn-nginx
   on_aks: false
   whitelist:
     enabled: false
@@ -90,10 +88,17 @@ ingress:
   blacklist:
     enabled: false
     ips: []
-  tls:
-    keyFile:
-    certFile:
-    # secretName:
+  # tls:
+  #   keyFile:
+  #   certFile:
+  #   secretName:
+
+# Set the domains that are allowed to send requests
+# to the federated node, in case there is a web UI that tries to
+# ping the FN
+integrations:
+  domains:
+   - 'self'
 
 resources: {}
 
