@@ -6,6 +6,7 @@ on:
       - '**'
     branches:
       - main
+      - develop
     paths-ignore:
       - '*.md'
       - 'README'
@@ -22,6 +23,7 @@ on:
   pull_request:
     branches:
       - main
+      - develop
     paths-ignore:
       - '*.md'
       - 'README'
