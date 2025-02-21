@@ -125,3 +125,6 @@ Just need to append the NEW_DB env var
 {{- define "cspDomains" -}}
   {{- join ", " .Values.integrations.domains -}}
 {{- end -}}
+{{- define "cspDomainsSpace" -}}
+  {{- join " " .Values.integrations.domains -}}
+{{- end -}}
