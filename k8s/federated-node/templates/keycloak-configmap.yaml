@@ -1,3 +1,11 @@
+{{- define "kc_db_host" }}
+{{- if eq .Values.db.host "db" }}
+  {{- print "db." .Release.Namespace ".svc.cluster.local" | quote }}
+{{- else }}
+  {{- .Values.db.host }}
+{{- end }}
+{{- end }}
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -5,12 +13,12 @@ metadata:
   namespace: {{ .Values.namespaces.keycloak }}
 data:
   KEYCLOAK_ADMIN: admin
-  KC_DB_URL_HOST: {{ .Values.db.host | default (print "db." .Release.Namespace ".svc.cluster.local") | quote }}
+  KC_DB_URL_HOST: {{ include "kc_db_host" . }}
   KC_DB: postgres
   KC_DB_URL_PORT: {{ .Values.db.port | quote }}
   KC_DB_URL_DATABASE: fn_{{ .Values.db.name }}
   KC_DB_USERNAME: {{ .Values.db.user | quote }}
-  KEYCLOAK_TOKEN_LIFE: {{ .Values.token.life | quote }}
+  KEYCLOAK_TOKEN_LIFE: {{ int .Values.token.life | quote }}
   KEYCLOAK_NAMESPACE: {{ .Values.namespaces.keycloak }}
   KEYCLOAK_HOSTNAME: {{ .Values.ingress.host }}
   # PROXY_ADDRESS_FORWARDING: true
@@ -20,8 +28,7 @@ kind: ConfigMap
 metadata:
   name: keycloak-config
   namespace: {{ .Release.Namespace }}
-
 data:
   KEYCLOAK_ADMIN: admin
-  KC_DB_URL_HOST: {{ .Values.db.host | default (print "db." .Release.Namespace ".svc.cluster.local") | quote }}
+  KC_DB_URL_HOST: {{ include "kc_db_host" . }}
   KC_DB_USERNAME: {{ .Values.db.user | quote }}

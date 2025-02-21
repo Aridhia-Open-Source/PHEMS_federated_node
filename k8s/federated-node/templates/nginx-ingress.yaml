@@ -16,7 +16,7 @@ metadata:
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/configuration-snippet: |
       more_set_headers "strict-transport-security: max-age=63072000";
-      more_set_headers "content-security-policy: default-src 'self' https: ; img-src 'self'; connect-src 'self'";
+      more_set_headers "content-security-policy: default-src 'self' https: ; connect-src 'self'; script-src 'unsafe-inline'; script-src-elem 'unsafe-inline' https:; img-src https:  data:"";
       more_set_headers "referrer-policy: strict-origin";
       more_set_headers "permission-policy: src";
       more_set_headers "x-content-type-options: application/json";
