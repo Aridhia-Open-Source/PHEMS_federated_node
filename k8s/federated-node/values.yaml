@@ -98,7 +98,7 @@ ingress:
 # ping the FN
 integrations:
   domains:
-   - '*'
+   - 'self'
 
 resources: {}
 
