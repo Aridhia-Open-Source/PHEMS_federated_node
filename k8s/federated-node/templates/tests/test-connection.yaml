@@ -5,43 +5,6 @@ https://{{ .Values.ingress.host }}
 http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 {{- end -}}
 {{- end }}
-
-{{- define "authEnv" }}
-env:
-- name: KEYCLOAK_ADMIN_PASSWORD
-  valueFrom:
-    secretKeyRef:
-      name: kc-secrets
-      key: KEYCLOAK_ADMIN_PASSWORD
-- name: PGPASSWORD
-  valueFrom:
-    secretKeyRef:
-      name: {{ .Values.db.secret.name }}
-      key: {{ .Values.db.secret.key }}
-- name: BACKEND_URL
-  value: {{ include "baseUrl" . }}
-- name: NEW_PASS
-  value: "{{ randAlphaNum 24 }}"
-- name: HASH_RAND
-  value: "{{ randAlphaNum 4 | lower }}"
-envFrom:
-  - configMapRef:
-      name: keycloak-config
-  - configMapRef:
-      name: backend-configmap
-{{- end }}
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: smoketest-cm
-  namespace: {{ .Release.Namespace }}
-  annotations:
-      helm.sh/hook: test
-data:
-  tests.sh: |
-{{ .Files.Get "scripts/tests.sh" | indent 4 }}
-
 ---
 apiVersion: v1
 kind: Pod
@@ -54,18 +17,26 @@ spec:
   containers:
     - name: run-smoketests
       image: {{ include "test-image" . }}
-      command: ['/usr/bin/tests.sh']
-      {{- include "authEnv" . | indent 6 }}
-      volumeMounts:
-        - name: tests
-          mountPath: /usr/bin/tests.sh
-          subPath: tests.sh
-  volumes:
-    - name: tests
-      configMap:
-        name: smoketest-cm
-        defaultMode: 0777
-        items:
-        - key: tests.sh
-          path: tests.sh
+      command: ['/bin/sh', '-c']
+      args:
+        - |
+{{ .Files.Get "scripts/tests.sh" | indent 10 }}
+      env:
+      - name: KEYCLOAK_ADMIN_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: kc-secrets
+            key: KEYCLOAK_ADMIN_PASSWORD
+      - name: PGPASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: {{ .Values.db.secret.name }}
+            key: {{ .Values.db.secret.key }}
+      - name: BACKEND_URL
+        value: {{ include "baseUrl" . }}
+      envFrom:
+        - configMapRef:
+            name: keycloak-config
+        - configMapRef:
+            name: backend-configmap
   restartPolicy: Never

@@ -1,6 +1,6 @@
 Successfully installed {{ .Chart.Name }} version: {{ .Chart.Version }}
 
 You can run some smoketests with:
-helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+helm test {{ .Release.Name }} -n {{ .Release.Namespace }} --logs
 
 Also check out our "Getting Started" article: https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Getting-Started
