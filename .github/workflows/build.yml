@@ -6,6 +6,7 @@ on:
       - '**'
     branches:
       - main
+      - develop
     paths-ignore:
       - '*.md'
       - 'README'
@@ -22,6 +23,7 @@ on:
   pull_request:
     branches:
       - main
+      - develop
     paths-ignore:
       - '*.md'
       - 'README'
@@ -44,6 +46,7 @@ env:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   init:
@@ -148,7 +151,7 @@ jobs:
         with:
           registry: ${{ vars.DOCKER_CR }}
           username: ${{ github.actor }}
-          password: ${{ secrets.DOCKER_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: set lower case owner name
         run: |
           echo "OWNER_LC=${OWNER,,}" >> ${GITHUB_ENV}
@@ -208,5 +211,3 @@ jobs:
       PATH_BUILD: k8s/federated-node
       CHART_NAME: federated-node
       IS_TAG: ${{ needs.init.outputs.is_tag }}
-    secrets:
-      HELM_TOKEN: ${{ secrets.HELM_TOKEN }}

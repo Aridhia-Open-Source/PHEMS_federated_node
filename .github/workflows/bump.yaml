@@ -24,6 +24,12 @@ jobs:
   bump:
     runs-on: ubuntu-latest
     steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.BUMP_APP_ID }}
+          private-key: ${{ secrets.BUMP_APP_SECRET }}
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -33,15 +39,16 @@ jobs:
         env:
           CHART_VERSION: ${{ inputs.chartVersion }}
           APP_VERSION: ${{ inputs.appVersion }}
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
-          if [[ ! $(grep '${CHART_VERSION}' Chart.yaml) ]]; then
+          if [[ $(grep '${CHART_VERSION}' Chart.yaml) ]]; then
             echo "Nothing to change. Exiting early"
             exit 0
           fi
           sed -i "s/version: .*/version: ${CHART_VERSION}/" Chart.yaml
 
           if [[ -n "${APP_VERSION}" ]]; then
-            sed -i "s/version: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
+            sed -i "s/appVersion: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
           fi
 
           cat Chart.yaml
