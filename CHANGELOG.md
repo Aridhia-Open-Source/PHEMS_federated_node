@@ -1,5 +1,13 @@
 # Releases Changelog
 
+## 0.9.0
+- Added a test suite for the helm chart. This can be simply run with `helm test federatednode`
+- __smoketests__ can be also run if the values file contains
+    ```yaml
+    smoketests: true
+    ```
+    __Warning__ this will add and then remove the test data from keycloak and the db. It will not be enabled by default.
+
 ## 0.8.0
 - Added Container and Registry management:
     - /containers
