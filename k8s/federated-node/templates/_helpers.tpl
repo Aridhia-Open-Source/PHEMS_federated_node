@@ -33,7 +33,7 @@ Create chart name and version as used by the chart label.
 {{- define "backend-image" -}}
 ghcr.io/aridhia-open-source/federated_node_run
 {{- end }}
-{{- define "test-image" -}}
+{{- define "fn-alpine" -}}
 ghcr.io/aridhia-open-source/alpine:3.19
 {{- end }}
 
@@ -73,8 +73,9 @@ Common db initializer, to use as element of initContainer
 Just need to append the NEW_DB env var
 */}}
 {{- define "createDBInitContainer" -}}
-        - image: ghcr.io/aridhia-open-source/db_init:{{ .Values.backend.tag | default .Chart.AppVersion }}
+        - image: {{ include "fn-alpine" . }}
           name: dbinit
+          command: [ "dbinit" ]
           {{ include "nonRootSC" . }}
           env:
           - name: PGUSER

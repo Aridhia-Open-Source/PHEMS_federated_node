@@ -16,7 +16,7 @@ metadata:
 spec:
   containers:
     - name: run-smoketests
-      image: {{ include "test-image" . }}
+      image: {{ include "fn-alpine" . }}
       command: ['/bin/sh', '-c']
       args:
         - |

@@ -12,6 +12,8 @@ RUN apk add --no-cache \
     'curl=~8.5' \
     'postgresql16-client=~16'
 
-USER $USER_UID
+USER ${USER_UID}
+
 COPY --chmod=755 sync-cron.sh /usr/bin/sync-registry
 COPY --chmod=755 cleanup.sh /usr/bin/cleanup
+COPY --chmod=755 dbinit.sh /usr/bin/dbinit
