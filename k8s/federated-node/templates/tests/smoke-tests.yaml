@@ -9,10 +9,11 @@ http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 apiVersion: v1
 kind: Pod
 metadata:
-  name: "{{ .Release.Name }}-test-connection"
+  name: "{{ .Release.Name }}-smoke-tests"
   namespace: {{ .Release.Namespace }}
   annotations:
     helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation
 spec:
   containers:
     - name: run-smoketests
