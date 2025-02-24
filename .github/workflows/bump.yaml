@@ -48,7 +48,7 @@ jobs:
           sed -i "s/version: .*/version: ${CHART_VERSION}/" Chart.yaml
 
           if [[ -n "${APP_VERSION}" ]]; then
-            sed -i "s/version: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
+            sed -i "s/appVersion: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
           fi
 
           cat Chart.yaml
