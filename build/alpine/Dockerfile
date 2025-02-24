@@ -1,4 +1,4 @@
-FROM alpine/k8s:1.29.4
+FROM alpine/k8s:1.30.7
 
 ARG USERNAME=fednode
 ARG USER_UID=1001
