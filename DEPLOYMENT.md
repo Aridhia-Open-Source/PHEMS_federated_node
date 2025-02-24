@@ -32,7 +32,7 @@ If you plan to deploy on a dedicated namespace, create it manually first or the 
 kubectl create namespace <new namespace name>
 ```
 
-__Please keep in mind that every secret value has to be a base64 encoded string. if using the yaml templates. Via command line this conversion is done for you__ It can be achieved with the following command:
+__Please keep in mind that every secret value has to be a base64 encoded string if using the yaml templates. Via command line this conversion is done for you__ It can be achieved with the following command:
 ```sh
 echo -n "value" | base64
 ```
