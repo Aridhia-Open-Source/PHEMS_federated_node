@@ -1,4 +1,4 @@
-FROM alpine/k8s:1.29.4
+FROM alpine/k8s:1.30.7
 
 ENV VENV_DIR=/usr/venv
 ENV CERTBOT_FOLDER=/app/.secrets/certbot
