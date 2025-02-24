@@ -1,11 +1,4 @@
-{{- define "baseUrl" }}
-{{- if not .Values.local_development -}}
-https://{{ .Values.ingress.host }}
-{{- else -}}
-http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
-{{- end -}}
-{{- end }}
----
+{{- if .Values.smoketests }}
 apiVersion: v1
 kind: Pod
 metadata:
@@ -13,6 +6,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   annotations:
     helm.sh/hook: test
+    helm.sh/hook-weight: "2"
     helm.sh/hook-delete-policy: before-hook-creation
 spec:
   containers:
@@ -34,10 +28,11 @@ spec:
             name: {{ .Values.db.secret.name }}
             key: {{ .Values.db.secret.key }}
       - name: BACKEND_URL
-        value: {{ include "baseUrl" . }}
+        value: {{ include "testsBaseUrl" . }}
       envFrom:
         - configMapRef:
             name: keycloak-config
         - configMapRef:
             name: backend-configmap
   restartPolicy: Never
+{{- end }}

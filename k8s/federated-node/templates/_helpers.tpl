@@ -127,3 +127,10 @@ Just need to append the NEW_DB env var
     meta.helm.sh/release-name: {{ .Release.Name }}
     meta.helm.sh/release-namespace: {{ .Release.Namespace }}
 {{- end -}}
+{{- define "testsBaseUrl" }}
+{{- if not .Values.local_development -}}
+https://{{ .Values.ingress.host }}
+{{- else -}}
+http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
+{{- end -}}
+{{- end }}
