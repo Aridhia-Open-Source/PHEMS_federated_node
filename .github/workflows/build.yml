@@ -171,7 +171,7 @@ jobs:
           file: build/keycloak/keycloak.Dockerfile
           tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_keycloak:${{ needs.init.outputs.tag }}
           push: true
-      - name: Build and push Cleaner image
+      - name: Build and push Alpine image
         uses: docker/build-push-action@v5
         with:
           context: build/alpine

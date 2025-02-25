@@ -9,7 +9,7 @@ RUN addgroup -S "${USERNAME}" --gid "${USER_GID}" \
 
 RUN apk add --no-cache \
     'jq=~1.7' \
-    'curl=~8.5'
+    'curl=~8.11'
 
 USER $USER_UID
 COPY --chmod=755 sync-cron.sh /usr/bin/sync-registry
