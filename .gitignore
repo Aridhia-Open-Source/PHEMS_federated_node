@@ -13,6 +13,8 @@ k8s/*/*.values.yaml
 
 # Ingore helm charts archives
 artifacts/*.tgz
+build/certs/cert-env
+build/certs/.certbot.lock
 
 **/.coverage
 **/coverage.xml

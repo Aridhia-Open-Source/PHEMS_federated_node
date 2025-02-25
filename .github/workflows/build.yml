@@ -171,7 +171,7 @@ jobs:
           file: build/keycloak/keycloak.Dockerfile
           tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_keycloak:${{ needs.init.outputs.tag }}
           push: true
-      - name: Build and push Cleaner image
+      - name: Build and push Alpine image
         uses: docker/build-push-action@v5
         with:
           context: build/alpine
@@ -191,6 +191,13 @@ jobs:
           context: build/kc-init
           file: build/kc-init/Dockerfile
           tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/keycloak_initializer:${{ needs.init.outputs.tag }}
+          push: true
+      - name: Build and push certificate image
+        uses: docker/build-push-action@v5
+        with:
+          context: build/certs
+          file: build/certs/Dockerfile
+          tags: ${{ vars.DOCKER_ACR }}/${{ env.OWNER_LC }}/federated_node_certificate:${{ needs.init.outputs.tag }}
           push: true
   release:
     uses: Aridhia-Open-Source/pipelines/.github/workflows/helm-build.yml@main
