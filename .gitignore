@@ -16,3 +16,5 @@ artifacts/*.tgz
 
 **/.coverage
 **/coverage.xml
+k8s/federated-node/charts/*.tgz
+k8s/federated-node/Chart.lock

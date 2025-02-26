@@ -6,7 +6,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: {{ . }}
-  namespace: {{ $.Values.namespaces.keycloak }}
+  namespace: {{ include "kc_namespace" $ }}
 data:
 {{- with $sec.data  }}
 {{ toYaml . | indent 2 }}

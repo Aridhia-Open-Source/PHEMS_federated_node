@@ -1,5 +1,8 @@
 # Releases Changelog
 
+## 0.9.0
+- Added the Federated Node Task Controller as a chart dependency. This can be installed by setting `outboundMode` to true on the values file. By default, it won't be installed.
+
 ## 0.8.0
 - Added Container and Registry management:
     - /containers

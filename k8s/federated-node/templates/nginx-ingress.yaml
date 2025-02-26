@@ -36,7 +36,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: federated-ingress-keycloak
-  namespace: {{ .Values.namespaces.keycloak }}
+  namespace: {{ include "kc_namespace" . }}
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$1
     {{- if .Values.ingress.whitelist.enabled }}

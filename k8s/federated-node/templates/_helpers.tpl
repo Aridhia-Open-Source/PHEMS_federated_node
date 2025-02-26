@@ -122,3 +122,9 @@ Just need to append the NEW_DB env var
     meta.helm.sh/release-name: {{ .Release.Name }}
     meta.helm.sh/release-namespace: {{ .Release.Namespace }}
 {{- end -}}
+{{- define "kc_namespace" -}}
+{{ .Values.global.namespaces.keycloak | default .Values.namespaces.keycloak }}
+{{- end -}}
+{{- define "tasks_namespace" -}}
+{{ .Values.global.namespaces.tasks | default .Values.namespaces.tasks }}
+{{- end -}}
