@@ -32,7 +32,7 @@ If you plan to deploy on a dedicated namespace, create it manually first or the 
 kubectl create namespace <new namespace name>
 ```
 
-__Please keep in mind that every secret value has to be a base64 encoded string.__ It can be achieved with the following command:
+__Please keep in mind that every secret value has to be a base64 encoded string if using the yaml templates. Via command line this conversion is done for you__ It can be achieved with the following command:
 ```sh
 echo -n "value" | base64
 ```
@@ -43,8 +43,8 @@ The following examples aims to setup container registries (CRs) credentials. The
 In general, to create a k8s secret you run a command like the following:
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=username=$(echo -n $username | base64) \
-    --from-literal=password=$(echo -n $password | base64)
+    --from-literal=username="$username" \
+    --from-literal=password="$password"
 ```
 or using the yaml template:
 ```yaml
@@ -73,7 +73,7 @@ In case you want to set DB secrets the structure is slightly different:
 
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=value=$(echo -n $password | base64)
+    --from-literal=value="$password"
 ```
 or using the yaml template:
 ```yaml
@@ -95,8 +95,8 @@ type: Opaque
 _Note: The azure storage account file share has to exist already_
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=azurestorageaccountkey=$(echo -n $accountkey | base64) \
-    --from-literal=azurestorageaccountname=$(echo -n $accountname | base64)
+    --from-literal=azurestorageaccountkey="$accountkey" \
+    --from-literal=azurestorageaccountname="$accountname"
 ```
 or using the yaml template:
 ```yaml
