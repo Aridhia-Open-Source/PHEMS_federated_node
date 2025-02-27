@@ -122,6 +122,150 @@ def test_create_task(
     )
     assert response.status_code == 201
 
+def test_create_task_from_controller(
+        cr_client,
+        post_json_admin_header,
+        client,
+        registry_client,
+        task_body
+    ):
+    """
+    Tests task creation returns 201. Should be consistent
+    with or without the task_controller flag
+    """
+    task_body["task_controller"] = True
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(task_body),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 201
+
+def test_create_task_with_delivery(
+        cr_client,
+        post_json_admin_header,
+        client,
+        registry_client,
+        task_body
+    ):
+    """
+    Tests task creation returns 201. Should be consistent
+    with or without the task_controller flag
+    """
+    task_body["deliver_to"] = {
+        "other": {
+            "url": "something.com",
+            "auth_type": "Bearer"
+        }
+    }
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(task_body),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 201
+
+def test_create_task_with_delivery_missing_fields(
+        cr_client,
+        post_json_admin_header,
+        client,
+        registry_client,
+        task_body,
+        k8s_client
+    ):
+    """
+    Tests task creation returns 201. Should be consistent
+    with or without the task_controller flag
+    """
+    k8s_client["create_cluster_custom_object"].side_effect = ApiException(
+        http_resp=Mock(
+            status=400,
+            reason="Error",
+            data=json.dumps({
+                "details": {
+                    "causes": [
+                        {
+                            "message": "Required value",
+                            "field": "spec.results.auth_type"
+                        }
+                    ]
+                }
+            }))
+    )
+    task_body["deliver_to"] = {
+        "other": {
+            "url": "something.com"
+        }
+    }
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(task_body),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 400
+    assert response.json["error"] == {'Missing values': ['deliver_to.auth_type']}
+
+def test_create_task_with_delivery_top_level_only(
+        cr_client,
+        post_json_admin_header,
+        client,
+        registry_client,
+        task_body,
+        k8s_client
+    ):
+    """
+    Tests task creation returns 201. Should be consistent
+    with or without the task_controller flag
+    """
+    error_message = "Unsupported value. Only accepting \"Bearer\", \"AzCopy\" and \"Basic\""
+    k8s_client["create_cluster_custom_object"].side_effect = ApiException(
+        http_resp=Mock(
+            status=400,
+            reason="Error",
+            data=json.dumps({
+                "details": {
+                    "causes": [
+                        {
+                            "message": error_message
+                        }
+                    ]
+                }
+            }))
+    )
+    task_body["deliver_to"] = {
+        "other": {
+            "url": "something.com",
+            "auth_type": "somethingelse"
+        }
+    }
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(task_body),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 400
+    assert response.json["error"] == [error_message]
+
+def test_create_task_with_delivery_wrong_format(
+        cr_client,
+        post_json_admin_header,
+        client,
+        registry_client,
+        task_body
+    ):
+    """
+    Tests task creation returns 201. Should be consistent
+    with or without the task_controller flag
+    """
+    task_body["deliver_to"] = True
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(task_body),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 400
+    assert response.json["error"] == "`deliver_to` must have either `git` or `other` as field"
+
 def test_create_task_invalid_output_field(
         cr_client,
         post_json_admin_header,

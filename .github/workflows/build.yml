@@ -24,6 +24,8 @@ on:
     branches:
       - main
       - develop
+      # Remove
+      - subchart
     paths-ignore:
       - '*.md'
       - 'README'

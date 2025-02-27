@@ -1664,7 +1664,12 @@
           },
           "dataset_id": {
             "type": "string",
+            "description": "This is here mostly for legacy purposes, but referring by name is more consistent across multiple nodes.",
             "example": "1"
+          },
+          "dataset_name": {
+            "type": "string",
+            "example": "blood_samples"
           }
         },
         "required": [
@@ -1672,7 +1677,7 @@
           "project_name",
           "requested_by",
           "description",
-          "dataset_id",
+          "dataset_name",
           "proj_start",
           "proj_end"
         ]
@@ -1730,6 +1735,34 @@
               }
             },
             "required": ["image"]
+          },
+          "deliver_to": {
+            "type": "object",
+            "description": "If used will automatically deliver the results to the url provided. Granted that this has been added to the list of allowed destinations",
+            "oneOf": [
+              {
+                "properties": {
+                  "other": {
+                    "type": "object",
+                    "properties": {
+                      "url": {"type": "string", "example": "https://deliveryurl.com"},
+                      "auth_type": {"type": "string", "enum": ["Bearer", "Basic", "AzCopy"]}
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "git":{
+                    "type": "object",
+                    "properties": {
+                      "repository": {"type": "string", "example": "org/repo"},
+                      "organization": {"type": "string", "example": "org"}
+                    }
+                  }
+                }
+              }
+            ]
           },
           "tags": {
             "type": "object",
