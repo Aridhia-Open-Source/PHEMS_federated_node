@@ -8,6 +8,10 @@
     ```
     __Warning__ this will add and then remove the test data from keycloak and the db. It will not be enabled by default.
 
+### bugfixes
+- Fixed an issue with first-time installations where on azure storage, the results folder should exist already. Now this is done by the backend initcontainer.
+- Fixed an issue where ingresses were not updated or deleted during upgrades
+
 ## 0.8.0
 - Added Container and Registry management:
     - /containers
