@@ -1,6 +1,7 @@
 # Releases Changelog
 
 ## 0.9.0
+- Added a new cronjob to automatically renew the SSL certificate (instructions in the [DEPLOYMENT.md](./DEPLOYMENT.md) file)
 - Added a test suite for the helm chart. This can be simply run with `helm test federatednode`
 - __smoketests__ can be also run if the values file contains
     ```yaml
