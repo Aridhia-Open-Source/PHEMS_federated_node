@@ -33,6 +33,9 @@ Create chart name and version as used by the chart label.
 {{- define "backend-image" -}}
 ghcr.io/aridhia-open-source/federated_node_run
 {{- end }}
+{{- define "fn-alpine" -}}
+ghcr.io/aridhia-open-source/alpine:3.19
+{{- end }}
 
 {{/*
 Common labels
@@ -70,8 +73,10 @@ Common db initializer, to use as element of initContainer
 Just need to append the NEW_DB env var
 */}}
 {{- define "createDBInitContainer" -}}
-        - image: ghcr.io/aridhia-open-source/db_init:{{ .Values.backend.tag | default .Chart.AppVersion }}
+        - image: {{ include "fn-alpine" . }}
           name: dbinit
+          command: [ "dbinit" ]
+          imagePullPolicy: Always
           {{ include "nonRootSC" . }}
           env:
           - name: PGUSER
@@ -122,3 +127,10 @@ Just need to append the NEW_DB env var
     meta.helm.sh/release-name: {{ .Release.Name }}
     meta.helm.sh/release-namespace: {{ .Release.Namespace }}
 {{- end -}}
+{{- define "testsBaseUrl" }}
+{{- if not .Values.local_development -}}
+https://{{ .Values.ingress.host }}
+{{- else -}}
+http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
+{{- end -}}
+{{- end }}

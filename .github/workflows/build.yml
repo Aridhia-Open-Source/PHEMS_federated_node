@@ -46,6 +46,7 @@ env:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   init:
@@ -150,7 +151,7 @@ jobs:
         with:
           registry: ${{ vars.DOCKER_CR }}
           username: ${{ github.actor }}
-          password: ${{ secrets.DOCKER_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: set lower case owner name
         run: |
           echo "OWNER_LC=${OWNER,,}" >> ${GITHUB_ENV}
@@ -177,13 +178,6 @@ jobs:
           file: build/alpine/Dockerfile
           tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/alpine:3.19
           push: true
-      - name: Build and push DB initialiser image
-        uses: docker/build-push-action@v5
-        with:
-          context: build/db-init
-          file: build/db-init/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/db_init:${{ needs.init.outputs.tag }}
-          push: true
       - name: Build and push KC initialiser image
         uses: docker/build-push-action@v5
         with:
@@ -203,5 +197,3 @@ jobs:
       PATH_BUILD: k8s/federated-node
       CHART_NAME: federated-node
       IS_TAG: ${{ needs.init.outputs.is_tag }}
-    secrets:
-      HELM_TOKEN: ${{ secrets.HELM_TOKEN }}

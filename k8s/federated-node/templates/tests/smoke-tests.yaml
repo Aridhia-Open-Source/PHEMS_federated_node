@@ -1,0 +1,38 @@
+{{- if .Values.smoketests }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-smoke-tests"
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-weight: "2"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  containers:
+    - name: run-smoketests
+      image: {{ include "fn-alpine" . }}
+      command: ['/bin/sh', '-c']
+      args:
+        - |
+{{ .Files.Get "scripts/tests.sh" | indent 10 }}
+      env:
+      - name: KEYCLOAK_ADMIN_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: kc-secrets
+            key: KEYCLOAK_ADMIN_PASSWORD
+      - name: PGPASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: {{ .Values.db.secret.name }}
+            key: {{ .Values.db.secret.key }}
+      - name: BACKEND_URL
+        value: {{ include "testsBaseUrl" . }}
+      envFrom:
+        - configMapRef:
+            name: keycloak-config
+        - configMapRef:
+            name: backend-configmap
+  restartPolicy: Never
+{{- end }}
