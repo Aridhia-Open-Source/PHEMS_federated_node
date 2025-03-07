@@ -14,3 +14,17 @@ data:
 type: {{ $sec.type}}
 ---
 {{- end }}
+{{- if .Values.storage.azure }}
+{{ $sec := lookup "v1" "Secret" $.Release.Namespace .Values.storage.azure.secretName | default dict }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.storage.azure.secretName }}
+  namespace: {{ .Values.namespaces.tasks }}
+data:
+{{- with $sec.data  }}
+{{ toYaml . | indent 2 }}
+{{- end }}
+type: {{ $sec.type}}
+---
+{{- end }}

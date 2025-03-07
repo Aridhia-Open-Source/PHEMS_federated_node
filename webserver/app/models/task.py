@@ -48,7 +48,6 @@ class Task(db.Model, BaseModel):
                  inputs:dict = {},
                  outputs:dict = {},
                  description:str = '',
-                 created_at:datetime=datetime.now(),
                  **kwargs
                  ):
         self.name = name
@@ -57,7 +56,7 @@ class Task(db.Model, BaseModel):
         self.requested_by = requested_by
         self.dataset = dataset
         self.description = description
-        self.created_at = created_at
+        self.created_at = datetime.now()
         self.updated_at = datetime.now()
         self.tags = tags
         self.executors = executors

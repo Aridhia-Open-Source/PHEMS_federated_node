@@ -23,7 +23,7 @@ spec:
           - linux
   {{ else if .Values.storage.azure }}
   azureFile:
-    shareName: {{ .Values.storage.azure.shareName }}/results
+    shareName: {{ .Values.storage.azure.shareName }}
     readOnly: false
     secretName: {{ .Values.storage.azure.secretName | default "azure-storage-secret" }}
   {{ else if .Values.storage.nfs }}

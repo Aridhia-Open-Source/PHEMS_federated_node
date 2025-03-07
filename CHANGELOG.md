@@ -8,6 +8,12 @@
     ```
     __Warning__ this will add and then remove the test data from keycloak and the db. It will not be enabled by default.
 
+### bugfixes
+- Fixed a deployment issue issue with first-time installations where on azure storage, the results folder should exist already. Now this is done by the backend's initcontainer.
+- Fixed a deployment issue where ingresses were not updated or deleted during upgrades
+- Fixed a deployment issue when using azure storage accounts, the secret containing auth credentials is missing on the tasks namespace. This led tasks to fail to start.
+- Fixed a bug where tasks always have a fixed creation date, depending on server start. That caused some of them to be deemed expired.
+
 ## 0.8.0
 - Added Container and Registry management:
     - /containers
