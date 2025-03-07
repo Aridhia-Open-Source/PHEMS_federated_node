@@ -12,7 +12,7 @@ spec:
         spec:
           containers:
           - name: registry-sync
-            image: ghcr.io/aridhia-open-source/alpine:3.19
+            image: {{ include "fn-alpine" . }}
             command: ["sync-registry"]
             imagePullPolicy: {{ .Values.pullPolicy }}
             {{- include "nonRootSC" . | nindent 12 }}

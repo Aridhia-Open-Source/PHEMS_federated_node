@@ -178,13 +178,6 @@ jobs:
           file: build/alpine/Dockerfile
           tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/alpine:3.19
           push: true
-      - name: Build and push DB initialiser image
-        uses: docker/build-push-action@v5
-        with:
-          context: build/db-init
-          file: build/db-init/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/db_init:${{ needs.init.outputs.tag }}
-          push: true
       - name: Build and push KC initialiser image
         uses: docker/build-push-action@v5
         with:

@@ -1,0 +1,10 @@
+Successfully installed {{ .Chart.Name }} version: {{ .Chart.Version }}
+
+You can run some smoketests with:
+helm test {{ .Release.Name }} -n {{ .Release.Namespace }} --logs
+
+The smoketest pod will stay until the next one is run.
+It can be deleted with:
+kubectl delete pod -n {{ .Release.Namespace }} {{ .Release.Name }}-smoke-tests
+
+Also check out our "Getting Started" article: https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Getting-Started
