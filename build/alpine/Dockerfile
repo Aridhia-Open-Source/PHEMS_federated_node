@@ -9,8 +9,11 @@ RUN addgroup -S "${USERNAME}" --gid "${USER_GID}" \
 
 RUN apk add --no-cache \
     'jq=~1.7' \
-    'curl=~8.5'
+    'curl=~8.5' \
+    'postgresql16-client=~16'
 
-USER $USER_UID
+USER ${USER_UID}
+
 COPY --chmod=755 sync-cron.sh /usr/bin/sync-registry
 COPY --chmod=755 cleanup.sh /usr/bin/cleanup
+COPY --chmod=755 dbinit.sh /usr/bin/dbinit
