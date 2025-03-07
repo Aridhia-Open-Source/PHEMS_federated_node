@@ -28,9 +28,9 @@ spec:
   tls:
   - hosts:
     - {{ .Values.ingress.host }}
-    {{ if .Values.ingress.tls }}
+    {{- if .Values.ingress.tls }}
     secretName: {{ .Values.ingress.tls.secretName | default "tls"}}
-    {{ end }}
+    {{- end }}
   rules:
     - host: {{ .Values.ingress.host }}
       http:
