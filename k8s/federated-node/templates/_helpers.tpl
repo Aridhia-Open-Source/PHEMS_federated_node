@@ -127,6 +127,12 @@ Just need to append the NEW_DB env var
     meta.helm.sh/release-name: {{ .Release.Name }}
     meta.helm.sh/release-namespace: {{ .Release.Namespace }}
 {{- end -}}
+{{- define "cspDomains" -}}
+  {{- join ", " .Values.integrations.domains -}}
+{{- end -}}
+{{- define "cspDomainsSpace" -}}
+  {{- join " " .Values.integrations.domains -}}
+{{- end -}}
 {{- define "testsBaseUrl" }}
 {{- if not .Values.local_development -}}
 https://{{ .Values.ingress.host }}
