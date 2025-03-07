@@ -11,6 +11,10 @@ on:
         description: 'New tag the docker images are going to use'
         required: false
         type: string
+      taskController:
+        description: 'Task controller sub-chart version'
+        required: false
+        type: string
       dryRun:
         description: 'Dry run, no changes committed. Shows the new Chart.yaml contents'
         required: false
@@ -39,16 +43,20 @@ jobs:
         env:
           CHART_VERSION: ${{ inputs.chartVersion }}
           APP_VERSION: ${{ inputs.appVersion }}
+          FNTC_VERSION: ${{ inputs.taskController }}
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
           if [[ $(grep '${CHART_VERSION}' Chart.yaml) ]]; then
             echo "Nothing to change. Exiting early"
             exit 0
           fi
-          sed -i "s/version: .*/version: ${CHART_VERSION}/" Chart.yaml
+          sed -i "s/^version: .*/version: ${CHART_VERSION}/" Chart.yaml
 
           if [[ -n "${APP_VERSION}" ]]; then
-            sed -i "s/appVersion: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
+            sed -i "s/^appVersion: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
+          fi
+          if [[ -n "${FNTC_VERSION}" ]]; then
+            sed -i "s/\sversion: .*/version: \"${FNTC_VERSION}\"/" Chart.yaml
           fi
 
           cat Chart.yaml
