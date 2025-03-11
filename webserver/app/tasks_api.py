@@ -140,16 +140,3 @@ def get_tasks_logs(task_id:int):
         raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
 
     return {"logs": task.get_logs()}, 200
-
-@bp.route('/<task_id>/pod', methods=['GET'])
-@audit
-@auth(scope='can_admin_task')
-def describe_task_pod(task_id:int):
-    """
-    From a given task, return its pods logs
-    """
-    task = Task.query.filter(Task.id == task_id).one_or_none()
-    if task is None:
-        raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
-
-    return task.describe_pod(), 200

@@ -391,53 +391,20 @@ class Task(db.Model, BaseModel):
         """
         Retrieve the pod's logs
         """
-        if self.get_status() == 'waiting':
+        if 'waiting' in self.get_status():
             return "Task queued"
 
         pod = self.get_current_pod(is_running=False)
         if pod is None:
-            raise TaskExecutionException(f"Task pod {self.id} not found")
+            raise TaskExecutionException(f"Task pod {self.id} not found", 400)
 
         v1 = KubernetesClient()
         try:
-            return v1.read_namespaced_pod_log(pod.metadata.name, timestamps=True, namespace=TASK_NAMESPACE).splitlines()
+            return v1.read_namespaced_pod_log(
+                pod.metadata.name, timestamps=True,
+                namespace=TASK_NAMESPACE,
+                container=pod.metadata.name
+            ).splitlines()
         except ApiException as apie:
             logger.error(apie)
             raise TaskExecutionException("Failed to fetch the logs") from apie
-
-    def describe_pod(self):
-        """
-        For Admin only, describes the pod which could be useful
-        in case there is no direct access to the cluster
-        """
-        pod = self.get_current_pod(is_running=False)
-        if pod is None:
-            raise TaskExecutionException(f"Task pod {self.id} not found")
-
-        return {
-            "metadata": {
-                "labels": pod.metadata.labels,
-                "name": pod.metadata.name
-            },
-            "status": {
-            #     "conditions": pod.status.conditions,
-                "running": convert_to_dict(pod.status.container_statuses[0].state.running),
-                "terminated": convert_to_dict(pod.status.container_statuses[0].state.terminated),
-                # "waiting": pod.status.container_statuses[0].waiting,
-            },
-            # "spec": pod.spec.containers[0].__dict__
-        }
-
-def convert_to_dict(obj):
-    if obj is None:
-        return {}
-
-    new_obj = {}
-    if isinstance(obj, dict):
-        for k, v in obj.items():
-            if k.startswith("_"):
-                pass
-            new_obj[k] = convert_to_dict(v)
-    else:
-        return obj.__dict__
-    return new_obj

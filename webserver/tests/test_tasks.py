@@ -190,7 +190,6 @@ def test_create_task_with_ds_name(
 
 def test_create_task_with_ds_name_and_id(
         cr_client,
-
         post_json_admin_header,
         client,
         registry_client,
@@ -212,7 +211,6 @@ def test_create_task_with_ds_name_and_id(
 
 def test_create_task_with_conflicting_ds_name_and_id(
         cr_client,
-
         post_json_admin_header,
         client,
         dataset,
@@ -378,7 +376,6 @@ def test_get_task_by_id_non_admin_owner(
 def test_get_task_by_id_non_admin_non_owner(
         token_valid_mock,
         cr_client,
-
         post_json_user_header,
         simple_user_header,
         client,
@@ -476,6 +473,126 @@ def test_validate_task_basic_user(
         headers=post_json_user_header
     )
     assert response.status_code == 200
+
+def test_task_get_logs(
+        post_json_admin_header,
+        client,
+        mocker,
+        terminated_state,
+        task
+    ):
+    """
+    Basic test that will allow us to return
+    the pods logs
+    """
+    mocker.patch(
+        'app.models.task.Task.get_current_pod',
+        return_value=Mock(
+            status=Mock(
+                container_statuses=[terminated_state]
+            )
+        )
+    )
+    response_logs = client.get(
+        f'/tasks/{task.id}/logs',
+        headers=post_json_admin_header
+    )
+    assert response_logs.status_code == 200
+    assert response_logs.json["logs"] == [
+        'Example logs',
+        'another line'
+    ]
+
+def test_task_logs_non_existent(
+        post_json_admin_header,
+        client,
+        task
+    ):
+    """
+    Basic test that will check the appropriate error
+    is returned when the task id does not exist
+    """
+    response_logs = client.get(
+        f'/tasks/{task.id + 1}/logs',
+        headers=post_json_admin_header
+    )
+    assert response_logs.status_code == 404
+    assert response_logs.json["error"] == f"Task with id {task.id + 1} does not exist"
+
+def test_task_waiting_get_logs(
+        post_json_admin_header,
+        client,
+        mocker,
+        waiting_state,
+        task
+    ):
+    """
+    Basic test that will try to get logs for a pod
+    in an init state.
+    """
+    mocker.patch(
+        'app.models.task.Task.get_current_pod',
+        return_value=Mock(
+            status=Mock(
+                container_statuses=[waiting_state]
+            )
+        )
+    )
+    response_logs = client.get(
+        f'/tasks/{task.id}/logs',
+        headers=post_json_admin_header
+    )
+    assert response_logs.status_code == 200
+    assert response_logs.json["logs"] == 'Task queued'
+
+def test_task_not_found_get_logs(
+        post_json_admin_header,
+        client,
+        mocker,
+        task
+    ):
+    """
+    Basic test that will try to get the logs from a missing
+    pod. This can happen if the task gets cleaned up
+    """
+    mocker.patch(
+        'app.models.task.Task.get_current_pod',
+        return_value=None
+    )
+    response_logs = client.get(
+        f'/tasks/{task.id}/logs',
+        headers=post_json_admin_header
+    )
+    assert response_logs.status_code == 400
+    assert response_logs.json["error"] == f'Task pod {task.id} not found'
+
+def test_task_get_logs_fails(
+        post_json_admin_header,
+        client,
+        k8s_client,
+        mocker,
+        task,
+        terminated_state
+    ):
+    """
+    Basic test that will try to get the logs, but k8s
+    will raise an ApiException. It is expected a 500 status code
+    """
+    mocker.patch(
+        'app.models.task.Task.get_current_pod',
+        return_value=Mock(
+            status=Mock(
+                container_statuses=[terminated_state]
+            )
+        )
+    )
+    k8s_client["read_namespaced_pod_log"].side_effect = ApiException()
+    response_logs = client.get(
+        f'/tasks/{task.id}/logs',
+        headers=post_json_admin_header
+    )
+    assert response_logs.status_code == 500
+    assert response_logs.json["error"] == 'Failed to fetch the logs'
 
 
 class TestTaskResults:
