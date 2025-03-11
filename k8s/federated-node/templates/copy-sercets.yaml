@@ -8,9 +8,9 @@ metadata:
   name: {{ . }}
   namespace: {{ $.Values.namespaces.keycloak }}
 data:
-{{- with $sec.data  }}
+{{- with $sec.data }}
 {{ toYaml . | indent 2 }}
 {{- end }}
-type: {{ $sec.type}}
+type: {{ $sec.type }}
 ---
 {{- end }}

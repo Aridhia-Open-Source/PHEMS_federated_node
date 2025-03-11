@@ -37,37 +37,6 @@ __Please keep in mind that every secret value has to be a base64 encoded string 
 echo -n "value" | base64
 ```
 
-#### Container Registries
-The following examples aims to setup container registries (CRs) credentials. The assumption is that all container registries are private, not public. That is because is expected that all the code to be run in the datasets has to be vetted, supervised by the data controllers.
-
-In general, to create a k8s secret you run a command like the following:
-```sh
-kubectl create secret generic $secret_name \
-    --from-literal=username="$username" \
-    --from-literal=password="$password"
-```
-or using the yaml template:
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-    # set a name of your choosing
-    name:
-    # use the namespace name in case you plan to deploy in a non-default one.
-    # Otherwise you can set to default, or not use the next field altogether
-    namespace:
-data:
-  password:
-  username:
-type: Opaque
-```
-
-then you can apply this secret with the command:
-```sh
-kubectl apply -f file.yaml
-```
-replace file.yaml with the name of the file you created above.
-
 #### Database
 In case you want to set DB secrets the structure is slightly different:
 
@@ -122,6 +91,59 @@ Granted that the `pem` and `crt` file already in the current working folder, run
 kubectl create secret tls tls --key key.pem --cert cert.crt
 ```
 This will create a special kubernetes secret in the default namespace, append `-n namespace_name` to create it in a specific namespace (i.e. the one where the chart is going to be deployed on)
+
+##### Automatic certificate renewal
+The `cert-manager` tool will be used to provide this functionality. It is disabled by default, if it's needed, set `certmanager.enabled` to `true` in your values file at deployment time.
+
+If used, it will need few information based on which cloud platform it needs to interface with.
+
+Either way, a secret
+##### Azure
+```sh
+kubectl create secret generic $secret_name \
+    --from-literal=RG_NAME="$rg_name" git \
+    --from-literal=CLIENT_ID="$client_id" \
+    --from-literal=EMAIL_CERT="$email_cert" \
+    --from-literal=SUBSCRIPTION_ID="$sub_id"
+```
+or using the yaml template:
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+    # set a name of your choosing
+    name:
+    # use the namespace name in case you plan to deploy in a non-default one.
+    # Otherwise you can set to default, or not use the next field altogether
+    namespace:
+data:
+  DNS_SP_ID:
+  DNS_SP_SECRET:
+  AZ_DIRECTORY_ID:
+  SUBSCRIPTION_ID:
+type: Opaque
+```
+##### AWS:
+```sh
+kubectl create secret generic $secret_name \
+    --from-literal=AWS_ACCESS_KEY_ID="$key_id" \
+    --from-literal=AWS_SECRET_ACCESS_KEY="$key_secret"
+```
+or using the yaml template:
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+    # set a name of your choosing
+    name:
+    # use the namespace name in case you plan to deploy in a non-default one.
+    # Otherwise you can set to default, or not use the next field altogether
+    namespace:
+data:
+  AWS_ACCESS_KEY_ID:
+  AWS_SECRET_ACCESS_KEY:
+type: Opaque
+```
 
 ### Copying existing secrets
 If the secret(s) exist in another namespace, you can "copy" them with this command:

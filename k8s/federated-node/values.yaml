@@ -83,6 +83,7 @@ securityContext: {}
 ingress:
   host:
   on_aks: false
+  on_eks: false
   whitelist:
     enabled: false
     ips: []
@@ -92,7 +93,11 @@ ingress:
   tls:
     keyFile:
     certFile:
-    # secretName:
+    secretName: tls
+
+certs:
+  azure:
+  aws:
 
 # Enables full smoketests when running `helm test`.
 # This will actively try to add new database and keycloak entries
@@ -107,3 +112,7 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+certmanager:
+  namespace: fn-certmanager
+  enabled: false
