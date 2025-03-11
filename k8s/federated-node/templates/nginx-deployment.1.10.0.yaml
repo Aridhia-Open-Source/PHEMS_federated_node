@@ -340,6 +340,7 @@ metadata:
     app.kubernetes.io/version: "1.10.0"
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/component: controller
+    rollme: {{ template "rollMe" . }}
   name: ingress-nginx-controller
   namespace: {{ .Values.namespaces.nginx }}
 spec:
