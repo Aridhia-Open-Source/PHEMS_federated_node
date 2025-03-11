@@ -385,6 +385,9 @@ spec:
             - --validating-webhook-certificate=/usr/local/certificates/cert
             - --validating-webhook-key=/usr/local/certificates/key
             - --enable-metrics=false
+            {{- if .Values.ingress.tls }}
+            - --default-ssl-certificate={{ .Release.Namespace }}/{{ .Values.ingress.tls.secretName | default "tls" }}
+            {{- end }}
           securityContext:
             runAsNonRoot: true
             runAsUser: 101
