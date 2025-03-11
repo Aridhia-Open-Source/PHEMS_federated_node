@@ -269,7 +269,7 @@ class Task(db.Model, BaseModel):
             "CONNECTION_ARGS": self.dataset.extra_connection_args
         }
 
-    def get_current_pod(self, pod_name:str=None, is_running:bool=True):
+    def get_current_pod(self, is_running:bool=True):
         v1 = KubernetesClient()
         running_pods = v1.list_namespaced_pod(
             TASK_NAMESPACE,
@@ -287,7 +287,7 @@ class Task(db.Model, BaseModel):
         except IndexError:
             return
 
-    def get_status(self, pod_name:str=None) -> dict | str:
+    def get_status(self) -> dict | str:
         """
         k8s sdk returns a bunch of nested objects as a pod's status.
         Here the objects are deconstructed and a customized dictionary is returned
@@ -386,3 +386,58 @@ class Task(db.Model, BaseModel):
         except urllib3.exceptions.MaxRetryError:
             raise InvalidRequest("The cluster could not create the job")
         return res_file
+
+    def get_logs(self):
+        """
+        Retrieve the pod's logs
+        """
+        if self.get_status() == 'waiting':
+            return "Task queued"
+
+        pod = self.get_current_pod(is_running=False)
+        if pod is None:
+            raise TaskExecutionException(f"Task pod {self.id} not found")
+
+        v1 = KubernetesClient()
+        try:
+            return v1.read_namespaced_pod_log(pod.metadata.name, timestamps=True, namespace=TASK_NAMESPACE).splitlines()
+        except ApiException as apie:
+            logger.error(apie)
+            raise TaskExecutionException("Failed to fetch the logs") from apie
+
+    def describe_pod(self):
+        """
+        For Admin only, describes the pod which could be useful
+        in case there is no direct access to the cluster
+        """
+        pod = self.get_current_pod(is_running=False)
+        if pod is None:
+            raise TaskExecutionException(f"Task pod {self.id} not found")
+
+        return {
+            "metadata": {
+                "labels": pod.metadata.labels,
+                "name": pod.metadata.name
+            },
+            "status": {
+            #     "conditions": pod.status.conditions,
+                "running": convert_to_dict(pod.status.container_statuses[0].state.running),
+                "terminated": convert_to_dict(pod.status.container_statuses[0].state.terminated),
+                # "waiting": pod.status.container_statuses[0].waiting,
+            },
+            # "spec": pod.spec.containers[0].__dict__
+        }
+
+def convert_to_dict(obj):
+    if obj is None:
+        return {}
+
+    new_obj = {}
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k.startswith("_"):
+                pass
+            new_obj[k] = convert_to_dict(v)
+    else:
+        return obj.__dict__
+    return new_obj
