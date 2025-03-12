@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import requests
 
 KC_OLD_PASS = os.getenv("KEYCLOAK_ADMIN_PASSWORD")
@@ -8,6 +9,8 @@ KC_NEW_PASS = os.getenv("NEW_KEYCLOAK_ADMIN_PASSWORD")
 KC_NEW_SECRET = os.getenv("NEW_KEYCLOAK_GLOBAL_CLIENT_SECRET")
 KEYCLOAK_NAMESPACE = os.getenv("KEYCLOAK_NAMESPACE")
 KC_URL = os.getenv("KEYCLOAK_URL", f"http://keycloak.{KEYCLOAK_NAMESPACE}.svc.cluster.local")
+MAX_RETRIES = 20
+
 
 def login():
     print("Logging in...")
@@ -73,6 +76,21 @@ def set_user_new_pass(user_id, headers, realm='master'):
         print(response.json())
         exit(1)
 
+print("Health check on keycloak pod before starting")
+for i in range(1, MAX_RETRIES):
+    print(f"Health check {i}/{MAX_RETRIES}")
+    try:
+      hc_resp = requests.get(f"{KC_URL}/realms/master")
+      if hc_resp.ok:
+          break
+    except requests.exceptions.ConnectionError:
+        pass
+    print("Health check failed...retrying in 10 seconds")
+    time.sleep(10)
+
+if i == MAX_RETRIES:
+    print("Keycloak cannot be reached")
+    exit(1)
 
 token = login()
 headers = {'Authorization': f"Bearer {token}"}

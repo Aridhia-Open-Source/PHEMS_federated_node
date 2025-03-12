@@ -16,15 +16,18 @@ KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "FederatedNode")
 KEYCLOAK_CLIENT = os.getenv("KEYCLOAK_CLIENT", "global")
 KEYCLOAK_USER = os.getenv("KEYCLOAK_ADMIN")
 KEYCLOAK_PASS = os.getenv("KEYCLOAK_ADMIN_PASSWORD")
+MAX_RETRIES = 20
+
 
 def is_response_good(response:Response) -> None:
   if not response.ok and response.status_code != 409:
     print(f"{response.status_code} - {response.text}")
     exit(1)
 
+
 print("Health check on keycloak pod before starting")
-for i in range(1, 5):
-    print(f"Health check {i}/5")
+for i in range(1, MAX_RETRIES):
+    print(f"Health check {i}/{MAX_RETRIES}")
     try:
       hc_resp = requests.get(f"{KEYCLOAK_URL}/realms/master")
       if hc_resp.ok:
@@ -33,7 +36,8 @@ for i in range(1, 5):
         pass
     print("Health check failed...retrying in 10 seconds")
     time.sleep(10)
-if i == 5:
+
+if i == MAX_RETRIES:
     print("Keycloak cannot be reached")
     exit(1)
 
