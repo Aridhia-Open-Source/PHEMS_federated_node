@@ -671,6 +671,20 @@ class Keycloak:
 
         return user_response.json()[0] if user_response.json() else None
 
+    def get_user_by_id(self, user_id:str) -> dict:
+        """
+        Method to return a dictionary representing a Keycloak user,
+        using their id
+        """
+        user_response = requests.get(
+            f"{URLS["user"]}/{user_id}",
+            headers={"Authorization": f"Bearer {self.admin_token}"}
+        )
+        if not user_response.ok:
+            raise KeycloakError("Failed to fetch the user")
+
+        return user_response.json() if user_response.json() else None
+
     def get_user_role(self, user_id:str) -> list[str]:
         """
         From a user id, get all of their realm roles

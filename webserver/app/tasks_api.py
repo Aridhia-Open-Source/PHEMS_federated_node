@@ -10,7 +10,7 @@ tasks-related endpoints:
 from datetime import datetime, timedelta
 from flask import Blueprint, request, send_file
 
-from app.helpers.const import CLEANUP_AFTER_DAYS
+from app.helpers.const import CLEANUP_AFTER_DAYS, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError, UnauthorizedError
 from app.helpers.keycloak import Keycloak
 from app.helpers.wrappers import audit, auth
@@ -28,7 +28,10 @@ def get_service_info():
     """
     GET /tasks/service-info endpoint. Gets the server info
     """
-    return "WIP", 200
+    return {
+        "name": "Federated Node",
+        "doc": "Part of the PHEMS network"
+    }, 200
 
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
@@ -126,4 +129,4 @@ def get_task_results(task_id):
         return {"error": "Tasks results are not available anymore. Please, run the task again"}, 500
 
     results_file = task.get_results()
-    return send_file(results_file, download_name="results.tar.gz"), 200
+    return send_file(results_file, download_name=f"{PUBLIC_URL}-{task_id}results.tar.gz"), 200

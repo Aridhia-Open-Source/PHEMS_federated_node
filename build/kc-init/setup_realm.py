@@ -7,7 +7,7 @@ import requests
 from requests import Response
 import json
 import os
-import time
+from common import login, health_check
 
 KEYCLOAK_NAMESPACE = os.getenv("KEYCLOAK_NAMESPACE")
 KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", f"http://keycloak.{KEYCLOAK_NAMESPACE}.svc.cluster.local")
@@ -17,45 +17,18 @@ KEYCLOAK_CLIENT = os.getenv("KEYCLOAK_CLIENT", "global")
 KEYCLOAK_USER = os.getenv("KEYCLOAK_ADMIN")
 KEYCLOAK_PASS = os.getenv("KEYCLOAK_ADMIN_PASSWORD")
 
+
 def is_response_good(response:Response) -> None:
   if not response.ok and response.status_code != 409:
     print(f"{response.status_code} - {response.text}")
     exit(1)
 
-print("Health check on keycloak pod before starting")
-for i in range(1, 5):
-    print(f"Health check {i}/5")
-    try:
-      hc_resp = requests.get(f"{KEYCLOAK_URL}/realms/master")
-      if hc_resp.ok:
-          break
-    except requests.exceptions.ConnectionError:
-        pass
-    print("Health check failed...retrying in 10 seconds")
-    time.sleep(10)
-if i == 5:
-    print("Keycloak cannot be reached")
-    exit(1)
+
+health_check(KEYCLOAK_URL)
 
 print(f"Accessing to keycloak {REALM} realm")
 
-payload = {
-    'client_id': 'admin-cli',
-    'grant_type': 'password',
-    'username': KEYCLOAK_USER,
-    'password': KEYCLOAK_PASS
-}
-headers = {
-  'Content-Type': 'application/x-www-form-urlencoded'
-}
-
-response = requests.post(
-    f"{KEYCLOAK_URL}/realms/{REALM}/protocol/openid-connect/token",
-    headers=headers,
-    data=payload
-)
-is_response_good(response)
-admin_token = response.json()["access_token"]
+admin_token = login(KEYCLOAK_URL, KEYCLOAK_PASS)
 
 print("Got the token...Creating user in new Realm")
 payload = json.dumps({

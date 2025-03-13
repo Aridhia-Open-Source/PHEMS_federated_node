@@ -57,6 +57,7 @@ services:
       KEYCLOAK_URL:
     volumes:
       - ../build/kc-init/setup_realm.py:/scripts/setup_realm.py
+      - ../build/kc-init/common.py:/scripts/common.py
   app:
     container_name: flask_app_test
     image: federated_node_app_test
