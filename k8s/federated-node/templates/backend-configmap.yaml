@@ -9,10 +9,10 @@ data:
   PGPORT: {{ .Values.db.port | default "5432" | quote }}
   PGDATABASE: {{ .Values.db.name | default "fndb" | quote }}
   PGUSER: {{ .Values.db.user | default "admin" | quote }}
-  KEYCLOAK_URL: "http://keycloak.{{ .Values.namespaces.keycloak }}.svc.cluster.local"
+  KEYCLOAK_URL: "http://keycloak.{{ include "kc_namespace" . }}.svc.cluster.local"
   DEFAULT_NAMESPACE: {{ .Release.Namespace }}
-  KEYCLOAK_NAMESPACE: {{ .Values.namespaces.keycloak }}
-  TASK_NAMESPACE: {{ .Values.namespaces.tasks }}
+  KEYCLOAK_NAMESPACE: {{ include "kc_namespace" . }}
+  TASK_NAMESPACE: {{ include "tasks_namespace" . }}
   CLEANUP_AFTER_DAYS: {{ .Values.cleanupTime | quote }}
   PUBLIC_URL: {{ .Values.ingress.host }}
 {{ if .Values.storage.azure }}
