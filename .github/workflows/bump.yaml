@@ -16,6 +16,10 @@ on:
         required: false
         type: boolean
         default: true
+      certManager:
+        description: 'CertManager sub-chart version'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -40,6 +44,7 @@ jobs:
           CHART_VERSION: ${{ inputs.chartVersion }}
           APP_VERSION: ${{ inputs.appVersion }}
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+          CERTMANAGER_VERSION: ${{ inputs.certManager }}
         run: |
           if [[ $(grep '${CHART_VERSION}' Chart.yaml) ]]; then
             echo "Nothing to change. Exiting early"
@@ -50,7 +55,9 @@ jobs:
           if [[ -n "${APP_VERSION}" ]]; then
             sed -i "s/appVersion: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
           fi
-
+          if [[ -n "${CERTMANAGER_VERSION}" ]]; then
+            python ../../scripts/upgrade_subchart.py -s cert-manager -v ${CERTMANAGER_VERSION}
+          fi
           cat Chart.yaml
 
           if [[ "${{ inputs.dryRun }}" == "false" ]]; then
