@@ -96,8 +96,10 @@ ingress:
     secretName: tls
 
 certs:
-  azure:
-  aws:
+  azure: {}
+    # secret:
+    # configmap:
+  aws: {}
 
 # Enables full smoketests when running `helm test`.
 # This will actively try to add new database and keycloak entries

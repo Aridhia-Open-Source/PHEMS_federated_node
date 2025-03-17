@@ -6,25 +6,24 @@ metadata:
   name: ssl-issuer
   namespace: {{ .Release.Namespace }}
 spec:
-  {{- if .Values.local_development }}
-  selfSigned: {}
-  {{- else if .Values.ingress.on_aks }}
+  {{- if .Values.ingress.on_aks }}
+  {{- $cm := lookup "v1" "ConfigMap" $.Release.Namespace .Values.certs.azure.configmap | default dict }}
   acme:
     server: https://acme-staging-v02.api.letsencrypt.org/directory
-    email: {{ $sec.data.EMAIL_CERT | b64dec }}
+    email: {{ $cm.data.EMAIL_CERT }}
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
-    - http01:
+    - dns01:
         azureDNS:
+          clientID: {{ $cm.data.CLIENT_ID }}
           clientSecretSecretRef:
-            name: azuredns-config
-            key: client-secret
-          resourceGroupName: {{ $sec.data.RG_NAME | b64dec }}
-          subscriptionID: {{ $sec.data.SUBSCRIPTION_ID | b64dec }}
-          hostedZoneName: {{ .Values.ingress.host }}
-          environment: AzurePublicCloud
-          clientID: {{ $sec.data.CLIENT_ID | b64dec }}
+            name: {{ $.Values.certs.azure }}
+            key: CLIENT_SECRET
+          resourceGroupName: {{ $cm.data.RG_NAME }}
+          subscriptionID: {{ $cm.data.SUBSCRIPTION_ID }}
+          hostedZoneName: {{ $cm.data.HOSTED_ZONE }}
+          tenantID: {{ $cm.data.TENANT_ID }}
   {{- else if .Values.ingress.on_eks }}
   {{- $sec := lookup "v1" "Secret" $.Release.Namespace .Values.certs.aws | default dict }}
   acme:
@@ -41,5 +40,7 @@ spec:
             kubernetes:
               serviceAccountRef:
                 name: cert-manager-acme-dns01-route53
+  {{- else if .Values.local_development }}
+  selfSigned: {}
   {{- end }}
 {{- end }}
