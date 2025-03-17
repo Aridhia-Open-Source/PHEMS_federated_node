@@ -62,7 +62,7 @@ jobs:
           CERTMANAGER_VERSION: ${{ inputs.certManager }}
         run: |
           if [[ -n "${CERTMANAGER_VERSION}" ]]; then
-            python ../../scripts/upgrade_subchart.py -s cert-manager -v ${CERTMANAGER_VERSION}
+            python scripts/upgrade_subchart.py -s cert-manager -v ${CERTMANAGER_VERSION}
           fi
           cat Chart.yaml
       - name: Commit Changes
