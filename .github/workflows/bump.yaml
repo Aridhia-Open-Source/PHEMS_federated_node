@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
-      - name: Update Version
+      - name: Update Chart Version
         working-directory: k8s/federated-node
         env:
           CHART_VERSION: ${{ inputs.chartVersion }}
@@ -55,16 +55,22 @@ jobs:
           if [[ -n "${APP_VERSION}" ]]; then
             sed -i "s/appVersion: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
           fi
+          cat Chart.yaml
+      - name: Update SubCharts Version
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+          CERTMANAGER_VERSION: ${{ inputs.certManager }}
+        run: |
           if [[ -n "${CERTMANAGER_VERSION}" ]]; then
             python ../../scripts/upgrade_subchart.py -s cert-manager -v ${CERTMANAGER_VERSION}
           fi
           cat Chart.yaml
+      - name: Commit Changes
+        if: !inputs.dryRun
+        run: |
+          git config user.email "phemsbot@phems.com"
+          git config user.name "PHEMS bot"
 
-          if [[ "${{ inputs.dryRun }}" == "false" ]]; then
-            git config user.email "phemsbot@phems.com"
-            git config user.name "PHEMS bot"
-
-            git add Chart.yaml
-            git commit -m "Version bump to ${CHART_VERSION}"
-            git push
-          fi
+          git add Chart.yaml
+          git commit -m "Version bump to ${CHART_VERSION}"
+          git push
