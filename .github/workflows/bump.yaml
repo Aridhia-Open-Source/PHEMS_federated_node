@@ -64,9 +64,10 @@ jobs:
           if [[ -n "${CERTMANAGER_VERSION}" ]]; then
             python scripts/upgrade_subchart.py -s cert-manager -v ${CERTMANAGER_VERSION}
           fi
-          cat Chart.yaml
+          cat k8s/federated-node/Chart.yaml
       - name: Commit Changes
         if: ${{ ! inputs.dryRun }}
+        working-directory: k8s/federated-node
         run: |
           git config user.email "phemsbot@phems.com"
           git config user.name "PHEMS bot"
