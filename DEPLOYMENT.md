@@ -97,14 +97,10 @@ The `cert-manager` tool will be used to provide this functionality. It is disabl
 
 If used, it will need few information based on which cloud platform it needs to interface with.
 
-Either way, a secret
 ##### Azure
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=RG_NAME="$rg_name" git \
-    --from-literal=CLIENT_ID="$client_id" \
-    --from-literal=EMAIL_CERT="$email_cert" \
-    --from-literal=SUBSCRIPTION_ID="$sub_id"
+    --from-literal=CLIENT_SECRET="$SP_SECRET"
 ```
 or using the yaml template:
 ```yaml
@@ -117,17 +113,44 @@ metadata:
     # Otherwise you can set to default, or not use the next field altogether
     namespace:
 data:
-  DNS_SP_ID:
-  DNS_SP_SECRET:
-  AZ_DIRECTORY_ID:
-  SUBSCRIPTION_ID:
+  CLIENT_SECRET:
 type: Opaque
+```
+In addition, a ConfigMap is needed with the less sensitive data:
+```sh
+kubectl create configmap $configmap \
+    --from-literal=CLIENT_ID="$CLIENT_ID" \
+    --from-literal=EMAIL_CERT="$EMAIL_CERT" \
+    --from-literal=HOSTED_ZONE="$HOSTED_ZONE" \
+    --from-literal=RG_NAME="$RG_NAME" \
+    --from-literal=SUBSCRIPTION_ID="$SUB_ID" \
+    --from-literal=TENANT_ID="$TENANT_ID"
+```
+or using the yaml template:
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    # set a name of your choosing
+    name:
+    # use the namespace name in case you plan to deploy in a non-default one.
+    # Otherwise you can set to default, or not use the next field altogether
+    namespace:
+data:
+  CLIENT_ID:
+  EMAIL_CERT:
+  HOSTED_ZONE:
+  RG_NAME:
+  SUBSCRIPTION_ID:
+  TENANT_ID:
 ```
 ##### AWS:
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=AWS_ACCESS_KEY_ID="$key_id" \
-    --from-literal=AWS_SECRET_ACCESS_KEY="$key_secret"
+    --from-literal=EMAIL_CERT="$EMAIL_CERT" \
+    --from-literal=ACCOUNT_ID="$ACCOUNT_ID" \
+    --from-literal=REGION="$REGION" \
+    --from-literal=ROLE_NAME="$ROLE_NAME"
 ```
 or using the yaml template:
 ```yaml
@@ -140,8 +163,10 @@ metadata:
     # Otherwise you can set to default, or not use the next field altogether
     namespace:
 data:
-  AWS_ACCESS_KEY_ID:
-  AWS_SECRET_ACCESS_KEY:
+  EMAIL_CERT:
+  ACCOUNT_ID:
+  REGION:
+  ROLE_NAME:
 type: Opaque
 ```
 
