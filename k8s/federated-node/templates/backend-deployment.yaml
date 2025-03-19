@@ -50,6 +50,15 @@ spec:
               secretKeyRef:
                 name: {{.Values.db.secret.name}}
                 key: {{.Values.db.secret.key}}
+        - name: storage-init
+          image: {{ include "fn-alpine" . }}
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - mkdir -p /mnt/storage/results
+          volumeMounts:
+            - name: respv
+              mountPath: /mnt/storage
       containers:
         - image: {{ template "backend-image" . }}:{{ .Values.backend.tag | default .Chart.AppVersion }}
           name: backend
@@ -67,16 +76,18 @@ spec:
             httpGet:
               path: /ready_check
               port: http
-            initialDelaySeconds: 30
-            periodSeconds: 180
+            initialDelaySeconds: 10
+            periodSeconds: 15
             timeoutSeconds: 30
+            failureThreshold: 5
           livenessProbe:
             httpGet:
               path: /health_check
               port: http
             initialDelaySeconds: 10
-            periodSeconds: 60
+            periodSeconds: 30
             timeoutSeconds: 30
+            failureThreshold: 5
           envFrom:
             - configMapRef:
                 name: backend-configmap
@@ -109,7 +120,8 @@ spec:
           volumeMounts:
             - name: respv
               mountPath: {{ .Values.federatedNode.volumes.results_path }}
+              subPath: results
       volumes:
         - name: respv
           persistentVolumeClaim:
-            claimName: flask-results-pv-volclaim
+            claimName: flask-results-pv-vc

@@ -581,10 +581,10 @@ class TestTaskResults:
             docker_image="image:tag",
             description="something",
             requested_by="abc123-412-51251-213-412",
-            dataset=dataset,
-            created_at=datetime.now() - timedelta(days=CLEANUP_AFTER_DAYS)
+            dataset=dataset
         )
         task.add()
+        task.created_at=datetime.now() - timedelta(days=CLEANUP_AFTER_DAYS)
         response = client.get(
             f'/tasks/{task.id}/results',
             headers=simple_admin_header

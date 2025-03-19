@@ -1,5 +1,15 @@
 # Releases Changelog
 
+## 0.10.0
+### Security
+- Added the following headers to nginx:
+    - `strict-transport-security`
+    - `content-security-policy`
+    - `referrer-policy`
+    - `permission-policy`
+    - `x-content-type-options`
+    - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to self)
+
 ## 0.9.0
 - Added a test suite for the helm chart. This can be simply run with `helm test federatednode`
 - __smoketests__ can be also run if the values file contains
@@ -9,14 +19,13 @@
     __Warning__ this will add and then remove the test data from keycloak and the db. It will not be enabled by default.
 
 ### Security
-- Added the following headers to nginx:
-    - `strict-transport-security`
-    - `content-security-policy`
-    - `referrer-policy`
-    - `permission-policy`
-    - `x-content-type-options`
-    - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to self)
 - Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
+
+### bugfixes
+- Fixed a deployment issue issue with first-time installations where on azure storage, the results folder should exist already. Now this is done by the backend's initcontainer.
+- Fixed a deployment issue where ingresses were not updated or deleted during upgrades
+- Fixed a deployment issue when using azure storage accounts, the secret containing auth credentials is missing on the tasks namespace. This led tasks to fail to start.
+- Fixed a bug where tasks always have a fixed creation date, depending on server start. That caused some of them to be deemed expired.
 
 ## 0.8.0
 - Added Container and Registry management:

@@ -28,9 +28,9 @@ spec:
   tls:
   - hosts:
     - {{ .Values.ingress.host }}
-    {{- if .Values.ingress.tls }}
-    secretName: {{ .Values.ingress.tls.secretName | default "tls"}}
-    {{- end }}
+    {{ if .Values.ingress.tls }}
+    secretName: {{ .Values.ingress.tls.secretName | default "tls" }}
+    {{ end }}
   rules:
     - host: {{ .Values.ingress.host }}
       http:
@@ -57,6 +57,7 @@ metadata:
     nginx.ingress.kubernetes.io/denylist-source-range: {{ join "," .Values.ingress.blacklist.ips | quote }}
     {{- end }}
     helm.sh/hook-weight: "5"
+    rollme: {{ template "rollMe" . }}
 spec:
   ingressClassName: {{ .Values.ingress.ingressClass }}
   tls:
