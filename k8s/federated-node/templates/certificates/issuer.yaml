@@ -16,10 +16,10 @@ spec:
     solvers:
     - dns01:
         azureDNS:
-          clientID: {{ $cm.data.CLIENT_ID }}
+          clientID: {{ $cm.data.SP_ID }}
           clientSecretSecretRef:
             name: {{ $.Values.certs.azure }}
-            key: CLIENT_SECRET
+            key: SP_SECRET
           resourceGroupName: {{ $cm.data.RG_NAME }}
           subscriptionID: {{ $cm.data.SUBSCRIPTION_ID }}
           hostedZoneName: {{ $cm.data.HOSTED_ZONE }}

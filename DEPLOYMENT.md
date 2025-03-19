@@ -98,9 +98,10 @@ The `cert-manager` tool will be used to provide this functionality. It is disabl
 If used, it will need few information based on which cloud platform it needs to interface with.
 
 ##### Azure
+For azure dns issued certificates, the service principle approach is used. `certmanager` [documentation](https://cert-manager.io/docs/configuration/acme/dns01/azuredns/#service-principal) explains what is needed.
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=CLIENT_SECRET="$SP_SECRET"
+    --from-literal=SP_SECRET="$SP_SECRET"
 ```
 or using the yaml template:
 ```yaml
@@ -113,13 +114,13 @@ metadata:
     # Otherwise you can set to default, or not use the next field altogether
     namespace:
 data:
-  CLIENT_SECRET:
+  SP_SECRET:
 type: Opaque
 ```
 In addition, a ConfigMap is needed with the less sensitive data:
 ```sh
 kubectl create configmap $configmap \
-    --from-literal=CLIENT_ID="$CLIENT_ID" \
+    --from-literal=SP_ID="$SP_ID" \
     --from-literal=EMAIL_CERT="$EMAIL_CERT" \
     --from-literal=HOSTED_ZONE="$HOSTED_ZONE" \
     --from-literal=RG_NAME="$RG_NAME" \
@@ -137,7 +138,7 @@ metadata:
     # Otherwise you can set to default, or not use the next field altogether
     namespace:
 data:
-  CLIENT_ID:
+  SP_ID:
   EMAIL_CERT:
   HOSTED_ZONE:
   RG_NAME:
