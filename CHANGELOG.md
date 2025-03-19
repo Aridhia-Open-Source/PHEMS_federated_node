@@ -9,6 +9,7 @@
     - `permission-policy`
     - `x-content-type-options`
     - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to self)
+- Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
 
 ## 0.9.0
 - Added a test suite for the helm chart. This can be simply run with `helm test federatednode`
@@ -17,9 +18,6 @@
     smoketests: true
     ```
     __Warning__ this will add and then remove the test data from keycloak and the db. It will not be enabled by default.
-
-### Security
-- Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
 
 ### bugfixes
 - Fixed a deployment issue issue with first-time installations where on azure storage, the results folder should exist already. Now this is done by the backend's initcontainer.
