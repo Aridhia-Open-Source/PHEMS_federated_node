@@ -21,6 +21,24 @@ class TestTransfers:
         assert response.status_code == 201
         assert list(response.json.keys()) == ["token"]
 
+    def test_token_transfer_admin_dataset_name(
+            self,
+            approve_request,
+            client,
+            request_base_body_name,
+            post_json_admin_header
+    ):
+        """
+        Test token transfer is accessible by admin users
+        """
+        response = client.post(
+            "/datasets/token_transfer",
+            data=json.dumps(request_base_body_name),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        assert list(response.json.keys()) == ["token"]
+
     def test_token_transfer_admin_missing_requester_email_fails(
             self,
             client,
@@ -54,7 +72,25 @@ class TestTransfers:
             headers=post_json_admin_header
         )
         assert response.status_code == 404
-        assert response.json == {"error": "Dataset 5012 not found"}
+        assert response.json == {"error": "Dataset 5012 does not exist"}
+
+    def test_token_transfer_admin_dataset_by_name_not_found(
+            self,
+            client,
+            request_base_body_name,
+            post_json_admin_header
+    ):
+        """
+        Test token transfer fails on an non-existing dataset
+        """
+        request_base_body_name["dataset_name"] = "fake_dataset"
+        response = client.post(
+            "/datasets/token_transfer",
+            data=json.dumps(request_base_body_name),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 404
+        assert response.json == {"error": "Dataset fake_dataset does not exist"}
 
     @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
     def test_token_transfer_standard_user(
