@@ -2,7 +2,10 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: federated-ingress
+  labels:
+    {{ include "defaultLabels" . }}
   annotations:
+    {{ include "defaultAnnotations" . }}
     nginx.ingress.kubernetes.io/rewrite-target: /$1
     {{- if .Values.ingress.whitelist.enabled }}
     nginx.ingress.kubernetes.io/whitelist-source-range: {{ join "," .Values.ingress.whitelist.ips | quote }}
@@ -10,7 +13,7 @@ metadata:
     {{- if .Values.ingress.blacklist.enabled }}
     nginx.ingress.kubernetes.io/denylist-source-range: {{ join "," .Values.ingress.blacklist.ips | quote }}
     {{- end }}
-    helm.sh/hook: pre-install
+    helm.sh/hook: pre-install,pre-upgrade
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
   ingressClassName: {{ .Values.ingress.ingressClass | default "fn-nginx" }}
@@ -18,7 +21,7 @@ spec:
   - hosts:
     - {{ .Values.ingress.host }}
     {{ if .Values.ingress.tls }}
-    secretName: {{ .Values.ingress.tls.secretName | default "tls"}}
+    secretName: {{ .Values.ingress.tls.secretName | default "tls" }}
     {{ end }}
   rules:
     - host: {{ .Values.ingress.host }}
@@ -46,6 +49,7 @@ metadata:
     nginx.ingress.kubernetes.io/denylist-source-range: {{ join "," .Values.ingress.blacklist.ips | quote }}
     {{- end }}
     helm.sh/hook-weight: "5"
+    rollme: {{ template "rollMe" . }}
 spec:
   ingressClassName: {{ .Values.ingress.ingressClass | default "fn-nginx" }}
   tls:

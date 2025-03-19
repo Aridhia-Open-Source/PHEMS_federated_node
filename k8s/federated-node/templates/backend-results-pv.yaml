@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: results-pv
+  name: flask-results-pv
 spec:
   storageClassName: shared-results
   accessModes:
@@ -23,7 +23,7 @@ spec:
           - linux
   {{ else if .Values.storage.azure }}
   azureFile:
-    shareName: {{ .Values.storage.azure.shareName }}/results
+    shareName: {{ .Values.storage.azure.shareName }}
     readOnly: false
     secretName: {{ .Values.storage.azure.secretName | default "azure-storage-secret" }}
   {{ else if .Values.storage.nfs }}
@@ -32,11 +32,11 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: flask-results-pv-volclaim
+  name: flask-results-pv-vc
   namespace: {{ .Release.namespace }}
 spec:
   storageClassName: shared-results
-  volumeName: results-pv
+  volumeName: flask-results-pv
   resources:
     requests:
       storage: 100Mi
