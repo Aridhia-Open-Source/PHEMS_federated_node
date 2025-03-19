@@ -15,8 +15,16 @@ metadata:
     {{- end }}
     helm.sh/hook: pre-install,pre-upgrade
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "{{ include "cspDomains" . }}"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "strict-transport-security: max-age=63072000";
+      more_set_headers "content-security-policy: default-src 'self' https: ; connect-src 'self' {{ include "cspDomainsSpace" . }}; frame-ancestors: 'self'; script-src 'unsafe-inline'; script-src-elem 'unsafe-inline' https:; img-src https:  data:";
+      more_set_headers "referrer-policy: strict-origin";
+      more_set_headers "permission-policy: src";
+      more_set_headers "x-content-type-options: application/json";
 spec:
-  ingressClassName: {{ .Values.ingress.ingressClass | default "fn-nginx" }}
+  ingressClassName: {{ .Values.ingress.ingressClass }}
   tls:
   - hosts:
     - {{ .Values.ingress.host }}
@@ -51,7 +59,7 @@ metadata:
     helm.sh/hook-weight: "5"
     rollme: {{ template "rollMe" . }}
 spec:
-  ingressClassName: {{ .Values.ingress.ingressClass | default "fn-nginx" }}
+  ingressClassName: {{ .Values.ingress.ingressClass }}
   tls:
   - hosts:
     - {{ .Values.ingress.host }}

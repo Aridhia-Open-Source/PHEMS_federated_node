@@ -1,5 +1,16 @@
 # Releases Changelog
 
+## 0.10.0
+### Security
+- Added the following headers to nginx:
+    - `strict-transport-security`
+    - `content-security-policy`
+    - `referrer-policy`
+    - `permission-policy`
+    - `x-content-type-options`
+    - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to self)
+- Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
+
 ## 0.9.0
 - Added a test suite for the helm chart. This can be simply run with `helm test federatednode`
 - __smoketests__ can be also run if the values file contains
