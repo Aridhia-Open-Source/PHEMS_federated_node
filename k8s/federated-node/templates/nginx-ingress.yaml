@@ -21,7 +21,7 @@ spec:
   - hosts:
     - {{ .Values.ingress.host }}
     {{ if .Values.ingress.tls }}
-    secretName: {{ .Values.ingress.tls.secretName | default "tls" }}
+    secretName: {{ .Values.ingress.tls.secretName }}
     {{ end }}
   rules:
     - host: {{ .Values.ingress.host }}
