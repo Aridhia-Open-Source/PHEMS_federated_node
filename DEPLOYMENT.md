@@ -37,37 +37,6 @@ __Please keep in mind that every secret value has to be a base64 encoded string 
 echo -n "value" | base64
 ```
 
-#### Container Registries
-The following examples aims to setup container registries (CRs) credentials. The assumption is that all container registries are private, not public. That is because is expected that all the code to be run in the datasets has to be vetted, supervised by the data controllers.
-
-In general, to create a k8s secret you run a command like the following:
-```sh
-kubectl create secret generic $secret_name \
-    --from-literal=username="$username" \
-    --from-literal=password="$password"
-```
-or using the yaml template:
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-    # set a name of your choosing
-    name:
-    # use the namespace name in case you plan to deploy in a non-default one.
-    # Otherwise you can set to default, or not use the next field altogether
-    namespace:
-data:
-  password:
-  username:
-type: Opaque
-```
-
-then you can apply this secret with the command:
-```sh
-kubectl apply -f file.yaml
-```
-replace file.yaml with the name of the file you created above.
-
 #### Database
 In case you want to set DB secrets the structure is slightly different:
 
