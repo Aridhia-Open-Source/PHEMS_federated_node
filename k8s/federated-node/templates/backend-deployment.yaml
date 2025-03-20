@@ -40,10 +40,6 @@ spec:
           envFrom:
             - configMapRef:
                 name: backend-configmap
-            {{ if .Values.db.configMap }}
-            - configMapRef:
-                name: {{ .Values.db.configMap }}
-            {{ end }}
           env:
           - name: PGPASSWORD
             valueFrom:
@@ -91,10 +87,6 @@ spec:
           envFrom:
             - configMapRef:
                 name: backend-configmap
-            {{ if .Values.db.configMap }}
-            - configMapRef:
-                name: {{ .Values.db.configMap }}
-            {{ end }}
             - configMapRef:
                 name: keycloak-config
           env:

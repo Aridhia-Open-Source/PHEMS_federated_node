@@ -17,7 +17,7 @@ parameters:
   path: {{ .Values.storage.nfs.path -}}
   readOnly: "false"
 {{- end -}}
-{{ if and (not .Values.db.secret) (not .Values.db.configMap) }}
+{{ if and (not .Values.db.secret) }}
 ---
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
