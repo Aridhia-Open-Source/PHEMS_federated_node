@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: keycloak-realm-init
-  namespace: {{ .Values.namespaces.keycloak }}
+  namespace: {{ include "kc_namespace" . }}
   annotations:
     helm.sh/hook: post-install,post-upgrade
     helm.sh/hook-delete-policy: hook-succeeded
