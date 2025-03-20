@@ -13,8 +13,8 @@ DEV_ENV_FILE=webserver/dev.env
 if [[ -n $1 ]]; then
     DEV_ENV_FILE=$1
 fi
-KC_NAMESPACE=$(grep -oP '(?<=keycloak:\s).*' k8s/federated-node/dev.values.yaml)
-TASK_NAMESPACE=$(grep -oP '(?<=tasks:\s).*' k8s/federated-node/dev.values.yaml)
+KC_NAMESPACE=$(grep -oP '(?<=keycloak:\s).*' k8s/federated-node/values.yaml)
+TASK_NAMESPACE=$(grep -oP '(?<=tasks:\s).*' k8s/federated-node/values.yaml)
 BASE_NAMESPACE=$(helm list -A --output json | jq -r '.[] | select(.name=="federatednode")| .namespace')
 
 if [[ -z $KC_NAMESPACE ]]; then
