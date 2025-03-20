@@ -129,3 +129,9 @@ fn-task-controller:
     #   secret_name:
     #   secret_key:
     #   clientid_key:
+  delivery:
+    github: {}
+      # repository:
+    other: {}
+      # url
+      # auth_type
