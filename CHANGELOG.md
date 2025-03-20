@@ -2,6 +2,7 @@
 
 ## 0.10.0
 - Added the `/tasks/<task_id>/logs` to fetch a task pod's logs.
+- Task's pods will not have service account tokens mounted
 
 ## 0.9.0
 - Added a test suite for the helm chart. This can be simply run with `helm test federatednode`
