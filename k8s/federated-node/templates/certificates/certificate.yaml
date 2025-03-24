@@ -5,6 +5,8 @@ kind: Certificate
 metadata:
   name: www
   namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: post-install
 spec:
   secretName: {{ .Values.ingress.tls.secretName }}
   revisionHistoryLimit: 1

@@ -5,6 +5,8 @@ kind: ClusterIssuer
 metadata:
   name: ssl-issuer
   namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: post-install
 spec:
   {{- if .Values.ingress.on_aks }}
   {{- $cm := lookup "v1" "ConfigMap" $.Release.Namespace .Values.certs.azure.configmap | default dict }}
