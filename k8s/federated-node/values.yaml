@@ -115,6 +115,7 @@ tolerations: []
 
 affinity: {}
 
-certmanager:
-  namespace: fn-certmanager
+cert-manager:
   enabled: false
+  namespace: fn-certmanager
+  installCRDs: true

@@ -1,12 +1,12 @@
 # Only rendered if SSL certificates are needed
-{{- if .Values.certmanager.enabled }}
+{{- if (index .Values "cert-manager" "enabled" ) }}
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
   name: ssl-issuer
   namespace: {{ .Release.Namespace }}
   annotations:
-    helm.sh/hook: post-install
+    helm.sh/hook: post-install, post-upgrade
 spec:
   {{- if .Values.ingress.on_aks }}
   {{- $cm := lookup "v1" "ConfigMap" $.Release.Namespace .Values.certs.azure.configmap | default dict }}
