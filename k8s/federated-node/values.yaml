@@ -97,7 +97,7 @@ ingress:
 
 certs:
   azure: {}
-    # secret:
+    # secretName:
     # configmap:
   aws: {}
 
