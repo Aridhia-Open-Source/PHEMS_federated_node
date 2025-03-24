@@ -93,12 +93,12 @@ kubectl create secret tls tls --key key.pem --cert cert.crt
 This will create a special kubernetes secret in the default namespace, append `-n namespace_name` to create it in a specific namespace (i.e. the one where the chart is going to be deployed on)
 
 ##### Automatic certificate renewal
-The `cert-manager` tool will be used to provide this functionality. It is disabled by default, if it's needed, set `certmanager.enabled` to `true` in your values file at deployment time.
+The `cert-manager` tool will be used to provide this functionality. It is disabled by default, if it's needed, set `cert-manager.enabled` to `true` in your values file at deployment time.
 
 If used, it will need few information based on which cloud platform it needs to interface with.
 
 ##### Azure
-For azure dns issued certificates, the service principle approach is used. `certmanager` [documentation](https://cert-manager.io/docs/configuration/acme/dns01/azuredns/#service-principal) explains what is needed.
+For azure dns issued certificates, the service principle approach is used. `cert manager` [documentation](https://cert-manager.io/docs/configuration/acme/dns01/azuredns/#service-principal) explains what is needed.
 ```sh
 kubectl create secret generic $secret_name \
     --from-literal=SP_SECRET="$SP_SECRET"

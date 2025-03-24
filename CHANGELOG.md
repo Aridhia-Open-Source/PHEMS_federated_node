@@ -1,7 +1,7 @@
 # Releases Changelog
 
 ## 0.10.0
-- Added `certmanager` to handle SSL renewal. Set `certmanager.enabled` in the values file to `true`.
+- Added `cert-manager` to handle SSL renewal. Set `cert-manager.enabled` in the values file to `true`.
 
 ## 0.9.0
 - Added a test suite for the helm chart. This can be simply run with `helm test federatednode`
