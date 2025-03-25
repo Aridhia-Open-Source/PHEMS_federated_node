@@ -3,6 +3,17 @@
 ## 0.10.0
 - Added `cert-manager` to handle SSL renewal. Set `cert-manager.enabled` in the values file to `true`.
 
+    An example of configuration on AKS would be:
+    ```yaml
+    cert-manager:
+        enabled: true
+    certs:
+        azure:
+            configmap: azuredns-config
+            secretName: azuredns-secret
+    ```
+    If not needed leave `cert-manager` and `certs` out of the values file.
+
 ## 0.9.0
 - Added a test suite for the helm chart. This can be simply run with `helm test federatednode`
 - __smoketests__ can be also run if the values file contains
