@@ -1,0 +1,48 @@
+# Only rendered if SSL certificates are needed
+{{- if (index .Values "cert-manager" "enabled" ) }}
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: ssl-issuer
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: post-install, post-upgrade
+spec:
+  {{- if .Values.ingress.on_aks }}
+  {{- $cm := lookup "v1" "ConfigMap" $.Release.Namespace .Values.certs.azure.configmap | default dict }}
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: {{ $cm.data.EMAIL_CERT }}
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - dns01:
+        azureDNS:
+          clientID: {{ $cm.data.SP_ID }}
+          clientSecretSecretRef:
+            name: {{ $.Values.certs.azure.secretName }}
+            key: SP_SECRET
+          resourceGroupName: {{ $cm.data.RG_NAME }}
+          subscriptionID: {{ $cm.data.SUBSCRIPTION_ID }}
+          hostedZoneName: {{ $cm.data.HOSTED_ZONE }}
+          tenantID: {{ $cm.data.TENANT_ID }}
+  {{- else if .Values.ingress.on_eks }}
+  {{- $sec := lookup "v1" "Secret" $.Release.Namespace .Values.certs.aws | default dict }}
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: {{ $sec.data.EMAIL_CERT | b64dec }}
+    privateKeySecretRef:
+      name: letsencrypt-staging
+    solvers:
+    - dns01:
+        route53:
+          region: {{ $sec.data.REGION | b64dec }}
+          role: arn:aws:iam::{{ $sec.data.ACCOUNT_ID | b64dec }}:role/{{ $sec.data.ROLE_NAME | b64dec }}
+          auth:
+            kubernetes:
+              serviceAccountRef:
+                name: cert-manager-acme-dns01-route53
+  {{- else if .Values.local_development }}
+  selfSigned: {}
+  {{- end }}
+{{- end }}

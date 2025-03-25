@@ -69,9 +69,9 @@ jobs:
           echo "Setting version according to the Chart.yaml"
           cd k8s/federated-node
 
-          version=$(grep 'version:.*' Chart.yaml | sed 's/^.*: //')
+          version=$(grep '^version:.*' Chart.yaml | sed 's/^.*: //')
           echo "Chart version: ${version}"
-          appVersion=$(grep 'appVersion:.*' Chart.yaml | sed 's/^.*: \"//'| sed 's/\"//')
+          appVersion=$(grep '^appVersion:.*' Chart.yaml | sed 's/^.*: \"//'| sed 's/\"//')
           echo "Chart appVersion: ${appVersion}"
 
           if [[ "${{ env.DEV_BUILD }}" == "false" ]]; then
@@ -198,3 +198,4 @@ jobs:
       PATH_BUILD: k8s/federated-node
       CHART_NAME: federated-node
       IS_TAG: ${{ needs.init.outputs.is_tag }}
+      HAS_SUBCHART: true

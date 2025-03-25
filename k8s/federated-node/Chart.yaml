@@ -22,3 +22,9 @@ version: 0.10.0
 # follow Semantic Versioning. They should reflect the version the application is using.
 # It is recommended to use it with quotes.
 appVersion: "0.10.0"
+
+dependencies:
+  - name: cert-manager
+    version: "v1.17.1"
+    repository: https://charts.jetstack.io
+    condition: cert-manager.enabled

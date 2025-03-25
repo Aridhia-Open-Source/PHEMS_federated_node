@@ -84,16 +84,17 @@ ingress:
   host:
   ingressClass: fn-nginx
   on_aks: false
+  on_eks: false
   whitelist:
     enabled: false
     ips: []
   blacklist:
     enabled: false
     ips: []
-  tls: {}
-  #   keyFile:
-  #   certFile:
-  #   secretName:
+  tls:
+    keyFile:
+    certFile:
+    secretName: tls
 
 # Set the domains that are allowed to send requests
 # to the federated node, in case there is a web UI that tries to
@@ -101,6 +102,12 @@ ingress:
 integrations:
   domains:
    - 'self'
+
+certs:
+  azure: {}
+    # secretName:
+    # configmap:
+  aws: {}
 
 # Enables full smoketests when running `helm test`.
 # This will actively try to add new database and keycloak entries
@@ -115,3 +122,8 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+cert-manager:
+  enabled: false
+  namespace: fn-certmanager
+  installCRDs: true
