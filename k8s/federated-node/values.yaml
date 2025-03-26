@@ -15,7 +15,6 @@ autoscaling:
 
 namespaces:
   keycloak: keycloak
-  nginx: ingress-nginx
   tasks: tasks
 
 local_development: false
@@ -80,20 +79,17 @@ podSecurityContext: {}
 
 securityContext: {}
 
-ingress:
-  host:
-  on_aks: false
-  on_eks: false
-  whitelist:
-    enabled: false
-    ips: []
-  blacklist:
-    enabled: false
-    ips: []
-  tls:
-    keyFile:
-    certFile:
-    secretName: tls
+tls:
+  secretName: tls
+whitelist:
+  enabled: false
+  ips: []
+blacklist:
+  enabled: false
+  ips: []
+
+on_aks: false
+on_eks: false
 
 certs:
   azure: {}
@@ -119,3 +115,17 @@ cert-manager:
   enabled: false
   namespace: fn-certmanager
   installCRDs: true
+
+ingress-nginx:
+  enabled: false
+  namespaceOverride: ingress-nginx
+  controller:
+    ingressClassResource:
+      name: "fn-nginx"
+    allowSnippetAnnotations: true
+    ingressClass: "fn-nginx"
+    # If running on aks:
+    # service:
+    #   externalTrafficPolicy: Local
+    extraArgs:
+      default-ssl-certificate: default/tls

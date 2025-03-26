@@ -17,15 +17,13 @@ The necessary values are:
 |db.secret|key|Secret key where the password is stored|
 |db.secret|name|Secret name|
 |-|-|-|
-|ingress|host|The URL where the FN will be hosted at|
-|ingress.whitelist|enabled|Enable the whitelist of IP CIDRs|
-|ingress.whitelist|ips|List of IP CIDRs|
-|ingress.blacklist|enabled|Enable the whitelist of IP CIDRs|
-|ingress.blacklist|ips|List of IP CIDRs|
-|ingress|tls|Certificates for nginx to use to allow HTTPS. Leaving it empty or not present at all will trigger a browser warning about the connection not being secure|
+|host|The URL where the FN will be hosted at|
+|whitelist|enabled|Enable the whitelist of IP CIDRs|
+|whitelist|ips|List of IP CIDRs|
+|blacklist|enabled|Enable the whitelist of IP CIDRs|
+|blacklist|ips|List of IP CIDRs|
+|tls||Certificates for nginx to use to allow HTTPS. Leaving it empty or not present at all will trigger a browser warning about the connection not being secure|
 |ingress.tls|secretName |Secret name where the certs are. Defaults to `tls` if the `ingress.tls` section is set|
-|ingress.tls|certFile|The .cert file path. Has lower priority than the secret.|
-|ingress.tls|keyFile|The .key file path. Has lower priority than the secret.|
 
 ### Existing secrets
 It is highly suggested to have some secrets pre-set in the namespace this helm chart will be installed at:

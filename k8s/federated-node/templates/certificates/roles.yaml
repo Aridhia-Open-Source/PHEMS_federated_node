@@ -1,5 +1,5 @@
 # Conditional Roles specifically for AWS certificates
-{{- if and (index .Values "cert-manager" "enabled" ) .Values.ingress.on_eks }}
+{{- if and (index .Values "cert-manager" "enabled" ) .Values.on_eks }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:

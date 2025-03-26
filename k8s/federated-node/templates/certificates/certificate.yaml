@@ -8,17 +8,9 @@ metadata:
   annotations:
     helm.sh/hook: post-install, post-upgrade
 spec:
-  secretName: {{ .Values.ingress.tls.secretName }}
-  revisionHistoryLimit: 1
-  privateKey:
-    rotationPolicy: Always
-  commonName: {{ .Values.ingress.host }}
+  secretName: {{ .Values.tls.secretName }}
   dnsNames:
-    - {{ .Values.ingress.host }}
-  usages:
-    - digital signature
-    - key encipherment
-    - server auth
+    - {{ .Values.host }}
   issuerRef:
     name: ssl-issuer
     kind: ClusterIssuer
