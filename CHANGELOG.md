@@ -1,6 +1,8 @@
 # Releases Changelog
 
 ## 0.10.0
+**With this update, if using nginx, you will need to update your dns record to the new ingress' IP**
+
 - Added `cert-manager` to handle SSL renewal. Set `cert-manager.enabled` in the values file to `true`.
 
     An example of configuration on AKS would be:
