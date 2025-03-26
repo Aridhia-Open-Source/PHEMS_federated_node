@@ -22,8 +22,7 @@ The necessary values are:
 |whitelist|ips|List of IP CIDRs|
 |blacklist|enabled|Enable the whitelist of IP CIDRs|
 |blacklist|ips|List of IP CIDRs|
-|tls||Certificates for nginx to use to allow HTTPS. Leaving it empty or not present at all will trigger a browser warning about the connection not being secure|
-|ingress.tls|secretName |Secret name where the certs are. Defaults to `tls` if the `ingress.tls` section is set|
+|tls|secretName|Secret name where the SSL certificate is. Defaults to `tls` if the `tls` section is set|
 
 ### Existing secrets
 It is highly suggested to have some secrets pre-set in the namespace this helm chart will be installed at:
