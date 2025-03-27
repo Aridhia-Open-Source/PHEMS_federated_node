@@ -9,11 +9,11 @@
     - `permission-policy`
     - `x-content-type-options`
     - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to self)
+- Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
 
 ## 0.10.0
 **With this update, if using nginx, you will need to update your dns record to the new ingress' IP**
 
-- Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
 - Added `cert-manager` to handle SSL renewal. Set `cert-manager.enabled` in the values file to `true`.
 
     An example of configuration on AKS would be:
