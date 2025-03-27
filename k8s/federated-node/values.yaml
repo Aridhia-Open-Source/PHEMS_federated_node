@@ -15,7 +15,6 @@ autoscaling:
 
 namespaces:
   keycloak: keycloak
-  nginx: ingress-nginx
   tasks: tasks
 
 token:
@@ -80,21 +79,23 @@ podSecurityContext: {}
 
 securityContext: {}
 
-ingress:
-  host:
-  ingressClass: fn-nginx
-  on_aks: false
-  on_eks: false
-  whitelist:
-    enabled: false
-    ips: []
-  blacklist:
-    enabled: false
-    ips: []
-  tls:
-    keyFile:
-    certFile:
-    secretName: tls
+# If using nginx, or ssl certificates, this will set the hostname
+host:
+tls:
+  secretName: tls
+
+# nginx white/black-listing, at ingress level
+whitelist:
+  enabled: false
+  ips: []
+blacklist:
+  enabled: false
+  ips: []
+
+# Running on azure?
+on_aks: false
+# Running on AWS?
+on_eks: false
 
 # Set the domains that are allowed to send requests
 # to the federated node, in case there is a web UI that tries to
@@ -127,3 +128,17 @@ cert-manager:
   enabled: false
   namespace: fn-certmanager
   installCRDs: true
+
+ingress-nginx:
+  enabled: false
+  namespaceOverride: ingress-nginx
+  controller:
+    ingressClassResource:
+      name: "fn-nginx"
+    allowSnippetAnnotations: true
+    ingressClass: "fn-nginx"
+    # If running on aks:
+    # service:
+    #   externalTrafficPolicy: Local
+    extraArgs:
+      default-ssl-certificate: default/tls

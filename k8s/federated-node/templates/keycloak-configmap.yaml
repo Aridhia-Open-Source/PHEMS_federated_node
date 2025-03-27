@@ -20,7 +20,7 @@ data:
   KC_DB_USERNAME: {{ .Values.db.user | quote }}
   KEYCLOAK_TOKEN_LIFE: {{ int .Values.token.life | quote }}
   KEYCLOAK_NAMESPACE: {{ .Values.namespaces.keycloak }}
-  KEYCLOAK_HOSTNAME: {{ .Values.ingress.host }}
+  KEYCLOAK_HOSTNAME: {{ .Values.host }}
   # PROXY_ADDRESS_FORWARDING: true
 ---
 apiVersion: v1

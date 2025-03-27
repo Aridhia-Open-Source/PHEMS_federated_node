@@ -1,6 +1,8 @@
 # Releases Changelog
 
 ## 0.10.0
+**With this update, if using nginx, you will need to update your dns record to the new ingress' IP**
+
 - Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
 - Added `cert-manager` to handle SSL renewal. Set `cert-manager.enabled` in the values file to `true`.
 
@@ -14,6 +16,26 @@
             secretName: azuredns-secret
     ```
     If not needed leave `cert-manager` and `certs` out of the values file.
+- nginx is explicitly set to off. To enable it, set `ingress-nginx.enabled: true` in your values file.
+- Restructured the way nginx is configured. Most of the settings were migrated to the root level from `ingress`. In detail:
+    - `ingress.on_aks` moved to `on_aks`
+    - `ingress.on_eks` moved to `on_eks`
+    - `ingress.host` moved to `host`
+    - `ingress.tls.secretName` moved to `tls.secretName`
+    - `ingress.whitelist.*` moved to `whitelist.*`
+    - `ingress.blacklist.*` moved to `blacklist.*`
+
+- on AKS-based deployments would need to add:
+    ```yaml
+    ingress-nginx:
+        controller:
+            service:
+                externalTrafficPolicy: Local
+    ```
+- nginx namespace is now defined in `ingress-nginx.namespaceOverride`
+
+### Security
+- Updated the nginx version to `1.12.1` to address a vulnerability
 
 ### Security
 - Added the following headers to nginx:

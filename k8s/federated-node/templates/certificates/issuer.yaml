@@ -8,7 +8,7 @@ metadata:
   annotations:
     helm.sh/hook: post-install, post-upgrade
 spec:
-  {{- if .Values.ingress.on_aks }}
+  {{- if .Values.on_aks }}
   {{- $cm := lookup "v1" "ConfigMap" $.Release.Namespace .Values.certs.azure.configmap | default dict }}
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
@@ -27,7 +27,7 @@ spec:
           subscriptionID: {{ $cm.data.SUBSCRIPTION_ID }}
           hostedZoneName: {{ $cm.data.HOSTED_ZONE }}
           tenantID: {{ $cm.data.TENANT_ID }}
-  {{- else if .Values.ingress.on_eks }}
+  {{- else if .Values.on_eks }}
   {{- $sec := lookup "v1" "Secret" $.Release.Namespace .Values.certs.aws | default dict }}
   acme:
     server: https://acme-staging-v02.api.letsencrypt.org/directory
