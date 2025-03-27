@@ -11,7 +11,7 @@ spec:
   {{- if .Values.ingress.on_aks }}
   {{- $cm := lookup "v1" "ConfigMap" $.Release.Namespace .Values.certs.azure.configmap | default dict }}
   acme:
-    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    server: https://acme-v02.api.letsencrypt.org/directory
     email: {{ $cm.data.EMAIL_CERT }}
     privateKeySecretRef:
       name: letsencrypt-prod
@@ -22,6 +22,7 @@ spec:
           clientSecretSecretRef:
             name: {{ $.Values.certs.azure.secretName }}
             key: SP_SECRET
+          environment: AzurePublicCloud
           resourceGroupName: {{ $cm.data.RG_NAME }}
           subscriptionID: {{ $cm.data.SUBSCRIPTION_ID }}
           hostedZoneName: {{ $cm.data.HOSTED_ZONE }}
