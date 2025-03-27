@@ -137,7 +137,7 @@ ingress-nginx:
     #   enabled: false
     ingressClassResource:
       name: "fn-nginx"
-    allowSnippetAnnotations: true
+    allowSnippetAnnotations: false
     ingressClass: "fn-nginx"
     # If running on aks:
     # service:
