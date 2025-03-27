@@ -133,6 +133,8 @@ ingress-nginx:
   enabled: false
   namespaceOverride: ingress-nginx
   controller:
+    # admissionWebhooks:
+    #   enabled: false
     ingressClassResource:
       name: "fn-nginx"
     allowSnippetAnnotations: true

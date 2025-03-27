@@ -1,5 +1,15 @@
 # Releases Changelog
 
+## 0.11.0
+### Security
+- Added the following headers to nginx:
+    - `strict-transport-security`
+    - `content-security-policy`
+    - `referrer-policy`
+    - `permission-policy`
+    - `x-content-type-options`
+    - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to self)
+
 ## 0.10.0
 **With this update, if using nginx, you will need to update your dns record to the new ingress' IP**
 
@@ -36,15 +46,6 @@
 
 ### Security
 - Updated the nginx version to `1.12.1` to address a vulnerability
-
-### Security
-- Added the following headers to nginx:
-    - `strict-transport-security`
-    - `content-security-policy`
-    - `referrer-policy`
-    - `permission-policy`
-    - `x-content-type-options`
-    - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to self)
 
 ## 0.9.0
 - Added a test suite for the helm chart. This can be simply run with `helm test federatednode`
