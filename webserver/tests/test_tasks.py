@@ -122,6 +122,25 @@ def test_create_task(
     )
     assert response.status_code == 201
 
+def test_create_task_from_controller(
+        cr_client,
+        post_json_admin_header,
+        client,
+        registry_client,
+        task_body
+    ):
+    """
+    Tests task creation returns 201. Should be consistent
+    with or without the task_controller flag
+    """
+    task_body["task_controller"] = True
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(task_body),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 201
+
 def test_create_task_invalid_output_field(
         cr_client,
         post_json_admin_header,

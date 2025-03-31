@@ -374,3 +374,6 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
 
 class KubernetesBatchClient(KubernetesBase, client.BatchV1Api):
     pass
+
+class KubernetesCRDClient(KubernetesBase, client.CustomObjectsApi):
+    pass
