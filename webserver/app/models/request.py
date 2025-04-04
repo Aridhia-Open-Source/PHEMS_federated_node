@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from app.helpers.db import BaseModel, db
 from app.models.dataset import Dataset
 from app.helpers.keycloak import Keycloak
-from app.helpers.exceptions import DBError
+from app.helpers.exceptions import DBError, InvalidRequest
 
 
 class Request(db.Model, BaseModel):
@@ -56,6 +56,20 @@ class Request(db.Model, BaseModel):
     def _get_client_name(self, user_id:str):
         return f"Request {user_id} - {self.project_name}"
 
+    @classmethod
+    def validate(cls, data:dict):
+        validated = super().validate(data)
+        overlaps = cls.query.filter(
+            cls.project_name == data["project_name"],
+            cls.proj_end >= func.now(),
+            cls.requested_by == data["requested_by"]
+        ).one_or_none()
+
+        if overlaps:
+            raise InvalidRequest(f"User already belongs to the active project {data["proj_name"]}")
+
+        return validated
+
     def approve(self):
         """
         Method to orchestrate the Keycloak objects creation
@@ -79,7 +93,7 @@ class Request(db.Model, BaseModel):
         for scope in scopes:
             created_scopes.append(kc_client.create_scope(scope))
 
-        ds = session.get(Dataset, self.dataset_id)
+        ds = Dataset.query.filter(Dataset.id == self.dataset_id).one_or_none()
 
         resource = kc_client.create_resource({
             "name": f"{ds.id}-{ds.name}",
@@ -156,3 +170,18 @@ class Request(db.Model, BaseModel):
             raise DBError(f"Failed to approve request {self.id}") from exc
 
         return ret_response
+
+    @classmethod
+    def get_active_project(cls, proj_name:str, user_id:str):
+        """
+        Get the active project by namme and user
+        """
+        dar = cls.query.filter(
+            cls.project_name == proj_name,
+            cls.requested_by == user_id,
+            cls.proj_start <= func.now(),
+            cls.proj_end > func.now()
+        ).one_or_none()
+        if dar is None:
+            raise DBError("User does not belong to a valid project")
+        return dar

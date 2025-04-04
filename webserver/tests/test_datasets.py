@@ -13,6 +13,7 @@ from app.helpers.exceptions import KeycloakError
 from app.models.dataset import Dataset
 from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
+from app.models.request import Request
 from tests.conftest import sample_ds_body
 from app.helpers.exceptions import KeycloakError
 
@@ -167,38 +168,39 @@ class TestDatasets(MixinTestDataset):
         header["project-name"] = "test project"
         response = client.get(f"/datasets/{dataset.id}", headers=header)
         assert response.status_code == 400
-        assert response.json == {"error": "Could not find project"}
+        assert response.json == {"error": "User does not belong to a valid project"}
 
-    @mock.patch('app.datasets_api.Request.add')
-    @mock.patch('app.helpers.wrappers.Keycloak')
+    # @mock.patch('app.helpers.wrappers.Request.get_active_project')
     @mock.patch('app.datasets_api.Request.approve', return_value={"token": "token"})
     def test_get_dataset_by_id_project_approved(
             self,
-            req_add_mock,
-            KeycloakMock,
+            # req_active_mock,
             req_approve_mock,
             mocker,
+            mocks_kc_tasks,
             post_json_admin_header,
             request_base_body,
             client,
-            dataset
+            dataset,
+            user_uuid
         ):
         """
         /datasets/{id} GET returns 200 for project-approved users
         """
-        KeycloakMock.return_value.is_token_valid.return_value = True
-        KeycloakMock.return_value.decode_token.return_value = {"username": "test_user", "sub": "123-123abc"}
-        KeycloakMock.return_value.exchange_global_token.return_value = ""
-
         response = client.post(
             "/datasets/token_transfer",
             data=json.dumps(request_base_body),
             headers=post_json_admin_header
         )
         assert response.status_code == 201
-        assert list(response.json.keys()) == ["token"]
+        assert "token" in response.json
 
         token = response.json["token"]
+        req = Request.query.filter(
+            Request.project_name == request_base_body["project_name"]
+        ).one_or_none()
+        mocks_kc_tasks["wrappers"].return_value.get_user_by_username.return_value = {"id": user_uuid}
+        req.requested_by = user_uuid
 
         response = client.get(f"/datasets/{dataset.id}", headers={
             "Authorization": f"Bearer {token}",
@@ -235,7 +237,7 @@ class TestDatasets(MixinTestDataset):
             "project-name": "test project"
         })
         assert response.status_code == 400
-        assert response.json == {"error": "Could not find project"}
+        assert response.json == {"error": "User does not belong to a valid project"}
 
     def test_get_dataset_by_id_404(
             self,
@@ -723,6 +725,7 @@ class TestPatchDataset(MixinTestDataset):
             client,
             access_request,
             dar_user,
+            user_uuid,
             k8s_client
     ):
         """
@@ -736,6 +739,7 @@ class TestPatchDataset(MixinTestDataset):
         expected_client = f'Request {dar_user} - {dataset.host}'
 
         mock_kc_patch_api.return_value.patch_resource.return_value = Mock()
+        mock_kc_patch_api.return_value.get_user_by_id.return_value = {"email": dar_user}
 
         response = client.patch(
             f"/datasets/{dataset.id}",

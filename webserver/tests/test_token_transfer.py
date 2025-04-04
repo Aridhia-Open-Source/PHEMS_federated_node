@@ -1,5 +1,7 @@
+from datetime import datetime, timedelta
 import json
 from unittest import mock
+from app.models.request import Request
 
 
 class TestTransfers:
@@ -74,30 +76,79 @@ class TestTransfers:
         )
         assert response.status_code == 403
 
-    def test_workspace_token_transfer_admin(
+    def test_transfer_does_not_override_existing(
             self,
             client,
-            simple_admin_header
-    ):
+            post_json_admin_header,
+            access_request,
+            approve_request,
+            request_model_body,
+            request_base_body,
+            dataset
+        ):
         """
-        Test token transfer is not accessible by non-admin users
+        Tests that a duplicate, or a time-overlapping request
+        is not accepted.
         """
-        response = client.post(
-            "/datasets/workspace/token",
-            headers=simple_admin_header
-        )
-        assert response.status_code == 200
+        Request(**request_model_body).add()
+        request_base_body["proj_end"] = (
+            datetime.strptime(request_base_body["proj_end"], "%Y-%m-%d") + timedelta(days=20)
+        ).strftime("%Y-%m-%d")
 
-    def test_workspace_token_transfer_standard_user(
+        response = client.post(
+            "/datasets/token_transfer",
+            headers=post_json_admin_header,
+            data=json.dumps(request_base_body)
+        )
+        assert response.status_code == 400
+
+    def test_transfer_successful_same_name_ds_different_time(
             self,
             client,
-            simple_user_header
-    ):
+            post_json_admin_header,
+            access_request,
+            approve_request,
+            request_model_body,
+            request_base_body,
+            dataset
+        ):
         """
-        Test workspace token transfer is not accessible by non-admin users
+        Tests that a duplicate, not time-overlapping request
+        is accepted with same ds and project name.
         """
+        request_model_body["proj_end"] = datetime.now().date().strftime("%Y-%m-%d")
+        Request(**request_model_body).add()
+        request_base_body["proj_start"] = (
+            datetime.strptime(request_base_body["proj_end"], "%Y-%m-%d") + timedelta(days=1)
+        ).strftime("%Y-%m-%d")
+
         response = client.post(
-            "/datasets/workspace/token",
-            headers=simple_user_header
+            "/datasets/token_transfer",
+            headers=post_json_admin_header,
+            data=json.dumps(request_base_body)
         )
-        assert response.status_code == 403
+        assert response.status_code == 201
+
+    def test_transfer_only_one_ds_per_project(
+            self,
+            client,
+            post_json_admin_header,
+            access_request,
+            approve_request,
+            request_model_body,
+            request_base_body,
+            dataset,
+            dataset2
+        ):
+        """
+        Tests that only one dataset per active project is allowed.
+        """
+        Request(**request_model_body).add()
+        request_base_body["dataset_id"] = dataset2.id
+
+        response = client.post(
+            "/datasets/token_transfer",
+            headers=post_json_admin_header,
+            data=json.dumps(request_base_body)
+        )
+        assert response.status_code == 400

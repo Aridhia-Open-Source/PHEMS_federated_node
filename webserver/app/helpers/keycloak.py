@@ -641,6 +641,21 @@ class Keycloak:
 
         raise KeycloakError("Failed to fetch the created user")
 
+    def get_user_by_id(self, user_id:str) -> dict:
+        """
+        Method to return a dictionary representing a Keycloak user,
+        checks for both username and email
+        """
+        username_encoded = urllib.parse.quote_plus(user_id)
+        user_response = requests.get(
+            f"{URLS["user"]}/{username_encoded}",
+            headers={"Authorization": f"Bearer {self.admin_token}"}
+        )
+        if not user_response.ok:
+            raise KeycloakError("Failed to fetch the user")
+
+        return user_response.json() if user_response.json() else None
+
     def get_user_by_username(self, username:str) -> dict:
         """
         Method to return a dictionary representing a Keycloak user
