@@ -15,7 +15,6 @@ autoscaling:
 
 namespaces:
   keycloak: keycloak
-  nginx: ingress-nginx
   tasks: tasks
 
 local_development: false
@@ -80,19 +79,29 @@ podSecurityContext: {}
 
 securityContext: {}
 
-ingress:
-  host:
-  on_aks: false
-  whitelist:
-    enabled: false
-    ips: []
-  blacklist:
-    enabled: false
-    ips: []
-  tls:
-    keyFile:
-    certFile:
+# If using nginx, or ssl certificates, this will set the hostname
+host:
+tls:
+  secretName: tls
+
+# nginx white/black-listing, at ingress level
+whitelist:
+  enabled: false
+  ips: []
+blacklist:
+  enabled: false
+  ips: []
+
+# Running on azure?
+on_aks: false
+# Running on AWS?
+on_eks: false
+
+certs:
+  azure: {}
     # secretName:
+    # configmap:
+  aws: {}
 
 # Enables full smoketests when running `helm test`.
 # This will actively try to add new database and keycloak entries
@@ -107,3 +116,22 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+cert-manager:
+  enabled: false
+  namespace: fn-certmanager
+  installCRDs: true
+
+ingress-nginx:
+  enabled: false
+  namespaceOverride: ingress-nginx
+  controller:
+    ingressClassResource:
+      name: "fn-nginx"
+    allowSnippetAnnotations: true
+    ingressClass: "fn-nginx"
+    # If running on aks:
+    # service:
+    #   externalTrafficPolicy: Local
+    extraArgs:
+      default-ssl-certificate: default/tls

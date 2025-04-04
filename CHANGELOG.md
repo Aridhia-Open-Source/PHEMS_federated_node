@@ -1,8 +1,42 @@
 # Releases Changelog
 
 ## 0.10.0
+**With this update, if using nginx, you will need to update your dns record to the new ingress' IP**
+
+- Added `cert-manager` to handle SSL renewal. Set `cert-manager.enabled` in the values file to `true`.
+
+    An example of configuration on AKS would be:
+    ```yaml
+    cert-manager:
+        enabled: true
+    certs:
+        azure:
+            configmap: azuredns-config
+            secretName: azuredns-secret
+    ```
+    If not needed leave `cert-manager` and `certs` out of the values file.
+- nginx is explicitly set to off. To enable it, set `ingress-nginx.enabled: true` in your values file.
+- Restructured the way nginx is configured. Most of the settings were migrated to the root level from `ingress`. In detail:
+    - `ingress.on_aks` moved to `on_aks`
+    - `ingress.on_eks` moved to `on_eks`
+    - `ingress.host` moved to `host`
+    - `ingress.tls.secretName` moved to `tls.secretName`
+    - `ingress.whitelist.*` moved to `whitelist.*`
+    - `ingress.blacklist.*` moved to `blacklist.*`
+
+- on AKS-based deployments would need to add:
+    ```yaml
+    ingress-nginx:
+        controller:
+            service:
+                externalTrafficPolicy: Local
+    ```
+- nginx namespace is now defined in `ingress-nginx.namespaceOverride`
 - Added the `/tasks/<task_id>/logs` to fetch a task pod's logs.
 - Task's pods will not have service account tokens mounted
+
+### Security
+- Updated the nginx version to `1.12.1` to address a vulnerability
 
 ## 0.9.0
 - Added a test suite for the helm chart. This can be simply run with `helm test federatednode`

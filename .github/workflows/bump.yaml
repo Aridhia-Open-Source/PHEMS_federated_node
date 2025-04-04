@@ -16,6 +16,10 @@ on:
         required: false
         type: boolean
         default: true
+      certManager:
+        description: 'CertManager sub-chart version'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -34,12 +38,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
-      - name: Update Version
+      - name: Update Chart Version
         working-directory: k8s/federated-node
         env:
           CHART_VERSION: ${{ inputs.chartVersion }}
           APP_VERSION: ${{ inputs.appVersion }}
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+          CERTMANAGER_VERSION: ${{ inputs.certManager }}
         run: |
           if [[ $(grep '${CHART_VERSION}' Chart.yaml) ]]; then
             echo "Nothing to change. Exiting early"
@@ -50,14 +55,23 @@ jobs:
           if [[ -n "${APP_VERSION}" ]]; then
             sed -i "s/appVersion: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
           fi
-
           cat Chart.yaml
-
-          if [[ "${{ inputs.dryRun }}" == "false" ]]; then
-            git config user.email "phemsbot@phems.com"
-            git config user.name "PHEMS bot"
-
-            git add Chart.yaml
-            git commit -m "Version bump to ${CHART_VERSION}"
-            git push
+      - name: Update SubCharts Version
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+          CERTMANAGER_VERSION: ${{ inputs.certManager }}
+        run: |
+          if [[ -n "${CERTMANAGER_VERSION}" ]]; then
+            python scripts/upgrade_subchart.py -s cert-manager -v ${CERTMANAGER_VERSION}
           fi
+          cat k8s/federated-node/Chart.yaml
+      - name: Commit Changes
+        if: ${{ ! inputs.dryRun }}
+        working-directory: k8s/federated-node
+        run: |
+          git config user.email "phemsbot@phems.com"
+          git config user.name "PHEMS bot"
+
+          git add Chart.yaml
+          git commit -m "Version bump to ${CHART_VERSION}"
+          git push

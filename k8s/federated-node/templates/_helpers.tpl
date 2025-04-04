@@ -129,7 +129,7 @@ Just need to append the NEW_DB env var
 {{- end -}}
 {{- define "testsBaseUrl" }}
 {{- if not .Values.local_development -}}
-https://{{ .Values.ingress.host }}
+https://{{ .Values.host }}
 {{- else -}}
 http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 {{- end -}}

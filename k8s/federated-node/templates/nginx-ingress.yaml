@@ -1,3 +1,4 @@
+{{- if index .Values "ingress-nginx" "enabled" }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -7,24 +8,21 @@ metadata:
   annotations:
     {{ include "defaultAnnotations" . }}
     nginx.ingress.kubernetes.io/rewrite-target: /$1
-    {{- if .Values.ingress.whitelist.enabled }}
-    nginx.ingress.kubernetes.io/whitelist-source-range: {{ join "," .Values.ingress.whitelist.ips | quote }}
+    {{- if .Values.whitelist.enabled }}
+    nginx.ingress.kubernetes.io/whitelist-source-range: {{ join "," .Values.whitelist.ips | quote }}
     {{- end }}
-    {{- if .Values.ingress.blacklist.enabled }}
-    nginx.ingress.kubernetes.io/denylist-source-range: {{ join "," .Values.ingress.blacklist.ips | quote }}
+    {{- if .Values.blacklist.enabled }}
+    nginx.ingress.kubernetes.io/denylist-source-range: {{ join "," .Values.blacklist.ips | quote }}
     {{- end }}
     helm.sh/hook: pre-install,pre-upgrade
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
-  ingressClassName: {{ .Values.ingress.ingressClass | default "fn-nginx" }}
+  ingressClassName: {{ index .Values "ingress-nginx" "controller" "ingressClass" }}
   tls:
   - hosts:
-    - {{ .Values.ingress.host }}
-    {{ if .Values.ingress.tls }}
-    secretName: {{ .Values.ingress.tls.secretName | default "tls" }}
-    {{ end }}
+    - {{ .Values.host }}
   rules:
-    - host: {{ .Values.ingress.host }}
+    - host: {{ .Values.host }}
       http:
         paths:
         - path: /(.*)
@@ -42,21 +40,21 @@ metadata:
   namespace: {{ .Values.namespaces.keycloak }}
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$1
-    {{- if .Values.ingress.whitelist.enabled }}
-    nginx.ingress.kubernetes.io/whitelist-source-range: {{ join "," .Values.ingress.whitelist.ips | quote }}
+    {{- if .Values.whitelist.enabled }}
+    nginx.ingress.kubernetes.io/whitelist-source-range: {{ join "," .Values.whitelist.ips | quote }}
     {{- end }}
-    {{- if .Values.ingress.blacklist.enabled }}
-    nginx.ingress.kubernetes.io/denylist-source-range: {{ join "," .Values.ingress.blacklist.ips | quote }}
+    {{- if .Values.blacklist.enabled }}
+    nginx.ingress.kubernetes.io/denylist-source-range: {{ join "," .Values.blacklist.ips | quote }}
     {{- end }}
     helm.sh/hook-weight: "5"
     rollme: {{ template "rollMe" . }}
 spec:
-  ingressClassName: {{ .Values.ingress.ingressClass | default "fn-nginx" }}
+  ingressClassName: {{ index .Values "ingress-nginx" "controller" "ingressClass" }}
   tls:
   - hosts:
-    - {{ .Values.ingress.host }}
+    - {{ .Values.host }}
   rules:
-    - host: {{ .Values.ingress.host }}
+    - host: {{ .Values.host }}
       http:
         paths:
         - path: /keycloak/(.*)
@@ -66,3 +64,4 @@ spec:
               name: keycloak
               port:
                 name: http
+{{- end }}
