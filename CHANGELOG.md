@@ -32,6 +32,7 @@
                 externalTrafficPolicy: Local
     ```
 - nginx namespace is now defined in `ingress-nginx.namespaceOverride`
+- The datasets are now strictly linked to the `token_transfer` request body. A non-admin user can only trigger a task by providing the project-name they have been approved for. This will avoid inconsistencies with names and ids.
 
 ### Security
 - Updated the nginx version to `1.12.1` to address a vulnerability

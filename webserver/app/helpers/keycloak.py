@@ -643,8 +643,7 @@ class Keycloak:
 
     def get_user_by_id(self, user_id:str) -> dict:
         """
-        Method to return a dictionary representing a Keycloak user,
-        checks for both username and email
+        Method to return a dictionary representing a Keycloak user
         """
         username_encoded = urllib.parse.quote_plus(user_id)
         user_response = requests.get(

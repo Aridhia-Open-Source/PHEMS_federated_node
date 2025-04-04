@@ -170,11 +170,9 @@ class TestDatasets(MixinTestDataset):
         assert response.status_code == 400
         assert response.json == {"error": "User does not belong to a valid project"}
 
-    # @mock.patch('app.helpers.wrappers.Request.get_active_project')
     @mock.patch('app.datasets_api.Request.approve', return_value={"token": "token"})
     def test_get_dataset_by_id_project_approved(
             self,
-            # req_active_mock,
             req_approve_mock,
             mocker,
             mocks_kc_tasks,
