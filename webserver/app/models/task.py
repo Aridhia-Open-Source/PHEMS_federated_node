@@ -13,7 +13,7 @@ from app.helpers.const import (
     CLEANUP_AFTER_DAYS, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX,
     TASK_NAMESPACE, TASK_POD_RESULTS_PATH, RESULTS_PATH
 )
-from app.helpers.db import BaseModel, db
+from webserver.app.helpers.base_model import BaseModel, db
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesBatchClient, KubernetesClient
 from app.helpers.exceptions import DBError, InvalidRequest, TaskImageException, TaskExecutionException

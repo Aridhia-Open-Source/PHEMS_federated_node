@@ -1,6 +1,6 @@
 import re
 from sqlalchemy.sql import select
-from app.helpers.db import Base
+from webserver.app.helpers.base_model import Base
 
 FILTERS = [
     'ne',
