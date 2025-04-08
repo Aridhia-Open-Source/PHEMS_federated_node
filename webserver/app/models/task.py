@@ -17,6 +17,7 @@ from webserver.app.helpers.base_model import BaseModel, db
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesBatchClient, KubernetesClient
 from app.helpers.exceptions import DBError, InvalidRequest, TaskImageException, TaskExecutionException
+from app.helpers.task_pod import TaskPod
 from app.models.dataset import Dataset
 from app.models.container import Container
 
@@ -224,7 +225,7 @@ class Task(db.Model, BaseModel):
         if len(self.executors):
             command=self.executors[0].get("command", '')
 
-        body = v1.create_pod_spec({
+        body = TaskPod(**{
             "name": self.pod_name(),
             "image": self.docker_image,
             "labels": {
@@ -239,7 +240,7 @@ class Task(db.Model, BaseModel):
             "mount_path": self.outputs,
             "resources": self.resources,
             "env_from": v1.create_from_env_object(secret_name)
-        })
+        }).create_pod_spec()
         try:
             current_pod = self.get_current_pod()
             if current_pod:
