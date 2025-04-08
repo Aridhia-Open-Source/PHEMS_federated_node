@@ -10,6 +10,7 @@ from kubernetes.client import (
     V1PersistentVolumeClaimSpec, V1VolumeResourceRequirements
 )
 from app.helpers.const import TASK_NAMESPACE, TASK_PULL_SECRET_NAME
+from app.helpers.kubernetes import KubernetesClient
 
 IMAGE_TAG = os.getenv("IMAGE_TAG")
 
@@ -120,8 +121,8 @@ class TaskPod:
         and assemble it with the different sdk objects
         """
         # Create a dedicated VPC for each task so that we can keep results indefinitely
-        self.create_persistent_storage(self.name, self.labels)
-        pvc_name = f"{self.name}volclaim"
+        KubernetesClient().create_persistent_storage(self.pv, self.pvc)
+        pvc_name = f"{self.name}-volclaim"
         pvc = V1PersistentVolumeClaimVolumeSource(claim_name=pvc_name)
 
         vol_mounts = []

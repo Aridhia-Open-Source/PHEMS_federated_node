@@ -9,7 +9,7 @@ from kubernetes.client.exceptions import ApiException
 from kubernetes.watch import Watch
 from app.helpers.exceptions import InvalidRequest, KubernetesException
 from app.helpers.const import TASK_NAMESPACE
-from app.helpers.task_pod import TaskPod
+
 
 logger = logging.getLogger('kubernetes_helper')
 logger.setLevel(logging.INFO)
@@ -130,19 +130,19 @@ class KubernetesBase:
             if e.status != 404:
                 raise InvalidRequest(f"Failed to delete pod {name}: {e.reason}")
 
-    def create_persistent_storage(self, task: TaskPod):
+    def create_persistent_storage(self, task_pv, task_pvc):
         """
         Function to dynamically create (if doesn't already exist)
         a PV and its PVC
         :param name: is the PV name and PVC prefix
         """
         try:
-            self.create_persistent_volume(body=task.pv)
+            self.create_persistent_volume(body=task_pv)
         except ApiException as kexc:
             if kexc.status != 409:
                 raise KubernetesException(kexc.body)
         try:
-            self.create_namespaced_persistent_volume_claim(namespace=TASK_NAMESPACE, body=task.pvc)
+            self.create_namespaced_persistent_volume_claim(namespace=TASK_NAMESPACE, body=task_pvc)
         except ApiException as kexc:
             if kexc.status != 409:
                 raise KubernetesException(kexc.body)

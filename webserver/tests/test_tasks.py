@@ -8,7 +8,7 @@ from unittest import mock
 from unittest.mock import Mock
 
 from app.helpers.const import CLEANUP_AFTER_DAYS, TASK_POD_RESULTS_PATH
-from webserver.app.helpers.base_model import db
+from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.models.task import Task
 from tests.fixtures.azure_cr_fixtures import *

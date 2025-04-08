@@ -1,7 +1,7 @@
 import re
 import requests
 from sqlalchemy import Column, Integer, String
-from webserver.app.helpers.base_model import BaseModel, db
+from app.helpers.base_model import BaseModel, db
 from app.helpers.connection import SUPPORTED_ENGINES
 from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest

@@ -10,7 +10,7 @@ from sqlalchemy.orm.session import close_all_sessions
 from unittest.mock import Mock
 
 from app import create_app
-from webserver.app.helpers.base_model import db
+from app.helpers.base_model import db
 from app.models.dataset import Dataset
 from app.models.request import Request
 from app.helpers.keycloak import Keycloak, URLS, KEYCLOAK_SECRET, KEYCLOAK_CLIENT
