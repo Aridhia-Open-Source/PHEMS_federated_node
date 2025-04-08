@@ -18,6 +18,7 @@ from app.models.task import Task
 from app.helpers.keycloak import Keycloak, URLS, KEYCLOAK_SECRET, KEYCLOAK_CLIENT
 from tests.helpers.keycloak import clean_kc
 from app.helpers.exceptions import KeycloakError
+from app.models.task import Task
 
 
 sample_ds_body = {
@@ -187,6 +188,10 @@ def v1_mock(mocker):
         ),
         "is_pod_ready_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.is_pod_ready'
+        ),
+        "read_namespaced_pod_log": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.read_namespaced_pod_log',
+            return_value="Example logs\nanother line"
         ),
         "cp_from_pod_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.cp_from_pod',
@@ -372,3 +377,14 @@ def mocks_kc_tasks(mocker, dar_user):
             )
         )
     }
+
+@pytest.fixture
+def task(dataset, user_uuid):
+    task = Task(
+        name="test task",
+        dataset=dataset,
+        docker_image="test-image",
+        requested_by=user_uuid,
+    )
+    task.add()
+    return task
