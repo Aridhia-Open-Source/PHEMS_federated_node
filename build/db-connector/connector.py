@@ -15,8 +15,8 @@ SUPPORTED_ENGINES = {
 
 
 QUERY = os.getenv("QUERY", "")
-FROM_DIALECT = os.getenv("FROM_DIALECT", "Postgres")
-TO_DIALECT = os.getenv("TO_DIALECT", "Postgres")
+FROM_DIALECT = os.getenv("FROM_DIALECT", "Postgres").lower()
+TO_DIALECT = os.getenv("TO_DIALECT", "Postgres").lower()
 DB_USER = os.getenv("DB_USER")
 DB_PSW = os.getenv("DB_PSW")
 DB_HOST = os.getenv("DB_HOST")
@@ -30,7 +30,7 @@ def create_db_connection_string() -> str:
     """
     Simple function to put together the connection string
     """
-    return SUPPORTED_ENGINES[TO_DIALECT.lower()].format(
+    return SUPPORTED_ENGINES[TO_DIALECT].format(
         driver=DRIVER,
         user=DB_USER,
         passw=DB_PSW,

@@ -64,6 +64,7 @@ class Task(db.Model, BaseModel):
         self.resources = resources
         self.inputs = inputs
         self.outputs = outputs
+        self.db_query = kwargs.get("db_query", {})
 
     @classmethod
     def validate(cls, data:dict):
@@ -104,6 +105,7 @@ class Task(db.Model, BaseModel):
                 data["resources"].get("limits", {}).get("memory"),
                 data["resources"].get("requests", {}).get("memory")
             )
+        data["db_query"] = data.pop("query")
         return data
 
     @classmethod
@@ -228,6 +230,8 @@ class Task(db.Model, BaseModel):
         body = TaskPod(**{
             "name": self.pod_name(),
             "image": self.docker_image,
+            "dataset": self.dataset,
+            "db_query": self.db_query,
             "labels": {
                 "task_id": str(self.id),
                 "requested_by": self.requested_by,

@@ -11,7 +11,7 @@ RUN apt-get update \
     && apt install -y unixodbc \
     && pip install --upgrade pip \
     && python3 -m pip install --no-cache-dir \
-        pyodbc mariadb "sqlglot[rs]"
+        pyodbc mariadb "sqlglot[rs]" sqlalchemy psycopg2
 
 WORKDIR /app
 COPY connector.py /app/
