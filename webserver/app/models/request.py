@@ -66,7 +66,7 @@ class Request(db.Model, BaseModel):
         ).one_or_none()
 
         if overlaps:
-            raise InvalidRequest(f"User already belongs to the active project {data["proj_name"]}")
+            raise InvalidRequest(f"User already belongs to the active project {data["project_name"]}")
 
         return validated
 
