@@ -303,7 +303,7 @@ class Keycloak:
             client_name = self.client_name
 
         client_id_resp = requests.get(
-            URLS["client_id"] + client_name,
+            URLS["client_id"] + urllib.parse.quote_plus(client_name),
             headers=headers
         )
         if not client_id_resp.ok:
