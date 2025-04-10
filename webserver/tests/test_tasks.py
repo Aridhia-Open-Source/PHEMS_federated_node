@@ -142,7 +142,7 @@ class TestGetTasks:
     def test_get_task_by_id_non_admin_owner(
             self,
             mocks_decode,
-            mocks_is_admin,
+            mock_is_admin,
             mocks_kc_tasks,
             simple_user_header,
             client,
@@ -666,6 +666,27 @@ class TestValidateTask:
             headers=post_json_admin_header
         )
         assert response.status_code == 200
+
+    def test_validate_task_admin_missing_dataset(
+            self,
+            client,
+            task_body,
+            cr_client,
+            registry_client,
+            post_json_admin_header
+        ):
+        """
+        Test the validation endpoint can be used by admins returns
+        an error message if the dataset info is not provided
+        """
+        task_body["tags"].pop("dataset_id")
+        response = client.post(
+            '/tasks/validate',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert response.json["error"] == "Administrators need to provide `tags.dataset_id` or `tags.dataset_name`"
 
     def test_validate_task_basic_user(
             self,

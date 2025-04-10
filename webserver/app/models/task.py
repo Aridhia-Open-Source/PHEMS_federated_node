@@ -82,6 +82,8 @@ class Task(db.Model, BaseModel):
             ds_name = data.get("tags", {}).get("dataset_name")
             if ds_name or ds_id:
                 data["dataset"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
+            else:
+                raise InvalidRequest("Administrators need to provide `tags.dataset_id` or `tags.dataset_name`")
         else:
             data["dataset"] = Request.get_active_project(
                 data["project_name"],

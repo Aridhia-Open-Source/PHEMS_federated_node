@@ -207,10 +207,12 @@ class TestDatasets(MixinTestDataset):
         assert response.status_code == 200, response.json
         assert response.json == self.expected_ds_entry(dataset)
 
+    @mock.patch('app.helpers.keycloak.Keycloak.is_user_admin', return_value=False)
     @mock.patch('app.datasets_api.Request.approve', return_value={"token": "somejwttoken"})
     def test_get_dataset_by_id_project_non_approved(
             self,
             req_mock,
+            mocks_is_admin,
             project_not_found,
             post_json_admin_header,
             request_base_body,

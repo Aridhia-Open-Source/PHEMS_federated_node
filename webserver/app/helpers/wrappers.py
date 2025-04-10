@@ -31,7 +31,7 @@ def auth(scope:str, check_dataset=True):
             token_info = kc_client.decode_token(token)
             user = kc_client.get_user_by_username(token_info['username'])
 
-            if requested_project:
+            if requested_project and not kc_client.is_user_admin(token):
                 dar = Request.get_active_project(requested_project, user["id"])
                 if dar.dataset_id:
                     ds = Dataset.get_dataset_by_name_or_id(id=dar.dataset_id)
@@ -51,7 +51,7 @@ def auth(scope:str, check_dataset=True):
                     resource = f"{ds.id}-{ds.name}"
 
             # If the user is an admin or system, ignore the project
-            if not kc_client.has_user_roles(user["id"], {"Administrator", "System"}):
+            if not kc_client.has_user_roles(user["id"], {"Super Administrator", "Administrator", "System"}):
                 if requested_project:
                     client = f"Request {token_info['username']} - {requested_project}"
                     kc_client = Keycloak(client)
