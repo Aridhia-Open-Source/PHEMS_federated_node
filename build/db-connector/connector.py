@@ -17,6 +17,7 @@ SUPPORTED_ENGINES = {
 QUERY = os.getenv("QUERY", "")
 FROM_DIALECT = os.getenv("FROM_DIALECT", "Postgres").lower()
 TO_DIALECT = os.getenv("TO_DIALECT", "Postgres").lower()
+INPUT_MOUNT = os.getenv("INPUT_MOUNT")
 DB_USER = os.getenv("DB_USER")
 DB_PSW = os.getenv("DB_PSW")
 DB_HOST = os.getenv("DB_HOST")
@@ -56,6 +57,7 @@ if __name__ == "__main__":
     res, col_names = run_query(converted_query)
 
     if res:
-        with open("input.csv", 'w', newline="") as file:
+        with open(f"{INPUT_MOUNT}/input.csv", 'w', newline="") as file:
             file.write(",".join(col_names) + "\n")
             file.write("\n".join([",".join([str(item) for item in row]) for row in res ]))
+            file.write("\n")

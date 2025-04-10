@@ -19,6 +19,8 @@ IMAGE_TAG = os.getenv("IMAGE_TAG")
 
 class TaskPod:
     env = []
+    env_init = []
+    base_mount_path = "/mnt/vol"
 
     def __init__(
             self,
@@ -39,19 +41,19 @@ class TaskPod:
         self.dataset = dataset
         self.labels = labels
         self.dry_run = dry_run
-        self.environment = environment
         self.command = command
         self.mount_path = mount_path
         self.resources = resources
         self.env_from = env_from
         self.db_query = db_query
+        self.create_env_from_dict(environment)
 
-    def create_env_from_dict(self) -> list[V1EnvVar]:
+    def create_env_from_dict(self, env) -> list[V1EnvVar]:
         """
         Kubernetes library accepts env vars as a V1EnvVar
         object. This method converts a dict into V1EnvVar
         """
-        for k, v in self.environment.items():
+        for k, v in env.items():
             self.env.append(V1EnvVar(name=k, value=str(v)))
 
     def create_db_env_vars(self):
@@ -60,13 +62,13 @@ class TaskPod:
         It will map PG_* for backwards compatibility
         """
         secret_name = self.dataset.get_creds_secret_name()
-        self.env += [
+        self.env_init += [
             V1EnvVar(
                 name="DB_PSW",
                 value_from=V1EnvVarSource(
                     secret_key_ref=V1SecretKeySelector(
                         name=secret_name,
-                        key="PG_PASSWORD",
+                        key="PGPASSWORD",
                         optional=True
                     )
                 )
@@ -76,7 +78,7 @@ class TaskPod:
                 value_from=V1EnvVarSource(
                     secret_key_ref=V1SecretKeySelector(
                         name=secret_name,
-                        key="PG_USER",
+                        key="PGUSER",
                         optional=True
                     )
                 )
@@ -86,7 +88,6 @@ class TaskPod:
             V1EnvVar(name="DB_ARGS", value=self.dataset.extra_connection_args),
             V1EnvVar(name="DB_HOST", value=self.dataset.host)
         ]
-        self.env_from = [V1EnvFromSource(secret_ref=V1SecretEnvSource(name=secret_name))]
 
     def create_storage_specs(self):
         """
@@ -137,24 +138,30 @@ class TaskPod:
         so the whole volume is not exposed
         """
         self.create_db_env_vars()
-        mount_path = "/mnt/vol"
+        self.env_init.append(V1EnvVar(name="INPUT_MOUNT", value=f"{self.base_mount_path}/{task_id}/input"))
 
         vol_mount = V1VolumeMount(
-            mount_path=mount_path,
+            mount_path=self.base_mount_path,
             name="data"
         )
         dir_init = V1Container(
             name=f"init-{task_id}",
             image="alpine:3.19",
             volume_mounts=[vol_mount],
-            command=["mkdir", "-p", f"{mount_path}/{task_id}"]
+            command=["/bin/sh"],
+            args=[
+                "-c",
+                f"mkdir -p {self.base_mount_path}/{task_id}/results {self.base_mount_path}/{task_id}/input;"
+                f"chmod 777 {self.base_mount_path}/{task_id}/input;"
+                f"ls -la {self.base_mount_path}/{task_id}"
+            ]
         )
         data_init = V1Container(
             name="fetch-data",
             image=f"ghcr.io/aridhia-open-source/db_connector:{IMAGE_TAG}",
             volume_mounts=[vol_mount],
             image_pull_policy="Always",
-            env=self.env,
+            env=self.env_init,
             env_from=self.env_from
         )
         return [dir_init, data_init]
@@ -174,18 +181,27 @@ class TaskPod:
         # All results volumes will be mounted in a folder named
         # after the task_id, so all of the "output" user-defined
         # folders will be in i.e. /mnt/data/14/folder2
-        base_mount_folder = f"{self.labels['task_id']}"
+        task_id = self.labels['task_id']
+
+        # input mount
+        in_path = "/mnt/inputs"
+        vol_mounts.append(V1VolumeMount(
+                mount_path=in_path,
+                sub_path=f"{task_id}/input",
+                name="data"
+            ))
+        self.env.append(V1EnvVar(name="INPUT_PATH", value=f"{in_path}/input.csv"))
 
         for mount_name, mount_path in self.mount_path.items():
             vol_mounts.append(V1VolumeMount(
                 mount_path=mount_path,
-                sub_path=f"{base_mount_folder}/{mount_name}",
+                sub_path=f"{task_id}/{mount_name}",
                 name="data"
             ))
-        self.create_env_from_dict()
-        self.env.append(V1EnvVar(name="QUERY", value=self.db_query["query"]))
-        self.env.append(V1EnvVar(name="FROM_DIALECT", value=self.db_query["dialect"]))
-        self.env.append(V1EnvVar(name="TO_DIALECT", value=self.dataset.type))
+
+        self.env_init.append(V1EnvVar(name="QUERY", value=self.db_query["query"]))
+        self.env_init.append(V1EnvVar(name="FROM_DIALECT", value=self.db_query["dialect"]))
+        self.env_init.append(V1EnvVar(name="TO_DIALECT", value=self.dataset.type))
 
         container = V1Container(
             name=self.name,

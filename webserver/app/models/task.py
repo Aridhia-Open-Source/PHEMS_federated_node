@@ -220,8 +220,7 @@ class Task(db.Model, BaseModel):
         """
         v1 = KubernetesClient()
         secret_name = self.dataset.get_creds_secret_name()
-        provided_env = self.executors[0]["env"]
-        provided_env.update(self.get_db_environment_variables())
+        provided_env = self.executors[0].get("env", {})
 
         command=None
         if len(self.executors):
@@ -258,20 +257,6 @@ class Task(db.Model, BaseModel):
         except ApiException as e:
             logger.error(json.loads(e.body))
             raise InvalidRequest(f"Failed to run pod: {e.reason}")
-
-    def get_db_environment_variables(self) -> dict:
-        """
-        Creates a dictionary with the standard value for DB credentials
-        """
-        return {
-            "PGHOST": self.dataset.host,
-            "PGDATABASE": self.dataset.name,
-            "PGPORT": self.dataset.port,
-            "MSSQL_HOST": self.dataset.host,
-            "MSSQL_DATABASE": self.dataset.name,
-            "MSSQL_PORT": self.dataset.port,
-            "CONNECTION_ARGS": self.dataset.extra_connection_args
-        }
 
     def get_current_pod(self, pod_name:str=None, is_running:bool=True):
         v1 = KubernetesClient()
@@ -359,7 +344,8 @@ class Task(db.Model, BaseModel):
                 {
                     "name": f"{self.get_current_pod(is_running=False).metadata.name}-volclaim",
                     "mount_path": TASK_POD_RESULTS_PATH,
-                    "vol_name": "data"
+                    "vol_name": "data",
+                    "sub_path": f"{self.id}/results"
                 }
             ],
             "labels": {
@@ -379,7 +365,11 @@ class Task(db.Model, BaseModel):
 
             job_pod = v1.list_namespaced_pod(namespace=TASK_NAMESPACE, label_selector=f"job-name={job_name}").items[0]
 
-            res_file = v1.cp_from_pod(job_pod.metadata.name, f"{TASK_POD_RESULTS_PATH}/{self.id}", f"{RESULTS_PATH}/{self.id}")
+            res_file = v1.cp_from_pod(
+                job_pod.metadata.name,
+                f"{TASK_POD_RESULTS_PATH}",
+                f"{RESULTS_PATH}/{self.id}/delivery"
+            )
             v1.delete_pod(job_pod.metadata.name)
             v1_batch.delete_job(job_name)
         except ApiException as e:

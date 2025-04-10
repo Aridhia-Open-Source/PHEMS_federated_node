@@ -64,7 +64,8 @@ class KubernetesBase:
             )
             vol_mounts.append(client.V1VolumeMount(
                 mount_path=pvc["mount_path"],
-                name=pvc["vol_name"]
+                name=pvc["vol_name"],
+                sub_path=pvc["sub_path"]
             ))
         container = client.V1Container(
             name=pod_spec["name"],
