@@ -120,10 +120,23 @@ def get_task_results(task_id):
     """
     task = Task.query.filter(Task.id == task_id).one_or_none()
     if task is None:
-        raise DBRecordNotFoundError(f"Dataset with id {task_id} does not exist")
+        raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
 
     if task.created_at.date() + timedelta(days=CLEANUP_AFTER_DAYS) <= datetime.now().date():
         return {"error": "Tasks results are not available anymore. Please, run the task again"}, 500
 
     results_file = task.get_results()
     return send_file(results_file, download_name="results.tar.gz"), 200
+
+@bp.route('/<task_id>/logs', methods=['GET'])
+@audit
+@auth(scope='can_exec_task')
+def get_tasks_logs(task_id:int):
+    """
+    From a given task, return its pods logs
+    """
+    task = Task.query.filter(Task.id == task_id).one_or_none()
+    if task is None:
+        raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
+
+    return {"logs": task.get_logs()}, 200

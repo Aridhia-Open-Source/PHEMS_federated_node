@@ -7,7 +7,7 @@ rules:
   resources: ["secrets"]
   verbs: ["get", "list", "create", "patch"]
 - apiGroups: ["", "batch"]
-  resources: ["pods", "persistentvolumes", "persistentvolumeclaims", "jobs", "pods/exec"]
+  resources: ["pods", "persistentvolumes", "persistentvolumeclaims", "jobs", "pods/exec", "pods/log"]
   verbs: ["*"]
 - apiGroups: [""]
   resources: ["pods"]
