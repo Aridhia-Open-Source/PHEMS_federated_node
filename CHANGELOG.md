@@ -1,7 +1,7 @@
 # Releases Changelog
 
 ## 0.11.0
-
+- The datasets are now strictly linked to the `token_transfer` request body. A non-admin user can only trigger a task by providing the project-name they have been approved for. This will avoid inconsistencies with names and ids.
 
 ## 0.10.0
 **With this update, if using nginx, you will need to update your dns record to the new ingress' IP**
@@ -35,7 +35,6 @@
                 externalTrafficPolicy: Local
     ```
 - nginx namespace is now defined in `ingress-nginx.namespaceOverride`
-- The datasets are now strictly linked to the `token_transfer` request body. A non-admin user can only trigger a task by providing the project-name they have been approved for. This will avoid inconsistencies with names and ids.
 - Added the `/tasks/<task_id>/logs` to fetch a task pod's logs.
 - Task's pods will not have service account tokens mounted
 
