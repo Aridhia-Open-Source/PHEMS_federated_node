@@ -1,5 +1,8 @@
 # Releases Changelog
 
+## 0.11.0
+
+
 ## 0.10.0
 **With this update, if using nginx, you will need to update your dns record to the new ingress' IP**
 
