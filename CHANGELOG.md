@@ -1,5 +1,8 @@
 # Releases Changelog
 
+## 0.11.0
+
+
 ## 0.10.0
 **With this update, if using nginx, you will need to update your dns record to the new ingress' IP**
 
@@ -32,6 +35,8 @@
                 externalTrafficPolicy: Local
     ```
 - nginx namespace is now defined in `ingress-nginx.namespaceOverride`
+- Added the `/tasks/<task_id>/logs` to fetch a task pod's logs.
+- Task's pods will not have service account tokens mounted
 
 ### Security
 - Updated the nginx version to `1.12.1` to address a vulnerability
