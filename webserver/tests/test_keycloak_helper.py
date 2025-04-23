@@ -133,7 +133,7 @@ class TestKeycloakResponseFailures:
             )
             rsps.add(
                 responses.GET,
-                URLS["client_id"] + 'global',
+                URLS["client"] + "?clientId=global",
                 json=self.common_error_response,
                 status=500
             )
@@ -209,7 +209,7 @@ class TestKeycloakResponseFailures:
         with responses.RequestsMock() as rsps:
             rsps.add(
                 responses.GET,
-                (URLS["scopes"] % kc_client.client_id) + "?permission=false&name=some_scope",
+                (URLS["scopes"] % kc_client.client_id) + "?permission=False&name=some_scope",
                 json=self.common_error_response,
                 status=500
             )
@@ -229,7 +229,7 @@ class TestKeycloakResponseFailures:
         with responses.RequestsMock() as rsps:
             rsps.add(
                 responses.GET,
-                f'{URLS["user"]}?username={username}&exact=true',
+                f'{URLS["user"]}?username={username}&exact=True',
                 json=self.common_error_response,
                 status=500
             )
