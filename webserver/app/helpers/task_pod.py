@@ -223,6 +223,7 @@ class TaskPod:
             containers=[container],
             image_pull_secrets=secrets,
             restart_policy="Never",
+            automount_service_account_token=False,
             volumes=[
                 V1Volume(name="data", persistent_volume_claim=pvc)
             ]
