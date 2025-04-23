@@ -2,6 +2,10 @@
 
 ## 0.11.0
 - The datasets are now strictly linked to the `token_transfer` request body. A non-admin user can only trigger a task by providing the project-name they have been approved for. This will avoid inconsistencies with names and ids.
+- The alpine helper image now has the same tag as the backend.
+
+## Bugfixes
+- Fixed an issue with the result cleaner where the volume mounted would include too much
 
 ## 0.10.0
 **With this update, if using nginx, you will need to update your dns record to the new ingress' IP**
