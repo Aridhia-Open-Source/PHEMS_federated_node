@@ -4,7 +4,6 @@ import random
 import re
 import requests
 from base64 import b64encode
-import urllib.parse
 from flask import request
 
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
@@ -653,9 +652,8 @@ class Keycloak:
         """
         Method to return a dictionary representing a Keycloak user
         """
-        username_encoded = urllib.parse.quote_plus(user_id)
         user_response = requests.get(
-            f"{URLS["user"]}/{username_encoded}",
+            f"{URLS["user"]}/{user_id}",
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
         if not user_response.ok:
