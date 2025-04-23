@@ -7,7 +7,7 @@ deleteEntity(){
         xargs kubectl delete "$1" -n "$2" || echo "Nothing to delete"
 }
 
-date=$(date +%Y-%m-%d -d "${CLEANUP_AFTER_DAYS} days ago")
+date=$(python3 -c "from datetime import datetime, timedelta;print((datetime.now() - timedelta(days=$CLEANUP_AFTER_DAYS)).strftime('%Y-%m-%d'))")
 deleteEntity pods "${NAMESPACE}"
 deleteEntity pvc "${NAMESPACE}"
 deleteEntity pv "${NAMESPACE}"
