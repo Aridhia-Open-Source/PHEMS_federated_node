@@ -29,6 +29,10 @@ def task_body(dataset, container):
                 }
             }
         ],
+        "db_query": {
+            "query": "SELECT * FROM table",
+            "dialect": "postgres"
+        },
         "description": "First task ever!",
         "tags": {
             "dataset_id": dataset.id,
@@ -163,8 +167,8 @@ def test_create_task_no_output_field_reverts_to_default(
     assert response.status_code == 201
     reg_k8s_client["create_namespaced_pod_mock"].assert_called()
     pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
-    assert len(pod_body.spec.containers[0].volume_mounts) == 1
-    assert pod_body.spec.containers[0].volume_mounts[0].mount_path == TASK_POD_RESULTS_PATH
+    assert len(pod_body.spec.containers[0].volume_mounts) == 2
+    assert [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts] == ["/mnt/inputs", TASK_POD_RESULTS_PATH]
 
 def test_create_task_with_ds_name(
         cr_client,

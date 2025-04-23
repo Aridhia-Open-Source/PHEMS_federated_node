@@ -1815,7 +1815,7 @@
               }
             }
           },
-          "query": {
+          "db_query": {
             "type": "object",
             "properties": {
               "query": {
