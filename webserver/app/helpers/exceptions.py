@@ -35,6 +35,9 @@ class DBRecordNotFoundError(LogAndException):
 class InvalidRequest(LogAndException):
     code = 400
 
+class DatasetError(LogAndException):
+    code = 500
+
 class AuthenticationError(LogAndException):
     code = 401
     description = "Unauthenticated"

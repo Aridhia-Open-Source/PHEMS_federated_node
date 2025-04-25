@@ -116,7 +116,7 @@ def patch_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
         raise InvalidRequest("dictionaries should be a list.")
 
     for k in body:
-        if not hasattr(ds, k) and k not in ["username", "password"]:
+        if not hasattr(ds, k) and k not in ["username", "password", "auth_configmap"]:
             raise InvalidRequest(f"Field {k} is not a valid one")
 
     try:

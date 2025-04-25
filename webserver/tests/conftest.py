@@ -184,6 +184,25 @@ def v1_mock(mocker):
         "delete_namespaced_pod_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.delete_namespaced_pod'
         ),
+        "read_namespaced_config_map_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.read_namespaced_config_map',
+            return_value=Mock(
+                metadata=Mock(labels={}),
+                data={"krb5.conf": "content"}
+            )
+        ),
+        "replace_namespaced_config_map_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.replace_namespaced_config_map'
+        ),
+        "create_namespaced_config_map_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.create_namespaced_config_map'
+        ),
+        "patch_namespaced_config_map_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.patch_namespaced_config_map'
+        ),
+        "delete_namespaced_config_map_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.delete_namespaced_config_map'
+        ),
         "is_pod_ready_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.is_pod_ready'
         ),

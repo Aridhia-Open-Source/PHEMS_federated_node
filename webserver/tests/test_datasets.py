@@ -3,14 +3,13 @@ import json
 import os
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import select
-from unittest import mock
 from sqlalchemy.exc import ProgrammingError, OperationalError
 from unittest import mock
 from unittest.mock import Mock
 
 from app.helpers.base_model import db
 from app.helpers.exceptions import KeycloakError
-from app.models.dataset import Dataset
+from app.models.dataset import Dataset, SUPPORTED_AUTHS
 from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
 from tests.conftest import sample_ds_body
@@ -63,6 +62,7 @@ class TestDatasets(MixinTestDataset):
             "name": dataset.name,
             "host": dataset.host,
             "port": 5432,
+            "auth_type": "standard",
             "type": "postgres",
             "url": f"https://{self.hostname}/datasets/{dataset.name}",
             "slug": dataset.name,
@@ -350,6 +350,7 @@ class TestPostDataset(MixinTestDataset):
             "port": 5432,
             "type": "postgres",
             "slug": "test-dataset",
+            "auth_type": "standard",
             "extra_connection_args": None,
             "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset"
         }
@@ -372,6 +373,69 @@ class TestPostDataset(MixinTestDataset):
 
         query = self.run_query(select(Dataset).where(Dataset.name == data_body["name"].lower(), Dataset.type == "mssql"))
         assert len(query) == 1
+
+    def test_post_dataset_kerberos_auth(
+            self,
+            post_json_admin_header,
+            client,
+            dataset,
+        ):
+        """
+        /datasets POST is successful with the auth type won't
+        check for credentials in the body, and will still accept that
+        """
+        data_body = {
+            "name": "TestDs78",
+            "type": 'mssql',
+            "host": "something",
+            "auth_type": "kerberos",
+            "auth_configmap": "auth-configmap"
+        }
+
+        self.post_dataset(client, post_json_admin_header, data_body)
+
+        query = self.run_query(select(Dataset).where(Dataset.name == data_body["name"].lower(), Dataset.type == "mssql"))
+        assert len(query) == 1
+
+    def test_post_dataset_kerberos_auth_no_cm(
+            self,
+            post_json_admin_header,
+            client,
+            dataset,
+        ):
+        """
+        /datasets POST is successful with the auth type won't
+        check for credentials in the body, but will fail with no configmap name provided
+        """
+        data_body = {
+            "name": "TestDs78",
+            "type": 'mssql',
+            "host": "something",
+            "auth_type": "kerberos",
+        }
+
+        resp = self.post_dataset(client, post_json_admin_header, data_body, 400)
+        assert resp["error"] == "With kerberos auth_type, a configmap containing krb5.conf key is needed"
+
+    def test_post_dataset_invalid_auth(
+            self,
+            post_json_admin_header,
+            client,
+            dataset,
+        ):
+        """
+        /datasets POST is successful with the auth type won't
+        check for credentials in the body, and will still accept that
+        """
+        data_body = {
+            "name": "TestDs78",
+            "type": 'mssql',
+            "host": "something",
+            "auth_type": "invalid"
+        }
+
+        resp = self.post_dataset(client, post_json_admin_header, data_body, code=400)
+        assert resp == {"error": f"invalid is not supported. Try one of {SUPPORTED_AUTHS}"}
 
     def test_post_dataset_with_extra_args(
             self,
@@ -419,19 +483,14 @@ class TestPostDataset(MixinTestDataset):
             self,
             post_json_admin_header,
             client,
-            k8s_config,
+            k8s_client,
             dataset_post_body,
             mocker
         ):
         """
         /datasets POST fails if the k8s secrets cannot be created successfully
         """
-        mocker.patch(
-            'app.models.dataset.KubernetesClient.create_namespaced_secret',
-            Mock(
-                    side_effect=ApiException(status=500, reason="Failed")
-            )
-        )
+        k8s_client["create_namespaced_secret_mock"].side_effect=ApiException(status=500, reason="Failed")
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
         self.post_dataset(client, post_json_admin_header, data_body, 400)
@@ -459,6 +518,9 @@ class TestPostDataset(MixinTestDataset):
             return_value=Mock(
                 create_namespaced_secret=Mock(
                     side_effect=ApiException(status=409, reason="Conflict")
+                ),
+                read_namespaced_config_map=Mock(
+                    return_value=Mock(data={"krb5.conf": ""})
                 )
             )
         )
