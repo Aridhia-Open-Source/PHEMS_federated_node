@@ -10,10 +10,10 @@ We want to test the creation, deletion and list operations.
 """
 
 import json
-from tarfile import ReadError
 import pytest
 from kubernetes import client
 from kubernetes.client.exceptions import ApiException
+from tarfile import ReadError
 from unittest import mock
 from unittest.mock import Mock
 

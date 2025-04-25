@@ -24,7 +24,7 @@ DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
 DB_NAME = os.getenv("DB_NAME")
 DB_ARGS = os.getenv("DB_ARGS")
-DRIVER=os.getenv("DRIVER")
+DRIVER = os.getenv("DRIVER")
 
 
 def create_db_connection_string() -> str:
@@ -52,8 +52,12 @@ def run_query(query:str) -> dict:
     return out.all(), list(out.keys())
 
 
+def convert_query():
+    print(f"Converting query {QUERY}")
+    return sqlglot.transpile(QUERY, read=FROM_DIALECT, write=TO_DIALECT)
+
 if __name__ == "__main__":
-    converted_query = sqlglot.transpile(QUERY, read=FROM_DIALECT, write=TO_DIALECT)
+    converted_query = convert_query()
     res, col_names = run_query(converted_query)
 
     if res:

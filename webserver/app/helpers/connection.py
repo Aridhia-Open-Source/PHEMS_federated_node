@@ -30,7 +30,7 @@ class ConnectionHandler:
     def create_db_connection_string(self) -> str:
         return f"{SUPPORTED_ENGINES[self.engine]}{self.user}:{self.psw}@{self.host}:{self.port}/{self.dbname}"
 
-    def run_query(self, query:str):
+    def run_query(self, query:str) -> dict|list:
         self.engine = create_engine(self.create_db_connection_string())
         connection = self.engine.connect()
 
