@@ -32,6 +32,7 @@ class TaskPod:
             environment:dict,
             command:str,
             mount_path:dict,
+            input_path:dict,
             resources:dict,
             env_from:list,
             db_query:dict
@@ -43,6 +44,7 @@ class TaskPod:
         self.dry_run = dry_run
         self.command = command
         self.mount_path = mount_path
+        self.input_path = input_path
         self.resources = resources
         self.env_from = env_from
         self.db_query = db_query
@@ -184,13 +186,14 @@ class TaskPod:
         task_id = self.labels['task_id']
 
         # input mount
-        in_path = "/mnt/inputs"
-        vol_mounts.append(V1VolumeMount(
-                mount_path=in_path,
-                sub_path=f"{task_id}/input",
-                name="data"
-            ))
-        self.env.append(V1EnvVar(name="INPUT_PATH", value=f"{in_path}/input.csv"))
+        for in_name, in_path in self.input_path.items():
+            vol_mounts.append(V1VolumeMount(
+                    mount_path=in_path,
+                    sub_path=f"{task_id}/input",
+                    name="data"
+                ))
+            if "INPUT_PATH" not in [env.name for env in self.env]:
+                self.env.append(V1EnvVar(name="INPUT_PATH", value=f"{in_path}/input.csv"))
 
         for mount_name, mount_path in self.mount_path.items():
             vol_mounts.append(V1VolumeMount(

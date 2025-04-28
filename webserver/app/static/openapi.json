@@ -1848,7 +1848,7 @@
             "items": { "type": "string" }
           }
         },
-        "required": ["executors", "name", "tags", "query"]
+        "required": ["executors", "name", "tags", "db_query"]
       },
       "TaskById": {
         "type": "object",

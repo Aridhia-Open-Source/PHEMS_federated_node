@@ -144,7 +144,7 @@ def test_create_task_invalid_output_field(
         headers=post_json_admin_header
     )
     assert response.status_code == 400
-    assert response.json == {"error": "\"outputs\" filed muct be a json object or dictionary"}
+    assert response.json == {"error": "\"outputs\" field must be a json object or dictionary"}
 
 def test_create_task_no_output_field_reverts_to_default(
         cr_client,
