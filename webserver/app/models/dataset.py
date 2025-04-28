@@ -2,12 +2,20 @@ import re
 import requests
 from sqlalchemy import Column, Integer, String
 from app.helpers.base_model import BaseModel, db
-from app.helpers.connection import SUPPORTED_ENGINES
 from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
 from kubernetes.client.exceptions import ApiException
+
+SUPPORTED_ENGINES = [
+    "mssql",
+    "postgres",
+    "mysql",
+    "oracle",
+    "sqlite",
+    "mariadb"
+]
 
 
 class Dataset(db.Model, BaseModel):
@@ -40,7 +48,7 @@ class Dataset(db.Model, BaseModel):
         self.password = password
         self.extra_connection_args = extra_connection_args
 
-        if self.type not in SUPPORTED_ENGINES:
+        if self.type.lower() not in SUPPORTED_ENGINES:
             raise InvalidRequest(f"DB type {self.type} is not supported.")
 
     def get_creds_secret_name(self, host=None, name=None):
