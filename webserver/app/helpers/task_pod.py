@@ -18,8 +18,6 @@ IMAGE_TAG = os.getenv("IMAGE_TAG")
 
 
 class TaskPod:
-    env = []
-    env_init = []
     base_mount_path = "/mnt/vol"
 
     def __init__(
@@ -48,6 +46,8 @@ class TaskPod:
         self.resources = resources
         self.env_from = env_from
         self.db_query = db_query
+        self.env = []
+        self.env_init = []
         self.create_env_from_dict(environment)
 
     def create_env_from_dict(self, env) -> list[V1EnvVar]:

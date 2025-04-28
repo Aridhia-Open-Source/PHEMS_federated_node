@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  labels:
+    app: testmysql
+spec:
+  selector:
+    matchLabels:
+      app: testmysql
+  template:
+    metadata:
+      labels:
+        app: testmysql
+    spec:
+      containers:
+        - image: mysql:8.4
+          name: mysql
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: "Password1!"
+            - name: MYSQL_PASSWORD
+              value: "Password1!"
+            - name: MYSQL_USER
+              value: "user"
+            - name: MYSQL_DATABASE
+              value: "dbdata"
+          volumeMounts:
+            - name: mysqldata
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: mysqldata
+          persistentVolumeClaim:
+            claimName: pv0004-volclaim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: testmysql
+spec:
+  ports:
+    - port: 3306
+      targetPort: 3306
+  selector:
+    app: testmysql
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv0004
+spec:
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: 100Mi
+  hostPath:
+    path: /data/pv0004/
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pv0004-volclaim
+spec:
+  resources:
+    requests:
+      storage: 100Mi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
