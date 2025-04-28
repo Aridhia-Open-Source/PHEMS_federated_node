@@ -26,7 +26,7 @@ or spawn a new console with the virtualenv -> `pipenv shell`
 
 Check for dependencies upgrades -> `pipenv update --dry-run`
 
-Check for dependencies vulnerabilities locally -> `pipenv check`
+Check for dependencies vulnerabilities locally -> `pipenv check --scan`
 
 Add new package -> `pipenv install --categories <packages|local-dev|tests> package`
 
