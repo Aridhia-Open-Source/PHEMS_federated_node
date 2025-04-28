@@ -5,8 +5,6 @@ ARG USERNAME=fednode
 ARG USER_UID=1001
 ARG USER_GID=1001
 
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
 # hadolint ignore=DL3013,DL3008
 RUN apt-get update \
     && apt-get upgrade -y \
