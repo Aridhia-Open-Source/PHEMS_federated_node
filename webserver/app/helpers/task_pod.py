@@ -141,6 +141,8 @@ class TaskPod:
         """
         self.create_db_env_vars()
         self.env_init.append(V1EnvVar(name="INPUT_MOUNT", value=f"{self.base_mount_path}/{task_id}/input"))
+        if self.input_path:
+            self.env_init.append(V1EnvVar(name="INPUT_FILE", value=list(self.input_path.keys())[0]))
 
         vol_mount = V1VolumeMount(
             mount_path=self.base_mount_path,
@@ -193,7 +195,7 @@ class TaskPod:
                     name="data"
                 ))
             if "INPUT_PATH" not in [env.name for env in self.env]:
-                self.env.append(V1EnvVar(name="INPUT_PATH", value=f"{in_path}/input.csv"))
+                self.env.append(V1EnvVar(name="INPUT_PATH", value=f"{in_path}/{in_name}"))
 
         for mount_name, mount_path in self.mount_path.items():
             vol_mounts.append(V1VolumeMount(

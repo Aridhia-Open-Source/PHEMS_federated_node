@@ -71,7 +71,7 @@ class KubernetesBase:
             name=pod_spec["name"],
             image="alpine:3.19",
             volume_mounts=vol_mounts,
-            command=["tail", "-f", "/dev/null"]
+            command=["/bin/sh", "-c", f"sleep {60*60*24}"]
         )
         if pod_spec.get("command"):
             container.command = pod_spec.get("command")

@@ -38,8 +38,8 @@ def task_body(dataset, container):
             "dataset_id": dataset.id,
             "test_tag": "some content"
         },
-        "inputs":{},
-        "outputs":{},
+        "inputs": {},
+        "outputs": {},
         "resources": {},
         "volumes": {}
     })
@@ -126,6 +126,59 @@ def test_create_task(
     )
     assert response.status_code == 201
 
+def test_create_task_inputs_not_default(
+        cr_client,
+        post_json_admin_header,
+        client,
+        registry_client,
+        reg_k8s_client,
+        task_body
+    ):
+    """
+    Tests task creation returns 201 and if users provide
+    custom location for inputs, this is set as volumeMount
+    """
+    task_body["inputs"] = {"file.csv": "/data/in"}
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(task_body),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 201
+    reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+    pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+
+    assert len(pod_body.spec.containers[0].volume_mounts) == 2
+    # Check if the mount volume is on the correct path
+    assert "/data/in" in [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts]
+    # Check if the INPUT_PATH variable is set
+    assert ["/data/in/file.csv"] == [ev.value for ev in pod_body.spec.containers[0].env if ev.name == "INPUT_PATH"]
+
+def test_create_task_input_path_env_var_override(
+        cr_client,
+        post_json_admin_header,
+        client,
+        registry_client,
+        reg_k8s_client,
+        task_body
+    ):
+    """
+    Tests task creation returns 201 and if users provide
+    INPUT_PATH as a env var, use theirs
+    """
+    task_body["executors"][0]["env"] = {"INPUT_PATH": "/data/in/file.csv"}
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(task_body),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 201
+    reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+    pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+
+    # Check if the INPUT_PATH variable is set
+    assert ["/data/in/file.csv"] == [ev.value for ev in pod_body.spec.containers[0].env if ev.name == "INPUT_PATH"]
+
 def test_create_task_invalid_output_field(
         cr_client,
         post_json_admin_header,
@@ -146,6 +199,26 @@ def test_create_task_invalid_output_field(
     assert response.status_code == 400
     assert response.json == {"error": "\"outputs\" field must be a json object or dictionary"}
 
+def test_create_task_invalid_inputs_field(
+        cr_client,
+        post_json_admin_header,
+        client,
+        registry_client,
+        task_body
+    ):
+    """
+    Tests task creation returns 4xx request when inputs
+    is not a dictionary
+    """
+    task_body["inputs"] = []
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(task_body),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 400
+    assert response.json == {"error": "\"inputs\" field must be a json object or dictionary"}
+
 def test_create_task_no_output_field_reverts_to_default(
         cr_client,
         reg_k8s_client,
@@ -155,10 +228,34 @@ def test_create_task_no_output_field_reverts_to_default(
         task_body
     ):
     """
-    Tests task creation returns 201 but the volume mounted
+    Tests task creation returns 201 but the resutls volume mounted
     is the default one
     """
     task_body.pop("outputs")
+    response = client.post(
+        '/tasks/',
+        data=json.dumps(task_body),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 201
+    reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+    pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+    assert len(pod_body.spec.containers[0].volume_mounts) == 2
+    assert TASK_POD_RESULTS_PATH in [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts]
+
+def test_create_task_no_inputs_field_reverts_to_default(
+        cr_client,
+        reg_k8s_client,
+        post_json_admin_header,
+        client,
+        registry_client,
+        task_body
+    ):
+    """
+    Tests task creation returns 201 but the volume mounted
+    is the default one for the inputs
+    """
+    task_body.pop("inputs")
     response = client.post(
         '/tasks/',
         data=json.dumps(task_body),
