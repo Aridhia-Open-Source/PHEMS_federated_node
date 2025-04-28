@@ -17,7 +17,7 @@ RUN apt-get update \
     && python3 -m pip install --no-cache-dir \
         pyodbc oracledb mariadb "sqlglot[rs]" sqlalchemy mysqlclient psycopg2 \
     && wget -q https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb \
-    && yes | dpkg -i packages-microsoft-prod.deb \
+    && dpkg -i packages-microsoft-prod.deb \
     && rm packages-microsoft-prod.deb \
     && apt-get update \
     && ACCEPT_EULA=Y apt-get install --no-install-recommends -y msodbcsql18 \
