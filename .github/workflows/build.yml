@@ -78,8 +78,8 @@ jobs:
             echo "CHART_VERSION=${version}" >> ${GITHUB_OUTPUT}
             echo "TAG=${appVersion}" >> ${GITHUB_OUTPUT}
           else
-            echo "CHART_VERSION=${version}-${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
-            echo "TAG=${appVersion}-${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
+            echo "CHART_VERSION=${version}-v${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
+            echo "TAG=${appVersion}-v${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
           fi
   linters:
     needs: init
