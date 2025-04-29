@@ -1,6 +1,5 @@
 import os
 import sys
-# from sqlglot.dialects import DIALECT_MODULE_NAMES
 
 from classes import Mssql, Postgres, Mysql, Oracle, Sqlite, MariaDB
 

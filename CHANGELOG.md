@@ -1,7 +1,16 @@
 # Releases Changelog
 
 ## 0.11.0
-
+- Changed the way data is fetched from datasets, now the FN will gather it in a `csv` file and mount it to the analytics pod.
+- The dataset now has an optional `schema` field, mostly for MS SQL services.
+- The POST `tasks` endpoint now uses `db_query` as a new field. This is a json object with `query` and `dialect` as properties.
+- POST `tasks` uses the `input` field to set where the fetched data csv file should be called and where it should be mounted. The format will be
+    ```json
+    {
+        "file_name": "path_to_mount"
+    }
+    ```
+- DB credentials are not passed to the task's pod anymore
 
 ## 0.10.0
 **With this update, if using nginx, you will need to update your dns record to the new ingress' IP**

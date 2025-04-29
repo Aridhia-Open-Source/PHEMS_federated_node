@@ -1828,7 +1828,10 @@
                 "description": "The type of query engine is written for, just so it can be accurately converted to the hosts' local DB",
                 "enum": [
                   "postgres",
-                  "tsql"
+                  "mssql",
+                  "oracle",
+                  "mysql",
+                  "mariadb"
                 ]
               }
             }
