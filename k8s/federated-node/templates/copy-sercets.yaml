@@ -8,10 +8,10 @@ metadata:
   name: {{ . }}
   namespace: {{ include "kc_namespace" $ }}
 data:
-{{- with $sec.data  }}
+{{- with $sec.data }}
 {{ toYaml . | indent 2 }}
 {{- end }}
-type: {{ $sec.type}}
+type: {{ $sec.type }}
 ---
 {{- end }}
 {{- if .Values.storage.azure }}

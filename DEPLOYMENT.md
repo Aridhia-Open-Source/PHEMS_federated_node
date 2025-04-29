@@ -92,6 +92,85 @@ kubectl create secret tls tls --key key.pem --cert cert.crt
 ```
 This will create a special kubernetes secret in the default namespace, append `-n namespace_name` to create it in a specific namespace (i.e. the one where the chart is going to be deployed on)
 
+##### Automatic certificate renewal
+The `cert-manager` tool will be used to provide this functionality. It is disabled by default, if it's needed, set `cert-manager.enabled` to `true` in your values file at deployment time.
+
+If used, it will need few information based on which cloud platform it needs to interface with.
+
+##### Azure
+For azure dns issued certificates, the service principle approach is used. `cert manager` [documentation](https://cert-manager.io/docs/configuration/acme/dns01/azuredns/#service-principal) explains what is needed.
+```sh
+kubectl create secret generic $secret_name \
+    --from-literal=SP_SECRET="$SP_SECRET"
+```
+or using the yaml template:
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+    # set a name of your choosing
+    name:
+    # use the namespace name in case you plan to deploy in a non-default one.
+    # Otherwise you can set to default, or not use the next field altogether
+    namespace:
+data:
+  SP_SECRET:
+type: Opaque
+```
+In addition, a ConfigMap is needed with the less sensitive data:
+```sh
+kubectl create configmap $configmap \
+    --from-literal=SP_ID="$SP_ID" \
+    --from-literal=EMAIL_CERT="$EMAIL_CERT" \
+    --from-literal=HOSTED_ZONE="$HOSTED_ZONE" \
+    --from-literal=RG_NAME="$RG_NAME" \
+    --from-literal=SUBSCRIPTION_ID="$SUB_ID" \
+    --from-literal=TENANT_ID="$TENANT_ID"
+```
+or using the yaml template:
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    # set a name of your choosing
+    name:
+    # use the namespace name in case you plan to deploy in a non-default one.
+    # Otherwise you can set to default, or not use the next field altogether
+    namespace:
+data:
+  SP_ID:
+  EMAIL_CERT:
+  HOSTED_ZONE:
+  RG_NAME:
+  SUBSCRIPTION_ID:
+  TENANT_ID:
+```
+##### AWS:
+```sh
+kubectl create secret generic $secret_name \
+    --from-literal=EMAIL_CERT="$EMAIL_CERT" \
+    --from-literal=ACCOUNT_ID="$ACCOUNT_ID" \
+    --from-literal=REGION="$REGION" \
+    --from-literal=ROLE_NAME="$ROLE_NAME"
+```
+or using the yaml template:
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+    # set a name of your choosing
+    name:
+    # use the namespace name in case you plan to deploy in a non-default one.
+    # Otherwise you can set to default, or not use the next field altogether
+    namespace:
+data:
+  EMAIL_CERT:
+  ACCOUNT_ID:
+  REGION:
+  ROLE_NAME:
+type: Opaque
+```
+
 ### Copying existing secrets
 If the secret(s) exist in another namespace, you can "copy" them with this command:
 ```sh

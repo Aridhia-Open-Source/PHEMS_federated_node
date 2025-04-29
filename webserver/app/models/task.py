@@ -268,7 +268,7 @@ class Task(db.Model, BaseModel):
             "CONNECTION_ARGS": self.dataset.extra_connection_args
         }
 
-    def get_current_pod(self, pod_name:str=None, is_running:bool=True):
+    def get_current_pod(self, is_running:bool=True):
         v1 = KubernetesClient()
         running_pods = v1.list_namespaced_pod(
             TASK_NAMESPACE,
@@ -286,7 +286,7 @@ class Task(db.Model, BaseModel):
         except IndexError:
             return
 
-    def get_status(self, pod_name:str=None) -> dict | str:
+    def get_status(self) -> dict | str:
         """
         k8s sdk returns a bunch of nested objects as a pod's status.
         Here the objects are deconstructed and a customized dictionary is returned
@@ -385,3 +385,25 @@ class Task(db.Model, BaseModel):
         except urllib3.exceptions.MaxRetryError:
             raise InvalidRequest("The cluster could not create the job")
         return res_file
+
+    def get_logs(self):
+        """
+        Retrieve the pod's logs
+        """
+        if 'waiting' in self.get_status():
+            return "Task queued"
+
+        pod = self.get_current_pod(is_running=False)
+        if pod is None:
+            raise TaskExecutionException(f"Task pod {self.id} not found", 400)
+
+        v1 = KubernetesClient()
+        try:
+            return v1.read_namespaced_pod_log(
+                pod.metadata.name, timestamps=True,
+                namespace=TASK_NAMESPACE,
+                container=pod.metadata.name
+            ).splitlines()
+        except ApiException as apie:
+            logger.error(apie)
+            raise TaskExecutionException("Failed to fetch the logs") from apie

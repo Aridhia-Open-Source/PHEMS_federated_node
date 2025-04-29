@@ -1,11 +1,14 @@
+{{- if (index .Values "cert-manager" "enabled") }}
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: {{ index .Values "ingress-nginx" "namespaceOverride" }}
+  name: {{ index .Values "cert-manager" "namespace" }}
   {{- if .Release.IsInstall }}
   labels:
     {{ template "defaultLabels" . }}
   annotations:
     helm.sh/hook: pre-install
+    helm.sh/hook-weight: "-6"
     {{ template "defaultAnnotations" . }}
   {{- end }}
+{{- end }}
