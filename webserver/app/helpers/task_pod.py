@@ -87,6 +87,7 @@ class TaskPod:
             ),
             V1EnvVar(name="DB_PORT", value=str(self.dataset.port)),
             V1EnvVar(name="DB_NAME", value=self.dataset.name),
+            V1EnvVar(name="DB_SCHEMA", value=self.dataset.schema),
             V1EnvVar(name="DB_ARGS", value=self.dataset.extra_connection_args),
             V1EnvVar(name="DB_HOST", value=self.dataset.host)
         ]

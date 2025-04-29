@@ -25,6 +25,7 @@ class Dataset(db.Model, BaseModel):
     name = Column(String(256), unique=True, nullable=False)
     host = Column(String(256), nullable=False)
     port = Column(Integer, default=5432)
+    schema = Column(String(256), nullable=True)
     type = Column(String(256), server_default="postgres", nullable=False)
     extra_connection_args = Column(String(4096), nullable=True)
 
@@ -34,6 +35,7 @@ class Dataset(db.Model, BaseModel):
                  username:str,
                  password:str,
                  port:int=5432,
+                 schema:str=None,
                  type:str="postgres",
                  extra_connection_args:str=None,
                  **kwargs
@@ -43,6 +45,7 @@ class Dataset(db.Model, BaseModel):
         self.url = f"https://{PUBLIC_URL}/datasets/{self.slug}"
         self.host = host
         self.port = port
+        self.schema = schema
         self.type = type
         self.username = username
         self.password = password
