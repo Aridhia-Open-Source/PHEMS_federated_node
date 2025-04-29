@@ -12,4 +12,4 @@ if [ -n "$KERBEROS" ]; then
     fi
 fi
 
-python3 connector.py
+python3 -m connector

@@ -19,8 +19,6 @@ IMAGE_TAG = os.getenv("IMAGE_TAG")
 
 
 class TaskPod:
-    env = []
-    env_init = []
     base_mount_path = "/mnt/vol"
 
     def __init__(
@@ -33,6 +31,7 @@ class TaskPod:
             environment:dict,
             command:str,
             mount_path:dict,
+            input_path:dict,
             resources:dict,
             env_from:list,
             db_query:dict
@@ -44,9 +43,12 @@ class TaskPod:
         self.dry_run = dry_run
         self.command = command
         self.mount_path = mount_path
+        self.input_path = input_path
         self.resources = resources
         self.env_from = env_from
         self.db_query = db_query
+        self.env = []
+        self.env_init = []
         self.create_env_from_dict(environment)
 
     def create_env_from_dict(self, env) -> list[V1EnvVar]:
@@ -145,6 +147,8 @@ class TaskPod:
         """
         self.create_db_env_vars()
         self.env_init.append(V1EnvVar(name="INPUT_MOUNT", value=f"{self.base_mount_path}/{task_id}/input"))
+        if self.input_path:
+            self.env_init.append(V1EnvVar(name="INPUT_FILE", value=list(self.input_path.keys())[0]))
 
         vol_mount = [
             V1VolumeMount(
@@ -200,13 +204,14 @@ class TaskPod:
         task_id = self.labels['task_id']
 
         # input mount
-        in_path = "/mnt/inputs"
-        vol_mounts.append(V1VolumeMount(
-                mount_path=in_path,
-                sub_path=f"{task_id}/input",
-                name="data"
-            ))
-        self.env.append(V1EnvVar(name="INPUT_PATH", value=f"{in_path}/input.csv"))
+        for in_name, in_path in self.input_path.items():
+            vol_mounts.append(V1VolumeMount(
+                    mount_path=in_path,
+                    sub_path=f"{task_id}/input",
+                    name="data"
+                ))
+            if "INPUT_PATH" not in [env.name for env in self.env]:
+                self.env.append(V1EnvVar(name="INPUT_PATH", value=f"{in_path}/{in_name}"))
 
         for mount_name, mount_path in self.mount_path.items():
             vol_mounts.append(V1VolumeMount(

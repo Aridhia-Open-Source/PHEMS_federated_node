@@ -35,6 +35,7 @@ def pod_dict(dataset):
         "env_from": [],
         "command": "cmd",
         "mount_path": {"folder1": "/mnt"},
+        "input_path": {"input.csv": "/mnt"},
         "environment": {},
         "resources": {},
         "db_query": {

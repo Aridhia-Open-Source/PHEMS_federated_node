@@ -11,17 +11,25 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get install --no-install-recommends -y \
+        libpq-dev \
+        wget \
+        odbcinst \
         unixodbc \
         krb5-user \
     && pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir \
-        pyodbc mariadb "sqlglot[rs]" sqlalchemy psycopg2 \
+    && python3 -m pip install --no-cache-dir \
+        pyodbc oracledb mariadb "sqlglot[rs]" sqlalchemy mysqlclient psycopg2 \
+    && wget -q https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb \
+    && dpkg -i packages-microsoft-prod.deb \
+    && rm packages-microsoft-prod.deb \
+    && apt-get update \
+    && ACCEPT_EULA=Y apt-get install --no-install-recommends -y msodbcsql18 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-COPY connector.py /app/
-COPY --chmod=777 entrypoint.sh /app/
+WORKDIR /app/
+COPY *.py /app/
 
 USER ${USER_UID}
+ENV PYTHONPATH=/app
 ENTRYPOINT [ "/app/entrypoint.sh" ]

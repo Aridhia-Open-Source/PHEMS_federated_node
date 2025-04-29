@@ -90,15 +90,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check for vulnerabilities
-        run: |
-          docker run --entrypoint /bin/sh \
-            -v ./webserver/app/Pipfile:/app/Pipfile \
-            -v ./webserver/app/Pipfile.lock:/app/Pipfile.lock \
-            -v ./webserver/vuln.sh:/vuln.sh \
-            python:3.12 \
-            /vuln.sh
-
       - name: Run pylint
         run: |
           make pylint

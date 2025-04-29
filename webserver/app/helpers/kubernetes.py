@@ -71,7 +71,7 @@ class KubernetesBase:
             name=pod_spec["name"],
             image="alpine:3.19",
             volume_mounts=vol_mounts,
-            command=["tail", "-f", "/dev/null"]
+            command=["/bin/sh", "-c", f"sleep {60*60*24}"]
         )
         if pod_spec.get("command"):
             container.command = pod_spec.get("command")
@@ -131,7 +131,7 @@ class KubernetesBase:
             if e.status != 404:
                 raise InvalidRequest(f"Failed to delete pod {name}: {e.reason}")
 
-    def create_persistent_storage(self, task_pv, task_pvc):
+    def create_persistent_storage(self, task_pv:client.V1PersistentVolume, task_pvc:client.V1PersistentVolumeClaim):
         """
         Function to dynamically create (if doesn't already exist)
         a PV and its PVC

@@ -26,8 +26,6 @@ or spawn a new console with the virtualenv -> `pipenv shell`
 
 Check for dependencies upgrades -> `pipenv update --dry-run`
 
-Check for dependencies vulnerabilities locally -> `pipenv check`
-
 Add new package -> `pipenv install --categories <packages|local-dev|tests> package`
 
 If pipenv returns a lock version error, run `pipenv update` (doesn't actively update dependencies versions) to bring [Pipfile.lock](./Pipfile.lock) on par with [Pipfile](./Pipfile)

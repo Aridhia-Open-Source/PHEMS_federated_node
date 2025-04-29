@@ -5,7 +5,6 @@ from kubernetes.client.exceptions import ApiException
 from kubernetes.client import V1ConfigMap
 
 from app.helpers.base_model import BaseModel, db
-from app.helpers.connection import SUPPORTED_ENGINES
 from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, DatasetError
 from app.helpers.keycloak import Keycloak
@@ -14,6 +13,15 @@ from app.helpers.kubernetes import KubernetesClient
 SUPPORTED_AUTHS = [
     "standard",
     "kerberos"
+]
+
+SUPPORTED_ENGINES = [
+    "mssql",
+    "postgres",
+    "mysql",
+    "oracle",
+    "sqlite",
+    "mariadb"
 ]
 
 
@@ -60,7 +68,7 @@ class Dataset(db.Model, BaseModel):
         if auth_type not in SUPPORTED_AUTHS:
             raise InvalidRequest(f"{auth_type} is not supported. Try one of {SUPPORTED_AUTHS}")
 
-        if data.get("type", "postgres") not in SUPPORTED_ENGINES:
+        if data.get("type", "postgres").lower() not in SUPPORTED_ENGINES:
             raise InvalidRequest(f"DB type {data["type"]} is not supported.")
 
         if auth_type == "standard" and not (data.get("username") and data.get("password")):

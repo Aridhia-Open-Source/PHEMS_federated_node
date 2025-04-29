@@ -11,7 +11,7 @@ from uuid import uuid4
 import urllib3
 from app.helpers.const import (
     CLEANUP_AFTER_DAYS, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX,
-    TASK_NAMESPACE, TASK_POD_RESULTS_PATH, RESULTS_PATH
+    TASK_NAMESPACE, TASK_POD_RESULTS_PATH, TASK_POD_INPUTS_PATH, RESULTS_PATH
 )
 from app.helpers.base_model import BaseModel, db
 from app.helpers.keycloak import Keycloak
@@ -91,9 +91,13 @@ class Task(db.Model, BaseModel):
 
         # Output volumes validation
         if not isinstance(data.get("outputs", {}), dict):
-            raise InvalidRequest("\"outputs\" filed muct be a json object or dictionary")
+            raise InvalidRequest("\"outputs\" field must be a json object or dictionary")
         if not data.get("outputs", {}):
             data["outputs"] = {"results": TASK_POD_RESULTS_PATH}
+        if not isinstance(data.get("inputs", {}), dict):
+            raise InvalidRequest("\"inputs\" field must be a json object or dictionary")
+        if not data.get("inputs", {}):
+            data["inputs"] = {"inputs": TASK_POD_INPUTS_PATH}
 
         # Validate resource values
         if "resources" in data:
@@ -241,6 +245,7 @@ class Task(db.Model, BaseModel):
             "environment": provided_env,
             "command": command,
             "mount_path": self.outputs,
+            "input_path": self.inputs,
             "resources": self.resources,
             "env_from": v1.create_from_env_object(secret_name)
         }).create_pod_spec()
@@ -368,7 +373,7 @@ class Task(db.Model, BaseModel):
             res_file = v1.cp_from_pod(
                 job_pod.metadata.name,
                 f"{TASK_POD_RESULTS_PATH}",
-                f"{RESULTS_PATH}/{self.id}/delivery"
+                f"{RESULTS_PATH}"
             )
             v1.delete_pod(job_pod.metadata.name)
             v1_batch.delete_job(job_name)
