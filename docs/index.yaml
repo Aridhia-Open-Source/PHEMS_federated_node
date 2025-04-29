@@ -2,8 +2,27 @@ apiVersion: v1
 entries:
   federated-node:
   - apiVersion: v2
+    appVersion: 0.11.0-v303561
+    created: "2025-04-29T08:00:02.27237255Z"
+    dependencies:
+    - condition: cert-manager.enabled
+      name: cert-manager
+      repository: https://charts.jetstack.io
+      version: v1.17.1
+    - condition: ingress-nginx.enabled
+      name: ingress-nginx
+      repository: https://kubernetes.github.io/ingress-nginx
+      version: 4.12.1
+    description: A Helm chart for deploying the Federated Node on Kubernetes
+    digest: a536c9e4b6826f5f0af11dd3b7831102e894c23d330fc1d64537c1d67aeab635
+    name: federated-node
+    type: application
+    urls:
+    - federated-node-0.11.0-v303561.tgz
+    version: 0.11.0-v303561
+  - apiVersion: v2
     appVersion: 0.10.0-ca49c6
-    created: "2025-04-29T07:56:54.420319961Z"
+    created: "2025-04-29T08:00:02.263461007Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -22,7 +41,7 @@ entries:
     version: 0.11.0-ca49c6
   - apiVersion: v2
     appVersion: 0.11.0-c83e97
-    created: "2025-04-29T07:56:54.410332352Z"
+    created: "2025-04-29T08:00:02.25492039Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -41,7 +60,7 @@ entries:
     version: 0.11.0-c83e97
   - apiVersion: v2
     appVersion: 0.11.0-c37b90
-    created: "2025-04-29T07:56:54.398157711Z"
+    created: "2025-04-29T08:00:02.245759987Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -60,7 +79,7 @@ entries:
     version: 0.11.0-c37b90
   - apiVersion: v2
     appVersion: 0.11.0-bd20d6
-    created: "2025-04-29T07:56:54.384644312Z"
+    created: "2025-04-29T08:00:02.236598164Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -79,7 +98,7 @@ entries:
     version: 0.11.0-bd20d6
   - apiVersion: v2
     appVersion: 0.11.0-b6f3c5
-    created: "2025-04-29T07:56:54.372069997Z"
+    created: "2025-04-29T08:00:02.226648734Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -98,7 +117,7 @@ entries:
     version: 0.11.0-b6f3c5
   - apiVersion: v2
     appVersion: 0.11.0-a1a13b
-    created: "2025-04-29T07:56:54.357155906Z"
+    created: "2025-04-29T08:00:02.216437383Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -117,7 +136,7 @@ entries:
     version: 0.11.0-a1a13b
   - apiVersion: v2
     appVersion: 0.11.0-918ead
-    created: "2025-04-29T07:56:54.347131286Z"
+    created: "2025-04-29T08:00:02.207577891Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -140,7 +159,7 @@ entries:
     version: 0.11.0-918ead
   - apiVersion: v2
     appVersion: 0.10.0-6885b8
-    created: "2025-04-29T07:56:54.335700977Z"
+    created: "2025-04-29T08:00:02.198339989Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -159,7 +178,7 @@ entries:
     version: 0.11.0-6885b8
   - apiVersion: v2
     appVersion: 0.11.0-1f18bb
-    created: "2025-04-29T07:56:54.311278346Z"
+    created: "2025-04-29T08:00:02.179910359Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -178,7 +197,7 @@ entries:
     version: 0.11.0-1f18bb
   - apiVersion: v2
     appVersion: 0.10.0-0801d4
-    created: "2025-04-29T07:56:54.301790254Z"
+    created: "2025-04-29T08:00:02.170824949Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -197,7 +216,7 @@ entries:
     version: 0.11.0-0801d4
   - apiVersion: v2
     appVersion: 0.10.0-039ba2
-    created: "2025-04-29T07:56:54.292696943Z"
+    created: "2025-04-29T08:00:02.161196268Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -216,7 +235,7 @@ entries:
     version: 0.11.0-039ba2
   - apiVersion: v2
     appVersion: 0.11.0-302200
-    created: "2025-04-29T07:56:54.320605388Z"
+    created: "2025-04-29T08:00:02.189059014Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -235,7 +254,7 @@ entries:
     version: 0.11.0-302200
   - apiVersion: v2
     appVersion: 0.10.0
-    created: "2025-04-29T07:56:54.283670506Z"
+    created: "2025-04-29T08:00:02.151042113Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -254,7 +273,7 @@ entries:
     version: 0.10.0
   - apiVersion: v2
     appVersion: 0.10.0-f7bbe2
-    created: "2025-04-29T07:56:54.274675747Z"
+    created: "2025-04-29T08:00:02.142342636Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -273,7 +292,7 @@ entries:
     version: 0.10.0-f7bbe2
   - apiVersion: v2
     appVersion: 0.10.0-f68865
-    created: "2025-04-29T07:56:54.26514982Z"
+    created: "2025-04-29T08:00:02.132992548Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -292,7 +311,7 @@ entries:
     version: 0.10.0-f68865
   - apiVersion: v2
     appVersion: 0.10.0-edef4c
-    created: "2025-04-29T07:56:54.255875665Z"
+    created: "2025-04-29T08:00:02.11754336Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -311,7 +330,7 @@ entries:
     version: 0.10.0-edef4c
   - apiVersion: v2
     appVersion: 0.10.0-deca31
-    created: "2025-04-29T07:56:54.245893024Z"
+    created: "2025-04-29T08:00:02.104941678Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 5620d4f09255e25c2a6eec17e6db304742d7d840c4a67f510718c8cb76d6c5f6
     name: federated-node
@@ -321,7 +340,7 @@ entries:
     version: 0.10.0-deca31
   - apiVersion: v2
     appVersion: 0.10.0-dcabac
-    created: "2025-04-29T07:56:54.245188513Z"
+    created: "2025-04-29T08:00:02.104236822Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -340,7 +359,7 @@ entries:
     version: 0.10.0-dcabac
   - apiVersion: v2
     appVersion: 0.10.0-c8d79d
-    created: "2025-04-29T07:56:54.235972728Z"
+    created: "2025-04-29T08:00:02.094754104Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 82d1be6fca76f5e74c7e3c182761f235b28c603b364b2ec349f3f3e7b179ecd1
     name: federated-node
@@ -350,7 +369,7 @@ entries:
     version: 0.10.0-c8d79d
   - apiVersion: v2
     appVersion: 0.10.0-c8c42b
-    created: "2025-04-29T07:56:54.23524801Z"
+    created: "2025-04-29T08:00:02.094016939Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 64fb7e1f5341c3724217f8cf883a637f21140ebd25f05aaa9998d481528b2ebf
     name: federated-node
@@ -360,7 +379,7 @@ entries:
     version: 0.10.0-c8c42b
   - apiVersion: v2
     appVersion: 0.10.0-ab440a
-    created: "2025-04-29T07:56:54.233852745Z"
+    created: "2025-04-29T08:00:02.092795953Z"
     dependencies:
     - condition: certmanager.enabled
       name: cert-manager
@@ -375,7 +394,7 @@ entries:
     version: 0.10.0-ab440a
   - apiVersion: v2
     appVersion: 0.10.0-a93759
-    created: "2025-04-29T07:56:54.228327496Z"
+    created: "2025-04-29T08:00:02.087347867Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -394,7 +413,7 @@ entries:
     version: 0.10.0-a93759
   - apiVersion: v2
     appVersion: 0.10.0-a7d80e
-    created: "2025-04-29T07:56:54.2191674Z"
+    created: "2025-04-29T08:00:02.078155491Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -413,7 +432,7 @@ entries:
     version: 0.10.0-a7d80e
   - apiVersion: v2
     appVersion: 0.10.0-a599f9
-    created: "2025-04-29T07:56:54.209391863Z"
+    created: "2025-04-29T08:00:02.068479738Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -432,7 +451,7 @@ entries:
     version: 0.10.0-a599f9
   - apiVersion: v2
     appVersion: 0.10.0-a27ea5
-    created: "2025-04-29T07:56:54.198937588Z"
+    created: "2025-04-29T08:00:02.058366413Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 02723ad65079580149ccc2fba3918bd93b96885bf2f320fac3bcb2015e27b0f1
     name: federated-node
@@ -442,7 +461,7 @@ entries:
     version: 0.10.0-a27ea5
   - apiVersion: v2
     appVersion: 0.10.0-9b88f6
-    created: "2025-04-29T07:56:54.198120648Z"
+    created: "2025-04-29T08:00:02.057197676Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -457,7 +476,7 @@ entries:
     version: 0.10.0-9b88f6
   - apiVersion: v2
     appVersion: 0.10.0-828af4
-    created: "2025-04-29T07:56:54.192188633Z"
+    created: "2025-04-29T08:00:02.051266788Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -472,7 +491,7 @@ entries:
     version: 0.10.0-828af4
   - apiVersion: v2
     appVersion: 0.10.0-7be448
-    created: "2025-04-29T07:56:54.184488624Z"
+    created: "2025-04-29T08:00:02.045464892Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -491,7 +510,7 @@ entries:
     version: 0.10.0-7be448
   - apiVersion: v2
     appVersion: 0.10.0-768ef4
-    created: "2025-04-29T07:56:54.174724673Z"
+    created: "2025-04-29T08:00:02.036346968Z"
     dependencies:
     - condition: certmanager.enabled
       name: cert-manager
@@ -506,7 +525,7 @@ entries:
     version: 0.10.0-768ef4
   - apiVersion: v2
     appVersion: 0.10.0-575c4e
-    created: "2025-04-29T07:56:54.168411804Z"
+    created: "2025-04-29T08:00:02.030381957Z"
     dependencies:
     - condition: certmanager.enabled
       name: cert-manager
@@ -521,7 +540,7 @@ entries:
     version: 0.10.0-575c4e
   - apiVersion: v2
     appVersion: 0.10.0-46b356
-    created: "2025-04-29T07:56:54.162668829Z"
+    created: "2025-04-29T08:00:02.025286348Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -540,7 +559,7 @@ entries:
     version: 0.10.0-46b356
   - apiVersion: v2
     appVersion: 0.10.0-3e189a
-    created: "2025-04-29T07:56:54.15260048Z"
+    created: "2025-04-29T08:00:02.015653954Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -555,7 +574,7 @@ entries:
     version: 0.10.0-3e189a
   - apiVersion: v2
     appVersion: 0.10.0-352a55
-    created: "2025-04-29T07:56:54.145344584Z"
+    created: "2025-04-29T08:00:02.009358917Z"
     dependencies:
     - condition: certmanager.enabled
       name: cert-manager
@@ -570,7 +589,7 @@ entries:
     version: 0.10.0-352a55
   - apiVersion: v2
     appVersion: 0.10.0-2c6a60
-    created: "2025-04-29T07:56:54.13993468Z"
+    created: "2025-04-29T08:00:02.003606503Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -585,7 +604,7 @@ entries:
     version: 0.10.0-2c6a60
   - apiVersion: v2
     appVersion: 0.10.0-22a321
-    created: "2025-04-29T07:56:54.138289945Z"
+    created: "2025-04-29T08:00:02.002553498Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -600,7 +619,7 @@ entries:
     version: 0.10.0-22a321
   - apiVersion: v2
     appVersion: 0.10.0-21eae5
-    created: "2025-04-29T07:56:54.132867307Z"
+    created: "2025-04-29T08:00:01.996264459Z"
     dependencies:
     - condition: certmanager.enabled
       name: cert-manager
@@ -615,7 +634,7 @@ entries:
     version: 0.10.0-21eae5
   - apiVersion: v2
     appVersion: 0.10.0-116a23
-    created: "2025-04-29T07:56:54.126594637Z"
+    created: "2025-04-29T08:00:01.990412248Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -630,7 +649,7 @@ entries:
     version: 0.10.0-116a23
   - apiVersion: v2
     appVersion: 0.10.0-080a3a
-    created: "2025-04-29T07:56:54.120523938Z"
+    created: "2025-04-29T08:00:01.985317772Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -649,7 +668,7 @@ entries:
     version: 0.10.0-080a3a
   - apiVersion: v2
     appVersion: 0.10.0-07e6b7
-    created: "2025-04-29T07:56:54.111180998Z"
+    created: "2025-04-29T08:00:01.975888296Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -664,7 +683,7 @@ entries:
     version: 0.10.0-07e6b7
   - apiVersion: v2
     appVersion: 0.10.0-04f437
-    created: "2025-04-29T07:56:54.110140903Z"
+    created: "2025-04-29T08:00:01.97484011Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -683,7 +702,7 @@ entries:
     version: 0.10.0-04f437
   - apiVersion: v2
     appVersion: 0.10.0-02a03a
-    created: "2025-04-29T07:56:54.10081405Z"
+    created: "2025-04-29T08:00:01.965446785Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -702,7 +721,7 @@ entries:
     version: 0.10.0-02a03a
   - apiVersion: v2
     appVersion: 0.9.0
-    created: "2025-04-29T07:56:54.433565394Z"
+    created: "2025-04-29T08:00:02.282381103Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 85fe6f19dc4656ea1103459bd6b98a17031ac1998ec795bd24f90c7c1b0dd628
     name: federated-node
@@ -712,7 +731,7 @@ entries:
     version: 0.9.0
   - apiVersion: v2
     appVersion: 0.8.0
-    created: "2025-04-29T07:56:54.43288044Z"
+    created: "2025-04-29T08:00:02.280799605Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: aeecd07885d82c0ccd868efc825f25cac5a4abbe929fd7d4a6c998159f14a8c4
     name: federated-node
@@ -722,7 +741,7 @@ entries:
     version: 0.8.0
   - apiVersion: v2
     appVersion: 0.7.2
-    created: "2025-04-29T07:56:54.432240069Z"
+    created: "2025-04-29T08:00:02.280204164Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 3a014bdb4a3e32dafa41eed45b0bf65b5adfe267166ce76256e29ba65fe75fef
     name: federated-node
@@ -732,7 +751,7 @@ entries:
     version: 0.7.2
   - apiVersion: v2
     appVersion: 0.7.1
-    created: "2025-04-29T07:56:54.431569531Z"
+    created: "2025-04-29T08:00:02.279558369Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 1a2d73756ad6ea89635947806583e3915993ead86d8b1fa100613e2623f89a25
     name: federated-node
@@ -742,7 +761,7 @@ entries:
     version: 0.7.1
   - apiVersion: v2
     appVersion: 0.7.0
-    created: "2025-04-29T07:56:54.430563348Z"
+    created: "2025-04-29T08:00:02.278907565Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 067ab01cefa677aa42b7f9edbc28686757fb36b4356603df6768e12b99b20acd
     name: federated-node
@@ -752,7 +771,7 @@ entries:
     version: 0.7.0
   - apiVersion: v2
     appVersion: 0.6.0
-    created: "2025-04-29T07:56:54.429330023Z"
+    created: "2025-04-29T08:00:02.278284111Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 467148745f33e38330f265100c3af90b0e397638c44bfb641ab24e2a4551d2ee
     name: federated-node
@@ -762,7 +781,7 @@ entries:
     version: 0.6.2
   - apiVersion: v2
     appVersion: 0.6.0
-    created: "2025-04-29T07:56:54.428120854Z"
+    created: "2025-04-29T08:00:02.277642835Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 596199213abfacdbe3d1e8c5fdd5e21c561f03fe74e02b3d9e08dd4a319ff838
     name: federated-node
@@ -772,7 +791,7 @@ entries:
     version: 0.6.1
   - apiVersion: v2
     appVersion: 0.6.0
-    created: "2025-04-29T07:56:54.42693619Z"
+    created: "2025-04-29T08:00:02.27698631Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: b8d6f93816bf6545558425dd4c4c44bf2d66913edf4388d83dfdfd73b5737a24
     name: federated-node
@@ -782,7 +801,7 @@ entries:
     version: 0.6.0
   - apiVersion: v2
     appVersion: 0.5.2
-    created: "2025-04-29T07:56:54.425807791Z"
+    created: "2025-04-29T08:00:02.27636505Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: dfac3d66dfe4f2fd66d9454c3826056862f15b69768a0ba3a435510ef9acca27
     name: federated-node
@@ -792,7 +811,7 @@ entries:
     version: 0.5.2
   - apiVersion: v2
     appVersion: 0.5.0
-    created: "2025-04-29T07:56:54.424368804Z"
+    created: "2025-04-29T08:00:02.275573363Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 3e4044c1858f934a6854d9911f8dfcb9953a605734e8f31c7be18187b6687784
     name: federated-node
@@ -802,7 +821,7 @@ entries:
     version: 0.5.1
   - apiVersion: v2
     appVersion: 0.5.0
-    created: "2025-04-29T07:56:54.423006589Z"
+    created: "2025-04-29T08:00:02.27475172Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: cf9cf58397f4ec70503ce4ec64b07d874acc4044f352a184c8e3c139aa189ba7
     name: federated-node
@@ -812,7 +831,7 @@ entries:
     version: 0.5.0
   - apiVersion: v2
     appVersion: 0.5.0
-    created: "2025-04-29T07:56:54.421694228Z"
+    created: "2025-04-29T08:00:02.273178845Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 8adbc4b385b1aada1b87af9a662d9b0d81085715cbe749a94d81617ddcf7c150
     name: federated-node
@@ -822,7 +841,7 @@ entries:
     version: 0.4.1
   - apiVersion: v2
     appVersion: 0.1.0
-    created: "2025-04-29T07:56:54.091504135Z"
+    created: "2025-04-29T08:00:01.955071725Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 8d8270f81a89ac5f14f6e6eb7c4fa46a92b460460e41ee86e31aa8346a150d28
     name: federated-node
@@ -832,7 +851,7 @@ entries:
     version: 0.1.0
   - apiVersion: v2
     appVersion: 0.0.7
-    created: "2025-04-29T07:56:54.090102292Z"
+    created: "2025-04-29T08:00:01.954294074Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 39039263a7379f3e92b9a1555cb894a9bd0454564f44b3f18448427051d55714
     name: federated-node
@@ -842,7 +861,7 @@ entries:
     version: 0.0.7
   - apiVersion: v2
     appVersion: 0.0.6
-    created: "2025-04-29T07:56:54.088941432Z"
+    created: "2025-04-29T08:00:01.953470578Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: afe7f4df04bcd392c42d052d51f3e5d713e04ab7f167491189b50c928acb0729
     name: federated-node
@@ -850,4 +869,4 @@ entries:
     urls:
     - federated-node-0.0.6.tgz
     version: 0.0.6
-generated: "2025-04-29T07:56:54.087982428Z"
+generated: "2025-04-29T08:00:01.952463558Z"
