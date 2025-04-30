@@ -7,5 +7,6 @@ metadata:
     {{ template "defaultLabels" . }}
   annotations:
     helm.sh/hook: pre-install
+    helm.sh/hook-weight: "-6"
     {{ template "defaultAnnotations" . }}
   {{- end }}

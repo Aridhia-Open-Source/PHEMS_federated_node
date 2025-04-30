@@ -1,7 +1,9 @@
 # Releases Changelog
 
 ## 0.11.0
-
+- Replaced the keycloak-credential-refresh job with a re-setter one.
+- Added a new value, `create_db_deployment`, only for local deployments. Defaults to `false`
+- Added a weight on the nginx namespace template, as new installation might complain
 
 ## 0.10.0
 **With this update, if using nginx, you will need to update your dns record to the new ingress' IP**
