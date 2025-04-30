@@ -1,3 +1,4 @@
+import logging
 import re
 import requests
 from sqlalchemy import Column, Integer, String
@@ -7,6 +8,9 @@ from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
 from kubernetes.client.exceptions import ApiException
+
+logger = logging.getLogger("dataset_model")
+logger.setLevel(logging.INFO)
 
 SUPPORTED_ENGINES = [
     "mssql",
@@ -59,7 +63,7 @@ class Dataset(db.Model, BaseModel):
         name = name or self.name
 
         cleaned_up_host = re.sub('http(s)*://', '', host)
-        return f"{cleaned_up_host}-{re.sub('\\s|_', '-', name.lower())}-creds"
+        return f"{cleaned_up_host}-{re.sub('\\s|_|#', '-', name.lower())}-creds"
 
     def sanitized_dict(self):
         dataset = super().sanitized_dict()
@@ -181,6 +185,7 @@ class Dataset(db.Model, BaseModel):
                 v1.patch_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=self.get_creds_secret_name(), body=secret)
                 v1.patch_namespaced_secret(namespace=TASK_NAMESPACE, name=self.get_creds_secret_name(), body=secret_task)
         except ApiException as e:
+            logger.error(e.body)
             # Host and name are unique so there shouldn't be duplicates. If so
             # let the exception to be re-raised with the internal one
             raise InvalidRequest(e.reason)

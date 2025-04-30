@@ -19,10 +19,6 @@ spec:
           env:
             - name: ACCEPT_EULA
               value: "Y"
-            - name: POSTGRES_DB
-              value: "testing21"
-            - name: POSTGRES_USER
-              value: "user"
             - name: MSSQL_SA_PASSWORD
               value: "Password1!"
           volumeMounts:
