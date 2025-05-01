@@ -221,7 +221,10 @@ def post_transfer_token():
         if 'email' not in body["requested_by"].keys():
             raise InvalidRequest("Missing email from requested_by field")
 
-        body["requested_by"] = json.dumps(body["requested_by"])
+        user = Keycloak().get_user_by_email(body["requested_by"]["email"])
+        user = user["id"] if user else body["requested_by"]
+
+        body["requested_by"] = user
         ds_id = body.pop("dataset_id")
         body["dataset"] = Dataset.query.filter(Dataset.id == ds_id).one_or_none()
         if body["dataset"] is None:

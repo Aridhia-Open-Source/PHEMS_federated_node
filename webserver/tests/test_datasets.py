@@ -171,8 +171,10 @@ class TestDatasets(MixinTestDataset):
         assert response.json == {"error": "User does not belong to a valid project"}
 
     @mock.patch('app.datasets_api.Request.approve', return_value={"token": "token"})
+    @mock.patch('app.datasets_api.Keycloak.get_user_by_email', return_value={"id": "id"})
     def test_get_dataset_by_id_project_approved(
             self,
+            kc_user_mock,
             req_approve_mock,
             mocker,
             mocks_kc_tasks,
@@ -209,8 +211,10 @@ class TestDatasets(MixinTestDataset):
 
     @mock.patch('app.helpers.keycloak.Keycloak.is_user_admin', return_value=False)
     @mock.patch('app.datasets_api.Request.approve', return_value={"token": "somejwttoken"})
+    @mock.patch('app.datasets_api.Keycloak.get_user_by_email', return_value={"id": "id"})
     def test_get_dataset_by_id_project_non_approved(
             self,
+            kc_user_mock,
             req_mock,
             mocks_is_admin,
             project_not_found,

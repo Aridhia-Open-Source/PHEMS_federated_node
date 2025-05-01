@@ -327,15 +327,6 @@ def request_base_body(dataset):
     }
 
 @pytest.fixture
-def request_model_body(request_base_body, dataset):
-    req_model = copy.deepcopy(request_base_body)
-    req_model.pop("dataset_id")
-    req_model["dataset"] = dataset
-    req_model["requested_by"] = json.dumps(req_model["requested_by"])
-
-    return req_model
-
-@pytest.fixture
 def approve_request(mocker):
     return mocker.patch(
         'app.datasets_api.Request.approve',
