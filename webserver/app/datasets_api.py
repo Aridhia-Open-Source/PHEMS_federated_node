@@ -6,6 +6,8 @@ datasets-related endpoints:
 - GET /datasets/id/catalogues
 - GET /datasets/id/dictionaries
 - GET /datasets/id/dictionaries/table_name
+- POST /datasets/id/containers
+- GET /datasets/id/containers
 - POST /datasets/token_transfer
 - POST /datasets/workspace/token
 - POST /datasets/selection/beacon
@@ -23,6 +25,7 @@ from .models.dataset import Dataset
 from .models.catalogue import Catalogue
 from .models.dictionary import Dictionary
 from .models.request import Request
+from .models.dataset_container import DatasetContainer
 
 
 bp = Blueprint('datasets', __name__, url_prefix='/datasets')
@@ -187,7 +190,6 @@ def get_datasets_dictionaries_by_id_or_name(dataset_id=None, dataset_name=None):
 @bp.route('/<int:dataset_id>/dictionaries/<table_name>', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
-
 def get_datasets_dictionaries_table_by_id_or_name(table_name, dataset_id=None, dataset_name=None):
     """
     GET /datasets/dataset_name/dictionaries/table_name endpoint.
@@ -206,6 +208,31 @@ def get_datasets_dictionaries_table_by_id_or_name(table_name, dataset_id=None, d
         )
 
     return [dc.sanitized_dict() for dc in dictionary], 200
+
+@bp.route('/<dataset_name>/containers', methods=['POST'])
+@bp.route('/<int:dataset_id>/containers', methods=['POST'])
+@audit
+@auth(scope='can_access_dataset')
+def associate_containers_to_dataset_by_id_or_name(dataset_id=None, dataset_name=None):
+    """
+    POST /datasets/dataset_name/containers endpoint.
+    POST /datasets/id/containers endpoint.
+        Create an association between a dataset and a list of containers
+    """
+    dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id, name=dataset_name)
+
+@bp.route('/<dataset_name>/containers', methods=['GET'])
+@bp.route('/<int:dataset_id>/containers', methods=['GET'])
+@audit
+@auth(scope='can_access_dataset')
+def get_associated_containers_to_dataset_by_id_or_name(dataset_id=None, dataset_name=None):
+    """
+    GET /datasets/dataset_name/containers endpoint.
+    GET /datasets/id/containers endpoint.
+        Gets the list of associated containers for a dataset
+    """
+    dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id, name=dataset_name)
+    DatasetContainer.query.filter(DatasetContainer.dataset_id == dataset_id)
 
 @bp.route('/token_transfer', methods=['POST'])
 @audit

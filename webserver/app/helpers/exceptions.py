@@ -57,3 +57,6 @@ class KubernetesException(LogAndException):
 
 class ContainerRegistryException(LogAndException):
     description = "Failed to communicate with the Container Registry"
+
+class DatasetContainerException(LogAndException):
+    description = "Failed to associate the dataset with the container"
