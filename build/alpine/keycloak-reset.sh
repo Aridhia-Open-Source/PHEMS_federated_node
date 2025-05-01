@@ -1,6 +1,6 @@
 #!/bin/sh
 
-psql -d "fn_${PGHOST}" -U "$PGUSER" -f - <<SQL
+psql -d "fn_${PGDATABASE}" -U "$PGUSER" -f - <<SQL
     DELETE FROM credential WHERE user_id IN (SELECT user_id FROM user_entity WHERE username = 'admin');
     DELETE FROM user_role_mapping WHERE user_id IN (SELECT user_id FROM user_entity WHERE username = 'admin');
     DELETE FROM user_entity WHERE username = 'admin';
