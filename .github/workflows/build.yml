@@ -190,3 +190,15 @@ jobs:
       CHART_NAME: federated-node
       IS_TAG: ${{ needs.init.outputs.is_tag }}
       HAS_SUBCHART: true
+  sumamry:
+    needs:
+      - init
+      - release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set summary
+        run: |
+          echo "# Docker Images Tags:" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ needs.init.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "# Helm Chart:" >> $GITHUB_STEP_SUMMARY
+          echo "- federated-node:${{ needs.init.outputs.chart_version }}" >> $GITHUB_STEP_SUMMARY

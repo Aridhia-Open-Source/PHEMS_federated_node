@@ -1,6 +1,9 @@
 # Releases Changelog
 
 ## 0.11.0
+- Replaced the keycloak-credential-refresh job with a re-setter one.
+- Added a new value, `create_db_deployment`, only for local deployments. Defaults to `false`
+- Added a weight on the nginx namespace template, as new installation might complain
 - The datasets are now strictly linked to the `token_transfer` request body. A non-admin user can only trigger a task by providing the project-name they have been approved for. This will avoid inconsistencies with names and ids.
 - The alpine helper image now has the same tag as the backend.
 
