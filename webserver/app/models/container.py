@@ -32,8 +32,6 @@ class Container(db.Model, BaseModel):
         self.ml = ml
         self.dashboard = dashboard
 
-        # Check if the image is there
-
     @classmethod
     def validate(cls, data:dict):
         data = super().validate(data)

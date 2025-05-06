@@ -9,8 +9,9 @@ from app.helpers.exceptions import DatasetContainerException
 class DatasetContainer(db.Model, BaseModel):
     __tablename__ = 'datasetcontainers'
 
-    all = Column(Boolean, default=False)
+    all = Column(Boolean(), default=False)
 
+    id = Column(Integer, primary_key=True, autoincrement=True)
     dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'), nullable=True)
     dataset = relationship("Dataset")
 
@@ -28,12 +29,20 @@ class DatasetContainer(db.Model, BaseModel):
         self.container = container
         self.all = all
 
-    def validate(self, data:dict):
-        dataset = Dataset.query.filter_by(id=data.get("dataset_id")).one_or_none()
-        container = Container.query.filter_by(id=data.get("container_id")).one_or_none()
-        if not dataset and not container:
-            raise DatasetContainerException("Dataset or Container has to be provided")
+    @classmethod
+    def get_by_dataset(cls, dataset:Dataset, to_dict:bool=False) -> list:
+        """
+        Simply fetch by dataset, and format for output
+        """
+        dcs = DatasetContainer.query.join(Container, isouter=True) \
+            .filter(DatasetContainer.dataset_id == dataset.id).all()
+        if not to_dict:
+            return dcs
 
-        all = data.get("all")
+        parsed_list = []
+        for dc in dcs:
+            if not dc.container:
+                return ['*']
 
-
+            parsed_list.append(dc.container.sanitized_dict())
+        return parsed_list
