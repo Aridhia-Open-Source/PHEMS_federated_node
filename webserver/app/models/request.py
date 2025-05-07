@@ -1,4 +1,5 @@
 from datetime import datetime
+import logging
 from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, update
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -7,6 +8,10 @@ from app.helpers.db import BaseModel, db
 from app.models.dataset import Dataset
 from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import DBError, InvalidRequest, LogAndException
+
+
+logger = logging.getLogger('request_model')
+logger.setLevel(logging.INFO)
 
 
 class Request(db.Model, BaseModel):
@@ -84,18 +89,25 @@ class Request(db.Model, BaseModel):
 
             new_client_name = self._get_client_name(user["email"])
             token_lifetime = (self.proj_end - datetime.now()).seconds
+
+            logger.info("Creating client %s", new_client_name)
             global_kc_client.create_client(new_client_name, token_lifetime)
 
+            logger.info("%s - Getting admin token", new_client_name)
             kc_client = Keycloak(new_client_name)
+            logger.info("%s - Token exchange", new_client_name)
             kc_client.enable_token_exchange()
 
             scopes = ["can_admin_dataset","can_exec_task", "can_admin_task", "can_access_dataset"]
+
+            logger.info("%s - Creating scopes", new_client_name)
             created_scopes = []
             for scope in scopes:
                 created_scopes.append(kc_client.create_scope(scope))
 
             ds = Dataset.query.filter(Dataset.id == self.dataset_id).one_or_none()
 
+            logger.info("%s - Creating resource", new_client_name)
             resource = kc_client.create_resource({
                 "name": f"{ds.id}-{ds.name}",
                 "owner": {"id": kc_client.client_id, "name": new_client_name},
@@ -104,6 +116,7 @@ class Request(db.Model, BaseModel):
                 "uris": []
             })
 
+            logger.info("%s - Creating policies", new_client_name)
             policies = []
             # Create admin policy
             policies.append(kc_client.create_policy({
@@ -136,6 +149,8 @@ class Request(db.Model, BaseModel):
                 "notBefore": self.proj_start.strftime("%Y-%m-%d %H:%M:%S"),
                 "notOnOrAfter": self.proj_end.strftime("%Y-%m-%d %H:%M:%S")
             }, "/time")
+
+            logger.info("%s - Creating permissions", new_client_name)
             # Admin permission
             kc_client.create_permission({
                 "name": f"{ds.id}-{ds.name} Administration Permission",
@@ -159,7 +174,10 @@ class Request(db.Model, BaseModel):
                 "scopes": [scope["id"] for scope in created_scopes]
             })
 
+            logger.info("%s - Impersonation token", new_client_name)
             ret_response = {"token": kc_client.get_impersonation_token(user["id"])}
+
+            logger.info("Updating DB")
             query = update(Request).\
                 where(Request.id == self.id).\
                 values(status=self.STATUSES["approved"], requested_by=user["id"])

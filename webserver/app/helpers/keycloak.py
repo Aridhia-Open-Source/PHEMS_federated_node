@@ -41,7 +41,6 @@ URLS = {
 
 class Keycloak:
     def __init__(self, client='global') -> None:
-        self.client_secret = KEYCLOAK_SECRET
         self.client_name = client
         self.admin_token = self.get_admin_token()
         self.client_id = self.get_client_id()
@@ -141,19 +140,23 @@ class Keycloak:
         """
         return response.status_code == 409 or response.ok
 
-    def _get_client_secret(self) -> str:
+    def _get_client_secret(self, client_id:str=None) -> str:
         """
         Given the client id, fetches the client's secret if has one.
         """
+        if not client_id:
+            client_id = self.client_id
+
         secret_resp = requests.get(
-            URLS["client_secret"] % self.client_id,
+            URLS["client_secret"] % client_id,
             headers={
                 "Authorization": f"Bearer {self.admin_token}"
             }
         )
         if not secret_resp.ok:
             logger.info(secret_resp.content.decode())
-            raise KeycloakError("Failed to fetch client's secret")
+            raise KeycloakError(f"Failed to fetch {client_id}'s secret")
+
         return secret_resp.json()["value"]
 
     def get_token(self, username=None, password=None, token_type='refresh_token', payload:dict=None, raise_on_temp_pass:bool=True) -> str:
@@ -166,6 +169,7 @@ class Keycloak:
             return the whole response object, otherwise it will raise exceptions
             on status code != 200
         """
+        logger.info("%s) get_token", self.client_name)
         if payload is None:
             payload = {
                 'client_id': self.client_name,
@@ -219,6 +223,7 @@ class Keycloak:
         """
         Get administrative level token
         """
+        logger.info("get_admin_token_global")
         payload = {
             'client_id': KEYCLOAK_CLIENT,
             'client_secret': KEYCLOAK_SECRET,
