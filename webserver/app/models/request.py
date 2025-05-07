@@ -78,6 +78,7 @@ class Request(db.Model, BaseModel):
         Method to orchestrate the Keycloak objects creation
         """
         session = db.session
+        self.proj_end = self.proj_end.replace(hour=23, minute=59)
         try:
             global_kc_client = Keycloak()
             user = global_kc_client.get_user_by_id(self.requested_by)
