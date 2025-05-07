@@ -20,7 +20,9 @@ namespaces:
 token:
   life: 2592000
 
+# Local Development-related options
 local_development: false
+create_db_deployment: false
 
 db:
   user: admin

@@ -19,6 +19,7 @@ from app.helpers.kubernetes import KubernetesBatchClient, KubernetesClient
 from app.helpers.exceptions import DBError, InvalidRequest, TaskImageException, TaskExecutionException
 from app.models.dataset import Dataset
 from app.models.container import Container
+from app.models.request import Request
 
 logger = logging.getLogger('task_model')
 logger.setLevel(logging.INFO)
@@ -66,19 +67,28 @@ class Task(db.Model, BaseModel):
 
     @classmethod
     def validate(cls, data:dict):
-        data["requested_by"] = Keycloak().decode_token(
-            Keycloak.get_token_from_headers()
-        ).get('sub')
+        kc_client = Keycloak()
+        user_token = Keycloak.get_token_from_headers()
+        data["requested_by"] = kc_client.decode_token(user_token).get('sub')
+        user = kc_client.get_user_by_id(data["requested_by"])
         # Support only for one image at a time, the standard is executors == list
         executors = data["executors"][0]
         data["docker_image"] = executors["image"]
         data = super().validate(data)
 
         # Dataset validation
-        ds_id = data.get("tags", {}).get("dataset_id")
-        ds_name = data.get("tags", {}).get("dataset_name")
-        if ds_name or ds_id:
-            data["dataset"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
+        if kc_client.is_user_admin(user_token):
+            ds_id = data.get("tags", {}).get("dataset_id")
+            ds_name = data.get("tags", {}).get("dataset_name")
+            if ds_name or ds_id:
+                data["dataset"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
+            else:
+                raise InvalidRequest("Administrators need to provide `tags.dataset_id` or `tags.dataset_name`")
+        else:
+            data["dataset"] = Request.get_active_project(
+                data["project_name"],
+                user["id"]
+            ).dataset
 
         # Docker image validation
         if not re.match(r'^((\w+|-|\.)\/?+)+:(\w+(\.|-)?)+$', data["docker_image"]):
@@ -268,7 +278,7 @@ class Task(db.Model, BaseModel):
             "CONNECTION_ARGS": self.dataset.extra_connection_args
         }
 
-    def get_current_pod(self, pod_name:str=None, is_running:bool=True):
+    def get_current_pod(self, is_running:bool=True):
         v1 = KubernetesClient()
         running_pods = v1.list_namespaced_pod(
             TASK_NAMESPACE,
@@ -286,7 +296,7 @@ class Task(db.Model, BaseModel):
         except IndexError:
             return
 
-    def get_status(self, pod_name:str=None) -> dict | str:
+    def get_status(self) -> dict | str:
         """
         k8s sdk returns a bunch of nested objects as a pod's status.
         Here the objects are deconstructed and a customized dictionary is returned
@@ -385,3 +395,25 @@ class Task(db.Model, BaseModel):
         except urllib3.exceptions.MaxRetryError:
             raise InvalidRequest("The cluster could not create the job")
         return res_file
+
+    def get_logs(self):
+        """
+        Retrieve the pod's logs
+        """
+        if 'waiting' in self.get_status():
+            return "Task queued"
+
+        pod = self.get_current_pod(is_running=False)
+        if pod is None:
+            raise TaskExecutionException(f"Task pod {self.id} not found", 400)
+
+        v1 = KubernetesClient()
+        try:
+            return v1.read_namespaced_pod_log(
+                pod.metadata.name, timestamps=True,
+                namespace=TASK_NAMESPACE,
+                container=pod.metadata.name
+            ).splitlines()
+        except ApiException as apie:
+            logger.error(apie)
+            raise TaskExecutionException("Failed to fetch the logs") from apie

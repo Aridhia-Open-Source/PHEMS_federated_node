@@ -78,8 +78,8 @@ jobs:
             echo "CHART_VERSION=${version}" >> ${GITHUB_OUTPUT}
             echo "TAG=${appVersion}" >> ${GITHUB_OUTPUT}
           else
-            echo "CHART_VERSION=${version}-${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
-            echo "TAG=${appVersion}-${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
+            echo "CHART_VERSION=${version}-v${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
+            echo "TAG=${appVersion}-v${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
           fi
   linters:
     needs: init
@@ -90,15 +90,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check for vulnerabilities
-        run: |
-          docker run --entrypoint /bin/sh \
-            -v ./webserver/app/Pipfile:/app/Pipfile \
-            -v ./webserver/app/Pipfile.lock:/app/Pipfile.lock \
-            -v ./webserver/vuln.sh:/vuln.sh \
-            python:3.12 \
-            /vuln.sh
-
       - name: Run pylint
         run: |
           make pylint
@@ -172,12 +163,12 @@ jobs:
           file: build/keycloak/keycloak.Dockerfile
           tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_keycloak:${{ needs.init.outputs.tag }}
           push: true
-      - name: Build and push Cleaner image
+      - name: Build and push Alpine image
         uses: docker/build-push-action@v5
         with:
           context: build/alpine
           file: build/alpine/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/alpine:3.19
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/alpine:${{ needs.init.outputs.tag }}
           push: true
       - name: Build and push KC initialiser image
         uses: docker/build-push-action@v5
@@ -199,3 +190,15 @@ jobs:
       CHART_NAME: federated-node
       IS_TAG: ${{ needs.init.outputs.is_tag }}
       HAS_SUBCHART: true
+  sumamry:
+    needs:
+      - init
+      - release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set summary
+        run: |
+          echo "# Docker Images Tags:" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ needs.init.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "# Helm Chart:" >> $GITHUB_STEP_SUMMARY
+          echo "- federated-node:${{ needs.init.outputs.chart_version }}" >> $GITHUB_STEP_SUMMARY

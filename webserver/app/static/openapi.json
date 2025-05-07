@@ -668,6 +668,39 @@
         }
       }
     },
+    "/tasks/{id}/logs": {
+      "get": {
+        "operationId": "get_task_logs",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {"type": "integer"}
+          }
+        ],
+        "tags": ["Tasks"],
+        "summary": "Get task logs if available",
+        "responses":{
+          "200":{
+            "$ref": "#/components/responses/TaskLogs"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/login": {
       "post": {
         "operationId": "login",
@@ -1262,6 +1295,33 @@
           }
         }
       },
+      "TaskLogs": {
+        "description": "Pod's logs",
+        "content": {
+          "application/json":{
+            "schema":{
+              "type":"object",
+              "properties": {
+                "logs":{
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "example": "2025-03-11T14:14:43.770925327Z R version 4.3.3 (2024-02-29) -- \"Angel Food Cake\""
+                      }
+                    },{
+                      "type": "string",
+                      "description": "Response when a task is still initializing",
+                      "example": "Task queued"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
       "TokenResponse": {
         "description": "Token created",
         "content": {
@@ -1745,14 +1805,11 @@
             "required": ["dataset_id"]
           },
           "outputs": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "description": "An object where the key is a human readable name and the value is the path to which a volume will be mounted on at run time to fetch the results. The key value, in the example folder1, will be used as folder name in the results archive as well.",
-              "example": {
-                "folder1": "/mnt/data/results",
-                "folder2": "/home/john/analysis/csvs"
-              }
+            "type": "object",
+            "description": "An object where the key is a human readable name and the value is the path to which a volume will be mounted on at run time to fetch the results. The key value, in the example folder1, will be used as folder name in the results archive as well.",
+            "example": {
+              "folder1": "/mnt/data/results",
+              "folder2": "/home/john/analysis/csvs"
             }
           },
           "resources": {

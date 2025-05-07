@@ -56,7 +56,7 @@ class KubernetesBase:
             env.append(client.V1EnvVar(name=k, value=str(v)))
         return env
 
-    def create_pod_spec(self, pod_spec:dict):
+    def create_pod_spec(self, pod_spec:dict) -> client.V1Pod:
         """
         Given a dictionary with a pod config deconstruct it
         and assemble it with the different sdk objects
@@ -100,6 +100,7 @@ class KubernetesBase:
             containers=[container],
             image_pull_secrets=secrets,
             restart_policy="Never",
+            automount_service_account_token=False,
             volumes=[
                 client.V1Volume(name="data", persistent_volume_claim=pvc)
             ]
@@ -368,6 +369,7 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
                 if e.status == 409:
                     pass
                 else:
+                    logger.error(e.body)
                     raise InvalidRequest(e.reason)
         return body
 

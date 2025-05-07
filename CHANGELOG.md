@@ -1,6 +1,12 @@
 # Releases Changelog
 
 ## 0.11.0
+- Replaced the keycloak-credential-refresh job with a re-setter one.
+- Added a new value, `create_db_deployment`, only for local deployments. Defaults to `false`
+- Added a weight on the nginx namespace template, as new installation might complain
+- The datasets are now strictly linked to the `token_transfer` request body. A non-admin user can only trigger a task by providing the project-name they have been approved for. This will avoid inconsistencies with names and ids.
+- The alpine helper image now has the same tag as the backend.
+
 ### Security
 - Added the following headers to nginx:
     - `strict-transport-security`
@@ -10,6 +16,9 @@
     - `x-content-type-options`
     - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to self)
 - Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
+
+## Bugfixes
+- Fixed an issue with the result cleaner where the volume mounted would include too much
 
 ## 0.10.0
 **With this update, if using nginx, you will need to update your dns record to the new ingress' IP**
@@ -43,6 +52,8 @@
                 externalTrafficPolicy: Local
     ```
 - nginx namespace is now defined in `ingress-nginx.namespaceOverride`
+- Added the `/tasks/<task_id>/logs` to fetch a task pod's logs.
+- Task's pods will not have service account tokens mounted
 
 ### Security
 - Updated the nginx version to `1.12.1` to address a vulnerability
