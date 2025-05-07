@@ -17,6 +17,9 @@ The necessary values are:
 |db.secret|key|Secret key where the password is stored|
 |db.secret|name|Secret name|
 |-|-|-|
+|token|life|Duration in seconds for tokens|
+|-|-|-|
+|integrations|domains|The list of third party host that can reach the Federated Node. Otherwise these will be blocked by CSP policies. This will not affect direct user API usage.|
 |host|The URL where the FN will be hosted at|
 |whitelist|enabled|Enable the whitelist of IP CIDRs|
 |whitelist|ips|List of IP CIDRs|
