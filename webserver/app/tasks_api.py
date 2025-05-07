@@ -89,7 +89,9 @@ def post_tasks():
     POST /tasks/ endpoint. Creates a new task
     """
     try:
-        body = Task.validate(request.json)
+        req_body = request.json
+        req_body["project_name"] = request.headers.get("project-name")
+        body = Task.validate(req_body)
         task = Task(**body)
         task.add()
         # Create pod/start ML pipeline
@@ -107,7 +109,9 @@ def post_tasks_validate():
     POST /tasks/validate endpoint.
         Allows task definition validation and the DB query that will be used
     """
-    Task.validate(request.json)
+    req_body = request.json
+    req_body["project_name"] = request.headers.get("project-name")
+    Task.validate(req_body)
     return "Ok", 200
 
 @bp.route('/<task_id>/results', methods=['GET'])

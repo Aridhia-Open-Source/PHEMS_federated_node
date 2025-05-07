@@ -7,7 +7,6 @@ datasets-related endpoints:
 - GET /datasets/id/dictionaries
 - GET /datasets/id/dictionaries/table_name
 - POST /datasets/token_transfer
-- POST /datasets/workspace/token
 - POST /datasets/selection/beacon
 """
 import json
@@ -132,7 +131,8 @@ def patch_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
                     "displayName": f"{ds.id} - {ds.name}"
                 }
 
-                req_by = json.loads(dar[0]).get("email")
+                user = Keycloak().get_user_by_id(dar[0])
+                req_by = user["email"]
                 kc_client = Keycloak(client=f"Request {req_by} - {dar[1]}")
                 kc_client.patch_resource(f"{ds.id}-{old_ds_name}", **update_args)
         # Update catalogue and dictionaries
@@ -221,7 +221,10 @@ def post_transfer_token():
         if 'email' not in body["requested_by"].keys():
             raise InvalidRequest("Missing email from requested_by field")
 
-        body["requested_by"] = json.dumps(body["requested_by"])
+        user = Keycloak().get_user_by_email(body["requested_by"]["email"])
+        user = user["id"] if user else body["requested_by"]
+
+        body["requested_by"] = user
         ds_id = body.pop("dataset_id")
         body["dataset"] = Dataset.query.filter(Dataset.id == ds_id).one_or_none()
         if body["dataset"] is None:
@@ -240,16 +243,6 @@ def post_transfer_token():
     except:
         session.rollback()
         raise
-
-@bp.route('/workspace/token', methods=['POST'])
-@audit
-@auth(scope='can_transfer_token', check_dataset=False)
-def post_workspace_transfer_token():
-    """
-    POST /datasets/workspace/token endpoint.
-        Sends a user's token based on an approved DAR to an approved third-party
-    """
-    return "WIP", 200
 
 @bp.route('/selection/beacon', methods=['POST'])
 @audit
