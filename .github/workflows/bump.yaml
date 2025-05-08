@@ -20,6 +20,10 @@ on:
         description: 'CertManager sub-chart version'
         required: false
         type: string
+      ingressNginx:
+        description: 'Nginx ingress sub-chart version'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -44,24 +48,27 @@ jobs:
         env:
           CHART_VERSION: ${{ inputs.chartVersion }}
           APP_VERSION: ${{ inputs.appVersion }}
-          CERTMANAGER_VERSION: ${{ inputs.certManager }}
         run: |
           if [[ $(grep '${CHART_VERSION}' Chart.yaml) ]]; then
             echo "Nothing to change. Exiting early"
             exit 0
           fi
-          sed -i "s/version: .*/version: ${CHART_VERSION}/" Chart.yaml
+          sed -i "s/^version: .*/version: ${CHART_VERSION}/" Chart.yaml
 
           if [[ -n "${APP_VERSION}" ]]; then
-            sed -i "s/appVersion: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
+            sed -i "s/^appVersion: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
           fi
           cat Chart.yaml
       - name: Update SubCharts Version
         env:
           CERTMANAGER_VERSION: ${{ inputs.certManager }}
+          NGINX_VERSION: ${{ inputs.ingressNginx }}
         run: |
           if [[ -n "${CERTMANAGER_VERSION}" ]]; then
             python scripts/upgrade_subchart.py -s cert-manager -v ${CERTMANAGER_VERSION}
+          fi
+          if [[ -n "${NGINX_VERSION}" ]]; then
+            python scripts/upgrade_subchart.py -s ingress-nginx -v ${NGINX_VERSION}
           fi
           cat k8s/federated-node/Chart.yaml
       - name: Commit Changes
