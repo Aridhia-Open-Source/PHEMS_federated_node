@@ -8,10 +8,12 @@ from kubernetes.stream import stream
 from kubernetes.client.exceptions import ApiException
 from kubernetes.watch import Watch
 from app.helpers.exceptions import InvalidRequest, KubernetesException
-from app.helpers.const import TASK_NAMESPACE, TASK_PULL_SECRET_NAME
+from app.helpers.const import TASK_NAMESPACE
+
 
 logger = logging.getLogger('kubernetes_helper')
 logger.setLevel(logging.INFO)
+
 
 class KubernetesBase:
     def __init__(self) -> None:
@@ -45,78 +47,6 @@ class KubernetesBase:
         """
         return [client.V1EnvFromSource(secret_ref=client.V1SecretEnvSource(name=secret_name))]
 
-    def create_env_from_dict(self, env_dict) -> list[client.V1EnvVar]:
-        """
-        Kubernetes library accepts env vars as a V1EnvVar
-        object. This method converts a dict into V1EnvVar
-        """
-        env = []
-        client.V1ContainerState
-        for k, v in env_dict.items():
-            env.append(client.V1EnvVar(name=k, value=str(v)))
-        return env
-
-    def create_pod_spec(self, pod_spec:dict) -> client.V1Pod:
-        """
-        Given a dictionary with a pod config deconstruct it
-        and assemble it with the different sdk objects
-        """
-        # Create a dedicated VPC for each task so that we can keep results indefinitely
-        self.create_persistent_storage(pod_spec["name"], pod_spec["labels"])
-        pvc_name = f"{pod_spec["name"]}-volclaim"
-        pvc = client.V1PersistentVolumeClaimVolumeSource(claim_name=pvc_name)
-
-        vol_mounts = []
-        # All results volumes will be mounted in a folder named
-        # after the task_id, so all of the "output" user-defined
-        # folders will be in i.e. /mnt/data/14/folder2
-        base_mount_folder = f"{pod_spec['labels']['task_id']}"
-
-        for mount_name, mount_path in pod_spec.get("mount_path", {}).items():
-            vol_mounts.append(client.V1VolumeMount(
-                mount_path=mount_path,
-                sub_path=f"{base_mount_folder}/{mount_name}",
-                name="data"
-            ))
-
-        container = client.V1Container(
-            name=pod_spec["name"],
-            image=pod_spec["image"],
-            env=self.create_env_from_dict(pod_spec.get("environment", {})),
-            env_from=pod_spec["env_from"],
-            volume_mounts=vol_mounts,
-            image_pull_policy="Always",
-            resources = pod_spec.get("resources", {})
-        )
-
-        if pod_spec["command"]:
-            container.command = pod_spec["command"]
-
-        secrets = [client.V1LocalObjectReference(name=TASK_PULL_SECRET_NAME)]
-
-        specs = client.V1PodSpec(
-            termination_grace_period_seconds=300,
-            init_containers=[self.get_task_pod_init_container(pod_spec['labels']['task_id'])],
-            containers=[container],
-            image_pull_secrets=secrets,
-            restart_policy="Never",
-            automount_service_account_token=False,
-            volumes=[
-                client.V1Volume(name="data", persistent_volume_claim=pvc)
-            ]
-        )
-        metadata = client.V1ObjectMeta(
-            name=pod_spec["name"],
-            namespace=TASK_NAMESPACE,
-            labels=pod_spec["labels"]
-        )
-        return client.V1Pod(
-            api_version='v1',
-            kind='Pod',
-            metadata=metadata,
-            spec=specs
-        )
-
     def create_job_spec(self, pod_spec:dict):
         """
         Given a dictionary with a job config deconstruct it
@@ -134,13 +64,14 @@ class KubernetesBase:
             )
             vol_mounts.append(client.V1VolumeMount(
                 mount_path=pvc["mount_path"],
-                name=pvc["vol_name"]
+                name=pvc["vol_name"],
+                sub_path=pvc["sub_path"]
             ))
         container = client.V1Container(
             name=pod_spec["name"],
             image="alpine:3.19",
             volume_mounts=vol_mounts,
-            command=["tail", "-f", "/dev/null"]
+            command=["/bin/sh", "-c", f"sleep {60*60*24}"]
         )
         if pod_spec.get("command"):
             container.command = pod_spec.get("command")
@@ -168,26 +99,6 @@ class KubernetesBase:
             kind='Job',
             metadata=metadata,
             spec=specs
-        )
-
-    def get_task_pod_init_container(self, task_id:str):
-        """
-        This will return a common spec for initContainer
-        fot analytics tasks.
-        The aim is to prepare the PV task-dedicated folder
-        so the whole volume is not exposed
-        """
-        mount_path = "/mnt/vol"
-
-        vol_mount = client.V1VolumeMount(
-            mount_path=mount_path,
-            name="data"
-        )
-        return client.V1Container(
-            name=f"init-{task_id}",
-            image="alpine:3.19",
-            volume_mounts=[vol_mount],
-            command=["mkdir", "-p", f"{mount_path}/{task_id}"]
         )
 
     def delete_pod(self, name:str, namespace=TASK_NAMESPACE):
@@ -220,53 +131,19 @@ class KubernetesBase:
             if e.status != 404:
                 raise InvalidRequest(f"Failed to delete pod {name}: {e.reason}")
 
-    def create_persistent_storage(self, name:str, labels:list = []):
+    def create_persistent_storage(self, task_pv:client.V1PersistentVolume, task_pvc:client.V1PersistentVolumeClaim):
         """
         Function to dynamically create (if doesn't already exist)
         a PV and its PVC
         :param name: is the PV name and PVC prefix
         """
-        pv_spec = client.V1PersistentVolumeSpec(
-            access_modes=['ReadWriteMany'],
-            capacity={"storage": "100Mi"},
-            storage_class_name="shared-results"
-        )
-        if os.getenv("AZURE_STORAGE_ENABLED"):
-            pv_spec.azure_file=client.V1AzureFilePersistentVolumeSource(
-                read_only=False,
-                secret_name=os.getenv("AZURE_SECRET_NAME"),
-                share_name=os.getenv("AZURE_SHARE_NAME")
-            )
-        else:
-            pv_spec.host_path=client.V1HostPathVolumeSource(
-                path=f"/data/{name}"
-            )
-
-        pv = client.V1PersistentVolume(
-            api_version='v1',
-            kind='PersistentVolume',
-            metadata=client.V1ObjectMeta(name=name, namespace=TASK_NAMESPACE, labels=labels),
-            spec=pv_spec
-        )
-
-        pvc = client.V1PersistentVolumeClaim(
-            api_version='v1',
-            kind='PersistentVolumeClaim',
-            metadata=client.V1ObjectMeta(name=f"{name}-volclaim", namespace=TASK_NAMESPACE, labels=labels),
-            spec=client.V1PersistentVolumeClaimSpec(
-                access_modes=['ReadWriteMany'],
-                volume_name=name,
-                storage_class_name="shared-results",
-                resources=client.V1VolumeResourceRequirements(requests={"storage": "100Mi"})
-            )
-        )
         try:
-            self.create_persistent_volume(body=pv)
+            self.create_persistent_volume(body=task_pv)
         except ApiException as kexc:
             if kexc.status != 409:
                 raise KubernetesException(kexc.body)
         try:
-            self.create_namespaced_persistent_volume_claim(namespace=TASK_NAMESPACE, body=pvc)
+            self.create_namespaced_persistent_volume_claim(namespace=TASK_NAMESPACE, body=task_pvc)
         except ApiException as kexc:
             if kexc.status != 409:
                 raise KubernetesException(kexc.body)

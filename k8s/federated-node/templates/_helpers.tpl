@@ -36,6 +36,9 @@ ghcr.io/aridhia-open-source/federated_node_run
 {{- define "fn-alpine" -}}
 ghcr.io/aridhia-open-source/alpine:{{ .Values.backend.tag | default .Chart.AppVersion }}
 {{- end }}
+{{- define "image-tag" -}}
+{{ .Values.backend.tag | default .Chart.AppVersion }}
+{{- end }}
 
 {{/*
 Common labels

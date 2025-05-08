@@ -8,7 +8,7 @@ from sqlalchemy.exc import ProgrammingError, OperationalError
 from unittest import mock
 from unittest.mock import Mock
 
-from app.helpers.db import db
+from app.helpers.base_model import db
 from app.helpers.exceptions import KeycloakError
 from app.models.dataset import Dataset
 from app.models.catalogue import Catalogue
@@ -67,6 +67,7 @@ class TestDatasets(MixinTestDataset):
             "type": "postgres",
             "url": f"https://{self.hostname}/datasets/{dataset.name}",
             "slug": dataset.name,
+            "schema": None,
             "extra_connection_args": None
         }
 
@@ -356,6 +357,7 @@ class TestPostDataset(MixinTestDataset):
             "port": 5432,
             "type": "postgres",
             "slug": "test-dataset",
+            "schema": None,
             "extra_connection_args": None,
             "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset"
         }

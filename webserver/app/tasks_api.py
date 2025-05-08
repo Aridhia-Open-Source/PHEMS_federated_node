@@ -14,7 +14,7 @@ from app.helpers.const import CLEANUP_AFTER_DAYS
 from app.helpers.exceptions import DBRecordNotFoundError, UnauthorizedError
 from app.helpers.keycloak import Keycloak
 from app.helpers.wrappers import audit, auth
-from app.helpers.db import db
+from app.helpers.base_model import db
 from app.helpers.query_filters import parse_query_params
 from app.models.task import Task
 

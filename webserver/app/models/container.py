@@ -1,7 +1,7 @@
 import re
 from sqlalchemy import Column, Integer, Boolean, String, ForeignKey
 from sqlalchemy.orm import relationship
-from app.helpers.db import BaseModel, db
+from app.helpers.base_model import BaseModel, db
 from app.models.registry import Registry
 from app.helpers.exceptions import ContainerRegistryException, InvalidRequest
 

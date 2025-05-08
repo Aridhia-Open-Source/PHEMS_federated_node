@@ -9,7 +9,7 @@ containers endpoints:
 import logging
 from flask import Blueprint, request
 
-from .helpers.db import db
+from .helpers.base_model import db
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from .helpers.wrappers import audit, auth
 from .models.container import Container

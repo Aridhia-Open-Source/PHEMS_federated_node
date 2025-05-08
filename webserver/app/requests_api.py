@@ -8,7 +8,7 @@ import json
 from flask import Blueprint, request
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.wrappers import audit, auth
-from app.helpers.db import db
+from app.helpers.base_model import db
 from app.models.dataset import Dataset
 from app.models.request import Request
 from app.helpers.query_filters import parse_query_params

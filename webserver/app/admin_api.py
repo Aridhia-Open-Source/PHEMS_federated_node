@@ -7,7 +7,7 @@ from flask import Blueprint, request
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from .helpers.wrappers import auth
-from .helpers.db import engine
+from .helpers.base_model import engine
 from .helpers.query_filters import parse_query_params
 
 from .models.audit import Audit
