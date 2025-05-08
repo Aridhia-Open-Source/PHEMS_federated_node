@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: keycloak-config
-  namespace: {{ .Values.namespaces.keycloak }}
+  namespace: {{ include "kc_namespace" . }}
 data:
   KEYCLOAK_ADMIN: admin
   KC_DB_URL_HOST: {{ .Values.db.host | default (print "db." .Release.Namespace ".svc.cluster.local") | quote }}
@@ -11,17 +11,24 @@ data:
   KC_DB_URL_DATABASE: fn_{{ .Values.db.name | default "kc_db" }}
   KC_DB_USERNAME: {{ .Values.db.user | default "admin" | quote }}
   KEYCLOAK_TOKEN_LIFE: {{ .Values.token.life | default 2592000 | quote }}
-  KEYCLOAK_NAMESPACE: {{ .Values.namespaces.keycloak }}
+  KEYCLOAK_NAMESPACE: {{ include "kc_namespace" . }}
   KEYCLOAK_HOSTNAME: {{ .Values.host }}
   # PROXY_ADDRESS_FORWARDING: true
 ---
+{{- $list_ns := list .Release.Namespace -}}
+{{- if .Values.outboundMode -}}
+    {{ $list_ns = append $list_ns .Values.global.namespaces.controller }}
+{{- end -}}
+
+{{- range $list_ns }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: keycloak-config
-  namespace: {{ .Release.Namespace }}
-
+  namespace: {{ . }}
 data:
   KEYCLOAK_ADMIN: admin
-  KC_DB_URL_HOST: {{ .Values.db.host | default (print "db." .Release.Namespace ".svc.cluster.local") | quote }}
-  KC_DB_USERNAME: {{ .Values.db.user | default "admin" | quote }}
+  KC_DB_URL_HOST: {{ $.Values.db.host | default (print "db." $.Release.Namespace ".svc.cluster.local") | quote }}
+  KC_DB_USERNAME: {{ $.Values.db.user | default "admin" | quote }}
+---
+{{- end }}

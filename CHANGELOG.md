@@ -1,5 +1,8 @@
 # Releases Changelog
 
+## 0.12.0
+- Added the Federated Node Task Controller as a chart dependency. This can be installed by setting `outboundMode` to true on the values file. By default, it won't be installed.
+
 ## 0.11.0
 - Replaced the keycloak-credential-refresh job with a re-setter one.
 - Added a new value, `create_db_deployment`, only for local deployments. Defaults to `false`
