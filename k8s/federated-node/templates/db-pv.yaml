@@ -1,4 +1,4 @@
-{{ if .Values.local_development }}
+{{ if .Values.create_db_deployment }}
 apiVersion: v1
 kind: PersistentVolume
 metadata:

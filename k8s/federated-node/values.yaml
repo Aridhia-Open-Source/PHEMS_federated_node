@@ -23,7 +23,9 @@ namespaces:
   keycloak: keycloak
   tasks: tasks
 
+# Local Development-related options
 local_development: false
+create_db_deployment: false
 
 db:
   user:

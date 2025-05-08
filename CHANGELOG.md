@@ -1,7 +1,17 @@
 # Releases Changelog
 
-## 0.11.0
+## 0.12.0
+- Added the Federated Node Task Controller as a chart dependency. This can be installed by setting `outboundMode` to true on the values file. By default, it won't be installed.
 
+## 0.11.0
+- Replaced the keycloak-credential-refresh job with a re-setter one.
+- Added a new value, `create_db_deployment`, only for local deployments. Defaults to `false`
+- Added a weight on the nginx namespace template, as new installation might complain
+- The datasets are now strictly linked to the `token_transfer` request body. A non-admin user can only trigger a task by providing the project-name they have been approved for. This will avoid inconsistencies with names and ids.
+- The alpine helper image now has the same tag as the backend.
+
+## Bugfixes
+- Fixed an issue with the result cleaner where the volume mounted would include too much
 
 ## 0.10.0
 **With this update, if using nginx, you will need to update your dns record to the new ingress' IP**
@@ -42,7 +52,6 @@
 - Updated the nginx version to `1.12.1` to address a vulnerability
 
 ## 0.9.0
-- Added the Federated Node Task Controller as a chart dependency. This can be installed by setting `outboundMode` to true on the values file. By default, it won't be installed.
 - Added a test suite for the helm chart. This can be simply run with `helm test federatednode`
 - __smoketests__ can be also run if the values file contains
     ```yaml

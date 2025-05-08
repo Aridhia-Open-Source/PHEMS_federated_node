@@ -369,6 +369,7 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
                 if e.status == 409:
                     pass
                 else:
+                    logger.error(e.body)
                     raise InvalidRequest(e.reason)
         return body
 

@@ -22,6 +22,12 @@ class BaseModel():
         if commit:
             db.session.commit()
 
+    def delete(self, commit=True):
+        db.session.delete(self)
+        db.session.flush()
+        if commit:
+            db.session.commit()
+
     @classmethod
     def get_all(cls) -> list:
         obj_list = cls.query.all()

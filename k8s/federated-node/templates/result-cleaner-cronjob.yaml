@@ -59,6 +59,7 @@ spec:
             volumeMounts:
             - name: respv
               mountPath: {{ .Values.federatedNode.volumes.results_path }}
+              subPath: results
           restartPolicy: Never
           volumes:
           - name: respv

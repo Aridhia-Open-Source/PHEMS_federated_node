@@ -1805,14 +1805,11 @@
             "required": ["dataset_id"]
           },
           "outputs": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "description": "An object where the key is a human readable name and the value is the path to which a volume will be mounted on at run time to fetch the results. The key value, in the example folder1, will be used as folder name in the results archive as well.",
-              "example": {
-                "folder1": "/mnt/data/results",
-                "folder2": "/home/john/analysis/csvs"
-              }
+            "type": "object",
+            "description": "An object where the key is a human readable name and the value is the path to which a volume will be mounted on at run time to fetch the results. The key value, in the example folder1, will be used as folder name in the results archive as well.",
+            "example": {
+              "folder1": "/mnt/data/results",
+              "folder2": "/home/john/analysis/csvs"
             }
           },
           "resources": {

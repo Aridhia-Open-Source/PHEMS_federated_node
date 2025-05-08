@@ -48,7 +48,7 @@ spec:
               path: /realms/master
               port: 8080
             initialDelaySeconds: 20
-            periodSeconds: 30
+            periodSeconds: 10
           env:
             - name: KC_DB_PASSWORD
               valueFrom:

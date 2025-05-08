@@ -16,6 +16,7 @@ KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "FederatedNode")
 KEYCLOAK_CLIENT = os.getenv("KEYCLOAK_CLIENT", "global")
 KEYCLOAK_USER = os.getenv("KEYCLOAK_ADMIN")
 KEYCLOAK_PASS = os.getenv("KEYCLOAK_ADMIN_PASSWORD")
+KEYCLOAK_SECRET = os.getenv("KEYCLOAK_GLOBAL_CLIENT_SECRET")
 
 
 def is_response_good(response:Response) -> None:
@@ -261,6 +262,20 @@ update_settings = requests.put(
 if is_response_good(update_settings):
   print(update_settings.text)
   exit(1)
+
+# Updating client secret
+print("Updating client secret")
+response_get = requests.get(f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/clients/{client_id}", headers=headers)
+body = response_get.json()
+body["secret"] = KEYCLOAK_SECRET
+response_secret = requests.put(
+    f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/clients/{client_id}",
+    headers=headers,
+    data=json.dumps(body)
+  )
+if not response_secret.ok:
+    print(response.json())
+    exit(1)
 
 print("Done!")
 exit(0)
