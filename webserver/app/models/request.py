@@ -1,5 +1,6 @@
 from datetime import datetime
 import logging
+import json
 from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, update
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -82,8 +83,6 @@ class Request(db.Model, BaseModel):
         try:
             global_kc_client = Keycloak()
             user = global_kc_client.get_user_by_id(self.requested_by)
-            if not user:
-                user = kc_client.create_user(**user)
 
             admin_global_policy = global_kc_client.get_role('Administrator')
             system_global_policy = global_kc_client.get_role('System')
