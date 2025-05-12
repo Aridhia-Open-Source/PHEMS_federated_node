@@ -1,5 +1,5 @@
 SHELL=/bin/bash
-VERSION=0.11.0-v77e58f
+VERSION=0.11.0
 
 env:
 	set -o allexport && source dev.env && set +o allexport

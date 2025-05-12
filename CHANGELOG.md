@@ -3,6 +3,9 @@
 ## 0.12.0
 - Added the Federated Node Task Controller as a chart dependency. This can be installed by setting `outboundMode` to true on the values file. By default, it won't be installed.
 
+### Bugfixes
+- Issue with new user fixed due to a format mismatch
+
 ## 0.11.0
 - Replaced the keycloak-credential-refresh job with a re-setter one.
 - Added a new value, `create_db_deployment`, only for local deployments. Defaults to `false`
@@ -10,7 +13,7 @@
 - The datasets are now strictly linked to the `token_transfer` request body. A non-admin user can only trigger a task by providing the project-name they have been approved for. This will avoid inconsistencies with names and ids.
 - The alpine helper image now has the same tag as the backend.
 
-## Bugfixes
+### Bugfixes
 - Fixed an issue with the result cleaner where the volume mounted would include too much
 
 ## 0.10.0
@@ -59,7 +62,7 @@
     ```
     __Warning__ this will add and then remove the test data from keycloak and the db. It will not be enabled by default.
 
-### bugfixes
+### Bugfixes
 - Fixed a deployment issue issue with first-time installations where on azure storage, the results folder should exist already. Now this is done by the backend's initcontainer.
 - Fixed a deployment issue where ingresses were not updated or deleted during upgrades
 - Fixed a deployment issue when using azure storage accounts, the secret containing auth credentials is missing on the tasks namespace. This led tasks to fail to start.
