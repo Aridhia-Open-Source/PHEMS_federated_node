@@ -107,7 +107,7 @@ class Task(db.Model, BaseModel):
         if not isinstance(data.get("inputs", {}), dict):
             raise InvalidRequest("\"inputs\" field must be a json object or dictionary")
         if not data.get("inputs", {}):
-            data["inputs"] = {"inputs": TASK_POD_INPUTS_PATH}
+            data["inputs"] = {"inputs.csv": TASK_POD_INPUTS_PATH}
 
         # Validate resource values
         if "resources" in data:
@@ -382,7 +382,7 @@ class Task(db.Model, BaseModel):
 
             res_file = v1.cp_from_pod(
                 job_pod.metadata.name,
-                f"{TASK_POD_RESULTS_PATH}",
+                f"{TASK_POD_RESULTS_PATH}/{self.id}/results",
                 f"{RESULTS_PATH}"
             )
             v1.delete_pod(job_pod.metadata.name)
