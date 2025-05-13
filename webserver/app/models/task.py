@@ -382,8 +382,8 @@ class Task(db.Model, BaseModel):
 
             res_file = v1.cp_from_pod(
                 job_pod.metadata.name,
-                f"{TASK_POD_RESULTS_PATH}/{self.id}/results",
-                f"{RESULTS_PATH}"
+                TASK_POD_RESULTS_PATH,
+                f"{RESULTS_PATH}/{self.id}/results"
             )
             v1.delete_pod(job_pod.metadata.name)
             v1_batch.delete_job(job_name)
