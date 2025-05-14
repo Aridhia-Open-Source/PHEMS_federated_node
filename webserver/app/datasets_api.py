@@ -9,7 +9,6 @@ datasets-related endpoints:
 - POST /datasets/token_transfer
 - POST /datasets/selection/beacon
 """
-import json
 from datetime import datetime
 from flask import Blueprint, request
 
