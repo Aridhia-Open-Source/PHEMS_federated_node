@@ -5,12 +5,12 @@ from kubernetes.client import (
     V1LocalObjectReference, V1PodSpec,
     V1ObjectMeta, V1Volume, V1PersistentVolumeSpec,
     V1AzureFilePersistentVolumeSource,
-    V1HostPathVolumeSource, V1EnvVar, V1EnvFromSource,
+    V1HostPathVolumeSource, V1EnvVar,
     V1PersistentVolume, V1PersistentVolumeClaim,
-    V1EnvVarSource, V1SecretKeySelector, V1SecretEnvSource,
+    V1EnvVarSource, V1SecretKeySelector,
     V1PersistentVolumeClaimSpec, V1VolumeResourceRequirements
 )
-from app.helpers.const import TASK_NAMESPACE, TASK_PULL_SECRET_NAME
+from app.helpers.const import RESULTS_PATH, TASK_NAMESPACE, TASK_PULL_SECRET_NAME
 from app.helpers.kubernetes import KubernetesClient
 from app.models.dataset import Dataset
 
@@ -111,7 +111,7 @@ class TaskPod:
             )
         else:
             pv_spec.host_path=V1HostPathVolumeSource(
-                path=f"/data/{self.name}"
+                path=RESULTS_PATH
             )
 
         self.pv = V1PersistentVolume(
