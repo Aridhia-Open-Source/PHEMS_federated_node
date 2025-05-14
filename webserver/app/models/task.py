@@ -364,7 +364,8 @@ class Task(db.Model, BaseModel):
                 {
                     "name": f"{self.get_current_pod(is_running=False).metadata.name}-volclaim",
                     "mount_path": TASK_POD_RESULTS_PATH,
-                    "vol_name": "data"
+                    "vol_name": "data",
+                    "sub_path": f"{self.id}/results"
                 }
             ],
             "labels": {
@@ -384,7 +385,11 @@ class Task(db.Model, BaseModel):
 
             job_pod = v1.list_namespaced_pod(namespace=TASK_NAMESPACE, label_selector=f"job-name={job_name}").items[0]
 
-            res_file = v1.cp_from_pod(job_pod.metadata.name, f"{TASK_POD_RESULTS_PATH}/{self.id}", f"{RESULTS_PATH}/{self.id}")
+            res_file = v1.cp_from_pod(
+                job_pod.metadata.name,
+                TASK_POD_RESULTS_PATH,
+                f"{RESULTS_PATH}/{self.id}/results"
+            )
             v1.delete_pod(job_pod.metadata.name)
             v1_batch.delete_job(job_name)
         except ApiException as e:

@@ -30,11 +30,17 @@ Create chart name and version as used by the chart label.
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+# To support the task controller subchart we will need to include
+# a custom path as helpers are merged and the individual chart values
+# are then applied
+{{- define "backend-tag" -}}
+{{ (.Values.backend).tag | default .Chart.AppVersion }}
+{{- end -}}
 {{- define "backend-image" -}}
-ghcr.io/aridhia-open-source/federated_node_run
+ghcr.io/aridhia-open-source/federated_node_run:{{ include "backend-tag" . }}
 {{- end }}
 {{- define "fn-alpine" -}}
-ghcr.io/aridhia-open-source/alpine:{{ .Values.backend.tag | default .Chart.AppVersion }}
+ghcr.io/aridhia-open-source/alpine:{{ include "backend-tag" . }}
 {{- end }}
 
 {{/*

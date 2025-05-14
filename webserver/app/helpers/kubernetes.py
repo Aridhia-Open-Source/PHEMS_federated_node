@@ -8,7 +8,7 @@ from kubernetes.stream import stream
 from kubernetes.client.exceptions import ApiException
 from kubernetes.watch import Watch
 from app.helpers.exceptions import InvalidRequest, KubernetesException
-from app.helpers.const import TASK_NAMESPACE, TASK_PULL_SECRET_NAME
+from app.helpers.const import RESULTS_PATH, TASK_NAMESPACE, TASK_PULL_SECRET_NAME
 
 logger = logging.getLogger('kubernetes_helper')
 logger.setLevel(logging.INFO)
@@ -134,7 +134,8 @@ class KubernetesBase:
             )
             vol_mounts.append(client.V1VolumeMount(
                 mount_path=pvc["mount_path"],
-                name=pvc["vol_name"]
+                name=pvc["vol_name"],
+                sub_path=pvc["sub_path"]
             ))
         container = client.V1Container(
             name=pod_spec["name"],
@@ -239,7 +240,7 @@ class KubernetesBase:
             )
         else:
             pv_spec.host_path=client.V1HostPathVolumeSource(
-                path=f"/data/{name}"
+                path=RESULTS_PATH
             )
 
         pv = client.V1PersistentVolume(
