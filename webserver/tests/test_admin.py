@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from sqlalchemy import select
 
-from app.helpers.db import db
+from app.helpers.base_model import db
 from app.models.audit import Audit
 
 

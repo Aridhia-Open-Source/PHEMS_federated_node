@@ -7,6 +7,16 @@
 - Issue with new user fixed due to a format mismatch
 
 ## 0.11.0
+- Changed the way data is fetched from datasets, now the FN will gather it in a `csv` file and mount it to the analytics pod.
+- The dataset now has an optional `schema` field, mostly for MS SQL services.
+- The POST `tasks` endpoint now uses `db_query` as a new field. This is a json object with `query` and `dialect` as properties.
+- POST `tasks` uses the `input` field to set where the fetched data csv file should be called and where it should be mounted. The format will be
+    ```json
+    {
+        "file_name": "path_to_mount"
+    }
+    ```
+- DB credentials are not passed to the task's pod anymore
 - Replaced the keycloak-credential-refresh job with a re-setter one.
 - Added a new value, `create_db_deployment`, only for local deployments. Defaults to `false`
 - Added a weight on the nginx namespace template, as new installation might complain

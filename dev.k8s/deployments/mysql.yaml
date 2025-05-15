@@ -1,61 +1,65 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mssqldb
+  name: mysql
   labels:
-    app: testmssql
+    app: testmysql
 spec:
   selector:
     matchLabels:
-      app: testmssql
+      app: testmysql
   template:
     metadata:
       labels:
-        app: testmssql
+        app: testmysql
     spec:
       containers:
-        - image: mcr.microsoft.com/mssql/server:2019-latest
-          name: mssql
+        - image: mysql:8.4
+          name: mysql
           env:
-            - name: ACCEPT_EULA
-              value: "Y"
-            - name: MSSQL_SA_PASSWORD
+            - name: MYSQL_ROOT_PASSWORD
               value: "Password1!"
+            - name: MYSQL_PASSWORD
+              value: "Password1!"
+            - name: MYSQL_USER
+              value: "user"
+            - name: MYSQL_DATABASE
+              value: "dbdata"
           volumeMounts:
-            - name: mssqldata
-              mountPath: /var/opt/mssql
+            - name: mysqldata
+              mountPath: /var/lib/mysql
       volumes:
-        - name: mssqldata
+        - name: mysqldata
           persistentVolumeClaim:
-            claimName: pv0002-volclaim
+            claimName: pv0004-volclaim
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: testmssql
+  name: testmysql
 spec:
   ports:
-    - port: 1433
-      targetPort: 1433
+    - port: 3306
+      targetPort: 3306
   selector:
-    app: testmssql
+    app: testmysql
 ---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: pv0002
+  name: pv0004
 spec:
   accessModes:
     - ReadWriteMany
   capacity:
     storage: 100Mi
   hostPath:
-    path: /data/pv0002/
+    path: /data/pv0004/
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: pv0002-volclaim
+  name: pv0004-volclaim
 spec:
   resources:
     requests:

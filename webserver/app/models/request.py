@@ -5,7 +5,7 @@ from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, update
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.exc import IntegrityError
-from app.helpers.db import BaseModel, db
+from app.helpers.base_model import BaseModel, db
 from app.models.dataset import Dataset
 from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import DBError, InvalidRequest, LogAndException

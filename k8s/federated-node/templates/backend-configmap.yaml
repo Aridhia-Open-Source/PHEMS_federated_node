@@ -15,9 +15,9 @@ data:
   TASK_NAMESPACE: {{ include "tasks_namespace" . }}
   CLEANUP_AFTER_DAYS: {{ .Values.cleanupTime | quote }}
   PUBLIC_URL: {{ .Values.host }}
-  IMAGE_TAG: {{ include "backend-tag" . }}
   RESULTS_PATH: {{ .Values.federatedNode.volumes.results_path }}
   TASK_POD_RESULTS_PATH: {{ .Values.federatedNode.volumes.task_pod_results_path }}
+  IMAGE_TAG: {{ include "image-tag" . }}
 {{ if .Values.storage.azure }}
   AZURE_STORAGE_ENABLED: "true"
   AZURE_SHARE_NAME: {{ .Values.storage.azure.shareName }}/results

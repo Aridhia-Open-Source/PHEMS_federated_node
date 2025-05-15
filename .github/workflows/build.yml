@@ -177,6 +177,13 @@ jobs:
           file: build/kc-init/Dockerfile
           tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/keycloak_initializer:${{ needs.init.outputs.tag }}
           push: true
+      - name: Build and push DB virtualizer image
+        uses: docker/build-push-action@v5
+        with:
+          context: build/db-connector
+          file: build/db-connector/Dockerfile
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/db_connector:${{ needs.init.outputs.tag }}
+          push: true
   release:
     uses: Aridhia-Open-Source/pipelines/.github/workflows/helm-build.yml@main
     if: always() && !failure() && !cancelled()

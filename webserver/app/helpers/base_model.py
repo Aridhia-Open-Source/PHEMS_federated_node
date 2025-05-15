@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, select, Column
+from sqlalchemy import create_engine, Column
 from sqlalchemy.orm import Relationship, declarative_base
 from flask_sqlalchemy import SQLAlchemy
 from app.helpers.exceptions import InvalidDBEntry

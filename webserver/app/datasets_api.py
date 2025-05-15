@@ -9,12 +9,11 @@ datasets-related endpoints:
 - POST /datasets/token_transfer
 - POST /datasets/selection/beacon
 """
-import json
 from datetime import datetime
 from flask import Blueprint, request
 
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from .helpers.db import db
+from .helpers.base_model import db
 from .helpers.keycloak import Keycloak
 from .helpers.query_validator import validate
 from .helpers.wrappers import auth, audit
