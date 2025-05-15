@@ -16,9 +16,9 @@ data:
   # PROXY_ADDRESS_FORWARDING: true
 ---
 {{- $list_ns := list .Release.Namespace -}}
-# {{- if .Values.outboundMode -}}
-#     {{ $list_ns = append $list_ns .Values.global.namespaces.controller }}
-# {{- end -}}
+{{- if .Values.outboundMode -}}
+    {{ $list_ns = append $list_ns .Values.global.namespaces.controller }}
+{{- end -}}
 
 {{- range $list_ns }}
 apiVersion: v1

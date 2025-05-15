@@ -2,6 +2,7 @@
 
 ## 0.12.0
 - Added the Federated Node Task Controller as a chart dependency. This can be installed by setting `outboundMode` to true on the values file. By default, it won't be installed.
+- Some jobs will be cleaned before and after an upgrade.
 
 ### Bugfixes
 - Issue with new user fixed due to a format mismatch
