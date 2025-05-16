@@ -28,7 +28,7 @@ spec:
                 name: backend-configmap
                 key: PGDATABASE
         - name: db-migrations
-          image: {{ template "backend-image" . }}:{{ .Values.backend.tag | default .Chart.AppVersion }}
+          image: {{ template "backend-image" . }}:{{ include "image-tag" . }}
           command: ["/bin/sh"]
           workingDir: /
           {{ include "nonRootSC" . }}
@@ -56,7 +56,7 @@ spec:
             - name: respv
               mountPath: /mnt/storage
       containers:
-        - image: {{ template "backend-image" . }}:{{ .Values.backend.tag | default .Chart.AppVersion }}
+        - image: {{ template "backend-image" . }}:{{ include "image-tag" . }}
           name: backend
           imagePullPolicy: {{ .Values.pullPolicy }}
           {{ include "nonRootSC" . }}

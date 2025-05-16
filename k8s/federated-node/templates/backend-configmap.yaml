@@ -15,6 +15,7 @@ data:
   TASK_NAMESPACE: {{ .Values.namespaces.tasks }}
   CLEANUP_AFTER_DAYS: {{ .Values.cleanupTime | quote }}
   PUBLIC_URL: {{ .Values.host }}
+  IMAGE_TAG: {{ include "image-tag" . }}
 {{ if .Values.storage.azure }}
   AZURE_STORAGE_ENABLED: "true"
   AZURE_SHARE_NAME: {{ .Values.storage.azure.shareName }}/results

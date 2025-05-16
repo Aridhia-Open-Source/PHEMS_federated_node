@@ -1,15 +1,26 @@
+import logging
 import re
 import requests
 from sqlalchemy import Column, Integer, String
-from app.helpers.db import BaseModel, db
+from app.helpers.base_model import BaseModel, db
 from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
 from kubernetes.client.exceptions import ApiException
 
+logger = logging.getLogger("dataset_model")
+logger.setLevel(logging.INFO)
 
-SUPPORTED_TYPES = ["postgres", "mssql"]
+SUPPORTED_ENGINES = [
+    "mssql",
+    "postgres",
+    "mysql",
+    "oracle",
+    "sqlite",
+    "mariadb"
+]
+
 
 class Dataset(db.Model, BaseModel):
     __tablename__ = 'datasets'
@@ -18,6 +29,7 @@ class Dataset(db.Model, BaseModel):
     name = Column(String(256), unique=True, nullable=False)
     host = Column(String(256), nullable=False)
     port = Column(Integer, default=5432)
+    schema = Column(String(256), nullable=True)
     type = Column(String(256), server_default="postgres", nullable=False)
     extra_connection_args = Column(String(4096), nullable=True)
 
@@ -27,6 +39,7 @@ class Dataset(db.Model, BaseModel):
                  username:str,
                  password:str,
                  port:int=5432,
+                 schema:str=None,
                  type:str="postgres",
                  extra_connection_args:str=None,
                  **kwargs
@@ -36,12 +49,13 @@ class Dataset(db.Model, BaseModel):
         self.url = f"https://{PUBLIC_URL}/datasets/{self.slug}"
         self.host = host
         self.port = port
+        self.schema = schema
         self.type = type
         self.username = username
         self.password = password
         self.extra_connection_args = extra_connection_args
 
-        if self.type not in SUPPORTED_TYPES:
+        if self.type.lower() not in SUPPORTED_ENGINES:
             raise InvalidRequest(f"DB type {self.type} is not supported.")
 
     def get_creds_secret_name(self, host=None, name=None):
@@ -49,7 +63,7 @@ class Dataset(db.Model, BaseModel):
         name = name or self.name
 
         cleaned_up_host = re.sub('http(s)*://', '', host)
-        return f"{cleaned_up_host}-{re.sub('\\s|_', '-', name.lower())}-creds"
+        return f"{cleaned_up_host}-{re.sub('\\s|_|#', '-', name.lower())}-creds"
 
     def sanitized_dict(self):
         dataset = super().sanitized_dict()
@@ -171,6 +185,7 @@ class Dataset(db.Model, BaseModel):
                 v1.patch_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=self.get_creds_secret_name(), body=secret)
                 v1.patch_namespaced_secret(namespace=TASK_NAMESPACE, name=self.get_creds_secret_name(), body=secret_task)
         except ApiException as e:
+            logger.error(e.body)
             # Host and name are unique so there shouldn't be duplicates. If so
             # let the exception to be re-raised with the internal one
             raise InvalidRequest(e.reason)

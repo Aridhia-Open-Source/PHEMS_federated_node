@@ -9,12 +9,11 @@ datasets-related endpoints:
 - POST /datasets/token_transfer
 - POST /datasets/selection/beacon
 """
-import json
 from datetime import datetime
 from flask import Blueprint, request
 
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from .helpers.db import db
+from .helpers.base_model import db
 from .helpers.keycloak import Keycloak
 from .helpers.query_validator import validate
 from .helpers.wrappers import auth, audit
@@ -222,9 +221,10 @@ def post_transfer_token():
             raise InvalidRequest("Missing email from requested_by field")
 
         user = Keycloak().get_user_by_email(body["requested_by"]["email"])
-        user = user["id"] if user else body["requested_by"]
+        if not user:
+            user = Keycloak().create_user(**body["requested_by"])
 
-        body["requested_by"] = user
+        body["requested_by"] = user["id"]
         ds_id = body.pop("dataset_id")
         body["dataset"] = Dataset.query.filter(Dataset.id == ds_id).one_or_none()
         if body["dataset"] is None:

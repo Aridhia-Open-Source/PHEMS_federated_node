@@ -11,12 +11,13 @@ from uuid import uuid4
 import urllib3
 from app.helpers.const import (
     CLEANUP_AFTER_DAYS, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX,
-    TASK_NAMESPACE, TASK_POD_RESULTS_PATH, RESULTS_PATH
+    TASK_NAMESPACE, TASK_POD_RESULTS_PATH, TASK_POD_INPUTS_PATH, RESULTS_PATH
 )
-from app.helpers.db import BaseModel, db
+from app.helpers.base_model import BaseModel, db
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesBatchClient, KubernetesClient
 from app.helpers.exceptions import DBError, InvalidRequest, TaskImageException, TaskExecutionException
+from app.helpers.task_pod import TaskPod
 from app.models.dataset import Dataset
 from app.models.container import Container
 from app.models.request import Request
@@ -64,6 +65,7 @@ class Task(db.Model, BaseModel):
         self.resources = resources
         self.inputs = inputs
         self.outputs = outputs
+        self.db_query = kwargs.get("db_query", {})
 
     @classmethod
     def validate(cls, data:dict):
@@ -99,9 +101,13 @@ class Task(db.Model, BaseModel):
 
         # Output volumes validation
         if not isinstance(data.get("outputs", {}), dict):
-            raise InvalidRequest("\"outputs\" filed muct be a json object or dictionary")
+            raise InvalidRequest("\"outputs\" field must be a json object or dictionary")
         if not data.get("outputs", {}):
             data["outputs"] = {"results": TASK_POD_RESULTS_PATH}
+        if not isinstance(data.get("inputs", {}), dict):
+            raise InvalidRequest("\"inputs\" field must be a json object or dictionary")
+        if not data.get("inputs", {}):
+            data["inputs"] = {"inputs.csv": TASK_POD_INPUTS_PATH}
 
         # Validate resource values
         if "resources" in data:
@@ -113,6 +119,7 @@ class Task(db.Model, BaseModel):
                 data["resources"].get("limits", {}).get("memory"),
                 data["resources"].get("requests", {}).get("memory")
             )
+        data["db_query"] = data.pop("db_query")
         return data
 
     @classmethod
@@ -227,16 +234,17 @@ class Task(db.Model, BaseModel):
         """
         v1 = KubernetesClient()
         secret_name = self.dataset.get_creds_secret_name()
-        provided_env = self.executors[0]["env"]
-        provided_env.update(self.get_db_environment_variables())
+        provided_env = self.executors[0].get("env", {})
 
         command=None
         if len(self.executors):
             command=self.executors[0].get("command", '')
 
-        body = v1.create_pod_spec({
+        body = TaskPod(**{
             "name": self.pod_name(),
             "image": self.docker_image,
+            "dataset": self.dataset,
+            "db_query": self.db_query,
             "labels": {
                 "task_id": str(self.id),
                 "requested_by": self.requested_by,
@@ -247,9 +255,10 @@ class Task(db.Model, BaseModel):
             "environment": provided_env,
             "command": command,
             "mount_path": self.outputs,
+            "input_path": self.inputs,
             "resources": self.resources,
             "env_from": v1.create_from_env_object(secret_name)
-        })
+        }).create_pod_spec()
         try:
             current_pod = self.get_current_pod()
             if current_pod:
@@ -263,20 +272,6 @@ class Task(db.Model, BaseModel):
         except ApiException as e:
             logger.error(json.loads(e.body))
             raise InvalidRequest(f"Failed to run pod: {e.reason}")
-
-    def get_db_environment_variables(self) -> dict:
-        """
-        Creates a dictionary with the standard value for DB credentials
-        """
-        return {
-            "PGHOST": self.dataset.host,
-            "PGDATABASE": self.dataset.name,
-            "PGPORT": self.dataset.port,
-            "MSSQL_HOST": self.dataset.host,
-            "MSSQL_DATABASE": self.dataset.name,
-            "MSSQL_PORT": self.dataset.port,
-            "CONNECTION_ARGS": self.dataset.extra_connection_args
-        }
 
     def get_current_pod(self, is_running:bool=True):
         v1 = KubernetesClient()
@@ -364,7 +359,8 @@ class Task(db.Model, BaseModel):
                 {
                     "name": f"{self.get_current_pod(is_running=False).metadata.name}-volclaim",
                     "mount_path": TASK_POD_RESULTS_PATH,
-                    "vol_name": "data"
+                    "vol_name": "data",
+                    "sub_path": f"{self.id}/results"
                 }
             ],
             "labels": {
@@ -384,7 +380,11 @@ class Task(db.Model, BaseModel):
 
             job_pod = v1.list_namespaced_pod(namespace=TASK_NAMESPACE, label_selector=f"job-name={job_name}").items[0]
 
-            res_file = v1.cp_from_pod(job_pod.metadata.name, f"{TASK_POD_RESULTS_PATH}/{self.id}", f"{RESULTS_PATH}/{self.id}")
+            res_file = v1.cp_from_pod(
+                job_pod.metadata.name,
+                TASK_POD_RESULTS_PATH,
+                f"{RESULTS_PATH}/{self.id}/results"
+            )
             v1.delete_pod(job_pod.metadata.name)
             v1_batch.delete_job(job_name)
         except ApiException as e:
