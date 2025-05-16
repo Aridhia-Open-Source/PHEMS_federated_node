@@ -10,7 +10,6 @@ from kubernetes.watch import Watch
 from app.helpers.exceptions import InvalidRequest, KubernetesException
 from app.helpers.const import TASK_NAMESPACE
 
-
 logger = logging.getLogger('kubernetes_helper')
 logger.setLevel(logging.INFO)
 

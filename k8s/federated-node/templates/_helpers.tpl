@@ -30,14 +30,17 @@ Create chart name and version as used by the chart label.
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+# To support the task controller subchart we will need to include
+# a custom path as helpers are merged and the individual chart values
+# are then applied
 {{- define "backend-image" -}}
-ghcr.io/aridhia-open-source/federated_node_run
+ghcr.io/aridhia-open-source/federated_node_run:{{ include "image-tag" . }}
 {{- end }}
 {{- define "fn-alpine" -}}
-ghcr.io/aridhia-open-source/alpine:{{ .Values.backend.tag | default .Chart.AppVersion }}
+ghcr.io/aridhia-open-source/alpine:{{ include "image-tag" . }}
 {{- end }}
 {{- define "image-tag" -}}
-{{ .Values.backend.tag | default .Chart.AppVersion }}
+{{ (.Values.backend).tag | default .Chart.AppVersion }}
 {{- end }}
 
 {{/*
@@ -129,6 +132,12 @@ Just need to append the NEW_DB env var
 {{- define "defaultAnnotations" -}}
     meta.helm.sh/release-name: {{ .Release.Name }}
     meta.helm.sh/release-namespace: {{ .Release.Namespace }}
+{{- end -}}
+{{- define "kc_namespace" -}}
+{{ .Values.global.namespaces.keycloak | default .Values.namespaces.keycloak }}
+{{- end -}}
+{{- define "tasks_namespace" -}}
+{{ .Values.global.namespaces.tasks | default .Values.namespaces.tasks }}
 {{- end -}}
 {{- define "testsBaseUrl" }}
 {{- if not .Values.local_development -}}

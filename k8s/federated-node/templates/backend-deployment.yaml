@@ -28,7 +28,7 @@ spec:
                 name: backend-configmap
                 key: PGDATABASE
         - name: db-migrations
-          image: {{ template "backend-image" . }}:{{ include "image-tag" . }}
+          image: {{ template "backend-image" . }}
           command: ["/bin/sh"]
           workingDir: /
           {{ include "nonRootSC" . }}
@@ -56,7 +56,7 @@ spec:
             - name: respv
               mountPath: /mnt/storage
       containers:
-        - image: {{ template "backend-image" . }}:{{ include "image-tag" . }}
+        - image: {{ template "backend-image" . }}
           name: backend
           imagePullPolicy: {{ .Values.pullPolicy }}
           {{ include "nonRootSC" . }}
@@ -90,10 +90,6 @@ spec:
             - configMapRef:
                 name: keycloak-config
           env:
-          - name: RESULTS_PATH
-            value: {{ .Values.federatedNode.volumes.results_path }}
-          - name: TASK_POD_RESULTS_PATH
-            value: {{ .Values.federatedNode.volumes.task_pod_results_path }}
           - name: PGPASSWORD
             valueFrom:
               secretKeyRef:

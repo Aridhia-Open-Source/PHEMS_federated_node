@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: keycloak
-  namespace: {{ .Values.namespaces.keycloak }}
+  namespace: {{ include "kc_namespace" . }}
   # Exception, so that init jobs can pick up the new port change.
   # Need to manually add the default annotations as well
   labels:
