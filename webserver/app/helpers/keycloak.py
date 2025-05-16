@@ -4,7 +4,6 @@ import random
 import re
 import requests
 from base64 import b64encode
-import urllib.parse
 from flask import request
 
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
@@ -25,7 +24,6 @@ URLS = {
     "get_token": f"{KEYCLOAK_URL}/realms/{REALM}/protocol/openid-connect/token",
     "validate": f"{KEYCLOAK_URL}/realms/{REALM}/protocol/openid-connect/token/introspect",
     "client": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients",
-    "client_id": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients?clientId=",
     "client_secret": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/client-secret",
     "client_exchange": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/management/permissions",
     "client_auth": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server",
@@ -43,7 +41,6 @@ URLS = {
 
 class Keycloak:
     def __init__(self, client='global') -> None:
-        self.client_secret = KEYCLOAK_SECRET
         self.client_name = client
         self.admin_token = self.get_admin_token()
         self.client_id = self.get_client_id()
@@ -143,19 +140,23 @@ class Keycloak:
         """
         return response.status_code == 409 or response.ok
 
-    def _get_client_secret(self) -> str:
+    def _get_client_secret(self, client_id:str=None) -> str:
         """
         Given the client id, fetches the client's secret if has one.
         """
+        if not client_id:
+            client_id = self.client_id
+
         secret_resp = requests.get(
-            URLS["client_secret"] % self.client_id,
+            URLS["client_secret"] % client_id,
             headers={
                 "Authorization": f"Bearer {self.admin_token}"
             }
         )
         if not secret_resp.ok:
             logger.info(secret_resp.content.decode())
-            raise KeycloakError("Failed to fetch client's secret")
+            raise KeycloakError(f"Failed to fetch {client_id}'s secret")
+
         return secret_resp.json()["value"]
 
     def get_token(self, username=None, password=None, token_type='refresh_token', payload:dict=None, raise_on_temp_pass:bool=True) -> str:
@@ -168,6 +169,7 @@ class Keycloak:
             return the whole response object, otherwise it will raise exceptions
             on status code != 200
         """
+        logger.info("%s) get_token", self.client_name)
         if payload is None:
             payload = {
                 'client_id': self.client_name,
@@ -221,6 +223,7 @@ class Keycloak:
         """
         Get administrative level token
         """
+        logger.info("get_admin_token_global")
         payload = {
             'client_id': KEYCLOAK_CLIENT,
             'client_secret': KEYCLOAK_SECRET,
@@ -303,7 +306,8 @@ class Keycloak:
             client_name = self.client_name
 
         client_id_resp = requests.get(
-            URLS["client_id"] + client_name,
+            URLS["client"],
+            params = {"clientId": client_name},
             headers=headers
         )
         if not client_id_resp.ok:
@@ -374,7 +378,10 @@ class Keycloak:
             'Authorization': f'Bearer {self.admin_token}'
         }
         response_res = requests.get(
-            (URLS["resource"] % self.client_id) + f"?name={resource_name}",
+            URLS["resource"] % self.client_id,
+            params={
+                "name": resource_name
+            },
             headers=headers
         )
         if not response_res.ok:
@@ -419,7 +426,8 @@ class Keycloak:
             'Authorization': f'Bearer {self.admin_token}'
         }
         policy_response = requests.get(
-            (URLS["get_policies"] % self.client_id) + f'&name={name}',
+            URLS["get_policies"] % self.client_id,
+            params={"name": name},
             headers=headers
         )
         if not policy_response.ok:
@@ -437,7 +445,11 @@ class Keycloak:
             'Authorization': f'Bearer {self.admin_token}'
         }
         scope_response = requests.get(
-            (URLS["scopes"] % self.client_id) + f'?permission=false&name={name}',
+            URLS["scopes"] % self.client_id,
+            params={
+                "permission": False,
+                "name": name
+            },
             headers=headers
         )
         if not scope_response.ok:
@@ -641,13 +653,29 @@ class Keycloak:
 
         raise KeycloakError("Failed to fetch the created user")
 
+    def get_user_by_id(self, user_id:str) -> dict:
+        """
+        Method to return a dictionary representing a Keycloak user
+        """
+        user_response = requests.get(
+            f"{URLS["user"]}/{user_id}",
+            headers={"Authorization": f"Bearer {self.admin_token}"}
+        )
+        if not user_response.ok:
+            raise KeycloakError("Failed to fetch the user")
+
+        return user_response.json() if user_response.json() else None
+
     def get_user_by_username(self, username:str) -> dict:
         """
         Method to return a dictionary representing a Keycloak user
         """
-        username_encoded = urllib.parse.quote_plus(username)
         user_response = requests.get(
-            f"{URLS["user"]}?username={username_encoded}&exact=true",
+            URLS["user"],
+            params= {
+                "username": username,
+                "exact": True
+            },
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
         if not user_response.ok:
@@ -660,10 +688,12 @@ class Keycloak:
         Method to return a dictionary representing a Keycloak user,
         using their email
         """
-        email_encoded = urllib.parse.quote_plus(email)
-
         user_response = requests.get(
-            f"{URLS["user"]}?email={email_encoded}&exact=true",
+            URLS["user"],
+            params= {
+                "email": email,
+                "exact": True
+            },
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
         if not user_response.ok:
@@ -734,7 +764,11 @@ class Keycloak:
 
         # Fetching the token exchange scope
         client_te_scope_resp = requests.get(
-            (URLS["scopes"] % rm_client_id) + '?permission=false&name=token-exchange',
+            URLS["scopes"] % rm_client_id,
+            params = {
+                "permission": False,
+                "name": "token-exchange"
+            },
             headers = {
                 'Authorization': f'Bearer {self.admin_token}'
             }
@@ -744,7 +778,10 @@ class Keycloak:
 
         token_exch_scope = client_te_scope_resp.json()[0]["id"]
         resource_scope_resp = requests.get(
-            (URLS["resource"] % rm_client_id) + f"?name=client.resource.{self.client_id}",
+            URLS["resource"] % rm_client_id,
+            params = {
+                "name": f"client.resource.{self.client_id}"
+            },
             headers = {
                 'Authorization': f'Bearer {self.admin_token}'
             }
@@ -763,17 +800,24 @@ class Keycloak:
         )
         if global_client_policy_resp.status_code == 409:
             global_policy_id = requests.get(
-                (URLS["policies"] % rm_client_id) + f"/client?name=token-exchange-{self.client_name}",
+                (URLS["policies"] % rm_client_id) + "/client",
+                params = {
+                    "name": f"token-exchange-{self.client_name}"
+                },
                 headers = self._post_json_headers()
             ).json()[0]["id"]
         elif not global_client_policy_resp.ok:
-            raise KeycloakError("Error on keycloak")
+            logger.error(global_client_policy_resp.json())
+            raise KeycloakError("Something went wrong in creating the set of permissions on Keycloak")
         else:
             global_policy_id = global_client_policy_resp.json()["id"]
 
         token_exch_name = f"token-exchange.permission.client.{self.client_id}"
         token_exch_permission_resp = requests.get(
-            (URLS["permission"] % rm_client_id) + f"?name={token_exch_name}",
+            URLS["permission"] % rm_client_id,
+            params = {
+                "name": token_exch_name
+            },
             headers = {
                 'Authorization': f'Bearer {self.admin_token}'
             }

@@ -1,5 +1,5 @@
 SHELL=/bin/bash
-VERSION=0.8.0
+VERSION=0.12.0
 
 env:
 	set -o allexport && source dev.env && set +o allexport
@@ -11,7 +11,7 @@ build_docker:
 	docker build . -f build/Dockerfile -t ghcr.io/aridhia-open-source/federated_node_run:${VERSION}
 
 build_docker_dev:
-	docker build . -f build/Dockerfile -t ghcr.io/aridhia-open-source/federated_node_run:${VERSION}-$(shell git rev-parse --short HEAD)
+	docker build . -f build/Dockerfile -t ghcr.io/aridhia-open-source/federated_node_run:${VERSION}-v$(shell git rev-parse --short HEAD)
 
 tests_local:
 	./run_tests.sh

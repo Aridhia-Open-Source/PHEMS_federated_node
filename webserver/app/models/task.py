@@ -20,6 +20,7 @@ from app.helpers.exceptions import DBError, InvalidRequest, TaskImageException, 
 from app.helpers.task_pod import TaskPod
 from app.models.dataset import Dataset
 from app.models.container import Container
+from app.models.request import Request
 
 logger = logging.getLogger('task_model')
 logger.setLevel(logging.INFO)
@@ -68,19 +69,28 @@ class Task(db.Model, BaseModel):
 
     @classmethod
     def validate(cls, data:dict):
-        data["requested_by"] = Keycloak().decode_token(
-            Keycloak.get_token_from_headers()
-        ).get('sub')
+        kc_client = Keycloak()
+        user_token = Keycloak.get_token_from_headers()
+        data["requested_by"] = kc_client.decode_token(user_token).get('sub')
+        user = kc_client.get_user_by_id(data["requested_by"])
         # Support only for one image at a time, the standard is executors == list
         executors = data["executors"][0]
         data["docker_image"] = executors["image"]
         data = super().validate(data)
 
         # Dataset validation
-        ds_id = data.get("tags", {}).get("dataset_id")
-        ds_name = data.get("tags", {}).get("dataset_name")
-        if ds_name or ds_id:
-            data["dataset"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
+        if kc_client.is_user_admin(user_token):
+            ds_id = data.get("tags", {}).get("dataset_id")
+            ds_name = data.get("tags", {}).get("dataset_name")
+            if ds_name or ds_id:
+                data["dataset"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
+            else:
+                raise InvalidRequest("Administrators need to provide `tags.dataset_id` or `tags.dataset_name`")
+        else:
+            data["dataset"] = Request.get_active_project(
+                data["project_name"],
+                user["id"]
+            ).dataset
 
         # Docker image validation
         if not re.match(r'^((\w+|-|\.)\/?+)+:(\w+(\.|-)?)+$', data["docker_image"]):
@@ -97,7 +107,7 @@ class Task(db.Model, BaseModel):
         if not isinstance(data.get("inputs", {}), dict):
             raise InvalidRequest("\"inputs\" field must be a json object or dictionary")
         if not data.get("inputs", {}):
-            data["inputs"] = {"inputs": TASK_POD_INPUTS_PATH}
+            data["inputs"] = {"inputs.csv": TASK_POD_INPUTS_PATH}
 
         # Validate resource values
         if "resources" in data:
@@ -372,8 +382,8 @@ class Task(db.Model, BaseModel):
 
             res_file = v1.cp_from_pod(
                 job_pod.metadata.name,
-                f"{TASK_POD_RESULTS_PATH}",
-                f"{RESULTS_PATH}"
+                TASK_POD_RESULTS_PATH,
+                f"{RESULTS_PATH}/{self.id}/results"
             )
             v1.delete_pod(job_pod.metadata.name)
             v1_batch.delete_job(job_name)

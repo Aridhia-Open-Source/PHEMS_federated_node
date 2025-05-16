@@ -20,4 +20,4 @@ RUN apt-get update \
 COPY *.py /scripts/
 
 USER ${USER_UID}
-ENTRYPOINT [ "/bin/sh", "-c", "python3 /scripts/refresh_credentials.py" ]
+ENTRYPOINT [ "/bin/sh", "-c", "python3 /scripts/setup_realm.py" ]

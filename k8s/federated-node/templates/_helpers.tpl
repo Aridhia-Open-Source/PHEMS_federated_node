@@ -34,7 +34,10 @@ Create chart name and version as used by the chart label.
 ghcr.io/aridhia-open-source/federated_node_run
 {{- end }}
 {{- define "fn-alpine" -}}
-ghcr.io/aridhia-open-source/alpine:3.19
+ghcr.io/aridhia-open-source/alpine:{{ .Values.backend.tag | default .Chart.AppVersion }}
+{{- end }}
+{{- define "image-tag" -}}
+{{ .Values.backend.tag | default .Chart.AppVersion }}
 {{- end }}
 {{- define "image-tag" -}}
 {{ .Values.backend.tag | default .Chart.AppVersion }}
