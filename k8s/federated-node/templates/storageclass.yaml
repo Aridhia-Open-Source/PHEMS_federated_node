@@ -12,6 +12,8 @@ parameters:
 volumeBindingMode: WaitForFirstConsumer
 {{- else if .Values.storage.nfs }}
 provisioner: {{ .Values.storage.nfs.provisioner }}
+mountOptions:
+  - hard
 {{- end }}
 {{- if and (not .Values.db.secret) }}
 ---
@@ -21,8 +23,6 @@ metadata:
   name: db-storage
 {{- if .Values.storage.local }}
 provisioner: Local
-mountOptions:
-  - hard
 {{- else if .Values.storage.azure }}
 provisioner: disk.csi.azure.com
 parameters:
