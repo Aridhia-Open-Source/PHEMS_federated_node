@@ -1833,27 +1833,6 @@
               }
             }
           },
-          "db_query": {
-            "type": "object",
-            "properties": {
-              "query": {
-                "type": "string",
-                "description": "The intended query to run",
-                "example": "SELECT AVERAGE(pressure) FROM patients_blood;"
-              },
-              "dialect": {
-                "type": "string",
-                "description": "The type of query engine is written for, just so it can be accurately converted to the hosts' local DB",
-                "enum": [
-                  "postgres",
-                  "mssql",
-                  "oracle",
-                  "mysql",
-                  "mariadb"
-                ]
-              }
-            }
-          },
           "resources": {
             "type": "object",
             "properties": {
