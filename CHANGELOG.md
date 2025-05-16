@@ -1,5 +1,9 @@
 # Releases Changelog
 
+## 1.1.0
+- Added a `PATCH` endpoint for `/registries` so it's easier to update credentials
+- Added the `active` field for registries, so outdated ones can be safely deactivated
+
 ## 0.12.0
 - Fixed issues with rendering nfs templates due to an extra `-`
 
