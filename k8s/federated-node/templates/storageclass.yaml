@@ -12,10 +12,6 @@ parameters:
 volumeBindingMode: WaitForFirstConsumer
 {{- else if .Values.storage.nfs }}
 provisioner: {{ .Values.storage.nfs.provisioner }}
-# parameters:
-#   server: {{ .Values.storage.nfs.url }}
-#   path: {{ .Values.storage.nfs.path }}
-#   readOnly: "false"
 {{- end }}
 {{- if and (not .Values.db.secret) }}
 ---

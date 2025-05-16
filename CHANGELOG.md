@@ -1,6 +1,7 @@
 # Releases Changelog
 
 ## 0.12.0
+- Fixed issues with rendering nfs templates due to an extra `-`
 
 ### Bugfixes
 - Issue with new user fixed due to a format mismatch
