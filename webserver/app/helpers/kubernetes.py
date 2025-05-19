@@ -177,7 +177,7 @@ class KubernetesBase:
                 tar_buffer.flush()
                 tar_buffer.seek(0)
                 try:
-                    os.mkdir(dest_path)
+                    os.makedirs(dest_path)
                 except FileExistsError:
                     # folder exists, skip
                     pass
