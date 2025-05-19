@@ -1,12 +1,6 @@
 # Releases Changelog
 
-## 0.11.0
-- Replaced the keycloak-credential-refresh job with a re-setter one.
-- Added a new value, `create_db_deployment`, only for local deployments. Defaults to `false`
-- Added a weight on the nginx namespace template, as new installation might complain
-- The datasets are now strictly linked to the `token_transfer` request body. A non-admin user can only trigger a task by providing the project-name they have been approved for. This will avoid inconsistencies with names and ids.
-- The alpine helper image now has the same tag as the backend.
-
+## 1.1.0
 ### Security
 - Added the following headers to nginx:
     - `strict-transport-security`
@@ -17,7 +11,44 @@
     - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to self)
 - Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
 
-## Bugfixes
+## 0.12.0
+- Added the Federated Node Task Controller as a chart dependency. This can be installed by setting `outboundMode` to true on the values file. By default, it won't be installed.
+- Some jobs will be cleaned before and after an upgrade.
+- Fixed issues with rendering nfs templates due to an extra `-`
+- Multiple database engines now supported:
+    - MS SQL
+    - Postgres
+    - MariaDB
+    - MySQL
+    - OracleDB
+- Tasks do not need to fetch data themselves. The node will do so and mount a file called `input.csv` as default. This can be specified by the `inputs` field in the `/tasks` request. Where it will have the following format:
+    ```json
+    {
+        "file_name": "file_path"
+    }
+    ```
+
+### Bugfixes
+- Issue with new user fixed due to a format mismatch
+
+## 0.11.0
+- Changed the way data is fetched from datasets, now the FN will gather it in a `csv` file and mount it to the analytics pod.
+- The dataset now has an optional `schema` field, mostly for MS SQL services.
+- The POST `tasks` endpoint now uses `db_query` as a new field. This is a json object with `query` and `dialect` as properties.
+- POST `tasks` uses the `input` field to set where the fetched data csv file should be called and where it should be mounted. The format will be
+    ```json
+    {
+        "file_name": "path_to_mount"
+    }
+    ```
+- DB credentials are not passed to the task's pod anymore
+- Replaced the keycloak-credential-refresh job with a re-setter one.
+- Added a new value, `create_db_deployment`, only for local deployments. Defaults to `false`
+- Added a weight on the nginx namespace template, as new installation might complain
+- The datasets are now strictly linked to the `token_transfer` request body. A non-admin user can only trigger a task by providing the project-name they have been approved for. This will avoid inconsistencies with names and ids.
+- The alpine helper image now has the same tag as the backend.
+
+### Bugfixes
 - Fixed an issue with the result cleaner where the volume mounted would include too much
 
 ## 0.10.0
@@ -66,7 +97,7 @@
     ```
     __Warning__ this will add and then remove the test data from keycloak and the db. It will not be enabled by default.
 
-### bugfixes
+### Bugfixes
 - Fixed a deployment issue issue with first-time installations where on azure storage, the results folder should exist already. Now this is done by the backend's initcontainer.
 - Fixed a deployment issue where ingresses were not updated or deleted during upgrades
 - Fixed a deployment issue when using azure storage accounts, the secret containing auth credentials is missing on the tasks namespace. This led tasks to fail to start.

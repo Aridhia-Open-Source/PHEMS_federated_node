@@ -4,7 +4,7 @@ import requests
 import os
 from datetime import datetime as dt, timedelta
 from sqlalchemy import update
-from app.helpers.db import db
+from app.helpers.base_model import db
 from app.models.request import Request
 from app.helpers.keycloak import Keycloak
 

@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: {{ .Values.namespaces.keycloak }}
+  name: {{ include "kc_namespace" . }}
   {{- if .Release.IsInstall }}
   labels:
     {{ template "defaultLabels" . }}

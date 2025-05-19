@@ -13,6 +13,12 @@ keycloak: {}
 autoscaling:
   enabled: false
 
+global:
+  namespaces:
+    keycloak: keycloak
+    tasks: tasks
+    controller: fn-controller
+
 namespaces:
   keycloak: keycloak
   tasks: tasks
@@ -126,11 +132,38 @@ tolerations: []
 
 affinity: {}
 
+outboundMode: false
+
+##SUBCHARTS
+### Task controller
+fn-task-controller:
+  controller: {}
+    # tag:
+
+  storage: {}
+    # size:
+    # local:
+    #   path:
+
+  idp: {}
+    # github:
+    #   secret_name:
+    #   secret_key:
+    #   clientid_key:
+  delivery:
+    github: {}
+      # repository:
+    other: {}
+      # url
+      # auth_type
+
+### Cert manager
 cert-manager:
   enabled: false
   namespace: fn-certmanager
   installCRDs: true
 
+### Ingress nginx
 ingress-nginx:
   enabled: false
   namespaceOverride: ingress-nginx

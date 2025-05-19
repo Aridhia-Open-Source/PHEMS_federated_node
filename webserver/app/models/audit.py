@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, DateTime, String
 from sqlalchemy.sql import func
-from app.helpers.db import BaseModel, db
+from app.helpers.base_model import BaseModel, db
 
 class Audit(db.Model, BaseModel):
     __tablename__ = 'audit'

@@ -6,7 +6,7 @@ from sqlalchemy import Column, Integer, String, Boolean
 
 from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, TASK_PULL_SECRET_NAME
 from app.helpers.container_registries import AzureRegistry, BaseRegistry, DockerRegistry, GitHubRegistry
-from app.helpers.db import BaseModel, db
+from app.helpers.base_model import BaseModel, db
 from app.helpers.exceptions import ContainerRegistryException
 from app.helpers.kubernetes import KubernetesClient
 

@@ -10,7 +10,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: keycloak-config
-  namespace: {{ .Values.namespaces.keycloak }}
+  namespace: {{ include "kc_namespace" . }}
 data:
   KEYCLOAK_ADMIN: admin
   KC_DB_URL_HOST: {{ include "kc_db_host" . }}
@@ -19,16 +19,24 @@ data:
   KC_DB_URL_DATABASE: fn_{{ .Values.db.name }}
   KC_DB_USERNAME: {{ .Values.db.user | quote }}
   KEYCLOAK_TOKEN_LIFE: {{ int .Values.token.life | quote }}
-  KEYCLOAK_NAMESPACE: {{ .Values.namespaces.keycloak }}
+  KEYCLOAK_NAMESPACE: {{ include "kc_namespace" . }}
   KEYCLOAK_HOSTNAME: {{ .Values.host }}
   # PROXY_ADDRESS_FORWARDING: true
 ---
+{{- $list_ns := list .Release.Namespace -}}
+{{- if .Values.outboundMode -}}
+    {{ $list_ns = append $list_ns .Values.global.namespaces.controller }}
+{{- end -}}
+
+{{- range $list_ns }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: keycloak-config
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ . }}
 data:
   KEYCLOAK_ADMIN: admin
   KC_DB_URL_HOST: {{ include "kc_db_host" . }}
   KC_DB_USERNAME: {{ .Values.db.user | quote }}
+---
+{{- end }}

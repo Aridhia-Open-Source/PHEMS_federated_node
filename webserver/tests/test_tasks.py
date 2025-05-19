@@ -8,7 +8,7 @@ from unittest import mock
 from unittest.mock import Mock
 
 from app.helpers.const import CLEANUP_AFTER_DAYS, TASK_POD_RESULTS_PATH
-from app.helpers.db import db
+from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.models.task import Task
 from tests.fixtures.azure_cr_fixtures import *
@@ -29,13 +29,17 @@ def task_body(dataset, container):
                 }
             }
         ],
+        "db_query": {
+            "query": "SELECT * FROM table",
+            "dialect": "postgres"
+        },
         "description": "First task ever!",
         "tags": {
             "dataset_id": dataset.id,
             "test_tag": "some content"
         },
-        "inputs":{},
-        "outputs":{},
+        "inputs": {},
+        "outputs": {},
         "resources": {},
         "volumes": {}
     })
@@ -181,7 +185,6 @@ class TestGetTasks:
             headers=simple_user_header
         )
         assert resp.status_code == 403
-
 
     def test_get_task_status_running_and_waiting(
             self,
@@ -616,6 +619,153 @@ class TestPostTask:
         assert response.status_code == 500
         assert response.json == {"error": f"Image {task_body["executors"][0]["image"]} not found on our repository"}
 
+    def test_create_task_inputs_not_default(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            registry_client,
+            reg_k8s_client,
+            task_body
+        ):
+        """
+        Tests task creation returns 201 and if users provide
+        custom location for inputs, this is set as volumeMount
+        """
+        task_body["inputs"] = {"file.csv": "/data/in"}
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+
+        assert len(pod_body.spec.containers[0].volume_mounts) == 2
+        # Check if the mount volume is on the correct path
+        assert "/data/in" in [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts]
+        # Check if the INPUT_PATH variable is set
+        assert ["/data/in/file.csv"] == [ev.value for ev in pod_body.spec.containers[0].env if ev.name == "INPUT_PATH"]
+
+    def test_create_task_input_path_env_var_override(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            registry_client,
+            reg_k8s_client,
+            task_body
+        ):
+        """
+        Tests task creation returns 201 and if users provide
+        INPUT_PATH as a env var, use theirs
+        """
+        task_body["executors"][0]["env"] = {"INPUT_PATH": "/data/in/file.csv"}
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+
+        # Check if the INPUT_PATH variable is set
+        assert ["/data/in/file.csv"] == [ev.value for ev in pod_body.spec.containers[0].env if ev.name == "INPUT_PATH"]
+
+    def test_create_task_invalid_output_field(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            registry_client,
+            task_body
+        ):
+        """
+        Tests task creation returns 4xx request when output
+        is not a dictionary
+        """
+        task_body["outputs"] = []
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert response.json == {"error": "\"outputs\" field must be a json object or dictionary"}
+
+    def test_create_task_invalid_inputs_field(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            registry_client,
+            task_body
+        ):
+        """
+        Tests task creation returns 4xx request when inputs
+        is not a dictionary
+        """
+        task_body["inputs"] = []
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert response.json == {"error": "\"inputs\" field must be a json object or dictionary"}
+
+    def test_create_task_no_output_field_reverts_to_default(
+            self,
+            cr_client,
+            reg_k8s_client,
+            post_json_admin_header,
+            client,
+            registry_client,
+            task_body
+        ):
+        """
+        Tests task creation returns 201 but the resutls volume mounted
+        is the default one
+        """
+        task_body.pop("outputs")
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        assert len(pod_body.spec.containers[0].volume_mounts) == 2
+        assert TASK_POD_RESULTS_PATH in [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts]
+
+    def test_create_task_no_inputs_field_reverts_to_default(
+            self,
+            cr_client,
+            reg_k8s_client,
+            post_json_admin_header,
+            client,
+            registry_client,
+            task_body
+        ):
+        """
+        Tests task creation returns 201 but the volume mounted
+        is the default one for the inputs
+        """
+        task_body.pop("inputs")
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        assert len(pod_body.spec.containers[0].volume_mounts) == 2
+        assert [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts] == ["/mnt/inputs", TASK_POD_RESULTS_PATH]
+
 
 class TestCancelTask:
     def test_cancel_task(
@@ -713,6 +863,126 @@ class TestValidateTask:
             headers=post_json_user_header
         )
         assert response.status_code == 200, response.json
+
+def test_task_get_logs(
+        post_json_admin_header,
+        client,
+        mocker,
+        terminated_state,
+        task
+    ):
+    """
+    Basic test that will allow us to return
+    the pods logs
+    """
+    mocker.patch(
+        'app.models.task.Task.get_current_pod',
+        return_value=Mock(
+            status=Mock(
+                container_statuses=[terminated_state]
+            )
+        )
+    )
+    response_logs = client.get(
+        f'/tasks/{task.id}/logs',
+        headers=post_json_admin_header
+    )
+    assert response_logs.status_code == 200
+    assert response_logs.json["logs"] == [
+        'Example logs',
+        'another line'
+    ]
+
+def test_task_logs_non_existent(
+        post_json_admin_header,
+        client,
+        task
+    ):
+    """
+    Basic test that will check the appropriate error
+    is returned when the task id does not exist
+    """
+    response_logs = client.get(
+        f'/tasks/{task.id + 1}/logs',
+        headers=post_json_admin_header
+    )
+    assert response_logs.status_code == 404
+    assert response_logs.json["error"] == f"Task with id {task.id + 1} does not exist"
+
+def test_task_waiting_get_logs(
+        post_json_admin_header,
+        client,
+        mocker,
+        waiting_state,
+        task
+    ):
+    """
+    Basic test that will try to get logs for a pod
+    in an init state.
+    """
+    mocker.patch(
+        'app.models.task.Task.get_current_pod',
+        return_value=Mock(
+            status=Mock(
+                container_statuses=[waiting_state]
+            )
+        )
+    )
+    response_logs = client.get(
+        f'/tasks/{task.id}/logs',
+        headers=post_json_admin_header
+    )
+    assert response_logs.status_code == 200
+    assert response_logs.json["logs"] == 'Task queued'
+
+def test_task_not_found_get_logs(
+        post_json_admin_header,
+        client,
+        mocker,
+        task
+    ):
+    """
+    Basic test that will try to get the logs from a missing
+    pod. This can happen if the task gets cleaned up
+    """
+    mocker.patch(
+        'app.models.task.Task.get_current_pod',
+        return_value=None
+    )
+    response_logs = client.get(
+        f'/tasks/{task.id}/logs',
+        headers=post_json_admin_header
+    )
+    assert response_logs.status_code == 400
+    assert response_logs.json["error"] == f'Task pod {task.id} not found'
+
+def test_task_get_logs_fails(
+        post_json_admin_header,
+        client,
+        k8s_client,
+        mocker,
+        task,
+        terminated_state
+    ):
+    """
+    Basic test that will try to get the logs, but k8s
+    will raise an ApiException. It is expected a 500 status code
+    """
+    mocker.patch(
+        'app.models.task.Task.get_current_pod',
+        return_value=Mock(
+            status=Mock(
+                container_statuses=[terminated_state]
+            )
+        )
+    )
+    k8s_client["read_namespaced_pod_log"].side_effect = ApiException()
+    response_logs = client.get(
+        f'/tasks/{task.id}/logs',
+        headers=post_json_admin_header
+    )
+    assert response_logs.status_code == 500
+    assert response_logs.json["error"] == 'Failed to fetch the logs'
 
 
 class TestTaskResults:

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: keycloak
-  namespace: {{ .Values.namespaces.keycloak }}
+  namespace: {{ include "kc_namespace" . }}
   labels:
     app: keycloak
 spec:
