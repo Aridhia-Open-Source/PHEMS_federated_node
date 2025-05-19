@@ -225,8 +225,9 @@ def post_transfer_token():
             user = Keycloak().create_user(**body["requested_by"])
 
         body["requested_by"] = user["id"]
-        ds_id = body.pop("dataset_id")
-        body["dataset"] = Dataset.query.filter(Dataset.id == ds_id).one_or_none()
+        ds_id = body.pop("dataset_id", None)
+        ds_name = body.pop("dataset_name", None)
+        body["dataset"] = Dataset.get_dataset_by_name_or_id(id=ds_id, name=ds_name)
         if body["dataset"] is None:
             raise DBRecordNotFoundError(f"Dataset {ds_id} not found")
 
@@ -238,7 +239,7 @@ def post_transfer_token():
     except KeyError as kexc:
         session.rollback()
         raise InvalidRequest(
-            "Missing field. Make sure \"catalogue\" and \"dictionary\" entries are there"
+            f"Missing field. Make sure {"".join(kexc.args)} fields are there"
         ) from kexc
     except:
         session.rollback()

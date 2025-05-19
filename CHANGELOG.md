@@ -79,6 +79,7 @@
 - Updated the nginx version to `1.12.1` to address a vulnerability
 
 ## 0.9.0
+- Added the Federated Node Task Controller as a chart dependency. This can be installed by setting `outboundMode` to true on the values file. By default, it won't be installed.
 - Added a test suite for the helm chart. This can be simply run with `helm test federatednode`
 - __smoketests__ can be also run if the values file contains
     ```yaml

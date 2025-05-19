@@ -25,6 +25,8 @@ on:
     branches:
       - main
       - develop
+      # Remove
+      - subchart
     paths-ignore:
       - '*.md'
       - 'README'
@@ -197,7 +199,7 @@ jobs:
       CHART_NAME: federated-node
       IS_TAG: ${{ needs.init.outputs.is_tag }}
       HAS_SUBCHART: true
-  sumamry:
+  summary:
     needs:
       - init
       - release
