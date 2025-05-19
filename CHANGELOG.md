@@ -1,5 +1,16 @@
 # Releases Changelog
 
+## 1.1.0
+### Security
+- Added the following headers to nginx:
+    - `strict-transport-security`
+    - `content-security-policy`
+    - `referrer-policy`
+    - `permission-policy`
+    - `x-content-type-options`
+    - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to self)
+- Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
+
 ## 0.12.0
 - Added the Federated Node Task Controller as a chart dependency. This can be installed by setting `outboundMode` to true on the values file. By default, it won't be installed.
 - Some jobs will be cleaned before and after an upgrade.
