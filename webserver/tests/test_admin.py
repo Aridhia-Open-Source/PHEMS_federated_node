@@ -90,7 +90,7 @@ class TestAudits:
         data["dictionaries"][0]["password"] = "2ecr3t!"
         resp = client.post(
             '/datasets/',
-            data=json.dumps(data),
+            json=data,
             headers=post_json_admin_header
         )
 
