@@ -289,3 +289,36 @@ class TestDeleteRegistries:
         )
         assert response.status_code == 500
         assert Registry.query.filter_by(id=reg_id).one_or_none() is None
+
+    def test_delete_cascade_containers(
+            self,
+            client,
+            registry,
+            reg_k8s_client,
+            simple_admin_header
+    ):
+        """
+        Tests that by simply deleting a registry all of its
+        containers are deleted as well
+        """
+        reg_id = registry.id
+        Container(
+            registry=registry,
+            name="newimage",
+            tag="1.0.0"
+        ).add()
+        Container(
+            registry=registry,
+            name="newimage",
+            tag="1.3.0"
+        ).add()
+
+        response = client.delete(
+            f"/registries/{reg_id}",
+            headers=simple_admin_header
+        )
+        assert response.status_code == 204
+        assert Registry.query.filter_by(id=reg_id).one_or_none() is None
+        assert Container.query.filter_by(
+            name="newimage", registry_id=reg_id
+            ).count() == 0
