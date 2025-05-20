@@ -1,4 +1,16 @@
 Successfully installed {{ .Chart.Name }} version: {{ .Chart.Version }}
+Subcharts:
+{{- range .Chart.Dependencies }}
+    {{- if eq .Name "ingress-nginx" }}
+    Ingress Nginx: {{ .Version }}
+    {{- end }}
+    {{- if eq .Name "cert-manager" }}
+    Cert manager: {{ .Version }}
+    {{- end }}
+    {{- if eq .Name  "fn-task-controller" }}
+    Task Controller: {{ .Version }}
+    {{- end }}
+{{- end }}
 
 You can run some smoketests with:
 helm test {{ .Release.Name }} -n {{ .Release.Namespace }} --logs

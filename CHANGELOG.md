@@ -1,7 +1,21 @@
 # Releases Changelog
 
 ## 0.12.0
+- Added the Federated Node Task Controller as a chart dependency. This can be installed by setting `outboundMode` to true on the values file. By default, it won't be installed.
+- Some jobs will be cleaned before and after an upgrade.
 - Fixed issues with rendering nfs templates due to an extra `-`
+- Multiple database engines now supported:
+    - MS SQL
+    - Postgres
+    - MariaDB
+    - MySQL
+    - OracleDB
+- Tasks do not need to fetch data themselves. The node will do so and mount a file called `input.csv` as default. This can be specified by the `inputs` field in the `/tasks` request. Where it will have the following format:
+    ```json
+    {
+        "file_name": "file_path"
+    }
+    ```
 
 ### Bugfixes
 - Issue with new user fixed due to a format mismatch

@@ -11,6 +11,10 @@ on:
         description: 'New tag the docker images are going to use'
         required: false
         type: string
+      taskController:
+        description: 'Task controller sub-chart version'
+        required: false
+        type: string
       dryRun:
         description: 'Dry run, no changes committed. Shows the new Chart.yaml contents'
         required: false
@@ -63,12 +67,16 @@ jobs:
         env:
           CERTMANAGER_VERSION: ${{ inputs.certManager }}
           NGINX_VERSION: ${{ inputs.ingressNginx }}
+          FNTC_VERSION: ${{ inputs.taskController }}
         run: |
           if [[ -n "${CERTMANAGER_VERSION}" ]]; then
             python scripts/upgrade_subchart.py -s cert-manager -v ${CERTMANAGER_VERSION}
           fi
           if [[ -n "${NGINX_VERSION}" ]]; then
             python scripts/upgrade_subchart.py -s ingress-nginx -v ${NGINX_VERSION}
+          fi
+          if [[ -n "${FNTC_VERSION}" ]]; then
+            python scripts/upgrade_subchart.py -s fn-task-controller -v ${NGINX_VERSION}
           fi
           cat k8s/federated-node/Chart.yaml
       - name: Commit Changes
