@@ -42,9 +42,6 @@ ghcr.io/aridhia-open-source/alpine:{{ include "image-tag" . }}
 {{- define "image-tag" -}}
 {{ (.Values.backend).tag | default .Chart.AppVersion }}
 {{- end }}
-{{- define "image-tag" -}}
-{{ .Values.backend.tag | default .Chart.AppVersion }}
-{{- end }}
 
 {{/*
 Common labels

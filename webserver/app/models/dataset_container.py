@@ -10,6 +10,7 @@ class DatasetContainer(db.Model, BaseModel):
     __tablename__ = 'datasetcontainers'
 
     all = Column(Boolean(), default=False)
+    use = Column(Boolean(), default=False)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'), nullable=True)
@@ -23,19 +24,25 @@ class DatasetContainer(db.Model, BaseModel):
             dataset:Dataset=None,
             container:Container=None,
             all:bool=False,
+            use:bool=False
         ):
         super().__init__()
         self.dataset = dataset
         self.container = container
         self.all = all
+        self.use = use
 
     @classmethod
     def get_by_dataset(cls, dataset:Dataset, to_dict:bool=False) -> list:
         """
         Simply fetch by dataset, and format for output
         """
-        dcs = DatasetContainer.query.join(Container, isouter=True) \
-            .filter(DatasetContainer.dataset_id == dataset.id).all()
+        dcs = DatasetContainer.query.join(
+            Container, isouter=True
+        ).filter(
+            DatasetContainer.dataset_id == dataset.id,
+            ((DatasetContainer.use == True) | (DatasetContainer.all == True))
+        ).all()
         if not to_dict:
             return dcs
 

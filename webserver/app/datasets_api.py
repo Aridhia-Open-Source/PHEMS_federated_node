@@ -222,7 +222,7 @@ def associate_containers_to_dataset_by_id_or_name(dataset_id=None, dataset_name=
     # Dataset check
     dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id, name=dataset_name)
 
-    if ["ids"] != list(request.json.keys()):
+    if "ids" not in request.json:
         raise InvalidRequest("The request body should only include `ids` as unique field")
 
     ids = request.json["ids"]
@@ -236,7 +236,7 @@ def associate_containers_to_dataset_by_id_or_name(dataset_id=None, dataset_name=
             if container is None:
                 raise InvalidRequest(f"Container {id} not found", 404)
 
-            DatasetContainer(dataset=dataset, container=container).add(commit=False)
+            DatasetContainer(dataset=dataset, container=container, use=True).add(commit=False)
         session.commit()
         return '', 201
     except:
@@ -261,7 +261,7 @@ def get_associated_containers_to_dataset_by_id_or_name(dataset_id=None, dataset_
 @bp.route('/<int:dataset_id>/containers/<container>', methods=['DELETE'])
 @audit
 @auth(scope='can_access_dataset')
-def get_associated_containers_to_dataset_by_id_or_name(container, dataset_id=None, dataset_name=None):
+def delete_associated_containers_to_dataset_by_id_or_name(container, dataset_id=None, dataset_name=None):
     """
     GET /datasets/dataset_name/containers endpoint.
     GET /datasets/id/containers endpoint.
