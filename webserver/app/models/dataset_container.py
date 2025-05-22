@@ -9,7 +9,7 @@ from app.helpers.exceptions import DatasetContainerException
 class DatasetContainer(db.Model, BaseModel):
     __tablename__ = 'datasetcontainers'
 
-    all = Column(Boolean(), default=False)
+    all_containers = Column(Boolean(), default=False)
     use = Column(Boolean(), default=False)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -23,13 +23,13 @@ class DatasetContainer(db.Model, BaseModel):
             self,
             dataset:Dataset=None,
             container:Container=None,
-            all:bool=False,
+            all_containers:bool=False,
             use:bool=False
         ):
         super().__init__()
         self.dataset = dataset
         self.container = container
-        self.all = all
+        self.all_containers = all_containers
         self.use = use
 
     @classmethod
@@ -41,7 +41,7 @@ class DatasetContainer(db.Model, BaseModel):
             Container, isouter=True
         ).filter(
             DatasetContainer.dataset_id == dataset.id,
-            ((DatasetContainer.use == True) | (DatasetContainer.all == True))
+            ((DatasetContainer.use == True) | (DatasetContainer.all_containers == True))
         ).all()
         if not to_dict:
             return dcs
@@ -53,3 +53,19 @@ class DatasetContainer(db.Model, BaseModel):
 
             parsed_list.append(dc.container.sanitized_dict())
         return parsed_list
+
+    @classmethod
+    def is_dataset_linked_with_image(cls, dataset:Dataset, container:Container=None) -> bool:
+        """
+        Generalized way to check if a dataset is linked with and image
+        """
+        dc = cls.query.filter(
+            (
+                (cls.dataset==dataset) &
+                (
+                    (cls.all_containers==True) |
+                    ((cls.use==True) & (cls.container==container))
+                )
+            )
+        ).one_or_none()
+        return dc is not None

@@ -227,7 +227,7 @@ def associate_containers_to_dataset_by_id_or_name(dataset_id=None, dataset_name=
 
     ids = request.json["ids"]
     if ids[0] == "*":
-        DatasetContainer(dataset=dataset, all=True).add()
+        DatasetContainer(dataset=dataset, all_containers=True).add()
         return '', 201
 
     try:
@@ -271,7 +271,7 @@ def delete_associated_containers_to_dataset_by_id_or_name(container, dataset_id=
     dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id, name=dataset_name)
     try:
         if container == '*':
-            dc = DatasetContainer.query.filter_by(dataset_id = dataset.id, all=True)
+            dc = DatasetContainer.query.filter_by(dataset_id = dataset.id, all_containers=True)
         else:
             cont_obj = Container.query.filter_by(id = container)
             if not cont_obj:
@@ -281,7 +281,11 @@ def delete_associated_containers_to_dataset_by_id_or_name(container, dataset_id=
         if not dc:
             raise InvalidRequest("Could not find an association between dataset and container(s)")
 
-        dc.delete(False)
+        dc.update({
+            "use": False,
+            "all_containers": False
+        })
+
         session.commit()
     except:
         session.rollback()

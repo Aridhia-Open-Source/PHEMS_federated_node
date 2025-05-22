@@ -281,6 +281,103 @@
         }
       }
     },
+    "/datasets/{id}/containers": {
+      "get": {
+        "operationId": "getAssociatedContainersToDatasetByIdOrName",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetIdPath"
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "List all of the associated containers to a dataset",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/DatasetContainerList"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "setAssociatedContainersToDatasetByIdOrName",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetIdPath"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json":{
+              "schema":{
+                "$ref": "#/components/schemas/DatasetContainersPost"
+              }
+            }
+          }
+        },
+        "tags": ["Datasets"],
+        "summary": "Create an association between a dataset and a list of containers ids, or all of the available ones.",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/DatasetContainerList"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/{id}/containers/{container_id}": {
+      "delete": {
+        "operationId": "deleteAssociatedContainersToDatasetByIdOrName",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/containerIdPath"
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Unlink a container from a dataset",
+        "responses": {
+          "204":{
+            "$ref": "#/components/responses/NoContent"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/datasets/{name}": {
       "get": {
         "operationId": "getDatasetByName",
@@ -1242,6 +1339,16 @@
           }
         }
       },
+      "DatasetContainerList": {
+        "description": "List of containers linked to a dataset",
+        "content": {
+          "application/json":{
+            "schema":{
+              "$ref": "#/components/schemas/DatasetContainers"
+            }
+          }
+        }
+      },
       "Task": {
         "description": "Task description",
         "content": {
@@ -1500,6 +1607,9 @@
           }
         }
       },
+      "NoContent": {
+        "description": "No Content."
+      },
       "NotFound": {
         "description": "Not found."
       },
@@ -1654,6 +1764,25 @@
           "field_name": {"type": "string", "maxLength": 256, "example": "glucose_perc"},
           "table_name": {"type": "string", "maxLength": 256, "example": "analysis"},
           "label": {"type": "string", "maxLength": 256}
+        }
+      },
+      "DatasetContainers": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "example": ["*"]
+      },
+      "DatasetContainersPost": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": ["1", "2"]
+          }
         }
       },
       "CataloguePostBody": {

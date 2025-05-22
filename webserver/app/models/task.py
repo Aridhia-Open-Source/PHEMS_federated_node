@@ -18,9 +18,11 @@ from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesBatchClient, KubernetesClient
 from app.helpers.exceptions import DBError, InvalidRequest, TaskImageException, TaskExecutionException
 from app.helpers.task_pod import TaskPod
-from app.models.dataset import Dataset
 from app.models.container import Container
+from app.models.dataset import Dataset
+from app.models.dataset_container import DatasetContainer
 from app.models.request import Request
+from app.models.registry import Registry
 
 logger = logging.getLogger('task_model')
 logger.setLevel(logging.INFO)
@@ -97,7 +99,11 @@ class Task(db.Model, BaseModel):
             raise InvalidRequest(
                 f"{data["docker_image"]} does not have a tag. Please provide one in the format <image>:<tag>"
             )
-        data["docker_image"] = cls.get_image_with_repo(data["docker_image"])
+        image = cls.get_image_with_repo(data["docker_image"], True)
+        data["docker_image"] = image.full_image_name()
+
+        if not DatasetContainer.is_dataset_linked_with_image(container=image, dataset=data["dataset"]):
+            raise InvalidRequest("Dataset is not associated with the image requested")
 
         # Output volumes validation
         if not isinstance(data.get("outputs", {}), dict):
@@ -192,14 +198,18 @@ class Task(db.Model, BaseModel):
         return int(base) * MEMORY_UNITS[unit]
 
     @classmethod
-    def get_image_with_repo(cls, docker_image):
+    def get_image_with_repo(cls, docker_image:str, get_obj:bool=False) -> Container|str:
         """
         Looks through the CRs for the image and if exists,
         returns the full image name with the repo prefixing the image.
         """
+        reg_url = docker_image.split('/')[0]
         image_name = "/".join(docker_image.split('/')[1:])
         image_name, tag = image_name.split(':')
-        image = Container.query.filter(Container.name==image_name, Container.tag==tag).one_or_none()
+        image = Container.query.join(Registry).filter(
+            Container.name==image_name, Container.tag==tag,
+            Registry.url.ilike(f"%{reg_url}")
+        ).one_or_none()
         if image is None:
             raise TaskExecutionException(f"Image {docker_image} could not be found")
 
@@ -207,7 +217,7 @@ class Task(db.Model, BaseModel):
         if not registry_client.get_image_tags(image.name):
             raise TaskImageException(f"Image {docker_image} not found on our repository")
 
-        return image.full_image_name()
+        return image if get_obj else image.full_image_name()
 
     def pod_name(self):
         return f"{self.name.lower().replace(' ', '-')}-{uuid4()}"
