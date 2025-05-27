@@ -222,20 +222,29 @@ def associate_containers_to_dataset_by_id_or_name(dataset_id=None, dataset_name=
     # Dataset check
     dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id, name=dataset_name)
 
-    if "ids" not in request.json:
-        raise InvalidRequest("The request body should only include `ids` as unique field")
+    if "ids" not in request.json and "images" not in request.json:
+        raise InvalidRequest("The request body should only include `ids` or `images` as unique field")
 
-    ids = request.json["ids"]
-    if ids[0] == "*":
+    ids = request.json.get("ids", [])
+    names = request.json.get("images", [])
+    if ids and ids[0] == "*":
         DatasetContainer(dataset=dataset, all_containers=True).add()
         return '', 201
 
-    try:
-        for id in request.json["ids"]:
-            container = Container.query.filter_by(id = id).one_or_none()
-            if container is None:
-                raise InvalidRequest(f"Container {id} not found", 404)
+    containers_list = []
+    for cont in names:
+        container =  Container.get_from_full_name(full_name=cont)
+        if container is None:
+            raise InvalidRequest(f"Container {cont} not found", 404)
+        containers_list.append(container)
 
+    for id in ids:
+        container = Container.query.filter_by(id=id).one_or_none()
+        if container is None:
+            raise InvalidRequest(f"Container {id} not found", 404)
+        containers_list.append(container)
+    try:
+        for container in containers_list:
             DatasetContainer(dataset=dataset, container=container, use=True).add(commit=False)
         session.commit()
         return '', 201

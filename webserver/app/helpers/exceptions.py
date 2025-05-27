@@ -55,6 +55,9 @@ class TaskExecutionException(LogAndException):
 class KubernetesException(LogAndException):
     description = "A kubernetes error occurred. Check the logs for more info"
 
+class ContainerException(LogAndException):
+    description = "Error with the Container initialization/valiadation"
+
 class ContainerRegistryException(LogAndException):
     description = "Failed to communicate with the Container Registry"
 
