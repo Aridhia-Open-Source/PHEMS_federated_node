@@ -119,7 +119,7 @@ class Task(db.Model, BaseModel):
                 data["resources"].get("limits", {}).get("memory"),
                 data["resources"].get("requests", {}).get("memory")
             )
-        data["db_query"] = data.pop("db_query")
+        data["db_query"] = data.pop("db_query", {})
         return data
 
     @classmethod

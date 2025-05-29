@@ -1,6 +1,7 @@
 import base64
 import os
 import logging
+import shutil
 import tarfile
 from tempfile import TemporaryFile
 from kubernetes import client, config
@@ -192,9 +193,8 @@ class KubernetesBase:
                                 tar.makefile(member, dest_path + '/' + fname[1:])
 
             # Create an archive on the Flask's pod PVC
-            results_file_archive = dest_path + '/results.tar.gz'
-            with tarfile.open(results_file_archive, "w:gz") as tar:
-                tar.add(dest_path, arcname=os.path.basename(dest_path))
+            results_file_archive = dest_path + '/results'
+            shutil.make_archive(results_file_archive, 'zip', dest_path)
         except Exception as e:
             # It's against the standards, but tarfile.ReadError
             # doesn't inherit from BaseException and can't be caught
@@ -203,7 +203,7 @@ class KubernetesBase:
                 raise KubernetesException(str(e))
             raise e
 
-        return results_file_archive
+        return results_file_archive + ".zip"
 
 class KubernetesClient(KubernetesBase, client.CoreV1Api):
     def is_pod_ready(self, label):

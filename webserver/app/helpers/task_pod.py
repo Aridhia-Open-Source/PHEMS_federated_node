@@ -161,15 +161,19 @@ class TaskPod:
                 f"ls -la {self.base_mount_path}/{task_id}"
             ]
         )
-        data_init = V1Container(
-            name="fetch-data",
-            image=f"ghcr.io/aridhia-open-source/db_connector:{IMAGE_TAG}",
-            volume_mounts=[vol_mount],
-            image_pull_policy="Always",
-            env=self.env_init,
-            env_from=self.env_from
-        )
-        return [dir_init, data_init]
+        init_containers = [dir_init]
+
+        if self.db_query:
+            data_init = V1Container(
+                name="fetch-data",
+                image=f"ghcr.io/aridhia-open-source/db_connector:{IMAGE_TAG}",
+                volume_mounts=[vol_mount],
+                image_pull_policy="Always",
+                env=self.env_init,
+                env_from=self.env_from
+            )
+            init_containers.append(data_init)
+        return init_containers
 
     def create_pod_spec(self):
         """
@@ -205,10 +209,13 @@ class TaskPod:
                 name="data"
             ))
 
-        self.env_init.append(V1EnvVar(name="QUERY", value=self.db_query["query"]))
-        self.env_init.append(V1EnvVar(name="FROM_DIALECT", value=self.db_query["dialect"]))
-        self.env_init.append(V1EnvVar(name="TO_DIALECT", value=self.dataset.type))
+        if self.db_query:
+            self.env_init.append(V1EnvVar(name="QUERY", value=self.db_query["query"]))
+            self.env_init.append(V1EnvVar(name="FROM_DIALECT", value=self.db_query["dialect"]))
+            self.env_init.append(V1EnvVar(name="TO_DIALECT", value=self.dataset.type))
 
+        self.env.append(V1EnvVar(name="CONNECTION_STRING", value=self.dataset.get_connection_string()))
+        self.env.append(V1EnvVar(name="ORACLE_SID", value=self.dataset.name))
         container = V1Container(
             name=self.name,
             image=self.image,
