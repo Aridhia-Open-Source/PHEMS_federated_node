@@ -48,18 +48,18 @@ def validate(query:str, dataset:Dataset) -> bool:
     the actual dataset.
     """
     try:
-        with connect_to_dataset(dataset) as session:
-            if dataset.type == "postgres":
-                # Read only query, so things like UPDATE, DELETE or DROP won't be executed
-                session.execute(text('SET TRANSACTION READ ONLY'))
-                session.execute(text(query)).all()
-            if dataset.type == "mssql":
-                session.execute(query)
-                session.fetchall()
+        session = connect_to_dataset(dataset)
+        if dataset.type == "postgres":
+            # Read only query, so things like UPDATE, DELETE or DROP won't be executed
+            session.execute(text('SET TRANSACTION READ ONLY'))
+            session.execute(text(query)).all()
+        if dataset.type == "mssql":
+            session.execute(query)
+            session.fetchall()
         return True
     except OperationalError as exc:
         logger.info(f"Connection to the DB failed: \n{str(exc)}")
-        raise DBError("Could not connect to the database", 500)
+        raise DBError("Could not connect to the database", 500) from exc
     except (ProgrammingError, InternalError) as exc:
         logger.info(f"Query validation failed\n{str(exc)}")
         return False

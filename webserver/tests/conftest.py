@@ -195,7 +195,7 @@ def v1_mock(mocker):
         ),
         "cp_from_pod_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.cp_from_pod',
-            return_value="../tests/files/results.tar.gz"
+            return_value="../tests/files/results.zip"
         )
     }
 
