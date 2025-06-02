@@ -130,7 +130,7 @@ def get_task_results(task_id):
         return {"error": "Tasks results are not available anymore. Please, run the task again"}, 500
 
     results_file = task.get_results()
-    return send_file(results_file, download_name="results.tar.gz"), 200
+    return send_file(results_file, as_attachment=True), 200
 
 @bp.route('/<task_id>/logs', methods=['GET'])
 @audit
