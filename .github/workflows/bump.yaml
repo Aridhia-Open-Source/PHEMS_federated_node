@@ -16,14 +16,21 @@ on:
         required: false
         type: boolean
         default: true
+      taskController:
+        description: 'Task controller sub-chart version'
+        required: false
+        type: string
+        default: null
       certManager:
         description: 'CertManager sub-chart version'
         required: false
         type: string
+        default: null
       ingressNginx:
         description: 'Nginx ingress sub-chart version'
         required: false
         type: string
+        default: null
 
 permissions:
   contents: write
@@ -63,12 +70,16 @@ jobs:
         env:
           CERTMANAGER_VERSION: ${{ inputs.certManager }}
           NGINX_VERSION: ${{ inputs.ingressNginx }}
+          FNTC_VERSION: ${{ inputs.taskController }}
         run: |
           if [[ -n "${CERTMANAGER_VERSION}" ]]; then
             python scripts/upgrade_subchart.py -s cert-manager -v ${CERTMANAGER_VERSION}
           fi
           if [[ -n "${NGINX_VERSION}" ]]; then
             python scripts/upgrade_subchart.py -s ingress-nginx -v ${NGINX_VERSION}
+          fi
+          if [[ -n "${FNTC_VERSION}" ]]; then
+            python scripts/upgrade_subchart.py -s fn-task-controller -v ${FNTC_VERSION}
           fi
           cat k8s/federated-node/Chart.yaml
       - name: Commit Changes

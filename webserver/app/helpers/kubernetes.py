@@ -10,7 +10,6 @@ from kubernetes.watch import Watch
 from app.helpers.exceptions import InvalidRequest, KubernetesException
 from app.helpers.const import TASK_NAMESPACE
 
-
 logger = logging.getLogger('kubernetes_helper')
 logger.setLevel(logging.INFO)
 
@@ -178,7 +177,7 @@ class KubernetesBase:
                 tar_buffer.flush()
                 tar_buffer.seek(0)
                 try:
-                    os.mkdir(dest_path)
+                    os.makedirs(dest_path, exist_ok=True)
                 except FileExistsError:
                     # folder exists, skip
                     pass
