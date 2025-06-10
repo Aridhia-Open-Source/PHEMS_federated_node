@@ -1023,7 +1023,7 @@ class TestTaskResults:
             headers=simple_admin_header
         )
         assert response.status_code == 200
-        assert response.content_type == "application/x-tar"
+        assert response.content_type == "application/zip"
 
     def test_get_results_job_creation_failure(
         self,

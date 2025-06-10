@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import urllib3
 from app.helpers.const import (
-    CLEANUP_AFTER_DAYS, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX,
+    CLEANUP_AFTER_DAYS, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, PUBLIC_URL,
     TASK_NAMESPACE, TASK_POD_RESULTS_PATH, TASK_POD_INPUTS_PATH, RESULTS_PATH
 )
 from app.helpers.base_model import BaseModel, db
@@ -271,7 +271,7 @@ class Task(db.Model, BaseModel):
             )
         except ApiException as e:
             logger.error(json.loads(e.body))
-            raise InvalidRequest(f"Failed to run pod: {e.reason}")
+            raise InvalidRequest(f"Failed to run pod: {e.reason}") from e
 
     def get_current_pod(self, is_running:bool=True):
         v1 = KubernetesClient()
@@ -381,19 +381,20 @@ class Task(db.Model, BaseModel):
             job_pod = v1.list_namespaced_pod(namespace=TASK_NAMESPACE, label_selector=f"job-name={job_name}").items[0]
 
             res_file = v1.cp_from_pod(
-                job_pod.metadata.name,
-                TASK_POD_RESULTS_PATH,
-                f"{RESULTS_PATH}/{self.id}/results"
+                pod_name=job_pod.metadata.name,
+                source_path=TASK_POD_RESULTS_PATH,
+                dest_path=f"{RESULTS_PATH}/{self.id}/results",
+                out_name=f"{PUBLIC_URL}-results-{self.id}"
             )
-            v1.delete_pod(job_pod.metadata.name)
+            # v1.delete_pod(job_pod.metadata.name)
             v1_batch.delete_job(job_name)
         except ApiException as e:
             if 'job_pod' in locals() and self.get_current_pod(job_pod.metadata.name):
                 v1_batch.delete_job(job_name)
             logger.error(getattr(e, 'reason'))
-            raise InvalidRequest(f"Failed to run pod: {e.reason}")
-        except urllib3.exceptions.MaxRetryError:
-            raise InvalidRequest("The cluster could not create the job")
+            raise InvalidRequest(f"Failed to run pod: {e.reason}") from e
+        except urllib3.exceptions.MaxRetryError as mre:
+            raise InvalidRequest("The cluster could not create the job") from mre
         return res_file
 
     def get_logs(self):
@@ -415,5 +416,4 @@ class Task(db.Model, BaseModel):
                 container=pod.metadata.name
             ).splitlines()
         except ApiException as apie:
-            logger.error(apie)
             raise TaskExecutionException("Failed to fetch the logs") from apie
