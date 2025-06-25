@@ -44,7 +44,7 @@ class Task(db.Model, BaseModel):
                  docker_image:str,
                  requested_by:str,
                  dataset:Dataset,
-                 executors:dict = {},
+                 executors:list[dict] = [],
                  tags:dict = {},
                  resources:dict = {},
                  inputs:dict = {},

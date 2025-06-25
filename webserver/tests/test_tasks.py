@@ -1,5 +1,6 @@
 import json
 import pytest
+import re
 from copy import deepcopy
 from unittest import mock
 from datetime import datetime, timedelta
@@ -405,6 +406,7 @@ class TestPostTask:
             cr_client,
             post_json_admin_header,
             client,
+            reg_k8s_client,
             registry_client,
             task_body
         ):
@@ -417,6 +419,43 @@ class TestPostTask:
             headers=post_json_admin_header
         )
         assert response.status_code == 201
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        # Make sure the two init containers are created
+        assert len(pod_body.spec.init_containers) == 2
+        assert [pod.name for pod in pod_body.spec.init_containers] == ["init-1", "fetch-data"]
+
+    def test_create_task_no_db_query(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            reg_k8s_client,
+            registry_client,
+            task_body
+        ):
+        """
+        Tests task creation returns 201, if the db_query field
+        is not provided, the connection string is passed
+        as env var instead of QUERY, FROM_DIALECT and TO_DIALECT.
+        Also checks that only one init container is created for the
+        folder creation in the PV
+        """
+        task_body.pop("db_query")
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        # The fetch_data init container should not be created
+        assert len(pod_body.spec.init_containers) == 1
+        assert pod_body.spec.init_containers[0].name == "init-1"
+        envs = [env.name for env in pod_body.spec.containers[0].env]
+        assert "CONNECTION_STRING" in envs
+        assert set(envs).intersection({"QUERY", "FROM_DIALECT", "TO_DIALECT"}) == set()
 
     def test_create_task_invalid_output_field(
             self,
@@ -765,6 +804,44 @@ class TestPostTask:
         pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
         assert len(pod_body.spec.containers[0].volume_mounts) == 2
         assert [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts] == ["/mnt/inputs", TASK_POD_RESULTS_PATH]
+
+    def test_task_connection_string_postgres(
+            self,
+            task,
+            cr_client,
+            reg_k8s_client,
+            registry_client,
+    ):
+        """
+        Simple test to make sure the generated connection string
+        follows the global format
+        """
+        task.db_query = None
+        task.run()
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        env = [env.value for env in pod_body.spec.containers[0].env if env.name == "CONNECTION_STRING"][0]
+        assert re.match(r'driver={PostgreSQL ANSI};Uid=.*;Pwd=.*;Server=.*;Database=.*;$', env) is not None
+
+    def test_task_connection_string_oracle(
+            self,
+            task,
+            cr_client,
+            reg_k8s_client,
+            registry_client,
+            dataset_oracle
+    ):
+        """
+        Simple test to make sure the generated connection string
+        follows the specific format for OracleDB
+        """
+        task.db_query = None
+        task.dataset = dataset_oracle
+        task.run()
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        env = [env.value for env in pod_body.spec.containers[0].env if env.name == "CONNECTION_STRING"][0]
+        assert re.match(r'driver={Oracle ODBC Driver};Uid=.*;PSW=.*;DBQ=.*;$', env) is not None
 
 
 class TestCancelTask:
