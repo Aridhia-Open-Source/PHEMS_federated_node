@@ -38,8 +38,6 @@ class Oracle(BaseEngine):
             args:str
         ):
         self.connection_str = f"{self.driver};Uid={user};PSW={passw};DBQ={host}:{port}/{database};{args or ''}"
-        # self.connection_str = f"{self.driver};UID={user};PSW={passw};SERVER={host},{port};DBQ={database};{args or ''}"
-        # self.connection_str = f"{self.driver};UID={user};PWD={passw};SERVER=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST={host})(PORT={port}))(CONNECT_DATA=(SID={database})));{args or ''}"
 
 
 class MariaDB(BaseEngine):
