@@ -106,6 +106,7 @@ on_aks: false
 on_eks: false
 
 certs:
+  rotationPolicy: Never
   azure: {}
     # secretName:
     # configmap:
