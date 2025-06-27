@@ -1760,7 +1760,12 @@
           },
           "dataset_id": {
             "type": "string",
+            "description": "This is here mostly for legacy purposes, but referring by name is more consistent across multiple nodes.",
             "example": "1"
+          },
+          "dataset_name": {
+            "type": "string",
+            "example": "blood_samples"
           }
         },
         "required": [
@@ -1768,7 +1773,7 @@
           "project_name",
           "requested_by",
           "description",
-          "dataset_id",
+          "dataset_name",
           "proj_start",
           "proj_end"
         ]
