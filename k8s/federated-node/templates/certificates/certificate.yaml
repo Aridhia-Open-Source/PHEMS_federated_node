@@ -14,4 +14,6 @@ spec:
   issuerRef:
     name: ssl-issuer
     kind: ClusterIssuer
+  privateKey:
+    rotationPolicy: {{ .Values.certs.rotationPolicy | default "Never" }}
 {{- end }}

@@ -15,12 +15,26 @@ type: {{ $sec.type }}
 ---
 {{- end }}
 {{- if .Values.storage.azure }}
-{{ $sec := lookup "v1" "Secret" $.Release.Namespace .Values.storage.azure.secretName | default dict }}
+{{ $sec := lookup "v1" "Secret" .Release.Namespace .Values.storage.azure.secretName | default dict }}
 apiVersion: v1
 kind: Secret
 metadata:
   name: {{ .Values.storage.azure.secretName }}
   namespace: {{ include "tasks_namespace" . }}
+data:
+{{- with $sec.data  }}
+{{ toYaml . | indent 2 }}
+{{- end }}
+type: {{ $sec.type}}
+---
+{{- end }}
+{{- if and (index .Values "cert-manager" "enabled") (or .Values.on_eks .Values.on_aks) }}
+{{ $sec := lookup "v1" "Secret" .Release.Namespace (.Values.certs.azure.secretName | default .Values.certs.aws) | default dict }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.certs.azure.secretName }}
+  namespace: {{ (index .Values "cert-manager" "namespace") }}
 data:
 {{- with $sec.data  }}
 {{ toYaml . | indent 2 }}
