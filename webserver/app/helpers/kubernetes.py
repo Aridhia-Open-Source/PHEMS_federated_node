@@ -152,7 +152,9 @@ class KubernetesBase:
         """
         # cmd to archive the content of source_path to stdout
         exec_command = ['tar', 'cf', '-', source_path]
-
+        # Make sure the tmp/data folder exists so that the zip files is not in the same folder
+        # as the actual results
+        os.makedirs("/tmp/data", exist_ok=True)
         try:
             with TemporaryFile() as tar_buffer:
                 resp = stream(
@@ -191,7 +193,7 @@ class KubernetesBase:
                                 tar.makefile(member, dest_path + '/' + fname[1:])
 
             # Create an archive on the Flask's pod PVC
-            results_file_archive = f'{dest_path}/{out_name}'
+            results_file_archive = f'/tmp/data/{out_name}'
             shutil.make_archive(results_file_archive, 'zip', dest_path)
         except NotADirectoryError as nde:
             logger.error("%s %s %s", nde.filename, nde.filename, nde.strerror)

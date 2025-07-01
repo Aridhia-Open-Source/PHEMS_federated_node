@@ -208,7 +208,7 @@ class TestKubernetesHelper:
         mocker.patch('app.helpers.kubernetes.TemporaryFile').__enter__.return_value = Mock()
 
         k8s = KubernetesClient()
-        assert k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/mnt/host-id-results.zip'
+        assert k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/tmp/data/host-id-results.zip'
 
     @mock.patch('kubernetes.stream.ws_client.WSClient')
     def test_cp_from_pod_fails_temp_files_read(
