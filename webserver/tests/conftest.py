@@ -1,6 +1,5 @@
 import base64
 import copy
-import json
 import os
 import pytest
 import requests
@@ -80,7 +79,7 @@ def app_ctx(app):
 
 # Users' section
 @pytest.fixture
-def user_uuid():
+def admin_user_uuid():
     return Keycloak().get_user_by_username(os.getenv("KEYCLOAK_ADMIN"))["id"]
 
 @pytest.fixture
@@ -93,6 +92,10 @@ def login_admin(client):
 @pytest.fixture
 def basic_user():
     return Keycloak().create_user(**{"email": "test@basicuser.com"})
+
+@pytest.fixture
+def user_uuid(basic_user):
+    return basic_user["id"]
 
 @pytest.fixture
 def login_user(client, basic_user, mocker):
@@ -195,7 +198,7 @@ def v1_mock(mocker):
         ),
         "cp_from_pod_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.cp_from_pod',
-            return_value="../tests/files/results.tar.gz"
+            return_value="../tests/files/results.zip"
         )
     }
 

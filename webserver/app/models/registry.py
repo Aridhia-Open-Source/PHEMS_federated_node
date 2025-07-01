@@ -91,7 +91,9 @@ class Registry(db.Model, BaseModel):
                     type='kubernetes.io/dockerconfigjson'
                 )
             else:
-                raise ContainerRegistryException("Something went wrong while updating secrets")
+                raise ContainerRegistryException(
+                    "Something went wrong while updating secrets"
+                ) from kae
 
         dockerjson = json.loads(v1.decode_secret_value(regcred.data['.dockerconfigjson']))
         dockerjson['auths'].update({

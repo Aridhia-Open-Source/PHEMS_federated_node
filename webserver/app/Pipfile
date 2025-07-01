@@ -17,6 +17,8 @@ flask-swagger-ui = "*"
 pymssql = "*"
 werkzeug = ">=3.0.6"
 jinja2 = ">=3.1.5"
+requests = ">=2.32.4"
+urllib3 = ">=2.5.0"
 
 [dev-packages]
 pylint=">=3.0.3"

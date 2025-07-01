@@ -1,6 +1,7 @@
 # Releases Changelog
 
 ## 1.1.0
+- Results are now delivered as a `zip` file.
 - Added a `PATCH` endpoint for `/registries` so it's easier to update credentials
 - Added the `active` field for registries, so outdated ones can be safely deactivated
 - `db_query` field for `/tasks` POST is now optional, and its related env variables are not set if not provided

@@ -9,6 +9,7 @@ We want to test the creation, deletion and list operations.
     - create_namespaced_job
 """
 
+import errno
 import json
 import pytest
 from kubernetes import client
@@ -202,21 +203,22 @@ class TestKubernetesHelper:
             peek_stderr=Mock(return_value=False),
             read_stderr=Mock(return_value='')
         )
+        mocker.patch('app.helpers.kubernetes.shutil')
         mocker.patch('app.helpers.kubernetes.tarfile').__enter__.return_value = Mock()
         mocker.patch('app.helpers.kubernetes.TemporaryFile').__enter__.return_value = Mock()
 
         k8s = KubernetesClient()
-        assert k8s.cp_from_pod("pod_name", "/mnt", "/mnt") == '/mnt/results.tar.gz'
+        assert k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/tmp/data/host-id-results.zip'
 
     @mock.patch('kubernetes.stream.ws_client.WSClient')
-    def test_cp_from_pod_fails_tar_creation(
+    def test_cp_from_pod_fails_temp_files_read(
         self,
         ws_mock,
         mocker,
         k8s_config
     ):
         """
-        Tests the successful behaviour of cp_from_pod
+        Tests reading fails on cp_from_pod
         """
         ws_mock.return_value = Mock(
             is_open=Mock(side_effect=[True, False]),
@@ -229,4 +231,50 @@ class TestKubernetesHelper:
 
         k8s = KubernetesClient()
         with pytest.raises(KubernetesException):
-            k8s.cp_from_pod("pod_name", "/mnt", "/mnt") == '/mnt/results.tar.gz'
+            k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/mnt/host-id-results.tar.gz'
+
+    @mock.patch('kubernetes.stream.ws_client.WSClient')
+    def test_cp_from_pod_fails_zip_creation(
+        self,
+        ws_mock,
+        mocker,
+        k8s_config
+    ):
+        """
+        Tests the archive creation fails
+        """
+        ws_mock.return_value = Mock(
+            is_open=Mock(side_effect=[True, False]),
+            read_stdout=Mock(side_effect=['something']),
+            peek_stderr=Mock(return_value=False),
+            read_stderr=Mock(return_value='')
+        )
+        mocker.patch('app.helpers.kubernetes.shutil.make_archive').side_effect = NotADirectoryError(errno.ENOTDIR, 'Not a directory', 'path')
+        mocker.patch('app.helpers.kubernetes.TemporaryFile').__enter__.return_value = Mock()
+
+        k8s = KubernetesClient()
+        with pytest.raises(KubernetesException):
+            k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/mnt/host-id-results.zip'
+
+    @mock.patch('kubernetes.stream.ws_client.WSClient')
+    def test_cp_from_pod_fails_zip_creation_other_exception(
+        self,
+        ws_mock,
+        mocker,
+        k8s_config
+    ):
+        """
+        Tests the archive creation fails
+        """
+        ws_mock.return_value = Mock(
+            is_open=Mock(side_effect=[True, False]),
+            read_stdout=Mock(side_effect=['something']),
+            peek_stderr=Mock(return_value=False),
+            read_stderr=Mock(return_value='')
+        )
+        mocker.patch('app.helpers.kubernetes.shutil.make_archive').side_effect = KeyError()
+        mocker.patch('app.helpers.kubernetes.TemporaryFile').__enter__.return_value = Mock()
+
+        k8s = KubernetesClient()
+        with pytest.raises(KubernetesException):
+            k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/mnt/host-id-results.zip'
