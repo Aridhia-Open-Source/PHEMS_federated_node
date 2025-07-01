@@ -1,6 +1,7 @@
 import base64
 import os
 import logging
+import shutil
 import tarfile
 from tempfile import TemporaryFile
 from kubernetes import client, config
@@ -111,9 +112,8 @@ class KubernetesBase:
                 name=name
             )
         except ApiException as e:
-            logger.error(getattr(e, 'reason'))
             if e.status != 404:
-                raise InvalidRequest(f"Failed to delete pod {name}: {e.reason}")
+                raise InvalidRequest(f"Failed to delete pod {name}: {e.reason}") from e
 
     def delete_job(self, name:str, namespace=TASK_NAMESPACE):
         """
@@ -126,9 +126,8 @@ class KubernetesBase:
                 name=name
             )
         except ApiException as e:
-            logger.error(getattr(e, 'reason'))
             if e.status != 404:
-                raise InvalidRequest(f"Failed to delete pod {name}: {e.reason}")
+                raise InvalidRequest(f"Failed to delete pod {name}: {e.reason}") from e
 
     def create_persistent_storage(self, task_pv:client.V1PersistentVolume, task_pvc:client.V1PersistentVolumeClaim):
         """
@@ -140,20 +139,22 @@ class KubernetesBase:
             self.create_persistent_volume(body=task_pv)
         except ApiException as kexc:
             if kexc.status != 409:
-                raise KubernetesException(kexc.body)
+                raise KubernetesException(kexc.body) from kexc
         try:
             self.create_namespaced_persistent_volume_claim(namespace=TASK_NAMESPACE, body=task_pvc)
         except ApiException as kexc:
             if kexc.status != 409:
-                raise KubernetesException(kexc.body)
+                raise KubernetesException(kexc.body) from kexc
 
-    def cp_from_pod(self, pod_name:str, source_path:str, dest_path:str, namespace=TASK_NAMESPACE):
+    def cp_from_pod(self, pod_name:str, source_path:str, dest_path:str, out_name:str, namespace=TASK_NAMESPACE):
         """
         Method that emulates the `kubectl cp` command
         """
         # cmd to archive the content of source_path to stdout
         exec_command = ['tar', 'cf', '-', source_path]
-
+        # Make sure the tmp/data folder exists so that the zip files is not in the same folder
+        # as the actual results
+        os.makedirs("/tmp/data", exist_ok=True)
         try:
             with TemporaryFile() as tar_buffer:
                 resp = stream(
@@ -192,18 +193,15 @@ class KubernetesBase:
                                 tar.makefile(member, dest_path + '/' + fname[1:])
 
             # Create an archive on the Flask's pod PVC
-            results_file_archive = dest_path + '/results.tar.gz'
-            with tarfile.open(results_file_archive, "w:gz") as tar:
-                tar.add(dest_path, arcname=os.path.basename(dest_path))
+            results_file_archive = f'/tmp/data/{out_name}'
+            shutil.make_archive(results_file_archive, 'zip', dest_path)
+        except NotADirectoryError as nde:
+            logger.error("%s %s %s", nde.filename, nde.filename, nde.strerror)
+            raise KubernetesException("Error creating the zip file") from nde
         except Exception as e:
-            # It's against the standards, but tarfile.ReadError
-            # doesn't inherit from BaseException and can't be caught
-            # like a normal Exception
-            if isinstance(e, tarfile.ReadError):
-                raise KubernetesException(str(e))
-            raise e
+            raise KubernetesException(getattr(e, "strerror", "")) from e
 
-        return results_file_archive
+        return f"{results_file_archive}.zip"
 
 class KubernetesClient(KubernetesBase, client.CoreV1Api):
     def is_pod_ready(self, label):

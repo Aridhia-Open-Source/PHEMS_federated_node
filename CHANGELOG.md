@@ -2,8 +2,13 @@
 
 ## 1.1.0
 - Added two `DELETE` enpoints for datasets and registries. Using them will remove related k8s secrets, and DB entries. In the case of datasets, dictionaries and catalogues. For registries, all related containers added either manually of via sync (manual or scheduled).
+- Results are now delivered as a `zip` file.
 - Added a `PATCH` endpoint for `/registries` so it's easier to update credentials
 - Added the `active` field for registries, so outdated ones can be safely deactivated
+- `cert-manager`'s Certificate now supports `rotationPolicy` via the `certs.rotationPolicy` field. Defaults to `Never`. The other value supported is `Always`.
+
+### Bugfixes
+- The secret for the cert manager are now automatically copied to the appropriate namespace.
 
 ## 1.0.0
 - Added the Federated Node Task Controller as a chart dependency. This can be installed by setting `outboundMode` to true on the values file. By default, it won't be installed.

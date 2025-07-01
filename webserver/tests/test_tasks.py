@@ -1023,7 +1023,87 @@ class TestTaskResults:
             headers=simple_admin_header
         )
         assert response.status_code == 200
-        assert response.content_type == "application/x-tar"
+        assert response.content_type == "application/zip"
+
+    def test_get_results_user_non_owner(
+        self,
+        cr_client,
+        registry_client,
+        simple_user_header,
+        client,
+        task_body,
+        admin_user_uuid,
+        mocker,
+        reg_k8s_client,
+        task
+    ):
+        """
+        Tests that only who triggers the task, and admins can only
+        fetch a results. In this case, an admin triggers the task
+        and a normal user shouldn't be able to
+        """
+        task.requested_by = admin_user_uuid
+
+        # The mock has to be done manually rather than use the fixture
+        # as it complains about the return value of the list_pod method
+        mocker.patch('app.models.task.uuid4', return_value="1dc6c6d1-417f-409a-8f85-cb9d20f7c741")
+
+        pod_mock = Mock()
+        pod_mock.metadata.labels = {"job-name": "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"}
+        pod_mock.metadata.name = "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"
+        pod_mock.spec.containers = [Mock(image=task.docker_image)]
+        pod_mock.status.container_statuses = [Mock(ready=True)]
+        reg_k8s_client["list_namespaced_pod_mock"].return_value.items = [pod_mock]
+
+        mocker.patch(
+            'app.models.task.Task.get_status',
+            return_value={"running": {}}
+        )
+
+        response = client.get(
+            f'/tasks/{task.id}/results',
+            headers=simple_user_header
+        )
+        assert response.status_code == 403
+        assert response.json["error"] == "User does not have enough permissions"
+
+    def test_get_results_user_is_owner(
+        self,
+        cr_client,
+        registry_client,
+        simple_user_header,
+        client,
+        mocker,
+        reg_k8s_client,
+        task
+    ):
+        """
+        Tests that only who triggers the task, and admins can only
+        fetch a results. In this case, the user triggers the task
+        and they're able to get the results
+        """
+        # The mock has to be done manually rather than use the fixture
+        # as it complains about the return value of the list_pod method
+        mocker.patch('app.models.task.uuid4', return_value="1dc6c6d1-417f-409a-8f85-cb9d20f7c741")
+
+        pod_mock = Mock()
+        pod_mock.metadata.labels = {"job-name": "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"}
+        pod_mock.metadata.name = "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"
+        pod_mock.spec.containers = [Mock(image=task.docker_image)]
+        pod_mock.status.container_statuses = [Mock(ready=True)]
+        reg_k8s_client["list_namespaced_pod_mock"].return_value.items = [pod_mock]
+
+        mocker.patch(
+            'app.models.task.Task.get_status',
+            return_value={"running": {}}
+        )
+
+        response = client.get(
+            f'/tasks/{task.id}/results',
+            headers=simple_user_header
+        )
+        assert response.status_code == 200
+        assert response.content_type == "application/zip"
 
     def test_get_results_job_creation_failure(
         self,

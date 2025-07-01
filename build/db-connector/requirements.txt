@@ -8,7 +8,7 @@ packaging==25.0
 psycopg2==2.9.10
 pycparser==2.22
 pyodbc==5.2.0
-setuptools==70.2.0
+setuptools>=78.1.1
 SQLAlchemy==2.0.40
 sqlglot==26.16.2
 sqlglotrs==0.4.0

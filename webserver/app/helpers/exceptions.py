@@ -16,10 +16,10 @@ def unknown_exception_handler(e:Exception):
 
 class LogAndException(HTTPException):
     code = 500
-    def __init__(self, description: str | None = None, code=None, response: Response | None = None) -> None:
+    def __init__(self, message:str = "", code=None, description: str | None = None, response: Response | None = None) -> None:
         super().__init__(description, response)
-        logger.info(description)
-        self.details = description
+        traceback.print_exc()
+        self.description = message or self.description
         if code:
             self.code = code
 
@@ -44,16 +44,16 @@ class UnauthorizedError(LogAndException):
     description = "Unauthorized"
 
 class KeycloakError(LogAndException):
-    description = "An internal Keycloak error occurred"
+    pass
 
 class TaskImageException(LogAndException):
-    description = "An error occurred with the Task's docker image"
+    pass
 
 class TaskExecutionException(LogAndException):
-    description = "An error occurred with the Task execution"
+    pass
 
 class KubernetesException(LogAndException):
-    description = "A kubernetes error occurred. Check the logs for more info"
+    pass
 
 class ContainerRegistryException(LogAndException):
-    description = "Failed to communicate with the Container Registry"
+    pass
