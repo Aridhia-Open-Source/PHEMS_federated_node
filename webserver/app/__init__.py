@@ -19,7 +19,8 @@ from app.helpers.base_model import build_sql_uri, db
 from app.helpers.exceptions import (
     InvalidDBEntry, DBError, DBRecordNotFoundError, InvalidRequest,
     AuthenticationError, UnauthorizedError, KeycloakError, TaskImageException,
-    TaskExecutionException, KubernetesException, exception_handler, unknown_exception_handler
+    ContainerRegistryException, TaskExecutionException, KubernetesException,
+    exception_handler, unknown_exception_handler
 )
 logging.basicConfig(level=logging.WARN)
 
@@ -60,6 +61,7 @@ def create_app():
     app.register_error_handler(TaskImageException, exception_handler)
     app.register_error_handler(TaskExecutionException, exception_handler)
     app.register_error_handler(KubernetesException, exception_handler)
+    app.register_error_handler(ContainerRegistryException, exception_handler)
     app.register_error_handler(NotFound, exception_handler)
     app.register_error_handler(Exception, unknown_exception_handler)
 

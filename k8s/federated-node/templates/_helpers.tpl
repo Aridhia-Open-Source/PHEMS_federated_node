@@ -140,10 +140,10 @@ Just need to append the NEW_DB env var
   {{- join " " .Values.integrations.domains -}}
 {{- end -}}
 {{- define "kc_namespace" -}}
-{{ .Values.global.namespaces.keycloak | default .Values.namespaces.keycloak }}
+{{ ((.Values.global).namespaces).keycloak | default .Values.namespaces.keycloak }}
 {{- end -}}
 {{- define "tasks_namespace" -}}
-{{ .Values.global.namespaces.tasks | default .Values.namespaces.tasks }}
+{{ ((.Values.global).namespaces).tasks | default .Values.namespaces.tasks }}
 {{- end -}}
 {{- define "testsBaseUrl" }}
 {{- if not .Values.local_development -}}

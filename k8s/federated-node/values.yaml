@@ -113,6 +113,7 @@ integrations:
    - 'self'
 
 certs:
+  rotationPolicy: Never
   azure: {}
     # secretName:
     # configmap:

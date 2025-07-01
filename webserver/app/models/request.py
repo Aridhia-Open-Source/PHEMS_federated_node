@@ -1,6 +1,5 @@
 from datetime import datetime
 import logging
-import json
 from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, update
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func

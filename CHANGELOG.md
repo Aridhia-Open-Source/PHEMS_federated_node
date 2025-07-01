@@ -1,6 +1,11 @@
 # Releases Changelog
 
 ## 1.1.0
+- Results are now delivered as a `zip` file.
+- Added a `PATCH` endpoint for `/registries` so it's easier to update credentials
+- Added the `active` field for registries, so outdated ones can be safely deactivated
+- `cert-manager`'s Certificate now supports `rotationPolicy` via the `certs.rotationPolicy` field. Defaults to `Never`. The other value supported is `Always`.
+
 ### Security
 - Added the following headers to nginx:
     - `strict-transport-security`
@@ -11,7 +16,10 @@
     - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to self)
 - Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
 
-## 0.12.0
+### Bugfixes
+- The secret for the cert manager are now automatically copied to the appropriate namespace.
+
+## 1.0.0
 - Added the Federated Node Task Controller as a chart dependency. This can be installed by setting `outboundMode` to true on the values file. By default, it won't be installed.
 - Some jobs will be cleaned before and after an upgrade.
 - Fixed issues with rendering nfs templates due to an extra `-`
