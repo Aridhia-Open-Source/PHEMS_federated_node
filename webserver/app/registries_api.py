@@ -40,6 +40,21 @@ def registry_by_id(registry_id:int):
     return registry.sanitized_dict(), 200
 
 
+@bp.route('/<int:registry_id>', methods=['DELETE'])
+@audit
+@auth(scope='can_admin_dataset')
+def delete_registry_by_id(registry_id:int):
+    """
+    GET /registries endpoint.
+    """
+    registry = Registry.query.filter_by(id=registry_id).one_or_none()
+    if registry is None:
+        raise DBRecordNotFoundError("Registry not found")
+
+    registry.delete(commit=True)
+    return "", 204
+
+
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
 @audit

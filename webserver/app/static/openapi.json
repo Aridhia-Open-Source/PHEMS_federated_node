@@ -180,6 +180,39 @@
             "$ref": "#/components/responses/InternalError"
           }
         }
+      },
+      "delete":{
+        "operationId": "deleteDataset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema":{"type": "integer"},
+            "required": true
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Deletes a dataset mapping with its kubernetes secrets.",
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/NoContent"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     },
     "/datasets/{id}/catalogue": {
@@ -297,6 +330,81 @@
         "responses": {
           "200":{
             "$ref": "#/components/responses/DatasetById"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "editDataset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema":{"type": "integer"},
+            "required": true
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Edit a dataset information. Any of the fields provided on the POST or returned by the GET on this same endpoint, is a valid body",
+        "requestBody": {
+          "content": {
+            "application/json":{
+              "schema":{
+                "$ref": "#/components/schemas/DatasetPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/NoContent"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteDataset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema":{"type": "integer"},
+            "required": true
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Deletes a dataset mapping with its kubernetes secrets.",
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/DatasetPost"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
           },
           "401":{
             "$ref": "#/components/responses/Unauthenticated"
@@ -1046,6 +1154,28 @@
           }
         }
       },
+      "delete": {
+        "operationId": "deleteRegisries",
+        "tags": ["Registries"],
+        "summary": "List all container registries available",
+        "responses": {
+          "204":{
+            "$ref": "#/components/responses/NoContent"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
       "post":{
         "operationId": "postRegistries",
         "tags": ["Registries"],
@@ -1394,6 +1524,9 @@
             "example": "Ok"
           }
         }
+      },
+      "NoContent": {
+        "description": "No content response"
       },
       "AuditList": {
         "description": "List of actions performed against the webserver",

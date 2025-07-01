@@ -1,6 +1,9 @@
 import base64
 import json
 from kubernetes.client import ApiException
+
+from app.helpers.const import TASK_NAMESPACE, DEFAULT_NAMESPACE
+from app.helpers.kubernetes import KubernetesClient
 from tests.fixtures.azure_cr_fixtures import *
 
 
@@ -259,6 +262,106 @@ class TestPostRegistriesApi:
         assert resp.status_code == 400
         assert resp.json["error"] == f"Registry {registry.url} already exist"
         assert Registry.query.filter_by(url=registry.url).count() == 1
+
+class TestDeleteRegistries:
+    def test_delete_registry(
+            self,
+            client,
+            registry,
+            reg_k8s_client,
+            simple_admin_header
+    ):
+        """
+        Simple test to check a successful deletion from the
+        DB and its k8s secrets
+        """
+        expected_taskspull = KubernetesClient.encode_secret_value(json.dumps({"auths": {}}))
+        secret_name = registry.slugify_name()
+        response = client.delete(
+            f"/registries/{registry.id}",
+            headers=simple_admin_header
+        )
+        assert response.status_code == 204
+        patch_delete = reg_k8s_client["patch_namespaced_secret_mock"].mock_calls[1]
+        assert patch_delete[-1]["name"] == "taskspull"
+        assert patch_delete[-1]["namespace"] == TASK_NAMESPACE
+        assert patch_delete[-1]["body"].data[".dockerconfigjson"] == expected_taskspull
+        reg_k8s_client["delete_namespaced_secret_mock"].assert_called_with(
+            **{"name": secret_name, "namespace": DEFAULT_NAMESPACE}
+        )
+
+    def test_delete_registry_not_found(
+            self,
+            client,
+            registry,
+            reg_k8s_client,
+            simple_admin_header
+    ):
+        """
+        Return a 404 response if a registry cannot be found
+        """
+        response = client.delete(
+            f"/registries/{registry.id + 1}",
+            headers=simple_admin_header
+        )
+        assert response.status_code == 404
+
+    def test_delete_registry_k8s_error(
+            self,
+            client,
+            registry,
+            reg_k8s_client,
+            simple_admin_header
+    ):
+        """
+        Return a 500 stauts code when a k8s exception is raised
+            but the db record is still deleted. This is an intentional
+            behaviour as the sync and container check are based
+            on the db entry. Secrets can stay if k8s fails.
+        """
+        reg_k8s_client["patch_namespaced_secret_mock"].side_effect = ApiException(
+            http_resp=Mock(status=500, reason="Error", data="Invalid value in data")
+        )
+        reg_id = registry.id
+        response = client.delete(
+            f"/registries/{reg_id}",
+            headers=simple_admin_header
+        )
+        assert response.status_code == 500
+        assert Registry.query.filter_by(id=reg_id).one_or_none() is None
+
+    def test_delete_cascade_containers(
+            self,
+            client,
+            registry,
+            reg_k8s_client,
+            simple_admin_header
+    ):
+        """
+        Tests that by simply deleting a registry all of its
+        containers are deleted as well
+        """
+        reg_id = registry.id
+        Container(
+            registry=registry,
+            name="newimage",
+            tag="1.0.0"
+        ).add()
+        Container(
+            registry=registry,
+            name="newimage",
+            tag="1.3.0"
+        ).add()
+
+        response = client.delete(
+            f"/registries/{reg_id}",
+            headers=simple_admin_header
+        )
+        assert response.status_code == 204
+        assert Registry.query.filter_by(id=reg_id).one_or_none() is None
+        assert Container.query.filter_by(
+            name="newimage", registry_id=reg_id
+            ).count() == 0
 
 class TestPatchRegistriesApi:
     def test_patch_registry(
