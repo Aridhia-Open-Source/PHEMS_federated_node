@@ -41,5 +41,5 @@ class Oracle(BaseEngine):
 
 
 class MariaDB(BaseEngine):
-    driver = "driver={MariaDB ODBC 3.2 ANSI Driver};"
+    driver = "driver={MariaDB ODBC 3.2 Driver};"
 
