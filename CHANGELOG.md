@@ -9,6 +9,16 @@
 - The `fetch-data` init pod is conditional to the `db_query` field
 - `cert-manager`'s Certificate now supports `rotationPolicy` via the `certs.rotationPolicy` field. Defaults to `Never`. The other value supported is `Always`.
 
+### Security
+- Added the following headers to nginx:
+    - `strict-transport-security`
+    - `content-security-policy`
+    - `referrer-policy`
+    - `permission-policy`
+    - `x-content-type-options`
+    - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to self)
+- Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
+
 ### Bugfixes
 - The secret for the cert manager are now automatically copied to the appropriate namespace.
 

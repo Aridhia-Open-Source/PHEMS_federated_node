@@ -4,11 +4,11 @@
 
 replicaCount: 1
 
-backend:
-  tag:
+backend: {}
+  # tag:
 
-keycloak:
-  tag:
+keycloak: {}
+  # tag:
 
 autoscaling:
   enabled: false
@@ -23,15 +23,18 @@ namespaces:
   keycloak: keycloak
   tasks: tasks
 
+token:
+  life: 2592000
+
 # Local Development-related options
 local_development: false
 create_db_deployment: false
 
 db:
-  user:
-  password:
-  name:
-  host:
+  user: admin
+  name: fndb
+  host: db
+  port: 5432
   # If a configmap with host user exists, use that
   # configMap:
   # If a secret with password exists, use that
@@ -48,24 +51,21 @@ federatedNode:
     results_path: /mnt/results
     task_pod_results_path: /mnt/data
 
-storage: {}
-  # azure:
+storage:
+  azure: {}
     # secretName:
     # storageAccountName:
     # storageAccountKey:
     # shareName:
-  # nfs:
+  nfs: {}
     # provisioner:
     # url:
     # path:
-  # local:
+  local: {}
     # Local storage that will be shared with the backend
     # path:
     # Local storage that will be shared with the db
     # dbpath: /data/db
-
-token:
-  life:
 
 pullPolicy: Always
 
@@ -104,6 +104,13 @@ blacklist:
 on_aks: false
 # Running on AWS?
 on_eks: false
+
+# Set the domains that are allowed to send requests
+# to the federated node, in case there is a web UI that tries to
+# ping the FN
+integrations:
+  domains:
+   - 'self'
 
 certs:
   rotationPolicy: Never
@@ -162,9 +169,11 @@ ingress-nginx:
   enabled: false
   namespaceOverride: ingress-nginx
   controller:
+    # admissionWebhooks:
+    #   enabled: false
     ingressClassResource:
       name: "fn-nginx"
-    allowSnippetAnnotations: true
+    allowSnippetAnnotations: false
     ingressClass: "fn-nginx"
     # If running on aks:
     # service:
