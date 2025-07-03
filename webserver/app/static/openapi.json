@@ -1884,7 +1884,7 @@
             "items": { "type": "string" }
           }
         },
-        "required": ["executors", "name", "tags", "db_query"]
+        "required": ["executors", "name", "tags"]
       },
       "TaskById": {
         "type": "object",

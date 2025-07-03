@@ -254,19 +254,24 @@ def dataset(mocker, client, user_uuid, k8s_client):
     return dataset
 
 @pytest.fixture
-def dataset2(mocker, client, user_uuid, k8s_client):
+def dataset_oracle(mocker, client, user_uuid, k8s_client):
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
-    dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user')
+    dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user', type="oracle")
     dataset.add(user_id=user_uuid)
     return dataset
 
 @pytest.fixture
-def task(basic_user, image_name, dataset) -> Task:
+def task(user_uuid, image_name, dataset) -> Task:
     task = Task(
         dataset=dataset,
         docker_image=image_name,
         name="testTask",
-        requested_by=basic_user["id"]
+        executors=[
+            {
+                "image": image_name
+            }
+        ],
+        requested_by=user_uuid
     )
     task.add()
     return task
@@ -371,14 +376,3 @@ def mocks_kc_tasks(mocker, dar_user):
             )
         )
     }
-
-@pytest.fixture
-def task(dataset, user_uuid):
-    task = Task(
-        name="test task",
-        dataset=dataset,
-        docker_image="test-image",
-        requested_by=user_uuid,
-    )
-    task.add()
-    return task
