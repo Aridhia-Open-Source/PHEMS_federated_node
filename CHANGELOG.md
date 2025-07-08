@@ -1,5 +1,18 @@
 # Releases Changelog
 
+## 1.2.0
+
+- Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
+
+### Security
+- Added the following headers to nginx:
+    - `strict-transport-security`
+    - `content-security-policy`
+    - `referrer-policy`
+    - `permission-policy`
+    - `x-content-type-options`
+    - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to `self`)
+
 ## 1.1.0
 - Results are now delivered as a `zip` file.
 - Added a `PATCH` endpoint for `/registries` so it's easier to update credentials

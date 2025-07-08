@@ -6,9 +6,9 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: {{ .Values.federatedNode.port | default 5000 }}
+    - port: {{ .Values.federatedNode.port }}
       name: http
-      targetPort: {{ .Values.federatedNode.port | default 5000 }}
+      targetPort: {{ .Values.federatedNode.port }}
       protocol: TCP
   selector:
     app: flask
