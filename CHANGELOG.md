@@ -1,13 +1,8 @@
 # Releases Changelog
 
-## 1.1.0
-- Results are now delivered as a `zip` file.
-- Added a `PATCH` endpoint for `/registries` so it's easier to update credentials
-- Added the `active` field for registries, so outdated ones can be safely deactivated
-- `db_query` field for `/tasks` POST is now optional, and its related env variables are not set if not provided
-- `CONNECTION_STRING` is a new env var passed to the task pod containing info about DB connection
-- The `fetch-data` init pod is conditional to the `db_query` field
-- `cert-manager`'s Certificate now supports `rotationPolicy` via the `certs.rotationPolicy` field. Defaults to `Never`. The other value supported is `Always`.
+## 1.2.0
+
+- Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
 
 ### Security
 - Added the following headers to nginx:
@@ -16,8 +11,16 @@
     - `referrer-policy`
     - `permission-policy`
     - `x-content-type-options`
-    - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to self)
-- Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
+    - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to `self`)
+
+## 1.1.0
+- Results are now delivered as a `zip` file.
+- Added a `PATCH` endpoint for `/registries` so it's easier to update credentials
+- Added the `active` field for registries, so outdated ones can be safely deactivated
+- `db_query` field for `/tasks` POST is now optional, and its related env variables are not set if not provided
+- `CONNECTION_STRING` is a new env var passed to the task pod containing info about DB connection
+- The `fetch-data` init pod is conditional to the `db_query` field
+- `cert-manager`'s Certificate now supports `rotationPolicy` via the `certs.rotationPolicy` field. Defaults to `Never`. The other value supported is `Always`.
 
 ### Bugfixes
 - The secret for the cert manager are now automatically copied to the appropriate namespace.
