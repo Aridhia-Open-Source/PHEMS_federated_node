@@ -1,6 +1,7 @@
 import base64
 import copy
 import os
+from typing import List
 import pytest
 import requests
 from uuid import uuid4
@@ -12,6 +13,8 @@ from unittest.mock import Mock
 from app import create_app
 from app.helpers.base_model import db
 from app.models.dataset import Dataset
+from app.models.catalogue import Catalogue
+from app.models.dictionary import Dictionary
 from app.models.request import Request
 from app.models.task import Task
 from app.helpers.keycloak import Keycloak, URLS, KEYCLOAK_SECRET, KEYCLOAK_CLIENT
@@ -247,18 +250,32 @@ def dataset_post_body():
     return copy.deepcopy(sample_ds_body)
 
 @pytest.fixture
-def dataset(mocker, client, user_uuid, k8s_client):
+def dataset(mocker, client, user_uuid, k8s_client) -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
     dataset = Dataset(name="TestDs", host="example.com", password='pass', username='user')
     dataset.add(user_id=user_uuid)
     return dataset
 
 @pytest.fixture
-def dataset_oracle(mocker, client, user_uuid, k8s_client):
+def dataset_oracle(mocker, client, user_uuid, k8s_client)  -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
     dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user', type="oracle")
     dataset.add(user_id=user_uuid)
     return dataset
+
+@pytest.fixture
+def catalogue(dataset) -> Catalogue:
+    cat = Catalogue(dataset=dataset, title="new catalogue", description="shiny fresh data")
+    cat.add()
+    return cat
+
+@pytest.fixture
+def dictionary(dataset) -> List[Dictionary]:
+    cat1 = Dictionary(dataset=dataset, description="Patient id", table_name="patients", field_name="id", label="p_id")
+    cat2 = Dictionary(dataset=dataset, description="Patient info", table_name="patients", field_name="name", label="p_name")
+    cat1.add()
+    cat2.add()
+    return [cat1, cat2]
 
 @pytest.fixture
 def task(user_uuid, image_name, dataset) -> Task:
