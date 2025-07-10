@@ -53,11 +53,7 @@ def get_tasks():
     """
     GET /tasks/ endpoint. Gets the list of tasks
     """
-    query = parse_query_params(Task, request.args.copy())
-    res = session.execute(query).all()
-    if res:
-        res = [r[0].sanitized_dict() for r in res]
-    return res, 200
+    return parse_query_params(Task, request.args.copy()), 200
 
 @bp.route('/<task_id>', methods=['GET'])
 @audit

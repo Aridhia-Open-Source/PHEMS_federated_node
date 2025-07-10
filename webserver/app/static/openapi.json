@@ -55,6 +55,14 @@
         "operationId": "getDataset",
         "tags": ["Datasets"],
         "summary": "List all datasets available to the user",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
         "responses": {
           "200":{
             "$ref": "#/components/responses/DatasetList"
@@ -513,6 +521,14 @@
         "operationId": "get_tasks",
         "tags": ["Tasks"],
         "summary": "Get a full list of tasks",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
         "responses": {
           "200": {
             "$ref": "#/components/responses/TaskList"
@@ -753,6 +769,12 @@
             "description": "Filter by response status code",
             "name": "status_code",
             "schema": {"type": "integer"}
+          },
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
           }
         ],
         "tags": ["Admin"],
@@ -791,6 +813,14 @@
         "operationId": "get_all_users",
         "tags": ["Users"],
         "summary": "List of all of the users",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
         "responses": {
           "200": {
             "$ref": "#/components/responses/UserListResponse"
@@ -874,6 +904,14 @@
         "operationId": "getContainers",
         "tags": ["Containers"],
         "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
         "summary": "List all containers available to the user",
         "responses": {
           "200":{
@@ -1028,6 +1066,14 @@
         "operationId": "getRegisries",
         "tags": ["Registries"],
         "summary": "List all container registries available",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
         "responses": {
           "200":{
             "$ref": "#/components/responses/RegistryList"
@@ -1198,6 +1244,18 @@
         "name": "registry_id",
         "schema":{"type": "integer"},
         "required": true
+      },
+      "paginationPage": {
+        "in": "query",
+        "name": "page",
+        "schema":{"type": "integer"},
+        "description": "Page to return"
+      },
+      "paginationPerPage": {
+        "in": "query",
+        "name": "per_page",
+        "schema":{"type": "integer"},
+        "description": "How many entries maximum per page"
       }
     },
     "responses": {
@@ -1231,11 +1289,27 @@
             "schema":{
               "type": "object",
               "properties": {
-                "datasets":{
+                "items":{
                   "type": "array",
                   "items":{
                     "$ref": "#/components/schemas/DatasetById"
                   }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
                 }
               }
             }
@@ -1296,9 +1370,30 @@
         "content": {
           "application/json":{
             "schema":{
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/TaskById"
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskById"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
               }
             }
           }
@@ -1400,19 +1495,40 @@
         "content": {
           "application/json": {
             "schema": {
-              "type": "array",
-              "items":{
-                "type": "object",
-                "properties": {
-                  "api_function": {"type": "string", "example": "get_datasets"},
-                  "details": {"type": "string", "example": "Requested by cea6868d-26b6-4e96-95d7-4aba8df7d06e - user@email.com"},
-                  "endpoint": {"type": "string", "example": "/datasets"},
-                  "event_time": {"type": "string", "example": "Thu, 14 Mar 2024 11:45:36 GMT"},
-                  "http_method": {"type": "string", "example": "GET"},
-                  "id": {"type": "integer", "example": 1},
-                  "ip_address": {"type": "string", "example": "15.24.87.9"},
-                  "requested_by": {"type": "string", "example": "cea6868d-26b6-4e96-95d7-4aba8df7d06e"},
-                  "status_code": {"type": "integer", "example": 200}
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items":{
+                    "type": "object",
+                    "properties": {
+                      "api_function": {"type": "string", "example": "get_datasets"},
+                      "details": {"type": "string", "example": "Requested by cea6868d-26b6-4e96-95d7-4aba8df7d06e - user@email.com"},
+                      "endpoint": {"type": "string", "example": "/datasets"},
+                      "event_time": {"type": "string", "example": "Thu, 14 Mar 2024 11:45:36 GMT"},
+                      "http_method": {"type": "string", "example": "GET"},
+                      "id": {"type": "integer", "example": 1},
+                      "ip_address": {"type": "string", "example": "15.24.87.9"},
+                      "requested_by": {"type": "string", "example": "cea6868d-26b6-4e96-95d7-4aba8df7d06e"},
+                      "status_code": {"type": "integer", "example": 200}
+                    }
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
                 }
               }
             }
@@ -1440,9 +1556,30 @@
         "content": {
           "application/json": {
             "schema": {
-              "type": "array",
-              "items":{
-                "$ref": "#/components/schemas/UserEntry"
+            "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserEntry"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
               }
             }
           }
@@ -1464,9 +1601,30 @@
         "content": {
           "application/json":{
             "schema":{
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/ContainerObject"
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContainerObject"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
               }
             }
           }
@@ -1515,9 +1673,30 @@
         "content": {
           "application/json":{
             "schema":{
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/RegistryObject"
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RegistryObject"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
               }
             }
           }

@@ -83,11 +83,7 @@ class TestDatasets(MixinTestDataset):
         response = client.get("/datasets/", headers=simple_admin_header)
 
         assert response.status_code == 200
-        assert response.json == {
-            "datasets": [
-                self.expected_ds_entry(dataset)
-            ]
-        }
+        assert response.json["items"] == [self.expected_ds_entry(dataset)]
 
     def test_get_url_returned_in_dataset_list_is_valid(
             self,

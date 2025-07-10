@@ -22,13 +22,16 @@ from app.helpers.exceptions import (
     ContainerRegistryException, TaskExecutionException, KubernetesException,
     exception_handler, unknown_exception_handler
 )
+from app.fn_flask import FNFlask
+
+
 logging.basicConfig(level=logging.WARN)
 
 def create_app():
     """
     Standard Flask initialization function
     """
-    app = Flask(__name__)
+    app = FNFlask(__name__)
     app.config["SQLALCHEMY_DATABASE_URI"] = build_sql_uri()
 
     swagger_ui_blueprint = get_swaggerui_blueprint(

@@ -109,6 +109,7 @@ def audit(func):
         return response_object, http_status
     return _audit
 
+
 def find_and_delete_key(obj: dict, key: str):
     """
     Given a dictionary, tries to find a (nested) key and pops it
