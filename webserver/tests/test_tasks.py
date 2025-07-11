@@ -1,5 +1,6 @@
 import json
 import pytest
+import re
 from copy import deepcopy
 from datetime import datetime, timedelta
 from kubernetes.client.exceptions import ApiException
@@ -409,6 +410,7 @@ class TestPostTask:
             cr_client,
             post_json_admin_header,
             client,
+            reg_k8s_client,
             registry_client,
             task_body,
             ds_star_link
@@ -422,6 +424,43 @@ class TestPostTask:
             headers=post_json_admin_header
         )
         assert response.status_code == 201
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        # Make sure the two init containers are created
+        assert len(pod_body.spec.init_containers) == 2
+        assert [pod.name for pod in pod_body.spec.init_containers] == ["init-1", "fetch-data"]
+
+    def test_create_task_no_db_query(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            reg_k8s_client,
+            registry_client,
+            task_body
+        ):
+        """
+        Tests task creation returns 201, if the db_query field
+        is not provided, the connection string is passed
+        as env var instead of QUERY, FROM_DIALECT and TO_DIALECT.
+        Also checks that only one init container is created for the
+        folder creation in the PV
+        """
+        task_body.pop("db_query")
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        # The fetch_data init container should not be created
+        assert len(pod_body.spec.init_containers) == 1
+        assert pod_body.spec.init_containers[0].name == "init-1"
+        envs = [env.name for env in pod_body.spec.containers[0].env]
+        assert "CONNECTION_STRING" in envs
+        assert set(envs).intersection({"QUERY", "FROM_DIALECT", "TO_DIALECT"}) == set()
 
     def test_create_task_container_unlinked(
             self,
@@ -802,6 +841,44 @@ class TestPostTask:
         assert len(pod_body.spec.containers[0].volume_mounts) == 2
         assert [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts] == ["/mnt/inputs", TASK_POD_RESULTS_PATH]
 
+    def test_task_connection_string_postgres(
+            self,
+            task,
+            cr_client,
+            reg_k8s_client,
+            registry_client,
+    ):
+        """
+        Simple test to make sure the generated connection string
+        follows the global format
+        """
+        task.db_query = None
+        task.run()
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        env = [env.value for env in pod_body.spec.containers[0].env if env.name == "CONNECTION_STRING"][0]
+        assert re.match(r'driver={PostgreSQL ANSI};Uid=.*;Pwd=.*;Server=.*;Database=.*;$', env) is not None
+
+    def test_task_connection_string_oracle(
+            self,
+            task,
+            cr_client,
+            reg_k8s_client,
+            registry_client,
+            dataset_oracle
+    ):
+        """
+        Simple test to make sure the generated connection string
+        follows the specific format for OracleDB
+        """
+        task.db_query = None
+        task.dataset = dataset_oracle
+        task.run()
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        env = [env.value for env in pod_body.spec.containers[0].env if env.name == "CONNECTION_STRING"][0]
+        assert re.match(r'driver={Oracle ODBC Driver};Uid=.*;PSW=.*;DBQ=.*;$', env) is not None
+
 
 class TestCancelTask:
     def test_cancel_task(
@@ -1061,7 +1138,87 @@ class TestTaskResults:
             headers=simple_admin_header
         )
         assert response.status_code == 200
-        assert response.content_type == "application/x-tar"
+        assert response.content_type == "application/zip"
+
+    def test_get_results_user_non_owner(
+        self,
+        cr_client,
+        registry_client,
+        simple_user_header,
+        client,
+        task_body,
+        admin_user_uuid,
+        mocker,
+        reg_k8s_client,
+        task
+    ):
+        """
+        Tests that only who triggers the task, and admins can only
+        fetch a results. In this case, an admin triggers the task
+        and a normal user shouldn't be able to
+        """
+        task.requested_by = admin_user_uuid
+
+        # The mock has to be done manually rather than use the fixture
+        # as it complains about the return value of the list_pod method
+        mocker.patch('app.models.task.uuid4', return_value="1dc6c6d1-417f-409a-8f85-cb9d20f7c741")
+
+        pod_mock = Mock()
+        pod_mock.metadata.labels = {"job-name": "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"}
+        pod_mock.metadata.name = "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"
+        pod_mock.spec.containers = [Mock(image=task.docker_image)]
+        pod_mock.status.container_statuses = [Mock(ready=True)]
+        reg_k8s_client["list_namespaced_pod_mock"].return_value.items = [pod_mock]
+
+        mocker.patch(
+            'app.models.task.Task.get_status',
+            return_value={"running": {}}
+        )
+
+        response = client.get(
+            f'/tasks/{task.id}/results',
+            headers=simple_user_header
+        )
+        assert response.status_code == 403
+        assert response.json["error"] == "User does not have enough permissions"
+
+    def test_get_results_user_is_owner(
+        self,
+        cr_client,
+        registry_client,
+        simple_user_header,
+        client,
+        mocker,
+        reg_k8s_client,
+        task
+    ):
+        """
+        Tests that only who triggers the task, and admins can only
+        fetch a results. In this case, the user triggers the task
+        and they're able to get the results
+        """
+        # The mock has to be done manually rather than use the fixture
+        # as it complains about the return value of the list_pod method
+        mocker.patch('app.models.task.uuid4', return_value="1dc6c6d1-417f-409a-8f85-cb9d20f7c741")
+
+        pod_mock = Mock()
+        pod_mock.metadata.labels = {"job-name": "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"}
+        pod_mock.metadata.name = "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"
+        pod_mock.spec.containers = [Mock(image=task.docker_image)]
+        pod_mock.status.container_statuses = [Mock(ready=True)]
+        reg_k8s_client["list_namespaced_pod_mock"].return_value.items = [pod_mock]
+
+        mocker.patch(
+            'app.models.task.Task.get_status',
+            return_value={"running": {}}
+        )
+
+        response = client.get(
+            f'/tasks/{task.id}/results',
+            headers=simple_user_header
+        )
+        assert response.status_code == 200
+        assert response.content_type == "application/zip"
 
     def test_get_results_job_creation_failure(
         self,

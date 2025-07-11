@@ -1,6 +1,5 @@
 import base64
 import copy
-import json
 import os
 import pytest
 import requests
@@ -80,7 +79,7 @@ def app_ctx(app):
 
 # Users' section
 @pytest.fixture
-def user_uuid():
+def admin_user_uuid():
     return Keycloak().get_user_by_username(os.getenv("KEYCLOAK_ADMIN"))["id"]
 
 @pytest.fixture
@@ -93,6 +92,10 @@ def login_admin(client):
 @pytest.fixture
 def basic_user():
     return Keycloak().create_user(**{"email": "test@basicuser.com"})
+
+@pytest.fixture
+def user_uuid(basic_user):
+    return basic_user["id"]
 
 @pytest.fixture
 def login_user(client, basic_user, mocker):
@@ -195,7 +198,7 @@ def v1_mock(mocker):
         ),
         "cp_from_pod_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.cp_from_pod',
-            return_value="../tests/files/results.tar.gz"
+            return_value="../tests/files/results.zip"
         )
     }
 
@@ -251,19 +254,24 @@ def dataset(mocker, client, user_uuid, k8s_client):
     return dataset
 
 @pytest.fixture
-def dataset2(mocker, client, user_uuid, k8s_client):
+def dataset_oracle(mocker, client, user_uuid, k8s_client):
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
-    dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user')
+    dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user', type="oracle")
     dataset.add(user_id=user_uuid)
     return dataset
 
 @pytest.fixture
-def task(basic_user, image_name, dataset) -> Task:
+def task(user_uuid, image_name, dataset) -> Task:
     task = Task(
         dataset=dataset,
         docker_image=image_name,
         name="testTask",
-        requested_by=basic_user["id"]
+        executors=[
+            {
+                "image": image_name
+            }
+        ],
+        requested_by=user_uuid
     )
     task.add()
     return task
@@ -368,14 +376,3 @@ def mocks_kc_tasks(mocker, dar_user):
             )
         )
     }
-
-@pytest.fixture
-def task(dataset, user_uuid):
-    task = Task(
-        name="test task",
-        dataset=dataset,
-        docker_image="test-image",
-        requested_by=user_uuid,
-    )
-    task.add()
-    return task

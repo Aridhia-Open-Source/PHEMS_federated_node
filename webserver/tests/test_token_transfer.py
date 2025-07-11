@@ -185,13 +185,13 @@ class TestTransfers:
             request_model_body,
             request_base_body,
             dataset,
-            dataset2
+            dataset_oracle
         ):
         """
         Tests that only one dataset per active project is allowed.
         """
         Request(**request_model_body).add()
-        request_base_body["dataset_id"] = dataset2.id
+        request_base_body["dataset_id"] = dataset_oracle.id
 
         response = client.post(
             "/datasets/token_transfer",
@@ -209,14 +209,14 @@ class TestTransfers:
             request_model_body,
             request_base_body,
             dataset,
-            dataset2,
+            dataset_oracle,
             mocker
         ):
         """
         Tests that the entry is deleted when creating the permission
         in case something goes wrong on approve()
         """
-        request_base_body["dataset_id"] = dataset2.id
+        request_base_body["dataset_id"] = dataset_oracle.id
 
         mocker.patch("app.helpers.keycloak.Keycloak.get_user_by_id",
                      side_effect=KeycloakError("error"))

@@ -1151,7 +1151,7 @@
           "content": {
             "application/json":{
               "schema":{
-                "$ref": "#/components/schemas/RegistryBody"
+                "$ref": "#/components/schemas/RegistryPostBody"
               }
             }
           }
@@ -1188,6 +1188,42 @@
         ],
         "tags": ["Registries"],
         "summary": "Get a registry by id if available to the user",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/RegistryEntry"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchRegistryById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/registryIdPath"
+          }
+        ],
+        "tags": ["Registries"],
+        "summary": "Amend details for a registry",
+        "requestBody": {
+          "content": {
+            "application/json":{
+              "schema":{
+                "$ref": "#/components/schemas/RegistryPostBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200":{
             "$ref": "#/components/responses/RegistryEntry"
@@ -1977,7 +2013,7 @@
             "items": { "type": "string" }
           }
         },
-        "required": ["executors", "name", "tags", "db_query"]
+        "required": ["executors", "name", "tags"]
       },
       "TaskById": {
         "type": "object",
@@ -2086,7 +2122,8 @@
         "properties": {
           "id": {"type": "integer", "example": 1},
           "url": {"type": "string", "example": "acrregistry.io"},
-          "needs_auth": {"type": "boolean", "example": true}
+          "needs_auth": {"type": "boolean", "example": true},
+          "active": {"type": "boolean", "example": true}
         }
       },
       "RegistryBody": {
@@ -2097,6 +2134,16 @@
           "username": {"type": "string", "example": "user"},
           "password": {"type": "string", "example": "secrettoken"},
           "needs_auth": {"type": "boolean", "example": true}
+        }
+      },
+      "RegistryPostBody": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string", "example": "acrregistry.io"},
+          "username": {"type": "string", "example": "user"},
+          "password": {"type": "string", "example": "secrettoken"},
+          "needs_auth": {"type": "boolean", "example": true},
+          "active": {"type": "boolean", "example": true}
         }
       }
     }

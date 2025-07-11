@@ -21,6 +21,21 @@ from app.models.task import Task
 bp = Blueprint('tasks', __name__, url_prefix='/tasks')
 session = db.session
 
+
+def does_user_own_task(task:Task):
+    """
+    Simple wrapper to check if the user is the one who
+    triggered the task, or is admin.
+
+    If they don't, an exception is raised with 403 status code
+    """
+    kc_client = Keycloak()
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    dec_token = kc_client.decode_token(token)
+
+    if task.requested_by != dec_token['sub'] and not kc_client.is_user_admin(token):
+        raise UnauthorizedError("User does not have enough permissions")
+
 @bp.route('/service-info', methods=['GET'])
 @audit
 @auth(scope='can_do_admin')
@@ -55,12 +70,7 @@ def get_task_id(task_id):
     if task is None:
         raise DBRecordNotFoundError(f"Dataset with id {task_id} does not exist")
 
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
-    kc_client = Keycloak()
-    dec_token = kc_client.decode_token(token)
-
-    if task.requested_by != dec_token['sub'] and not kc_client.is_user_admin(token):
-        raise UnauthorizedError("User does not have enough permissions")
+    does_user_own_task(task)
 
     task_dict = task.sanitized_dict()
     task_dict["status"] = task.get_status()
@@ -76,6 +86,8 @@ def cancel_tasks(task_id):
     task = Task.query.filter(Task.id == task_id).one_or_none()
     if task is None:
         raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
+
+    does_user_own_task(task)
 
     # Should remove pod/stop ML pipeline
     return task.terminate_pod(), 201
@@ -126,11 +138,13 @@ def get_task_results(task_id):
     if task is None:
         raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
 
+    does_user_own_task(task)
+
     if task.created_at.date() + timedelta(days=CLEANUP_AFTER_DAYS) <= datetime.now().date():
         return {"error": "Tasks results are not available anymore. Please, run the task again"}, 500
 
     results_file = task.get_results()
-    return send_file(results_file, download_name="results.tar.gz"), 200
+    return send_file(results_file, as_attachment=True), 200
 
 @bp.route('/<task_id>/logs', methods=['GET'])
 @audit
@@ -142,5 +156,7 @@ def get_tasks_logs(task_id:int):
     task = Task.query.filter(Task.id == task_id).one_or_none()
     if task is None:
         raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
+
+    does_user_own_task(task)
 
     return {"logs": task.get_logs()}, 200

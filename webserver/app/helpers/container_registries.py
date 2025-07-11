@@ -55,11 +55,10 @@ class BaseRegistry:
                 logger.error(list_resp.text)
                 raise ContainerRegistryException("Could not fetch the list of images", 500)
         except ConnectionError as ce:
-            logger.error(ce)
             raise ContainerRegistryException(
                 f"Failed to fetch the list of available containers from {self.registry}",
                 500
-            )
+            ) from ce
         return list_resp.json()
 
     def login(self, image:str=None) -> str:
@@ -80,12 +79,11 @@ class BaseRegistry:
 
             return response_auth.json()[self.token_field]
         except ConnectionError as ce:
-            logger.error(ce)
             raise ContainerRegistryException(
                 "Failed to connect with the Registry. Make sure it's spelled correctly"
                 " or it does not have firewall restrictions.",
                 500
-            )
+            ) from ce
 
     def get_url_string_params(self, image_name:str=None) -> dict[str,str]:
         return {
@@ -114,11 +112,10 @@ class BaseRegistry:
 
             return response_metadata.json()
         except ConnectionError as ce:
-            logger.info(ce.strerror)
             raise ContainerRegistryException(
                 f"Failed to fetch the list of tags from {self.registry}/{image}",
                 500
-            )
+            ) from ce
 
 
 class AzureRegistry(BaseRegistry):
