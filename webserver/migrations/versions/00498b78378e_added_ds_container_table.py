@@ -30,6 +30,9 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
+    # The all_containers has a default here to help legacy datasets
+    # and minimize impact
+    op.execute("UPDATE datasetcontainers SET all_containers=TRUE")
     # ### end Alembic commands ###
 
 
