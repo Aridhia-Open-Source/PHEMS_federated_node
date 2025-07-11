@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '00498b78378e'
-down_revision: Union[str, None] = '48d59eae3f31'
+down_revision: Union[str, None] = 'b4ce486e95bd'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -32,7 +32,11 @@ def upgrade() -> None:
     )
     # The all_containers has a default here to help legacy datasets
     # and minimize impact
-    op.execute("UPDATE datasetcontainers SET all_containers=TRUE")
+    op.execute("""
+        INSERT INTO datasetcontainers (dataset_id, all_containers)
+        SELECT id, TRUE
+        FROM datasets;
+    """)
     # ### end Alembic commands ###
 
 
