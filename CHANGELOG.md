@@ -1,5 +1,9 @@
 # Releases Changelog
 
+## 1.3.0
+- Upgraded all python images to use `python:3.13-slim`
+- Upgraded alpine image to 3.22
+
 ## 1.1.0
 - Results are now delivered as a `zip` file.
 - Added a `PATCH` endpoint for `/registries` so it's easier to update credentials
