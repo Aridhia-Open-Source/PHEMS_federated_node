@@ -56,10 +56,10 @@ class KubernetesException(LogAndException):
     pass
 
 class ContainerException(LogAndException):
-    description = "Error with the Container initialization/valiadation"
+    pass
 
 class ContainerRegistryException(LogAndException):
     pass
 
 class DatasetContainerException(LogAndException):
-    description = "Failed to associate the dataset with the container"
+    pass
