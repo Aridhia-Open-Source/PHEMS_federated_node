@@ -54,6 +54,8 @@ storage: {}
     # storageAccountName:
     # storageAccountKey:
     # shareName:
+  # aws:
+    # fileSystemId:
   # nfs:
     # provisioner:
     # url:

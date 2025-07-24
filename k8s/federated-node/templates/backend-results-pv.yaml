@@ -26,6 +26,10 @@ spec:
     shareName: {{ .Values.storage.azure.shareName }}
     readOnly: false
     secretName: {{ .Values.storage.azure.secretName | default "azure-storage-secret" }}
+  {{ else if .Values.storage.aws }}
+  csi:
+    driver: efs.csi.aws.com
+    volumeHandle: {{ .Values.storage.aws.fileSystemId }}
   {{ else if .Values.storage.nfs }}
   nfs:
     server: {{ .Values.storage.nfs.url }}
@@ -45,4 +49,4 @@ spec:
     requests:
       storage: 100Mi
   accessModes:
-    - ReadOnlyMany
+    - ReadWriteMany
