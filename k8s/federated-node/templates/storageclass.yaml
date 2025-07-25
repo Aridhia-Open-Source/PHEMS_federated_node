@@ -2,6 +2,8 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: shared-results
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
 volumeBindingMode: WaitForFirstConsumer
 {{- if .Values.storage.local }}
 provisioner: Local
