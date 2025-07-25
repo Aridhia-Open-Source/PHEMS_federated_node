@@ -2,9 +2,9 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 1
 
 backend:
+  replicas: 1
   tag:
 
 keycloak:
@@ -14,15 +14,13 @@ keycloak:
 autoscaling:
   enabled: false
 
-global:
-  namespaces:
-    keycloak: keycloak
-    tasks: tasks
-    controller: fn-controller
-
-namespaces:
+namespaces: &namespaces
   keycloak: keycloak
   tasks: tasks
+  controller: fn-controller
+
+global:
+  namespaces: *namespaces
 
 # Local Development-related options
 local_development: false
@@ -49,7 +47,8 @@ federatedNode:
     results_path: /mnt/results
     task_pod_results_path: /mnt/data
 
-storage: {}
+storage:
+  capacity: 10Gi
   # azure:
     # secretName:
     # storageAccountName:
@@ -72,24 +71,6 @@ token:
   life:
 
 pullPolicy: Always
-
-serviceAccount:
-  # Specifies whether a service account should be created
-  create: true
-  # Automatically mount a ServiceAccount's API credentials?
-  automount: true
-  # Annotations to add to the service account
-  annotations: {}
-  # The name of the service account to use.
-  # If not set and create is true, a name is generated using the fullname template
-  name: ""
-
-podAnnotations: {}
-podLabels: {}
-
-podSecurityContext: {}
-
-securityContext: {}
 
 # If using nginx, or ssl certificates, this will set the hostname
 host:
@@ -121,14 +102,6 @@ certs:
 # and then remove them as part of the cleanup process. Basic tests will be carried anyway.
 # If not comfortable with these smoketests, do no overwrite this value.
 smoketests: false
-
-resources: {}
-
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}
 
 outboundMode: false
 

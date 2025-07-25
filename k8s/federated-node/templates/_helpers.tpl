@@ -64,17 +64,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Create the name of the service account to use
-*/}}
-{{- define "federated-node.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "federated-node.fullname" .) .Values.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
-{{- end }}
-
-{{/*
 Common db initializer, to use as element of initContainer
 Just need to append the NEW_DB env var
 */}}
@@ -145,6 +134,13 @@ https://{{ .Values.host }}
 {{- else -}}
 http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 {{- end -}}
+{{- end }}
+
+{{- define "pvcName" -}}
+{{ printf "flask-results-%s-pv-vc" .Values.storage.capacity | lower }}
+{{- end }}
+{{- define "pvName" -}}
+{{ printf "flask-results-%s-pv" .Values.storage.capacity | lower }}
 {{- end }}
 
 {{- define "awsStorageAccount" -}}

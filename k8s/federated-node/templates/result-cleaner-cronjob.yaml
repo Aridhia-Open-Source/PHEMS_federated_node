@@ -64,4 +64,4 @@ spec:
           volumes:
           - name: respv
             persistentVolumeClaim:
-              claimName: flask-results-pv-vc
+              claimName: {{ include "pvcName" . }}

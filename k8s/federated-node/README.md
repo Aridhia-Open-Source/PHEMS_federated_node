@@ -4,6 +4,7 @@
 The necessary values are:
 |path|subpath|description|
 |-|-|-|
+|storage|capacity|How much to reserve for tasks, defaults to `10Gi`. Other possible units are `Mi`, `Ti`, `Ki`|
 |storage|local|If running a cluster off the cloud, this will be the suggested config|
 |storage.local|path|Where to persist files in the host machine|
 |storage|azure|If running a cluster on azure, or using an Azure Storage Class, this will be the suggested config|

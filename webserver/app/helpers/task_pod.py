@@ -101,7 +101,7 @@ class TaskPod:
         """
         pv_spec = V1PersistentVolumeSpec(
             access_modes=['ReadWriteMany'],
-            capacity={"storage": "100Mi"},
+            capacity={"storage": os.getenv("CLAIM_CAPACITY")},
             storage_class_name="shared-results"
         )
         if os.getenv("AZURE_STORAGE_ENABLED"):
