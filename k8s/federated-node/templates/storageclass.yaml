@@ -13,7 +13,7 @@ parameters:
 provisioner: efs.csi.aws.com
 parameters:
   provisioningMode: efs-ap
-  fileSystemId: {{ .Values.storage.aws.fileSystemId }}
+  fileSystemId: {{ include "awsStorageAccount" . }}
   directoryPerms: "777"
 {{- else if .Values.storage.nfs }}
 provisioner: {{ .Values.storage.nfs.provisioner }}
@@ -44,7 +44,7 @@ mountOptions:
 provisioner: efs.csi.aws.com
 parameters:
   provisioningMode: efs-ap
-  fileSystemId: {{ .Values.storage.aws.fileSystemId }}
+  fileSystemId: {{ include "awsStorageAccount" . }}
   directoryPerms: "777"
 {{- end }}
 {{- end }}

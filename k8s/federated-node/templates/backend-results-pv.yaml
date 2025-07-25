@@ -29,7 +29,7 @@ spec:
   {{ else if .Values.storage.aws }}
   csi:
     driver: efs.csi.aws.com
-    volumeHandle: {{ .Values.storage.aws.fileSystemId }}
+    volumeHandle: {{ include "awsStorageAccount" . }}
   {{ else if .Values.storage.nfs }}
   nfs:
     server: {{ .Values.storage.nfs.url }}

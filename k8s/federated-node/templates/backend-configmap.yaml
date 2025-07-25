@@ -18,8 +18,13 @@ data:
   RESULTS_PATH: {{ .Values.federatedNode.volumes.results_path }}
   TASK_POD_RESULTS_PATH: {{ .Values.federatedNode.volumes.task_pod_results_path }}
   IMAGE_TAG: {{ include "image-tag" . }}
-{{ if .Values.storage.azure }}
+{{- if .Values.storage.aws }}
+  AWS_STORAGE_ENABLED: "true"
+  AWS_STORAGE_DRIVER: "efs.csi.aws.com"
+  AWS_FILES_SYSTEM_ID: {{ include "awsStorageAccount" . }}
+{{- end }}
+{{- if .Values.storage.azure }}
   AZURE_STORAGE_ENABLED: "true"
   AZURE_SHARE_NAME: {{ .Values.storage.azure.shareName }}/results
   AZURE_SECRET_NAME: {{ .Values.storage.azure.secretName | default "azure-storage-secret" }}
-{{ end }}
+{{- end }}

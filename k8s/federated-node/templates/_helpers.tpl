@@ -146,3 +146,15 @@ https://{{ .Values.host }}
 http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 {{- end -}}
 {{- end }}
+
+{{- define "awsStorageAccount" -}}
+{{- if .Values.storage.aws }}
+  {{- with .Values.storage.aws }}
+    {{- if .accessPointId }}
+      {{- printf  "%s::%s" .fileSystemId .accessPointId | quote }}
+    {{- else }}
+      {{- .fileSystemId | quote }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- end -}}
