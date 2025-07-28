@@ -36,7 +36,7 @@ metadata:
   namespace: {{ . }}
 data:
   KEYCLOAK_ADMIN: admin
-  KC_DB_URL_HOST: {{ include "kc_db_host" . }}
-  KC_DB_USERNAME: {{ .Values.db.user | quote }}
+  KC_DB_URL_HOST: {{ include "kc_db_host" $ }}
+  KC_DB_USERNAME: {{ $.Values.db.user | quote }}
 ---
 {{- end }}
