@@ -167,10 +167,10 @@ http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 {{- end }}
 
 {{- define "pvcName" -}}
-{{ printf "flask-results-%s-pv-vc" .Values.storage.capacity | lower }}
+{{ printf "flask-results-%s-pv-vc" (.Values.storage.capacity | default "10Gi") | lower }}
 {{- end }}
 {{- define "pvName" -}}
-{{ printf "flask-results-%s-pv" .Values.storage.capacity | lower }}
+{{ printf "flask-results-%s-pv" (.Values.storage.capacity | default "10Gi") | lower }}
 {{- end }}
 
 {{- define "awsStorageAccount" -}}
