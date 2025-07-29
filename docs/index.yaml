@@ -3,7 +3,7 @@ entries:
   federated-node:
   - apiVersion: v2
     appVersion: 1.2.0-vfd5b5e
-    created: "2025-07-29T12:02:46.716004064Z"
+    created: "2025-07-29T12:25:11.009440934Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -26,7 +26,7 @@ entries:
     version: 1.2.0-vfd5b5e
   - apiVersion: v2
     appVersion: 1.2.0-vf94eb2
-    created: "2025-07-29T12:02:46.705957299Z"
+    created: "2025-07-29T12:25:10.999343822Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -49,7 +49,7 @@ entries:
     version: 1.2.0-vf94eb2
   - apiVersion: v2
     appVersion: 1.2.0-veae523
-    created: "2025-07-29T12:02:46.695883667Z"
+    created: "2025-07-29T12:25:10.989833176Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -72,7 +72,7 @@ entries:
     version: 1.2.0-veae523
   - apiVersion: v2
     appVersion: 1.2.0-ve8d21c
-    created: "2025-07-29T12:02:46.686395146Z"
+    created: "2025-07-29T12:25:10.979882999Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -95,7 +95,7 @@ entries:
     version: 1.2.0-ve8d21c
   - apiVersion: v2
     appVersion: 1.2.0-vd7f9e9
-    created: "2025-07-29T12:02:46.677491202Z"
+    created: "2025-07-29T12:25:10.970968882Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -118,7 +118,7 @@ entries:
     version: 1.2.0-vd7f9e9
   - apiVersion: v2
     appVersion: 1.2.0-vd412a0
-    created: "2025-07-29T12:02:46.668443353Z"
+    created: "2025-07-29T12:25:10.962052989Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -140,8 +140,31 @@ entries:
     - federated-node-1.2.0-vd412a0.tgz
     version: 1.2.0-vd412a0
   - apiVersion: v2
+    appVersion: 1.2.0-vaacc6b
+    created: "2025-07-29T12:25:10.952773169Z"
+    dependencies:
+    - condition: outboundMode
+      name: fn-task-controller
+      repository: https://aridhia-open-source.github.io/federated-node-task-controller
+      version: 1.1.0-v3cae09
+    - condition: cert-manager.enabled
+      name: cert-manager
+      repository: https://charts.jetstack.io
+      version: v1.17.1
+    - condition: ingress-nginx.enabled
+      name: ingress-nginx
+      repository: https://kubernetes.github.io/ingress-nginx
+      version: 4.12.1
+    description: A Helm chart for deploying the Federated Node on Kubernetes
+    digest: 42c403b182ec3867db2d0158e9f1e97a050e6e02a593b97f4fb7f72d9a0691b0
+    name: federated-node
+    type: application
+    urls:
+    - federated-node-1.2.0-vaacc6b.tgz
+    version: 1.2.0-vaacc6b
+  - apiVersion: v2
     appVersion: 1.2.0-va12231
-    created: "2025-07-29T12:02:46.659385419Z"
+    created: "2025-07-29T12:25:10.943597348Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -164,7 +187,7 @@ entries:
     version: 1.2.0-va12231
   - apiVersion: v2
     appVersion: 1.2.0-v9357ab
-    created: "2025-07-29T12:02:46.650110216Z"
+    created: "2025-07-29T12:25:10.933969131Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -187,7 +210,7 @@ entries:
     version: 1.2.0-v9357ab
   - apiVersion: v2
     appVersion: 1.2.0-v920230
-    created: "2025-07-29T12:02:46.641093558Z"
+    created: "2025-07-29T12:25:10.924945895Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -210,7 +233,7 @@ entries:
     version: 1.2.0-v920230
   - apiVersion: v2
     appVersion: 1.2.0-v65e366
-    created: "2025-07-29T12:02:46.632061634Z"
+    created: "2025-07-29T12:25:10.915911619Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -233,7 +256,7 @@ entries:
     version: 1.2.0-v65e366
   - apiVersion: v2
     appVersion: 1.2.0-v54a200
-    created: "2025-07-29T12:02:46.622778203Z"
+    created: "2025-07-29T12:25:10.90608053Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -256,7 +279,7 @@ entries:
     version: 1.2.0-v54a200
   - apiVersion: v2
     appVersion: 1.2.0-v4f2bc2
-    created: "2025-07-29T12:02:46.612581861Z"
+    created: "2025-07-29T12:25:10.895798439Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -279,7 +302,7 @@ entries:
     version: 1.2.0-v4f2bc2
   - apiVersion: v2
     appVersion: 1.2.0-v48c0ca
-    created: "2025-07-29T12:02:46.603636763Z"
+    created: "2025-07-29T12:25:10.886256805Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -302,7 +325,7 @@ entries:
     version: 1.2.0-v48c0ca
   - apiVersion: v2
     appVersion: 1.2.0-v4890d1
-    created: "2025-07-29T12:02:46.594249994Z"
+    created: "2025-07-29T12:25:10.876023088Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -325,7 +348,7 @@ entries:
     version: 1.2.0-v4890d1
   - apiVersion: v2
     appVersion: 1.2.0-v3a9397
-    created: "2025-07-29T12:02:46.585220023Z"
+    created: "2025-07-29T12:25:10.866994416Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -348,7 +371,7 @@ entries:
     version: 1.2.0-v3a9397
   - apiVersion: v2
     appVersion: 1.2.0-v24ee73
-    created: "2025-07-29T12:02:46.575448384Z"
+    created: "2025-07-29T12:25:10.857549454Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -371,7 +394,7 @@ entries:
     version: 1.2.0-v24ee73
   - apiVersion: v2
     appVersion: 1.2.0-v1d49a2
-    created: "2025-07-29T12:02:46.56602292Z"
+    created: "2025-07-29T12:25:10.848338823Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -394,7 +417,7 @@ entries:
     version: 1.2.0-v1d49a2
   - apiVersion: v2
     appVersion: 1.2.0-v10530e
-    created: "2025-07-29T12:02:46.55694871Z"
+    created: "2025-07-29T12:25:10.839021719Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -417,7 +440,7 @@ entries:
     version: 1.2.0-v10530e
   - apiVersion: v2
     appVersion: 1.2.0-v094dcd
-    created: "2025-07-29T12:02:46.548100918Z"
+    created: "2025-07-29T12:25:10.829850395Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -440,7 +463,7 @@ entries:
     version: 1.2.0-v094dcd
   - apiVersion: v2
     appVersion: 1.2.0-v091d06
-    created: "2025-07-29T12:02:46.538836307Z"
+    created: "2025-07-29T12:25:10.820618675Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -463,7 +486,7 @@ entries:
     version: 1.2.0-v091d06
   - apiVersion: v2
     appVersion: 1.1.0
-    created: "2025-07-29T12:02:46.528628466Z"
+    created: "2025-07-29T12:25:10.811535983Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -486,7 +509,7 @@ entries:
     version: 1.1.0
   - apiVersion: v2
     appVersion: 1.1.0-vf56419
-    created: "2025-07-29T12:02:46.519519045Z"
+    created: "2025-07-29T12:25:10.802159954Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -509,7 +532,7 @@ entries:
     version: 1.1.0-vf56419
   - apiVersion: v2
     appVersion: 1.1.0-vf31594
-    created: "2025-07-29T12:02:46.509543586Z"
+    created: "2025-07-29T12:25:10.792211681Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -532,7 +555,7 @@ entries:
     version: 1.1.0-vf31594
   - apiVersion: v2
     appVersion: 1.1.0-vf1b02b
-    created: "2025-07-29T12:02:46.500450754Z"
+    created: "2025-07-29T12:25:10.782938838Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -555,7 +578,7 @@ entries:
     version: 1.1.0-vf1b02b
   - apiVersion: v2
     appVersion: 1.1.0-veb9ad9
-    created: "2025-07-29T12:02:46.490896571Z"
+    created: "2025-07-29T12:25:10.774014754Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -578,7 +601,7 @@ entries:
     version: 1.1.0-veb9ad9
   - apiVersion: v2
     appVersion: 1.1.0-veaf1ec
-    created: "2025-07-29T12:02:46.481861586Z"
+    created: "2025-07-29T12:25:10.7650133Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -601,7 +624,7 @@ entries:
     version: 1.1.0-veaf1ec
   - apiVersion: v2
     appVersion: 1.1.0-vcf2084
-    created: "2025-07-29T12:02:46.472895472Z"
+    created: "2025-07-29T12:25:10.755007297Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -624,7 +647,7 @@ entries:
     version: 1.1.0-vcf2084
   - apiVersion: v2
     appVersion: 1.1.0-vcaa2ea
-    created: "2025-07-29T12:02:46.464046202Z"
+    created: "2025-07-29T12:25:10.745722899Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -647,7 +670,7 @@ entries:
     version: 1.1.0-vcaa2ea
   - apiVersion: v2
     appVersion: 1.1.0-vc363fb
-    created: "2025-07-29T12:02:46.455106319Z"
+    created: "2025-07-29T12:25:10.736707472Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -670,7 +693,7 @@ entries:
     version: 1.1.0-vc363fb
   - apiVersion: v2
     appVersion: 1.1.0-vc2f968
-    created: "2025-07-29T12:02:46.446091835Z"
+    created: "2025-07-29T12:25:10.727445532Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -693,7 +716,7 @@ entries:
     version: 1.1.0-vc2f968
   - apiVersion: v2
     appVersion: 1.1.0-vb9b047
-    created: "2025-07-29T12:02:46.437091327Z"
+    created: "2025-07-29T12:25:10.718212895Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -716,7 +739,7 @@ entries:
     version: 1.1.0-vb9b047
   - apiVersion: v2
     appVersion: 1.1.0-vaa35dd
-    created: "2025-07-29T12:02:46.427214773Z"
+    created: "2025-07-29T12:25:10.708862026Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -739,7 +762,7 @@ entries:
     version: 1.1.0-vaa35dd
   - apiVersion: v2
     appVersion: 1.1.0-v990944
-    created: "2025-07-29T12:02:46.417895566Z"
+    created: "2025-07-29T12:25:10.698921343Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -762,7 +785,7 @@ entries:
     version: 1.1.0-v990944
   - apiVersion: v2
     appVersion: 1.1.0-v8b687c
-    created: "2025-07-29T12:02:46.408736721Z"
+    created: "2025-07-29T12:25:10.69003339Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -785,7 +808,7 @@ entries:
     version: 1.1.0-v8b687c
   - apiVersion: v2
     appVersion: 1.1.0-v81f5da
-    created: "2025-07-29T12:02:46.399040735Z"
+    created: "2025-07-29T12:25:10.680829792Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -808,7 +831,7 @@ entries:
     version: 1.1.0-v81f5da
   - apiVersion: v2
     appVersion: 1.1.0-v7c6411
-    created: "2025-07-29T12:02:46.389834301Z"
+    created: "2025-07-29T12:25:10.670995993Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -831,7 +854,7 @@ entries:
     version: 1.1.0-v7c6411
   - apiVersion: v2
     appVersion: 1.1.0-v687922
-    created: "2025-07-29T12:02:46.380708852Z"
+    created: "2025-07-29T12:25:10.661201552Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -854,7 +877,7 @@ entries:
     version: 1.1.0-v687922
   - apiVersion: v2
     appVersion: 1.1.0-v680dc9
-    created: "2025-07-29T12:02:46.370454015Z"
+    created: "2025-07-29T12:25:10.65142114Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -877,7 +900,7 @@ entries:
     version: 1.1.0-v680dc9
   - apiVersion: v2
     appVersion: 1.1.0-v5b2644
-    created: "2025-07-29T12:02:46.360439309Z"
+    created: "2025-07-29T12:25:10.6420528Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -900,7 +923,7 @@ entries:
     version: 1.1.0-v5b2644
   - apiVersion: v2
     appVersion: 1.1.0-v510146
-    created: "2025-07-29T12:02:46.350863679Z"
+    created: "2025-07-29T12:25:10.632989206Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -923,7 +946,7 @@ entries:
     version: 1.1.0-v510146
   - apiVersion: v2
     appVersion: 1.1.0-v480460
-    created: "2025-07-29T12:02:46.341360432Z"
+    created: "2025-07-29T12:25:10.624137214Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -946,7 +969,7 @@ entries:
     version: 1.1.0-v480460
   - apiVersion: v2
     appVersion: 1.1.0-v422519
-    created: "2025-07-29T12:02:46.332333971Z"
+    created: "2025-07-29T12:25:10.614776452Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -969,7 +992,7 @@ entries:
     version: 1.1.0-v422519
   - apiVersion: v2
     appVersion: 1.1.0-v2e40c2
-    created: "2025-07-29T12:02:46.323003879Z"
+    created: "2025-07-29T12:25:10.605661131Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -992,7 +1015,7 @@ entries:
     version: 1.1.0-v2e40c2
   - apiVersion: v2
     appVersion: 1.1.0-v1f3ed6
-    created: "2025-07-29T12:02:46.31241681Z"
+    created: "2025-07-29T12:25:10.59667262Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1015,7 +1038,7 @@ entries:
     version: 1.1.0-v1f3ed6
   - apiVersion: v2
     appVersion: 1.1.0-v1c61d2
-    created: "2025-07-29T12:02:46.302599467Z"
+    created: "2025-07-29T12:25:10.58753765Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1038,7 +1061,7 @@ entries:
     version: 1.1.0-v1c61d2
   - apiVersion: v2
     appVersion: 1.1.0-v1ad03d
-    created: "2025-07-29T12:02:46.29326243Z"
+    created: "2025-07-29T12:25:10.57818853Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1061,7 +1084,7 @@ entries:
     version: 1.1.0-v1ad03d
   - apiVersion: v2
     appVersion: 1.1.0-v04bb1a
-    created: "2025-07-29T12:02:46.283969888Z"
+    created: "2025-07-29T12:25:10.568866022Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1084,7 +1107,7 @@ entries:
     version: 1.1.0-v04bb1a
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2025-07-29T12:02:46.275104001Z"
+    created: "2025-07-29T12:25:10.559464423Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1107,7 +1130,7 @@ entries:
     version: 1.0.0
   - apiVersion: v2
     appVersion: 1.0.0-vcd57b1
-    created: "2025-07-29T12:02:46.26525837Z"
+    created: "2025-07-29T12:25:10.550679242Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1130,7 +1153,7 @@ entries:
     version: 1.0.0-vcd57b1
   - apiVersion: v2
     appVersion: 1.0.0-v8f3033
-    created: "2025-07-29T12:02:46.255956483Z"
+    created: "2025-07-29T12:25:10.541311854Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1153,7 +1176,7 @@ entries:
     version: 1.0.0-v8f3033
   - apiVersion: v2
     appVersion: 1.0.0-v8cec5e
-    created: "2025-07-29T12:02:46.246001819Z"
+    created: "2025-07-29T12:25:10.531379892Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1176,7 +1199,7 @@ entries:
     version: 1.0.0-v8cec5e
   - apiVersion: v2
     appVersion: 1.0.0-v8c725e
-    created: "2025-07-29T12:02:46.236186864Z"
+    created: "2025-07-29T12:25:10.522252882Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1199,7 +1222,7 @@ entries:
     version: 1.0.0-v8c725e
   - apiVersion: v2
     appVersion: 0.12.0-vfb1611
-    created: "2025-07-29T12:02:46.217270875Z"
+    created: "2025-07-29T12:25:10.50336821Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1222,7 +1245,7 @@ entries:
     version: 0.12.0-vfb1611
   - apiVersion: v2
     appVersion: 0.12.0-vf58878
-    created: "2025-07-29T12:02:46.207765438Z"
+    created: "2025-07-29T12:25:10.494031097Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1245,7 +1268,7 @@ entries:
     version: 0.12.0-vf58878
   - apiVersion: v2
     appVersion: 0.12.0-vef0890
-    created: "2025-07-29T12:02:46.197926666Z"
+    created: "2025-07-29T12:25:10.484646802Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -1264,7 +1287,7 @@ entries:
     version: 0.12.0-vef0890
   - apiVersion: v2
     appVersion: 0.12.0-ve695f5
-    created: "2025-07-29T12:02:46.189640121Z"
+    created: "2025-07-29T12:25:10.475756862Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -1283,7 +1306,7 @@ entries:
     version: 0.12.0-ve695f5
   - apiVersion: v2
     appVersion: 0.12.0-vd98a10
-    created: "2025-07-29T12:02:46.181318097Z"
+    created: "2025-07-29T12:25:10.466886142Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -1302,7 +1325,7 @@ entries:
     version: 0.12.0-vd98a10
   - apiVersion: v2
     appVersion: 0.12.0-vd57377
-    created: "2025-07-29T12:02:46.172330475Z"
+    created: "2025-07-29T12:25:10.457110165Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -1321,7 +1344,7 @@ entries:
     version: 0.12.0-vd57377
   - apiVersion: v2
     appVersion: 0.12.0-vd3a7aa
-    created: "2025-07-29T12:02:46.163364599Z"
+    created: "2025-07-29T12:25:10.447831571Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1344,7 +1367,7 @@ entries:
     version: 0.12.0-vd3a7aa
   - apiVersion: v2
     appVersion: 0.12.0-vc63f8a
-    created: "2025-07-29T12:02:46.154509105Z"
+    created: "2025-07-29T12:25:10.438041673Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -1363,7 +1386,7 @@ entries:
     version: 0.12.0-vc63f8a
   - apiVersion: v2
     appVersion: 0.12.0-vc02215
-    created: "2025-07-29T12:02:46.145011712Z"
+    created: "2025-07-29T12:25:10.429112419Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1386,7 +1409,7 @@ entries:
     version: 0.12.0-vc02215
   - apiVersion: v2
     appVersion: 0.12.0-vbfa391
-    created: "2025-07-29T12:02:46.136064516Z"
+    created: "2025-07-29T12:25:10.419594149Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -1405,7 +1428,7 @@ entries:
     version: 0.12.0-vbfa391
   - apiVersion: v2
     appVersion: 0.12.0-va54f22
-    created: "2025-07-29T12:02:46.127415226Z"
+    created: "2025-07-29T12:25:10.406112756Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -1424,7 +1447,7 @@ entries:
     version: 0.12.0-va54f22
   - apiVersion: v2
     appVersion: 0.12.0-v9eab7c
-    created: "2025-07-29T12:02:46.118923442Z"
+    created: "2025-07-29T12:25:10.397658116Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1447,7 +1470,7 @@ entries:
     version: 0.12.0-v9eab7c
   - apiVersion: v2
     appVersion: 0.12.0-v9c83ad
-    created: "2025-07-29T12:02:46.109931037Z"
+    created: "2025-07-29T12:25:10.388586946Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1470,7 +1493,7 @@ entries:
     version: 0.12.0-v9c83ad
   - apiVersion: v2
     appVersion: 0.12.0-v8a21fd
-    created: "2025-07-29T12:02:46.10104842Z"
+    created: "2025-07-29T12:25:10.379693543Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -1489,7 +1512,7 @@ entries:
     version: 0.12.0-v8a21fd
   - apiVersion: v2
     appVersion: 0.12.0-v83c7db
-    created: "2025-07-29T12:02:46.092223225Z"
+    created: "2025-07-29T12:25:10.371107088Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -1508,7 +1531,7 @@ entries:
     version: 0.12.0-v83c7db
   - apiVersion: v2
     appVersion: 0.12.0-v81795f
-    created: "2025-07-29T12:02:46.083333779Z"
+    created: "2025-07-29T12:25:10.362565652Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -1527,7 +1550,7 @@ entries:
     version: 0.12.0-v81795f
   - apiVersion: v2
     appVersion: 0.12.0-v738103
-    created: "2025-07-29T12:02:46.07386867Z"
+    created: "2025-07-29T12:25:10.353513924Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1550,7 +1573,7 @@ entries:
     version: 0.12.0-v738103
   - apiVersion: v2
     appVersion: 0.12.0-v641df2
-    created: "2025-07-29T12:02:46.06403815Z"
+    created: "2025-07-29T12:25:10.34473226Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1573,7 +1596,7 @@ entries:
     version: 0.12.0-v641df2
   - apiVersion: v2
     appVersion: 0.12.0-v41a201
-    created: "2025-07-29T12:02:46.05378939Z"
+    created: "2025-07-29T12:25:10.335480251Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -1592,7 +1615,7 @@ entries:
     version: 0.12.0-v41a201
   - apiVersion: v2
     appVersion: 0.12.0-v372571
-    created: "2025-07-29T12:02:46.045099664Z"
+    created: "2025-07-29T12:25:10.326735541Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1615,7 +1638,7 @@ entries:
     version: 0.12.0-v372571
   - apiVersion: v2
     appVersion: 0.12.0-v1946bd
-    created: "2025-07-29T12:02:46.035821272Z"
+    created: "2025-07-29T12:25:10.317560413Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1638,7 +1661,7 @@ entries:
     version: 0.12.0-v1946bd
   - apiVersion: v2
     appVersion: 0.12.0-v15bfc6
-    created: "2025-07-29T12:02:46.026843786Z"
+    created: "2025-07-29T12:25:10.307449063Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1661,7 +1684,7 @@ entries:
     version: 0.12.0-v15bfc6
   - apiVersion: v2
     appVersion: 0.12.0-v071099
-    created: "2025-07-29T12:02:46.017433758Z"
+    created: "2025-07-29T12:25:10.297449965Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1684,7 +1707,7 @@ entries:
     version: 0.12.0-v071099
   - apiVersion: v2
     appVersion: 0.12.0-v05405d
-    created: "2025-07-29T12:02:46.008319417Z"
+    created: "2025-07-29T12:25:10.288278006Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -1703,7 +1726,7 @@ entries:
     version: 0.12.0-v05405d
   - apiVersion: v2
     appVersion: 0.12.0-v043dbb
-    created: "2025-07-29T12:02:45.999635554Z"
+    created: "2025-07-29T12:25:10.279634891Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -1722,7 +1745,7 @@ entries:
     version: 0.12.0-v043dbb
   - apiVersion: v2
     appVersion: 0.11.0
-    created: "2025-07-29T12:02:45.990908446Z"
+    created: "2025-07-29T12:25:10.270941962Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -1741,7 +1764,7 @@ entries:
     version: 0.11.0
   - apiVersion: v2
     appVersion: 0.10.0
-    created: "2025-07-29T12:02:45.981795682Z"
+    created: "2025-07-29T12:25:10.261259595Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -1760,7 +1783,7 @@ entries:
     version: 0.10.0
   - apiVersion: v2
     appVersion: 0.9.0
-    created: "2025-07-29T12:02:46.226296718Z"
+    created: "2025-07-29T12:25:10.511378012Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 85fe6f19dc4656ea1103459bd6b98a17031ac1998ec795bd24f90c7c1b0dd628
     name: federated-node
@@ -1770,7 +1793,7 @@ entries:
     version: 0.9.0
   - apiVersion: v2
     appVersion: 0.8.0
-    created: "2025-07-29T12:02:46.225436101Z"
+    created: "2025-07-29T12:25:10.510747444Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: aeecd07885d82c0ccd868efc825f25cac5a4abbe929fd7d4a6c998159f14a8c4
     name: federated-node
@@ -1780,7 +1803,7 @@ entries:
     version: 0.8.0
   - apiVersion: v2
     appVersion: 0.7.2
-    created: "2025-07-29T12:02:46.224838462Z"
+    created: "2025-07-29T12:25:10.510155518Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 3a014bdb4a3e32dafa41eed45b0bf65b5adfe267166ce76256e29ba65fe75fef
     name: federated-node
@@ -1790,7 +1813,7 @@ entries:
     version: 0.7.2
   - apiVersion: v2
     appVersion: 0.7.1
-    created: "2025-07-29T12:02:46.224166575Z"
+    created: "2025-07-29T12:25:10.509534739Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 1a2d73756ad6ea89635947806583e3915993ead86d8b1fa100613e2623f89a25
     name: federated-node
@@ -1800,7 +1823,7 @@ entries:
     version: 0.7.1
   - apiVersion: v2
     appVersion: 0.7.0
-    created: "2025-07-29T12:02:46.223530124Z"
+    created: "2025-07-29T12:25:10.508899472Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 067ab01cefa677aa42b7f9edbc28686757fb36b4356603df6768e12b99b20acd
     name: federated-node
@@ -1810,7 +1833,7 @@ entries:
     version: 0.7.0
   - apiVersion: v2
     appVersion: 0.6.0
-    created: "2025-07-29T12:02:46.222184744Z"
+    created: "2025-07-29T12:25:10.508268764Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 467148745f33e38330f265100c3af90b0e397638c44bfb641ab24e2a4551d2ee
     name: federated-node
@@ -1820,7 +1843,7 @@ entries:
     version: 0.6.2
   - apiVersion: v2
     appVersion: 0.6.0
-    created: "2025-07-29T12:02:46.221570274Z"
+    created: "2025-07-29T12:25:10.507678822Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 596199213abfacdbe3d1e8c5fdd5e21c561f03fe74e02b3d9e08dd4a319ff838
     name: federated-node
@@ -1830,7 +1853,7 @@ entries:
     version: 0.6.1
   - apiVersion: v2
     appVersion: 0.6.0
-    created: "2025-07-29T12:02:46.22090558Z"
+    created: "2025-07-29T12:25:10.507041221Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: b8d6f93816bf6545558425dd4c4c44bf2d66913edf4388d83dfdfd73b5737a24
     name: federated-node
@@ -1840,7 +1863,7 @@ entries:
     version: 0.6.0
   - apiVersion: v2
     appVersion: 0.5.2
-    created: "2025-07-29T12:02:46.220284668Z"
+    created: "2025-07-29T12:25:10.506429298Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: dfac3d66dfe4f2fd66d9454c3826056862f15b69768a0ba3a435510ef9acca27
     name: federated-node
@@ -1850,7 +1873,7 @@ entries:
     version: 0.5.2
   - apiVersion: v2
     appVersion: 0.5.0
-    created: "2025-07-29T12:02:46.219540808Z"
+    created: "2025-07-29T12:25:10.505676842Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 3e4044c1858f934a6854d9911f8dfcb9953a605734e8f31c7be18187b6687784
     name: federated-node
@@ -1860,7 +1883,7 @@ entries:
     version: 0.5.1
   - apiVersion: v2
     appVersion: 0.5.0
-    created: "2025-07-29T12:02:46.21880395Z"
+    created: "2025-07-29T12:25:10.504925879Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: cf9cf58397f4ec70503ce4ec64b07d874acc4044f352a184c8e3c139aa189ba7
     name: federated-node
@@ -1870,7 +1893,7 @@ entries:
     version: 0.5.0
   - apiVersion: v2
     appVersion: 0.5.0
-    created: "2025-07-29T12:02:46.2180496Z"
+    created: "2025-07-29T12:25:10.504161682Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 8adbc4b385b1aada1b87af9a662d9b0d81085715cbe749a94d81617ddcf7c150
     name: federated-node
@@ -1880,7 +1903,7 @@ entries:
     version: 0.4.1
   - apiVersion: v2
     appVersion: 0.1.0
-    created: "2025-07-29T12:02:45.972123565Z"
+    created: "2025-07-29T12:25:10.250008849Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 8d8270f81a89ac5f14f6e6eb7c4fa46a92b460460e41ee86e31aa8346a150d28
     name: federated-node
@@ -1890,7 +1913,7 @@ entries:
     version: 0.1.0
   - apiVersion: v2
     appVersion: 0.0.7
-    created: "2025-07-29T12:02:45.971136594Z"
+    created: "2025-07-29T12:25:10.249172657Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 39039263a7379f3e92b9a1555cb894a9bd0454564f44b3f18448427051d55714
     name: federated-node
@@ -1900,7 +1923,7 @@ entries:
     version: 0.0.7
   - apiVersion: v2
     appVersion: 0.0.6
-    created: "2025-07-29T12:02:45.970367356Z"
+    created: "2025-07-29T12:25:10.248357374Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: afe7f4df04bcd392c42d052d51f3e5d713e04ab7f167491189b50c928acb0729
     name: federated-node
@@ -1908,4 +1931,4 @@ entries:
     urls:
     - federated-node-0.0.6.tgz
     version: 0.0.6
-generated: "2025-07-29T12:02:45.969462156Z"
+generated: "2025-07-29T12:25:10.247416757Z"
