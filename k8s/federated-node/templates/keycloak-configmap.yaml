@@ -17,7 +17,7 @@ data:
 ---
 {{- $list_ns := list .Release.Namespace -}}
 {{- if .Values.outboundMode -}}
-    {{ $list_ns = append $list_ns .Values.namespaces.controller }}
+    {{ $list_ns = append $list_ns (include "controller_namespace" .) }}
 {{- end -}}
 
 {{- range $list_ns }}
