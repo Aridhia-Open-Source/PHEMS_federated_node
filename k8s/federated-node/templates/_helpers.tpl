@@ -91,6 +91,30 @@ Just need to append the NEW_DB env var
                 key: {{.Values.db.secret.key}}
 {{- end -}}
 
+{{- define "dbPort" -}}
+  {{ .Values.db.port | default 5432 | quote }}
+{{- end -}}
+
+{{- define "dbUser" -}}
+  {{ .Values.db.user | default "admin" | quote }}
+{{- end -}}
+
+{{- define "dbKeycloakName" -}}
+  {{ printf "fn_%s" (.Values.db.name | default "fndb") | quote }}
+{{- end -}}
+
+{{- define "dbKeycloakHost" }}
+  {{- if eq .Values.db.host "db" }}
+    {{- print "db." .Release.Namespace ".svc.cluster.local" | quote }}
+  {{- else }}
+    {{- .Values.db.host }}
+  {{- end }}
+{{- end }}
+
+{{- define "tokenLife" -}}
+  {{ int .Values.token.life  | default 2592000 | quote }}
+{{- end -}}
+
 {{- define "randomPass" -}}
 {{ randAlphaNum 24 | b64enc | quote }}
 {{- end -}}
@@ -121,6 +145,12 @@ Just need to append the NEW_DB env var
 {{- define "defaultAnnotations" -}}
     meta.helm.sh/release-name: {{ .Release.Name }}
     meta.helm.sh/release-namespace: {{ .Release.Namespace }}
+{{- end -}}
+{{- define "cspDomains" -}}
+  {{- join ", " .Values.integrations.domains -}}
+{{- end -}}
+{{- define "cspDomainsSpace" -}}
+  {{- join " " .Values.integrations.domains -}}
 {{- end -}}
 {{- define "kc_namespace" -}}
 {{ ((.Values.global).namespaces).keycloak | default .Values.namespaces.keycloak }}

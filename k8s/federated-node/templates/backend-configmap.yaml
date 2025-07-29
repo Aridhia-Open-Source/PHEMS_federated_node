@@ -5,10 +5,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
   FLASK_APP: "/app"
-  PGHOST: {{ .Values.db.host | default "db" | quote }}
-  PGPORT: {{ .Values.db.port | default "5432" | quote }}
-  PGDATABASE: {{ .Values.db.name | default "fndb" | quote }}
-  PGUSER: {{ .Values.db.user | default "admin" | quote }}
+  PGHOST: {{ .Values.db.host | quote }}
+  PGPORT: {{ include "dbPort" . }}
+  PGDATABASE: {{ .Values.db.name | quote }}
+  PGUSER: {{ include "dbUser" . }}
   KEYCLOAK_URL: "http://keycloak.{{ include "kc_namespace" . }}.svc.cluster.local"
   DEFAULT_NAMESPACE: {{ .Release.Namespace }}
   KEYCLOAK_NAMESPACE: {{ include "kc_namespace" . }}
