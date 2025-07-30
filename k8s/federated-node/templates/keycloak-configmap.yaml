@@ -5,19 +5,19 @@ metadata:
   namespace: {{ include "kc_namespace" . }}
 data:
   KEYCLOAK_ADMIN: admin
-  KC_DB_URL_HOST: {{ .Values.db.host | default (print "db." .Release.Namespace ".svc.cluster.local") | quote }}
+  KC_DB_URL_HOST: {{ include "dbKeycloakHost" . }}
   KC_DB: postgres
-  KC_DB_URL_PORT: {{ .Values.db.port | default "5432" | quote }}
-  KC_DB_URL_DATABASE: fn_{{ .Values.db.name | default "kc_db" }}
-  KC_DB_USERNAME: {{ .Values.db.user | default "admin" | quote }}
-  KEYCLOAK_TOKEN_LIFE: {{ .Values.token.life | default 2592000 | quote }}
+  KC_DB_URL_PORT: {{ include "dbPort" . }}
+  KC_DB_URL_DATABASE: {{ include "dbKeycloakName" . }}
+  KC_DB_USERNAME: {{ include "dbUser" . }}
+  KEYCLOAK_TOKEN_LIFE: {{ include "tokenLife" . }}
   KEYCLOAK_NAMESPACE: {{ include "kc_namespace" . }}
   KEYCLOAK_HOSTNAME: {{ .Values.host }}
   # PROXY_ADDRESS_FORWARDING: true
 ---
 {{- $list_ns := list .Release.Namespace -}}
 {{- if .Values.outboundMode -}}
-    {{ $list_ns = append $list_ns .Values.global.namespaces.controller }}
+    {{ $list_ns = append $list_ns (include "controller_namespace" .) }}
 {{- end -}}
 
 {{- range $list_ns }}
@@ -28,7 +28,7 @@ metadata:
   namespace: {{ . }}
 data:
   KEYCLOAK_ADMIN: admin
-  KC_DB_URL_HOST: {{ $.Values.db.host | default (print "db." $.Release.Namespace ".svc.cluster.local") | quote }}
-  KC_DB_USERNAME: {{ $.Values.db.user | default "admin" | quote }}
+  KC_DB_URL_HOST: {{ include "dbKeycloakHost" $ }}
+  KC_DB_USERNAME: {{ include "dbUser" $ }}
 ---
 {{- end }}

@@ -1,14 +1,14 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: flask-results-pv
+  name: {{ include "pvName" . }}
 spec:
   storageClassName: shared-results
   accessModes:
     - ReadWriteMany
     - ReadOnlyMany
   capacity:
-    storage: 100Mi
+    storage: {{ .Values.storage.capacity }}
   # This should be changed to some more reliable destination
   {{ if .Values.storage.local }}
   local:
@@ -26,6 +26,10 @@ spec:
     shareName: {{ .Values.storage.azure.shareName }}
     readOnly: false
     secretName: {{ .Values.storage.azure.secretName | default "azure-storage-secret" }}
+  {{ else if .Values.storage.aws }}
+  csi:
+    driver: efs.csi.aws.com
+    volumeHandle: {{ include "awsStorageAccount" . }}
   {{ else if .Values.storage.nfs }}
   nfs:
     server: {{ .Values.storage.nfs.url }}
@@ -36,13 +40,13 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: flask-results-pv-vc
+  name: {{ include "pvcName" . }}
   namespace: {{ .Release.namespace }}
 spec:
   storageClassName: shared-results
-  volumeName: flask-results-pv
+  volumeName: {{ include "pvName" . }}
   resources:
     requests:
-      storage: 100Mi
+      storage: {{ .Values.storage.capacity }}
   accessModes:
-    - ReadOnlyMany
+    - ReadWriteMany

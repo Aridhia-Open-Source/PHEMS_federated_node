@@ -20,6 +20,7 @@ export TASK_NAMESPACE=tasks
 export KEYCLOAK_NAMESPACE=keycloak
 export CLEANUP_AFTER_DAYS=1
 export PUBLIC_URL=localhost:5000
+export CLAIM_CAPACITY=100Mi
 
 is_ci=$1
 
