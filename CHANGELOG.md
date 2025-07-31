@@ -1,9 +1,8 @@
 # Releases Changelog
 
-## 1.3.0
-- Added two `DELETE` enpoints for datasets and registries. Using them will remove related k8s secrets, and DB entries. In the case of datasets, dictionaries and catalogues. For registries, all related containers added either manually of via sync (manual or scheduled).
 
 ## 1.2.0
+- Added two `DELETE` enpoints for datasets and registries. Using them will remove related k8s secrets, and DB entries. In the case of datasets, dictionaries and catalogues. For registries, all related containers added either manually of via sync (manual or scheduled).
 - Added support for AWS EFS persistent volume through the csi driver `efs.csi.aws.com`
     To configure it, set in the values file:
     ```yaml
