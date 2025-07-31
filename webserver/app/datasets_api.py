@@ -12,7 +12,8 @@ datasets-related endpoints:
 """
 from datetime import datetime
 from flask import Blueprint, request
-
+from kubernetes.client import ApiException
+import logging
 
 from .helpers.base_model import db
 from .helpers.const import DEFAULT_NAMESPACE
@@ -30,6 +31,8 @@ from .models.request import Request
 bp = Blueprint('datasets', __name__, url_prefix='/datasets')
 session = db.session
 
+logger = logging.getLogger("dataset_api")
+logger.setLevel(logging.INFO)
 
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
@@ -108,14 +111,21 @@ def delete_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
     secret_name = ds.get_creds_secret_name()
 
     try:
-        ds.delete()
+        ds.delete(False)
     except:
         session.rollback()
         raise InvalidRequest("Error while deleting the record")
 
-    session.commit()
     v1 = KubernetesClient()
-    v1.delete_namespaced_secret(secret_name, DEFAULT_NAMESPACE)
+    try:
+        v1.delete_namespaced_secret(secret_name, DEFAULT_NAMESPACE)
+    except ApiException as apie:
+        if apie.status != 404:
+            logger.error(apie)
+            session.rollback()
+            raise InvalidRequest("Could not clear the secrets properly") from apie
+
+    session.commit()
     return {}, 204
 
 @bp.route('/<int:dataset_id>', methods=['PATCH'])

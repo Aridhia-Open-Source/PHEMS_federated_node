@@ -1014,10 +1014,8 @@ class TestDeleteDataset(MixinTestDataset):
         assert response.status_code == 404
         k8s_client["delete_namespaced_secret_mock"].assert_not_called()
 
-    @mock.patch('app.datasets_api.Dataset.delete', side_effect=Exception())
     def test_delete_dataset_with_secrets_error(
             self,
-            delete_mock,
             client,
             dataset,
             post_json_admin_header,
@@ -1028,13 +1026,39 @@ class TestDeleteDataset(MixinTestDataset):
         not deleted if an exception is raised
         """
         ds_id = dataset.id
+        k8s_client["delete_namespaced_secret_mock"].side_effect = ApiException(
+            status=500, reason="failed"
+        )
+
         response = client.delete(
             f"/datasets/{ds_id}",
             headers=post_json_admin_header
         )
         assert response.status_code == 400
         assert Dataset.query.filter_by(id=ds_id).one_or_none()
-        k8s_client["delete_namespaced_secret_mock"].assert_not_called()
+
+    def test_delete_dataset_with_secrets_not_found_error(
+            self,
+            client,
+            dataset,
+            post_json_admin_header,
+            k8s_client
+    ):
+        """
+        Test to make sure the db entry is deleted if the secret does
+        not exist
+        """
+        ds_id = dataset.id
+        k8s_client["delete_namespaced_secret_mock"].side_effect = ApiException(
+            status=404, reason="failed"
+        )
+
+        response = client.delete(
+            f"/datasets/{ds_id}",
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 204
+        assert not Dataset.query.filter_by(id=ds_id).one_or_none()
 
     def test_delete_dataset_with_catalougues(
             self,
