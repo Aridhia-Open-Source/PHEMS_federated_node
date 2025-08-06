@@ -34,7 +34,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: New Version Bump
-        id: newversion
         run: |
           NEW_VERSION=$(python3 scripts/semver_bump.py $)
           gh workflow run bump.yml \
