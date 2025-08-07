@@ -23,8 +23,4 @@ def get_audit_logs():
     GET /audit endpoint.
         Returns a list of audit entries
     """
-    query = parse_query_params(Audit, request.args.copy())
-    res = session.execute(query).all()
-    if res:
-        res = [r[0].sanitized_dict() for r in res]
-    return res, 200
+    return parse_query_params(Audit, request.args.copy()), 200

@@ -42,9 +42,7 @@ def get_datasets():
     """
     GET /datasets/ endpoint. Returns a list of all datasets
     """
-    return {
-        "datasets": Dataset.get_all()
-    }, 200
+    return Dataset.get_all(), 200
 
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
