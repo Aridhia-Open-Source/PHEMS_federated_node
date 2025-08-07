@@ -6,7 +6,7 @@ During testing we have found out that on cluster restart/re-deployment the user 
 The root cause is the caching system on KC which is very volatile, and doesn't use the DB by default.
 
 ### Solution
-In order to switch to DB sessions, we need to use `infinispan`. The version installed in `quay.io/keycloak/keycloak:23.0.4` is 14.0.21. By injecting a custom config ([cache-ispn.xml](./cache-ispn.xml)) we tell infinispan to create a db connection to a postgres server, create a table, and use it to track sessions.
+In order to switch to DB sessions, we need to use `infinispan`. The version installed in `quay.io/keycloak/keycloak:24.0.2` is 14.0.21. By injecting a custom config ([cache-ispn.xml](./cache-ispn.xml)) we tell infinispan to create a db connection to a postgres server, create a table, and use it to track sessions.
 
 The DB will be the same as what Keycloak uses for its general use.
 

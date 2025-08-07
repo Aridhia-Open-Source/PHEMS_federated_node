@@ -20,3 +20,12 @@ chart:
 
 build_keycloak:
 	docker build build/keycloak -f build/keycloak/keycloak.Dockerfile -t ghcr.io/aridhia-open-source/federated_keycloak:0.0.1
+
+build_connector:
+	docker build build/db-connector -t ghcr.io/aridhia-open-source/db_connector:0.0.1
+
+build_alpine:
+	docker build build/alpine -t ghcr.io/aridhia-open-source/alpine:0.0.1
+
+build_kc_init:
+	docker build build/kc-init -t ghcr.io/aridhia-open-source/kc_init:0.0.1

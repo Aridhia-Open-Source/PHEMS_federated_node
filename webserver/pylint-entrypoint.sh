@@ -1,3 +1,3 @@
 #!/bin/bash
 
-pylint app --output /tmp/pylint.xml
+pylint app --output /tmp/pylint.txt
