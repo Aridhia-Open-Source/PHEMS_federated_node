@@ -8,7 +8,8 @@ from kubernetes.client import (
     V1HostPathVolumeSource, V1EnvVar,
     V1PersistentVolume, V1PersistentVolumeClaim,
     V1EnvVarSource, V1SecretKeySelector,
-    V1PersistentVolumeClaimSpec, V1VolumeResourceRequirements
+    V1PersistentVolumeClaimSpec, V1VolumeResourceRequirements,
+    V1CSIPersistentVolumeSource
 )
 from app.helpers.const import RESULTS_PATH, TASK_NAMESPACE, TASK_PULL_SECRET_NAME
 from app.helpers.kubernetes import KubernetesClient
@@ -100,7 +101,7 @@ class TaskPod:
         """
         pv_spec = V1PersistentVolumeSpec(
             access_modes=['ReadWriteMany'],
-            capacity={"storage": "100Mi"},
+            capacity={"storage": os.getenv("CLAIM_CAPACITY")},
             storage_class_name="shared-results"
         )
         if os.getenv("AZURE_STORAGE_ENABLED"):
@@ -108,6 +109,11 @@ class TaskPod:
                 read_only=False,
                 secret_name=os.getenv("AZURE_SECRET_NAME"),
                 share_name=os.getenv("AZURE_SHARE_NAME")
+            )
+        elif os.getenv("AWS_STORAGE_ENABLED"):
+            pv_spec.csi=V1CSIPersistentVolumeSource(
+                driver=os.getenv("AWS_STORAGE_DRIVER"),
+                volume_handle=os.getenv("AWS_FILES_SYSTEM_ID")
             )
         else:
             pv_spec.host_path=V1HostPathVolumeSource(

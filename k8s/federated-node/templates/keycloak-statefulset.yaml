@@ -6,7 +6,8 @@ metadata:
   labels:
     app: keycloak
 spec:
-  replicas: 2
+  serviceName: keycloak-headless
+  replicas: {{ .Values.keycloak.replicas | default 2 }}
   selector:
     matchLabels:
       app: keycloak

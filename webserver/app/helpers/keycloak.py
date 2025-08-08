@@ -524,6 +524,7 @@ class Keycloak:
             json=payload,
             headers=self._post_json_headers()
         )
+        # If it exists already
         if policy_response.status_code == 409:
             return self.get_policy(payload["name"])
         elif not policy_response.ok:
@@ -531,6 +532,28 @@ class Keycloak:
             raise KeycloakError("Failed to create a project's policy")
 
         return policy_response.json()
+
+    def create_or_update_time_policy(self, payload:dict, policy_type:str) -> dict:
+        """
+        Time policies need a separate treatement. This is the only policy that we will
+        allow to be updated, in cases of token renewals via DAR
+        """
+        current_policy = self.create_policy(payload, policy_type)
+        # Only update the time policy. If it's a brand new, it will return
+        # the payload as response, otherwise the "config" field will be there
+        if current_policy.get("config"):
+            current_policy["config"]["noa"] = payload['notOnOrAfter']
+            current_policy["config"]["nbf"] = payload['notBefore']
+            policy_response = requests.put(
+                (URLS["policies"] % self.client_id) + "/" + current_policy["id"],
+                json=current_policy,
+                headers=self._post_json_headers()
+            )
+            if not policy_response.ok:
+                logger.info(policy_response.content.decode())
+                raise KeycloakError("Failed to create a project's policy")
+
+        return current_policy
 
     def create_resource(self, payload:dict, client_name='global') -> dict:
         payload["owner"] = {

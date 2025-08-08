@@ -5,10 +5,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
   FLASK_APP: "/app"
-  PGHOST: {{ .Values.db.host | default "db" | quote }}
-  PGPORT: {{ .Values.db.port | default "5432" | quote }}
-  PGDATABASE: {{ .Values.db.name | default "fndb" | quote }}
-  PGUSER: {{ .Values.db.user | default "admin" | quote }}
+  PGHOST: {{ .Values.db.host | quote }}
+  PGPORT: {{ include "dbPort" . }}
+  PGDATABASE: {{ .Values.db.name | quote }}
+  PGUSER: {{ include "dbUser" . }}
   KEYCLOAK_URL: "http://keycloak.{{ include "kc_namespace" . }}.svc.cluster.local"
   DEFAULT_NAMESPACE: {{ .Release.Namespace }}
   KEYCLOAK_NAMESPACE: {{ include "kc_namespace" . }}
@@ -18,8 +18,14 @@ data:
   RESULTS_PATH: {{ .Values.federatedNode.volumes.results_path }}
   TASK_POD_RESULTS_PATH: {{ .Values.federatedNode.volumes.task_pod_results_path }}
   IMAGE_TAG: {{ include "image-tag" . }}
-{{ if .Values.storage.azure }}
+  CLAIM_CAPACITY: {{ .Values.storage.capacity }}
+{{- if .Values.storage.aws }}
+  AWS_STORAGE_ENABLED: "true"
+  AWS_STORAGE_DRIVER: "efs.csi.aws.com"
+  AWS_FILES_SYSTEM_ID: {{ include "awsStorageAccount" . }}
+{{- end }}
+{{- if .Values.storage.azure }}
   AZURE_STORAGE_ENABLED: "true"
   AZURE_SHARE_NAME: {{ .Values.storage.azure.shareName }}/results
   AZURE_SECRET_NAME: {{ .Values.storage.azure.secretName | default "azure-storage-secret" }}
-{{ end }}
+{{- end }}

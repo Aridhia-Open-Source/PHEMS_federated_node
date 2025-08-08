@@ -2,36 +2,38 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 1
 
 backend:
+  replicas: 1
   tag:
 
 keycloak:
+  replicas: 2
   tag:
 
 autoscaling:
   enabled: false
 
-global:
-  namespaces:
-    keycloak: keycloak
-    tasks: tasks
-    controller: fn-controller
-
-namespaces:
+namespaces: &namespaces
   keycloak: keycloak
   tasks: tasks
+  controller: fn-controller
+
+global:
+  namespaces: *namespaces
+
+token:
+  life: 2592000
 
 # Local Development-related options
 local_development: false
 create_db_deployment: false
 
 db:
-  user:
-  password:
-  name:
-  host:
+  user: admin
+  name: fndb
+  host: db
+  port: 5432
   # If a configmap with host user exists, use that
   # configMap:
   # If a secret with password exists, use that
@@ -48,44 +50,27 @@ federatedNode:
     results_path: /mnt/results
     task_pod_results_path: /mnt/data
 
-storage: {}
+storage:
+  capacity: 10Gi
   # azure:
     # secretName:
     # storageAccountName:
     # storageAccountKey:
     # shareName:
+  # aws:
+    # fileSystemId:
+    # accessPointId:
   # nfs:
     # provisioner:
     # url:
     # path:
-  # local:
+  local: {}
     # Local storage that will be shared with the backend
     # path:
     # Local storage that will be shared with the db
     # dbpath: /data/db
 
-token:
-  life:
-
 pullPolicy: Always
-
-serviceAccount:
-  # Specifies whether a service account should be created
-  create: true
-  # Automatically mount a ServiceAccount's API credentials?
-  automount: true
-  # Annotations to add to the service account
-  annotations: {}
-  # The name of the service account to use.
-  # If not set and create is true, a name is generated using the fullname template
-  name: ""
-
-podAnnotations: {}
-podLabels: {}
-
-podSecurityContext: {}
-
-securityContext: {}
 
 # If using nginx, or ssl certificates, this will set the hostname
 host:
@@ -105,6 +90,13 @@ on_aks: false
 # Running on AWS?
 on_eks: false
 
+# Set the domains that are allowed to send requests
+# to the federated node, in case there is a web UI that tries to
+# ping the FN
+integrations:
+  domains:
+   - 'self'
+
 certs:
   rotationPolicy: Never
   azure: {}
@@ -117,14 +109,6 @@ certs:
 # and then remove them as part of the cleanup process. Basic tests will be carried anyway.
 # If not comfortable with these smoketests, do no overwrite this value.
 smoketests: false
-
-resources: {}
-
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}
 
 outboundMode: false
 
@@ -162,9 +146,11 @@ ingress-nginx:
   enabled: false
   namespaceOverride: ingress-nginx
   controller:
+    # admissionWebhooks:
+    #   enabled: false
     ingressClassResource:
       name: "fn-nginx"
-    allowSnippetAnnotations: true
+    allowSnippetAnnotations: false
     ingressClass: "fn-nginx"
     # If running on aks:
     # service:

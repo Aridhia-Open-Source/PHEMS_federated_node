@@ -141,7 +141,7 @@ class Request(db.Model, BaseModel):
                 "users": [user["id"]]
             }, "/user")
             # Create project date policy
-            date_range_policy = kc_client.create_policy({
+            date_range_policy = kc_client.create_or_update_time_policy({
                 "name": f"{user["id"]} Date access policy",
                 "description": "Date range to allow the user to access a dataset within this project",
                 "logic": "POSITIVE",

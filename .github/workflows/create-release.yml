@@ -1,0 +1,102 @@
+name: Create Release
+run-name: Create Release
+on:
+  workflow_dispatch:
+    inputs:
+      majorVersion:
+        description: 'Bump the major version, i.e. 1.0.0 -> 2.0.0'
+        required: false
+        default: false
+        type: boolean
+      minorVersion:
+        description: 'Bump the minor version, i.e. 0.1.0 -> 0.2.0'
+        required: false
+        default: true
+        type: boolean
+      patchVersion:
+        description: 'Bump the patch version, i.e. 0.0.1 -> 0.0.2'
+        required: false
+        default: false
+        type: boolean
+      dryRun:
+        description: 'Dry run, no changes committed. Shows the new Chart.yaml contents'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    if: ${{inputs.majorVersion == 'true'}} || ${{inputs.minorVersion == 'true'}} || ${{inputs.patchVersion == 'true'}}
+    outputs:
+      current_version: ${{ steps.create_tag.outputs.CURRENT_VERSION }}
+    steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.BUMP_APP_ID }}
+          private-key: ${{ secrets.BUMP_APP_SECRET }}
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          token: ${{ steps.generate-token.outputs.token }}
+      - name: Create Tag
+        id: create_tag
+        working-directory: k8s/federated-node
+        run: |
+          set -e
+          version=$(grep '^version:.*' Chart.yaml | sed 's/^.*: //')
+          echo "CURRENT_VERSION=$version" >> ${GITHUB_OUTPUT}
+          echo "Creating tag $version"
+          if [[ "${{ inputs.dryRun }}" == "false" ]]; then
+            git tag "$version"
+            git push origin "$version"
+          fi
+  setNewVersion:
+    runs-on: ubuntu-latest
+    needs:
+      - tag
+    steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.BUMP_APP_ID }}
+          private-key: ${{ secrets.BUMP_APP_SECRET }}
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          token: ${{ steps.generate-token.outputs.token }}
+      - name: New Version Bump
+        id: newversion
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: |
+          set -e
+          base_args=""
+
+          if [[ "${{ inputs.majorVersion }}" == "true" ]]; then
+            base_args+="-m "
+          fi
+          if [[ "${{ inputs.minorVersion }}" == "true" ]]; then
+            base_args+="-n "
+          fi
+          if [[ "${{ inputs.patchVersion }}" == "true" ]]; then
+            base_args+="-p "
+          fi
+
+          NEW_VERSION=$(python3 scripts/semver_bump.py -v ${{ needs.tag.outputs.current_version }} $base_args)
+
+          echo "New Version: $NEW_VERSION"
+          gh workflow run "Version bump" \
+            -f chartVersion=$NEW_VERSION \
+            -f appVersion=$NEW_VERSION \
+            -f dryRun="${{ inputs.dryRun }}" \
+            --ref develop
+

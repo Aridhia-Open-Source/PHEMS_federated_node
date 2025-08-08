@@ -1,5 +1,28 @@
 # Releases Changelog
 
+
+## 1.2.0
+- Added two `DELETE` enpoints for datasets and registries. Using them will remove related k8s secrets, and DB entries. In the case of datasets, dictionaries and catalogues. For registries, all related containers added either manually of via sync (manual or scheduled).
+- Added support for AWS EFS persistent volume through the csi driver `efs.csi.aws.com`
+    To configure it, set in the values file:
+    ```yaml
+    storage:
+    aws:
+        fileSystemId: <your EFS system ID>
+        accessPointId: <Optional, access point id for better permission and isolation management in the EFS>
+    ```
+
+- Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
+
+### Security
+- Added the following headers to nginx:
+    - `strict-transport-security`
+    - `content-security-policy`
+    - `referrer-policy`
+    - `permission-policy`
+    - `x-content-type-options`
+    - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to `self`)
+
 ## 1.1.0
 - Results are now delivered as a `zip` file.
 - Added a `PATCH` endpoint for `/registries` so it's easier to update credentials

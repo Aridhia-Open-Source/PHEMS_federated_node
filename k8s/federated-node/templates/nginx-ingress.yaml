@@ -16,6 +16,8 @@ metadata:
     {{- end }}
     helm.sh/hook: pre-install,pre-upgrade
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "{{ include "cspDomains" . }}"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
 spec:
   ingressClassName: {{ index .Values "ingress-nginx" "controller" "ingressClass" }}
   tls:
