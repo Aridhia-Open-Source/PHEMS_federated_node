@@ -9,13 +9,14 @@ datasets-related endpoints:
 - GET /datasets/id/dictionaries/table_name
 - POST /datasets/id/containers
 - GET /datasets/id/containers
+- DELETE /datasets/id/containers
 - POST /datasets/token_transfer
 - POST /datasets/selection/beacon
 """
+import logging
 from datetime import datetime
 from flask import Blueprint, request
 from kubernetes.client import ApiException
-import logging
 
 from .helpers.base_model import db
 from .helpers.const import DEFAULT_NAMESPACE
@@ -116,9 +117,9 @@ def delete_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
 
     try:
         ds.delete(False)
-    except:
+    except Exception as exc:
         session.rollback()
-        raise InvalidRequest("Error while deleting the record")
+        raise InvalidRequest("Error while deleting the record") from exc
 
     v1 = KubernetesClient()
     try:
@@ -260,7 +261,9 @@ def associate_containers_to_dataset_by_id_or_name(dataset_id=None, dataset_name=
     dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id, name=dataset_name)
 
     if "ids" not in request.json and "images" not in request.json:
-        raise InvalidRequest("The request body should only include `ids` or `images` as unique field")
+        raise InvalidRequest(
+            "The request body should only include `ids` or `images` as unique field"
+        )
 
     ids = request.json.get("ids", [])
     names = request.json.get("images", [])
@@ -275,10 +278,10 @@ def associate_containers_to_dataset_by_id_or_name(dataset_id=None, dataset_name=
             raise InvalidRequest(f"Container {cont} not found", 404)
         containers_list.append(container)
 
-    for id in ids:
-        container = Container.query.filter_by(id=id).one_or_none()
+    for d_id in ids:
+        container = Container.query.filter_by(id=d_id).one_or_none()
         if container is None:
-            raise InvalidRequest(f"Container {id} not found", 404)
+            raise InvalidRequest(f"Container {d_id} not found", 404)
         containers_list.append(container)
     try:
         for container in containers_list:
@@ -307,7 +310,9 @@ def get_associated_containers_to_dataset_by_id_or_name(dataset_id=None, dataset_
 @bp.route('/<int:dataset_id>/containers/<container>', methods=['DELETE'])
 @audit
 @auth(scope='can_access_dataset')
-def delete_associated_containers_to_dataset_by_id_or_name(container, dataset_id=None, dataset_name=None):
+def delete_associated_containers_to_dataset_by_id_or_name(
+    container, dataset_id=None, dataset_name=None
+):
     """
     GET /datasets/dataset_name/containers endpoint.
     GET /datasets/id/containers endpoint.

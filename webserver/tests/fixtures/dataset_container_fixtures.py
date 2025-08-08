@@ -4,9 +4,9 @@ from tests.fixtures.azure_cr_fixtures import container, container2
 
 
 @fixture
-def ds_cont_link(dataset2, container2) -> DatasetContainer:
+def ds_cont_link(dataset_oracle, container2) -> DatasetContainer:
     dc = DatasetContainer(
-        dataset=dataset2,
+        dataset=dataset_oracle,
         container=container2,
         use=True
     )

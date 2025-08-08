@@ -437,6 +437,7 @@ class TestPostTask:
             client,
             reg_k8s_client,
             registry_client,
+            ds_star_link,
             task_body
         ):
         """
