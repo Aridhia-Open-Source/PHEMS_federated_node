@@ -1,7 +1,8 @@
+from typing import Self
 from sqlalchemy import create_engine, Column
 from sqlalchemy.orm import Relationship, declarative_base
 from flask_sqlalchemy import SQLAlchemy
-from app.helpers.exceptions import InvalidDBEntry
+from app.helpers.exceptions import DBRecordNotFoundError, InvalidDBEntry
 from app.helpers.const import build_sql_uri
 
 
@@ -11,7 +12,7 @@ db = SQLAlchemy(model_class=Base)
 
 # Another helper class for common methods
 class BaseModel():
-    def sanitized_dict(self):
+    def sanitized_dict(self) -> dict[str,str]:
         jsonized = self.__dict__.copy()
         jsonized.pop('_sa_instance_state', None)
         return jsonized
@@ -56,11 +57,11 @@ class BaseModel():
         return not (attribute.nullable or attribute.primary_key or attribute.server_default is not None)
 
     @classmethod
-    def _get_required_fields(cls):
+    def _get_required_fields(cls) -> list[str]:
         return [f.name for f in cls._get_fields() if cls.is_field_required(f)]
 
     @classmethod
-    def validate(cls, data:dict):
+    def validate(cls, data:dict) -> dict:
         """
         Make sure we have all required fields. Set to None if missing
         """
@@ -79,3 +80,14 @@ class BaseModel():
             if req_field not in list(valid.keys()):
                 raise InvalidDBEntry(f"Field \"{req_field}\" missing")
         return valid
+
+    @classmethod
+    def get_by_id(cls, obj_id:int) -> Self:
+        """
+        Common wrapper to get by id, and raise an
+        exception if not found
+        """
+        obj = cls.query.filter(cls.id == obj_id).one_or_none()
+        if obj is None:
+            raise DBRecordNotFoundError(f"{cls.__name__.capitalize()} with id {obj_id} does not exist")
+        return obj

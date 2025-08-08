@@ -7,7 +7,7 @@ data:
   FLASK_APP: "/app"
   PGHOST: {{ .Values.db.host | quote }}
   PGPORT: {{ include "dbPort" . }}
-  PGDATABASE: {{ .Values.db.name | quote }}
+  PGDATABASE: {{ .Values.db.name | default "fndb" | quote }}
   PGUSER: {{ include "dbUser" . }}
   KEYCLOAK_URL: "http://keycloak.{{ include "kc_namespace" . }}.svc.cluster.local"
   DEFAULT_NAMESPACE: {{ .Release.Namespace }}
@@ -28,4 +28,10 @@ data:
   AZURE_STORAGE_ENABLED: "true"
   AZURE_SHARE_NAME: {{ .Values.storage.azure.shareName }}/results
   AZURE_SECRET_NAME: {{ .Values.storage.azure.secretName | default "azure-storage-secret" }}
+{{- end }}
+{{- if .Values.taskReview }}
+  TASK_REVIEW: enabled
+{{- end }}
+{{- if .Values.outboundMode }}
+  TASK_CONTROLLER: enabled
 {{- end }}
