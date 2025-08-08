@@ -1632,9 +1632,6 @@
           }
         }
       },
-      "NoContent": {
-        "description": "No content response"
-      },
       "AuditList": {
         "description": "List of actions performed against the webserver",
         "content": {

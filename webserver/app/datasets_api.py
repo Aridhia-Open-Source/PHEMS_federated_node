@@ -9,7 +9,7 @@ datasets-related endpoints:
 - GET /datasets/id/dictionaries/table_name
 - POST /datasets/id/containers
 - GET /datasets/id/containers
-- DELETE /datasets/id/containers
+- DELETE /datasets/id/containers/<container>
 - POST /datasets/token_transfer
 - POST /datasets/selection/beacon
 """
@@ -314,8 +314,8 @@ def delete_associated_containers_to_dataset_by_id_or_name(
     container, dataset_id=None, dataset_name=None
 ):
     """
-    GET /datasets/dataset_name/containers endpoint.
-    GET /datasets/id/containers endpoint.
+    GET /datasets/dataset_name/containers/<container> endpoint.
+    GET /datasets/id/containers/<container> endpoint.
         Delete a specific association
     """
     # Dataset check
