@@ -299,34 +299,12 @@ class Dataset(db.Model, BaseModel):
             secret_task = v1.read_namespaced_secret(self.get_creds_secret_name(), TASK_NAMESPACE, pretty='pretty')
 
             secret_task.data = secret.data
-            # Check secret names
+
             new_name = kwargs.get("name", None)
             new_host = kwargs.get("host", None)
-            try:
-                # Create new secret if name is different
-                if (new_host != self.host and new_host) or (new_name != self.name and new_name):
-                    secret.metadata = {'name': self.get_creds_secret_name(new_host, new_name)}
-                    secret_task.metadata = secret.metadata
-                    v1.create_namespaced_secret(DEFAULT_NAMESPACE, body=secret, pretty='true')
-                    v1.create_namespaced_secret(TASK_NAMESPACE, body=secret_task, pretty='true')
-                    v1.delete_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=self.get_creds_secret_name())
-                    v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=self.get_creds_secret_name())
-                else:
-                    v1.patch_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=self.get_creds_secret_name(), body=secret)
-                    v1.patch_namespaced_secret(namespace=TASK_NAMESPACE, name=self.get_creds_secret_name(), body=secret_task)
-            except ApiException as e:
-                # Host and name are unique so there shouldn't be duplicates. If so
-                # let the exception to be re-raised with the internal one
-                raise InvalidRequest(e.reason) from e
-
             new_username = kwargs.pop("username", None)
-            if new_username:
-                secret.data["DBUSER"] = KubernetesClient.encode_secret_value(new_username)
             new_pass = kwargs.pop("password", None)
-            if new_pass:
-                secret.data["DBPASSWORD"] = KubernetesClient.encode_secret_value(new_pass)
 
-            secret_task.data = secret.data
             # Check secret names
             new_host = kwargs.get("host", None)
             try:
@@ -346,6 +324,10 @@ class Dataset(db.Model, BaseModel):
                 # let the exception to be re-raised with the internal one
                 raise InvalidRequest(e.reason)
 
+            if new_username:
+                secret.data["DBUSER"] = KubernetesClient.encode_secret_value(new_username)
+            if new_pass:
+                secret.data["DBPASSWORD"] = KubernetesClient.encode_secret_value(new_pass)
             # Check resource names on KC and update them
             if new_name and new_name != self.name:
                 update_args = {
