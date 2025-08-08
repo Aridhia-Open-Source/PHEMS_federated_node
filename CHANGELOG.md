@@ -1,6 +1,22 @@
 # Releases Changelog
 
 
+## 1.3.0
+- Added 3 new endpoints to associate a dataset with a container.
+    - GET `/datasets/<id>/containers`, lists all the dataset's associations
+    - POST `/datasets/<id>/containers`, creates a new link. A body example for this request would be
+        ```json
+        {"ids": ["1", "4"]}
+        ```
+        for specific container ids, or
+        ```json
+        {"ids": ["*"]}
+        ```
+        for all containers.
+    - DELETE `/datasets/<id>/containers/<container>`, this will allow to disassociate all (`*`) or specific containers id.
+
+    This would mean that a task can be executed on a dataset only if the image requested is among the one(s) associated.
+
 ## 1.2.0
 - Added two `DELETE` enpoints for datasets and registries. Using them will remove related k8s secrets, and DB entries. In the case of datasets, dictionaries and catalogues. For registries, all related containers added either manually of via sync (manual or scheduled).
 - Added support for AWS EFS persistent volume through the csi driver `efs.csi.aws.com`

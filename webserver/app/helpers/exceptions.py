@@ -55,5 +55,11 @@ class TaskExecutionException(LogAndException):
 class KubernetesException(LogAndException):
     pass
 
+class ContainerException(LogAndException):
+    pass
+
 class ContainerRegistryException(LogAndException):
+    pass
+
+class DatasetContainerException(LogAndException):
     pass

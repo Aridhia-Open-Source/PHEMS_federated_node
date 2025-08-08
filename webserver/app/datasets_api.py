@@ -7,13 +7,16 @@ datasets-related endpoints:
 - GET /datasets/id/catalogues
 - GET /datasets/id/dictionaries
 - GET /datasets/id/dictionaries/table_name
+- POST /datasets/id/containers
+- GET /datasets/id/containers
+- DELETE /datasets/id/containers/<container>
 - POST /datasets/token_transfer
 - POST /datasets/selection/beacon
 """
+import logging
 from datetime import datetime
 from flask import Blueprint, request
 from kubernetes.client import ApiException
-import logging
 
 from .helpers.base_model import db
 from .helpers.const import DEFAULT_NAMESPACE
@@ -26,6 +29,8 @@ from .models.dataset import Dataset
 from .models.catalogue import Catalogue
 from .models.dictionary import Dictionary
 from .models.request import Request
+from .models.dataset_container import DatasetContainer
+from .models.container import Container
 
 
 bp = Blueprint('datasets', __name__, url_prefix='/datasets')
@@ -112,9 +117,9 @@ def delete_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
 
     try:
         ds.delete(False)
-    except:
+    except Exception as exc:
         session.rollback()
-        raise InvalidRequest("Error while deleting the record")
+        raise InvalidRequest("Error while deleting the record") from exc
 
     v1 = KubernetesClient()
     try:
@@ -223,7 +228,6 @@ def get_datasets_dictionaries_by_id_or_name(dataset_id=None, dataset_name=None):
 @bp.route('/<int:dataset_id>/dictionaries/<table_name>', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
-
 def get_datasets_dictionaries_table_by_id_or_name(table_name, dataset_id=None, dataset_name=None):
     """
     GET /datasets/dataset_name/dictionaries/table_name endpoint.
@@ -242,6 +246,102 @@ def get_datasets_dictionaries_table_by_id_or_name(table_name, dataset_id=None, d
         )
 
     return [dc.sanitized_dict() for dc in dictionary], 200
+
+@bp.route('/<dataset_name>/containers', methods=['POST'])
+@bp.route('/<int:dataset_id>/containers', methods=['POST'])
+@audit
+@auth(scope='can_access_dataset')
+def associate_containers_to_dataset_by_id_or_name(dataset_id=None, dataset_name=None):
+    """
+    POST /datasets/dataset_name/containers endpoint.
+    POST /datasets/id/containers endpoint.
+        Create an association between a dataset and a list of containers
+    """
+    # Dataset check
+    dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id, name=dataset_name)
+
+    if "ids" not in request.json and "images" not in request.json:
+        raise InvalidRequest(
+            "The request body should only include `ids` or `images` as unique field"
+        )
+
+    ids = request.json.get("ids", [])
+    names = request.json.get("images", [])
+    if ids and ids[0] == "*":
+        DatasetContainer(dataset=dataset, all_containers=True).add()
+        return '', 201
+
+    containers_list = []
+    for cont in names:
+        container =  Container.get_from_full_name(full_name=cont)
+        if container is None:
+            raise InvalidRequest(f"Container {cont} not found", 404)
+        containers_list.append(container)
+
+    for d_id in ids:
+        container = Container.query.filter_by(id=d_id).one_or_none()
+        if container is None:
+            raise InvalidRequest(f"Container {d_id} not found", 404)
+        containers_list.append(container)
+    try:
+        for container in containers_list:
+            DatasetContainer(dataset=dataset, container=container, use=True).add(commit=False)
+        session.commit()
+        return '', 201
+    except:
+        session.rollback()
+        raise
+
+@bp.route('/<dataset_name>/containers', methods=['GET'])
+@bp.route('/<int:dataset_id>/containers', methods=['GET'])
+@audit
+@auth(scope='can_access_dataset')
+def get_associated_containers_to_dataset_by_id_or_name(dataset_id=None, dataset_name=None):
+    """
+    GET /datasets/dataset_name/containers endpoint.
+    GET /datasets/id/containers endpoint.
+        Gets the list of associated containers for a dataset
+    """
+    # Dataset check
+    dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id, name=dataset_name)
+    return DatasetContainer.get_by_dataset(dataset, True), 200
+
+@bp.route('/<dataset_name>/containers/<container>', methods=['DELETE'])
+@bp.route('/<int:dataset_id>/containers/<container>', methods=['DELETE'])
+@audit
+@auth(scope='can_access_dataset')
+def delete_associated_containers_to_dataset_by_id_or_name(
+    container, dataset_id=None, dataset_name=None
+):
+    """
+    GET /datasets/dataset_name/containers/<container> endpoint.
+    GET /datasets/id/containers/<container> endpoint.
+        Delete a specific association
+    """
+    # Dataset check
+    dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id, name=dataset_name)
+    try:
+        if container == '*':
+            dc = DatasetContainer.query.filter_by(dataset_id = dataset.id, all_containers=True)
+        else:
+            cont_obj = Container.query.filter_by(id = container)
+            if not cont_obj:
+                raise InvalidRequest(f"Container {container} is not valid")
+            dc = DatasetContainer.query.filter_by(dataset = dataset, container=cont_obj)
+
+        if not dc:
+            raise InvalidRequest("Could not find an association between dataset and container(s)")
+
+        dc.update({
+            "use": False,
+            "all_containers": False
+        })
+
+        session.commit()
+    except:
+        session.rollback()
+        raise
+    return '', 204
 
 @bp.route('/token_transfer', methods=['POST'])
 @audit
