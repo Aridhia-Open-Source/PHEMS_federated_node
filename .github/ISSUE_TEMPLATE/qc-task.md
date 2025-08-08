@@ -17,3 +17,5 @@ Acceptance Criteria:
 
 ---
 QC notes:
+
+Version to deploy: 

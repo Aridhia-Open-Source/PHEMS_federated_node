@@ -180,6 +180,39 @@
             "$ref": "#/components/responses/InternalError"
           }
         }
+      },
+      "delete":{
+        "operationId": "deleteDataset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema":{"type": "integer"},
+            "required": true
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Deletes a dataset mapping with its kubernetes secrets.",
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/NoContent"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     },
     "/datasets/{id}/catalogue": {
@@ -297,6 +330,81 @@
         "responses": {
           "200":{
             "$ref": "#/components/responses/DatasetById"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "editDataset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema":{"type": "integer"},
+            "required": true
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Edit a dataset information. Any of the fields provided on the POST or returned by the GET on this same endpoint, is a valid body",
+        "requestBody": {
+          "content": {
+            "application/json":{
+              "schema":{
+                "$ref": "#/components/schemas/DatasetPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/NoContent"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteDataset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema":{"type": "integer"},
+            "required": true
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Deletes a dataset mapping with its kubernetes secrets.",
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/DatasetPost"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
           },
           "401":{
             "$ref": "#/components/responses/Unauthenticated"
@@ -1046,6 +1154,28 @@
           }
         }
       },
+      "delete": {
+        "operationId": "deleteRegisries",
+        "tags": ["Registries"],
+        "summary": "List all container registries available",
+        "responses": {
+          "204":{
+            "$ref": "#/components/responses/NoContent"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
       "post":{
         "operationId": "postRegistries",
         "tags": ["Registries"],
@@ -1054,7 +1184,7 @@
           "content": {
             "application/json":{
               "schema":{
-                "$ref": "#/components/schemas/RegistryBody"
+                "$ref": "#/components/schemas/RegistryPostBody"
               }
             }
           }
@@ -1091,6 +1221,42 @@
         ],
         "tags": ["Registries"],
         "summary": "Get a registry by id if available to the user",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/RegistryEntry"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchRegistryById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/registryIdPath"
+          }
+        ],
+        "tags": ["Registries"],
+        "summary": "Amend details for a registry",
+        "requestBody": {
+          "content": {
+            "application/json":{
+              "schema":{
+                "$ref": "#/components/schemas/RegistryPostBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200":{
             "$ref": "#/components/responses/RegistryEntry"
@@ -1358,6 +1524,9 @@
             "example": "Ok"
           }
         }
+      },
+      "NoContent": {
+        "description": "No content response"
       },
       "AuditList": {
         "description": "List of actions performed against the webserver",
@@ -1805,14 +1974,11 @@
             "required": ["dataset_id"]
           },
           "outputs": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "description": "An object where the key is a human readable name and the value is the path to which a volume will be mounted on at run time to fetch the results. The key value, in the example folder1, will be used as folder name in the results archive as well.",
-              "example": {
-                "folder1": "/mnt/data/results",
-                "folder2": "/home/john/analysis/csvs"
-              }
+            "type": "object",
+            "description": "An object where the key is a human readable name and the value is the path to which a volume will be mounted on at run time to fetch the results. The key value, in the example folder1, will be used as folder name in the results archive as well.",
+            "example": {
+              "folder1": "/mnt/data/results",
+              "folder2": "/home/john/analysis/csvs"
             }
           },
           "db_query": {
@@ -1828,7 +1994,10 @@
                 "description": "The type of query engine is written for, just so it can be accurately converted to the hosts' local DB",
                 "enum": [
                   "postgres",
-                  "tsql"
+                  "mssql",
+                  "oracle",
+                  "mysql",
+                  "mariadb"
                 ]
               }
             }
@@ -1957,7 +2126,8 @@
         "properties": {
           "id": {"type": "integer", "example": 1},
           "url": {"type": "string", "example": "acrregistry.io"},
-          "needs_auth": {"type": "boolean", "example": true}
+          "needs_auth": {"type": "boolean", "example": true},
+          "active": {"type": "boolean", "example": true}
         }
       },
       "RegistryBody": {
@@ -1968,6 +2138,16 @@
           "username": {"type": "string", "example": "user"},
           "password": {"type": "string", "example": "secrettoken"},
           "needs_auth": {"type": "boolean", "example": true}
+        }
+      },
+      "RegistryPostBody": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string", "example": "acrregistry.io"},
+          "username": {"type": "string", "example": "user"},
+          "password": {"type": "string", "example": "secrettoken"},
+          "needs_auth": {"type": "boolean", "example": true},
+          "active": {"type": "boolean", "example": true}
         }
       }
     }

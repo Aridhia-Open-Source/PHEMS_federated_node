@@ -31,7 +31,7 @@ class TestKeycloakResponseFailures:
             )
             with pytest.raises(KeycloakError) as exc:
                 kc_client.exchange_global_token('not a token')
-            assert exc.value.details == 'Cannot get an access token'
+            assert exc.value.description == 'Cannot get an access token'
 
     def test_exchange_global_token(
             self
@@ -61,7 +61,7 @@ class TestKeycloakResponseFailures:
             )
             with pytest.raises(KeycloakError) as exc:
                 kc_client.exchange_global_token('not a token')
-            assert exc.value.details == 'Cannot exchange token'
+            assert exc.value.description == 'Cannot exchange token'
 
     def test_impersonation_token(
             self
@@ -90,7 +90,7 @@ class TestKeycloakResponseFailures:
             )
             with pytest.raises(KeycloakError) as exc:
                 kc_client.get_impersonation_token('some user id')
-            assert exc.value.details == 'Cannot exchange impersonation token'
+            assert exc.value.description == 'Cannot exchange impersonation token'
 
     def test_get_client_secret(
             self
@@ -111,7 +111,7 @@ class TestKeycloakResponseFailures:
             )
             with pytest.raises(KeycloakError) as exc:
                 kc_client._get_client_secret()
-            assert exc.value.details == 'Failed to fetch client\'s secret'
+            assert exc.value.description == f'Failed to fetch {kc_client.client_id}\'s secret'
 
     def test_get_client_id(
             self
@@ -133,13 +133,13 @@ class TestKeycloakResponseFailures:
             )
             rsps.add(
                 responses.GET,
-                URLS["client_id"] + 'global',
+                URLS["client"] + "?clientId=global",
                 json=self.common_error_response,
                 status=500
             )
             with pytest.raises(KeycloakError) as exc:
                 Keycloak()
-            assert exc.value.details == 'Could not find client'
+            assert exc.value.description == 'Could not find client'
 
     def test_get_role(
             self
@@ -158,7 +158,7 @@ class TestKeycloakResponseFailures:
             )
             with pytest.raises(KeycloakError) as exc:
                 kc_client.get_role('some_role')
-            assert exc.value.details == 'Failed to fetch roles'
+            assert exc.value.description == 'Failed to fetch roles'
 
     def test_get_resource(
             self
@@ -177,7 +177,7 @@ class TestKeycloakResponseFailures:
             )
             with pytest.raises(KeycloakError) as exc:
                 kc_client.get_resource('some_resource')
-            assert exc.value.details == 'Failed to fetch the resource'
+            assert exc.value.description == 'Failed to fetch the resource'
 
     def test_get_policy(
             self
@@ -196,7 +196,7 @@ class TestKeycloakResponseFailures:
             )
             with pytest.raises(KeycloakError) as exc:
                 kc_client.get_policy('some_policy')
-            assert exc.value.details == 'Error when fetching the policies from Keycloak'
+            assert exc.value.description == 'Error when fetching the policies from Keycloak'
 
     def test_get_scope(
             self
@@ -209,13 +209,13 @@ class TestKeycloakResponseFailures:
         with responses.RequestsMock() as rsps:
             rsps.add(
                 responses.GET,
-                (URLS["scopes"] % kc_client.client_id) + "?permission=false&name=some_scope",
+                (URLS["scopes"] % kc_client.client_id) + "?permission=False&name=some_scope",
                 json=self.common_error_response,
                 status=500
             )
             with pytest.raises(KeycloakError) as exc:
                 kc_client.get_scope('some_scope')
-            assert exc.value.details == 'Error when fetching the scopes from Keycloak'
+            assert exc.value.description == 'Error when fetching the scopes from Keycloak'
 
     def test_get_user(
             self
@@ -229,13 +229,13 @@ class TestKeycloakResponseFailures:
         with responses.RequestsMock() as rsps:
             rsps.add(
                 responses.GET,
-                f'{URLS["user"]}?username={username}&exact=true',
+                f'{URLS["user"]}?username={username}&exact=True',
                 json=self.common_error_response,
                 status=500
             )
             with pytest.raises(KeycloakError) as exc:
                 kc_client.get_user_by_username(username)
-            assert exc.value.details == 'Failed to fetch the user'
+            assert exc.value.description == 'Failed to fetch the user'
 
     def test_create_client(
             self
@@ -259,7 +259,7 @@ class TestKeycloakResponseFailures:
             )
             with pytest.raises(KeycloakError) as exc:
                 kc_client.create_client('some_client', 60)
-            assert exc.value.details == 'Failed to create a project'
+            assert exc.value.description == 'Failed to create a project'
 
     def test_create_client_update(
             self
@@ -296,7 +296,7 @@ class TestKeycloakResponseFailures:
             )
             with pytest.raises(KeycloakError) as exc:
                 kc_client.create_client('some_client', 60)
-            assert exc.value.details == 'Failed to create a project'
+            assert exc.value.description == 'Failed to create a project'
 
     def test_create_scope(
             self
@@ -315,7 +315,7 @@ class TestKeycloakResponseFailures:
             )
             with pytest.raises(KeycloakError) as exc:
                 kc_client.create_scope('some_scope')
-            assert exc.value.details == 'Failed to create a project\'s scope'
+            assert exc.value.description == 'Failed to create a project\'s scope'
 
     def test_create_policy(
             self
@@ -334,7 +334,7 @@ class TestKeycloakResponseFailures:
             )
             with pytest.raises(KeycloakError) as exc:
                 kc_client.create_policy({'name': 'some_policy'}, '/user')
-            assert exc.value.details == 'Failed to create a project\'s policy'
+            assert exc.value.description == 'Failed to create a project\'s policy'
 
     def test_create_resource(
             self
@@ -353,7 +353,7 @@ class TestKeycloakResponseFailures:
             )
             with pytest.raises(KeycloakError) as exc:
                 kc_client.create_resource({'name': 'some_resource'})
-            assert exc.value.details == 'Failed to create a project\'s resource'
+            assert exc.value.description == 'Failed to create a project\'s resource'
 
     def test_create_permission(
             self
@@ -372,7 +372,7 @@ class TestKeycloakResponseFailures:
             )
             with pytest.raises(KeycloakError) as exc:
                 kc_client.create_permission({'name': 'some_permission'})
-            assert exc.value.details == 'Failed to create a project\'s permission'
+            assert exc.value.description == 'Failed to create a project\'s permission'
 
     def test_create_user(
             self
@@ -397,4 +397,4 @@ class TestKeycloakResponseFailures:
             )
             with pytest.raises(KeycloakError) as exc:
                 kc_client.create_user(**{'email': 'some@email.com'})
-            assert exc.value.details == 'Failed to create the user'
+            assert exc.value.description == 'Failed to create the user'

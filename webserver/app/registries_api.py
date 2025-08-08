@@ -3,6 +3,7 @@ containers endpoints:
 - GET /registries
 - GET /registries/<registry_id>
 - POST /registries
+- PATCH /registries/<registry_id>
 """
 
 from flask import Blueprint, request
@@ -39,6 +40,21 @@ def registry_by_id(registry_id:int):
     return registry.sanitized_dict(), 200
 
 
+@bp.route('/<int:registry_id>', methods=['DELETE'])
+@audit
+@auth(scope='can_admin_dataset')
+def delete_registry_by_id(registry_id:int):
+    """
+    GET /registries endpoint.
+    """
+    registry = Registry.query.filter_by(id=registry_id).one_or_none()
+    if registry is None:
+        raise DBRecordNotFoundError("Registry not found")
+
+    registry.delete(commit=True)
+    return "", 204
+
+
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
 @audit
@@ -54,3 +70,19 @@ def add_registry():
     registry = Registry(**body)
     registry.add()
     return {"id": registry.id}, 201
+
+
+@bp.route('/<int:registry_id>', methods=['PATCH'])
+@audit
+@auth(scope='can_admin_dataset')
+def patch_registry(registry_id:int):
+    """
+    PATCH /registries/<registry_id> endpoint.
+    """
+    registry = Registry.query.filter(Registry.id == registry_id).one_or_none()
+    if registry is None:
+        raise InvalidRequest(f"Registry {registry_id} not found")
+
+    registry.update(**request.json)
+
+    return {}, 204

@@ -20,3 +20,4 @@ spec:
       protocol: TCP
   selector:
     app: keycloak
+  clusterIP: None

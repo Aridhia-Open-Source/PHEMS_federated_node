@@ -1,9 +1,10 @@
 import base64
 import copy
-import json
 import os
+from typing import List
 import pytest
 import requests
+from uuid import uuid4
 from datetime import datetime as dt, timedelta
 from kubernetes.client import V1Pod
 from sqlalchemy.orm.session import close_all_sessions
@@ -12,7 +13,10 @@ from unittest.mock import Mock
 from app import create_app
 from app.helpers.base_model import db
 from app.models.dataset import Dataset
+from app.models.catalogue import Catalogue
+from app.models.dictionary import Dictionary
 from app.models.request import Request
+from app.models.task import Task
 from app.helpers.keycloak import Keycloak, URLS, KEYCLOAK_SECRET, KEYCLOAK_CLIENT
 from tests.helpers.keycloak import clean_kc
 from app.helpers.exceptions import KeycloakError
@@ -78,7 +82,7 @@ def app_ctx(app):
 
 # Users' section
 @pytest.fixture
-def user_uuid():
+def admin_user_uuid():
     return Keycloak().get_user_by_username(os.getenv("KEYCLOAK_ADMIN"))["id"]
 
 @pytest.fixture
@@ -91,6 +95,10 @@ def login_admin(client):
 @pytest.fixture
 def basic_user():
     return Keycloak().create_user(**{"email": "test@basicuser.com"})
+
+@pytest.fixture
+def user_uuid(basic_user):
+    return basic_user["id"]
 
 @pytest.fixture
 def login_user(client, basic_user, mocker):
@@ -212,7 +220,7 @@ def v1_mock(mocker):
         ),
         "cp_from_pod_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.cp_from_pod',
-            return_value="../tests/files/results.tar.gz"
+            return_value="../tests/files/results.zip"
         )
     }
 
@@ -261,28 +269,59 @@ def dataset_post_body():
     return copy.deepcopy(sample_ds_body)
 
 @pytest.fixture
-def dataset(mocker, client, user_uuid, k8s_client):
+def dataset(mocker, client, user_uuid, k8s_client) -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
     dataset = Dataset(name="TestDs", host="example.com", password='pass', username='user')
     dataset.add(user_id=user_uuid)
     return dataset
 
 @pytest.fixture
-def dataset2(client, user_uuid, k8s_client):
-    dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user')
+def dataset_oracle(mocker, client, user_uuid, k8s_client)  -> Dataset:
+    mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
+    dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user', type="oracle")
     dataset.add(user_id=user_uuid)
     return dataset
+
+@pytest.fixture
+def catalogue(dataset) -> Catalogue:
+    cat = Catalogue(dataset=dataset, title="new catalogue", description="shiny fresh data")
+    cat.add()
+    return cat
+
+@pytest.fixture
+def dictionary(dataset) -> List[Dictionary]:
+    cat1 = Dictionary(dataset=dataset, description="Patient id", table_name="patients", field_name="id", label="p_id")
+    cat2 = Dictionary(dataset=dataset, description="Patient info", table_name="patients", field_name="name", label="p_name")
+    cat1.add()
+    cat2.add()
+    return [cat1, cat2]
+
+@pytest.fixture
+def task(user_uuid, image_name, dataset) -> Task:
+    task = Task(
+        dataset=dataset,
+        docker_image=image_name,
+        name="testTask",
+        executors=[
+            {
+                "image": image_name
+            }
+        ],
+        requested_by=user_uuid
+    )
+    task.add()
+    return task
 
 @pytest.fixture
 def dar_user():
     return "some@test.com"
 
 @pytest.fixture
-def access_request(client, dataset, user_uuid, k8s_client, dar_user):
+def access_request(dataset, user_uuid, k8s_client, dar_user):
     request = Request(
         title="TestRequest",
         project_name="example.com",
-        requested_by=json.dumps({"email": dar_user}),
+        requested_by=user_uuid,
         dataset=dataset,
         proj_start=dt.now().date().strftime("%Y-%m-%d"),
         proj_end=(dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")
@@ -322,7 +361,7 @@ def side_effect(dict_mock:dict):
 @pytest.fixture
 def request_base_body(dataset):
     return {
-        "title": "Test Task",
+        "title": "TestRequest",
         "dataset_id": dataset.id,
         "project_name": "project1",
         "requested_by": { "email": "test@test.com" },
@@ -347,12 +386,29 @@ def new_user(new_user_email):
     return Keycloak().create_user(set_temp_pass=True, **{"email": new_user_email})
 
 @pytest.fixture
-def task(dataset, user_uuid):
-    task = Task(
-        name="test task",
-        dataset=dataset,
-        docker_image="test-image",
-        requested_by=user_uuid,
-    )
-    task.add()
-    return task
+def mocks_kc_tasks(mocker, dar_user):
+    user_uuid = str(uuid4())
+    return {
+        "wrappers": mocker.patch(
+            'app.helpers.wrappers.Keycloak',
+            return_value=Mock(
+                exchange_global_token=Mock(return_value=""),
+                get_token_from_headers=Mock(return_value=""),
+                is_token_valid=Mock(return_value=True),
+                is_user_admin=Mock(return_value=True),
+                get_user_by_username=Mock(return_value={"id": user_uuid}),
+                decode_token=Mock(return_value={
+                    "username": "test_user", "sub": user_uuid
+                }),
+            )
+        ),
+        "tasks": mocker.patch(
+            'app.models.task.Keycloak',
+            return_value=Mock(
+                get_user_by_id=Mock(return_value={"email": dar_user}),
+                decode_token=Mock(return_value={
+                    "username": "test_user", "sub": user_uuid
+                }),
+            )
+        )
+    }

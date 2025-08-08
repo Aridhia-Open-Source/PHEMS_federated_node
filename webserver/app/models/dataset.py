@@ -1,3 +1,4 @@
+import logging
 import re
 import requests
 from sqlalchemy import Column, Integer, String
@@ -5,24 +6,27 @@ from kubernetes.client.exceptions import ApiException
 from kubernetes.client import V1ConfigMap
 
 from app.helpers.base_model import BaseModel, db
+from app.helpers.connection_string import Mssql, Postgres, Mysql, Oracle, MariaDB
 from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, DatasetError
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
 
+logger = logging.getLogger("dataset_model")
+logger.setLevel(logging.INFO)
+
+
 SUPPORTED_AUTHS = [
     "standard",
     "kerberos"
 ]
-
-SUPPORTED_ENGINES = [
-    "mssql",
-    "postgres",
-    "mysql",
-    "oracle",
-    "sqlite",
-    "mariadb"
-]
+SUPPORTED_ENGINES = {
+    "mssql": Mssql,
+    "postgres": Postgres,
+    "mysql": Mysql,
+    "oracle": Oracle,
+    "mariadb": MariaDB
+}
 
 
 class Dataset(db.Model, BaseModel):
@@ -32,6 +36,7 @@ class Dataset(db.Model, BaseModel):
     name = Column(String(256), unique=True, nullable=False)
     host = Column(String(256), nullable=False)
     port = Column(Integer, default=5432)
+    schema = Column(String(256), nullable=True)
     type = Column(String(256), server_default="postgres", nullable=False)
     auth_type = Column(String(256), server_default="standard", nullable=False)
     extra_connection_args = Column(String(4096), nullable=True)
@@ -42,6 +47,7 @@ class Dataset(db.Model, BaseModel):
                  username:str="",
                  password:str="",
                  port:int=5432,
+                 schema:str=None,
                  type:str="postgres",
                  auth_type:str="standard",
                  auth_configmap:str=None,
@@ -53,6 +59,7 @@ class Dataset(db.Model, BaseModel):
         self.url = f"https://{PUBLIC_URL}/datasets/{self.slug}"
         self.host = host
         self.port = port
+        self.schema = schema
         self.type = type
         self.username = username
         self.password = password
@@ -150,7 +157,21 @@ class Dataset(db.Model, BaseModel):
         name = name or self.name
 
         cleaned_up_host = re.sub('http(s)*://', '', host)
-        return f"{cleaned_up_host}-{re.sub('\\s|_', '-', name.lower())}-creds"
+        return f"{cleaned_up_host}-{re.sub('\\s|_|#', '-', name.lower())}-creds"
+
+    def get_connection_string(self):
+        """
+        From the helper classes, return the correct connection string
+        """
+        un, passw = self.get_credentials()
+        return SUPPORTED_ENGINES[self.type](
+            user=un,
+            passw=passw,
+            host=self.host,
+            port=self.port,
+            database=self.name,
+            args=self.extra_connection_args
+        ).connection_str
 
     def sanitized_dict(self):
         dataset = super().sanitized_dict()
@@ -273,14 +294,32 @@ class Dataset(db.Model, BaseModel):
             )
 
         elif self.needs_secret:
-            new_username = kwargs.pop("username", None)
-
             # Get existing secret
             secret = v1.read_namespaced_secret(self.get_creds_secret_name(), DEFAULT_NAMESPACE, pretty='pretty')
             secret_task = v1.read_namespaced_secret(self.get_creds_secret_name(), TASK_NAMESPACE, pretty='pretty')
 
-            # Update secret if credentials are provided
+            secret_task.data = secret.data
+            # Check secret names
             new_name = kwargs.get("name", None)
+            new_host = kwargs.get("host", None)
+            try:
+                # Create new secret if name is different
+                if (new_host != self.host and new_host) or (new_name != self.name and new_name):
+                    secret.metadata = {'name': self.get_creds_secret_name(new_host, new_name)}
+                    secret_task.metadata = secret.metadata
+                    v1.create_namespaced_secret(DEFAULT_NAMESPACE, body=secret, pretty='true')
+                    v1.create_namespaced_secret(TASK_NAMESPACE, body=secret_task, pretty='true')
+                    v1.delete_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=self.get_creds_secret_name())
+                    v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=self.get_creds_secret_name())
+                else:
+                    v1.patch_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=self.get_creds_secret_name(), body=secret)
+                    v1.patch_namespaced_secret(namespace=TASK_NAMESPACE, name=self.get_creds_secret_name(), body=secret_task)
+            except ApiException as e:
+                # Host and name are unique so there shouldn't be duplicates. If so
+                # let the exception to be re-raised with the internal one
+                raise InvalidRequest(e.reason) from e
+
+            new_username = kwargs.pop("username", None)
             if new_username:
                 secret.data["DBUSER"] = KubernetesClient.encode_secret_value(new_username)
             new_pass = kwargs.pop("password", None)

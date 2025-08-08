@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import urllib3
 from app.helpers.const import (
-    CLEANUP_AFTER_DAYS, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX,
+    CLEANUP_AFTER_DAYS, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, PUBLIC_URL,
     TASK_NAMESPACE, TASK_POD_RESULTS_PATH, TASK_POD_INPUTS_PATH, RESULTS_PATH
 )
 from app.helpers.base_model import BaseModel, db
@@ -20,6 +20,7 @@ from app.helpers.exceptions import DBError, InvalidRequest, TaskImageException, 
 from app.helpers.task_pod import TaskPod
 from app.models.dataset import Dataset
 from app.models.container import Container
+from app.models.request import Request
 
 logger = logging.getLogger('task_model')
 logger.setLevel(logging.INFO)
@@ -43,7 +44,7 @@ class Task(db.Model, BaseModel):
                  docker_image:str,
                  requested_by:str,
                  dataset:Dataset,
-                 executors:dict = {},
+                 executors:list[dict] = [],
                  tags:dict = {},
                  resources:dict = {},
                  inputs:dict = {},
@@ -68,19 +69,28 @@ class Task(db.Model, BaseModel):
 
     @classmethod
     def validate(cls, data:dict):
-        data["requested_by"] = Keycloak().decode_token(
-            Keycloak.get_token_from_headers()
-        ).get('sub')
+        kc_client = Keycloak()
+        user_token = Keycloak.get_token_from_headers()
+        data["requested_by"] = kc_client.decode_token(user_token).get('sub')
+        user = kc_client.get_user_by_id(data["requested_by"])
         # Support only for one image at a time, the standard is executors == list
         executors = data["executors"][0]
         data["docker_image"] = executors["image"]
         data = super().validate(data)
 
         # Dataset validation
-        ds_id = data.get("tags", {}).get("dataset_id")
-        ds_name = data.get("tags", {}).get("dataset_name")
-        if ds_name or ds_id:
-            data["dataset"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
+        if kc_client.is_user_admin(user_token):
+            ds_id = data.get("tags", {}).get("dataset_id")
+            ds_name = data.get("tags", {}).get("dataset_name")
+            if ds_name or ds_id:
+                data["dataset"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
+            else:
+                raise InvalidRequest("Administrators need to provide `tags.dataset_id` or `tags.dataset_name`")
+        else:
+            data["dataset"] = Request.get_active_project(
+                data["project_name"],
+                user["id"]
+            ).dataset
 
         # Docker image validation
         if not re.match(r'^((\w+|-|\.)\/?+)+:(\w+(\.|-)?)+$', data["docker_image"]):
@@ -97,7 +107,7 @@ class Task(db.Model, BaseModel):
         if not isinstance(data.get("inputs", {}), dict):
             raise InvalidRequest("\"inputs\" field must be a json object or dictionary")
         if not data.get("inputs", {}):
-            data["inputs"] = {"inputs": TASK_POD_INPUTS_PATH}
+            data["inputs"] = {"inputs.csv": TASK_POD_INPUTS_PATH}
 
         # Validate resource values
         if "resources" in data:
@@ -109,7 +119,7 @@ class Task(db.Model, BaseModel):
                 data["resources"].get("limits", {}).get("memory"),
                 data["resources"].get("requests", {}).get("memory")
             )
-        data["db_query"] = data.pop("db_query")
+        data["db_query"] = data.pop("db_query", {})
         return data
 
     @classmethod
@@ -261,7 +271,7 @@ class Task(db.Model, BaseModel):
             )
         except ApiException as e:
             logger.error(json.loads(e.body))
-            raise InvalidRequest(f"Failed to run pod: {e.reason}")
+            raise InvalidRequest(f"Failed to run pod: {e.reason}") from e
 
     def get_current_pod(self, is_running:bool=True):
         v1 = KubernetesClient()
@@ -371,19 +381,20 @@ class Task(db.Model, BaseModel):
             job_pod = v1.list_namespaced_pod(namespace=TASK_NAMESPACE, label_selector=f"job-name={job_name}").items[0]
 
             res_file = v1.cp_from_pod(
-                job_pod.metadata.name,
-                f"{TASK_POD_RESULTS_PATH}",
-                f"{RESULTS_PATH}"
+                pod_name=job_pod.metadata.name,
+                source_path=TASK_POD_RESULTS_PATH,
+                dest_path=f"{RESULTS_PATH}/{self.id}/results",
+                out_name=f"{PUBLIC_URL}-results-{self.id}"
             )
-            v1.delete_pod(job_pod.metadata.name)
+            # v1.delete_pod(job_pod.metadata.name)
             v1_batch.delete_job(job_name)
         except ApiException as e:
             if 'job_pod' in locals() and self.get_current_pod(job_pod.metadata.name):
                 v1_batch.delete_job(job_name)
             logger.error(getattr(e, 'reason'))
-            raise InvalidRequest(f"Failed to run pod: {e.reason}")
-        except urllib3.exceptions.MaxRetryError:
-            raise InvalidRequest("The cluster could not create the job")
+            raise InvalidRequest(f"Failed to run pod: {e.reason}") from e
+        except urllib3.exceptions.MaxRetryError as mre:
+            raise InvalidRequest("The cluster could not create the job") from mre
         return res_file
 
     def get_logs(self):
@@ -405,5 +416,4 @@ class Task(db.Model, BaseModel):
                 container=pod.metadata.name
             ).splitlines()
         except ApiException as apie:
-            logger.error(apie)
             raise TaskExecutionException("Failed to fetch the logs") from apie

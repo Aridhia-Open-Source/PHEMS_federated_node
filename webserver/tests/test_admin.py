@@ -11,7 +11,7 @@ class TestAudits:
             self,
             simple_admin_header,
             client,
-            user_uuid
+            admin_user_uuid
         ):
         """
         Test that after a simple GET call we have an audit entry
@@ -30,7 +30,7 @@ class TestAudits:
             'api_function': 'get_datasets',
             'details': None,
             'endpoint': '/datasets/',
-            'requested_by': user_uuid,
+            'requested_by': admin_user_uuid,
             'http_method': 'GET',
             'ip_address': '127.0.0.1',
             'status_code': 200
@@ -90,7 +90,7 @@ class TestAudits:
         data["dictionaries"][0]["password"] = "2ecr3t!"
         resp = client.post(
             '/datasets/',
-            data=json.dumps(data),
+            json=data,
             headers=post_json_admin_header
         )
 

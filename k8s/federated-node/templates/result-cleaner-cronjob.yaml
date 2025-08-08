@@ -51,7 +51,7 @@ spec:
             {{- include "nonRootSC" . | nindent 12 }}
             env:
             - name: NAMESPACE
-              value: {{ .Values.namespaces.tasks }}
+              value: {{ include "tasks_namespace" . }}
             - name: RESULTS_PATH
               value: {{ .Values.federatedNode.volumes.results_path }}
             - name: CLEANUP_AFTER_DAYS
@@ -59,8 +59,9 @@ spec:
             volumeMounts:
             - name: respv
               mountPath: {{ .Values.federatedNode.volumes.results_path }}
+              subPath: results
           restartPolicy: Never
           volumes:
           - name: respv
             persistentVolumeClaim:
-              claimName: flask-results-pv-vc
+              claimName: {{ include "pvcName" . }}

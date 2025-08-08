@@ -30,15 +30,19 @@ Create chart name and version as used by the chart label.
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+# To support the task controller subchart we will need to include
+# a custom path as helpers are merged and the individual chart values
+# are then applied
 {{- define "backend-image" -}}
-ghcr.io/aridhia-open-source/federated_node_run
+ghcr.io/aridhia-open-source/federated_node_run:{{ include "image-tag" . }}
 {{- end }}
 {{- define "fn-alpine" -}}
-ghcr.io/aridhia-open-source/alpine:3.19
+ghcr.io/aridhia-open-source/alpine:{{ include "image-tag" . }}
 {{- end }}
 {{- define "image-tag" -}}
-{{ .Values.backend.tag | default .Chart.AppVersion }}
+{{ (.Values.backend).tag | default .Chart.AppVersion }}
 {{- end }}
+
 
 {{/*
 Common labels
@@ -58,17 +62,6 @@ Selector labels
 {{- define "federated-node.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "federated-node.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{/*
-Create the name of the service account to use
-*/}}
-{{- define "federated-node.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "federated-node.fullname" .) .Values.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
 {{- end }}
 
 {{/*
@@ -97,6 +90,30 @@ Just need to append the NEW_DB env var
               secretKeyRef:
                 name: {{.Values.db.secret.name}}
                 key: {{.Values.db.secret.key}}
+{{- end -}}
+
+{{- define "dbPort" -}}
+  {{ .Values.db.port | default 5432 | quote }}
+{{- end -}}
+
+{{- define "dbUser" -}}
+  {{ .Values.db.user | default "admin" | quote }}
+{{- end -}}
+
+{{- define "dbKeycloakName" -}}
+  {{ printf "fn_%s" (.Values.db.name | default "fndb") | quote }}
+{{- end -}}
+
+{{- define "dbKeycloakHost" }}
+  {{- if eq .Values.db.host "db" }}
+    {{- print "db." .Release.Namespace ".svc.cluster.local" | quote }}
+  {{- else }}
+    {{- .Values.db.host }}
+  {{- end }}
+{{- end }}
+
+{{- define "tokenLife" -}}
+  {{ int .Values.token.life  | default 2592000 | quote }}
 {{- end -}}
 
 {{- define "randomPass" -}}
@@ -130,6 +147,21 @@ Just need to append the NEW_DB env var
     meta.helm.sh/release-name: {{ .Release.Name }}
     meta.helm.sh/release-namespace: {{ .Release.Namespace }}
 {{- end -}}
+{{- define "cspDomains" -}}
+  {{- join ", " .Values.integrations.domains -}}
+{{- end -}}
+{{- define "cspDomainsSpace" -}}
+  {{- join " " .Values.integrations.domains -}}
+{{- end -}}
+{{- define "kc_namespace" -}}
+{{ ((.Values.global).namespaces).keycloak | default .Values.namespaces.keycloak }}
+{{- end -}}
+{{- define "tasks_namespace" -}}
+{{ ((.Values.global).namespaces).tasks | default .Values.namespaces.tasks }}
+{{- end -}}
+{{- define "controller_namespace" -}}
+{{ ((.Values.global).namespaces).controller | default .Values.namespaces.controller }}
+{{- end -}}
 {{- define "testsBaseUrl" }}
 {{- if not .Values.local_development -}}
 https://{{ .Values.host }}
@@ -137,3 +169,22 @@ https://{{ .Values.host }}
 http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 {{- end -}}
 {{- end }}
+
+{{- define "pvcName" -}}
+{{ printf "flask-results-%s-pv-vc" (.Values.storage.capacity | default "10Gi") | lower }}
+{{- end }}
+{{- define "pvName" -}}
+{{ printf "flask-results-%s-pv" (.Values.storage.capacity | default "10Gi") | lower }}
+{{- end }}
+
+{{- define "awsStorageAccount" -}}
+{{- if .Values.storage.aws }}
+  {{- with .Values.storage.aws }}
+    {{- if .accessPointId }}
+      {{- printf  "%s::%s" .fileSystemId .accessPointId | quote }}
+    {{- else }}
+      {{- .fileSystemId | quote }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- end -}}

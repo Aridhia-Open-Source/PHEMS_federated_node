@@ -1,10 +1,10 @@
-{{ if .Values.local_development }}
+{{ if .Values.create_db_deployment }}
 apiVersion: v1
 kind: PersistentVolume
 metadata:
   name: db-pv
 spec:
-  storageClassName: db-storage
+  storageClassName: shared-results
   accessModes:
     - ReadWriteMany
   capacity:
@@ -23,17 +23,18 @@ spec:
           - linux
   {{ else if .Values.storage.azure }}
   azureFile:
-    shareName: {{ .Values.storage.azure.shareName }}/db
+    shareName: {{ .Values.storage.azure.shareName }}
     readOnly: false
     secretName: {{ .Values.storage.azure.secretName | default "azure-storage-secret" }}
-  mountOptions:
-  - dir_mode=0750
-  - file_mode=0750
-  - uid=70
-  - gid=70
-  - mfsymlinks
-  - nobrl
+  {{ else if .Values.storage.aws }}
+  csi:
+    driver: efs.csi.aws.com
+    volumeHandle: {{ include "awsStorageAccount" . }}
   {{ else if .Values.storage.nfs }}
+  nfs:
+    server: {{ .Values.storage.nfs.url }}
+    path: {{ .Values.storage.nfs.path }}
+    readOnly: false
   {{ end }}
 ---
 apiVersion: v1

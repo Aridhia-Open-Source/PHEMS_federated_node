@@ -12,6 +12,7 @@ from app.helpers.exceptions import KeycloakError
 from app.models.dataset import Dataset, SUPPORTED_AUTHS
 from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
+from app.models.request import Request
 from tests.conftest import sample_ds_body
 from app.helpers.exceptions import KeycloakError
 
@@ -66,6 +67,7 @@ class TestDatasets(MixinTestDataset):
             "type": "postgres",
             "url": f"https://{self.hostname}/datasets/{dataset.name}",
             "slug": dataset.name,
+            "schema": None,
             "extra_connection_args": None
         }
 
@@ -167,38 +169,39 @@ class TestDatasets(MixinTestDataset):
         header["project-name"] = "test project"
         response = client.get(f"/datasets/{dataset.id}", headers=header)
         assert response.status_code == 400
-        assert response.json == {"error": "Could not find project"}
+        assert response.json == {"error": "User does not belong to a valid project"}
 
-    @mock.patch('app.datasets_api.Request.add')
-    @mock.patch('app.helpers.wrappers.Keycloak')
     @mock.patch('app.datasets_api.Request.approve', return_value={"token": "token"})
+    @mock.patch('app.datasets_api.Keycloak.get_user_by_email', return_value={"id": "id"})
     def test_get_dataset_by_id_project_approved(
             self,
-            req_add_mock,
-            KeycloakMock,
+            kc_user_mock,
             req_approve_mock,
             mocker,
+            mocks_kc_tasks,
             post_json_admin_header,
             request_base_body,
             client,
-            dataset
+            dataset,
+            user_uuid
         ):
         """
         /datasets/{id} GET returns 200 for project-approved users
         """
-        KeycloakMock.return_value.is_token_valid.return_value = True
-        KeycloakMock.return_value.decode_token.return_value = {"username": "test_user", "sub": "123-123abc"}
-        KeycloakMock.return_value.exchange_global_token.return_value = ""
-
         response = client.post(
             "/datasets/token_transfer",
             data=json.dumps(request_base_body),
             headers=post_json_admin_header
         )
         assert response.status_code == 201
-        assert list(response.json.keys()) == ["token"]
+        assert "token" in response.json
 
         token = response.json["token"]
+        req = Request.query.filter(
+            Request.project_name == request_base_body["project_name"]
+        ).one_or_none()
+        mocks_kc_tasks["wrappers"].return_value.get_user_by_username.return_value = {"id": user_uuid}
+        req.requested_by = user_uuid
 
         response = client.get(f"/datasets/{dataset.id}", headers={
             "Authorization": f"Bearer {token}",
@@ -207,10 +210,14 @@ class TestDatasets(MixinTestDataset):
         assert response.status_code == 200, response.json
         assert response.json == self.expected_ds_entry(dataset)
 
+    @mock.patch('app.helpers.keycloak.Keycloak.is_user_admin', return_value=False)
     @mock.patch('app.datasets_api.Request.approve', return_value={"token": "somejwttoken"})
+    @mock.patch('app.datasets_api.Keycloak.get_user_by_email', return_value={"id": "id"})
     def test_get_dataset_by_id_project_non_approved(
             self,
+            kc_user_mock,
             req_mock,
+            mocks_is_admin,
             project_not_found,
             post_json_admin_header,
             request_base_body,
@@ -235,7 +242,7 @@ class TestDatasets(MixinTestDataset):
             "project-name": "test project"
         })
         assert response.status_code == 400
-        assert response.json == {"error": "Could not find project"}
+        assert response.json == {"error": "User does not belong to a valid project"}
 
     def test_get_dataset_by_id_404(
             self,
@@ -351,6 +358,7 @@ class TestPostDataset(MixinTestDataset):
             "type": "postgres",
             "slug": "test-dataset",
             "auth_type": "standard",
+            "schema": None,
             "extra_connection_args": None,
             "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset"
         }
@@ -785,6 +793,7 @@ class TestPatchDataset(MixinTestDataset):
             client,
             access_request,
             dar_user,
+            user_uuid,
             k8s_client
     ):
         """
@@ -798,6 +807,7 @@ class TestPatchDataset(MixinTestDataset):
         expected_client = f'Request {dar_user} - {dataset.host}'
 
         mock_kc_patch_api.return_value.patch_resource.return_value = Mock()
+        mock_kc_patch_api.return_value.get_user_by_id.return_value = {"email": dar_user}
 
         response = client.patch(
             f"/datasets/{dataset.id}",
@@ -1024,3 +1034,110 @@ class TestBeacon:
         )
         assert response.status_code == 500
         assert response.json['error'] == 'Could not connect to the database'
+
+
+class TestDeleteDataset(MixinTestDataset):
+    def test_delete_dataset_with_secrets(
+            self,
+            client,
+            dataset,
+            post_json_admin_header,
+            k8s_client
+    ):
+        """
+        Test to make sure the db entry and k8s secret are deleted
+        """
+        ds_id = dataset.id
+        secret_name = dataset.get_creds_secret_name()
+        response = client.delete(
+            f"/datasets/{ds_id}",
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 204
+        k8s_client["delete_namespaced_secret_mock"].assert_called_with(
+            secret_name, 'default'
+        )
+
+    def test_delete_dataset_not_found(
+            self,
+            client,
+            dataset,
+            post_json_admin_header,
+            k8s_client
+    ):
+        """
+        Deleting a non existing dataset, returns a 404
+        """
+        ds_id = dataset.id + 1
+        response = client.delete(
+            f"/datasets/{ds_id}",
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 404
+        k8s_client["delete_namespaced_secret_mock"].assert_not_called()
+
+    def test_delete_dataset_with_secrets_error(
+            self,
+            client,
+            dataset,
+            post_json_admin_header,
+            k8s_client
+    ):
+        """
+        Test to make sure the db entry and k8s secret are
+        not deleted if an exception is raised
+        """
+        ds_id = dataset.id
+        k8s_client["delete_namespaced_secret_mock"].side_effect = ApiException(
+            status=500, reason="failed"
+        )
+
+        response = client.delete(
+            f"/datasets/{ds_id}",
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert Dataset.query.filter_by(id=ds_id).one_or_none()
+
+    def test_delete_dataset_with_secrets_not_found_error(
+            self,
+            client,
+            dataset,
+            post_json_admin_header,
+            k8s_client
+    ):
+        """
+        Test to make sure the db entry is deleted if the secret does
+        not exist
+        """
+        ds_id = dataset.id
+        k8s_client["delete_namespaced_secret_mock"].side_effect = ApiException(
+            status=404, reason="failed"
+        )
+
+        response = client.delete(
+            f"/datasets/{ds_id}",
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 204
+        assert not Dataset.query.filter_by(id=ds_id).one_or_none()
+
+    def test_delete_dataset_with_catalougues(
+            self,
+            client,
+            dataset,
+            post_json_admin_header,
+            catalogue,
+            dictionary
+    ):
+        """
+        Test to make sure the cascade deletion happens
+        """
+        ds_id = dataset.id
+        response = client.delete(
+            f"/datasets/{ds_id}",
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 204
+        assert Catalogue.query.filter_by(dataset_id=ds_id).count() == 0
+        assert Dictionary.query.filter_by(dataset_id=ds_id).count() == 0

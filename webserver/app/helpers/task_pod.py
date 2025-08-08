@@ -9,9 +9,10 @@ from kubernetes.client import (
     V1PersistentVolume, V1PersistentVolumeClaim,
     V1EnvVarSource, V1SecretKeySelector,
     V1PersistentVolumeClaimSpec, V1VolumeResourceRequirements,
+    V1CSIPersistentVolumeSource,
     V1ConfigMapVolumeSource, V1KeyToPath
 )
-from app.helpers.const import TASK_NAMESPACE, TASK_PULL_SECRET_NAME
+from app.helpers.const import RESULTS_PATH, TASK_NAMESPACE, TASK_PULL_SECRET_NAME
 from app.helpers.kubernetes import KubernetesClient
 from app.models.dataset import Dataset
 
@@ -64,38 +65,34 @@ class TaskPod:
         From a secret name, setup a base env list with db credentials.
         It will map PG_* for backwards compatibility
         """
+        secret_name = self.dataset.get_creds_secret_name()
         self.env_init += [
+            V1EnvVar(
+                name="DB_PSW",
+                value_from=V1EnvVarSource(
+                    secret_key_ref=V1SecretKeySelector(
+                        name=secret_name,
+                        key="PGPASSWORD",
+                        optional=True
+                    )
+                )
+            ),
+            V1EnvVar(
+                name="DB_USER",
+                value_from=V1EnvVarSource(
+                    secret_key_ref=V1SecretKeySelector(
+                        name=secret_name,
+                        key="PGUSER",
+                        optional=True
+                    )
+                )
+            ),
             V1EnvVar(name="DB_PORT", value=str(self.dataset.port)),
             V1EnvVar(name="DB_NAME", value=self.dataset.name),
+            V1EnvVar(name="DB_SCHEMA", value=self.dataset.schema),
             V1EnvVar(name="DB_ARGS", value=self.dataset.extra_connection_args),
             V1EnvVar(name="DB_HOST", value=self.dataset.host)
         ]
-
-        if self.dataset.needs_secret:
-            secret_name = self.dataset.get_creds_secret_name()
-            self.env_init += [
-                V1EnvVar(name="SECRET", value=secret_name),
-                V1EnvVar(
-                    name="DB_PSW",
-                    value_from=V1EnvVarSource(
-                        secret_key_ref=V1SecretKeySelector(
-                            name=secret_name,
-                            key="PGPASSWORD",
-                            optional=True
-                        )
-                    )
-                ),
-                V1EnvVar(
-                    name="DB_USER",
-                    value_from=V1EnvVarSource(
-                        secret_key_ref=V1SecretKeySelector(
-                            name=secret_name,
-                            key="PGUSER",
-                            optional=True
-                        )
-                    )
-                )
-            ]
 
     def create_storage_specs(self):
         """
@@ -105,7 +102,7 @@ class TaskPod:
         """
         pv_spec = V1PersistentVolumeSpec(
             access_modes=['ReadWriteMany'],
-            capacity={"storage": "100Mi"},
+            capacity={"storage": os.getenv("CLAIM_CAPACITY")},
             storage_class_name="shared-results"
         )
         if os.getenv("AZURE_STORAGE_ENABLED"):
@@ -114,9 +111,14 @@ class TaskPod:
                 secret_name=os.getenv("AZURE_SECRET_NAME"),
                 share_name=os.getenv("AZURE_SHARE_NAME")
             )
+        elif os.getenv("AWS_STORAGE_ENABLED"):
+            pv_spec.csi=V1CSIPersistentVolumeSource(
+                driver=os.getenv("AWS_STORAGE_DRIVER"),
+                volume_handle=os.getenv("AWS_FILES_SYSTEM_ID")
+            )
         else:
             pv_spec.host_path=V1HostPathVolumeSource(
-                path=f"/data/{self.name}"
+                path=RESULTS_PATH
             )
 
         self.pv = V1PersistentVolume(
@@ -176,15 +178,19 @@ class TaskPod:
                 f"ls -la {self.base_mount_path}/{task_id}"
             ]
         )
-        data_init = V1Container(
-            name="fetch-data",
-            image=f"ghcr.io/aridhia-open-source/db_connector:{IMAGE_TAG}",
-            volume_mounts=vol_mount,
-            image_pull_policy="Always",
-            env=self.env_init,
-            env_from=self.env_from
-        )
-        return [dir_init, data_init]
+        init_containers = [dir_init]
+
+        if self.db_query:
+            data_init = V1Container(
+                name="fetch-data",
+                image=f"ghcr.io/aridhia-open-source/db_connector:{IMAGE_TAG}",
+                volume_mounts=[vol_mount],
+                image_pull_policy="Always",
+                env=self.env_init,
+                env_from=self.env_from
+            )
+            init_containers.append(data_init)
+        return init_containers
 
     def create_pod_spec(self):
         """
@@ -220,10 +226,13 @@ class TaskPod:
                 name="data"
             ))
 
-        self.env_init.append(V1EnvVar(name="QUERY", value=self.db_query["query"]))
-        self.env_init.append(V1EnvVar(name="FROM_DIALECT", value=self.db_query["dialect"]))
-        self.env_init.append(V1EnvVar(name="TO_DIALECT", value=self.dataset.type))
+        if self.db_query:
+            self.env_init.append(V1EnvVar(name="QUERY", value=self.db_query["query"]))
+            self.env_init.append(V1EnvVar(name="FROM_DIALECT", value=self.db_query["dialect"]))
+            self.env_init.append(V1EnvVar(name="TO_DIALECT", value=self.dataset.type))
 
+        self.env.append(V1EnvVar(name="CONNECTION_STRING", value=self.dataset.get_connection_string()))
+        self.env.append(V1EnvVar(name="ORACLE_SID", value=self.dataset.name))
         container = V1Container(
             name=self.name,
             image=self.image,

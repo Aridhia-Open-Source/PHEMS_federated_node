@@ -17,14 +17,8 @@ spec:
         - image: container-registry.oracle.com/database/free:latest-lite
           name: oracle
           env:
-            - name: MYSQL_ROOT_PASSWORD
-              value: "Password1!"
             - name: ORACLE_PWD
               value: "Password1!"
-            - name: MYSQL_USER
-              value: "user"
-            - name: MYSQL_DATABASE
-              value: "dbdata"
           volumeMounts:
             - name: oracledata
               mountPath: /opt/oracle/oradata

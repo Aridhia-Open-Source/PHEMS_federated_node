@@ -7,7 +7,7 @@ metadata:
     app: flask
 spec:
   {{- if not .Values.autoscaling.enabled }}
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .Values.backend.replicas }}
   {{- end }}
   selector:
     matchLabels:
@@ -28,7 +28,7 @@ spec:
                 name: backend-configmap
                 key: PGDATABASE
         - name: db-migrations
-          image: {{ template "backend-image" . }}:{{ include "image-tag" . }}
+          image: {{ template "backend-image" . }}
           command: ["/bin/sh"]
           workingDir: /
           {{ include "nonRootSC" . }}
@@ -40,10 +40,6 @@ spec:
           envFrom:
             - configMapRef:
                 name: backend-configmap
-            {{ if .Values.db.configMap }}
-            - configMapRef:
-                name: {{ .Values.db.configMap }}
-            {{ end }}
           env:
           - name: PGPASSWORD
             valueFrom:
@@ -60,7 +56,7 @@ spec:
             - name: respv
               mountPath: /mnt/storage
       containers:
-        - image: {{ template "backend-image" . }}:{{ include "image-tag" . }}
+        - image: {{ template "backend-image" . }}
           name: backend
           imagePullPolicy: {{ .Values.pullPolicy }}
           {{ include "nonRootSC" . }}
@@ -70,7 +66,7 @@ spec:
               cpu: 100m
           ports:
             - name: http
-              containerPort: {{ .Values.federatedNode.port | default 5000 }}
+              containerPort: {{ .Values.federatedNode.port }}
               protocol: TCP
           readinessProbe:
             httpGet:
@@ -91,17 +87,9 @@ spec:
           envFrom:
             - configMapRef:
                 name: backend-configmap
-            {{ if .Values.db.configMap }}
-            - configMapRef:
-                name: {{ .Values.db.configMap }}
-            {{ end }}
             - configMapRef:
                 name: keycloak-config
           env:
-          - name: RESULTS_PATH
-            value: {{ .Values.federatedNode.volumes.results_path }}
-          - name: TASK_POD_RESULTS_PATH
-            value: {{ .Values.federatedNode.volumes.task_pod_results_path }}
           - name: PGPASSWORD
             valueFrom:
               secretKeyRef:
@@ -124,4 +112,4 @@ spec:
       volumes:
         - name: respv
           persistentVolumeClaim:
-            claimName: flask-results-pv-vc
+            claimName: {{ include "pvcName" . }}

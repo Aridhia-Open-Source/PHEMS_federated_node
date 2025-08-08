@@ -2,40 +2,23 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: shared-results
-{{ if .Values.storage.local }}
-provisioner: Local
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
 volumeBindingMode: WaitForFirstConsumer
-{{- else if .Values.storage.azure -}}
+{{- if .Values.storage.local }}
+provisioner: Local
+{{- else if .Values.storage.azure }}
 provisioner: disk.csi.azure.com
 parameters:
   skuname: Premium_LRS
-volumeBindingMode: WaitForFirstConsumer
-{{- else if .Values.storage.nfs -}}
-provisioner: {{ .Values.storage.nfs.provisioner -}}
+{{- else if .Values.storage.aws }}
+provisioner: efs.csi.aws.com
 parameters:
-  server: {{ .Values.storage.nfs.url -}}
-  path: {{ .Values.storage.nfs.path -}}
-  readOnly: "false"
-{{- end -}}
-{{ if and (not .Values.db.secret) (not .Values.db.configMap) }}
----
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: db-storage
-{{ if .Values.storage.local }}
-provisioner: Local
-{{ else if .Values.storage.azure }}
-provisioner: disk.csi.azure.com
-parameters:
-  protocol: nfs
-allowVolumeExpansion: true
-volumeBindingMode: WaitForFirstConsumer
+  provisioningMode: efs-ap
+  fileSystemId: {{ include "awsStorageAccount" . }}
+  directoryPerms: "777"
+{{- else if .Values.storage.nfs }}
+provisioner: {{ .Values.storage.nfs.provisioner }}
 mountOptions:
-  - nconnect=4
-  - noresvport
-  - actimeo=30
-  - rsize=262144
-  - wsize=262144
-{{ end }}
-{{ end }}
+  - hard
+{{- end }}
