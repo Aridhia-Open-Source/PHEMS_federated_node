@@ -217,6 +217,14 @@ def v1_batch_mock(mocker):
     }
 
 @pytest.fixture
+def v1_crd_mock(mocker):
+    return {
+        "create_cluster_custom_object": mocker.patch(
+            'app.helpers.kubernetes.KubernetesCRDClient.create_cluster_custom_object'
+        )
+    }
+
+@pytest.fixture
 def pod_listed(mocker):
     pod = Mock(spec=V1Pod)
     pod.spec.containers = [Mock(image="some_image")]
@@ -224,10 +232,11 @@ def pod_listed(mocker):
     return Mock(items=[pod])
 
 @pytest.fixture
-def k8s_client(mocker, pod_listed, v1_mock, v1_batch_mock, k8s_config):
+def k8s_client(mocker, pod_listed, v1_mock, v1_batch_mock, v1_crd_mock, k8s_config):
     all_clients = {}
     all_clients.update(v1_mock)
     all_clients.update(v1_batch_mock)
+    all_clients.update(v1_crd_mock)
     all_clients["read_namespaced_secret_mock"].return_value.data = {
         "PGUSER": "YWJjMTIz",
         "PGPASSWORD": "YWJjMTIz",
@@ -344,6 +353,18 @@ def request_base_body(dataset):
     return {
         "title": "TestRequest",
         "dataset_id": dataset.id,
+        "project_name": "project1",
+        "requested_by": { "email": "test@test.com" },
+        "description": "First task ever!",
+        "proj_start": dt.now().date().strftime("%Y-%m-%d"),
+        "proj_end": (dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")
+    }
+
+@pytest.fixture
+def request_base_body_name(dataset):
+    return {
+        "title": "Test Task",
+        "dataset_name": dataset.name,
         "project_name": "project1",
         "requested_by": { "email": "test@test.com" },
         "description": "First task ever!",
