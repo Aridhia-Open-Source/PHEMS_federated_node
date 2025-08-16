@@ -18,6 +18,9 @@ pylint:
 chart:
 	helm package k8s/federated-node -d artifacts/
 
+helm_tests:
+	./scripts/run_helm_tests.sh
+
 build_keycloak:
 	docker build build/keycloak -f build/keycloak/keycloak.Dockerfile -t ghcr.io/aridhia-open-source/federated_keycloak:0.0.1
 

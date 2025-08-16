@@ -1,0 +1,56 @@
+suite: Cert manager subchart
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-local.yaml
+kubernetesProvider:
+  scheme:
+    v1/Secret:
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+    v1/ConfigMap:
+      gvr:
+        version: v1
+        resource: configmaps
+      namespaced: true
+  objects:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: awscert-config
+        namespace: federatednode
+      type: Opaque
+      data:
+        EMAIL_CERT: dGVzdA==
+        REGION: dGVzdA==
+        ACCOUNT_ID: dGVzdA==
+        ROLE_NAME: dGVzdA==
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: local-db
+        namespace: federatednode
+      type: Opaque
+      data:
+        password: dGVzdA==
+tests:
+  - it: cert-manager is deployed
+    template: ../charts/cert-manager/templates/deployment.yaml
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: fn-certmanager
+  - it: cert-manager is not deployed with cert-manager.enabled=false
+    templates:
+      - ../templates/certificates/issuer.yaml
+      - ../templates/certificates/certificate.yaml
+      - ../templates/certificates/roles.yaml
+    set:
+      cert-manager:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

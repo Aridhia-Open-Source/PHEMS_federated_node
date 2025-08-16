@@ -1,3 +1,4 @@
+{{- if index .Values "ingress-nginx" "enabled" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -24,3 +25,4 @@ metadata:
 data:
   add-headers: {{ index .Values "ingress-nginx" "namespaceOverride" }}/{{ .Release.Name | lower }}-ingress-nginx-custom-add-headers
   allow-snippet-annotations: 'true'
+{{- end }}
