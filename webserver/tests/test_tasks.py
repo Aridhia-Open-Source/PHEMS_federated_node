@@ -2,7 +2,6 @@ import json
 import pytest
 import re
 from copy import deepcopy
-from unittest import mock
 from datetime import datetime, timedelta
 from kubernetes.client.exceptions import ApiException
 from unittest import mock
@@ -13,6 +12,7 @@ from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.models.task import Task
 from tests.fixtures.azure_cr_fixtures import *
+from tests.fixtures.dataset_container_fixtures import ds_cont_link, ds_star_link
 
 
 @pytest.fixture(scope='function')
@@ -44,6 +44,17 @@ def task_body(dataset, container):
         "resources": {},
         "volumes": {}
     })
+
+@pytest.fixture
+def task_mock(dataset, container, user_uuid):
+    task = Task(
+        dataset=dataset,
+        docker_image=container.full_image_name(),
+        requested_by=user_uuid,
+        name="test"
+    )
+    task.add()
+    return task
 
 @pytest.fixture
 def running_state():
@@ -122,22 +133,15 @@ class TestGetTasks:
             simple_admin_header,
             client,
             registry_client,
-            task_body
+            task_body,
+            task_mock
         ):
         """
         If an admin wants to check a specific task they should be allowed regardless
         of who requested it
         """
-        resp = client.post(
-            '/tasks/',
-            data=json.dumps(task_body),
-            headers=post_json_user_header
-        )
-        assert resp.status_code == 201
-        task_id = resp.json["task_id"]
-
         resp = client.get(
-            f'/tasks/{task_id}',
+            f'/tasks/{task_mock.id}',
             headers=simple_admin_header
         )
         assert resp.status_code == 200
@@ -214,7 +218,7 @@ class TestGetTasks:
 
         response_id = client.get(
             f'/tasks/{task.id}',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response_id.status_code == 200
@@ -231,7 +235,7 @@ class TestGetTasks:
 
         response_id = client.get(
             f'/tasks/{task.id}',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response_id.status_code == 200
@@ -260,7 +264,7 @@ class TestGetTasks:
 
         response_id = client.get(
             f'/tasks/{task.id}',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response_id.status_code == 200
@@ -408,14 +412,15 @@ class TestPostTask:
             client,
             reg_k8s_client,
             registry_client,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests task creation returns 201
         """
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -432,6 +437,7 @@ class TestPostTask:
             client,
             reg_k8s_client,
             registry_client,
+            ds_star_link,
             task_body
         ):
         """
@@ -457,13 +463,36 @@ class TestPostTask:
         assert "CONNECTION_STRING" in envs
         assert set(envs).intersection({"QUERY", "FROM_DIALECT", "TO_DIALECT"}) == set()
 
+    def test_create_task_container_unlinked(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            registry_client,
+            task_body,
+            ds_cont_link
+        ):
+        """
+        Tests task creation returns an error if the requested dataset
+        doesn't have the container linked, or all_containers = True
+        """
+        task_body["tags"]["dataset_id"] = ds_cont_link.dataset.id
+        response = client.post(
+            '/tasks/',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert response.json["error"] == "Dataset is not associated with the image requested"
+
     def test_create_task_invalid_output_field(
             self,
             cr_client,
             post_json_admin_header,
             client,
             registry_client,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests task creation returns 4xx request when output
@@ -472,7 +501,7 @@ class TestPostTask:
         task_body["outputs"] = []
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -494,7 +523,7 @@ class TestPostTask:
         task_body.pop("outputs")
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -510,7 +539,8 @@ class TestPostTask:
             client,
             registry_client,
             dataset,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests task creation with a dataset name returns 201
@@ -533,7 +563,8 @@ class TestPostTask:
             client,
             registry_client,
             dataset,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests task creation with a dataset name and id returns 201
@@ -652,7 +683,7 @@ class TestPostTask:
         """
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 500
@@ -665,7 +696,8 @@ class TestPostTask:
             client,
             registry_client,
             reg_k8s_client,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests task creation returns 201 and if users provide
@@ -674,7 +706,7 @@ class TestPostTask:
         task_body["inputs"] = {"file.csv": "/data/in"}
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -694,7 +726,8 @@ class TestPostTask:
             client,
             registry_client,
             reg_k8s_client,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests task creation returns 201 and if users provide
@@ -703,7 +736,7 @@ class TestPostTask:
         task_body["executors"][0]["env"] = {"INPUT_PATH": "/data/in/file.csv"}
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -719,7 +752,8 @@ class TestPostTask:
             post_json_admin_header,
             client,
             registry_client,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests task creation returns 4xx request when output
@@ -728,7 +762,7 @@ class TestPostTask:
         task_body["outputs"] = []
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -740,7 +774,8 @@ class TestPostTask:
             post_json_admin_header,
             client,
             registry_client,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests task creation returns 4xx request when inputs
@@ -749,7 +784,7 @@ class TestPostTask:
         task_body["inputs"] = []
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -762,7 +797,8 @@ class TestPostTask:
             post_json_admin_header,
             client,
             registry_client,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests task creation returns 201 but the resutls volume mounted
@@ -771,7 +807,7 @@ class TestPostTask:
         task_body.pop("outputs")
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -787,7 +823,8 @@ class TestPostTask:
             post_json_admin_header,
             client,
             registry_client,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests task creation returns 201 but the volume mounted
@@ -796,7 +833,7 @@ class TestPostTask:
         task_body.pop("inputs")
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -882,14 +919,15 @@ class TestValidateTask:
             task_body,
             cr_client,
             registry_client,
-            post_json_admin_header
+            post_json_admin_header,
+            ds_star_link
         ):
         """
         Test the validation endpoint can be used by admins returns 201
         """
         response = client.post(
             '/tasks/validate',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 200
@@ -909,7 +947,7 @@ class TestValidateTask:
         task_body["tags"].pop("dataset_id")
         response = client.post(
             '/tasks/validate',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -926,7 +964,8 @@ class TestValidateTask:
             post_json_user_header: dict[str, str],
             access_request,
             user_uuid,
-            dar_user
+            dar_user,
+            ds_star_link
         ):
         """
         Test the validation endpoint can be used by non-admins returns 201
@@ -936,7 +975,7 @@ class TestValidateTask:
         post_json_user_header["project-name"] = access_request.project_name
         response = client.post(
             '/tasks/validate',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_user_header
         )
         assert response.status_code == 200, response.json
@@ -1117,7 +1156,8 @@ class TestResourceValidators:
             user_uuid,
             registry_client,
             cr_client,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests that the expected resource values are accepted
@@ -1141,7 +1181,8 @@ class TestResourceValidators:
             user_uuid,
             cr_client,
             registry_client,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests that the unexpected memory values are not accepted
@@ -1169,7 +1210,8 @@ class TestResourceValidators:
             user_uuid,
             cr_client,
             registry_client,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests that the unexpected cpu values are not accepted
@@ -1198,7 +1240,8 @@ class TestResourceValidators:
             user_uuid,
             cr_client,
             registry_client,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests that the unexpected cpu values are not accepted
@@ -1224,7 +1267,8 @@ class TestResourceValidators:
             user_uuid,
             cr_client,
             registry_client,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests that the unexpected cpu values are not accepted
