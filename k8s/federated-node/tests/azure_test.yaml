@@ -1,0 +1,81 @@
+suite: Storage testing for Azure AKS
+release:
+  namespace: federatednode
+values:
+  - values/values-aks.yaml
+kubernetesProvider:
+  scheme:
+    v1/Secret:
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+    v1/ConfigMap:
+          gvr:
+            version: v1
+            resource: configmaps
+          namespaced: true
+  objects:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: test-azure
+        namespace: federatednode
+      type: Opaque
+      data:
+        SP_SECRET: dGVzdA==
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: local-db
+        namespace: federatednode
+      type: Opaque
+      data:
+        password: dGVzdA==
+    - apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: azurecert-config
+        namespace: federatednode
+      data:
+        EMAIL_CERT: test@test.com
+        SP_ID: as1d1as351as
+        RG_NAME: rg-test
+        SUBSCRIPTION_ID: 123-123-123
+        HOSTED_ZONE: uksouth
+        TENANT_ID: as13151cv18a1ca651ac
+tests:
+  - it: creates azure storage
+    template: copy-secrets.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: test-azure
+        documentSelector:
+          path: metadata.namespace
+          value: fn-certmanager
+      - equal:
+          path: metadata.name
+          value: test-azure
+        documentSelector:
+          path: metadata.namespace
+          value: tasks
+  - it: creates AWS persistency
+    template: backend-results-pv.yaml
+    asserts:
+      - equal:
+          path: spec.azureFile.shareName
+          value: files
+        documentSelector:
+          path: kind
+          value: PersistentVolume
+  - it: creates AKS certificate issuer
+    template: certificates/issuer.yaml
+    asserts:
+      - exists:
+          path: spec.acme.solvers[0].dns01.azureDNS
+  - it: does not create AWS certificate roles
+    template: certificates/roles.yaml
+    asserts:
+      - hasDocuments:
+          count: 0

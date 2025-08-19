@@ -1,0 +1,54 @@
+pullPolicy: Always
+
+create_db_deployment: true
+cleanupTime: 1
+keycloak:
+  replicas: 1
+backend:
+  volumes:
+    results_path: /data/flask/results
+
+db:
+  user: admin
+  host: db.federatednode.svc
+  port: 5432
+  secret:
+    key: password
+    name: local-db
+
+storage:
+  aws:
+    fileSystemId: fs-12345aef
+    accessPointId: fsap-12345aef
+
+on_eks: true
+on_aks: false
+ingress:
+  nginx:
+    enabled: true
+  host: phems-federatednode.net
+  whitelist:
+    enabled: false
+  blacklist:
+    enabled: false
+  tls:
+    secretName: my-tls-secret
+
+certs:
+  frequency: 65
+  aws: awscert-config
+
+smoketests: false
+
+host: &host phems-federatednode.net
+
+global:
+  host: *host
+
+cert-manager:
+  enabled: true
+
+ingress-nginx:
+  enabled: false
+
+outboundMode: false

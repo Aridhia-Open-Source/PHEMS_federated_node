@@ -9,7 +9,6 @@ spec:
     - ReadOnlyMany
   capacity:
     storage: {{ .Values.storage.capacity }}
-  # This should be changed to some more reliable destination
   {{ if .Values.storage.local }}
   local:
     path: {{ .Values.storage.local.path }}

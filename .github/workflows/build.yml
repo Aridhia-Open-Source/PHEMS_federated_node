@@ -109,6 +109,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Run Helm unittests
+        run: |
+          make helm_tests
+
       - name: Run Python Tests
         working-directory: webserver
         run: |

@@ -1,0 +1,86 @@
+pullPolicy: Always
+
+local_development: true
+create_db_deployment: true
+
+cleanupTime: 1
+keycloak:
+  replicas: 1
+backend:
+  volumes:
+    results_path: /data/flask/results
+
+db:
+  user: admin
+  host: db.default.svc
+  port: 5432
+  secret:
+    key: password
+    name: local-db
+
+storage:
+  local:
+    path: /data/flask
+    dbpath: /data/db/
+
+ingress:
+  nginx:
+    enabled: true
+  host: phems-federatednode.net
+  whitelist:
+    enabled: false
+  blacklist:
+    enabled: false
+  tls:
+    secretName: my-tls-secret
+
+certs:
+  frequency: 65
+
+integrations:
+  domains:
+    - http://localhost:8088
+    - https://phems-federatednode.net
+
+smoketests: true
+taskReview: true
+
+host: &host phems-federatednode.net
+whitelist:
+  enabled: false
+blacklist:
+  enabled: false
+tls:
+  secretName: my-tls-secret
+
+global:
+  host: *host
+
+cert-manager:
+  enabled: true
+
+ingress-nginx:
+  enabled: true
+  controller:
+    extraArgs:
+      default-ssl-certificate: federatednode/my-tls-secret
+
+outboundMode: true
+fn-task-controller:
+  controller:
+    vol_path: /data/controller
+
+  storage:
+    size: 100Mi
+    local:
+      path: /data/controller
+
+  idp:
+    github:
+      secret_name: github-app
+      secret_key: GH_SECRET
+      clientid_key: GH_CLIENT_ID
+      orgAndRepo: Aridhia-Open-Source/Federated-Node-Example-App
+  delivery:
+    github:
+      repository: Aridhia-Open-Source/Federated-Node-Example-App
