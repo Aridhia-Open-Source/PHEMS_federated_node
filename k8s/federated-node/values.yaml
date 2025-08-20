@@ -44,6 +44,13 @@ db:
 # How many days the results and k8s resources are kept for
 cleanupTime: 3
 
+firstUserSecret:
+  name:
+  passKey:
+  firstName:
+  lastName:
+  email:
+
 federatedNode:
   port: 5000
   volumes:

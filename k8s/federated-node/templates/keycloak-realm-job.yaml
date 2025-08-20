@@ -30,6 +30,19 @@ spec:
                 secretKeyRef:
                   name: kc-secrets
                   key: KEYCLOAK_GLOBAL_CLIENT_SECRET
+            {{- if (.Values.firstUserSecret).name }}
+            - name: FIRST_USER_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.firstUserSecret.name }}
+                  key: {{ .Values.firstUserSecret.passKey }}
+            - name: FIRST_USER_EMAIL
+              value: {{ .Values.firstUserSecret.email }}
+            - name: FIRST_USER_FIRST_NAME
+              value: {{ .Values.firstUserSecret.firstName }}
+            - name: FIRST_USER_LAST_NAME
+              value: {{ .Values.firstUserSecret.lastName }}
+            {{- end }}
           envFrom:
           - configMapRef:
               name: keycloak-config

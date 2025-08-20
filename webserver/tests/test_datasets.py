@@ -1075,3 +1075,21 @@ class TestDeleteDataset(MixinTestDataset):
         assert response.status_code == 204
         assert Catalogue.query.filter_by(dataset_id=ds_id).count() == 0
         assert Dictionary.query.filter_by(dataset_id=ds_id).count() == 0
+
+    @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
+    def test_delete_dataset_unauthorized(
+            self,
+            token_valid_mock,
+            client,
+            dataset,
+            post_json_user_header
+    ):
+        """
+        Tests that a non admin cannot delete a dataset
+        """
+        ds_id = dataset.id
+        response = client.delete(
+            f"/datasets/{ds_id}",
+            headers=post_json_user_header
+        )
+        assert response.status_code == 403

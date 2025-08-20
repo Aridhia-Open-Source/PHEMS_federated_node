@@ -99,7 +99,7 @@ def get_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
 @bp.route('/<int:dataset_id>', methods=['DELETE'])
 @bp.route('/<dataset_name>', methods=['DELETE'])
 @audit
-@auth(scope='can_access_dataset')
+@auth(scope='can_admin_dataset')
 def delete_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
     """
     DELETE /datasets/id endpoint. Deletes the dataset from the db and k8s secrets

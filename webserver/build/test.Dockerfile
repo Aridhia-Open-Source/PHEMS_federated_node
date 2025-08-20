@@ -12,6 +12,7 @@ RUN apt-get update \
     python3-dev \
     gcc \
     curl \
+    jq \
     && curl -LsSf https://astral.sh/uv/install.sh | sh \
     && /root/.local/bin/uv sync --extra dev \
     && PATH=$(which pg_config):$PATH \

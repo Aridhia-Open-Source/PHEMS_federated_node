@@ -4,6 +4,19 @@
 - Upgraded all python images to use `python:3.13-slim`
 - Upgraded alpine image to 3.22
 
+## 1.3.0
+- Added the option to setup an initial user to avoid using the backend credentials. To set it up, the following section in the values file has been added:
+    ```yaml
+    firstUserSecret:
+        name:
+        passKey:
+        firstName:
+        lastName:
+        email:
+    ```
+Where a secret needs to be created in the helm chart base namespace. The `name` should be the secret name.
+The `passKey` is the secret's key that holds the password for the user. The rest of the fields are optional, but it is advisable to set them.
+
 ## 1.2.0
 - Added two `DELETE` enpoints for datasets and registries. Using them will remove related k8s secrets, and DB entries. In the case of datasets, dictionaries and catalogues. For registries, all related containers added either manually of via sync (manual or scheduled).
 - Added support for AWS EFS persistent volume through the csi driver `efs.csi.aws.com`
