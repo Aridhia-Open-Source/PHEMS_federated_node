@@ -1,5 +1,5 @@
 
-FROM alpine:3.19.0
+FROM alpine:3.22.0
 
 WORKDIR /jars
 ENV INFINISPAN_REPO="https://repo1.maven.org/maven2/org/infinispan"

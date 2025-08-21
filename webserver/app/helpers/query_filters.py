@@ -1,6 +1,7 @@
 import re
-from sqlalchemy.sql import select
 from app.helpers.base_model import Base
+from app.helpers.exceptions import InvalidRequest
+
 
 FILTERS = [
     'ne',
@@ -29,28 +30,35 @@ def parse_query_params(model: Base, query_params: dict): # type: ignore
     :param model: The Table model to look against the query args
     :param query_params: the request args => request.args.copy()
     """
-    current_query = select(model)
+    try:
+        page = int(query_params.pop("page", '1'))
+        per_page = int(query_params.pop("per_page", '25'))
+    except ValueError as ve:
+        raise InvalidRequest("page and per_page parameters should be integers") from ve
+
+    current_query = model.query
     for qp_f, qp_v in query_params.items():
         added = False
         for k in FILTERS:
             if re.findall(f'.+__{k}$', qp_f):
                 field = qp_f.replace(f'__{k}', '')
                 if k == 'ne':
-                    current_query = current_query.where(getattr(model, field) != qp_v)
+                    current_query = current_query.filter(getattr(model, field) != qp_v)
                 if k == 'eq':
-                    current_query = current_query.where(getattr(model, field) == qp_v)
+                    current_query = current_query.filter(getattr(model, field) == qp_v)
                 if k == 'gt':
-                    current_query = current_query.where(getattr(model, field) > qp_v)
+                    current_query = current_query.filter(getattr(model, field) > qp_v)
                 if k == 'lt':
-                    current_query = current_query.where(getattr(model, field) < qp_v)
+                    current_query = current_query.filter(getattr(model, field) < qp_v)
                 if k == 'gte':
-                    current_query = current_query.where(getattr(model, field) >= qp_v)
+                    current_query = current_query.filter(getattr(model, field) >= qp_v)
                 if k == 'lte':
-                    current_query = current_query.where(getattr(model, field) <= qp_v)
+                    current_query = current_query.filter(getattr(model, field) <= qp_v)
                 added = True
                 break
         if not added:
-            current_query = current_query.where(getattr(model, qp_f) == qp_v)
+            # We are in the = case
+            current_query = current_query.filter(getattr(model, qp_f.replace('=', '')) == qp_v)
 
-    return current_query
+    return current_query.paginate(page=page, per_page=per_page)
 

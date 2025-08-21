@@ -18,7 +18,7 @@ def test_filter_by_date(
     client.get('/datasets/', headers=simple_admin_header)
     client.get('/datasets/', headers=simple_admin_header)
 
-    date_filter = Audit.get_all()[1]['event_time']
+    date_filter = Audit.query.all()[1].event_time
     filters = {
         '=': 1,
         '__lte': 2,
@@ -29,6 +29,6 @@ def test_filter_by_date(
         '__ne': 2
     }
     for fil, expected_results in filters.items():
-        resp = client.get(f"/audit?event_time{fil}={date_filter}", headers=simple_admin_header)
+        resp = client.get("/audit", query_string={f"event_time{fil}": date_filter}, headers=simple_admin_header)
         assert resp.status_code == 200
-        assert len(resp.json) == expected_results
+        assert resp.json["total"] == expected_results

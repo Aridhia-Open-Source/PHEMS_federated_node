@@ -1,5 +1,8 @@
 # Releases Changelog
 
+## 1.3.0
+- Upgraded all python images to use `python:3.13-slim`
+- Upgraded alpine image to 3.22
 
 ## 1.2.0
 - Added two `DELETE` enpoints for datasets and registries. Using them will remove related k8s secrets, and DB entries. In the case of datasets, dictionaries and catalogues. For registries, all related containers added either manually of via sync (manual or scheduled).

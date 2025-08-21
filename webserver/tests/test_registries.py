@@ -23,7 +23,7 @@ class TestGetRegistriesApi:
             headers=simple_admin_header
         )
         assert resp.status_code == 200
-        assert resp.json == [{
+        assert resp.json["items"] == [{
             'id': registry.id,
             'needs_auth': registry.needs_auth,
             'active': registry.active,

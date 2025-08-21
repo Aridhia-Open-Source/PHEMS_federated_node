@@ -1,4 +1,4 @@
-FROM python:3.12
+FROM python:3.13.5-slim
 
 # hadolint ignore=SC1070
 ARG USERNAME=fednode
@@ -6,22 +6,28 @@ ARG USER_UID=1001
 ARG USER_GID=1001
 
 ENV DEBIAN_FRONTEND=noninteractive
-COPY requirements.txt /
+COPY pyproject.toml /
 
-# hadolint ignore=DL3013,DL3008
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# hadolint ignore=DL3008
 RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get install --no-install-recommends -y \
         libpq-dev \
-        wget \
+        curl \
         odbcinst \
         unixodbc \
+        libmariadb3 \
+        libmariadb-dev \
+        pkg-config \
+        default-libmysqlclient-dev \
+        build-essential \
         krb5-user \
-    && pip install --no-cache-dir --upgrade pip \
-    && python3 -m pip install --no-cache-dir -r requirements.txt \
-    && wget -q https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && /root/.local/bin/uv sync \
+    && curl -LsSf https://packages.microsoft.com/config/debian/"$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)"/packages-microsoft-prod.deb -o packages-microsoft-prod.deb \
     && dpkg -i packages-microsoft-prod.deb \
-    && rm packages-microsoft-prod.deb requirements.txt \
+    && rm packages-microsoft-prod.deb \
     && apt-get update \
     && ACCEPT_EULA=Y apt-get install --no-install-recommends -y msodbcsql18 \
     && apt-get clean \
@@ -29,7 +35,7 @@ RUN apt-get update \
 
 WORKDIR /app/
 COPY *.py /app/
-
 USER ${USER_UID}
 ENV PYTHONPATH=/app
-ENTRYPOINT [ "/app/entrypoint.sh" ]
+ENV PATH="/.venv/bin:$PATH"
+ENTRYPOINT [ "python3", "-m", "connector" ]

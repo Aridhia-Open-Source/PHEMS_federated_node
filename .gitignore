@@ -1,6 +1,7 @@
 .venv
 .vscode
-artifacts/*.xml
+artifacts/**
+!.keep
 
 *.pyc
 __pycache__/
@@ -12,7 +13,6 @@ k8s/*/*.values.yaml
 *.key
 
 # Ingore helm charts archives
-artifacts/*.tgz
 
 **/.coverage
 **/coverage.xml

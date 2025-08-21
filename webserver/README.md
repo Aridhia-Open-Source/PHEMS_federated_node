@@ -3,32 +3,24 @@ This folder holds the Flask app that serves the API backend for the Federated No
 
 ## Structure
 Contains 2 folders:
-- `app` holds the actual python code and the `Pipfile`s for setting up environment and dependencies
+- `app` holds the actual python code
 - `build` holds files involved to build/serve the app through a Docker container
 - `migrations` is an auto-generated folder from `alembic` which helps in keeping track of the database migrations, and offer a rollback functionality in case is needed.
 - `tests` holds unit test files
 
 ## Dev Setup
 ```sh
-sudo apt-get install -y python3.12 python3.12-venv python3.12-dev
-python3.12 -m venv .venv
+sudo apt-get install -y python3.13 python3.13-venv python3.13-dev
+uv init
 source .venv/bin/activate
-pip install pipenv
 ```
 
-### pipenv
-The first use packages need to be installed:
-`pipenv install --categories 'packages local-dev'`
+### uv
+To upgrade dependencies, run:
+```sh
+uv lock --upgrade
+```
 
-then you can either run a single command -> `pipenv run ...`
-
-or spawn a new console with the virtualenv -> `pipenv shell`
-
-Check for dependencies upgrades -> `pipenv update --dry-run`
-
-Add new package -> `pipenv install --categories <packages|local-dev|tests> package`
-
-If pipenv returns a lock version error, run `pipenv update` (doesn't actively update dependencies versions) to bring [Pipfile.lock](./Pipfile.lock) on par with [Pipfile](./Pipfile)
 
 ### Tools
 pylint should guarantee a minimum threshold of code quality/standards. It can be run with `make pylint`
@@ -63,6 +55,7 @@ Alternatively, minikube has a variety of method to achieve this. See https://min
 ### Tests (dev mode)
 ```sh
 make run_tests
-# Once the container bash is available
+# that will still run a set of tests, but will keep
+# keycloak, and DB running so further tests can be run locally
 python -m unittest
 ```

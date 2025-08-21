@@ -1,0 +1,42 @@
+[project]
+name = "federatednode"
+version = "1.2.0"
+description = ""
+authors = [
+    {name = "r-casula",email = "riccardo.casula@aridhia.com"}
+]
+maintainers = [
+    {name = "r-casula",email = "riccardo.casula@aridhia.com"}
+]
+license = {text = "GPL-3"}
+readme = "README.md"
+requires-python = ">=3.13"
+
+
+dependencies = [
+    "flask",
+    "sqlalchemy",
+    "psycopg2",
+    "alembic",
+    "kubernetes",
+    "flask-sqlalchemy",
+    "joserfc",
+    "pyjwt>=2.10.1",
+    "waitress>=3.0.1",
+    "flask-swagger-ui",
+    "pymssql",
+    "werkzeug>=3.0.6",
+    "jinja2>=3.1.5",
+    "requests>=2.32.4",
+    "urllib3>=2.5.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pylint>=3.0.3",
+    "pytest",
+    "pytest-mock",
+    "python-dotenv",
+    "pytest-cov",
+    "responses"
+]

@@ -26,7 +26,7 @@ class TestAudits:
 
         # Check if the expected result is a subset of the actual response
         # We do not check the entire dict due to the datetime and id
-        assert response.json[0].items() >= {
+        assert response.json["items"][0].items() >= {
             'api_function': 'get_datasets',
             'details': None,
             'endpoint': '/datasets/',
@@ -74,7 +74,7 @@ class TestAudits:
         response = client.get(f"/audit?event_time__lte={date_filter}", headers=simple_admin_header)
 
         assert response.status_code == 200, response.json
-        assert len(response.json) == 0
+        assert response.json["total"] == 0
 
     def test_sensitive_data_is_purged(
         self,
@@ -96,8 +96,8 @@ class TestAudits:
 
         # Request will fail as secret is not recognized as dictionaries field
         assert resp.status_code == 201, resp.json
-        audit_list = Audit.get_all()[-1]
-        details = json.loads(audit_list["details"].replace("'", "\""))
+        audit_list = Audit.query.all()[-1]
+        details = json.loads(audit_list.details.replace("'", "\""))
 
         assert details["password"] == '*****'
         assert details["username"] == '*****'

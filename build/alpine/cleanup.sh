@@ -1,5 +1,7 @@
 #!/bin/sh
 
+### Cleanup old tasks storage, depending on CLEANUP_AFTER_DAYS env var
+
 deleteEntity(){
     echo "Checking for $1"
     kubectl get "$1" -n "$2" -o json | jq -r --arg date "$date" \
