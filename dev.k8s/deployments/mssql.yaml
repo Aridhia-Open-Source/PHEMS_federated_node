@@ -16,6 +16,13 @@ spec:
       containers:
         - image: mcr.microsoft.com/mssql/server:2019-latest
           name: mssql
+          resources:
+            requests:
+              memory: 2Gi
+              cpu: 100Mi
+            limits:
+              memory: 3Gi
+              cpu: 200Mi
           env:
             - name: ACCEPT_EULA
               value: "Y"

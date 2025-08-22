@@ -1,4 +1,5 @@
 import os
+import re
 from sqlglot import transpile, parse_one
 from sqlglot.expressions import Table, Join, Column
 from sqlalchemy import create_engine, text
@@ -80,6 +81,27 @@ class Mssql(BaseEngine):
     protocol = "mssql+pyodbc://"
     convert_as = "tsql"
     driver = "driver=ODBC Driver 18 for SQL Server&"
+
+    def __init__(
+            self,
+            user:str,
+            passw:str,
+            host:str,
+            port:str,
+            database:str,
+            args:str = ""
+        ):
+            # Kerberos auth on azure MUST have trusted connection set.
+            if os.getenv("KERBEROS"):
+                #If is not set in the args, add it
+                if "trusted_connection" not in args.lower():
+                    args += "Trusted_Connection=YES"
+                # otherwise replace its contents with Trusted_Connection=YES;
+                else:
+                    args = re.sub(r"(T|t)rusted_(C|c)onnection(.*?);", "Trusted_Connection=YES;", args)
+
+            super(self).__init__(user, passw, host, port, database, args)
+
 
 class Postgres(BaseEngine):
     protocol = "postgresql://"
