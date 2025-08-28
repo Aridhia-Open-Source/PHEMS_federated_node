@@ -777,6 +777,81 @@
           "200":{
             "$ref": "#/components/responses/TaskResults"
           },
+          "400":{
+            "$ref": "#/components/responses/ReviewNeededOrBlocked"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks/{id}/results/approve": {
+      "post": {
+        "operationId": "approve_results",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {"type": "integer"}
+          }
+        ],
+        "tags": ["Tasks"],
+        "summary": "Approve the results release",
+        "responses":{
+          "201":{
+            "description": "Review successful"
+          },
+          "400":{
+            "$ref": "#/components/responses/MultipleReviewError"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks/{id}/results/block": {
+      "post": {
+        "operationId": "block_results",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {"type": "integer"}
+          }
+        ],
+        "tags": ["Tasks"],
+        "summary": "Block the results release",
+        "responses":{
+          "201":{
+            "description": "Review successful"
+          },
+          "400":{
+            "$ref": "#/components/responses/MultipleReviewError"
+          },
           "401":{
             "$ref": "#/components/responses/Unauthenticated"
           },
@@ -1848,6 +1923,38 @@
           }
         }
       },
+      "ReviewNeededOrBlocked": {
+        "description": "Review is needed, or release has been blocked",
+        "content": {
+          "application/json":{
+            "schema":{
+              "type": "object",
+              "properties": {
+                "status": { "type": "string"}
+              },
+              "example": {
+                "error": "Review needed"
+              }
+            }
+          }
+        }
+      },
+      "MultipleReviewError": {
+        "description": "Only one review per task is allowed",
+        "content": {
+          "application/json":{
+            "schema":{
+              "type": "object",
+              "properties": {
+                "error": { "type": "string"}
+              },
+              "example": {
+                "error": "Task has been already reviewed"
+              }
+            }
+          }
+        }
+      },
       "NotFound": {
         "description": "Not found."
       },
@@ -2072,7 +2179,12 @@
           },
           "dataset_id": {
             "type": "string",
+            "description": "This is here mostly for legacy purposes, but referring by name is more consistent across multiple nodes.",
             "example": "1"
+          },
+          "dataset_name": {
+            "type": "string",
+            "example": "blood_samples"
           }
         },
         "required": [
@@ -2080,7 +2192,7 @@
           "project_name",
           "requested_by",
           "description",
-          "dataset_id",
+          "dataset_name",
           "proj_start",
           "proj_end"
         ]

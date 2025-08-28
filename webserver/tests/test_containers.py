@@ -117,7 +117,7 @@ class TestGetContainers(ContainersMixin):
         )
 
         assert resp.status_code == 404
-        assert resp.json["error"] == f'Container id: {container.id + 1} not found'
+        assert resp.json["error"] == f'Container with id {container.id + 1} does not exist'
 
     def test_get_container_by_id_non_auth(
         self,
@@ -298,7 +298,7 @@ class TestPatchContainers:
             headers=post_json_admin_header
         )
         assert resp.status_code == 404
-        assert resp.json["error"] == f"Container id: {container.id + 1} not found"
+        assert resp.json["error"] == f"Container with id {container.id + 1} does not exist"
 
     def test_patch_container_non_json(
         self,
