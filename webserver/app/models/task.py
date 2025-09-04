@@ -3,20 +3,20 @@ import json
 import re
 from datetime import datetime, timedelta
 from kubernetes.client.exceptions import ApiException
-from sqlalchemy import Column, Integer, DateTime, String, ForeignKey
+from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from uuid import uuid4
 
 import urllib3
 from app.helpers.const import (
-    CLEANUP_AFTER_DAYS, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, PUBLIC_URL,
-    TASK_NAMESPACE, TASK_POD_RESULTS_PATH, TASK_POD_INPUTS_PATH, RESULTS_PATH
+    CLEANUP_AFTER_DAYS, CRD_DOMAIN, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, PUBLIC_URL, TASK_CONTROLLER,
+    TASK_NAMESPACE, TASK_POD_RESULTS_PATH, TASK_POD_INPUTS_PATH, RESULTS_PATH, TASK_REVIEW
 )
 from app.helpers.base_model import BaseModel, db
 from app.helpers.keycloak import Keycloak
-from app.helpers.kubernetes import KubernetesBatchClient, KubernetesClient
-from app.helpers.exceptions import DBError, InvalidRequest, TaskImageException, TaskExecutionException
+from app.helpers.kubernetes import KubernetesBatchClient, KubernetesCRDClient, KubernetesClient
+from app.helpers.exceptions import DBError, InvalidRequest, TaskCRDExecutionException, TaskImageException, TaskExecutionException
 from app.helpers.task_pod import TaskPod
 from app.models.dataset import Dataset
 from app.models.container import Container
@@ -24,6 +24,13 @@ from app.models.request import Request
 
 logger = logging.getLogger('task_model')
 logger.setLevel(logging.INFO)
+
+
+REVIEW_STATUS = {
+    True: "Approved Release",
+    False: "Blocked Release",
+    None: "Pending Review"
+}
 
 
 class Task(db.Model, BaseModel):
@@ -36,6 +43,7 @@ class Task(db.Model, BaseModel):
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     updated_at = Column(DateTime(timezone=False), onupdate=func.now())
     requested_by = Column(String(256), nullable=False)
+    review_status = Column(Boolean, nullable=True)
     dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
     dataset = relationship("Dataset")
 
@@ -65,6 +73,7 @@ class Task(db.Model, BaseModel):
         self.resources = resources
         self.inputs = inputs
         self.outputs = outputs
+        self.is_from_controller = kwargs.get("from_controller")
         self.db_query = kwargs.get("db_query", {})
 
     @classmethod
@@ -76,8 +85,11 @@ class Task(db.Model, BaseModel):
         # Support only for one image at a time, the standard is executors == list
         executors = data["executors"][0]
         data["docker_image"] = executors["image"]
+        is_from_controller = data.pop("task_controller", False)
+
         data = super().validate(data)
 
+        data["from_controller"] = is_from_controller
         # Dataset validation
         if kc_client.is_user_admin(user_token):
             ds_id = data.get("tags", {}).get("dataset_id")
@@ -210,6 +222,10 @@ class Task(db.Model, BaseModel):
         return image.full_image_name()
 
     def pod_name(self):
+        """
+        Generalization for the pod name based on the task name
+        provided by the /tasks API call
+        """
         return f"{self.name.lower().replace(' ', '-')}-{uuid4()}"
 
     def get_expiration_date(self) -> str:
@@ -273,6 +289,10 @@ class Task(db.Model, BaseModel):
             logger.error(json.loads(e.body))
             raise InvalidRequest(f"Failed to run pod: {e.reason}") from e
 
+        if not self.is_from_controller:
+            # create CRD
+            self.create_controller_crd()
+
     def get_current_pod(self, is_running:bool=True):
         v1 = KubernetesClient()
         running_pods = v1.list_namespaced_pod(
@@ -329,6 +349,10 @@ class Task(db.Model, BaseModel):
             return self.status if self.status != 'running' else 'deleted'
 
     def terminate_pod(self):
+        """
+        Terminate a pod, checking if during the process
+        fails to do so, or is in an errored-out status already
+        """
         v1 = KubernetesClient()
         has_error = False
         try:
@@ -396,6 +420,75 @@ class Task(db.Model, BaseModel):
         except urllib3.exceptions.MaxRetryError as mre:
             raise InvalidRequest("The cluster could not create the job") from mre
         return res_file
+
+    def create_controller_crd(self):
+        """
+        In case this is a task triggered by users
+        directly through the API, create a CRD
+        so that the task controller can deliver resutls automatically
+        Some info like the idp and source is not actively used
+        by the controller at this stage, so we populate them
+        with default values.
+
+        If the TASK_CONTROLLER env variable is not set, do nothing
+        """
+        if not TASK_CONTROLLER:
+            return
+
+        crd_client = KubernetesCRDClient()
+        try:
+            crd_client.create_cluster_custom_object(
+                CRD_DOMAIN, 'v1', 'analytics',
+                {
+                    "apiVersion": f"{CRD_DOMAIN}/v1",
+                    "kind": "Analytics",
+                    "metadata": {
+                        "annotations": {
+                            f"{CRD_DOMAIN}/user": 'ok',
+                            f"{CRD_DOMAIN}/task_id": str(self.id),
+                            f"{CRD_DOMAIN}/done": 'true'
+                        },
+                        "name": f"fn-task-{self.id}"
+                    },
+                    "spec": {
+                        "dataset": {"name": self.dataset.name},
+                        "image": self.docker_image,
+                        "project": "federated_node",
+                        "source": {
+                            "repository": "Aridhia-Open-Source/PHEMS_federated_node"
+                        },
+                        "user": {
+                            "idpId": "",
+                            "username": Keycloak().get_user_by_id(self.requested_by)["username"]
+                        }
+                    }
+                }
+            )
+        except ApiException as apie:
+            if apie.status != 409:
+                raise TaskCRDExecutionException(apie.body, apie.status) from apie
+            pass
+
+    def get_review_status(self) -> str:
+        """
+        Simple method to get the review_status
+        By default None
+            None => not reviewed/needs review
+            True => approved
+            False => denied/blocked
+        """
+        return REVIEW_STATUS[self.review_status]
+
+    def sanitized_dict(self):
+        """
+        Extend the method to add custom status and review
+        """
+        san_dict = super().sanitized_dict()
+        san_dict["status"] = self.get_status()
+        if TASK_REVIEW:
+            san_dict["review_status"] = self.get_review_status()
+
+        return san_dict
 
     def get_logs(self):
         """

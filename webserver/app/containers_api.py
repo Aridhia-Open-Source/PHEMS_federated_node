@@ -66,9 +66,7 @@ def get_image_by_id(image_id:int=None):
     """
     GET /containers/<image_id>
     """
-    image = Container.query.filter(Container.id == image_id).one_or_none()
-    if not image:
-        raise DBRecordNotFoundError(f"Container id: {image_id} not found")
+    image = Container.get_by_id(image_id)
 
     return Container.sanitized_dict(image), 200
 
@@ -91,9 +89,7 @@ def patch_datasets_by_id_or_name(image_id:int=None):
     if not (data.get("ml") or data.get("dashboard")):
         raise InvalidRequest("Either `ml` or `dashboard` field must be provided")
 
-    image = Container.query.filter(Container.id == image_id).one_or_none()
-    if not image:
-        raise DBRecordNotFoundError(f"Container id: {image_id} not found")
+    image = Container.get_by_id(image_id)
 
     for field in ["ml", "dashboard"]:
         if data.get(field) and isinstance(data.get(field), bool):

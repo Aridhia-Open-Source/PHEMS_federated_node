@@ -1,88 +1,19 @@
 import json
 import pytest
 import re
-from copy import deepcopy
-from unittest import mock
-from datetime import datetime, timedelta
-from kubernetes.client.exceptions import ApiException
 from unittest import mock
 from unittest.mock import Mock
+
+from datetime import datetime, timedelta
+from kubernetes.client.exceptions import ApiException
 
 from app.helpers.const import CLEANUP_AFTER_DAYS, TASK_POD_RESULTS_PATH
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.models.task import Task
 from tests.fixtures.azure_cr_fixtures import *
+from tests.fixtures.tasks_fixtures import *
 
-
-@pytest.fixture(scope='function')
-def task_body(dataset, container):
-    return deepcopy({
-        "name": "Test Task",
-        "requested_by": "das9908-as098080c-9a80s9",
-        "executors": [
-            {
-                "image": container.full_image_name(),
-                "command": ["R", "-e", "df <- as.data.frame(installed.packages())[,c('Package', 'Version')];write.csv(df, file='/mnt/data/packages.csv', row.names=FALSE);Sys.sleep(10000)\""],
-                "env": {
-                    "VARIABLE_UNIQUE": 123,
-                    "USERNAME": "test"
-                }
-            }
-        ],
-        "db_query": {
-            "query": "SELECT * FROM table",
-            "dialect": "postgres"
-        },
-        "description": "First task ever!",
-        "tags": {
-            "dataset_id": dataset.id,
-            "test_tag": "some content"
-        },
-        "inputs": {},
-        "outputs": {},
-        "resources": {},
-        "volumes": {}
-    })
-
-@pytest.fixture
-def running_state():
-    return Mock(
-        state=Mock(
-            running=Mock(
-                started_at="1/1/2024"
-            ),
-            waiting=None,
-            terminated=None
-        )
-    )
-
-@pytest.fixture
-def waiting_state():
-    return Mock(
-        state=Mock(
-            waiting=Mock(
-                started_at="1/1/2024"
-            ),
-            running=None,
-            terminated=None
-        )
-    )
-
-@pytest.fixture
-def terminated_state():
-    return Mock(
-        state=Mock(
-            terminated=Mock(
-                started_at="1/1/2024",
-                finished_at="1/1/2024",
-                reason="Completed successfully!",
-                exit_code=0,
-            ),
-            running=None,
-            waiting=None
-        )
-    )
 
 class TestGetTasks:
     def test_get_list_tasks(
@@ -128,6 +59,7 @@ class TestGetTasks:
         If an admin wants to check a specific task they should be allowed regardless
         of who requested it
         """
+        mocks_kc_tasks["tasks"].return_value.get_user_by_id.return_value = {"username": "user"}
         resp = client.post(
             '/tasks/',
             data=json.dumps(task_body),
@@ -274,131 +206,6 @@ class TestGetTasks:
         }
         assert response_id.json["status"] == expected_status
 
-    def test_task_get_logs(
-            self,
-            post_json_admin_header,
-            client,
-            mocker,
-            terminated_state,
-            task
-        ):
-        """
-        Basic test that will allow us to return
-        the pods logs
-        """
-        mocker.patch(
-            'app.models.task.Task.get_current_pod',
-            return_value=Mock(
-                status=Mock(
-                    container_statuses=[terminated_state]
-                )
-            )
-        )
-        response_logs = client.get(
-            f'/tasks/{task.id}/logs',
-            headers=post_json_admin_header
-        )
-        assert response_logs.status_code == 200
-        assert response_logs.json["logs"] == [
-            'Example logs',
-            'another line'
-        ]
-
-    def test_task_logs_non_existent(
-            self,
-            post_json_admin_header,
-            client,
-            task
-        ):
-        """
-        Basic test that will check the appropriate error
-        is returned when the task id does not exist
-        """
-        response_logs = client.get(
-            f'/tasks/{task.id + 1}/logs',
-            headers=post_json_admin_header
-        )
-        assert response_logs.status_code == 404
-        assert response_logs.json["error"] == f"Task with id {task.id + 1} does not exist"
-
-    def test_task_waiting_get_logs(
-            self,
-            post_json_admin_header,
-            client,
-            mocker,
-            waiting_state,
-            task
-        ):
-        """
-        Basic test that will try to get logs for a pod
-        in an init state.
-        """
-        mocker.patch(
-            'app.models.task.Task.get_current_pod',
-            return_value=Mock(
-                status=Mock(
-                    container_statuses=[waiting_state]
-                )
-            )
-        )
-        response_logs = client.get(
-            f'/tasks/{task.id}/logs',
-            headers=post_json_admin_header
-        )
-        assert response_logs.status_code == 200
-        assert response_logs.json["logs"] == 'Task queued'
-
-    def test_task_not_found_get_logs(
-            self,
-            post_json_admin_header,
-            client,
-            mocker,
-            task
-        ):
-        """
-        Basic test that will try to get the logs from a missing
-        pod. This can happen if the task gets cleaned up
-        """
-        mocker.patch(
-            'app.models.task.Task.get_current_pod',
-            return_value=None
-        )
-        response_logs = client.get(
-            f'/tasks/{task.id}/logs',
-            headers=post_json_admin_header
-        )
-        assert response_logs.status_code == 400
-        assert response_logs.json["error"] == f'Task pod {task.id} not found'
-
-    def test_task_get_logs_fails(
-            self,
-            post_json_admin_header,
-            client,
-            k8s_client,
-            mocker,
-            task,
-            terminated_state
-        ):
-        """
-        Basic test that will try to get the logs, but k8s
-        will raise an ApiException. It is expected a 500 status code
-        """
-        mocker.patch(
-            'app.models.task.Task.get_current_pod',
-            return_value=Mock(
-                status=Mock(
-                    container_statuses=[terminated_state]
-                )
-            )
-        )
-        k8s_client["read_namespaced_pod_log"].side_effect = ApiException()
-        response_logs = client.get(
-            f'/tasks/{task.id}/logs',
-            headers=post_json_admin_header
-        )
-        assert response_logs.status_code == 500
-        assert response_logs.json["error"] == 'Failed to fetch the logs'
-
 
 class TestPostTask:
     def test_create_task(
@@ -420,6 +227,7 @@ class TestPostTask:
         )
         assert response.status_code == 201
         reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        reg_k8s_client["create_cluster_custom_object"].assert_not_called()
         pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
         # Make sure the two init containers are created
         assert len(pod_body.spec.init_containers) == 2
@@ -805,6 +613,71 @@ class TestPostTask:
         assert len(pod_body.spec.containers[0].volume_mounts) == 2
         assert [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts] == ["/mnt/inputs", TASK_POD_RESULTS_PATH]
 
+    def test_create_task_controller_not_deployed_no_crd(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            registry_client,
+            k8s_client,
+            task_body
+        ):
+        """
+        Tests task creation returns 201. It should not try to
+        create a CRD if the task controller is not deployed
+        """
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        k8s_client["create_cluster_custom_object"].assert_not_called()
+
+    def test_create_task_controller_deployed_create_crd(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            registry_client,
+            set_task_controller_env,
+            k8s_client,
+            task_body
+        ):
+        """
+        Tests task creation returns 201. It should try to
+        create a CRD if the task controller is deployed
+        """
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        k8s_client["create_cluster_custom_object"].assert_called()
+
+    def test_create_task_from_controller(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            registry_client,
+            k8s_client,
+            task_body
+        ):
+        """
+        Tests task creation returns 201. Should be consistent
+        with or without the task_controller flag
+        """
+        task_body["task_controller"] = True
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        k8s_client["create_cluster_custom_object"].assert_not_called()
+
     def test_task_connection_string_postgres(
             self,
             task,
@@ -942,303 +815,128 @@ class TestValidateTask:
         assert response.status_code == 200, response.json
 
 
-class TestTaskResults:
-    def test_get_results(
-        self,
-        cr_client,
-        registry_client,
-        post_json_admin_header,
-        simple_admin_header,
-        client,
-        task_body,
-        mocker,
-        reg_k8s_client,
-        task
-    ):
+class TestTasksLogs:
+    def test_task_get_logs(
+            self,
+            post_json_admin_header,
+            client,
+            mocker,
+            terminated_state,
+            task
+        ):
         """
-        A simple test with mocked PVs to test a successful result
-        fetch
+        Basic test that will allow us to return
+        the pods logs
         """
-        # The mock has to be done manually rather than use the fixture
-        # as it complains about the return value of the list_pod method
-        mocker.patch('app.models.task.uuid4', return_value="1dc6c6d1-417f-409a-8f85-cb9d20f7c741")
-
-        pod_mock = Mock()
-        pod_mock.metadata.labels = {"job-name": "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"}
-        pod_mock.metadata.name = "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"
-        pod_mock.spec.containers = [Mock(image=task.docker_image)]
-        pod_mock.status.container_statuses = [Mock(ready=True)]
-        reg_k8s_client["list_namespaced_pod_mock"].return_value.items = [pod_mock]
-
         mocker.patch(
-            'app.models.task.Task.get_status',
-            return_value={"running": {}}
+            'app.models.task.Task.get_current_pod',
+            return_value=Mock(
+                status=Mock(
+                    container_statuses=[terminated_state]
+                )
+            )
         )
-
-        response = client.get(
-            f'/tasks/{task.id}/results',
-            headers=simple_admin_header
+        response_logs = client.get(
+            f'/tasks/{task.id}/logs',
+            headers=post_json_admin_header
         )
-        assert response.status_code == 200
-        assert response.content_type == "application/zip"
+        assert response_logs.status_code == 200
+        assert response_logs.json["logs"] == [
+            'Example logs',
+            'another line'
+        ]
 
-    def test_get_results_user_non_owner(
-        self,
-        cr_client,
-        registry_client,
-        simple_user_header,
-        client,
-        task_body,
-        admin_user_uuid,
-        mocker,
-        reg_k8s_client,
-        task
-    ):
+    def test_task_logs_non_existent(
+            self,
+            post_json_admin_header,
+            client,
+            task
+        ):
         """
-        Tests that only who triggers the task, and admins can only
-        fetch a results. In this case, an admin triggers the task
-        and a normal user shouldn't be able to
+        Basic test that will check the appropriate error
+        is returned when the task id does not exist
         """
-        task.requested_by = admin_user_uuid
+        response_logs = client.get(
+            f'/tasks/{task.id + 1}/logs',
+            headers=post_json_admin_header
+        )
+        assert response_logs.status_code == 404
+        assert response_logs.json["error"] == f"Task with id {task.id + 1} does not exist"
 
-        # The mock has to be done manually rather than use the fixture
-        # as it complains about the return value of the list_pod method
-        mocker.patch('app.models.task.uuid4', return_value="1dc6c6d1-417f-409a-8f85-cb9d20f7c741")
-
-        pod_mock = Mock()
-        pod_mock.metadata.labels = {"job-name": "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"}
-        pod_mock.metadata.name = "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"
-        pod_mock.spec.containers = [Mock(image=task.docker_image)]
-        pod_mock.status.container_statuses = [Mock(ready=True)]
-        reg_k8s_client["list_namespaced_pod_mock"].return_value.items = [pod_mock]
-
+    def test_task_waiting_get_logs(
+            self,
+            post_json_admin_header,
+            client,
+            mocker,
+            waiting_state,
+            task
+        ):
+        """
+        Basic test that will try to get logs for a pod
+        in an init state.
+        """
         mocker.patch(
-            'app.models.task.Task.get_status',
-            return_value={"running": {}}
+            'app.models.task.Task.get_current_pod',
+            return_value=Mock(
+                status=Mock(
+                    container_statuses=[waiting_state]
+                )
+            )
         )
-
-        response = client.get(
-            f'/tasks/{task.id}/results',
-            headers=simple_user_header
+        response_logs = client.get(
+            f'/tasks/{task.id}/logs',
+            headers=post_json_admin_header
         )
-        assert response.status_code == 403
-        assert response.json["error"] == "User does not have enough permissions"
+        assert response_logs.status_code == 200
+        assert response_logs.json["logs"] == 'Task queued'
 
-    def test_get_results_user_is_owner(
-        self,
-        cr_client,
-        registry_client,
-        simple_user_header,
-        client,
-        mocker,
-        reg_k8s_client,
-        task
-    ):
+    def test_task_not_found_get_logs(
+            self,
+            post_json_admin_header,
+            client,
+            mocker,
+            task
+        ):
         """
-        Tests that only who triggers the task, and admins can only
-        fetch a results. In this case, the user triggers the task
-        and they're able to get the results
+        Basic test that will try to get the logs from a missing
+        pod. This can happen if the task gets cleaned up
         """
-        # The mock has to be done manually rather than use the fixture
-        # as it complains about the return value of the list_pod method
-        mocker.patch('app.models.task.uuid4', return_value="1dc6c6d1-417f-409a-8f85-cb9d20f7c741")
-
-        pod_mock = Mock()
-        pod_mock.metadata.labels = {"job-name": "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"}
-        pod_mock.metadata.name = "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"
-        pod_mock.spec.containers = [Mock(image=task.docker_image)]
-        pod_mock.status.container_statuses = [Mock(ready=True)]
-        reg_k8s_client["list_namespaced_pod_mock"].return_value.items = [pod_mock]
-
         mocker.patch(
-            'app.models.task.Task.get_status',
-            return_value={"running": {}}
+            'app.models.task.Task.get_current_pod',
+            return_value=None
         )
-
-        response = client.get(
-            f'/tasks/{task.id}/results',
-            headers=simple_user_header
+        response_logs = client.get(
+            f'/tasks/{task.id}/logs',
+            headers=post_json_admin_header
         )
-        assert response.status_code == 200
-        assert response.content_type == "application/zip"
+        assert response_logs.status_code == 400
+        assert response_logs.json["error"] == f'Task pod {task.id} not found'
 
-    def test_get_results_job_creation_failure(
-        self,
-        simple_admin_header,
-        client,
-        reg_k8s_client,
-        task
-    ):
+    def test_task_get_logs_fails(
+            self,
+            post_json_admin_header,
+            client,
+            k8s_client,
+            mocker,
+            task,
+            terminated_state
+        ):
         """
-        Tests that the job creation to fetch results from a PV returns a 500
-        error code
+        Basic test that will try to get the logs, but k8s
+        will raise an ApiException. It is expected a 500 status code
         """
-        # Get results - creating a job fails
-        reg_k8s_client["create_namespaced_job_mock"].side_effect = ApiException(status=500, reason="Something went wrong")
-
-        pod_mock = Mock()
-        pod_mock.metadata.labels = {"job-name": "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"}
-        pod_mock.metadata.name = "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"
-        pod_mock.spec.containers = [Mock(image=task.docker_image)]
-        pod_mock.status.container_statuses = [Mock(ready=True)]
-        reg_k8s_client["list_namespaced_pod_mock"].return_value.items = [pod_mock]
-
-        response = client.get(
-            f'/tasks/{task.id}/results',
-            headers=simple_admin_header
+        mocker.patch(
+            'app.models.task.Task.get_current_pod',
+            return_value=Mock(
+                status=Mock(
+                    container_statuses=[terminated_state]
+                )
+            )
         )
-        assert response.status_code == 400
-        assert response.json["error"] == 'Failed to run pod: Something went wrong'
-
-    def test_results_not_found_with_expired_date(
-        self,
-        simple_admin_header,
-        client,
-        task
-    ):
-        """
-        A task result are being deleted after a declared number of days.
-        This test makes sure an error is returned as expected
-        """
-        task.created_at=datetime.now() - timedelta(days=CLEANUP_AFTER_DAYS)
-        response = client.get(
-            f'/tasks/{task.id}/results',
-            headers=simple_admin_header
+        k8s_client["read_namespaced_pod_log"].side_effect = ApiException()
+        response_logs = client.get(
+            f'/tasks/{task.id}/logs',
+            headers=post_json_admin_header
         )
-        assert response.status_code == 500
-        assert response.json["error"] == 'Tasks results are not available anymore. Please, run the task again'
-
-
-class TestResourceValidators:
-    def test_valid_values(
-            self,
-            mocker,
-            mocks_kc_tasks,
-            user_uuid,
-            registry_client,
-            cr_client,
-            task_body
-        ):
-        """
-        Tests that the expected resource values are accepted
-        """
-        task_body["resources"] = {
-            "limits": {
-                "cpu": "100m",
-                "memory": "100Mi"
-            },
-            "requests": {
-                "cpu": "0.1",
-                "memory": "100Mi"
-            }
-        }
-        Task.validate(task_body)
-
-    def test_invalid_memory_values(
-            self,
-            mocker,
-            mocks_kc_tasks,
-            user_uuid,
-            cr_client,
-            registry_client,
-            task_body
-        ):
-        """
-        Tests that the unexpected memory values are not accepted
-        """
-        invalid_values = ["hundredMi", "100ki", "100mi", "0.1Ki", "Mi100"]
-        for in_val in invalid_values:
-            task_body["resources"] = {
-                "limits": {
-                    "cpu": "100m",
-                    "memory": "100Mi"
-                },
-                "requests": {
-                    "cpu": "0.1",
-                    "memory": in_val
-                }
-            }
-            with pytest.raises(InvalidRequest) as ir:
-                Task.validate(task_body)
-            assert ir.value.description == f'Memory resource value {in_val} not valid.'
-
-    def test_invalid_cpu_values(
-            self,
-            mocker,
-            mocks_kc_tasks,
-            user_uuid,
-            cr_client,
-            registry_client,
-            task_body
-        ):
-        """
-        Tests that the unexpected cpu values are not accepted
-        """
-        invalid_values = ["5.24.1", "hundredm", "100Ki", "100mi", "0.1m"]
-
-        for in_val in invalid_values:
-            task_body["resources"] = {
-                "limits": {
-                    "cpu": in_val,
-                    "memory": "100Mi"
-                },
-                "requests": {
-                    "cpu": "0.1",
-                    "memory": "100Mi"
-                }
-            }
-            with pytest.raises(InvalidRequest) as ir:
-                Task.validate(task_body)
-            assert ir.value.description == f'Cpu resource value {in_val} not valid.'
-
-    def test_mem_limit_lower_than_request_fails(
-            self,
-            mocker,
-            mocks_kc_tasks,
-            user_uuid,
-            cr_client,
-            registry_client,
-            task_body
-        ):
-        """
-        Tests that the unexpected cpu values are not accepted
-        """
-        task_body["resources"] = {
-            "limits": {
-                "cpu": "100m",
-                "memory": "100Mi"
-            },
-            "requests": {
-                "cpu": "0.1",
-                "memory": "200000Ki"
-            }
-        }
-        with pytest.raises(InvalidRequest) as ir:
-            Task.validate(task_body)
-        assert ir.value.description == 'Memory limit cannot be lower than request'
-
-    def test_cpu_limit_lower_than_request_fails(
-            self,
-            mocker,
-            mocks_kc_tasks,
-            user_uuid,
-            cr_client,
-            registry_client,
-            task_body
-        ):
-        """
-        Tests that the unexpected cpu values are not accepted
-        """
-        task_body["resources"] = {
-            "limits": {
-                "cpu": "100m",
-                "memory": "100Mi"
-            },
-            "requests": {
-                "cpu": "0.2",
-                "memory": "100Mi"
-            }
-        }
-        with pytest.raises(InvalidRequest) as ir:
-            Task.validate(task_body)
-        assert ir.value.description == 'Cpu limit cannot be lower than request'
+        assert response_logs.status_code == 500
+        assert response_logs.json["error"] == 'Failed to fetch the logs'
