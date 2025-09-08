@@ -92,6 +92,8 @@ class Dataset(db.Model, BaseModel):
             )
             if "krb5.conf" not in data["auth_configmap"].data:
                 raise InvalidRequest("configmap doesn't have `krb5.conf` as a data field")
+            if "principal.keytab" not in data["auth_configmap"].data:
+                raise InvalidRequest("configmap doesn't have `principal.keytab` as a data field")
         except ApiException as apie:
             if apie.status == 404:
                 raise InvalidRequest(
@@ -112,9 +114,10 @@ class Dataset(db.Model, BaseModel):
                 label_selector=f"fn_dataset={self.name},fn_dataset_host={self.host}"
             )
         except ApiException as apie:
-            if apie.status == 404:
-                raise DatasetError("Configmap with connection config not found")
-        return cm.items[0]
+            logging.error(apie.body)
+            raise DatasetError("An error occurred while fetching the configmap") from apie
+
+        return cm.items[0] if len(cm.items) else None
 
     def get_cm_name(self) -> str:
         """
@@ -273,25 +276,27 @@ class Dataset(db.Model, BaseModel):
         v1 = KubernetesClient()
 
         # If the dataset to update has the configmap for connection
-        if self.auth_type == "kerberos":
+        if kwargs.get("auth_type", self.auth_type) == "kerberos":
             new_cm_name = kwargs.pop("auth_configmap", "")
-            old_cm = self.get_connection_cm()
-            new_cm = v1.read_namespaced_config_map(
-                name=new_cm_name,
-                namespace=DEFAULT_NAMESPACE
-            )
-            self.label_new_configmap(new_cm)
+            if new_cm_name:
+                old_cm = self.get_connection_cm()
+                new_cm = v1.read_namespaced_config_map(
+                    name=new_cm_name,
+                    namespace=DEFAULT_NAMESPACE
+                )
+                self.label_new_configmap(new_cm)
 
-            old_cm.metadata.labels.pop("fn_dataset", None)
-            old_cm.metadata.labels.pop("fn_dataset_host", None)
-            v1.replace_namespaced_config_map(
-                name=old_cm.metadata.name,
-                body=old_cm, namespace=DEFAULT_NAMESPACE
-            )
-            v1.delete_namespaced_config_map(
-                name=old_cm.metadata.name,
-                namespace=TASK_NAMESPACE
-            )
+                if old_cm:
+                    old_cm.metadata.labels.pop("fn_dataset", None)
+                    old_cm.metadata.labels.pop("fn_dataset_host", None)
+                    v1.replace_namespaced_config_map(
+                        name=old_cm.metadata.name,
+                        body=old_cm, namespace=DEFAULT_NAMESPACE
+                    )
+                    v1.delete_namespaced_config_map(
+                        name=old_cm.metadata.name,
+                        namespace=TASK_NAMESPACE
+                    )
 
         elif self.needs_secret:
             # Get existing secret
@@ -339,6 +344,7 @@ class Dataset(db.Model, BaseModel):
         # Update table
         if kwargs:
             self.query.filter(Dataset.id == self.id).update(kwargs, synchronize_session='evaluate')
+            db.session.commit()
 
     @classmethod
     def get_dataset_by_name_or_id(cls, id:int=None, name:str="") -> "Dataset":

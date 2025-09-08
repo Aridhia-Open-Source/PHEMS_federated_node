@@ -2,7 +2,7 @@ SHELL=/bin/bash
 VERSION=1.3.0
 
 env:
-	set -o allexport && source dev.env && set +o allexport
+	set -a;	source dev.env;	set +a
 
 run:
 	flask -A app/app run --host=0.0.0.0

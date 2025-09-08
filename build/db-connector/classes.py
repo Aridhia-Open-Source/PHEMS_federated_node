@@ -1,8 +1,10 @@
 import os
 import re
+import urllib
+import pyodbc
 from sqlglot import transpile, parse_one
 from sqlglot.expressions import Table, Join, Column
-from sqlalchemy import create_engine, text
+from sqlalchemy import Connection, create_engine, text
 
 
 class BaseEngine:
@@ -61,6 +63,10 @@ class BaseEngine:
 
         return parsed.sql()
 
+    def connect(self) -> Connection:
+        engine = create_engine(self.connection_str)
+        return engine.connect()
+
     def run_query(self, query:str, from_dialect:str) -> dict:
         """
         Establishes a connection and then runs the converted query
@@ -70,8 +76,7 @@ class BaseEngine:
         query = transpile(query, read=from_dialect, write=self.convert_as)
         print(f"Got query: {query}")
 
-        engine = create_engine(self.connection_str)
-        connection = engine.connect()
+        connection = self.connect()
 
         out = connection.execute(text(query[0]))
         return out.all(), list(out.keys())
@@ -95,13 +100,19 @@ class Mssql(BaseEngine):
             if os.getenv("KERBEROS"):
                 #If is not set in the args, add it
                 if "trusted_connection" not in args.lower():
-                    args += "Trusted_Connection=YES"
-                # otherwise replace its contents with Trusted_Connection=YES;
+                    args += ";TrustServerCertificate=yes;Trusted_Connection=yes;"
+                # otherwise replace its contents with Trusted_Connection=yes;
                 else:
-                    args = re.sub(r"(T|t)rusted_(C|c)onnection(.*?);", "Trusted_Connection=YES;", args)
+                    args = re.sub(r"(T|t)rusted_(C|c)onnection(.*?);", ";TrustServerCertificate=yes;Trusted_Connection=yes;", args)
+                self.params = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={host};DATABASE={database};{args}"
+            else:
+                super().__init__(user, passw, host, port, database, args)
 
-            super(self).__init__(user, passw, host, port, database, args)
+    def connect(self) -> Connection:
+        if os.getenv("KERBEROS"):
+            return pyodbc.connect(self.params)
 
+        super().connect()
 
 class Postgres(BaseEngine):
     protocol = "postgresql://"

@@ -2,11 +2,14 @@
 
 set -e
 
+echo "Using Kerberos? ${KERBEROS:-No}"
+
 if [ -n "$KERBEROS" ]; then
     echo "Requesting Kerberos ticket"
     if [ -e "/etc/krb5.conf" ]; then
         export KRB5_CONFIG="/etc/krb5.conf"
-        echo "$PASSWORD" | kinit "${USER}"
+        kinit -kft /etc/principal.keytab "${PGUSER}"
+        klist -kt /etc/principal.keytab
     else
         echo "krb5 configuration file missing"
         exit 1

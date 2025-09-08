@@ -35,7 +35,8 @@ RUN apt-get update \
 
 WORKDIR /app/
 COPY *.py /app/
+COPY entrypoint.sh /app/
 USER ${USER_UID}
 ENV PYTHONPATH=/app
 ENV PATH="/.venv/bin:$PATH"
-ENTRYPOINT [ "python3", "-m", "connector" ]
+ENTRYPOINT [ "/bin/sh", "/app/entrypoint.sh" ]

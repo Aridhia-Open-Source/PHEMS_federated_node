@@ -196,7 +196,10 @@ def v1_mock(mocker):
             'app.helpers.kubernetes.KubernetesClient.read_namespaced_config_map',
             return_value=Mock(
                 metadata=Mock(labels={}),
-                data={"krb5.conf": "content"}
+                data={
+                    "krb5.conf": "content",
+                    "principal.keytab": "content"
+                }
             )
         ),
         "replace_namespaced_config_map_mock": mocker.patch(

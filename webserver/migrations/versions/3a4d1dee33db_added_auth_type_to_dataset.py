@@ -1,7 +1,7 @@
 """Added auth_type to dataset
 
 Revision ID: 3a4d1dee33db
-Revises: 989f740f31f8
+Revises: c578d820455d
 Create Date: 2025-04-24 15:07:52.516227
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '3a4d1dee33db'
-down_revision: Union[str, None] = '989f740f31f8'
+down_revision: Union[str, None] = 'c578d820455d'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

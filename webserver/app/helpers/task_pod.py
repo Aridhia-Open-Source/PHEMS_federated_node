@@ -159,11 +159,19 @@ class TaskPod:
             )
         ]
         if self.dataset.auth_type == "kerberos":
+            self.env_init.append(V1EnvVar(name="KERBEROS", value="1"))
             vol_mount.append(
                 V1VolumeMount(
                     mount_path="etc/krb5.conf",
                     sub_path="krb5.conf",
                     name="conn-info"
+                )
+            )
+            vol_mount.append(
+                V1VolumeMount(
+                    mount_path="etc/principal.keytab",
+                    sub_path="principal.keytab",
+                    name="keytab"
                 )
             )
         dir_init = V1Container(
@@ -184,7 +192,7 @@ class TaskPod:
             data_init = V1Container(
                 name="fetch-data",
                 image=f"ghcr.io/aridhia-open-source/db_connector:{IMAGE_TAG}",
-                volume_mounts=[vol_mount],
+                volume_mounts=vol_mount,
                 image_pull_policy="Always",
                 env=self.env_init,
                 env_from=self.env_from
@@ -263,6 +271,12 @@ class TaskPod:
                 V1Volume(name="conn-info", config_map=V1ConfigMapVolumeSource(
                     name=self.dataset.get_cm_name(),
                     items=[V1KeyToPath(path="krb5.conf", key="krb5.conf")]
+                ))
+            )
+            specs.volumes.append(
+                V1Volume(name="keytab", config_map=V1ConfigMapVolumeSource(
+                    name=self.dataset.get_cm_name(),
+                    items=[V1KeyToPath(path="principal.keytab", key="principal.keytab")]
                 ))
             )
         metadata = V1ObjectMeta(
