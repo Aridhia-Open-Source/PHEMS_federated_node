@@ -1,5 +1,25 @@
 # Releases Changelog
 
+## 1.5.0
+- Added support for Kerberos based authentication DBs. In order to enable it on a exising or new dataset, a secret must be created beforehand in the same namespace where the federated node is deployed.
+
+    This secret, should have two keys: `krb5.conf` with the file contents of the omonimous file, and `principal.keytab` with the file contents of the principal keytab.
+
+    And example from CLI would be:
+    ```sh
+    kubectl create secret -n federatednode generic kerb-db-auth --from-file=krb5.conf=/etc/krb5.conf --from-file=principal.keytab=/data/mssql.keytab
+    ```
+
+    Once this is created, the POST/PATCH endpoints can be used to map the dataset with this type of auth, using the following as integration to the request body:
+    ```json
+    {
+        "auth_type": "kerberos",
+        "kerberos": {
+            "secret_name": "kerb-db-auth"
+        }
+    }
+    ```
+
 ## 1.3.0
 - Upgraded all python images to use `python:3.13-slim`
 - Upgraded alpine image to 3.22
