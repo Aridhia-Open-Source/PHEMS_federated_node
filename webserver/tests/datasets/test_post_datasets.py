@@ -113,43 +113,39 @@ class TestPostDataset(MixinTestDataset):
             post_json_admin_header,
             client,
             dataset,
+            dataset_kerberos_post_body,
+            kerberos_secret_read
         ):
         """
         /datasets POST is successful with the auth type won't
         check for credentials in the body, and will still accept that
         """
-        data_body = {
-            "name": "TestDs78",
-            "type": 'mssql',
-            "host": "something",
-            "auth_type": "kerberos",
-            "auth_configmap": "auth-configmap"
-        }
+        self.post_dataset(client, post_json_admin_header, dataset_kerberos_post_body)
 
-        self.post_dataset(client, post_json_admin_header, data_body)
-
-        query = self.run_query(select(Dataset).where(Dataset.name == data_body["name"].lower(), Dataset.type == "mssql"))
+        query = self.run_query(select(Dataset).where(Dataset.name == dataset_kerberos_post_body["name"].lower(), Dataset.type == "mssql"))
         assert len(query) == 1
 
-    def test_post_dataset_kerberos_auth_no_cm(
+    def test_post_dataset_kerberos_auth_no_secret(
             self,
             post_json_admin_header,
             client,
-            dataset,
+            dataset_kerberos_post_body,
+            kerberos_secret_read
         ):
         """
         /datasets POST is successful with the auth type won't
-        check for credentials in the body, but will fail with no configmap name provided
+        check for credentials in the body, but will fail with no secret name provided
         """
         data_body = {
             "name": "TestDs78",
             "type": 'mssql',
             "host": "something",
             "auth_type": "kerberos",
+            "username": "something"
         }
 
         resp = self.post_dataset(client, post_json_admin_header, data_body, 400)
-        assert resp["error"] == "With kerberos auth_type, a configmap containing krb5.conf key is needed"
+        assert resp["error"] == "With kerberos auth_type, a secret containing krb5.conf and principal.keytab keys is needed"
 
     def test_post_dataset_invalid_auth(
             self,
@@ -271,7 +267,7 @@ class TestPostDataset(MixinTestDataset):
             post_json_admin_header,
             client,
             k8s_config,
-            dataset_post_body,
+            dataset_kerberos_post_body,
             mocker
         ):
         """
@@ -281,16 +277,34 @@ class TestPostDataset(MixinTestDataset):
         mocker.patch(
             'app.models.dataset.KubernetesClient',
             return_value=Mock(
-                read_namespaced_config_map=Mock(
+                read_namespaced_secret=Mock(
                     return_value=Mock(data={"krb5.conf": ""})
                 )
             )
         )
-        data_body = dataset_post_body.copy()
-        data_body['name'] = 'TestDs78'
+        data_body = dataset_kerberos_post_body.copy()
         self.post_dataset(client, post_json_admin_header, data_body, code=400)
 
         self.assert_datasets_by_name(data_body['name'], 0)
+
+    @mock.patch('app.datasets_api.Dataset.add')
+    def test_post_dataset_kerberos_missing_required_field(
+            self,
+            ds_add_mock,
+            post_json_admin_header,
+            client,
+            k8s_config,
+            dataset_kerberos_post_body,
+            mocker
+        ):
+        """
+        /datasets POST is not successful if the request is missing the username field
+        """
+        dataset_kerberos_post_body.pop("username")
+        self.post_dataset(client, post_json_admin_header, dataset_kerberos_post_body, code=400)
+
+        self.assert_datasets_by_name(dataset_kerberos_post_body['name'], 0)
+
 
     @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
     def test_post_dataset_is_unsuccessful_non_admin(

@@ -206,29 +206,28 @@ class TestPatchDataset(MixinTestDataset):
         assert response.status_code == 404
 
     @mock.patch('app.datasets_api.Dataset.add')
-    def test_patch_dataset_kerberos_missing_fields(
+    def test_patch_dataset_kerberos_missing_secret_keys(
             self,
             ds_add_mock,
             post_json_admin_header,
             client,
             k8s_config,
-            dataset_post_body,
+            dataset_kerberos_post_body,
+            kerberos_secret_read,
             mocker
         ):
         """
-        /datasets PATCH is not successful if the cm provided is missing
+        /datasets PATCH is not successful if the secret provided is missing
         required keys
         """
-        mocker.patch(
-            'app.models.dataset.KubernetesClient',
-            return_value=Mock(
-                read_namespaced_config_map=Mock(
-                    return_value=Mock(data={"krb5.conf": ""})
-                )
-            )
-        )
-        data_body = dataset_post_body.copy()
-        data_body['name'] = 'TestDs78'
-        self.post_dataset(client, post_json_admin_header, data_body, code=400)
+        resp = self.post_dataset(client, post_json_admin_header, dataset_kerberos_post_body)
+        kerberos_secret_read.return_value.read_namespaced_secret.return_value.data = {"krb5.conf": ""}
 
-        self.assert_datasets_by_name(data_body['name'], 0)
+        response = client.patch(
+            f"/datasets/{resp["dataset_id"]}",
+            json={"kerberos": {"secret_name": "new_sec"}},
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert response.json["error"] == "Mandatory keys missing in the secret. Make sure krb5.conf and principal.keytab are there"
+        kerberos_secret_read.return_value.patch_namespaced_secret.assert_not_called()

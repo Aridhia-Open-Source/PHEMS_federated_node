@@ -716,6 +716,29 @@ class TestPostTask:
         env = [env.value for env in pod_body.spec.containers[0].env if env.name == "CONNECTION_STRING"][0]
         assert re.match(r'driver={Oracle ODBC Driver};Uid=.*;PSW=.*;DBQ=.*;$', env) is not None
 
+    def test_kerberos_based_tasks(
+            self,
+            task,
+            cr_client,
+            dataset_kerberos,
+            reg_k8s_client
+    ):
+        """
+        Tests that the environment is set accordingly with kerberos auth
+        """
+        task.dataset = dataset_kerberos
+        task.db_query = {
+            "query": "SELECT * FROM table",
+            "dialect": "postgres"
+        }
+        task.run()
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        env = [env.value for env in pod_body.spec.init_containers[1].env if env.name == "KERBEROS"][0]
+        assert env == "1"
+        volumes = [vol.mount_path for vol in pod_body.spec.init_containers[1].volume_mounts if vol.name in ["conn-info", "keytab"]]
+        assert volumes == ['/etc/krb5.conf', '/etc/principal.keytab']
+
 
 class TestCancelTask:
     def test_cancel_task(

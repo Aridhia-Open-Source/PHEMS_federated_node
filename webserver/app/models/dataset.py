@@ -3,7 +3,7 @@ import re
 import requests
 from sqlalchemy import Column, Integer, String
 from kubernetes.client.exceptions import ApiException
-from kubernetes.client import V1ConfigMap
+from kubernetes.client import V1ConfigMap, V1Secret
 
 from app.helpers.base_model import BaseModel, db
 from app.helpers.connection_string import Mssql, Postgres, Mysql, Oracle, MariaDB
@@ -50,7 +50,7 @@ class Dataset(db.Model, BaseModel):
                  schema:str=None,
                  type:str="postgres",
                  auth_type:str="standard",
-                 auth_configmap:str=None,
+                 kerberos_secret:str=None,
                  extra_connection_args:str=None,
                  **kwargs
             ):
@@ -65,7 +65,7 @@ class Dataset(db.Model, BaseModel):
         self.password = password
         self.extra_connection_args = extra_connection_args
         self.auth_type = auth_type.lower()
-        self.auth_configmap = auth_configmap
+        self.kerberos_secret = kerberos_secret
 
     @classmethod
     def validate(cls, data):
@@ -78,46 +78,71 @@ class Dataset(db.Model, BaseModel):
         if data.get("type", "postgres").lower() not in SUPPORTED_ENGINES:
             raise InvalidRequest(f"DB type {data["type"]} is not supported.")
 
-        if auth_type == "standard" and not (data.get("username") and data.get("password")):
+        if not data.get("username"):
+            raise InvalidRequest("`username` field is mandatory")
+
+        if auth_type == "standard" and not data.get("password"):
             raise InvalidRequest("With standard auth_type, username and password must be provided")
 
-        if auth_type == "kerberos" and not data.get("auth_configmap"):
-            raise InvalidRequest("With kerberos auth_type, a configmap containing krb5.conf key is needed")
-
-        v1 = KubernetesClient()
-        try:
-            data["auth_configmap"] = v1.read_namespaced_config_map(
-                name=data.get("auth_configmap"),
-                namespace=DEFAULT_NAMESPACE
+        if auth_type == "kerberos" and not data.get("kerberos", {}).get("secret_name"):
+            raise InvalidRequest(
+                "With kerberos auth_type, a secret containing krb5.conf and principal.keytab keys is needed"
             )
-            if "krb5.conf" not in data["auth_configmap"].data:
-                raise InvalidRequest("configmap doesn't have `krb5.conf` as a data field")
-            if "principal.keytab" not in data["auth_configmap"].data:
-                raise InvalidRequest("configmap doesn't have `principal.keytab` as a data field")
-        except ApiException as apie:
-            if apie.status == 404:
-                raise InvalidRequest(
-                    f"Configmap {data["auth_configmap"]} not found in the {DEFAULT_NAMESPACE} namespace"
-                ) from apie
+
+        if auth_type == "kerberos":
+            v1 = KubernetesClient()
+            try:
+                data["kerberos_secret"] = v1.read_namespaced_secret(
+                    name=data["kerberos"]["secret_name"],
+                    namespace=DEFAULT_NAMESPACE
+                )
+                if "krb5.conf" not in data["kerberos_secret"].data:
+                    raise InvalidRequest("Secret doesn't have `krb5.conf` as a data field")
+
+                if "principal.keytab" not in data["kerberos_secret"].data:
+                    raise InvalidRequest("Secret doesn't have `principal.keytab` as a data field")
+
+            except ApiException as apie:
+                if apie.status == 404:
+                    raise InvalidRequest(
+                        f"Secret {data["kerberos"]["secret_name"]} not found in the {DEFAULT_NAMESPACE} namespace"
+                    ) from apie
 
         return data
 
-    def get_connection_cm(self) -> V1ConfigMap:
+    def get_kerberos_secret_name(self) -> str:
         """
-        Retrieve the configmap with the db connection
-        config file in it.
+        Instead of returning the whole object, return it's name only
         """
         v1 = KubernetesClient()
         try:
-            cm = v1.list_namespaced_config_map(
+            secret = v1.list_namespaced_secret(
                 namespace=DEFAULT_NAMESPACE,
                 label_selector=f"fn_dataset={self.name},fn_dataset_host={self.host}"
             )
         except ApiException as apie:
             logging.error(apie.body)
-            raise DatasetError("An error occurred while fetching the configmap") from apie
+            raise DatasetError("An error occurred while fetching the kerberos secret") from apie
 
-        return cm.items[0] if len(cm.items) else None
+        return secret.items[0].metadata.name if len(secret.items) else None
+
+
+    def get_kerberos_secret(self, namespace=DEFAULT_NAMESPACE) -> V1Secret:
+        """
+        Retrieve the secret with the db connection
+        config files in it.
+        """
+        v1 = KubernetesClient()
+        try:
+            secret = v1.list_namespaced_secret(
+                namespace=namespace,
+                label_selector=f"fn_dataset={self.name},fn_dataset_host={self.host}"
+            )
+        except ApiException as apie:
+            logging.error(apie.body)
+            raise DatasetError("An error occurred while fetching the kerberos secret") from apie
+
+        return secret.items[0] if len(secret.items) else None
 
     def get_cm_name(self) -> str:
         """
@@ -127,28 +152,28 @@ class Dataset(db.Model, BaseModel):
         cm = self.get_connection_cm()
         return cm.metadata.name
 
-    def label_new_configmap(self, cm:V1ConfigMap=None):
+    def label_new_kerberos_secret(self, secret:V1Secret=None):
         v1 = KubernetesClient()
-        if cm is None:
-            cm = self.auth_configmap
+        if secret is None:
+            secret = self.kerberos_secret
 
-        if cm.metadata.labels is None:
-            cm.metadata.labels = {}
+        if secret.metadata.labels is None:
+            secret.metadata.labels = {}
 
-        cm.metadata.labels["fn_dataset"] = self.name
-        cm.metadata.labels["fn_dataset_host"] = self.host
+        secret.metadata.labels["fn_dataset"] = self.name
+        secret.metadata.labels["fn_dataset_host"] = self.host
         try:
-            v1.patch_namespaced_config_map(
-                name=cm.metadata.name,
+            v1.patch_namespaced_secret(
+                name=secret.metadata.name,
                 namespace=DEFAULT_NAMESPACE,
-                body=cm
+                body=secret
             )
-            cm.metadata.namespace = TASK_NAMESPACE
-            cm.metadata.creation_timestamp = None
-            cm.metadata.resource_version = None
+            secret.metadata.namespace = TASK_NAMESPACE
+            secret.metadata.creation_timestamp = None
+            secret.metadata.resource_version = None
 
-            v1.create_namespaced_config_map(
-                body=cm,
+            v1.create_namespaced_secret(
+                body=secret,
                 namespace=TASK_NAMESPACE
             )
         except ApiException as apie:
@@ -178,7 +203,7 @@ class Dataset(db.Model, BaseModel):
 
     def sanitized_dict(self):
         dataset = super().sanitized_dict()
-        dataset.pop("auth_configmap", None)
+        dataset.pop("kerberos_secret", None)
         dataset["slug"] = self.slugify_name()
         dataset["url"] = f"https://{PUBLIC_URL}/datasets/{dataset["slug"]}"
         return dataset
@@ -223,9 +248,11 @@ class Dataset(db.Model, BaseModel):
             delattr(self, "username")
             delattr(self, "password")
         elif self.auth_type == "kerberos":
-            # Label the cm
-            self.label_new_configmap()
-            delattr(self, "auth_configmap")
+            # Add the username to the existing secret
+            self.kerberos_secret.data["PGUSER"] = v1.encode_secret_value(self.username)
+            # Label the secret
+            self.label_new_kerberos_secret()
+            delattr(self, "kerberos_secret")
 
         # Add to keycloak
         kc_client = Keycloak()
@@ -274,28 +301,51 @@ class Dataset(db.Model, BaseModel):
 
         kc_client = Keycloak()
         v1 = KubernetesClient()
+        new_username = kwargs.pop("username", None)
 
         # If the dataset to update has the configmap for connection
         if kwargs.get("auth_type", self.auth_type) == "kerberos":
-            new_cm_name = kwargs.pop("auth_configmap", "")
-            if new_cm_name:
-                old_cm = self.get_connection_cm()
-                new_cm = v1.read_namespaced_config_map(
-                    name=new_cm_name,
-                    namespace=DEFAULT_NAMESPACE
-                )
-                self.label_new_configmap(new_cm)
-
-                if old_cm:
-                    old_cm.metadata.labels.pop("fn_dataset", None)
-                    old_cm.metadata.labels.pop("fn_dataset_host", None)
-                    v1.replace_namespaced_config_map(
-                        name=old_cm.metadata.name,
-                        body=old_cm, namespace=DEFAULT_NAMESPACE
+            kerb_secret_name = kwargs.pop("kerberos", {}).get("secret_name")
+            old_sec = self.get_kerberos_secret()
+            if kerb_secret_name:
+                try:
+                    new_kerb_secret: V1Secret = v1.read_namespaced_secret(
+                        name=kerb_secret_name,
+                        namespace=DEFAULT_NAMESPACE
                     )
-                    v1.delete_namespaced_config_map(
-                        name=old_cm.metadata.name,
-                        namespace=TASK_NAMESPACE
+                except ApiException as apie:
+                    logging.error(apie.body)
+                    raise DatasetError(
+                        f"An error occurred while fetching the new kerberos secret {kerb_secret_name}"
+                    ) from apie
+
+                # Checking for the right keys to be present
+                if not ("krb5.conf" in new_kerb_secret.data and "principal.keytab" in new_kerb_secret.data):
+                    raise InvalidRequest(
+                        "Mandatory keys missing in the secret. Make sure krb5.conf and principal.keytab are there"
+                    )
+
+                if new_username:
+                    new_kerb_secret.data["PGUSER"] = KubernetesClient.encode_secret_value(new_username)
+                else:
+                    new_kerb_secret.data["PGUSER"] = old_sec.data["PGUSER"]
+
+                self.label_new_kerberos_secret(new_kerb_secret)
+
+                if old_sec:
+                    for ns in [DEFAULT_NAMESPACE, TASK_NAMESPACE]:
+                        v1.delete_namespaced_secret(
+                            name=old_sec.metadata.name,
+                            namespace=ns
+                        )
+            elif new_username:
+                for ns in [DEFAULT_NAMESPACE, TASK_NAMESPACE]:
+                    old_sec = self.get_kerberos_secret(ns)
+                    old_sec.data["PGUSER"] = KubernetesClient.encode_secret_value(new_username)
+                    v1.patch_namespaced_secret(
+                        body=old_sec,
+                        name=old_sec.metadata.name,
+                        namespace=ns
                     )
 
         elif self.needs_secret:
@@ -307,30 +357,27 @@ class Dataset(db.Model, BaseModel):
 
             new_name = kwargs.get("name", None)
             new_host = kwargs.get("host", None)
-            new_username = kwargs.pop("username", None)
             new_pass = kwargs.pop("password", None)
 
             # Check secret names
             new_host = kwargs.get("host", None)
             try:
-                # Create new secret if name is different
-                if (new_host != self.host and new_host) or (new_name != self.name and new_name):
-                    secret.metadata = {'name': self.get_creds_secret_name(new_host, new_name)}
-                    secret_task.metadata = secret.metadata
-                    v1.create_namespaced_secret(DEFAULT_NAMESPACE, body=secret, pretty='true')
-                    v1.create_namespaced_secret(TASK_NAMESPACE, body=secret_task, pretty='true')
-                    v1.delete_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=self.get_creds_secret_name())
-                    v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=self.get_creds_secret_name())
-                else:
-                    v1.patch_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=self.get_creds_secret_name(), body=secret)
-                    v1.patch_namespaced_secret(namespace=TASK_NAMESPACE, name=self.get_creds_secret_name(), body=secret_task)
+                for ns in [DEFAULT_NAMESPACE, TASK_NAMESPACE]:
+                    # Create new secret if name is different
+                    if (new_host != self.host and new_host) or (new_name != self.name and new_name):
+                        secret.metadata = {'name': self.get_creds_secret_name(new_host, new_name)}
+                        secret_task.metadata = secret.metadata
+                        v1.create_namespaced_secret(ns, body=secret, pretty='true')
+                        v1.delete_namespaced_secret(namespace=ns, name=self.get_creds_secret_name())
+                    else:
+                        v1.patch_namespaced_secret(namespace=ns, name=self.get_creds_secret_name(), body=secret)
             except ApiException as e:
                 # Host and name are unique so there shouldn't be duplicates. If so
                 # let the exception to be re-raised with the internal one
                 raise InvalidRequest(e.reason)
 
             if new_username:
-                secret.data["DBUSER"] = KubernetesClient.encode_secret_value(new_username)
+                secret.data["PGUSER"] = KubernetesClient.encode_secret_value(new_username)
             if new_pass:
                 secret.data["DBPASSWORD"] = KubernetesClient.encode_secret_value(new_pass)
             # Check resource names on KC and update them

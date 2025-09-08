@@ -45,7 +45,7 @@ class KubernetesBase:
         """
         From a secret name, setup a EnvFrom object
         """
-        return [client.V1EnvFromSource(secret_ref=client.V1SecretEnvSource(name=secret_name))]
+        return [client.V1EnvFromSource(secret_ref=client.V1SecretEnvSource(name=secret_name, optional=True))]
 
     def create_job_spec(self, pod_spec:dict):
         """
