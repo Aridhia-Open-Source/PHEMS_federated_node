@@ -1,0 +1,40 @@
+{{- define "kcDaemonName" -}}
+  {{ print "keycloak-realm-init" }}
+{{- end -}}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "kcDaemonName" . }}
+  namespace: {{ include "kc_namespace" . }}
+  labels:
+    name: {{ include "kcDaemonName" . }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+    helm.sh/hook-weight: "-1"
+    {{ template "defaultAnnotations" . }}
+spec:
+  selector:
+    matchLabels:
+      name: {{ include "kcDaemonName" . }}
+  template:
+    metadata:
+      labels:
+        name: {{ include "kcDaemonName" . }}
+    spec:
+      serviceAccountName: k8s-keycloak-handler
+      containers:
+        - name: post-install-job
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          image: "ghcr.io/aridhia-open-source/keycloak_initializer:{{ .Values.keycloak.tag | default .Chart.AppVersion }}"
+          {{ include "nonRootSC" . }}
+          env:
+            - name: KC_NAMESPACE
+              value: {{ include "kc_namespace" . }}
+            - name: KC_REPLICAS
+              value: {{ .Values.keycloak.replicas | default 2 | quote }}
+          envFrom:
+          - configMapRef:
+              name: keycloak-config
+          - secretRef:
+              name: kc-secrets

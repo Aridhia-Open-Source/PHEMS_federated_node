@@ -119,6 +119,27 @@ class TestResultsReview:
         )
         assert response.status_code == 200
 
+    def test_admin_review_pending(
+        self,
+        cr_client,
+        registry_client,
+        simple_admin_header,
+        client,
+        results_job_mock,
+        task_mock,
+        set_task_review_env
+    ):
+        """
+        Test to make sure the admin can fetch their results
+        before the review took place
+        """
+        response = client.get(
+            f'/tasks/{task_mock.id}/results',
+            headers=simple_admin_header
+        )
+        assert response.status_code == 200
+        assert response.content_type == "application/zip"
+
     def test_default_review_pending(
         self,
         cr_client,

@@ -71,7 +71,7 @@ Just need to append the NEW_DB env var
         - image: {{ include "fn-alpine" . }}
           name: dbinit
           command: [ "dbinit" ]
-          imagePullPolicy: Always
+          imagePullPolicy: {{ .Values.pullPolicy }}
           {{ include "nonRootSC" . }}
           env:
           - name: PGUSER

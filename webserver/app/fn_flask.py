@@ -1,6 +1,7 @@
 # A custom Flask wrapper to handle pagination globally
 
 from flask import Flask, request
+from flask.wrappers import Response
 from flask_sqlalchemy.pagination import QueryPagination
 
 
@@ -11,6 +12,9 @@ class FNFlask(Flask):
         into a json format.
         The other responses should already be of a valid format (list, json, text)
         """
+        if type(rv) in [str, Response]:
+            return super().make_response(rv)
+
         body, status_code = rv
         if isinstance(body, QueryPagination):
             page = int(request.values.get("page", '1'))

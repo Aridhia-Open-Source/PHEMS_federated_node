@@ -33,7 +33,7 @@ def does_user_own_task(task:Task):
     If they don't, an exception is raised with 403 status code
     """
     kc_client = Keycloak()
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    token = kc_client.get_token_from_headers()
     dec_token = kc_client.decode_token(token)
 
     if task.requested_by != dec_token['sub'] and not kc_client.is_user_admin(token):
@@ -131,13 +131,16 @@ def get_task_results(task_id):
         Allows to get tasks results if approved to be released
         or, if an admin is trying to view them
     """
-    task = Task.query.filter(Task.id == task_id).one_or_none()
+    task: Task = Task.query.filter(Task.id == task_id).one_or_none()
     if task is None:
         raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
 
     does_user_own_task(task)
 
-    if TASK_REVIEW and not task.review_status:
+    kc_client = Keycloak()
+    token = kc_client.get_token_from_headers()
+    # admin should be able to fetch them regardless
+    if TASK_REVIEW and not task.review_status and not kc_client.is_user_admin(token):
         return {"status": task.get_review_status()}, 400
 
     if task.created_at.date() + timedelta(days=CLEANUP_AFTER_DAYS) <= datetime.now().date():

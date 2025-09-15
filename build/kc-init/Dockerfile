@@ -13,7 +13,7 @@ RUN apt-get update \
     && apt-get install --no-install-recommends -y curl \
     && curl -LsSf https://astral.sh/uv/install.sh | sh \
     && /root/.local/bin/uv init \
-    && /root/.local/bin/uv add requests \
+    && /root/.local/bin/uv add requests kubernetes \
     && groupadd -g "$USER_GID" "$USERNAME" \
     && useradd --uid "$USER_UID" --gid "$USER_GID" "$USERNAME" \
     && chown -R "$USERNAME":"$USERNAME" /scripts \
@@ -23,4 +23,4 @@ RUN apt-get update \
 COPY *.py /scripts/
 ENV PATH="/scripts/.venv/bin:$PATH"
 USER ${USER_UID}
-ENTRYPOINT [ "/bin/sh", "-c", "python3 /scripts/setup_realm.py" ]
+ENTRYPOINT [ "/bin/sh", "-c", "python3 /scripts/setup_realm.py && tail -f /dev/null" ]

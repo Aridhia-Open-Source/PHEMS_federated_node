@@ -25,6 +25,31 @@ spec:
               configMapKeyRef:
                 name: keycloak-config
                 key: KC_DB_URL_DATABASE
+
+        - name: credentials-reset
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          image: {{ include "fn-alpine" . }}
+          command: ["keycloak-reset"]
+          {{ include "nonRootSC" . }}
+          env:
+          - name: KEYCLOAK_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: kc-secrets
+                key: KEYCLOAK_GLOBAL_CLIENT_SECRET
+          - name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{.Values.db.secret.name}}
+                key: {{.Values.db.secret.key}}
+          - name: KC_NAMESPACE
+            value: {{ include "kc_namespace" . }}
+          - name: PGDATABASE
+            value: {{ include "dbKeycloakName" . }}
+          envFrom:
+          - configMapRef:
+              name: keycloak-config
+
       containers:
         - image: ghcr.io/aridhia-open-source/federated_keycloak:{{ .Values.keycloak.tag | default .Chart.AppVersion }}
           args: [

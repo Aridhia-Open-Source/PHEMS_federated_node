@@ -43,14 +43,17 @@ services:
     volumes:
       - ../k8s/federated-node/scripts/realms.json:/opt/keycloak/data/import/realms.json
   kc_init:
-    image: python:3.12.1-slim-bullseye
     container_name: keycloak_test_initializer
+    build:
+      context: ../build/kc-init
+      dockerfile: Dockerfile
+    entrypoint: ["/bin/sh"]
+    command: ["-c", "python3 /scripts/setup_realm.py"]
     links:
       - keycloak
     depends_on:
       keycloak:
         condition: service_healthy
-    command: ["/bin/sh", "-c", "pip install requests && python3 /scripts/setup_realm.py" ]
     environment:
       KEYCLOAK_ADMIN_PASSWORD:
       KEYCLOAK_ADMIN:
