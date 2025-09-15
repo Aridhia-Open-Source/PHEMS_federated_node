@@ -5,6 +5,7 @@ ARG USERNAME=fednode
 ARG USER_UID=1001
 ARG USER_GID=1001
 
+ENV DEBIAN_FRONTEND=noninteractive
 COPY pyproject.toml /
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -21,6 +22,7 @@ RUN apt-get update \
         pkg-config \
         default-libmysqlclient-dev \
         build-essential \
+        krb5-user \
     && curl -LsSf https://astral.sh/uv/install.sh | sh \
     && /root/.local/bin/uv sync \
     && curl -LsSf https://packages.microsoft.com/config/debian/"$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)"/packages-microsoft-prod.deb -o packages-microsoft-prod.deb \
@@ -33,7 +35,8 @@ RUN apt-get update \
 
 WORKDIR /app/
 COPY *.py /app/
+COPY entrypoint.sh /app/
 USER ${USER_UID}
 ENV PYTHONPATH=/app
 ENV PATH="/.venv/bin:$PATH"
-ENTRYPOINT [ "python3", "-m", "connector" ]
+ENTRYPOINT [ "/bin/sh", "/app/entrypoint.sh" ]

@@ -9,7 +9,8 @@ from kubernetes.client import (
     V1PersistentVolume, V1PersistentVolumeClaim,
     V1EnvVarSource, V1SecretKeySelector,
     V1PersistentVolumeClaimSpec, V1VolumeResourceRequirements,
-    V1CSIPersistentVolumeSource
+    V1CSIPersistentVolumeSource, V1SecretVolumeSource,
+    V1KeyToPath
 )
 from app.helpers.const import RESULTS_PATH, TASK_NAMESPACE, TASK_PULL_SECRET_NAME
 from app.helpers.kubernetes import KubernetesClient
@@ -64,28 +65,42 @@ class TaskPod:
         From a secret name, setup a base env list with db credentials.
         It will map PG_* for backwards compatibility
         """
-        secret_name = self.dataset.get_creds_secret_name()
+        if self.dataset.needs_secret:
+            secret_name = self.dataset.get_creds_secret_name()
+            self.env_init += [
+                V1EnvVar(
+                    name="DB_PSW",
+                    value_from=V1EnvVarSource(
+                        secret_key_ref=V1SecretKeySelector(
+                            name=secret_name,
+                            key="PGPASSWORD",
+                            optional=True
+                        )
+                    )
+                ),
+                V1EnvVar(
+                    name="DB_USER",
+                    value_from=V1EnvVarSource(
+                        secret_key_ref=V1SecretKeySelector(
+                            name=secret_name,
+                            key="PGUSER",
+                            optional=True
+                        )
+                    )
+                )]
+        else:
+            self.env_init += [
+                V1EnvVar(
+                    name="DB_USER",
+                    value_from=V1EnvVarSource(
+                        secret_key_ref=V1SecretKeySelector(
+                            name=self.dataset.get_kerberos_secret_name(),
+                            key="PGUSER",
+                            optional=True
+                        )
+                    )
+                )]
         self.env_init += [
-            V1EnvVar(
-                name="DB_PSW",
-                value_from=V1EnvVarSource(
-                    secret_key_ref=V1SecretKeySelector(
-                        name=secret_name,
-                        key="PGPASSWORD",
-                        optional=True
-                    )
-                )
-            ),
-            V1EnvVar(
-                name="DB_USER",
-                value_from=V1EnvVarSource(
-                    secret_key_ref=V1SecretKeySelector(
-                        name=secret_name,
-                        key="PGUSER",
-                        optional=True
-                    )
-                )
-            ),
             V1EnvVar(name="DB_PORT", value=str(self.dataset.port)),
             V1EnvVar(name="DB_NAME", value=self.dataset.name),
             V1EnvVar(name="DB_SCHEMA", value=self.dataset.schema),
@@ -151,14 +166,32 @@ class TaskPod:
         if self.input_path:
             self.env_init.append(V1EnvVar(name="INPUT_FILE", value=list(self.input_path.keys())[0]))
 
-        vol_mount = V1VolumeMount(
-            mount_path=self.base_mount_path,
-            name="data"
-        )
+        vol_mount = [
+            V1VolumeMount(
+                mount_path=self.base_mount_path,
+                name="data"
+            )
+        ]
+        if self.dataset.auth_type == "kerberos":
+            self.env_init.append(V1EnvVar(name="KERBEROS", value="1"))
+            vol_mount.append(
+                V1VolumeMount(
+                    mount_path="/etc/krb5.conf",
+                    sub_path="krb5.conf",
+                    name="conn-info"
+                )
+            )
+            vol_mount.append(
+                V1VolumeMount(
+                    mount_path="/etc/principal.keytab",
+                    sub_path="principal.keytab",
+                    name="keytab"
+                )
+            )
         dir_init = V1Container(
             name=f"init-{task_id}",
             image="alpine:3.19",
-            volume_mounts=[vol_mount],
+            volume_mounts=vol_mount,
             command=["/bin/sh"],
             args=[
                 "-c",
@@ -173,7 +206,7 @@ class TaskPod:
             data_init = V1Container(
                 name="fetch-data",
                 image=f"ghcr.io/aridhia-open-source/db_connector:{IMAGE_TAG}",
-                volume_mounts=[vol_mount],
+                volume_mounts=vol_mount,
                 image_pull_policy="Always",
                 env=self.env_init,
                 env_from=self.env_from
@@ -220,7 +253,9 @@ class TaskPod:
             self.env_init.append(V1EnvVar(name="FROM_DIALECT", value=self.db_query["dialect"]))
             self.env_init.append(V1EnvVar(name="TO_DIALECT", value=self.dataset.type))
 
-        self.env.append(V1EnvVar(name="CONNECTION_STRING", value=self.dataset.get_connection_string()))
+        if self.dataset.needs_secret:
+            self.env.append(V1EnvVar(name="CONNECTION_STRING", value=self.dataset.get_connection_string()))
+
         self.env.append(V1EnvVar(name="ORACLE_SID", value=self.dataset.name))
         container = V1Container(
             name=self.name,
@@ -234,7 +269,7 @@ class TaskPod:
         if self.command:
             container.command = self.command
 
-        secrets = [V1LocalObjectReference(name=TASK_PULL_SECRET_NAME)]
+        secrets: list[V1LocalObjectReference] = [V1LocalObjectReference(name=TASK_PULL_SECRET_NAME)]
 
         specs = V1PodSpec(
             termination_grace_period_seconds=300,
@@ -244,9 +279,23 @@ class TaskPod:
             restart_policy="Never",
             automount_service_account_token=False,
             volumes=[
-                V1Volume(name="data", persistent_volume_claim=pvc)
+                V1Volume(name="data", persistent_volume_claim=pvc),
             ]
         )
+        if self.dataset.auth_type == "kerberos":
+            sec_name = self.dataset.get_kerberos_secret().metadata.name
+            specs.volumes.append(
+                V1Volume(name="conn-info", secret=V1SecretVolumeSource(
+                    secret_name=sec_name,
+                    items=[V1KeyToPath(path="krb5.conf", key="krb5.conf")]
+                ))
+            )
+            specs.volumes.append(
+                V1Volume(name="keytab", secret=V1SecretVolumeSource(
+                    secret_name=sec_name,
+                    items=[V1KeyToPath(path="principal.keytab", key="principal.keytab")]
+                ))
+            )
         metadata = V1ObjectMeta(
             name=self.name,
             namespace=TASK_NAMESPACE,
