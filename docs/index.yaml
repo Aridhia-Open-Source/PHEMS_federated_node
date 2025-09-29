@@ -2,8 +2,31 @@ apiVersion: v1
 entries:
   federated-node:
   - apiVersion: v2
+    appVersion: 1.5.0-vc881c2
+    created: "2025-09-29T08:53:50.709439665Z"
+    dependencies:
+    - condition: outboundMode
+      name: fn-task-controller
+      repository: https://aridhia-open-source.github.io/federated-node-task-controller
+      version: 1.3.0
+    - condition: cert-manager.enabled
+      name: cert-manager
+      repository: https://charts.jetstack.io
+      version: v1.17.1
+    - condition: ingress-nginx.enabled
+      name: ingress-nginx
+      repository: https://kubernetes.github.io/ingress-nginx
+      version: 4.12.1
+    description: A Helm chart for deploying the Federated Node on Kubernetes
+    digest: 5966f083c3862e0c0a59eae2620ff24066ae3a6fd5c84a7f9e0bbde77a7ddf92
+    name: federated-node
+    type: application
+    urls:
+    - federated-node-1.5.0-vc881c2.tgz
+    version: 1.5.0-vc881c2
+  - apiVersion: v2
     appVersion: 1.5.0-v972a29
-    created: "2025-09-29T07:33:08.387711596Z"
+    created: "2025-09-29T08:53:50.699985833Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -26,7 +49,7 @@ entries:
     version: 1.5.0-v972a29
   - apiVersion: v2
     appVersion: 1.5.0-v70869c
-    created: "2025-09-29T07:33:08.378501059Z"
+    created: "2025-09-29T08:53:50.691031114Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -49,7 +72,7 @@ entries:
     version: 1.5.0-v70869c
   - apiVersion: v2
     appVersion: 1.5.0-v2c2618
-    created: "2025-09-29T07:33:08.368898443Z"
+    created: "2025-09-29T08:53:50.681896847Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -72,7 +95,7 @@ entries:
     version: 1.5.0-v2c2618
   - apiVersion: v2
     appVersion: 1.4.0
-    created: "2025-09-29T07:33:08.359827655Z"
+    created: "2025-09-29T08:53:50.671244184Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -95,7 +118,7 @@ entries:
     version: 1.4.0
   - apiVersion: v2
     appVersion: 1.3.0
-    created: "2025-09-29T07:33:08.350690766Z"
+    created: "2025-09-29T08:53:50.66138587Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -118,7 +141,7 @@ entries:
     version: 1.3.0
   - apiVersion: v2
     appVersion: 1.2.0
-    created: "2025-09-29T07:33:08.340321638Z"
+    created: "2025-09-29T08:53:50.652485607Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -141,7 +164,7 @@ entries:
     version: 1.2.0
   - apiVersion: v2
     appVersion: 1.1.0
-    created: "2025-09-29T07:33:08.330846366Z"
+    created: "2025-09-29T08:53:50.64181317Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -164,7 +187,7 @@ entries:
     version: 1.1.0
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2025-09-29T07:33:08.321890505Z"
+    created: "2025-09-29T08:53:50.626784818Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -187,7 +210,7 @@ entries:
     version: 1.0.0
   - apiVersion: v2
     appVersion: 0.11.0
-    created: "2025-09-29T07:33:08.303873005Z"
+    created: "2025-09-29T08:53:50.60863333Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -206,7 +229,7 @@ entries:
     version: 0.11.0
   - apiVersion: v2
     appVersion: 0.10.0
-    created: "2025-09-29T07:33:08.294888152Z"
+    created: "2025-09-29T08:53:50.599111297Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -225,7 +248,7 @@ entries:
     version: 0.10.0
   - apiVersion: v2
     appVersion: 0.9.0
-    created: "2025-09-29T07:33:08.312880412Z"
+    created: "2025-09-29T08:53:50.617854651Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 85fe6f19dc4656ea1103459bd6b98a17031ac1998ec795bd24f90c7c1b0dd628
     name: federated-node
@@ -235,7 +258,7 @@ entries:
     version: 0.9.0
   - apiVersion: v2
     appVersion: 0.8.0
-    created: "2025-09-29T07:33:08.312224147Z"
+    created: "2025-09-29T08:53:50.617207301Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: aeecd07885d82c0ccd868efc825f25cac5a4abbe929fd7d4a6c998159f14a8c4
     name: federated-node
@@ -245,7 +268,7 @@ entries:
     version: 0.8.0
   - apiVersion: v2
     appVersion: 0.7.2
-    created: "2025-09-29T07:33:08.311639225Z"
+    created: "2025-09-29T08:53:50.616571113Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 3a014bdb4a3e32dafa41eed45b0bf65b5adfe267166ce76256e29ba65fe75fef
     name: federated-node
@@ -255,7 +278,7 @@ entries:
     version: 0.7.2
   - apiVersion: v2
     appVersion: 0.7.1
-    created: "2025-09-29T07:33:08.310757789Z"
+    created: "2025-09-29T08:53:50.615678908Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 1a2d73756ad6ea89635947806583e3915993ead86d8b1fa100613e2623f89a25
     name: federated-node
@@ -265,7 +288,7 @@ entries:
     version: 0.7.1
   - apiVersion: v2
     appVersion: 0.7.0
-    created: "2025-09-29T07:33:08.309452322Z"
+    created: "2025-09-29T08:53:50.614561173Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 067ab01cefa677aa42b7f9edbc28686757fb36b4356603df6768e12b99b20acd
     name: federated-node
@@ -275,7 +298,7 @@ entries:
     version: 0.7.0
   - apiVersion: v2
     appVersion: 0.6.0
-    created: "2025-09-29T07:33:08.308828217Z"
+    created: "2025-09-29T08:53:50.613938681Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 467148745f33e38330f265100c3af90b0e397638c44bfb641ab24e2a4551d2ee
     name: federated-node
@@ -285,7 +308,7 @@ entries:
     version: 0.6.2
   - apiVersion: v2
     appVersion: 0.6.0
-    created: "2025-09-29T07:33:08.308210654Z"
+    created: "2025-09-29T08:53:50.613300369Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 596199213abfacdbe3d1e8c5fdd5e21c561f03fe74e02b3d9e08dd4a319ff838
     name: federated-node
@@ -295,7 +318,7 @@ entries:
     version: 0.6.1
   - apiVersion: v2
     appVersion: 0.6.0
-    created: "2025-09-29T07:33:08.30760868Z"
+    created: "2025-09-29T08:53:50.612597154Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: b8d6f93816bf6545558425dd4c4c44bf2d66913edf4388d83dfdfd73b5737a24
     name: federated-node
@@ -305,7 +328,7 @@ entries:
     version: 0.6.0
   - apiVersion: v2
     appVersion: 0.5.2
-    created: "2025-09-29T07:33:08.306954479Z"
+    created: "2025-09-29T08:53:50.611854175Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: dfac3d66dfe4f2fd66d9454c3826056862f15b69768a0ba3a435510ef9acca27
     name: federated-node
@@ -315,7 +338,7 @@ entries:
     version: 0.5.2
   - apiVersion: v2
     appVersion: 0.5.0
-    created: "2025-09-29T07:33:08.3061785Z"
+    created: "2025-09-29T08:53:50.61094847Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 3e4044c1858f934a6854d9911f8dfcb9953a605734e8f31c7be18187b6687784
     name: federated-node
@@ -325,7 +348,7 @@ entries:
     version: 0.5.1
   - apiVersion: v2
     appVersion: 0.5.0
-    created: "2025-09-29T07:33:08.305409584Z"
+    created: "2025-09-29T08:53:50.610173901Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: cf9cf58397f4ec70503ce4ec64b07d874acc4044f352a184c8e3c139aa189ba7
     name: federated-node
@@ -335,7 +358,7 @@ entries:
     version: 0.5.0
   - apiVersion: v2
     appVersion: 0.5.0
-    created: "2025-09-29T07:33:08.304664813Z"
+    created: "2025-09-29T08:53:50.609429709Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 8adbc4b385b1aada1b87af9a662d9b0d81085715cbe749a94d81617ddcf7c150
     name: federated-node
@@ -345,7 +368,7 @@ entries:
     version: 0.4.1
   - apiVersion: v2
     appVersion: 0.1.0
-    created: "2025-09-29T07:33:08.285133398Z"
+    created: "2025-09-29T08:53:50.589898603Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 8d8270f81a89ac5f14f6e6eb7c4fa46a92b460460e41ee86e31aa8346a150d28
     name: federated-node
@@ -355,7 +378,7 @@ entries:
     version: 0.1.0
   - apiVersion: v2
     appVersion: 0.0.7
-    created: "2025-09-29T07:33:08.284346478Z"
+    created: "2025-09-29T08:53:50.589091513Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 39039263a7379f3e92b9a1555cb894a9bd0454564f44b3f18448427051d55714
     name: federated-node
@@ -365,7 +388,7 @@ entries:
     version: 0.0.7
   - apiVersion: v2
     appVersion: 0.0.6
-    created: "2025-09-29T07:33:08.28357635Z"
+    created: "2025-09-29T08:53:50.588275756Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: afe7f4df04bcd392c42d052d51f3e5d713e04ab7f167491189b50c928acb0729
     name: federated-node
@@ -373,4 +396,4 @@ entries:
     urls:
     - federated-node-0.0.6.tgz
     version: 0.0.6
-generated: "2025-09-29T07:33:08.282615667Z"
+generated: "2025-09-29T08:53:50.587372946Z"
