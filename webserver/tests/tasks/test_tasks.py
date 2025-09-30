@@ -1,5 +1,4 @@
 import json
-import pytest
 import re
 from kubernetes.client.exceptions import ApiException
 from unittest import mock
@@ -12,7 +11,7 @@ from app.helpers.base_model import db
 from app.models.task import Task
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
-from tests.fixtures.dataset_container_fixtures import ds_cont_link, ds_star_link
+from tests.fixtures.dataset_container_fixtures import ds_star_link, ds_cont_link
 
 
 class TestGetTasks:
@@ -54,7 +53,8 @@ class TestGetTasks:
             client,
             registry_client,
             task_body,
-            task_mock
+            task_mock,
+            ds_star_link
         ):
         """
         If an admin wants to check a specific task they should be allowed regardless
@@ -656,7 +656,8 @@ class TestPostTask:
             registry_client,
             k8s_client,
             task_body,
-            v1_crd_mock
+            v1_crd_mock,
+            ds_star_link
         ):
         """
         Tests task creation returns 201. It should not try to
@@ -679,7 +680,8 @@ class TestPostTask:
             set_task_controller_env,
             k8s_client,
             task_body,
-            v1_crd_mock
+            v1_crd_mock,
+            ds_star_link
         ):
         """
         Tests task creation returns 201. It should try to
@@ -701,7 +703,8 @@ class TestPostTask:
             registry_client,
             k8s_client,
             v1_crd_mock,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests task creation returns 201. Should be consistent
