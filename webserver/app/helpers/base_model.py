@@ -1,7 +1,11 @@
+from datetime import datetime
+from flask import request
+from typing import Self
+from flask_sqlalchemy import SQLAlchemy
+from flask_sqlalchemy.pagination import QueryPagination
 from sqlalchemy import create_engine, Column
 from sqlalchemy.orm import Relationship, declarative_base
-from flask_sqlalchemy import SQLAlchemy
-from app.helpers.exceptions import InvalidDBEntry
+from app.helpers.exceptions import DBRecordNotFoundError, InvalidDBEntry, InvalidRequest
 from app.helpers.const import build_sql_uri
 
 
@@ -9,11 +13,36 @@ engine = create_engine(build_sql_uri())
 Base = declarative_base()
 db = SQLAlchemy(model_class=Base)
 
+
 # Another helper class for common methods
 class BaseModel():
-    def sanitized_dict(self):
-        jsonized = self.__dict__.copy()
-        jsonized.pop('_sa_instance_state', None)
+    @classmethod
+    def _query(cls) -> QueryPagination:
+        try:
+            page = int(request.values.get("page", '1'))
+            per_page = int(request.values.get("per_page", '25'))
+        except ValueError as ve:
+            raise InvalidRequest("page and per_page parameters should be integers") from ve
+
+        return cls.query.paginate(page=page, per_page=per_page)
+
+    def sanitized_dict(self) -> dict[str, bool|int|str]:
+        """
+        Based on the list of column names, conditionally render the values
+        in a dictionary
+        """
+        jsonized = {}
+        for field in self._get_fields_name():
+            val = getattr(self, field)
+            match val:
+                case int() | bool() | None:
+                    jsonized[field] = val
+                case datetime():
+                    jsonized[field] = val.strftime("%Y-%m-%d %H:%M:%S")
+                case BaseModel():
+                    pass
+                case _:
+                    jsonized[field] = str(val)
         return jsonized
 
     def add(self, commit=True):
@@ -29,12 +58,12 @@ class BaseModel():
             db.session.commit()
 
     @classmethod
-    def get_all(cls) -> list:
-        obj_list = cls.query.all()
+    def get_all(cls) -> list[dict]:
+        obj_list = cls._query()
         jsonized = []
-        for obj in obj_list:
+        for obj in obj_list.items:
             jsonized.append(obj.sanitized_dict())
-        return jsonized
+        return obj_list
 
     @classmethod
     def _get_fields(cls) -> list[Column]:
@@ -56,11 +85,11 @@ class BaseModel():
         return not (attribute.nullable or attribute.primary_key or attribute.server_default is not None)
 
     @classmethod
-    def _get_required_fields(cls):
+    def _get_required_fields(cls) -> list[str]:
         return [f.name for f in cls._get_fields() if cls.is_field_required(f)]
 
     @classmethod
-    def validate(cls, data:dict):
+    def validate(cls, data:dict) -> dict:
         """
         Make sure we have all required fields. Set to None if missing
         """
@@ -79,3 +108,14 @@ class BaseModel():
             if req_field not in list(valid.keys()):
                 raise InvalidDBEntry(f"Field \"{req_field}\" missing")
         return valid
+
+    @classmethod
+    def get_by_id(cls, obj_id:int) -> Self:
+        """
+        Common wrapper to get by id, and raise an
+        exception if not found
+        """
+        obj = cls.query.filter(cls.id == obj_id).one_or_none()
+        if obj is None:
+            raise DBRecordNotFoundError(f"{cls.__name__.capitalize()} with id {obj_id} does not exist")
+        return obj

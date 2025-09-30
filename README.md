@@ -5,7 +5,7 @@
 
 > ...aims to revolutionize the way health data is managed and utilized across Europe. This project is particularly focused on addressing the challenges posed by privacy concerns and the complexity of data sharing due to varying interpretations of the EU General Data Protection Regulation (GDPR). By developing a decentralized and open health data ecosystem, PHEMS strives to facilitate easier access to health data, thereby advancing federated health data analysis and creating services for generating shareable synthetic datasets.
 
-As a technical partner of the project Aridhia has developed the Federated Node an open source component for running federated tasks. 
+As a technical partner of the project Aridhia has developed the Federated Node an open source component for running federated tasks.
 
 ## The Federated Node
 
@@ -33,10 +33,6 @@ Licences for the component projects can be found [here](https://github.com/Aridh
 
 See the [DEPLOYMENT](./DEPLOYMENT.md) document.
 
-# Update
-```sh
-helm upgrade federatednode ./k8s/federated-node
-```
 
 # Run locally
 Minikube or microk8s is required.
@@ -45,6 +41,8 @@ Minikube or microk8s is required.
 # or
 ./scripts/run_local.sh micro
 ```
+
+In case of `minikube:
 
 This will launch a Minikube cluster called `federatednode` (if using minikube), and apply the helm chart with the default `values.yaml`.
 

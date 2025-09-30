@@ -3,7 +3,7 @@ from functools import wraps
 from flask import request
 from sqlalchemy.exc import IntegrityError
 
-from app.helpers.exceptions import AuthenticationError, UnauthorizedError, DBRecordNotFoundError, LogAndException
+from app.helpers.exceptions import AuthenticationError, UnauthorizedError, LogAndException
 from app.helpers.keycloak import Keycloak
 from app.models.audit import Audit
 from app.models.dataset import Dataset

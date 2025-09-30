@@ -55,6 +55,14 @@
         "operationId": "getDataset",
         "tags": ["Datasets"],
         "summary": "List all datasets available to the user",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
         "responses": {
           "200":{
             "$ref": "#/components/responses/DatasetList"
@@ -718,6 +726,14 @@
         "operationId": "get_tasks",
         "tags": ["Tasks"],
         "summary": "Get a full list of tasks",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
         "responses": {
           "200": {
             "$ref": "#/components/responses/TaskList"
@@ -858,6 +874,81 @@
           "200":{
             "$ref": "#/components/responses/TaskResults"
           },
+          "400":{
+            "$ref": "#/components/responses/ReviewNeededOrBlocked"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks/{id}/results/approve": {
+      "post": {
+        "operationId": "approve_results",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {"type": "integer"}
+          }
+        ],
+        "tags": ["Tasks"],
+        "summary": "Approve the results release",
+        "responses":{
+          "201":{
+            "description": "Review successful"
+          },
+          "400":{
+            "$ref": "#/components/responses/MultipleReviewError"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks/{id}/results/block": {
+      "post": {
+        "operationId": "block_results",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {"type": "integer"}
+          }
+        ],
+        "tags": ["Tasks"],
+        "summary": "Block the results release",
+        "responses":{
+          "201":{
+            "description": "Review successful"
+          },
+          "400":{
+            "$ref": "#/components/responses/MultipleReviewError"
+          },
           "401":{
             "$ref": "#/components/responses/Unauthenticated"
           },
@@ -958,6 +1049,12 @@
             "description": "Filter by response status code",
             "name": "status_code",
             "schema": {"type": "integer"}
+          },
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
           }
         ],
         "tags": ["Admin"],
@@ -985,8 +1082,8 @@
           "200":{
             "$ref": "#/components/responses/health_check"
           },
-          "500":{
-            "$ref": "#/components/responses/500_health_check"
+          "502":{
+            "$ref": "#/components/responses/502_health_check"
           }
         }
       }
@@ -996,6 +1093,14 @@
         "operationId": "get_all_users",
         "tags": ["Users"],
         "summary": "List of all of the users",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
         "responses": {
           "200": {
             "$ref": "#/components/responses/UserListResponse"
@@ -1079,6 +1184,14 @@
         "operationId": "getContainers",
         "tags": ["Containers"],
         "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
         "summary": "List all containers available to the user",
         "responses": {
           "200":{
@@ -1233,6 +1346,14 @@
         "operationId": "getRegisries",
         "tags": ["Registries"],
         "summary": "List all container registries available",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
         "responses": {
           "200":{
             "$ref": "#/components/responses/RegistryList"
@@ -1425,6 +1546,18 @@
         "name": "registry_id",
         "schema":{"type": "integer"},
         "required": true
+      },
+      "paginationPage": {
+        "in": "query",
+        "name": "page",
+        "schema":{"type": "integer"},
+        "description": "Page to return"
+      },
+      "paginationPerPage": {
+        "in": "query",
+        "name": "per_page",
+        "schema":{"type": "integer"},
+        "description": "How many entries maximum per page"
       }
     },
     "responses": {
@@ -1458,11 +1591,27 @@
             "schema":{
               "type": "object",
               "properties": {
-                "datasets":{
+                "items":{
                   "type": "array",
                   "items":{
                     "$ref": "#/components/schemas/DatasetById"
                   }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
                 }
               }
             }
@@ -1533,9 +1682,30 @@
         "content": {
           "application/json":{
             "schema":{
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/TaskById"
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskById"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
               }
             }
           }
@@ -1637,19 +1807,40 @@
         "content": {
           "application/json": {
             "schema": {
-              "type": "array",
-              "items":{
-                "type": "object",
-                "properties": {
-                  "api_function": {"type": "string", "example": "get_datasets"},
-                  "details": {"type": "string", "example": "Requested by cea6868d-26b6-4e96-95d7-4aba8df7d06e - user@email.com"},
-                  "endpoint": {"type": "string", "example": "/datasets"},
-                  "event_time": {"type": "string", "example": "Thu, 14 Mar 2024 11:45:36 GMT"},
-                  "http_method": {"type": "string", "example": "GET"},
-                  "id": {"type": "integer", "example": 1},
-                  "ip_address": {"type": "string", "example": "15.24.87.9"},
-                  "requested_by": {"type": "string", "example": "cea6868d-26b6-4e96-95d7-4aba8df7d06e"},
-                  "status_code": {"type": "integer", "example": 200}
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items":{
+                    "type": "object",
+                    "properties": {
+                      "api_function": {"type": "string", "example": "get_datasets"},
+                      "details": {"type": "string", "example": "Requested by cea6868d-26b6-4e96-95d7-4aba8df7d06e - user@email.com"},
+                      "endpoint": {"type": "string", "example": "/datasets"},
+                      "event_time": {"type": "string", "example": "Thu, 14 Mar 2024 11:45:36 GMT"},
+                      "http_method": {"type": "string", "example": "GET"},
+                      "id": {"type": "integer", "example": 1},
+                      "ip_address": {"type": "string", "example": "15.24.87.9"},
+                      "requested_by": {"type": "string", "example": "cea6868d-26b6-4e96-95d7-4aba8df7d06e"},
+                      "status_code": {"type": "integer", "example": 200}
+                    }
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
                 }
               }
             }
@@ -1677,9 +1868,30 @@
         "content": {
           "application/json": {
             "schema": {
-              "type": "array",
-              "items":{
-                "$ref": "#/components/schemas/UserEntry"
+            "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserEntry"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
               }
             }
           }
@@ -1701,9 +1913,30 @@
         "content": {
           "application/json":{
             "schema":{
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/ContainerObject"
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContainerObject"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
               }
             }
           }
@@ -1752,9 +1985,30 @@
         "content": {
           "application/json":{
             "schema":{
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/RegistryObject"
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RegistryObject"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
               }
             }
           }
@@ -1775,6 +2029,38 @@
       },
       "NoContent": {
         "description": "No Content."
+      },
+      "ReviewNeededOrBlocked": {
+        "description": "Review is needed, or release has been blocked",
+        "content": {
+          "application/json":{
+            "schema":{
+              "type": "object",
+              "properties": {
+                "status": { "type": "string"}
+              },
+              "example": {
+                "error": "Review needed"
+              }
+            }
+          }
+        }
+      },
+      "MultipleReviewError": {
+        "description": "Only one review per task is allowed",
+        "content": {
+          "application/json":{
+            "schema":{
+              "type": "object",
+              "properties": {
+                "error": { "type": "string"}
+              },
+              "example": {
+                "error": "Task has been already reviewed"
+              }
+            }
+          }
+        }
       },
       "NotFound": {
         "description": "Not found."
@@ -1824,7 +2110,7 @@
           }
         }
       },
-      "500_health_check":{
+      "502_health_check":{
         "description": "Service unhealthy",
         "content": {
           "application/json": {
@@ -2019,7 +2305,12 @@
           },
           "dataset_id": {
             "type": "string",
+            "description": "This is here mostly for legacy purposes, but referring by name is more consistent across multiple nodes.",
             "example": "1"
+          },
+          "dataset_name": {
+            "type": "string",
+            "example": "blood_samples"
           }
         },
         "required": [
@@ -2027,7 +2318,7 @@
           "project_name",
           "requested_by",
           "description",
-          "dataset_id",
+          "dataset_name",
           "proj_start",
           "proj_end"
         ]

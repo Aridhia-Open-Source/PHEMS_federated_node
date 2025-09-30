@@ -1,5 +1,19 @@
 # Releases Changelog
 
+## 1.4.0
+- Added a dedicated Cluster Role for keycloak init daemonset
+
+### Bugfixes
+- Fixed an intermittent issue with authentication post helm upgrades.
+- Removed unnecessary jobs for keycloak credentials reset.
+- Changed `keycloak-realm-init` to a DaemonSet so it will run automatically at cluster restart.
+- Fixed an issue with admins not being able to get results regardless of review status
+
+## 1.3.0
+- Upgraded all python images to use `python:3.13-slim`
+- Upgraded alpine image to 3.22
+- Added a `taskReview` flag on the values to enable task results review before being released. Set to `false` by default.
+- Results can also be delivered automatically after bein g triggered by the API call directly. The `/tasks/<id>/results` endpoint will still work.
 
 ## 1.3.0
 - Added 3 new endpoints to associate a dataset with a container.

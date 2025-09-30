@@ -81,7 +81,7 @@ class TestGetContainers(ContainersMixin):
             "/containers"
         )
 
-        assert resp.json == [self.get_container_as_response(container)]
+        assert resp.json["items"] == [self.get_container_as_response(container)]
 
     def test_get_container_by_id(
         self,
@@ -117,7 +117,7 @@ class TestGetContainers(ContainersMixin):
         )
 
         assert resp.status_code == 404
-        assert resp.json["error"] == f'Container id: {container.id + 1} not found'
+        assert resp.json["error"] == f'Container with id {container.id + 1} does not exist'
 
     def test_get_container_by_id_non_auth(
         self,
@@ -263,7 +263,7 @@ class TestPatchContainers:
             json={"ml": True},
             headers=post_json_admin_header
         )
-        assert resp.status_code == 204
+        assert resp.status_code == 201
         assert Container.query.filter_by(id=container.id).one_or_none().ml == True
 
     def test_patch_container_wrong_body(
@@ -298,7 +298,7 @@ class TestPatchContainers:
             headers=post_json_admin_header
         )
         assert resp.status_code == 404
-        assert resp.json["error"] == f"Container id: {container.id + 1} not found"
+        assert resp.json["error"] == f"Container with id {container.id + 1} does not exist"
 
     def test_patch_container_non_json(
         self,
@@ -427,4 +427,4 @@ class TestSync:
 
         assert resp.status_code == 201
         assert resp.json == []
-        assert Container.get_all() == []
+        assert Container.query.all() == []

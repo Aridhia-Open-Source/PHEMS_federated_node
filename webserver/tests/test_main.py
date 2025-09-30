@@ -48,5 +48,5 @@ def test_health_check_fails(mock_req, client):
     Check that the HC returns 500 with keycloak connection issues
     """
     hc_resp = client.get("/health_check")
-    assert hc_resp.status_code == 500
+    assert hc_resp.status_code == 502
     assert hc_resp.json == {'keycloak': False, 'status': 'non operational'}

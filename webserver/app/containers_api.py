@@ -8,9 +8,10 @@ containers endpoints:
 """
 import logging
 from flask import Blueprint, request
+from http import HTTPStatus
 
 from .helpers.base_model import db
-from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
+from .helpers.exceptions import InvalidRequest
 from .helpers.wrappers import audit, auth
 from .models.container import Container
 from .models.registry import Registry
@@ -30,7 +31,7 @@ def get_all_containers():
     GET /containers endpoint.
         Returns the list of allowed containers
     """
-    return Container.get_all(), 200
+    return Container.get_all(), HTTPStatus.OK
 
 
 @bp.route('/', methods=['POST'])
@@ -56,7 +57,7 @@ def add_image():
 
     image = Container(**body)
     image.add()
-    return {"id": image.id}, 201
+    return {"id": image.id}, HTTPStatus.CREATED
 
 
 @bp.route('/<int:image_id>', methods=['GET'])
@@ -66,11 +67,9 @@ def get_image_by_id(image_id:int=None):
     """
     GET /containers/<image_id>
     """
-    image = Container.query.filter(Container.id == image_id).one_or_none()
-    if not image:
-        raise DBRecordNotFoundError(f"Container id: {image_id} not found")
+    image = Container.get_by_id(image_id)
 
-    return Container.sanitized_dict(image), 200
+    return Container.sanitized_dict(image), HTTPStatus.OK
 
 
 @bp.route('/<int:image_id>', methods=['PATCH'])
@@ -91,15 +90,13 @@ def patch_datasets_by_id_or_name(image_id:int=None):
     if not (data.get("ml") or data.get("dashboard")):
         raise InvalidRequest("Either `ml` or `dashboard` field must be provided")
 
-    image = Container.query.filter(Container.id == image_id).one_or_none()
-    if not image:
-        raise DBRecordNotFoundError(f"Container id: {image_id} not found")
+    image = Container.get_by_id(image_id)
 
     for field in ["ml", "dashboard"]:
         if data.get(field) and isinstance(data.get(field), bool):
             setattr(image, field, data.get(field))
 
-    return {}, 204
+    return {}, HTTPStatus.CREATED
 
 
 @bp.route('/sync', methods=['POST'])
@@ -134,4 +131,4 @@ def sync():
                 cont.add(commit=False)
                 synched.append(cont.full_image_name())
     session.commit()
-    return synched, 201
+    return synched, HTTPStatus.CREATED

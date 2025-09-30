@@ -92,7 +92,7 @@ class TestDictionaries(MixinTestDataset):
             json=data_body,
             headers=post_json_admin_header
         )
-        assert response.status_code == 204
+        assert response.status_code == 202
         dictionaries = Dictionary.query.filter(Dictionary.dataset_id == resp_ds["dataset_id"]).all()
         for dictionary in dictionaries:
             for k, v in data_body["dictionaries"][0].items():
@@ -125,7 +125,7 @@ class TestDictionaries(MixinTestDataset):
             json=data_body,
             headers=post_json_admin_header
         )
-        assert response.status_code == 204
+        assert response.status_code == 202
         assert Dictionary.query.filter(Dictionary.dataset_id == resp_ds["dataset_id"]).count() == 2
 
     def test_patch_dictionary_fails_if_exists(
@@ -151,7 +151,7 @@ class TestDictionaries(MixinTestDataset):
             json=data_body,
             headers=post_json_admin_header
         )
-        assert response.status_code == 204
+        assert response.status_code == 202
         assert Dictionary.query.filter(Dictionary.dataset_id == resp_ds["dataset_id"]).count() == 1
 
     def test_patch_dictionary_fails_if_mandatory_field_missing(
