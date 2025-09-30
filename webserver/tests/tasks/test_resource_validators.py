@@ -4,6 +4,7 @@ from app.helpers.exceptions import InvalidRequest
 from app.models.task import Task
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
+from tests.fixtures.dataset_container_fixtures import *
 
 
 class TestResourceValidators:
@@ -14,7 +15,8 @@ class TestResourceValidators:
             registry_client,
             cr_client,
             mocks_kc_tasks,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests that the expected resource values are accepted
@@ -41,7 +43,8 @@ class TestResourceValidators:
             user_uuid,
             registry_client,
             cr_client,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests that the expected resource values are accepted
@@ -71,7 +74,8 @@ class TestResourceValidators:
             cr_client,
             registry_client,
             mocks_kc_tasks,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests that the unexpected memory values are not accepted
@@ -104,7 +108,8 @@ class TestResourceValidators:
             cr_client,
             registry_client,
             mocks_kc_tasks,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests that the unexpected cpu values are not accepted
@@ -138,7 +143,8 @@ class TestResourceValidators:
             cr_client,
             registry_client,
             mocks_kc_tasks,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests that the unexpected cpu values are not accepted
@@ -169,7 +175,8 @@ class TestResourceValidators:
             cr_client,
             registry_client,
             mocks_kc_tasks,
-            task_body
+            task_body,
+            ds_star_link
         ):
         """
         Tests that the unexpected cpu values are not accepted
