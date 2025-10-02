@@ -2,9 +2,9 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: db-pv
+  name: {{ .Release.Name }}-db-pv
 spec:
-  storageClassName: shared-results
+  storageClassName: {{ include "storageClassName" . }}
   accessModes:
     - ReadWriteMany
   capacity:
@@ -45,7 +45,7 @@ metadata:
 spec:
   storageClassName: db-storage
   # This should be changed to some more reliable destination
-  volumeName: db-pv
+  volumeName: {{ .Release.Name }}-db-pv
   resources:
     requests:
       storage: 100Mi

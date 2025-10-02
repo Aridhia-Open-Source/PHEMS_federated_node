@@ -1,8 +1,9 @@
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: cleaner-role
+  namespace: {{ .Release.Namespace }}
 rules:
 - apiGroups: ["", "batch"]
   resources: ["pods", "persistentvolumes", "persistentvolumeclaims", "jobs", "pods/exec"]
@@ -12,15 +13,15 @@ rules:
   verbs: ["get", "watch", "list", "create", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
-  name: cleaner-role
+  name: cleaner-role-binding
 subjects:
   - kind: ServiceAccount
     namespace: {{ .Release.Namespace }}
     name: task-cleaner-handler
 roleRef:
-  kind: ClusterRole
+  kind: Role
   name: cleaner-role
   apiGroup: rbac.authorization.k8s.io
 ---

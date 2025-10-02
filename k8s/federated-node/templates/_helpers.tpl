@@ -170,20 +170,26 @@ http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 {{- end }}
 
 {{- define "pvcName" -}}
-{{ printf "flask-results-%s-pv-vc" (.Values.storage.capacity | default "10Gi") | lower }}
+{{ printf "backend-results-%s-pv-vc" (.Values.storage.capacity | default "10Gi") | lower }}
 {{- end }}
 {{- define "pvName" -}}
-{{ printf "flask-results-%s-pv" (.Values.storage.capacity | default "10Gi") | lower }}
+{{- printf "%s-backend-results-%s-pv" .Release.Name (.Values.storage.capacity | default "10Gi") | lower }}
+{{- end }}
+{{- define "storageClassName" -}}
+{{- printf "%s-shared-results" .Release.Name | lower }}
 {{- end }}
 
 {{- define "awsStorageAccount" -}}
 {{- if .Values.storage.aws }}
   {{- with .Values.storage.aws }}
     {{- if .accessPointId }}
-      {{- printf  "%s::%s" .fileSystemId .accessPointId | quote }}
+      {{- printf "%s::%s" .fileSystemId .accessPointId | quote }}
     {{- else }}
       {{- .fileSystemId | quote }}
     {{- end }}
   {{- end }}
 {{- end }}
+{{- end -}}
+{{- define "controllerCrdGroup" -}}
+tasks.{{ .Release.Name }}.com
 {{- end -}}

@@ -1,0 +1,40 @@
+cert-manager:
+  enabled: true
+keycloak:
+  replicas: 1
+certs:
+  azure:
+    configmap: azurecert-config
+    secretName: test-azure
+db:
+  host: postgres.postgres.database.azure.com
+  name: federated_node_db
+  secret:
+    key: value
+    name: local-db
+  user: user
+host: test.aridhiatest.net
+ingress-nginx:
+  controller:
+    extraArgs:
+      default-ssl-certificate: federatednode/tls
+    service:
+      externalTrafficPolicy: Local
+      loadBalancerIP: 127.0.0.1
+  enabled: true
+  namespaceOverride: ingress-nginx
+integrations:
+  domains:
+  - '*.test.aridhia.io'
+namespaces:
+  keycloak: identities
+  nginx: federated-nginx
+  tasks: analytics
+on_aks: true
+pullPolicy: Always
+storage:
+  azure:
+    secretName: test-azure
+    shareName: files
+tls:
+  secretName: tls

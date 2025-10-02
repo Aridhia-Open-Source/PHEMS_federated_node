@@ -1,0 +1,76 @@
+suite: Upgrade testing
+release:
+  namespace: federatednode
+  revision: 2
+  name: federatednode
+templates:
+  - "*"
+values:
+  - values/values-upgrade.yaml
+kubernetesProvider:
+  scheme:
+    v1/Secret:
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+    v1/ConfigMap:
+      gvr:
+        version: v1
+        resource: configmaps
+      namespaced: true
+  objects:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: awscert-config
+        namespace: federatednode
+      type: Opaque
+      data:
+        EMAIL_CERT: dGVzdA==
+        REGION: dGVzdA==
+        ACCOUNT_ID: dGVzdA==
+        ROLE_NAME: dGVzdA==
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: local-db
+        namespace: federatednode
+      type: Opaque
+      data:
+        password: dGVzdA==
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: first-user
+        namespace: federatednode
+      type: Opaque
+      data:
+        pass: dGVzdA==
+tests:
+  # Mostly to make sure is created
+  - it: simulate reuse-values args
+    template: keycloak-realm-daemonset.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: set new user
+    template: copy-secrets.yaml
+    set:
+      firstUserSecret:
+        name: first-user
+        userKey: user
+        passKey: pass
+        firstName: User
+        lastName: Last
+        email: user.last@email.com
+    asserts:
+      - hasDocuments:
+          count: 3
+
+  - it: don't set new user
+    template: copy-secrets.yaml
+    asserts:
+      - hasDocuments:
+          count: 2

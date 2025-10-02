@@ -1,0 +1,79 @@
+suite: Storage testing for microk8s
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-local.yaml
+kubernetesProvider:
+  scheme:
+    v1/Secret:
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+    v1/ConfigMap:
+      gvr:
+        version: v1
+        resource: configmaps
+      namespaced: true
+  objects:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: awscert-config
+        namespace: federatednode
+      type: Opaque
+      data:
+        EMAIL_CERT: dGVzdA==
+        REGION: dGVzdA==
+        ACCOUNT_ID: dGVzdA==
+        ROLE_NAME: dGVzdA==
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: local-db
+        namespace: federatednode
+      type: Opaque
+      data:
+        password: dGVzdA==
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: github-app
+        namespace: federatednode
+      type: Opaque
+      data:
+        GH_SECRET: dGVzdA==
+        GH_CLIENT_ID: dGVzdA==
+tests:
+  - it: creates a local db deployment
+    template: db-deployment.yaml
+    set:
+      create_db_deployment: true
+    asserts:
+      - hasDocuments:
+          count: 1
+  - it: creates selfsigned issuer
+    template: certificates/issuer.yaml
+    asserts:
+      - exists:
+          path: spec.selfSigned
+  - it: creates selfsigned issuer
+    template: backend-results-pv.yaml
+    asserts:
+      - exists:
+          path: spec.local.path
+        documentSelector:
+          path: kind
+          value: PersistentVolume
+  - it: creates selfsigned issuer
+    template: storageclass.yaml
+    asserts:
+      - equal:
+          path: provisioner
+          value: Local
+  - it: simulate reuse-values args
+    template: keycloak-realm-daemonset.yaml
+    asserts:
+      - hasDocuments:
+          count: 1

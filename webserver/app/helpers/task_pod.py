@@ -11,7 +11,10 @@ from kubernetes.client import (
     V1PersistentVolumeClaimSpec, V1VolumeResourceRequirements,
     V1CSIPersistentVolumeSource
 )
-from app.helpers.const import RESULTS_PATH, TASK_NAMESPACE, TASK_PULL_SECRET_NAME
+from app.helpers.const import (
+    RESULTS_PATH, STORAGE_CLASS,
+    TASK_NAMESPACE, TASK_PULL_SECRET_NAME
+)
 from app.helpers.kubernetes import KubernetesClient
 from app.models.dataset import Dataset
 
@@ -102,7 +105,7 @@ class TaskPod:
         pv_spec = V1PersistentVolumeSpec(
             access_modes=['ReadWriteMany'],
             capacity={"storage": os.getenv("CLAIM_CAPACITY")},
-            storage_class_name="shared-results"
+            storage_class_name=STORAGE_CLASS
         )
         if os.getenv("AZURE_STORAGE_ENABLED"):
             pv_spec.azure_file=V1AzureFilePersistentVolumeSource(
@@ -134,7 +137,7 @@ class TaskPod:
             spec=V1PersistentVolumeClaimSpec(
                 access_modes=['ReadWriteMany'],
                 volume_name=self.name,
-                storage_class_name="shared-results",
+                storage_class_name=STORAGE_CLASS,
                 resources=V1VolumeResourceRequirements(requests={"storage": "100Mi"})
             )
         )
