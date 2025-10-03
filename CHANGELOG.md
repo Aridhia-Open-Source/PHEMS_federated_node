@@ -1,5 +1,8 @@
 # Releases Changelog
 
+## 1.6.0
+- Added a new endpoint `/delivery-secret` to update the results delivery credentials in case the Task Controller is deployed with it.
+
 ## 1.5.0
 - Prefixed cluster-wide resources with the release name (unique by helm standards). Moved unnecessarily cluster-wide resources to namespaced ones
 - Added the option to setup an initial user to avoid using the backend credentials. To set it up, the following section in the values file has been added:

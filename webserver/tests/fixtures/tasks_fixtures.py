@@ -145,12 +145,11 @@ def k8s_crd_404():
         )
     )
 
-@fixture()
+@fixture
 def set_task_review_env(mocker):
     mocker.patch('app.models.task.TASK_REVIEW', return_value="enabled")
     mocker.patch('app.tasks_api.TASK_REVIEW', return_value="enabled")
 
-@fixture()
+@fixture
 def set_task_controller_env(mocker):
     mocker.patch('app.models.task.TASK_CONTROLLER', return_value="enabled")
-    mocker.patch('app.tasks_api.TASK_CONTROLLER', return_value="enabled")

@@ -10,11 +10,11 @@ datasets-related endpoints:
 - POST /datasets/token_transfer
 - POST /datasets/selection/beacon
 """
+import logging
 from http import HTTPStatus
 from datetime import datetime
 from flask import Blueprint, request
 from kubernetes.client import ApiException
-import logging
 
 from .helpers.base_model import db
 from .helpers.const import DEFAULT_NAMESPACE
@@ -111,9 +111,9 @@ def delete_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
 
     try:
         ds.delete(False)
-    except:
+    except Exception as exc:
         session.rollback()
-        raise InvalidRequest("Error while deleting the record")
+        raise InvalidRequest("Error while deleting the record") from exc
 
     v1 = KubernetesClient()
     try:
