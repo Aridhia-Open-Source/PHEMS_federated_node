@@ -12,12 +12,15 @@ if [[ ! microk8s ]]; then
     exit 1
 fi
 
+helm repo add fn-task-controller https://aridhia-open-source.github.io/federated-node-task-controller
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo add jetstack https://charts.jetstack.io
+
 echo "If getting context errors:"
 echo
 echo "mv ~/.kube/config > ~/.kube/config.backup"
 echo "yq eval-all '. as $item ireduce ({}; . * $item)' microconfig.yaml ~/.kube/config > ~/.kube/config"
 echo
-
 
 if [[ ! jq ]]; then
     echo "jq is not installed"
@@ -55,7 +58,7 @@ echo "If new images are needed, load them up with:"
 echo "docker save <image_name> > fn.tar"
 echo "microk8s ctr image import fn.tar"
 
-NGINX_NAMESPACE=$(grep -oP '(?<=nginx:\s).*' k8s/federated-node/dev.values.yaml)
+NGINX_NAMESPACE=$(grep -oP '(?<=nginx:\s).*' $DEV_VALUES)
 
 if [[ -z $NGINX_NAMESPACE ]]; then
     NGINX_NAMESPACE=$(grep -oP '(?<=nginx:\s).*' k8s/federated-node/values.yaml)
