@@ -1,5 +1,5 @@
 from app.models.dictionary import Dictionary
-from tests.test_datasets import MixinTestDataset
+from tests.datasets.datasets_mixin import MixinTestDataset
 
 
 class TestDictionaries(MixinTestDataset):

@@ -193,6 +193,28 @@ def v1_mock(mocker):
         "delete_namespaced_pod_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.delete_namespaced_pod'
         ),
+        "read_namespaced_config_map_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.read_namespaced_config_map',
+            return_value=Mock(
+                metadata=Mock(labels={}),
+                data={
+                    "krb5.conf": "content",
+                    "principal.keytab": "content"
+                }
+            )
+        ),
+        "replace_namespaced_config_map_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.replace_namespaced_config_map'
+        ),
+        "create_namespaced_config_map_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.create_namespaced_config_map'
+        ),
+        "patch_namespaced_config_map_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.patch_namespaced_config_map'
+        ),
+        "delete_namespaced_config_map_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.delete_namespaced_config_map'
+        ),
         "is_pod_ready_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.is_pod_ready'
         ),
@@ -273,6 +295,39 @@ def reg_k8s_client(k8s_client):
 def dataset_post_body():
     return copy.deepcopy(sample_ds_body)
 
+@pytest.fixture(scope='function')
+def dataset_kerberos_post_body():
+    body = copy.deepcopy(sample_ds_body)
+    body["name"] = "kerberosDB"
+    body["type"] = "mssql"
+    body["auth_type"] = "kerberos"
+    body["username"] = "principal/domain@DOMAIN.COM"
+    body["kerberos"] = {"secret_name": "examplekrb"}
+    return body
+
+@pytest.fixture
+def kerberos_secret_read(mocker, dataset_kerberos_post_body):
+    secret_mock = Mock(
+        metadata=Mock(
+            name=dataset_kerberos_post_body["kerberos"]["secret_name"],
+            labels={}
+        ),
+        data={
+            "krb5.conf": "",
+            "principal.keytab": "",
+    })
+    return mocker.patch(
+        'app.models.dataset.KubernetesClient',
+        return_value=Mock(
+            list_namespaced_secret=Mock(
+                return_value=Mock(items=[secret_mock])
+            ),
+            read_namespaced_secret=Mock(
+                return_value=secret_mock
+            )
+        )
+    )
+
 @pytest.fixture
 def dataset(mocker, client, user_uuid, k8s_client) -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
@@ -284,6 +339,15 @@ def dataset(mocker, client, user_uuid, k8s_client) -> Dataset:
 def dataset_oracle(mocker, client, user_uuid, k8s_client)  -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
     dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user', type="oracle")
+    dataset.add(user_id=user_uuid)
+    return dataset
+
+@pytest.fixture
+def dataset_kerberos(mocker, client, user_uuid, k8s_client, kerberos_secret_read)  -> Dataset:
+    mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
+    dataset = Dataset(
+        name="AnotherDS", host="example.com", username='user', type="mssql", auth_type="kerberos",
+        kerberos_secret=kerberos_secret_read.return_value.read_namespaced_secret.return_value)
     dataset.add(user_id=user_uuid)
     return dataset
 
