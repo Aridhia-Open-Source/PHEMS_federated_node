@@ -447,6 +447,30 @@ class TestPostTask:
         )
         assert response.status_code == 403
 
+    def test_create_task_image_same_name_different_registry(
+            self,
+            k8s_client,
+            cr_client,
+            registry_client,
+            post_json_admin_header,
+            client,
+            container,
+            task_body
+        ):
+        """
+        Tests task creation is successful if two images are mapped with the
+        same name, but different registry
+        """
+        registry = Registry(url="another.azureacr.io", username="user", password="pass")
+        registry.add()
+        Container(registry=registry, name=container.name, tag=container.tag).add()
+        response = client.post(
+            '/tasks/',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+
     def test_create_task_image_not_found(
             self,
             cr_client_404,
