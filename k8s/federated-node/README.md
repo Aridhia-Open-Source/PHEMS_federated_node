@@ -13,6 +13,12 @@ The necessary values are:
 |storage.aws|fileSystemId|EFS system id, e.g. fs-xxxxxxxxx|
 |storage.aws|accessPointId|Optional, access point id for better permission and isolation management in the EFS|
 |-|-|-|
+|firstUserSecret|name|The secret name that will hold the password to use for the user|
+|firstUserSecret|passKey|The key holding the password|
+|firstUserSecret|email|User's email address, this will also be the username|
+|firstUserSecret|firstName|(Optional) User's first name|
+|firstUserSecret|lastName|(Optional) User's last name|
+|-|-|-|
 |db|host|DB hostname|
 |db|name|Database name|
 |db|user|DB username|

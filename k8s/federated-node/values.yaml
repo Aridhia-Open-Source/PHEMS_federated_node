@@ -34,8 +34,6 @@ db:
   name: fndb
   host: db
   port: 5432
-  # If a configmap with host user exists, use that
-  # configMap:
   # If a secret with password exists, use that
   # secret:
   #   name:
@@ -45,6 +43,13 @@ db:
 cleanupTime: 3
 
 taskReview: false
+
+firstUserSecret:
+  name:
+  passKey:
+  firstName:
+  lastName:
+  email:
 
 federatedNode:
   port: 5000
@@ -56,8 +61,6 @@ storage:
   capacity: 10Gi
   # azure:
     # secretName:
-    # storageAccountName:
-    # storageAccountKey:
     # shareName:
   # aws:
     # fileSystemId:
@@ -104,7 +107,7 @@ certs:
   azure: {}
     # secretName:
     # configmap:
-  aws: {}
+  aws:
 
 # Enables full smoketests when running `helm test`.
 # This will actively try to add new database and keycloak entries

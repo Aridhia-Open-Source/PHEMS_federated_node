@@ -9,40 +9,42 @@ metadata:
     helm.sh/hook: post-install, post-upgrade
 spec:
   {{- if .Values.on_aks }}
-  {{- $cm := lookup "v1" "ConfigMap" $.Release.Namespace .Values.certs.azure.configmap | default dict }}
+  {{- with include "lookupOrError" (dict "entity" "ConfigMap" "namespace" .Release.Namespace "name" .Values.certs.azure.configmap) | fromYaml }}
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: {{ $cm.data.EMAIL_CERT }}
+    email: {{ .data.EMAIL_CERT }}
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
     - dns01:
         azureDNS:
-          clientID: {{ $cm.data.SP_ID }}
+          clientID: {{ .data.SP_ID }}
           clientSecretSecretRef:
             name: {{ $.Values.certs.azure.secretName }}
             key: SP_SECRET
           environment: AzurePublicCloud
-          resourceGroupName: {{ $cm.data.RG_NAME }}
-          subscriptionID: {{ $cm.data.SUBSCRIPTION_ID }}
-          hostedZoneName: {{ $cm.data.HOSTED_ZONE }}
-          tenantID: {{ $cm.data.TENANT_ID }}
+          resourceGroupName: {{ .data.RG_NAME }}
+          subscriptionID: {{ .data.SUBSCRIPTION_ID }}
+          hostedZoneName: {{ .data.HOSTED_ZONE }}
+          tenantID: {{ .data.TENANT_ID }}
+  {{ end }}
   {{- else if .Values.on_eks }}
-  {{- $sec := lookup "v1" "Secret" $.Release.Namespace .Values.certs.aws | default dict }}
+  {{- with include "lookupOrError" (dict "entity" "Secret" "namespace" .Release.Namespace "name" .Values.certs.aws) | fromYaml }}
   acme:
     server: https://acme-staging-v02.api.letsencrypt.org/directory
-    email: {{ $sec.data.EMAIL_CERT | b64dec }}
+    email: {{ .data.EMAIL_CERT | b64dec }}
     privateKeySecretRef:
       name: letsencrypt-staging
     solvers:
     - dns01:
         route53:
-          region: {{ $sec.data.REGION | b64dec }}
-          role: arn:aws:iam::{{ $sec.data.ACCOUNT_ID | b64dec }}:role/{{ $sec.data.ROLE_NAME | b64dec }}
+          region: {{ .data.REGION | b64dec }}
+          role: arn:aws:iam::{{ .data.ACCOUNT_ID | b64dec }}:role/{{ .data.ROLE_NAME | b64dec }}
           auth:
             kubernetes:
               serviceAccountRef:
                 name: cert-manager-acme-dns01-route53
+  {{- end }}
   {{- else if .Values.local_development }}
   selfSigned: {}
   {{- end }}

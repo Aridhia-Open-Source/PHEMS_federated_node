@@ -1,0 +1,89 @@
+suite: Storage testing for Azure
+release:
+  namespace: federatednode
+  revision: 2
+  name: federatednode
+  upgrade: true
+values:
+  - values/values-aks.yaml
+kubernetesProvider:
+  scheme:
+    v1/Secret:
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+    v1/ConfigMap:
+      gvr:
+        version: v1
+        resource: configmaps
+      namespaced: true
+  objects:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: test-azure
+        namespace: federatednode
+      type: Opaque
+      data:
+        SP_SECRET: dGVzdA==
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: local-db
+        namespace: federatednode
+      type: Opaque
+      data:
+        password: dGVzdA==
+    - apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: azurecert-config
+        namespace: federatednode
+      data:
+        EMAIL_CERT: test@test.com
+        SP_ID: as1d1as351as
+        RG_NAME: rg-test
+        SUBSCRIPTION_ID: 123-123-123
+        HOSTED_ZONE: uksouth
+        TENANT_ID: as13151cv18a1ca651ac
+tests:
+  - it: upgrade AWS storage
+    template: backend-results-pv.yaml
+    set:
+      storage:
+        azure:
+          shareName: folder
+    asserts:
+      - equal:
+          path: spec.azureFile.shareName
+          value: folder
+        documentSelector:
+          path: kind
+          value: PersistentVolume
+  - it: upgrade Azure certificate issuer
+    template: certificates/issuer.yaml
+    kubernetesProvider:
+      objects:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: new-certificate-config
+            namespace: federatednode
+          data:
+            EMAIL_CERT: new@cert.com
+            SP_ID: as1d1as351as
+            RG_NAME: rg-test
+            SUBSCRIPTION_ID: 123-123-123
+            HOSTED_ZONE: uksouth
+            TENANT_ID: as13151cv18a1ca651ac
+    set:
+      certs:
+        azure:
+          configmap: new-certificate-config
+    asserts:
+      - equal:
+          path: spec.acme.email
+          value: new@cert.com
+      - exists:
+          path: spec.acme.solvers[0].dns01.azureDNS

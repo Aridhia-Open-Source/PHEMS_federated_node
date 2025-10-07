@@ -13,4 +13,4 @@ date=$(python3 -c "from datetime import datetime, timedelta;print((datetime.now(
 deleteEntity pods "${NAMESPACE}"
 deleteEntity pvc "${NAMESPACE}"
 deleteEntity pv "${NAMESPACE}"
-find "${RESULTS_PATH}/" -type d -mtime "+${CLEANUP_AFTER_DAYS}" -name '*' -print0 | xargs -r0 rm -r --
+find "${RESULTS_PATH}/" -type d -mtime "+${CLEANUP_AFTER_DAYS}" -name '[0-9]*' -print0 | xargs -r0 rm -r --

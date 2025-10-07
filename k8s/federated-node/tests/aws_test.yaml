@@ -1,0 +1,86 @@
+suite: Storage testing for AWS
+release:
+  namespace: federatednode
+  revision: 0
+  name: federatednode
+kubernetesProvider:
+  scheme:
+    v1/Secret:
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+    v1/ConfigMap:
+      gvr:
+        version: v1
+        resource: configmaps
+      namespaced: true
+  objects:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: awscert-config
+        namespace: federatednode
+      type: Opaque
+      data:
+        EMAIL_CERT: dGVzdA==
+        REGION: dGVzdA==
+        ACCOUNT_ID: dGVzdA==
+        ROLE_NAME: dGVzdA==
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: local-db
+        namespace: federatednode
+      type: Opaque
+      data:
+        password: dGVzdA==
+tests:
+  - it: creates AWS storage
+    template: copy-secrets.yaml
+    values:
+      - values/values-aws.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: awscert-config
+        documentSelector:
+          path: metadata.name
+          value: awscert-config
+  - it: creates AWS persistency
+    template: backend-results-pv.yaml
+    values:
+      - values/values-aws.yaml
+    asserts:
+      - equal:
+          path: spec.csi.driver
+          value: efs.csi.aws.com
+        documentSelector:
+          path: kind
+          value: PersistentVolume
+  - it: creates AWS certificate issuer
+    template: certificates/issuer.yaml
+    values:
+      - values/values-aws.yaml
+    asserts:
+      - exists:
+          path: spec.acme.solvers[0].dns01.route53
+  - it: creates AWS certificate roles
+    template: certificates/roles.yaml
+    values:
+      - values/values-aws.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+      - hasDocuments:
+          count: 1
+          filterAware: true
+        documentSelector:
+          path: kind
+          value: Role
+      - hasDocuments:
+          count: 1
+          filterAware: true
+        documentSelector:
+          path: kind
+          value: RoleBinding

@@ -18,3 +18,5 @@ k8s/*/*.values.yaml
 **/coverage.xml
 k8s/federated-node/Chart.lock
 k8s/federated-node/charts
+k8s/federated-node/.debug
+debug.yaml
