@@ -51,7 +51,7 @@ class TestBeacon:
             },
             headers=post_json_admin_header
         )
-        assert response.status_code == 500
+        assert response.status_code == 400
         assert response.json['result'] == 'Invalid'
 
     def test_beacon_connection_failed(
