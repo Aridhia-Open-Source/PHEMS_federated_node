@@ -2,7 +2,7 @@
 
 set -e
 
-DEV_VALUES=${1:-"-f k8s/federated-node/dev.values.yaml"}
+DEV_VALUES=${1:-"k8s/federated-node/dev.values.yaml"}
 HELM_CHART_NAME=federatednode
 INSTALLED_VERSION=$(helm list --filter "^$HELM_CHART_NAME" -o json | jq -r .[].chart)
 CHART_VERSION=federated-node-$(grep 'version:' k8s/federated-node/Chart.yaml | sed 's/^.*: //')
@@ -41,13 +41,13 @@ popd
 
 if [[ -z "$INSTALLED_VERSION" ]]; then
     echo "Applying helm chart"
-    helm install $HELM_CHART_NAME k8s/federated-node $DEV_VALUES
+    helm install $HELM_CHART_NAME k8s/federated-node -f $DEV_VALUES
 else
     if [[ $INSTALLED_VERSION = "$CHART_VERSION" ]]; then
         echo "Current version is the latest!"
     else
         echo "Upgrading installed helm chart"
-        helm upgrade $HELM_CHART_NAME k8s/federated-node $DEV_VALUES
+        helm upgrade $HELM_CHART_NAME k8s/federated-node -f $DEV_VALUES
     fi
 fi
 
