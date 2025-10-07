@@ -21,6 +21,7 @@ export KEYCLOAK_NAMESPACE=keycloak
 export CLEANUP_AFTER_DAYS=1
 export PUBLIC_URL=localhost:5000
 export CLAIM_CAPACITY=100Mi
+export CONTROLLER_NAMESPACE=fn-controller
 
 is_ci=$1
 

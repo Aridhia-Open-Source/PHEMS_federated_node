@@ -98,5 +98,6 @@ services:
       KEYCLOAK_NAMESPACE:
       FLASK_APP: .
       CLEANUP_AFTER_DAYS:
+      CONTROLLER_NAMESPACE:
 volumes:
   data:
