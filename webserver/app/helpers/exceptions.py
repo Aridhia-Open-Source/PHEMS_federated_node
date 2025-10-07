@@ -87,7 +87,13 @@ class TaskCRDExecutionException(LogAndException):
 class KubernetesException(LogAndException):
     pass
 
+class ContainerException(LogAndException):
+    pass
+
 class ContainerRegistryException(LogAndException):
+    pass
+
+class DatasetContainerException(LogAndException):
     pass
 
 class FeatureNotAvailableException(LogAndException):

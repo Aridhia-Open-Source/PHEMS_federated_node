@@ -107,3 +107,9 @@ def container(client, k8s_client, registry, image_name) -> Container:
     cont = Container(img, registry, tag, True)
     cont.add()
     return cont
+
+@pytest.fixture
+def container2(client, k8s_client, registry) -> Container:
+    cont = Container("newimage", registry, "0.21.0", True)
+    cont.add()
+    return cont
