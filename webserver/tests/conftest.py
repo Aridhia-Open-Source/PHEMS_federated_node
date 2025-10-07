@@ -21,6 +21,7 @@ from app.helpers.keycloak import Keycloak, URLS, KEYCLOAK_SECRET, KEYCLOAK_CLIEN
 from tests.helpers.keycloak import clean_kc
 from app.helpers.exceptions import KeycloakError
 from app.models.task import Task
+from app.helpers.const import CRD_DOMAIN
 
 
 sample_ds_body = {
@@ -64,7 +65,7 @@ def user_token(basic_user):
         'requested_token_type': 'urn:ietf:params:oauth:token-type:refresh_token',
         'subject_token': admin_token,
         'requested_subject': basic_user["id"],
-        'audience': 'global'
+        'audience': KEYCLOAK_CLIENT
     }
     exchange_resp = requests.post(
         URLS["get_token"],
@@ -239,12 +240,26 @@ def v1_batch_mock(mocker):
     }
 
 @pytest.fixture
-def v1_crd_mock(mocker):
-    return {
-        "create_cluster_custom_object": mocker.patch(
-            'app.helpers.kubernetes.KubernetesCRDClient.create_cluster_custom_object'
+def v1_crd_mock(mocker, task):
+    return mocker.patch(
+        "app.models.task.KubernetesCRDClient",
+        return_value=Mock(
+            list_cluster_custom_object=Mock(
+                return_value={"items": [{
+                    "metadata": {
+                        "name": "crd_name",
+                        "annotations": {
+                            f"{CRD_DOMAIN}/task_id": str(task.id)
+                        }
+                    }
+                }]
+            },
+            patch_cluster_custom_object=Mock(),
+            create_cluster_custom_object=Mock(),
+            get_cluster_custom_object=Mock()
+            )
         )
-    }
+    )
 
 @pytest.fixture
 def pod_listed():
@@ -254,11 +269,11 @@ def pod_listed():
     return Mock(items=[pod])
 
 @pytest.fixture
-def k8s_client(mocker, pod_listed, v1_mock, v1_batch_mock, v1_crd_mock, k8s_config):
+def k8s_client(mocker, pod_listed, v1_mock, v1_batch_mock, k8s_config):
     all_clients = {}
     all_clients.update(v1_mock)
     all_clients.update(v1_batch_mock)
-    all_clients.update(v1_crd_mock)
+    # all_clients.update(v1_crd_mock)
     all_clients["read_namespaced_secret_mock"].return_value.data = {
         "PGUSER": "YWJjMTIz",
         "PGPASSWORD": "YWJjMTIz",

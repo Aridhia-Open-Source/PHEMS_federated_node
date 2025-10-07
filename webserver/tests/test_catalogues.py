@@ -70,7 +70,7 @@ class TestCatalogues(MixinTestDataset):
             json=data_body,
             headers=post_json_admin_header
         )
-        assert response.status_code == 204
+        assert response.status_code == 202
         catalogue = Catalogue.query.filter(Catalogue.dataset_id == resp_ds["dataset_id"]).all()
         assert len(catalogue) == 1
         assert catalogue[0].description == "shiny new table"
@@ -104,7 +104,7 @@ class TestCatalogues(MixinTestDataset):
             json=data_body,
             headers=post_json_admin_header
         )
-        assert response.status_code == 204
+        assert response.status_code == 202
         assert Catalogue.query.filter(Catalogue.dataset_id == resp_ds["dataset_id"]).count() == 1
 
     def test_patch_catalogue_doesnt_add_new_one_if_exists(
@@ -130,7 +130,7 @@ class TestCatalogues(MixinTestDataset):
             json=data_body,
             headers=post_json_admin_header
         )
-        assert response.status_code == 204
+        assert response.status_code == 202
         assert Catalogue.query.filter(Catalogue.dataset_id == resp_ds["dataset_id"]).count() == 1
 
     def test_get_catalogue_not_allowed_user(

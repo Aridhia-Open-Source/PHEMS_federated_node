@@ -4,6 +4,7 @@ request-related endpoints:
 - POST /requests
 - GET /code/approve
 """
+from http import HTTPStatus
 import json
 from flask import Blueprint, request
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
@@ -28,7 +29,7 @@ def get_requests():
     res = session.execute(query).all()
     if res:
         res = [r[0].sanitized_dict() for r in res]
-    return res, 200
+    return res, HTTPStatus.OK
 
 # Disabled for the time being, also disable the pylint rule for duplicated code
 # @bp.route('/', methods=['POST'])
@@ -53,7 +54,7 @@ def post_requests():
         req_attributes = Request.validate(body)
         req = Request(**req_attributes)
         req.add()
-        return {"request_id": req.id}, 201
+        return {"request_id": req.id}, HTTPStatus.CREATED
     except KeyError as kexc:
         session.rollback()
         raise InvalidRequest(
@@ -77,7 +78,7 @@ def post_approve_requests(code):
         raise DBRecordNotFoundError(f"Data Access Request {code} not found")
 
     if dar.status == dar.STATUSES["approved"]:
-        return {"message": "Request already approved"}, 200
+        return {"message": "Request already approved"}, HTTPStatus.OK
 
     user_info = dar.approve()
-    return user_info, 201
+    return user_info, HTTPStatus.CREATED

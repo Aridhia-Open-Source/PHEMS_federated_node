@@ -1,6 +1,6 @@
 # Releases Changelog
 
-## 1.5.0
+## 1.6.0
 - Added support for Kerberos based authentication DBs. In order to enable it on a exising or new dataset, a secret must be created beforehand in the same namespace where the federated node is deployed.
 
     This secret, should have two keys: `krb5.conf` with the file contents of the omonimous file, and `principal.keytab` with the file contents of the principal keytab.
@@ -19,6 +19,20 @@
         }
     }
     ```
+
+## 1.5.0
+- Prefixed cluster-wide resources with the release name (unique by helm standards). Moved unnecessarily cluster-wide resources to namespaced ones
+- Added the option to setup an initial user to avoid using the backend credentials. To set it up, the following section in the values file has been added:
+    ```yaml
+    firstUserSecret:
+        name:
+        passKey:
+        firstName:
+        lastName:
+        email:
+    ```
+    Where a secret needs to be created in the helm chart base namespace. The `name` should be the secret name.
+    The `passKey` is the secret's key that holds the password for the user. The rest of the fields are optional, but it is advisable to set them.
 
 ## 1.4.0
 - Added a dedicated Cluster Role for keycloak init daemonset

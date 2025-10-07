@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: backend-role
+  name: {{ .Release.Name }}-backend-role
 rules:
 - apiGroups: [""]
   resources: ["secrets"]
@@ -15,21 +15,23 @@ rules:
 - apiGroups: [""]
   resources: ["pods"]
   verbs: ["get", "watch", "list", "create"]
-- apiGroups: ["tasks.federatednode.com"]
+{{- if .Values.outboundMode }}
+- apiGroups: [{{ include "controllerCrdGroup" . | quote }}]
   resources: ["analytics"]
-  verbs: ["get", "list", "create"]
+  verbs: ["*"]
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: backend-role
+  name: {{ .Release.Name }}-backend-role-binding
 subjects:
   - kind: ServiceAccount
     namespace: {{ .Release.Namespace }}
     name: secret-backend-handler
 roleRef:
   kind: ClusterRole
-  name: backend-role
+  name: {{ .Release.Name }}-backend-role
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: v1

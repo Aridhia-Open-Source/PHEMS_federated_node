@@ -1,3 +1,4 @@
+{{- if index .Values "ingress-nginx" "enabled" }}
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -10,3 +11,4 @@ metadata:
     helm.sh/hook-weight: "-6"
     {{ template "defaultAnnotations" . }}
   {{- end }}
+{{- end }}

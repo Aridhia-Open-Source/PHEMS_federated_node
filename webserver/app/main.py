@@ -3,6 +3,7 @@ A collection of general use endpoints
 These won't have any restrictions and won't go through
     Keycloak for token validation.
 """
+from http import HTTPStatus
 import requests
 from flask import Blueprint, redirect, url_for, request
 from app.helpers.keycloak import Keycloak, URLS
@@ -23,7 +24,7 @@ def ready_check():
     GET /ready_check endpoint
         Mostly to tell k8s Flask has started
     """
-    return {"status": "ready"}, 200
+    return {"status": "ready"}, HTTPStatus.OK
 
 @bp.route("/health_check")
 def health_check():
@@ -35,11 +36,11 @@ def health_check():
         kc_request = requests.get(URLS["health_check"], timeout=30)
         kc_status = kc_request.ok
         status_text = "ok" if kc_request.ok else "non operational"
-        code = 200 if kc_request.ok else 500
+        code = HTTPStatus.OK if kc_request.ok else HTTPStatus.BAD_GATEWAY
     except requests.exceptions.ConnectionError:
         kc_status = False
         status_text = "non operational"
-        code = 500
+        code = HTTPStatus.BAD_GATEWAY
 
     return {
         "status": status_text,
@@ -55,4 +56,4 @@ def login():
     credentials = request.form.to_dict()
     return {
         "token": Keycloak().get_token(**credentials)
-    }, 200
+    }, HTTPStatus.OK

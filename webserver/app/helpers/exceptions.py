@@ -78,9 +78,13 @@ class TaskCRDExecutionException(LogAndException):
         if req_values:
             self.description = {"Missing values": req_values}
             self.code = 400
-        if unsupp_values:
+        elif unsupp_values:
             self.description = unsupp_values
             self.code = 400
+        else:
+            self.code = 500
+            self.description = self.details
+
 
 
 class KubernetesException(LogAndException):

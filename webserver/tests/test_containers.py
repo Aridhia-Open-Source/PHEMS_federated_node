@@ -263,7 +263,7 @@ class TestPatchContainers:
             json={"ml": True},
             headers=post_json_admin_header
         )
-        assert resp.status_code == 204
+        assert resp.status_code == 201
         assert Container.query.filter_by(id=container.id).one_or_none().ml == True
 
     def test_patch_container_wrong_body(

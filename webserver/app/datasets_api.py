@@ -10,6 +10,7 @@ datasets-related endpoints:
 - POST /datasets/token_transfer
 - POST /datasets/selection/beacon
 """
+from http import HTTPStatus
 from datetime import datetime
 from flask import Blueprint, request
 from kubernetes.client import ApiException
@@ -42,7 +43,7 @@ def get_datasets():
     """
     GET /datasets/ endpoint. Returns a list of all datasets
     """
-    return Dataset.get_all(), 200
+    return Dataset.get_all(), HTTPStatus.OK
 
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
@@ -94,12 +95,12 @@ def get_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
     GET /datasets/id endpoint. Gets dataset with a give id
     """
     ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
-    return Dataset.sanitized_dict(ds), 200
+    return Dataset.sanitized_dict(ds), HTTPStatus.OK
 
 @bp.route('/<int:dataset_id>', methods=['DELETE'])
 @bp.route('/<dataset_name>', methods=['DELETE'])
 @audit
-@auth(scope='can_access_dataset')
+@auth(scope='can_admin_dataset')
 def delete_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
     """
     DELETE /datasets/id endpoint. Deletes the dataset from the db and k8s secrets
@@ -180,7 +181,7 @@ def patch_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
         raise
 
     session.commit()
-    return Dataset.sanitized_dict(ds), 204
+    return Dataset.sanitized_dict(ds), HTTPStatus.ACCEPTED
 
 @bp.route('/<dataset_name>/catalogue', methods=['GET'])
 @bp.route('/<int:dataset_id>/catalogue', methods=['GET'])
@@ -196,7 +197,7 @@ def get_datasets_catalogue_by_id_or_name(dataset_id=None, dataset_name=None):
     cata = Catalogue.query.filter(Catalogue.dataset_id == dataset.id).one_or_none()
     if not cata:
         raise DBRecordNotFoundError(f"Dataset {dataset.name} has no catalogue.")
-    return cata.sanitized_dict(), 200
+    return cata.sanitized_dict(), HTTPStatus.OK
 
 @bp.route('/<dataset_name>/dictionaries', methods=['GET'])
 @bp.route('/<int:dataset_id>/dictionaries', methods=['GET'])
@@ -214,7 +215,7 @@ def get_datasets_dictionaries_by_id_or_name(dataset_id=None, dataset_name=None):
     if not dictionary:
         raise DBRecordNotFoundError(f"Dataset {dataset.name} has no dictionaries.")
 
-    return [dc.sanitized_dict() for dc in dictionary], 200
+    return [dc.sanitized_dict() for dc in dictionary], HTTPStatus.OK
 
 
 @bp.route('/<dataset_name>/dictionaries/<table_name>', methods=['GET'])
@@ -239,7 +240,7 @@ def get_datasets_dictionaries_table_by_id_or_name(table_name, dataset_id=None, d
             f"Dataset {dataset.name} has no dictionaries with table {table_name}."
         )
 
-    return [dc.sanitized_dict() for dc in dictionary], 200
+    return [dc.sanitized_dict() for dc in dictionary], HTTPStatus.OK
 
 @bp.route('/token_transfer', methods=['POST'])
 @audit
@@ -267,7 +268,7 @@ def post_transfer_token():
         req_attributes = Request.validate(body)
         req = Request(**req_attributes)
         req.add()
-        return req.approve(), 201
+        return req.approve(), HTTPStatus.CREATED
 
     except KeyError as kexc:
         session.rollback()
@@ -293,8 +294,8 @@ def select_beacon():
         return {
             "query": body['query'],
             "result": "Ok"
-        }, 200
+        }, HTTPStatus.OK
     return {
         "query": body['query'],
         "result": "Invalid"
-    }, 500
+    }, HTTPStatus.BAD_REQUEST

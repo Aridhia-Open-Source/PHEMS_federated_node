@@ -12,6 +12,7 @@ tasks-related endpoints:
 """
 from datetime import datetime, timedelta
 from flask import Blueprint, request, send_file
+from http import HTTPStatus
 
 from app.helpers.const import CLEANUP_AFTER_DAYS, PUBLIC_URL, TASK_CONTROLLER, TASK_REVIEW
 from app.helpers.exceptions import DBRecordNotFoundError, FeatureNotAvailableException, UnauthorizedError, InvalidRequest
@@ -49,7 +50,7 @@ def get_service_info():
     return {
         "name": "Federated Node",
         "doc": "Part of the PHEMS network"
-    }, 200
+    }, HTTPStatus.OK
 
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
@@ -72,7 +73,7 @@ def get_task_id(task_id):
 
     does_user_own_task(task)
 
-    return task.sanitized_dict(), 200
+    return task.sanitized_dict(), HTTPStatus.OK
 
 @bp.route('/<task_id>/cancel', methods=['POST'])
 @audit
@@ -86,7 +87,7 @@ def cancel_tasks(task_id):
     does_user_own_task(task)
 
     # Should remove pod/stop ML pipeline
-    return task.terminate_pod(), 201
+    return task.terminate_pod(), HTTPStatus.CREATED
 
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
@@ -104,7 +105,7 @@ def post_tasks():
         task.add()
         # Create pod/start ML pipeline
         task.run()
-        return {"task_id": task.id}, 201
+        return {"task_id": task.id}, HTTPStatus.CREATED
     except:
         session.rollback()
         raise
@@ -176,15 +177,20 @@ def approve_results(task_id):
     if not TASK_REVIEW:
         raise FeatureNotAvailableException()
 
-    task = Task.get_by_id(task_id)
+    task: Task = Task.get_by_id(task_id)
     if task.review_status is not None:
         raise InvalidRequest("Task has been already reviewed")
 
+    # Also update the CRD if needed
+    if task.get_task_crd():
+        task.update_task_crd(True)
+
     task.review_status = True
+    session.commit()
 
     return {
         "status": task.get_review_status()
-    }, 201
+    }, HTTPStatus.CREATED
 
 @bp.route('/<task_id>/results/block', methods=['POST'])
 @audit
@@ -202,8 +208,12 @@ def block_results(task_id):
     if task.review_status is not None:
         raise InvalidRequest("Task has been already reviewed")
 
+    # Also update the CRD if needed
+    if task.get_task_crd():
+        task.update_task_crd(False)
+
     task.review_status = False
 
     return {
         "status": task.get_review_status()
-    }, 201
+    }, HTTPStatus.CREATED

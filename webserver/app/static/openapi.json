@@ -985,8 +985,8 @@
           "200":{
             "$ref": "#/components/responses/health_check"
           },
-          "500":{
-            "$ref": "#/components/responses/500_health_check"
+          "502":{
+            "$ref": "#/components/responses/502_health_check"
           }
         }
       }
@@ -2003,7 +2003,7 @@
           }
         }
       },
-      "500_health_check":{
+      "502_health_check":{
         "description": "Service unhealthy",
         "content": {
           "application/json": {

@@ -2,6 +2,7 @@ import logging
 import json
 import re
 from datetime import datetime, timedelta
+from kubernetes.client import V1CustomResourceDefinition
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
@@ -73,7 +74,7 @@ class Task(db.Model, BaseModel):
         self.resources = resources
         self.inputs = inputs
         self.outputs = outputs
-        self.is_from_controller = kwargs.get("from_controller")
+        self.is_from_controller = kwargs.get("task_controller", False)
         self.db_query = kwargs.get("db_query", {})
 
     @classmethod
@@ -199,8 +200,11 @@ class Task(db.Model, BaseModel):
         if re.match(r'^\d+e\d+$', val):
             base, exp = val.split('e')
             return int(base) * 10**(int(exp))
-        base = val[:-2]
-        unit = val[-2:]
+
+        # Other accepted formats trail with some letters
+        unit_index = re.search(r'[^\d]+$', val).span()[0]
+        base = val[:unit_index]
+        unit = val[unit_index:]
         return int(base) * MEMORY_UNITS[unit]
 
     @classmethod
@@ -241,6 +245,9 @@ class Task(db.Model, BaseModel):
         all pvcs to be deleted today.
         """
         return (datetime.now() + timedelta(days=CLEANUP_AFTER_DAYS)).strftime("%Y%m%d")
+
+    def needs_crd(self):
+        return ((not self.is_from_controller) and TASK_CONTROLLER)
 
     def run(self, validate=False):
         """
@@ -289,11 +296,15 @@ class Task(db.Model, BaseModel):
             logger.error(json.loads(e.body))
             raise InvalidRequest(f"Failed to run pod: {e.reason}") from e
 
-        if not self.is_from_controller:
+        if self.needs_crd():
             # create CRD
             self.create_controller_crd()
 
     def get_current_pod(self, is_running:bool=True):
+        """
+        Fetches the pod object from k8s API.
+            is_running will only consider running pods only
+        """
         v1 = KubernetesClient()
         running_pods = v1.list_namespaced_pod(
             TASK_NAMESPACE,
@@ -489,6 +500,56 @@ class Task(db.Model, BaseModel):
             san_dict["review_status"] = self.get_review_status()
 
         return san_dict
+
+    def crd_name(self):
+        """
+        CRD name is set here for consistency's sake
+        """
+        v1_crds = KubernetesCRDClient().list_cluster_custom_object(
+            CRD_DOMAIN, "v1", "analytics"
+        )
+        for crd in v1_crds["items"]:
+            if crd["metadata"]["annotations"][f"{CRD_DOMAIN}/task_id"] == str(self.id):
+                return crd["metadata"]["name"]
+
+    def get_task_crd(self) -> V1CustomResourceDefinition|None:
+        """
+        Find the CRD associated with the current task.
+            Ignore if not found
+        """
+        crd_client = KubernetesCRDClient()
+        try:
+            return crd_client.get_cluster_custom_object(
+                CRD_DOMAIN,
+                "v1",
+                "analytics",
+                self.crd_name()
+            )
+        except ApiException as apie:
+            if apie.status == 404:
+                return None
+            raise TaskCRDExecutionException(apie.body, apie.status) from apie
+
+    def update_task_crd(self, approval:bool):
+        """
+        In case the review happened, update the CRD
+        annotation with the appropriate approved value
+        """
+        crd_client = KubernetesCRDClient()
+        crd_client.api_client.set_default_header('Content-Type', 'application/json-patch+json')
+        try:
+            task_crd: V1CustomResourceDefinition | None = self.get_task_crd()
+            if not task_crd:
+                raise TaskExecutionException("Failed to update result delivery")
+
+            annotations = task_crd["metadata"].get("annotations", {})
+            annotations[f"{CRD_DOMAIN}/approved"] = str(approval)
+            crd_client.patch_cluster_custom_object(
+                CRD_DOMAIN, "v1", "analytics", self.crd_name(),
+                [{"op": "add", "path": "/metadata/annotations", "value": annotations}]
+            )
+        except ApiException as apie:
+            raise TaskCRDExecutionException(apie.body, apie.status) from apie
 
     def get_logs(self):
         """

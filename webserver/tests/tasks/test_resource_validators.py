@@ -35,6 +35,35 @@ class TestResourceValidators:
                      return_value={"sub": user_uuid})
         Task.validate(task_body)
 
+    def test_valid_values_exp(
+            self,
+            mocker,
+            user_uuid,
+            registry_client,
+            cr_client,
+            task_body
+        ):
+        """
+        Tests that the expected resource values are accepted
+        """
+        task_body["resources"] = {
+            "limits": {
+                "cpu": "1",
+                "memory": "2e6"
+            },
+            "requests": {
+                "cpu": "0.1",
+                "memory": "1M"
+            }
+        }
+        mocker.patch("app.helpers.keycloak.Keycloak.is_user_admin",
+                     return_value=True)
+        mocker.patch("app.helpers.keycloak.Keycloak.get_token_from_headers",
+                     return_value="")
+        mocker.patch("app.helpers.keycloak.Keycloak.decode_token",
+                     return_value={"sub": user_uuid})
+        Task.validate(task_body)
+
     def test_invalid_memory_values(
             self,
             mocker,
@@ -57,7 +86,7 @@ class TestResourceValidators:
             task_body["resources"] = {
                 "limits": {
                     "cpu": "100m",
-                    "memory": "100Mi"
+                    "memory": in_val
                 },
                 "requests": {
                     "cpu": "0.1",
