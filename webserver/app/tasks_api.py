@@ -11,11 +11,14 @@ tasks-related endpoints:
 - POST /tasks/id/results/block
 """
 from datetime import datetime, timedelta
-from flask import Blueprint, request, send_file
 from http import HTTPStatus
+from flask import Blueprint, request, send_file
 
-from app.helpers.const import CLEANUP_AFTER_DAYS, PUBLIC_URL, TASK_CONTROLLER, TASK_REVIEW
-from app.helpers.exceptions import DBRecordNotFoundError, FeatureNotAvailableException, UnauthorizedError, InvalidRequest
+from app.helpers.const import CLEANUP_AFTER_DAYS, PUBLIC_URL, TASK_REVIEW
+from app.helpers.exceptions import (
+    DBRecordNotFoundError, FeatureNotAvailableException,
+    UnauthorizedError, InvalidRequest
+)
 from app.helpers.keycloak import Keycloak
 from app.helpers.wrappers import audit, auth
 from app.helpers.base_model import db
@@ -175,7 +178,7 @@ def approve_results(task_id):
         a task's results
     """
     if not TASK_REVIEW:
-        raise FeatureNotAvailableException()
+        raise FeatureNotAvailableException("Task Review")
 
     task: Task = Task.get_by_id(task_id)
     if task.review_status is not None:
@@ -202,7 +205,7 @@ def block_results(task_id):
         a task's results
     """
     if not TASK_REVIEW:
-        raise FeatureNotAvailableException()
+        raise FeatureNotAvailableException("Task Review")
 
     task = Task.get_by_id(task_id)
     if task.review_status is not None:
