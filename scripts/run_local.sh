@@ -18,7 +18,8 @@ helm repo add jetstack https://charts.jetstack.io
 
 echo "If getting context errors:"
 echo
-echo "mv ~/.kube/config > ~/.kube/config.backup"
+echo "microk8s config > microconfig.yaml"
+echo "mv ~/.kube/config ~/.kube/config.backup"
 echo "yq eval-all '. as $item ireduce ({}; . * $item)' microconfig.yaml ~/.kube/config > ~/.kube/config"
 echo
 
