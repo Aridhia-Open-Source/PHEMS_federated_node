@@ -6,16 +6,12 @@ Proposed
 ## Context
 Originally, the system used a single monolithic repository where both governance, and execution logic were all defined together. In this design, merging to the main branch triggered deployment and job execution in one continuous flow. While simple at first, this approach does not provide adequate seperation of concerns and will not scale as the platform is expanded to support multiple projects (use-cases) and federated nodes.
 
-The lack of separation tightly coupled deployment and execution, allowing merges to trigger computation without explicit authorization or review. This created governance risks and operational fragility, since any change could affect all running services or other projects. Decoupling the system into separate repositories for node code logic resolves these problems by introducing clear approval boundaries, improving traceability, enabling modular scaling, and allowing infrastructure and project logic to evolve independently.
-
-
 ## Decision
 
 To improve modularity, scalability, and operational clarity, the design has been refactored to introduce two distinct repositories.
 This separation allows multiple projects (Code Repos) to coexist on a single node while maintaining independent CI/CD workflows and governance controls.
 - **Node Repo** defines the shared base infrastructure, resources, and services for the federated node and can support many code locations
 - **Code Repo** defines a single project's compute and governance logic, deployed as one Dagster code location (CodeServer + Worker Pool) on a node.
-
 
 ---
 
