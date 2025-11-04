@@ -25,7 +25,7 @@ if [[ -z $TASK_NAMESPACE ]]; then
 fi
 
 PASS=$(kubectl get secret -n "${KC_NAMESPACE}" kc-secrets -o json | jq -r '.data.KEYCLOAK_ADMIN_PASSWORD' | base64 -d)
-SEC=$(kubectl get secret -n "${KC_NAMESPACE}" kc-secrets -o json | jq -r '.data.KEYCLOAK_GLOBAL_CLIENT_SECRET' | base64 -d)
+SEC=$(kubectl get secret -n "${KC_NAMESPACE}" kc-secrets -o json | jq -r '.data.KEYCLOAK_SECRET' | base64 -d)
 
 if grep 'KEYCLOAK_SECRET=' "$DEV_ENV_FILE"; then
     sed -i "s/KEYCLOAK_SECRET=.*/KEYCLOAK_SECRET=${SEC}/g" "$DEV_ENV_FILE"

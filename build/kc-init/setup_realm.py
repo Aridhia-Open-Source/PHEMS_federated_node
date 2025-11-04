@@ -13,7 +13,7 @@ health_check()
 
 print(f"Accessing to keycloak {settings.realm} realm")
 
-admin_token = login(settings.keycloak_url, settings.keycloak_admin_password)
+admin_token = login(settings.keycloak_url, settings.kc_bootstrap_admin_username, settings.kc_bootstrap_admin_password)
 
 print("Got the token...Creating user in new Realm")
 
@@ -24,13 +24,17 @@ headers = {
 }
 
 # Create backend user
-create_user_with_role(settings.keycloak_admin, settings.keycloak_admin_password)
+create_user_with_role(
+  settings.keycloak_admin,
+  settings.keycloak_admin_password,
+  admin_token=admin_token
+)
 # Create first user, if chosen to do so
 if settings.first_user_email:
   create_user_with_role(
       settings.first_user_email, settings.first_user_pass,
       settings.first_user_email, settings.first_user_first_name,
-      settings.first_user_last_name, "Administrator"
+      settings.first_user_last_name, "Administrator", admin_token
     )
 
 print("Setting up the token exchange for global client")

@@ -44,7 +44,7 @@ def is_response_good(response:Response) -> None:
     exit(1)
 
 
-def login(kc_url:str, kc_pass:str) -> str:
+def login(kc_url:str, kc_user:str, kc_pass:str) -> str:
     """
     Common login function, gets the url and the password as the user is always the same.
     Returns the access_token
@@ -58,7 +58,7 @@ def login(kc_url:str, kc_pass:str) -> str:
     response = requests.post(url, headers=headers, data={
         'client_id': 'admin-cli',
         'grant_type': 'password',
-        'username': 'admin',
+        'username': kc_user,
         'password': kc_pass
     })
     if not response.ok:
@@ -89,7 +89,8 @@ def create_user_with_role(
         email:str="",
         first_name:str="Admin",
         last_name:str="Admin",
-        role_name:str="Super Administrator"
+        role_name:str="Super Administrator",
+        admin_token:str=None
     ):
     """
     Given a set of info about the user, create in the settings.keycloak_realm and
@@ -98,7 +99,9 @@ def create_user_with_role(
     The default role, is Super Administrator, which is basically to ensure the backend
     has full access to it
     """
-    admin_token = login(settings.keycloak_url, settings.keycloak_admin_password)
+    if not admin_token:
+        admin_token = login(settings.keycloak_url, settings.kc_bootstrap_admin_password, settings.kc_bootstrap_admin_password)
+
     headers= {
             'Authorization': f'Bearer {admin_token}'
         }

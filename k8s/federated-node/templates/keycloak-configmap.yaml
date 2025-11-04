@@ -4,6 +4,7 @@ metadata:
   name: keycloak-config
   namespace: {{ include "kc_namespace" . }}
 data:
+  KC_BOOTSTRAP_ADMIN_USERNAME: tmpadmin
   KEYCLOAK_ADMIN: admin
   KC_DB_URL_HOST: {{ include "dbKeycloakHost" . }}
   KC_DB: postgres
