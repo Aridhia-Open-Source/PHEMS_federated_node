@@ -3,6 +3,10 @@
 ## Status
 Proposed
 
+## Summary
+Dagster provides a composable, auditable, and reproducible orchestration foundation for **single-node deployments** within the PHEMS framework.
+While the long-term goal includes federation and MLflow integration, the immediate priority is to establish a robust local orchestration layer that enforces governance, reproducibility, and compliance.
+
 ## Context
 The **PHEMS framework** is designed as an open-source **federated orchestration layer** for highly regulated domains such as healthcare.
 It balances operational efficiency with strict compliance requirements through modular components, auditable workflows, and secure execution patterns.
@@ -165,8 +169,3 @@ Introducing Dagster with Celery workers and shared infrastructure provides a sta
 | **Kubeflow** | Overly complex for compliance-focused deployments; heavy operational overhead. |
 | **Luigi** | Not actively maintained for distributed, scalable workloads. |
 
----
-
-## Summary
-Dagster provides a composable, auditable, and reproducible orchestration foundation for **single-node deployments** within the PHEMS framework.
-While the long-term goal includes federation and MLflow integration, the immediate priority is to establish a robust local orchestration layer that enforces governance, reproducibility, and compliance.
