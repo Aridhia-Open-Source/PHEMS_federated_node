@@ -165,7 +165,8 @@
         "${KEYCLOAK_HOSTNAME}"
       ],
       "attributes": {
-        "client.session.idle.timeout": "${KEYCLOAK_TOKEN_LIFE}"
+        "client.session.idle.timeout": "${KEYCLOAK_TOKEN_LIFE}",
+        "standard.token.exchange.enabled": true
       },
       "notBefore": 0,
       "bearerOnly": false,

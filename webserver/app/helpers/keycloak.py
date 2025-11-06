@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import random
@@ -80,7 +81,7 @@ class Keycloak:
             }
         )
         if not ac_resp.ok:
-            logger.info(ac_resp.content.decode())
+            logger.error(ac_resp.text)
             raise KeycloakError("Cannot get an access token")
         access_token = ac_resp.json()["access_token"]
 
@@ -101,7 +102,7 @@ class Keycloak:
             }
         )
         if not exchange_resp.ok:
-            logger.info(exchange_resp.content.decode())
+            logger.error(exchange_resp.text)
             raise KeycloakError("Cannot exchange token")
         return exchange_resp.json()["access_token"]
 
@@ -282,6 +283,7 @@ class Keycloak:
         Simple token decode, mostly to fetch user general info or exp date
         """
         b64_auth = b64encode(f"{self.client_name}:{self.client_secret}".encode()).decode()
+        token = self._access_from_refresh(token)
         response_validate = requests.post(
             URLS["validate"],
             data=f"token={token}",
@@ -318,17 +320,24 @@ class Keycloak:
 
         return client_id_resp.json()[0]["id"]
 
+    def _access_from_refresh(self, token:str) -> str:
+        """
+        Simply exchanges the refresh token for an access token
+        """
+        return self.get_token(
+            payload={
+                "grant_type": "refresh_token",
+                "refresh_token": token,
+                "client_id": self.client_name,
+                "client_secret": self.client_secret,
+            },
+            token_type='access_token'
+        )
+
     def check_permissions(self, token:str, scope:str, resource:str, is_access_token=False) -> bool:
         if not is_access_token:
-            token = self.get_token(
-                payload={
-                    "grant_type": "refresh_token",
-                    "refresh_token": token,
-                    "client_id": self.client_name,
-                    "client_secret": self.client_secret,
-                },
-                token_type='access_token'
-            )
+            token = self._access_from_refresh(token)
+
         headers={
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/x-www-form-urlencoded',

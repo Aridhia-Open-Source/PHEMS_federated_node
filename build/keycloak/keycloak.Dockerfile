@@ -5,7 +5,7 @@ ARG USER_UID=1001
 ARG USER_GID=1001
 COPY --chmod=755 entrypoint.sh /opt/keycloak/bin/
 
-RUN /opt/keycloak/bin/kc.sh build --features=preview
+RUN /opt/keycloak/bin/kc.sh build --features="admin-fine-grained-authz:v1,token-exchange,scripts"
 
 # Re-enable SHA1 to be able to talk to azure postgres service
 USER root

@@ -11,6 +11,8 @@ export KEYCLOAK_REALM=FederatedNode
 export KEYCLOAK_CLIENT=global
 export KEYCLOAK_ADMIN=admin
 export KEYCLOAK_ADMIN_PASSWORD=password1
+export KC_BOOTSTRAP_ADMIN_USERNAME=tmpadmin
+export KC_BOOTSTRAP_ADMIN_PASSWORD=password1
 export KEYCLOAK_SECRET=qwtirtvJJ4PW4skOlW6Oifk2
 export PYTHONPATH=/app
 export RESULTS_PATH=/tmp/results
@@ -30,7 +32,7 @@ if [[ "$is_ci" != "ci" ]]; then
     docker cp flask-app-test:/app/artifacts/coverage.xml ../artifacts/
     docker rm flask-app-test
 else
-    docker compose -f docker-compose-tests-ci.yaml run --quiet-pull --name flask-app-test app
+    docker compose -f docker-compose-tests-ci.yaml run --build  --quiet-pull --name flask-app-test app
     exit_code=$?
     if [[ exit_code -gt 0 ]]; then
         echo "Something went wrong. Here are some logs"

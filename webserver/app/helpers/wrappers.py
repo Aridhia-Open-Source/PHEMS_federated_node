@@ -98,8 +98,9 @@ def audit(func):
 
         requested_by = ""
         if "Authorization" in request.headers:
-            token = Keycloak().decode_token(Keycloak.get_token_from_headers())
-            requested_by = token.get('sub')
+            kc_client = Keycloak()
+            token = kc_client.decode_token(Keycloak.get_token_from_headers())
+            requested_by = kc_client.get_user_by_email(token["email"])["id"]
 
         http_method = request.method
         http_endpoint = request.path

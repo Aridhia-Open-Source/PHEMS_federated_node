@@ -58,7 +58,9 @@ def user_token(basic_user):
         password=os.getenv("KEYCLOAK_ADMIN_PASSWORD"),
         token_type='access_token'
     )
-    payload = {
+    exchange_resp = requests.post(
+        URLS["get_token"],
+        data={
         'client_secret': KEYCLOAK_SECRET,
         'client_id': KEYCLOAK_CLIENT,
         'grant_type': 'urn:ietf:params:oauth:grant-type:token-exchange',
@@ -66,10 +68,7 @@ def user_token(basic_user):
         'subject_token': admin_token,
         'requested_subject': basic_user["id"],
         'audience': KEYCLOAK_CLIENT
-    }
-    exchange_resp = requests.post(
-        URLS["get_token"],
-        data=payload,
+    },
         headers={
             'Content-Type': 'application/x-www-form-urlencoded'
         }
@@ -104,7 +103,8 @@ def user_uuid(basic_user):
 @pytest.fixture
 def login_user(client, basic_user, mocker):
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
-    mocker.patch('app.helpers.wrappers.Keycloak.decode_token', return_value={"username": "test@basicuser.com", "sub": "123-123abc"})
+    mocker.patch('app.helpers.wrappers.Keycloak.decode_token', return_value={"username": "test@basicuser.com", "email": "test@basicuser.com"})
+    mocker.patch('app.helpers.wrappers.Keycloak.get_user_by_email', return_value={"username": "test@basicuser.com", "id": "123-123abc"})
 
     return Keycloak().get_impersonation_token(basic_user["id"])
 
@@ -414,8 +414,10 @@ def mocks_kc_tasks(mocker, dar_user):
                 is_token_valid=Mock(return_value=True),
                 is_user_admin=Mock(return_value=True),
                 get_user_by_username=Mock(return_value={"id": user_uuid}),
+                get_user_by_email=Mock(return_value={"id": user_uuid}),
                 decode_token=Mock(return_value={
-                    "username": "test_user", "sub": user_uuid
+                    "username": "test_user",
+                    "email": "test_user@email.com"
                 }),
             )
         ),
@@ -423,8 +425,10 @@ def mocks_kc_tasks(mocker, dar_user):
             'app.models.task.Keycloak',
             return_value=Mock(
                 get_user_by_id=Mock(return_value={"email": dar_user}),
+                get_user_by_email=Mock(return_value={"id": user_uuid}),
                 decode_token=Mock(return_value={
-                    "username": "test_user", "sub": user_uuid
+                    "username": "test_user",
+                    "email": "test_user@email.com"
                 }),
             )
         )

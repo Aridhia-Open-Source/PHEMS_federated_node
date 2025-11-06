@@ -5,7 +5,7 @@
 
 import requests
 
-from common import create_user_with_role, is_response_good, login, health_check
+from common import create_user, is_response_good, login, health_check
 from settings import settings
 
 
@@ -24,17 +24,26 @@ headers = {
 }
 
 # Create backend user
-create_user_with_role(
+create_user(
   settings.keycloak_admin,
   settings.keycloak_admin_password,
+  email="admin@federatednode.com",
+  admin_token=admin_token,
+  realm="master", with_role=False
+)
+create_user(
+  settings.keycloak_admin,
+  settings.keycloak_admin_password,
+  email="admin@federatednode.com",
   admin_token=admin_token
 )
 # Create first user, if chosen to do so
 if settings.first_user_email:
-  create_user_with_role(
+  create_user(
       settings.first_user_email, settings.first_user_pass,
       settings.first_user_email, settings.first_user_first_name,
-      settings.first_user_last_name, "Administrator", admin_token
+      settings.first_user_last_name, "Administrator",
+      admin_token=admin_token
     )
 
 print("Setting up the token exchange for global client")
@@ -45,8 +54,35 @@ all_clients = requests.get(
   }
 )
 is_response_good(all_clients)
+
+print("Enabling the Permissions on the global client")
 all_clients = all_clients.json()
 client_id = list(filter(lambda x: x["clientId"] == 'global', all_clients))[0]['id']
+# global_client_resp = requests.get(
+#   f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/clients/{client_id}",
+#   headers = {
+#     'Content-Type': 'application/json',
+#     'Authorization': f'Bearer {admin_token}'
+#   }
+# )
+# if not global_client_resp.ok:
+#     print(global_client_resp.text)
+#     exit(1)
+
+# client_properties = global_client_resp.json()
+# client_properties["attributes"]["standard.token.exchange.enabled"] = True
+# global_put_client_resp = requests.put(
+#   f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/clients/{client_id}",
+#   json=client_properties,
+#   headers = {
+#     'Content-Type': 'application/json',
+#     'Authorization': f'Bearer {admin_token}'
+#   }
+# )
+# if not global_put_client_resp.ok:
+#     print(global_put_client_resp.text)
+#     exit(1)
+
 rm_client_id = list(filter(lambda x: x["clientId"] == 'realm-management', all_clients))[0]['id']
 
 print("Enabling the Permissions on the global client")
@@ -193,6 +229,25 @@ update_settings = requests.put(
 if is_response_good(update_settings):
   print(update_settings.text)
   exit(1)
+
+# Delete temp admin user
+print("Deleting temp user")
+user_id_resp = requests.get(
+  f"{settings.keycloak_url}/admin/realms/master/users/",
+  headers={'Authorization': f'Bearer {admin_token}'}
+)
+if is_response_good(user_id_resp):
+   print(user_id_resp.text)
+   exit(1)
+
+user_id = list(filter(lambda x: x["username"] == settings.kc_bootstrap_admin_username, user_id_resp.json()))[0]['id']
+user_delete_resp = requests.delete(
+  f"{settings.keycloak_url}/admin/realms/master/users/{user_id}",
+  headers={'Authorization': f'Bearer {admin_token}'}
+)
+if is_response_good(user_delete_resp):
+   print(user_delete_resp.text)
+   exit(1)
 
 print("Done!")
 exit(0)

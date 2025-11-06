@@ -83,14 +83,16 @@ def get_role(role_name:str, admin_token:str):
     print("Got role")
     return role_id
 
-def create_user_with_role(
+def create_user(
         username:str,
         password:str,
         email:str="",
         first_name:str="Admin",
         last_name:str="Admin",
         role_name:str="Super Administrator",
-        admin_token:str=None
+        with_role:bool=True,
+        admin_token:str=None,
+        realm:str=settings.keycloak_realm
     ):
     """
     Given a set of info about the user, create in the settings.keycloak_realm and
@@ -106,7 +108,7 @@ def create_user_with_role(
             'Authorization': f'Bearer {admin_token}'
         }
     response_create_user = requests.post(
-        f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/users",
+        f"{settings.keycloak_url}/admin/realms/{realm}/users",
         headers=headers,
         json={
             "firstName": first_name,
@@ -126,27 +128,28 @@ def create_user_with_role(
     )
     is_response_good(response_create_user)
 
-    response_user_id = requests.get(
-        f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/users",
-        params={"username": email},
-        headers=headers
-    )
-    is_response_good(response_user_id)
-    user_id = response_user_id.json()[0]["id"]
+    if with_role:
+        response_user_id = requests.get(
+            f"{settings.keycloak_url}/admin/realms/{realm}/users",
+            params={"username": username},
+            headers=headers
+        )
+        is_response_good(response_user_id)
+        user_id = response_user_id.json()[0]["id"]
 
-    print(f"Assigning role {role_name} to {username}")
+        print(f"Assigning role {role_name} to {username}")
 
-    response_assign_role = requests.post(
-        f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/users/{user_id}/role-mappings/realm",
-        headers={
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {admin_token}'
-        },
-        json=[
-            {
-                "id": get_role(role_name, admin_token),
-                "name": role_name
-            }
-        ]
-    )
-    is_response_good(response_assign_role)
+        response_assign_role = requests.post(
+            f"{settings.keycloak_url}/admin/realms/{realm}/users/{user_id}/role-mappings/realm",
+            headers={
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {admin_token}'
+            },
+            json=[
+                {
+                    "id": get_role(role_name, admin_token),
+                    "name": role_name
+                }
+            ]
+        )
+        is_response_good(response_assign_role)

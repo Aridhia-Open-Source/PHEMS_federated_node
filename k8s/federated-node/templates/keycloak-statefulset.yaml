@@ -50,9 +50,8 @@ spec:
           args: [
             "start",
             "--import-realm",
-            "--features=preview",
             "--http-enabled=true",
-            "--hostname-strict=false",
+            "--optimized"
           ]
           name: keycloak
           imagePullPolicy: {{ .Values.pullPolicy }}
@@ -62,8 +61,8 @@ spec:
               protocol: TCP
           readinessProbe:
             httpGet:
-              path: /realms/master
-              port: 8080
+              path: /health
+              port: 9000
             initialDelaySeconds: 20
             periodSeconds: 10
           env:

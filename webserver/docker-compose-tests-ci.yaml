@@ -1,32 +1,33 @@
 name: federated_node_tests
 services:
   db:
-    image: 'postgres:13-alpine'
+    image: 'postgres:17-alpine'
     environment:
       POSTGRES_DB: test_app
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: test_app
-    volumes:
-      - data:/var/lib/postgresql/data
   keycloak:
     container_name: keycloak_test
-    image: quay.io/keycloak/keycloak:26.4
+    build:
+      context: ../build/keycloak
+      dockerfile: keycloak.Dockerfile
     command: [
-      "start-dev",
+      "start",
       "--import-realm",
-      "--features=preview",
       "--http-enabled=true",
-      "--hostname-strict=false",
+      "--optimized"
     ]
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080;echo -e 'GET /health/ready HTTP/1.1\r\nhost: http://localhost\r\nConnection: close\r\n\r\n' >&3;if [ $? -eq 0 ]; then echo 'Healthcheck Successful';exit 0;else echo 'Healthcheck Failed';exit 1;fi;"]
-      interval: 5s
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080;echo -e 'GET /health/ready HTTP/1.1\r\nhost: localhost\r\nConnection: close\r\n\r\n' >&3;if [ $? -eq 0 ]; then echo 'Healthcheck Successful';exit 0;else echo 'Healthcheck Failed';exit 1;fi;"]
+      interval: 10s
       timeout: 5s
       retries: 10
       start_period: 10s
     depends_on:
       - db
     environment:
+      KC_HOSTNAME_STRICT: false
+      KC_FEATURES: admin-fine-grained-authz:v1,token-exchange,scripts
       KC_HEALTH_ENABLED: true
       KC_DB_URL_HOST: db
       KC_DB: postgres
@@ -36,9 +37,12 @@ services:
       KC_DB_PASSWORD: ${PGPASSWORD}
       KEYCLOAK_ADMIN:
       KEYCLOAK_ADMIN_PASSWORD:
+      KC_BOOTSTRAP_ADMIN_USERNAME:
+      KC_BOOTSTRAP_ADMIN_PASSWORD:
       KEYCLOAK_SECRET:
       KEYCLOAK_LOGLEVEL: DEBUG
       KEYCLOAK_TOKEN_LIFE: 3600
+      KEYCLOAK_HOSTNAME: ${KEYCLOAK_URL}
     volumes:
       - ../k8s/federated-node/scripts/realms.json:/opt/keycloak/data/import/realms.json
   kc_init:
@@ -58,6 +62,8 @@ services:
       KEYCLOAK_SECRET:
       KEYCLOAK_ADMIN:
       KEYCLOAK_URL:
+      KC_BOOTSTRAP_ADMIN_USERNAME:
+      KC_BOOTSTRAP_ADMIN_PASSWORD:
       FIRST_USER_EMAIL: "test@admin.com"
       FIRST_USER_PASS: "test123!"
       FIRST_USER_FIRST_NAME: User

@@ -73,10 +73,10 @@ class TestGetTasks:
         assert resp.status_code == 200
 
     @mock.patch('app.helpers.keycloak.Keycloak.is_user_admin', return_value=False)
-    @mock.patch('app.tasks_api.Keycloak.decode_token')
+    @mock.patch('app.tasks_api.Keycloak.get_user_by_email')
     def test_get_task_by_id_non_admin_owner(
             self,
-            mocks_decode,
+            mocks_get_user,
             mock_is_admin,
             mocks_kc_tasks,
             simple_user_header,
@@ -88,7 +88,7 @@ class TestGetTasks:
         """
         If a user wants to check a specific task they should be allowed if they did request it
         """
-        mocks_decode.return_value = {"sub": basic_user["id"]}
+        mocks_get_user.return_value = {"id": basic_user["id"]}
         task.requested_by = basic_user["id"]
         resp = client.get(
             f'/tasks/{task.id}',

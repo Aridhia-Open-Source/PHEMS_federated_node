@@ -82,7 +82,9 @@ class Task(db.Model, BaseModel):
     def validate(cls, data:dict):
         kc_client = Keycloak()
         user_token = Keycloak.get_token_from_headers()
-        data["requested_by"] = kc_client.decode_token(user_token).get('sub')
+
+        decoded_token = kc_client.decode_token(user_token)
+        data["requested_by"] = kc_client.get_user_by_email(decoded_token["email"])["id"]
         user = kc_client.get_user_by_id(data["requested_by"])
         # Support only for one image at a time, the standard is executors == list
         executors = data["executors"][0]
