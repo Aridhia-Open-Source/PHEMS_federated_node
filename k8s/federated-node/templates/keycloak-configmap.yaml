@@ -6,7 +6,7 @@ metadata:
 data:
   KC_HEALTH_ENABLED: "true"
   KC_HOSTNAME_STRICT: "false"
-  KC_FEATURES: preview
+  KC_FEATURES: admin-fine-grained-authz:v1,token-exchange,scripts
   KC_BOOTSTRAP_ADMIN_USERNAME: tmpadmin
   KEYCLOAK_ADMIN: admin
   KC_DB_URL_HOST: {{ include "dbKeycloakHost" . }}
