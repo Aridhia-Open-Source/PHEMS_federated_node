@@ -89,7 +89,6 @@ class Keycloak:
             'client_secret': KEYCLOAK_SECRET,
             'client_id': KEYCLOAK_CLIENT,
             'grant_type': 'urn:ietf:params:oauth:grant-type:token-exchange',
-            'subject_token_type': 'urn:ietf:params:oauth:token-type:access_token',
             'requested_token_type': 'urn:ietf:params:oauth:token-type:access_token',
             'subject_token': access_token,
             'audience': self.client_name
