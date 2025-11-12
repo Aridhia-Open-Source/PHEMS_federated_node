@@ -3,251 +3,94 @@
 # applied on existing realms, so we need a way to apply
 # those changes, hence this file
 
+import logging
 import requests
+from kubernetes import client
+from kubernetes.watch import Watch
+from kubernetes.client.exceptions import ApiException
 
-from common import create_user, is_response_good, login, health_check
+from common import (
+  create_user, delete_bootstrap_user,
+  enable_user_profile_at_realm_level, init_k8s,
+  login, health_check, set_token_exchange_for_global_client,
+  set_users_required_fields
+)
 from settings import settings
 
+logger = logging.getLogger('realm_init')
+logger.setLevel(logging.INFO)
 
-health_check()
+init_k8s()
 
-print(f"Accessing to keycloak {settings.realm} realm")
+while True:
+  watcher = Watch()
+  for kc_stat_set in watcher.stream(
+    client.AppsV1Api().list_namespaced_stateful_set,
+    settings.keycloak_namespace,
+    label_selector="app=keycloak"
+  ):
+    try:
+      logger.info("%s out of %s ready.", kc_stat_set["object"].status.ready_replicas, settings.max_replicas)
+      if kc_stat_set["object"].status.ready_replicas != settings.max_replicas:
+        logger.info("%s out of %s ready. Waiting..", kc_stat_set["object"].status.ready_replicas, settings.max_replicas)
+        continue
 
-admin_token = login(settings.keycloak_url, settings.kc_bootstrap_admin_username, settings.kc_bootstrap_admin_password)
+      # Double check the pods, as the ready replicas do include the termminating ones
+      pods = client.CoreV1Api().list_namespaced_pod(
+        settings.keycloak_namespace,
+        label_selector="app=keycloak"
+      )
+      if len([pod.metadata.deletion_timestamp for pod in pods.items if pod.metadata.deletion_timestamp is None]) != settings.max_replicas:
+        logger.info("One of the expected replicas is being terminated. Waiting..")
+        continue
 
-print("Got the token...Creating user in new Realm")
+      health_check()
 
-headers = {
-  'Cache-Control': 'no-cache',
-  'Content-Type': 'application/json',
-  'Authorization': f'Bearer {admin_token}'
-}
+      logger.info(f"Accessing to keycloak {settings.realm} realm")
 
-# Create backend user
-create_user(
-  settings.keycloak_admin,
-  settings.keycloak_admin_password,
-  email="admin@federatednode.com",
-  admin_token=admin_token,
-  realm="master", with_role=False
-)
-create_user(
-  settings.keycloak_admin,
-  settings.keycloak_admin_password,
-  email="admin@federatednode.com",
-  admin_token=admin_token
-)
-# Create first user, if chosen to do so
-if settings.first_user_email:
-  create_user(
-      settings.first_user_email, settings.first_user_pass,
-      settings.first_user_email, settings.first_user_first_name,
-      settings.first_user_last_name, "Administrator",
-      admin_token=admin_token
-    )
+      admin_token = login(settings.keycloak_url, settings.kc_bootstrap_admin_username, settings.kc_bootstrap_admin_password)
 
-print("Setting up the token exchange for global client")
-all_clients = requests.get(
-  f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/clients",
-  headers = {
-    'Authorization': f'Bearer {admin_token}'
-  }
-)
-is_response_good(all_clients)
+      logger.info("Got the token...Creating user in new Realm")
 
-print("Enabling the Permissions on the global client")
-all_clients = all_clients.json()
-client_id = list(filter(lambda x: x["clientId"] == 'global', all_clients))[0]['id']
-# global_client_resp = requests.get(
-#   f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/clients/{client_id}",
-#   headers = {
-#     'Content-Type': 'application/json',
-#     'Authorization': f'Bearer {admin_token}'
-#   }
-# )
-# if not global_client_resp.ok:
-#     print(global_client_resp.text)
-#     exit(1)
+      headers = {
+        'Cache-Control': 'no-cache',
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {admin_token}'
+      }
 
-# client_properties = global_client_resp.json()
-# client_properties["attributes"]["standard.token.exchange.enabled"] = True
-# global_put_client_resp = requests.put(
-#   f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/clients/{client_id}",
-#   json=client_properties,
-#   headers = {
-#     'Content-Type': 'application/json',
-#     'Authorization': f'Bearer {admin_token}'
-#   }
-# )
-# if not global_put_client_resp.ok:
-#     print(global_put_client_resp.text)
-#     exit(1)
+      # Create backend user
+      create_user(
+        settings.keycloak_admin,
+        settings.keycloak_admin_password,
+        email="admin@federatednode.com",
+        admin_token=admin_token,
+        realm="master", with_role=False
+      )
+      create_user(
+        settings.keycloak_admin,
+        settings.keycloak_admin_password,
+        email="admin@federatednode.com",
+        admin_token=admin_token
+      )
+      # Create first user, if chosen to do so
+      if settings.first_user_email:
+        create_user(
+          settings.first_user_email, settings.first_user_pass,
+          settings.first_user_email, settings.first_user_first_name,
+          settings.first_user_last_name, "Administrator",
+          admin_token=admin_token
+        )
 
-rm_client_id = list(filter(lambda x: x["clientId"] == 'realm-management', all_clients))[0]['id']
+      set_token_exchange_for_global_client(admin_token)
 
-print("Enabling the Permissions on the global client")
-client_permission_resp = requests.put(
-  f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/clients/{client_id}/management/permissions",
-  json={"enabled": True},
-  headers = {
-    'Content-Type': 'application/json',
-    'Authorization': f'Bearer {admin_token}'
-  }
-)
-if not client_permission_resp.ok:
-    print(client_permission_resp.text)
-    exit(1)
+      set_users_required_fields(admin_token)
 
-print("Fetching the token exchange scope")
-# Fetching the token exchange scope
-client_te_scope_resp = requests.get(
-  f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/clients/{rm_client_id}/authz/resource-server/scope?permission=false&name=token-exchange",
-  headers = {
-    'Authorization': f'Bearer {admin_token}'
-  }
-)
-is_response_good(client_te_scope_resp)
-token_exch_scope = client_te_scope_resp.json()[0]["id"]
+      enable_user_profile_at_realm_level(admin_token)
 
-print("Fetching the global resource reference")
-# Fetching the global resource reference in the realm-management client
-resource_scope_resp = requests.get(
-  f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/clients/{rm_client_id}/authz/resource-server/resource?name=client.resource.{client_id}",
-  headers = {
-    'Authorization': f'Bearer {admin_token}'
-  }
-)
-is_response_good(resource_scope_resp)
-resource_id = resource_scope_resp.json()[0]["_id"]
+      delete_bootstrap_user(admin_token)
 
-print("Creating the client policy")
-# Creating the client policy
-global_client_policy_resp = requests.post(
-  f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/clients/{rm_client_id}/authz/resource-server/policy/client",
-  json={
-    "name": "token-exchange-global",
-    "logic": "POSITIVE",
-    "clients": [client_id]
-  },
-  headers = {
-    'Content-Type': 'application/json',
-    'Authorization': f'Bearer {admin_token}'
-  }
-)
-if global_client_policy_resp.status_code == 409:
-  global_client_policy_resp = requests.get(
-    f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/clients/{rm_client_id}/authz/resource-server/policy/client?name=token-exchange-global",
-    headers = {
-      'Authorization': f'Bearer {admin_token}'
-    }
-  )
-elif not global_client_policy_resp.ok:
-    print(global_client_policy_resp.text)
-    exit(1)
-
-if isinstance(global_client_policy_resp.json(), dict):
-  global_policy_id = global_client_policy_resp.json()["id"]
-else:
-  global_policy_id = global_client_policy_resp.json()[0]["id"]
-
-print("Updating permissions")
-# Getting auto-created permission for token-exchange
-token_exch_name = f"token-exchange.permission.client.{client_id}"
-token_exch_permission_resp = requests.get(
-  f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/clients/{rm_client_id}/authz/resource-server/permission/scope?name={token_exch_name}",
-  headers = {
-    'Authorization': f'Bearer {admin_token}'
-  }
-)
-if not token_exch_permission_resp.ok:
-  print(token_exch_permission_resp.text)
-  exit(1)
-
-token_exch_permission_id = token_exch_permission_resp.json()[0]["id"]
-
-# Updating the permission
-client_permission_resp = requests.put(
-  f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/clients/{rm_client_id}/authz/resource-server/permission/scope/{token_exch_permission_id}",
-  json={
-      "name": token_exch_name,
-      "logic": "POSITIVE",
-      "decisionStrategy": "UNANIMOUS",
-      "resources": [resource_id],
-      "policies": [global_policy_id],
-      "scopes": [token_exch_scope]
-  },
-  headers = {
-    'Content-Type': 'application/json',
-    'Authorization': f'Bearer {admin_token}'
-  }
-)
-is_response_good(client_permission_resp)
-
-# Setting the users' required field to not require firstName and lastName
-user_profiles_resp = requests.get(
-  f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/users/profile",
-  headers={'Authorization': f'Bearer {admin_token}'}
-)
-if is_response_good(user_profiles_resp):
-  print(user_profiles_resp.text)
-  exit(1)
-
-edit_upd = user_profiles_resp.json()
-for attribute in edit_upd["attributes"]:
-   if attribute["name"] in ["firstName", "lastName"]:
-      attribute.pop("required", None)
-
-user_edit_profiles_resp = requests.put(
-  f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/users/profile",
-  json=edit_upd,
-  headers={
-    'Content-Type': 'application/json',
-    'Authorization': f'Bearer {admin_token}'
-  }
-)
-if is_response_good(user_edit_profiles_resp):
-  print(user_edit_profiles_resp.text)
-  exit(1)
-
-# Enable user profiles on a realm level
-realm_settings = requests.get(
-  f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}",
-  headers={'Authorization': f'Bearer {admin_token}'}
-)
-if is_response_good(realm_settings):
-  print(realm_settings.text)
-  exit(1)
-
-r_settings = realm_settings.json()
-r_settings["attributes"]["userProfileEnabled"] = True
-
-update_settings = requests.put(
-  f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}",
-  json=r_settings,
-  headers={'Authorization': f'Bearer {admin_token}'}
-)
-if is_response_good(update_settings):
-  print(update_settings.text)
-  exit(1)
-
-# Delete temp admin user
-print("Deleting temp user")
-user_id_resp = requests.get(
-  f"{settings.keycloak_url}/admin/realms/master/users/",
-  headers={'Authorization': f'Bearer {admin_token}'}
-)
-if is_response_good(user_id_resp):
-   print(user_id_resp.text)
-   exit(1)
-
-user_id = list(filter(lambda x: x["username"] == settings.kc_bootstrap_admin_username, user_id_resp.json()))[0]['id']
-user_delete_resp = requests.delete(
-  f"{settings.keycloak_url}/admin/realms/master/users/{user_id}",
-  headers={'Authorization': f'Bearer {admin_token}'}
-)
-if is_response_good(user_delete_resp):
-   print(user_delete_resp.text)
-   exit(1)
-
-print("Done!")
-exit(0)
+      logger.info("Done!")
+    except ApiException as apie:
+      logger.error(apie)
+    except requests.exceptions.ConnectionError as ce:
+      logger.error(ce)
