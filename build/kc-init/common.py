@@ -3,22 +3,12 @@ import logging
 import requests
 import time
 from requests import Response
-from kubernetes import config
+
 
 from settings import settings
 
 logger = logging.getLogger('realm_common')
 logger.setLevel(logging.INFO)
-
-def init_k8s():
-    if os.getenv('KUBERNETES_SERVICE_HOST'):
-      # Get configuration for an in-cluster setup
-      config.load_incluster_config()
-    elif os.path.exists(config.KUBE_CONFIG_DEFAULT_LOCATION):
-      # Get config from outside the cluster. Mostly DEV
-      config.load_kube_config()
-    else:
-      return
 
 def health_check():
     """
@@ -68,7 +58,12 @@ def login(kc_url:str, kc_user:str, kc_pass:str) -> str:
       'password': kc_pass
     })
     if not response.ok:
-      logger.error(response.json())
+      if kc_user == settings.kc_bootstrap_admin_username:
+        logger.error("Error while logging in with bootstrap user. Most likely due to the keycloak pods not having " \
+        "created one yet as part of init containers. This daemonset will retry. " \
+        "If persist, restart the keycloak statefulset")
+      else:
+        logger.error(response.json())
       exit(1)
 
     logger.info("Successful")
