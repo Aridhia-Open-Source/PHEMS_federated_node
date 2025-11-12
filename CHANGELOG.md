@@ -1,5 +1,11 @@
 # Releases Changelog
 
+## 1.6.0
+- Upgraded Keycloak to version 26.4
+- Changed token exchange API body to not include `subject_token_type`
+- Made use of bootsrap user for the `keycloak-realm-init` daemonset to not share credentials
+- Updated keycloak-role to monitor statefulsets in its namespace to allow a better performance on the `keycloak-realm-init`
+
 ## 1.5.0
 - Prefixed cluster-wide resources with the release name (unique by helm standards). Moved unnecessarily cluster-wide resources to namespaced ones
 - Added the option to setup an initial user to avoid using the backend credentials. To set it up, the following section in the values file has been added:
