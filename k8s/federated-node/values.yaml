@@ -78,9 +78,9 @@ storage:
 pullPolicy: Always
 
 # If using nginx, or ssl certificates, this will set the hostname
-host:
+host: &host
 tls:
-  secretName: tls
+  secretName: &tls tls
 
 # nginx white/black-listing, at ingress level
 whitelist:
@@ -146,19 +146,27 @@ cert-manager:
   namespace: fn-certmanager
   installCRDs: true
 
-### Ingress nginx
-ingress-nginx:
+### Ingress
+traefik:
+  gateway:
+    name: traefik-fn-gateway
+    listeners:
+      websecure:
+        port: 8443
+        protocol: HTTPS
+        hostname: *host
+        allowedRoutes:
+          namespaces:
+            from: Same
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: *tls
+  gatewayClass:
+    name: traefik-fn-gateway-class
+  providers:
+    kubernetesGateway:
+      enabled: true
   enabled: false
-  namespaceOverride: ingress-nginx
-  controller:
-    # admissionWebhooks:
-    #   enabled: false
-    ingressClassResource:
-      name: "fn-nginx"
-    allowSnippetAnnotations: false
-    ingressClass: "fn-nginx"
-    # If running on aks:
-    # service:
-    #   externalTrafficPolicy: Local
-    extraArgs:
-      default-ssl-certificate: default/tls
+  api:
+    dashboard: false

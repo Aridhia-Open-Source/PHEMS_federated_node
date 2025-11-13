@@ -1,0 +1,22 @@
+# {{- if index .Values.traefik.enabled -}}
+# apiVersion: gateway.networking.k8s.io/v1
+# kind: Gateway
+# metadata:
+#   namespace: {{ .Release.Namespace }}
+#   name: {{ include "gatewayName" . }}
+# spec:
+#   gatewayClassName: {{ include "gatewayName" . }}-class
+#   listeners:
+#   - name: https
+#     port: 443
+#     protocol: HTTPS
+#     hostname: {{ .Values.host }}
+#     allowedRoutes:
+#       namespaces:
+#         from: Same
+#     tls:
+#       mode: Terminate
+#       certificateRefs:
+#       - kind: Secret
+#         name: {{ .Values.tls.secretName }}
+# {{- end -}}
