@@ -1,3 +1,54 @@
 {{- if and .Values.installGatewayApiCRD .Values.traefik.enabled -}}
-  {{ .Files.Get "scripts/gateway-api-crds-1-4-0.yaml" }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gateway-crd-installer
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  template:
+    metadata:
+      name: "{{ .Release.Name }}"
+    spec:
+      serviceAccountName: gateway-api-crd-handler
+      restartPolicy: Never
+      containers:
+        - name: gateway-crd-installer
+          image: {{ include "fn-alpine" . }}
+          command: ["gateway-api-installer"]
+          imagePullPolicy: Always
+          env:
+            - name: VERSION
+              value: 1.4.0
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Name }}-gateway-role
+rules:
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["customresourcedefinitions"]
+  verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-gateway-role-binding
+subjects:
+  - kind: ServiceAccount
+    namespace: {{ .Release.Namespace }}
+    name: gateway-api-crd-handler
+roleRef:
+  kind: ClusterRole
+  name: {{ .Release.Name }}-gateway-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gateway-api-crd-handler
+  namespace: {{ .Release.Namespace }}
+---
 {{- end -}}
