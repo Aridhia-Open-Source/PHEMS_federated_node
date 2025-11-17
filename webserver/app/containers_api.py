@@ -10,6 +10,8 @@ import logging
 from http import HTTPStatus
 from flask import Blueprint, request
 
+from .helpers.query_filters import parse_query_params
+
 from .helpers.base_model import db
 from .helpers.exceptions import InvalidRequest
 from .helpers.wrappers import audit, auth
@@ -31,7 +33,7 @@ def get_all_containers():
     GET /containers endpoint.
         Returns the list of allowed containers
     """
-    return Container.get_all(), HTTPStatus.OK
+    return parse_query_params(Container, request.args.copy()), HTTPStatus.OK
 
 
 @bp.route('/', methods=['POST'])
@@ -43,12 +45,17 @@ def add_image():
     POST /containers endpoint.
     """
     body = Container.validate(request.json)
+    if not (body.get("tag") or body.get("sha")):
+        raise InvalidRequest("Make sure `tag` or `sha` are provided")
+
     # Make sure it doesn't exist already
     existing_image = Container.query.filter(
         Container.name == body["name"],
-        Container.tag==body["tag"],
         Registry.url==body["registry"].url
+    ).filter(
+        (Container.tag==body.get("tag")) | (Container.tag==body.get("sha"))
     ).join(Registry).one_or_none()
+
     if existing_image:
         raise InvalidRequest(
             f"Image {body["name"]}:{body["tag"]} already exists in registry {body["registry"].url}",
@@ -115,20 +122,29 @@ def sync():
     synched = []
     for registry in Registry.query.filter(Registry.active).all():
         for image in registry.fetch_image_list():
-            for tag in image["tags"]:
-                if Container.query.filter_by(
-                    name=image["name"],
-                    tag=tag,
-                    registry_id=registry.id
-                ).one_or_none():
-                    logger.info("Image %s already synched", image["name"])
-                    continue
-
-                data = Container.validate(
-                    {"name": image["name"], "registry": registry.url, "tag": tag}
-                )
-                cont = Container(**data)
-                cont.add(commit=False)
-                synched.append(cont.full_image_name())
+            for key in ["tag", "sha"]:
+                for tag_or_sha in image[key]:
+                    if Container.query.filter(
+                        Container.name==image["name"],
+                        getattr(Container, key)==tag_or_sha,
+                        Container.registry_id==registry.id
+                    ).one_or_none():
+                        logger.info("Image %s already synched", image["name"])
+                        continue
+                    if key == "tag":
+                        data = Container.validate(
+                            {"name": image["name"], "registry": registry.url, "tag": tag_or_sha}
+                        )
+                    else:
+                        data = Container.validate(
+                            {"name": image["name"], "registry": registry.url, "sha": tag_or_sha}
+                        )
+                    cont = Container(**data)
+                    cont.add(commit=False)
+                    synched.append(cont.full_image_name())
     session.commit()
-    return synched, HTTPStatus.CREATED
+    return {
+        "info": "The sync considers only the latest 100 tag per image. If an older one is needed,"
+                " add it manually via the POST /images endpoint",
+        "images": synched
+        }, HTTPStatus.CREATED

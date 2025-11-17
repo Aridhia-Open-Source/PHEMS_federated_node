@@ -26,12 +26,11 @@ def cr_client(mocker, reg_k8s_client):
         'app.helpers.container_registries.GitHubClient',
         return_value=Mock(
             login=Mock(return_value="access_token"),
-            get_image_tags=Mock(return_value=True)
         )
     )
 
 @pytest.fixture
-def cr_class(mocker, cr_name, ):
+def cr_class(cr_name) -> GitHubRegistry:
     return GitHubRegistry(cr_name, creds={"user": "", "token": "sometoken"})
 
 @pytest.fixture
@@ -40,7 +39,7 @@ def cr_client_404(mocker):
         GH_CLASS,
         return_value=Mock(
             login=Mock(return_value="access_token"),
-            get_image_tags=Mock(return_value=False)
+            has_image_tag_or_sha=Mock(return_value=False)
         )
     )
 
@@ -53,6 +52,6 @@ def registry(client, reg_k8s_client, cr_name) -> Registry:
 @pytest.fixture
 def container(client, k8s_client, registry, image_name) -> Container:
     img, tag = image_name.split(':')
-    cont = Container(img, registry, tag, True)
+    cont = Container(img, registry, tag, dashboard=True)
     cont.add()
     return cont

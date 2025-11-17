@@ -1,6 +1,8 @@
 # Releases Changelog
 
 ## 1.6.0
+- Docker images' sha/digest supported on top of tags for a more precise snapshot in history.
+- Added a `/refresh-token` endpoint so that a token can be renewed. This is successful only with tokens that are not expired. Ideally, every 29 days (default expiration is 30) this endpoint is pinged either manually, or automated. This response body is the same as `/login`.
 - Added a new endpoint `/delivery-secret` to update the results delivery credentials in case the Task Controller is deployed with it.
 
 ## 1.5.0

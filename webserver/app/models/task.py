@@ -107,10 +107,7 @@ class Task(db.Model, BaseModel):
             ).dataset
 
         # Docker image validation
-        if not re.match(r'^((\w+|-|\.)\/?+)+:(\w+(\.|-)?)+$', data["docker_image"]):
-            raise InvalidRequest(
-                f"{data["docker_image"]} does not have a tag. Please provide one in the format <image>:<tag>"
-            )
+        Container.validate_image_format(data["docker_image"], data["docker_image"])
         data["docker_image"] = cls.get_image_with_repo(data["docker_image"])
 
         # Output volumes validation
@@ -224,27 +221,35 @@ class Task(db.Model, BaseModel):
         raise InvalidRequest("Could not find the image in the mapped registries. Check the image has the full name")
 
     @classmethod
-    def get_image_with_repo(cls, docker_image):
+    def get_image_with_repo(cls, docker_image:str, string_only:bool=True) -> str | Container:
         """
         Looks through the CRs for the image and if exists,
         returns the full image name with the repo prefixing the image.
         """
         registry, image = cls.split_registry_from_image(docker_image)
-        image_name, tag = image.split(':')
+
+        tag = None
+        sha = None
+        if '@' in image:
+            image_name, sha = image.split('@')
+        else:
+            image_name, tag = image.split(':')
         image: Container = Container.query.filter(
             Container.name==image_name,
-            Container.tag==tag,
-            Registry.url == registry
+            Registry.url == registry,
+        ).filter(
+            (((Container.tag==tag) & (Container.tag != None)) | ((Container.sha==sha) & (Container.sha != None)))
         ).join(Registry).one_or_none()
-
         if image is None:
             raise TaskExecutionException(f"Image {docker_image} could not be found")
 
         registry_client = image.registry.get_registry_class()
-        if not registry_client.get_image_tags(image.name):
+        if not registry_client.has_image_tag_or_sha(image.name, image.tag, image.sha):
             raise TaskImageException(f"Image {docker_image} not found on our repository")
+        if string_only:
+            return image.full_image_name()
 
-        return image.full_image_name()
+        return image
 
     def pod_name(self):
         """
@@ -284,6 +289,8 @@ class Task(db.Model, BaseModel):
         if len(self.executors):
             command=self.executors[0].get("command", '')
 
+        image: Container = self.get_image_with_repo(self.docker_image, False)
+
         body = TaskPod(**{
             "name": self.pod_name(),
             "image": self.docker_image,
@@ -301,7 +308,8 @@ class Task(db.Model, BaseModel):
             "mount_path": self.outputs,
             "input_path": self.inputs,
             "resources": self.resources,
-            "env_from": v1.create_from_env_object(secret_name)
+            "env_from": v1.create_from_env_object(secret_name),
+            "regcred_secret": image.registry.slugify_name()
         }).create_pod_spec()
         try:
             current_pod = self.get_current_pod()
@@ -442,7 +450,7 @@ class Task(db.Model, BaseModel):
                 dest_path=f"{RESULTS_PATH}/{self.id}/results",
                 out_name=f"{PUBLIC_URL}-results-{self.id}"
             )
-            # v1.delete_pod(job_pod.metadata.name)
+            v1.delete_pod(job_pod.metadata.name)
             v1_batch.delete_job(job_name)
         except ApiException as e:
             if 'job_pod' in locals() and self.get_current_pod(job_pod.metadata.name):

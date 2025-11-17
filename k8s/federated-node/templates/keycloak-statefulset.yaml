@@ -19,18 +19,17 @@ spec:
         app: keycloak
     spec:
       initContainers:
-        {{ template "createDBInitContainer" . }}
+        {{- include "createDBInitContainer" . | nindent 8 }}
           - name: NEW_DB
             valueFrom:
               configMapKeyRef:
                 name: keycloak-config
                 key: KC_DB_URL_DATABASE
-
         - name: credentials-reset
           imagePullPolicy: {{ .Values.pullPolicy }}
           image: {{ include "fn-alpine" . }}
           command: ["keycloak-reset"]
-          {{ include "nonRootSC" . }}
+          {{- include "nonRootSC" . | nindent 10 }}
           env:
           - name: KEYCLOAK_SECRET
             valueFrom:
@@ -100,7 +99,7 @@ spec:
             - name: quarkus
               mountPath: /opt/keycloak/conf/quarkus.properties
               subPath: quarkus.properties
-          {{ include "nonRootSC" . }}
+          {{- include "nonRootSC" . | nindent 10 }}
       volumes:
         - name: config
           configMap:

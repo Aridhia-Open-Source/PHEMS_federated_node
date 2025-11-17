@@ -4,7 +4,7 @@ kind: PersistentVolume
 metadata:
   name: {{ .Release.Name }}-db-pv
 spec:
-  storageClassName: {{ include "storageClassName" . }}
+  storageClassName: {{ .Release.Name }}-db-storage
   accessModes:
     - ReadWriteMany
   capacity:
@@ -43,7 +43,7 @@ metadata:
   name: db-volclaim
   namespace: {{ .Release.namespace }}
 spec:
-  storageClassName: db-storage
+  storageClassName: {{ .Release.Name }}-db-storage
   # This should be changed to some more reliable destination
   volumeName: {{ .Release.Name }}-db-pv
   resources:
@@ -51,4 +51,13 @@ spec:
       storage: 100Mi
   accessModes:
     - ReadWriteMany
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Release.Name }}-db-storage
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+volumeBindingMode: WaitForFirstConsumer
+provisioner: Local
 {{ end }}

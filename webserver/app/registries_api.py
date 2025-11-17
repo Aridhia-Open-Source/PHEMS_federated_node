@@ -48,7 +48,7 @@ def delete_registry_by_id(registry_id:int):
     """
     GET /registries endpoint.
     """
-    registry = Registry.query.filter_by(id=registry_id).one_or_none()
+    registry: Registry = Registry.query.filter_by(id=registry_id).one_or_none()
     if registry is None:
         raise DBRecordNotFoundError("Registry not found")
 

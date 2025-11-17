@@ -43,7 +43,7 @@ sample_ds_body = {
 
 @fixture
 def image_name():
-    return "example:latest"
+    return "acr.azurecr.io/example:latest"
 
 @fixture
 def user_token(basic_user):

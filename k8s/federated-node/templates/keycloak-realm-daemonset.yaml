@@ -27,7 +27,7 @@ spec:
         - name: post-install-job
           imagePullPolicy: {{ .Values.pullPolicy }}
           image: "ghcr.io/aridhia-open-source/keycloak_initializer:{{ .Values.keycloak.tag | default .Chart.AppVersion }}"
-          {{ include "nonRootSC" . }}
+          {{- include "nonRootSC" . | nindent 10 }}
           env:
             - name: KC_NAMESPACE
               value: {{ include "kc_namespace" . }}

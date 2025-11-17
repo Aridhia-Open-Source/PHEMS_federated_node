@@ -221,7 +221,7 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
                 return
             logger.info(f"Pod is in state {event["object"].status.phase}")
 
-    def create_secret(self, name:str, values:dict[str, str], namespaces:list, type:str='Opaque'):
+    def create_secret(self, name:str, values:dict[str, str], namespaces:list, type:str='Opaque', labels:dict={}) -> client.V1Secret:
         """
         From a dict of values, encodes them,
             and creates a secret in a given list of namespace
@@ -234,7 +234,10 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
 
         body.data = values
         body.kind = 'Secret'
-        body.metadata = {'name': name}
+        body.metadata = {
+            'name': name,
+            'labels': labels
+        }
         body.type = type
         for ns in namespaces:
             try:

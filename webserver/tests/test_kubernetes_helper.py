@@ -42,7 +42,8 @@ def pod_dict(dataset):
         "db_query": {
             "query": "SELECT * FROM table",
             "dialect": "postgres"
-        }
+        },
+        "regcred_secret": "acrsecret"
     }
 
 @pytest.fixture

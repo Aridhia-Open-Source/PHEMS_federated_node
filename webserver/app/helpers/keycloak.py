@@ -62,7 +62,7 @@ class Keycloak:
             "Content-Type": "application/json"
         }
 
-    def exchange_global_token(self, token:str) -> str:
+    def exchange_global_token(self, token:str, type:str="access_token") -> str:
         """
         Token exchange across clients. From global to the instanced one
         """
@@ -89,7 +89,7 @@ class Keycloak:
             'client_id': KEYCLOAK_CLIENT,
             'grant_type': 'urn:ietf:params:oauth:grant-type:token-exchange',
             'subject_token_type': 'urn:ietf:params:oauth:token-type:access_token',
-            'requested_token_type': 'urn:ietf:params:oauth:token-type:access_token',
+            'requested_token_type': f'urn:ietf:params:oauth:token-type:{type}',
             'subject_token': access_token,
             'audience': self.client_name
         }
@@ -103,7 +103,7 @@ class Keycloak:
         if not exchange_resp.ok:
             logger.info(exchange_resp.content.decode())
             raise KeycloakError("Cannot exchange token")
-        return exchange_resp.json()["access_token"]
+        return exchange_resp.json()[type]
 
     def get_impersonation_token(self, user_id:str) -> str:
         """
@@ -245,7 +245,7 @@ class Keycloak:
         }
         return self.get_token(token_type='access_token', payload=payload)
 
-    def is_token_valid(self, token:str, scope:str, resource:str, tok_type='refresh_token') -> bool:
+    def is_token_valid(self, token:str, scope:str, resource:str, tok_type='refresh_token', with_permissions:bool=True) -> bool:
         """
         Ping KC to check if the token is valid or not
         """
@@ -275,7 +275,10 @@ class Keycloak:
                     'Content-Type': 'application/x-www-form-urlencoded'
                 }
             )
-        return response_auth.ok and self.check_permissions(token, scope, resource, is_access_token)
+        if with_permissions:
+            return response_auth.ok and self.check_permissions(token, scope, resource, is_access_token)
+
+        return response_auth.ok
 
     def decode_token(self, token:str) -> dict:
         """

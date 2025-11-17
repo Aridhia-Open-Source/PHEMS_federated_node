@@ -925,6 +925,21 @@
         }
       }
     },
+    "/refresh_token": {
+      "post": {
+        "operationId": "refresh_token",
+        "tags": ["General"],
+        "summary": "Refresh an existing token",
+        "responses":{
+          "201":{
+            "$ref": "#/components/responses/TokenResponse"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          }
+        }
+      }
+    },
     "/audit": {
       "get": {
         "operationId": "get_audit",
@@ -961,7 +976,7 @@
           }
         ],
         "tags": ["Admin"],
-        "summary": "Login with set of credentials (only admins can have them)",
+        "summary": "Get the audit logs for the whole API, with filters",
         "responses":{
           "200":{
             "$ref": "#/components/responses/AuditList"
@@ -1884,10 +1899,19 @@
         "content": {
           "application/json":{
             "schema":{
-              "type": "array",
-              "items": {
-                "type": "string",
-                "example": "repo.azurecr.io/beautiful_image:1.2.0"
+              "type": "object",
+              "properties": {
+                "info": {
+                  "type": "string",
+                  "default": "The sync considers only the latest 100 tag per image. If an older one is needed, add it manually via the POST /images endpoint"
+                },
+                "images": {
+                  "type": "array",
+                    "items": {
+                      "type": "string",
+                      "example": "repo.azurecr.io/beautiful_image:1.2.0"
+                    }
+                  }
               }
             }
           }

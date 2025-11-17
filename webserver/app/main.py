@@ -6,7 +6,8 @@ These won't have any restrictions and won't go through
 from http import HTTPStatus
 import requests
 from flask import Blueprint, redirect, url_for, request
-from app.helpers.keycloak import Keycloak, URLS
+from .helpers.keycloak import Keycloak, URLS
+from .helpers.exceptions import AuthenticationError
 
 bp = Blueprint('main', __name__, url_prefix='/')
 
@@ -56,4 +57,20 @@ def login():
     credentials = request.form.to_dict()
     return {
         "token": Keycloak().get_token(**credentials)
+    }, HTTPStatus.OK
+
+@bp.route("/refresh_token", methods=['POST'])
+def refresh_token():
+    """
+    POST /refresh_token endpoint.
+        Given a token, exchanges it for a new one. Returns the same
+        response as /login
+    """
+    token = Keycloak.get_token_from_headers()
+    kc_client = Keycloak()
+    if not kc_client.is_token_valid(token, resource=None, scope=None, with_permissions=False):
+        raise AuthenticationError()
+
+    return {
+        "token": kc_client.exchange_global_token(token, "refresh_token")
     }, HTTPStatus.OK
