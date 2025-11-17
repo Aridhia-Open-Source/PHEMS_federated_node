@@ -29,16 +29,6 @@ for i in range(10):
     print(f"{i+1}/10 - Failed to connect. Will retry in 10 seconds")
   time.sleep(10)
 
-# Login
-for i in range(10):
-  try:
-    hc_resp = requests.get(f"{KEYCLOAK_URL}/realms/FederatedNode")
-    if hc_resp.ok:
-      break
-  except requests.exceptions.ConnectionError:
-    print(f"{i+1}/10 - Failed to connect. Will retry in 10 seconds")
-  time.sleep(10)
-
 # Login as admin - Wait 10 seconds between retries. The keycloak init job relies on both kc pods to be up
 for i in range(10):
   login_resp = requests.post(
