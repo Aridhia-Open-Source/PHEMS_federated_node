@@ -469,10 +469,35 @@ class TestPostTask:
         )
         assert response.status_code == 403
 
+    def test_create_task_image_with_digest(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            reg_k8s_client,
+            registry_client,
+            container_with_sha,
+            task_body,
+            v1_crd_mock
+        ):
+        """
+        Tests task creation returns 201 with the image sha rather than
+        an image tag
+        """
+        task_body["executors"][0]["image"] = container_with_sha.full_image_name()
+        response = client.post(
+            '/tasks/',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
+
     def test_create_task_image_same_name_different_registry(
             self,
-            k8s_client,
             cr_client,
+            reg_k8s_client,
             registry_client,
             post_json_admin_header,
             client,
@@ -483,7 +508,7 @@ class TestPostTask:
         Tests task creation is successful if two images are mapped with the
         same name, but different registry
         """
-        registry = Registry(url="another.azureacr.io", username="user", password="pass")
+        registry = Registry(url="another.azurecr.io", username="user", password="pass")
         registry.add()
         Container(registry=registry, name=container.name, tag=container.tag).add()
         response = client.post(

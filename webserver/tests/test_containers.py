@@ -18,12 +18,13 @@ def container_body(registry):
 
 
 class ContainersMixin:
-    def get_container_as_response(self, container):
+    def get_container_as_response(self, container: Container):
         return {
             "dashboard": container.dashboard,
             "id": container.id,
             "name": container.name,
             "tag": container.tag,
+            "sha": container.sha,
             "ml": container.ml,
             "registry_id": container.registry_id
         }
@@ -44,6 +45,7 @@ class TestGetContainers(ContainersMixin):
         """
         valid_image_formats = [
             {"name": "image", "tag": "3.21"},
+            {"name": "image", "sha": "sha256:1234ab15ad48"},
             {"name": "namespace/image", "tag": "3.21"},
             {"name": "namespace/image", "tag": "3.21-alpha"}
         ]
@@ -161,6 +163,29 @@ class TestPostContainers(ContainersMixin):
             name="testimage", tag="1.0.25"
         ).one_or_none() is not None
 
+    def test_add_new_container_by_sha(
+        self,
+        client,
+        registry,
+        post_json_admin_header
+    ):
+        """
+        Checks the POST body is what we expect
+        """
+        resp = client.post(
+            "/containers",
+            json={
+                "name": "testimage",
+                "registry": registry.url,
+                "sha": "sha256:123123123"
+            },
+            headers=post_json_admin_header
+        )
+        assert resp.status_code == 201
+        assert Container.query.filter_by(
+            name="testimage", sha="sha256:123123123"
+        ).one_or_none() is not None
+
     def test_add_duplicate_container(
         self,
         client,
@@ -201,7 +226,7 @@ class TestPostContainers(ContainersMixin):
             headers=post_json_admin_header
         )
         assert resp.status_code == 400
-        assert resp.json["error"] == 'Field "tag" missing'
+        assert resp.json["error"] == 'Make sure `tag` or `sha` are provided'
 
     def test_add_new_container_invalid_registry(
         self,
@@ -245,7 +270,7 @@ class TestPostContainers(ContainersMixin):
             headers=post_json_admin_header
         )
         assert resp.status_code == 400
-        assert resp.json["error"] == '/testimage:0.1.1 does not have a tag. Please provide one in the format <image>:<tag>'
+        assert resp.json["error"] == '/testimage:0.1.1 does not have a tag. Please provide one in the format <image>:<tag> or <image>@sha256..'
 
 
 class TestPatchContainers:
@@ -327,7 +352,8 @@ class TestSync:
         tags_request,
         registry,
         expected_image_names,
-        expected_tags_list
+        expected_tags_list,
+        expected_digest_list
     ):
         """
         Basic test that adds couple of missing images
@@ -338,8 +364,9 @@ class TestSync:
             headers=post_json_admin_header
         )
         expected_resp = [f"{registry.url}/{im}:{t}" for im in expected_image_names for t in expected_tags_list]
+        expected_resp += [f"{registry.url}/{im}@{expected_digest_list}" for im in expected_image_names]
         assert resp.status_code == 201
-        assert resp.json == expected_resp
+        assert sorted(resp.json["images"]) == sorted(expected_resp)
 
     def test_sync_failure(
         self,
@@ -375,6 +402,7 @@ class TestSync:
         post_json_admin_header,
         registry,
         container,
+        container_with_sha,
         azure_login_request,
         cr_name
     ):
@@ -391,8 +419,14 @@ class TestSync:
         )
         azure_login_request.add(
             responses.GET,
-            f"https://{cr_name}/oauth2/token?service={cr_name}&scope=repository:{container.name}:metadata_read",
+            f"https://{cr_name}/oauth2/token?service={cr_name}&scope=repository:{container.name}:*",
             json={"access_token": "12345asdf"},
+            status=200
+        )
+        azure_login_request.add(
+            responses.GET,
+            f"https://{cr_name}/v2/{container.name}/manifests/{container.tag}",
+            json={"config": {"digest": container_with_sha.sha}},
             status=200
         )
         azure_login_request.add(
@@ -406,8 +440,8 @@ class TestSync:
             headers=post_json_admin_header
         )
 
-        assert resp.status_code == 201
-        assert resp.json == []
+        assert resp.status_code == 201, resp.json
+        assert resp.json["images"] == []
 
     def test_sync_no_action_inactive_registry(
         self,
@@ -426,5 +460,5 @@ class TestSync:
         )
 
         assert resp.status_code == 201
-        assert resp.json == []
+        assert resp.json["images"] == []
         assert Container.query.all() == []

@@ -91,5 +91,7 @@ class ContainerRegistryException(LogAndException):
     pass
 
 class FeatureNotAvailableException(LogAndException):
-    description = "This feature is not available on this Federated Node"
     code = 400
+    def __init__(self, feature:str, response = None):
+        description = f"The {feature} feature is not available on this Federated Node"
+        super().__init__("", self.code, description, response)

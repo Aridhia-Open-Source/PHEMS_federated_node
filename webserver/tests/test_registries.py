@@ -148,41 +148,6 @@ class TestPostRegistriesApi:
             )
         assert resp.status_code == 201
 
-    def test_create_registry_201_missing_taskpull_secret(
-        self,
-        client,
-        post_json_admin_header,
-        reg_k8s_client
-    ):
-        """
-        Basic POST request for the first time. K8s will return a 404
-        so it should create a brand new
-        """
-        new_registry = "shiny.azurecr.io"
-
-        reg_k8s_client["read_namespaced_secret_mock"].side_effect = ApiException(
-            http_resp=Mock(status=404, body="details", reason="Failed")
-        )
-        with responses.RequestsMock() as rsps:
-            rsps.add_passthru(KEYCLOAK_URL)
-            rsps.add(
-                responses.GET,
-                f"https://{new_registry}/oauth2/token?service={new_registry}&scope=registry:catalog:*",
-                json={"access_token": "12jio12buds89"},
-                status=200
-            )
-            resp = client.post(
-                "/registries",
-                json={
-                    "url": new_registry,
-                    "username": "blabla",
-                    "password": "secret"
-                },
-                headers=post_json_admin_header
-            )
-        assert resp.status_code == 201
-        reg_k8s_client["create_namespaced_secret_mock"].assert_called()
-
     def test_create_registry_incorrect_creds(
         self,
         client,
@@ -275,19 +240,14 @@ class TestDeleteRegistries:
         Simple test to check a successful deletion from the
         DB and its k8s secrets
         """
-        expected_taskspull = KubernetesClient.encode_secret_value(json.dumps({"auths": {}}))
         secret_name = registry.slugify_name()
         response = client.delete(
             f"/registries/{registry.id}",
             headers=simple_admin_header
         )
         assert response.status_code == 204
-        patch_delete = reg_k8s_client["patch_namespaced_secret_mock"].mock_calls[1]
-        assert patch_delete[-1]["name"] == "taskspull"
-        assert patch_delete[-1]["namespace"] == TASK_NAMESPACE
-        assert patch_delete[-1]["body"].data[".dockerconfigjson"] == expected_taskspull
         reg_k8s_client["delete_namespaced_secret_mock"].assert_called_with(
-            **{"name": secret_name, "namespace": DEFAULT_NAMESPACE}
+            **{"name": secret_name, "namespace": TASK_NAMESPACE}
         )
 
     def test_delete_registry_not_found(
@@ -319,7 +279,7 @@ class TestDeleteRegistries:
             behaviour as the sync and container check are based
             on the db entry. Secrets can stay if k8s fails.
         """
-        reg_k8s_client["patch_namespaced_secret_mock"].side_effect = ApiException(
+        reg_k8s_client["delete_namespaced_secret_mock"].side_effect = ApiException(
             http_resp=Mock(status=500, reason="Error", data="Invalid value in data")
         )
         reg_id = registry.id
@@ -392,7 +352,8 @@ class TestPatchRegistriesApi:
         client,
         registry,
         post_json_admin_header,
-        k8s_client
+        k8s_client,
+        reg_k8s_client
     ):
         """
         Simple PATCH request test to check the registry credentials
@@ -402,8 +363,6 @@ class TestPatchRegistriesApi:
             "password": "new password token",
             "username": "shiny"
         }
-        encoded_pass = base64.b64encode("new password token".encode()).decode()
-        encoded_user = base64.b64encode("shiny".encode()).decode()
         resp = client.patch(
             f"registries/{registry.id}",
             json=data,
@@ -413,16 +372,12 @@ class TestPatchRegistriesApi:
         k8s_client["patch_namespaced_secret_mock"].assert_called()
 
         # Only look after the first invocation as the first comes from the registry creation
-        taskspull_secret = k8s_client["patch_namespaced_secret_mock"].call_args_list[1][1]
-        reg_secret = k8s_client["patch_namespaced_secret_mock"].call_args_list[2][1]
+        reg_secret = k8s_client["patch_namespaced_secret_mock"].call_args_list[1][1]
 
-        assert taskspull_secret["name"] == "taskspull"
-        dockerconfig = base64.b64decode(taskspull_secret['body'].data['.dockerconfigjson']).decode()
+        dockerconfig = base64.b64decode(reg_secret['body'].data['.dockerconfigjson']).decode()
         assert json.loads(dockerconfig)["auths"][registry.url]["password"] == data["password"]
         assert json.loads(dockerconfig)["auths"][registry.url]["username"] == data["username"]
         assert reg_secret["name"] == "acr-azurecr-io"
-        assert reg_secret["body"].data["TOKEN"] == encoded_pass
-        assert reg_secret["body"].data["USER"] == encoded_user
 
     def test_patch_registry_empty_body(
         self,

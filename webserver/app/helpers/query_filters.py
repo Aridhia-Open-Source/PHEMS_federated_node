@@ -39,9 +39,9 @@ def parse_query_params(model: Base, query_params: dict): # type: ignore
     current_query = model.query
     for qp_f, qp_v in query_params.items():
         added = False
+        field = re.sub(r'(=|__).*', '', qp_f)
         for k in FILTERS:
             if re.findall(f'.+__{k}$', qp_f):
-                field = qp_f.replace(f'__{k}', '')
                 if k == 'ne':
                     current_query = current_query.filter(getattr(model, field) != qp_v)
                 if k == 'eq':
@@ -56,9 +56,13 @@ def parse_query_params(model: Base, query_params: dict): # type: ignore
                     current_query = current_query.filter(getattr(model, field) <= qp_v)
                 added = True
                 break
+
+        if not getattr(model, field, None):
+            raise InvalidRequest(f"{field} is not a valid field")
+
         if not added:
             # We are in the = case
-            current_query = current_query.filter(getattr(model, qp_f.replace('=', '')) == qp_v)
+            current_query = current_query.filter(getattr(model, field) == qp_v)
 
     return current_query.paginate(page=page, per_page=per_page)
 

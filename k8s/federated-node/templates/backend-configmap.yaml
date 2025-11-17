@@ -35,5 +35,13 @@ data:
   TASK_REVIEW: enabled
 {{- end }}
 {{- if .Values.outboundMode }}
+  CONTROLLER_NAMESPACE: {{ include "controller_namespace" . }}
   TASK_CONTROLLER: enabled
+  {{- with index .Values "fn-task-controller" "delivery" -}}
+  {{- if .github }}
+  GITHUB_DELIVERY: {{ .github.repository }}
+  {{- else if .other }}
+  OTHER_DELIVERY: {{ .other.url }}
+  {{- end }}
+  {{- end }}
 {{- end }}

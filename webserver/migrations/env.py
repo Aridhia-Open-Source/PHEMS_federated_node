@@ -10,26 +10,27 @@ from app.helpers.const import build_sql_uri
 # access to the values within the .ini file in use.
 config = context.config
 
+config.set_main_option('sqlalchemy.url', build_sql_uri())
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+
 # add your model's MetaData object here
 # for 'autogenerate' support
 from app.helpers.base_model import Base
-import app.models.dataset
 import app.models.audit
+import app.models.catalogue
+import app.models.container
+import app.models.dictionary
+import app.models.dataset
+import app.models.registry
 import app.models.request
 import app.models.task
 # target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
-config.set_main_option('sqlalchemy.url', build_sql_uri())
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.

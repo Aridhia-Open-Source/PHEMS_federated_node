@@ -11,10 +11,7 @@ from kubernetes.client import (
     V1PersistentVolumeClaimSpec, V1VolumeResourceRequirements,
     V1CSIPersistentVolumeSource
 )
-from app.helpers.const import (
-    RESULTS_PATH, STORAGE_CLASS,
-    TASK_NAMESPACE, TASK_PULL_SECRET_NAME
-)
+from app.helpers.const import RESULTS_PATH, STORAGE_CLASS, TASK_NAMESPACE
 from app.helpers.kubernetes import KubernetesClient
 from app.models.dataset import Dataset
 
@@ -37,7 +34,8 @@ class TaskPod:
             input_path:dict,
             resources:dict,
             env_from:list,
-            db_query:dict
+            db_query:dict,
+            regcred_secret:str
         ):
         self.name = name
         self.image = image
@@ -50,6 +48,7 @@ class TaskPod:
         self.resources = resources
         self.env_from = env_from
         self.db_query = db_query
+        self.regcred_secret = regcred_secret
         self.env = []
         self.env_init = []
         self.create_env_from_dict(environment)
@@ -237,7 +236,7 @@ class TaskPod:
         if self.command:
             container.command = self.command
 
-        secrets = [V1LocalObjectReference(name=TASK_PULL_SECRET_NAME)]
+        secrets = [V1LocalObjectReference(name=self.regcred_secret)]
 
         specs = V1PodSpec(
             termination_grace_period_seconds=300,

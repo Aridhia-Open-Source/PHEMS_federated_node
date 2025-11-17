@@ -7,6 +7,7 @@ from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
+from kubernetes.client import V1Secret
 from kubernetes.client.exceptions import ApiException
 
 from app.helpers.connection_string import Mssql, Postgres, Mysql, Oracle, MariaDB
@@ -99,7 +100,9 @@ class Dataset(db.Model, BaseModel):
         This is not involved in the Task Execution Service
         """
         v1 = KubernetesClient()
-        secret = v1.read_namespaced_secret(self.get_creds_secret_name(), DEFAULT_NAMESPACE, pretty='pretty')
+        secret:V1Secret = v1.read_namespaced_secret(
+            self.get_creds_secret_name(), DEFAULT_NAMESPACE, pretty='pretty'
+        )
         # Doesn't matter which key it's being picked up, the value it's the same
         # in terms of *USER or *PASSWORD
         user = KubernetesClient.decode_secret_value(secret.data['PGUSER'])
@@ -171,10 +174,11 @@ class Dataset(db.Model, BaseModel):
         kc_client = Keycloak()
         v1 = KubernetesClient()
         new_username = kwargs.pop("username", None)
+        secret_name:str = self.get_creds_secret_name()
 
         # Get existing secret
-        secret = v1.read_namespaced_secret(self.get_creds_secret_name(), DEFAULT_NAMESPACE, pretty='pretty')
-        secret_task = v1.read_namespaced_secret(self.get_creds_secret_name(), TASK_NAMESPACE, pretty='pretty')
+        secret: V1Secret = v1.read_namespaced_secret(secret_name, DEFAULT_NAMESPACE, pretty='pretty')
+        secret_task: V1Secret = v1.read_namespaced_secret(secret_name, TASK_NAMESPACE, pretty='pretty')
 
         # Update secret if credentials are provided
         new_name = kwargs.get("name", None)
@@ -184,21 +188,25 @@ class Dataset(db.Model, BaseModel):
         if new_pass:
             secret.data["PGPASSWORD"] = KubernetesClient.encode_secret_value(new_pass)
 
+        secret.metadata["labels"] = {
+            "type": "database",
+            "host": secret_name
+        }
         secret_task.data = secret.data
         # Check secret names
         new_host = kwargs.get("host", None)
         try:
             # Create new secret if name is different
             if (new_host != self.host and new_host) or (new_name != self.name and new_name):
-                secret.metadata = {'name': self.get_creds_secret_name(new_host, new_name)}
+                secret.metadata['name'] = self.get_creds_secret_name(new_host, new_name)
                 secret_task.metadata = secret.metadata
                 v1.create_namespaced_secret(DEFAULT_NAMESPACE, body=secret, pretty='true')
                 v1.create_namespaced_secret(TASK_NAMESPACE, body=secret_task, pretty='true')
-                v1.delete_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=self.get_creds_secret_name())
-                v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=self.get_creds_secret_name())
+                v1.delete_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=secret_name)
+                v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=secret_name)
             else:
-                v1.patch_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=self.get_creds_secret_name(), body=secret)
-                v1.patch_namespaced_secret(namespace=TASK_NAMESPACE, name=self.get_creds_secret_name(), body=secret_task)
+                v1.patch_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=secret_name, body=secret)
+                v1.patch_namespaced_secret(namespace=TASK_NAMESPACE, name=secret_name, body=secret_task)
         except ApiException as e:
             # Host and name are unique so there shouldn't be duplicates. If so
             # let the exception to be re-raised with the internal one

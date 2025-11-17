@@ -36,7 +36,7 @@ class TestGitHubRegistry:
                 json=[],
                 status=200
             )
-            assert not cr_class.get_image_tags(container.name)
+            assert cr_class.get_image_tags(container.name) == {'tag': [], 'sha': []}
 
     def test_cr_metadata_tag_not_in_api_response(
             self,
@@ -52,6 +52,7 @@ class TestGitHubRegistry:
                 responses.GET,
                 f"https://api.github.com/orgs/{cr_class.organization}/packages/container/{container.name}/versions",
                 json=[{
+                    "name": "sha256:123aed5143c5a15",
                     "metadata": {
                         "container":{
                             "tags": ["1.2.3", "dev"]
@@ -60,7 +61,7 @@ class TestGitHubRegistry:
                 }],
                 status=200
             )
-            assert not cr_class.get_image_tags(container.name, "latest")
+            assert not cr_class.has_image_tag_or_sha(container.name, "latest")
 
     def test_list_repos(
         self,
@@ -85,6 +86,7 @@ class TestGitHubRegistry:
                 responses.GET,
                 f"https://api.github.com/orgs/{cr_class.organization}/packages/container/{container.name}/versions",
                 json=[{
+                    "name": "sha256:123aed5143c5a15",
                     "metadata": {
                         "container":{
                             "tags": ["1.2.3", "dev"]
@@ -93,4 +95,10 @@ class TestGitHubRegistry:
                 }],
                 status=200
             )
-            assert cr_class.list_repos() == [{"name": container.name, "tags": ["1.2.3", "dev"]}]
+            expected_list = [{
+                "name": container.name,
+                "tag": ["1.2.3", "dev"],
+                "sha": ["sha256:123aed5143c5a15"]
+            }]
+
+            assert expected_list == cr_class.list_repos()

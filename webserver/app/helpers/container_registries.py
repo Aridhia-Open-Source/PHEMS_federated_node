@@ -1,11 +1,13 @@
 from base64 import b64encode
+import json
+from typing import List
 import requests
 import logging
 from requests.exceptions import ConnectionError
 
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.exceptions import ContainerRegistryException
-from app.helpers.const import DEFAULT_NAMESPACE
+from app.helpers.const import TASK_NAMESPACE
 
 
 logger = logging.getLogger('registries_handler')
@@ -21,6 +23,7 @@ class BaseRegistry:
     organization = ''
     request_args = {}
     api_login = True
+    list_req_params = {"page": 1, "page_size": 100}
 
     def __init__(self, registry:str, secret_name:str=None, creds:dict={}):
         self.registry = registry
@@ -34,10 +37,13 @@ class BaseRegistry:
         Get the registry-related secret
         """
         v1 = KubernetesClient()
-        secret = v1.read_namespaced_secret(self.secret_name, DEFAULT_NAMESPACE, pretty='pretty')
+        regcred = v1.read_namespaced_secret(self.secret_name, TASK_NAMESPACE, pretty='pretty')
+
+        dockerjson = json.loads(v1.decode_secret_value(regcred.data['.dockerconfigjson']))
+        key = list(dockerjson["auths"].keys())[0]
         return {
-            "user": KubernetesClient.decode_secret_value(secret.data['USER']),
-            "token": KubernetesClient.decode_secret_value(secret.data['TOKEN'])
+            "user": dockerjson['auths'][key]["username"],
+            "token": dockerjson['auths'][key]["password"]
         }
 
     def list_repos(self) -> list[str]:
@@ -92,7 +98,7 @@ class BaseRegistry:
             "organization": self.organization
         }
 
-    def get_image_tags(self, image:str) -> bool:
+    def get_image_tags(self, image:str) -> dict[str, str|List[str]]:
         """
         Works as an existence check. If the tag for the image
         has the requested tag in the list of available tags
@@ -104,6 +110,7 @@ class BaseRegistry:
         try:
             response_metadata = requests.get(
                 self.tags_url % self.get_url_string_params(image_name=image),
+                params=self.list_req_params,
                 headers={"Authorization": f"Bearer {token}"}
             )
             if not response_metadata.ok:
@@ -117,13 +124,26 @@ class BaseRegistry:
                 500
             ) from ce
 
+    def has_image_tag_or_sha(self, image:str, tag:str=None, sha:str=None) -> bool:
+        """
+        Based on get_image_tags, checks if a tag is available
+        """
+        tags_list = self.get_image_tags(image)
+        if not tags_list:
+            return False
+
+        return tag in tags_list["tag"] or sha in tags_list["sha"]
+
 
 class AzureRegistry(BaseRegistry):
+    # https://docker-docs.uclv.cu/registry/spec/api for api schemas
     login_url = "https://%(service)s/oauth2/token?service=%(service)s&scope=registry:catalog:*"
-    repo_login_url = "https://%(service)s/oauth2/token?service=%(service)s&scope=repository:%(image)s:metadata_read"
+    repo_login_url = "https://%(service)s/oauth2/token?service=%(service)s&scope=repository:%(image)s:*"
     tags_url = "https://%(service)s/v2/%(image)s/tags/list"
+    digest_url = "https://%(service)s/v2/%(image)s/manifests/"
     list_repo_url = "https://%(service)s/v2/_catalog"
     token_field = "access_token"
+    list_req_params = {"n": 100}
 
     def __init__(self, registry:str, secret_name:str=None, creds:dict={}):
         super().__init__(registry, secret_name, creds)
@@ -132,42 +152,79 @@ class AzureRegistry(BaseRegistry):
         self.request_args["headers"] = {"Authorization": f"Basic {self.auth}"}
         self._token = self.login()
 
-    def get_image_tags(self, image:str, tag=None) -> bool:
+    def get_image_digest(self, image:str, tag:str) -> dict[str, str]:
+        token = self.login(image)
+
+        try:
+            response_metadata = requests.get(
+                self.digest_url % self.get_url_string_params(image_name=image) + tag,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.docker.distribution.manifest.v2+json"
+                    }
+            )
+
+            if not response_metadata.ok:
+                logger.info(response_metadata.text)
+                raise ContainerRegistryException(f"Failed to fetch the list of digest for {image}")
+
+            return response_metadata.json()["config"]["digest"]
+        except ConnectionError as ce:
+            raise ContainerRegistryException(
+                f"Failed to fetch the list of digest from {self.registry}/{image}",
+                500
+            ) from ce
+
+    def get_image_tags(self, image:str) -> dict[str, str|List[str]]:
         tags_list = super().get_image_tags(image)
-        if not tags_list:
-            return False
+        full_tags = {"tag": [], "sha": []}
 
-        if not tag:
-            return [t for t in tags_list.get("tags", [])]
-        return tag in [t for t in tags_list.get("tags", [])]
+        if tags_list:
+            full_tags["tag"] = [t for t in tags_list.get("tags", [])]
 
-    def list_repos(self):
+            for t in full_tags["tag"]:
+                full_tags["sha"] = [self.get_image_digest(image, t)]
+
+        return full_tags
+
+    def list_repos(self) -> List[dict[str, str | List[str]]]:
         list_images = super().list_repos()
         images = []
         for image in list_images["repositories"]:
-            images.append({"name": image, "tags": self.get_image_tags(image)})
+            properties = {"name": image}
+            properties.update(self.get_image_tags(image))
+            images.append(properties)
         return images
 
 class DockerRegistry(BaseRegistry):
+    # https://docs.docker.com/reference/api/hub/latest/#tag/repositories
     repo_login_url = "https://hub.docker.com/v2/users/login/"
     login_url = "https://hub.docker.com/v2/users/login/"
-    tags_url = "https://hub.docker.com/v2/repositories/%(image)s/tags"
+    tags_url = "https://hub.docker.com/v2/namespaces/%(organization)s/repositories/%(image)s/tags"
     list_repo_url = "https://hub.docker.com/v2/repositories/%(organization)s"
     token_field = "token"
 
     def __init__(self, registry:str, secret_name:str=None, creds:dict={}):
         super().__init__(registry, secret_name, creds)
 
+        self.organization = registry
         self.request_args["json"] = {"username": self.creds['user'], "password": self.creds['token']}
         self.request_args["headers"] = {"Content-Type": "application/json"}
         self._token = self.login()
 
-    def get_image_tags(self, image:str, tag:str=None) -> bool:
+    def get_image_tags(self, image:str) -> dict[str, str|List[str]]:
         tags_list = super().get_image_tags(image)
 
-        if not tag:
-            return [t["name"] for t in tags_list["results"]]
-        return tag in [t["name"] for t in tags_list["results"]]
+        metadata = {"name": image, "tag": [], "sha": []}
+        for t in tags_list["results"]:
+            metadata["tag"].append(t["name"])
+            metadata["sha"].append(t["digest"])
+
+        return metadata
+
+    def list_repos(self) -> List[dict[str, str | List[str]]]:
+        list_images = super().list_repos()
+        return [self.get_image_tags(image["name"]) for image in list_images["results"]]
 
 
 class GitHubRegistry(BaseRegistry):
@@ -175,6 +232,7 @@ class GitHubRegistry(BaseRegistry):
     api_login = False
     tags_url = "https://api.github.com/orgs/%(organization)s/packages/container/%(image)s/versions"
     list_repo_url = "https://api.github.com/orgs/%(organization)s/packages?package_type=container"
+    list_req_params = {"page": 1, "per_page": 100}
 
     def __init__(self, registry:str, secret_name:str=None, creds:dict={}):
         destruct_reg = registry.split('/', maxsplit=1)
@@ -196,19 +254,48 @@ class GitHubRegistry(BaseRegistry):
         logging.info("Auth on github skipped, an organization name is needed")
         return self._token
 
-    def get_image_tags(self, image:str, tag:str=None) -> bool:
-        tags_list = super().get_image_tags(image)
-        if not tag:
-            return [t for tags in tags_list for t in tags["metadata"]["container"]["tags"]]
+    def get_image_tags(self, image:str) -> dict[str, str|List[str]]:
+        """
+        Works as a list of available tags/sha. Limiting to only 100 tags per
+        image
+        """
+        token = self.login(image)
+        tags_list = []
 
-        return tag in [t for tags in tags_list for t in tags["metadata"]["container"]["tags"]]
+        try:
+            response_metadata = requests.get(
+                self.tags_url % self.get_url_string_params(image_name=image),
+                params=self.list_req_params,
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            if not response_metadata.ok:
+                logger.info(response_metadata.text)
+                raise ContainerRegistryException(f"Failed to fetch the list of tags for {image}")
 
-    def list_repos(self):
+            tags_list += response_metadata.json()
+
+        except ConnectionError as ce:
+            raise ContainerRegistryException(
+                f"Failed to fetch the list of tags from {self.registry}/{image}",
+                500
+            ) from ce
+
+        t_list = []
+        s_list = []
+        for tags in tags_list:
+            if isinstance(tags["metadata"]["container"]["tags"], list):
+                t_list += tags["metadata"]["container"]["tags"]
+            else:
+                t_list.append(tags["metadata"]["container"]["tags"])
+            s_list.append(tags["name"])
+
+        return {"tag": t_list,"sha": s_list}
+
+    def list_repos(self) -> List[dict[str, str | List[str]]]:
         list_images = super().list_repos()
         images = []
         for img in list_images:
-            images.append({
-                "name": img["name"],
-                "tags": self.get_image_tags(img["name"])
-            })
+            properties = {"name": img["name"]}
+            properties.update(self.get_image_tags(img["name"]))
+            images.append(properties)
         return images

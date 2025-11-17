@@ -60,3 +60,21 @@ tests:
       - equal:
           path: data.GH_SECRET
           value: dGVzdA==
+  - it: backend configmap has github delivery info
+    template: ../templates/backend-configmap.yaml
+    asserts:
+      - equal:
+          path: data.GITHUB_DELIVERY
+          value: "Aridhia-Open-Source/Federated-Node-Example-App"
+  - it: backend configmap has other delivery info
+    set:
+      fn-task-controller:
+        delivery:
+          other:
+            url: delivery.url.com
+          github: null
+    template: ../templates/backend-configmap.yaml
+    asserts:
+      - equal:
+          path: data.OTHER_DELIVERY
+          value: delivery.url.com

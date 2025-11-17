@@ -1,4 +1,6 @@
-# A custom Flask wrapper to handle pagination globally
+"""
+A custom Flask wrapper to handle pagination globally
+"""
 
 from flask import Flask, request
 from flask.wrappers import Response
@@ -6,6 +8,9 @@ from flask_sqlalchemy.pagination import QueryPagination
 
 
 class FNFlask(Flask):
+    """
+    Custom response handler
+    """
     def make_response(self, rv):
         """
         Only handle the special case of QueryPagination where this has to be restructured
