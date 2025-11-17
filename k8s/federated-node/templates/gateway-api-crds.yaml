@@ -1,0 +1,3 @@
+{{- if and .Values.installGatewayApiCRD .Values.traefik.enabled -}}
+  {{ .Files.Get "scripts/gateway-api-crds-1-4-0.yaml" }}
+{{- end -}}
