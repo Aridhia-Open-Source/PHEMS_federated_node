@@ -21,11 +21,13 @@ TASK_NAMESPACE = os.getenv("TASK_NAMESPACE", "tasks")
 
 # Ready check on backend
 for i in range(10):
-  hc_resp = requests.get(f"{BACKEND_URL}/health_check")
-  if hc_resp.ok:
-    break
-
-  time.sleep(1)
+  try:
+    hc_resp = requests.get(f"{BACKEND_URL}/health_check")
+    if hc_resp.ok:
+      break
+  except requests.exceptions.ConnectionError:
+    print(f"{i+1}/10 - Failed to connect. Will retry in 10 seconds")
+  time.sleep(10)
 
 # Login
 login_resp = requests.post(
