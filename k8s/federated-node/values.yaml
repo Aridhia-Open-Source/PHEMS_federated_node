@@ -51,6 +51,8 @@ firstUserSecret:
   lastName:
   email:
 
+installGatewayApiCRD: true
+
 federatedNode:
   port: 5000
   volumes:

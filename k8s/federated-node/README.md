@@ -41,3 +41,9 @@ It is highly suggested to have some secrets pre-set in the namespace this helm c
 - db password
 - azure storage credentials
 - tls cert
+
+## Gateway API CRD update
+```sh
+VERSION=x.y.z
+wget "https://github.com/kubernetes-sigs/gateway-api/releases/download/v${VERSION}/standard-install.yaml -O k8s/federated-node/templates/gateway-api-crds-${VERSION//./-}.yaml"
+```
