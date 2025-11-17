@@ -62,7 +62,8 @@ tests:
         template: backend-http-route.yaml
   - it: traefik subchart is deployed
     set:
-      installGatewayApiCRD: false
+      gatewayApi:
+        installCRD: true
     asserts:
       - hasDocuments:
           count: 0

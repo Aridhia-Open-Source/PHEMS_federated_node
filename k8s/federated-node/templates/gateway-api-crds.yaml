@@ -1,4 +1,4 @@
-{{- if and .Values.installGatewayApiCRD .Values.traefik.enabled -}}
+{{- if and .Values.gatewayApi.installCRD .Values.traefik.enabled -}}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -21,7 +21,7 @@ spec:
           imagePullPolicy: Always
           env:
             - name: VERSION
-              value: 1.4.0
+              value: {{ .Values.gatewayApi.version }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

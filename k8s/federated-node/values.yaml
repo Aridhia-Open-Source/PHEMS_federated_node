@@ -51,7 +51,9 @@ firstUserSecret:
   lastName:
   email:
 
-installGatewayApiCRD: true
+gatewayApi:
+  installCRD: true
+  version: "1.4.0"
 
 federatedNode:
   port: 5000
