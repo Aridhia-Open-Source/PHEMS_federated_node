@@ -1,5 +1,8 @@
 # Releases Changelog
 
+## 1.7.0
+- **BREAKING CHANGE**: Migration from nginx-ingress to the gateway api based controller, traefik. This will need manual intervention. See the [gateway-api-installer.sh](./scripts/gateway-api-installer.sh) script to one-step setup. If not, the chart will let you know some components are missing and provide instructions.
+
 ## 1.6.0
 - Docker images' sha/digest supported on top of tags for a more precise snapshot in history.
 - Added a `/refresh-token` endpoint so that a token can be renewed. This is successful only with tokens that are not expired. Ideally, every 29 days (default expiration is 30) this endpoint is pinged either manually, or automated. This response body is the same as `/login`.

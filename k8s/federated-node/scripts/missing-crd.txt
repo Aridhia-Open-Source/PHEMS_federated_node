@@ -6,3 +6,5 @@ curl -LsSf https://raw.githubusercontent.com/Aridhia-Open-Source/PHEMS_federated
 or directly from the Gateway API repository
 
 kubectl apply --server-side -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/standard-install.yaml"
+
+Then you can run the upgrade/installation as normal.
