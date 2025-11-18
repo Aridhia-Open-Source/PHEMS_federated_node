@@ -196,6 +196,3 @@ http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 {{- define "controllerCrdGroup" -}}
 tasks.{{ .Release.Name }}.com
 {{- end -}}
-{{- define "installGateway" -}}
-{{- and .Values.gatewayApi.installCRD .Values.traefik.enabled -}}
-{{- end -}}
