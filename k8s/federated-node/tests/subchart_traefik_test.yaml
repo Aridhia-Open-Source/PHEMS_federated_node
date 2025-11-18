@@ -75,7 +75,7 @@ tests:
       - equal:
           path: metadata.name
           value: federatednode-traefik
-  - it: nginx-ingress custom resources are not deployed
+  - it: traefik custom resources are not deployed
     set:
       traefik:
         enabled: false

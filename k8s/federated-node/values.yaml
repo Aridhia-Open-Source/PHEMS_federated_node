@@ -77,18 +77,10 @@ storage:
 
 pullPolicy: Always
 
-# If using nginx, or ssl certificates, this will set the hostname
+# If using a reverse proxy, or ssl certificates, this will set the hostname
 host: &host
 tls:
   secretName: &tls tls
-
-# nginx white/black-listing, at ingress level
-whitelist:
-  enabled: false
-  ips: []
-blacklist:
-  enabled: false
-  ips: []
 
 # Running on azure?
 on_aks: false
