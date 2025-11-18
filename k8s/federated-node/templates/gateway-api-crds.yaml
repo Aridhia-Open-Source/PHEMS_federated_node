@@ -1,4 +1,4 @@
-{{- if and .Values.gatewayApi.installCRD .Values.traefik.enabled -}}
+{{- if eq (include "installGateway" .) "true" }}
 apiVersion: batch/v1
 kind: Job
 metadata:
