@@ -170,3 +170,10 @@ traefik:
   enabled: false
   api:
     dashboard: false
+  # service:
+  #   spec:
+  ## in case you want to preserve the previous external ips
+  #     externalIPs:
+  #       -
+  ## For AKS only
+  #     externalTrafficPolicy: Local

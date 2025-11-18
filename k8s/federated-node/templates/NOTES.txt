@@ -1,8 +1,8 @@
 Successfully installed {{ .Chart.Name }} version: {{ .Chart.Version }}
 Subcharts:
 {{- range .Chart.Dependencies }}
-    {{- if eq .Name "ingress-nginx" }}
-    Ingress Nginx: {{ .Version }}
+    {{- if eq .Name "traefik" }}
+    Traefik: {{ .Version }}
     {{- end }}
     {{- if eq .Name "cert-manager" }}
     Cert manager: {{ .Version }}
