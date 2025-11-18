@@ -1,5 +1,5 @@
 {{- if .Values.traefik.enabled -}}
-{{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" .Release.Namespace "HTTPRoute" -}}
+{{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "httproutes.gateway.networking.k8s.io" -}}
 {{- if not $crd }}
   {{ fail (.Files.Get "scripts/missing-crd.txt") }}
 {{- end -}}
