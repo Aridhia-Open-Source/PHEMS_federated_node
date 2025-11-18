@@ -75,7 +75,7 @@ class Task(db.Model, BaseModel):
         self.resources = resources
         self.inputs = inputs
         self.outputs = outputs
-        self.is_from_controller = kwargs.get("task_controller", False)
+        self.is_from_controller = kwargs.get("from_controller", False)
         self.db_query = kwargs.get("db_query", {})
 
     @classmethod
