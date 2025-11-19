@@ -22,6 +22,17 @@ spec:
     - path:
         type: PathPrefix
         value: /
+    filters:
+    - type: ResponseHeaderModifier
+      responseHeaderModifier:
+        set:
+        - name: Access-Control-Allow-Origin
+          value: {{ include "cspDomains" . | quote }}
+    - type: ExtensionRef
+      extensionRef:
+        group: traefik.io
+        kind: Middleware
+        name: cors-headers
     backendRefs:
     - name: backend
       port: {{ .Values.federatedNode.port }}

@@ -5,6 +5,7 @@ curl -LsSf https://raw.githubusercontent.com/Aridhia-Open-Source/PHEMS_federated
 
 or directly from the Gateway API repository
 
-kubectl apply --server-side -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/standard-install.yaml"
+kubectl apply --server-side -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/experimental-install.yaml"
+kubectl apply --server-side -f "https://raw.githubusercontent.com/traefik/traefik/v3.6/docs/content/reference/dynamic-configuration/kubernetes-crd-definition-v1.yml"
 
 Then you can run the upgrade/installation as normal.

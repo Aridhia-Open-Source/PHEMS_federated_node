@@ -92,7 +92,7 @@ on_eks: false
 # ping the FN
 integrations:
   domains:
-   - 'self'
+    - 'self'
 
 certs:
   rotationPolicy: Never
@@ -141,24 +141,17 @@ cert-manager:
 ### Ingress
 traefik:
   gateway:
+    enabled: false
     name: traefik-fn-gateway
-    listeners:
-      websecure:
-        port: 8443
-        protocol: HTTPS
-        hostname: *host
-        allowedRoutes:
-          namespaces:
-            from: Same
-        mode: Terminate
-        certificateRefs:
-          - kind: Secret
-            name: *tls
   gatewayClass:
     name: traefik-fn-gateway-class
   providers:
+    kubernetesCRD:
+      enabled: true
     kubernetesGateway:
       enabled: true
+    kubernetesIngress:
+      enabled: false
   enabled: false
   api:
     dashboard: false

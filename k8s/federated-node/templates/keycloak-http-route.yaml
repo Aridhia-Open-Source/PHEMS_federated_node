@@ -22,6 +22,12 @@ spec:
     - path:
         type: PathPrefix
         value: /keycloak
+    filters:
+    - type: ExtensionRef
+      extensionRef:
+        group: traefik.io
+        kind: Middleware
+        name: cors-headers
     backendRefs:
     - name: keycloak
       namespace: {{ include "kc_namespace" . }}
