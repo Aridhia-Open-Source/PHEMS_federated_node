@@ -1,8 +1,4 @@
 {{- if .Values.traefik.enabled -}}
-{{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "httproutes.gateway.networking.k8s.io" -}}
-{{- if not $crd }}
-  {{ fail (.Files.Get "scripts/missing-crd.txt") }}
-{{- end -}}
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -23,6 +19,11 @@ spec:
         type: PathPrefix
         value: /keycloak
     filters:
+    - type: ResponseHeaderModifier
+      responseHeaderModifier:
+        set:
+        - name: Access-Control-Allow-Origin
+          value: {{ include "cspDomains" . | quote }}
     - type: ExtensionRef
       extensionRef:
         group: traefik.io

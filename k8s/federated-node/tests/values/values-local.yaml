@@ -23,17 +23,6 @@ storage:
     path: /data/flask
     dbpath: /data/db/
 
-ingress:
-  nginx:
-    enabled: true
-  host: phems-federatednode.net
-  whitelist:
-    enabled: false
-  blacklist:
-    enabled: false
-  tls:
-    secretName: my-tls-secret
-
 certs:
   frequency: 65
 
