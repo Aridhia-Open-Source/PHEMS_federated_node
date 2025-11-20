@@ -18,4 +18,8 @@ Acceptance Criteria:
 ---
 QC notes:
 
-Version to deploy: 
+```sh
+VERSION=
+helm repo update
+helm upgrade federatednode federatednode/federated-node -n qcfederatednode --reuse-values --version $VERSION
+```

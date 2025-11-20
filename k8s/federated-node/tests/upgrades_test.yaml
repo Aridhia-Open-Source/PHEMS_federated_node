@@ -50,7 +50,7 @@ kubernetesProvider:
 tests:
   # Mostly to make sure is created
   - it: simulate reuse-values args
-    template: keycloak-realm-daemonset.yaml
+    template: keycloak-realm-controller.yaml
     asserts:
       - hasDocuments:
           count: 1

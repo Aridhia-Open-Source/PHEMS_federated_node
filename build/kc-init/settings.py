@@ -6,7 +6,8 @@ class Settings:
   keycloak_client:str
   keycloak_admin:str
   keycloak_admin_password:str
-  keycloak_global_client_secret:str
+  kc_bootstrap_admin_username:str
+  kc_bootstrap_admin_password:str
   keycloak_url:str
   first_user_pass:str = ""
   first_user_email:str = ""

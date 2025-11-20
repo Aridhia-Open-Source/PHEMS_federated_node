@@ -89,22 +89,14 @@ spec:
                 name: backend-configmap
             - configMapRef:
                 name: keycloak-config
+            - secretRef:
+                name: kc-secrets
           env:
           - name: PGPASSWORD
             valueFrom:
               secretKeyRef:
                 name: {{.Values.db.secret.name}}
                 key: {{.Values.db.secret.key}}
-          - name: KEYCLOAK_SECRET
-            valueFrom:
-              secretKeyRef:
-                name: kc-secrets
-                key: KEYCLOAK_GLOBAL_CLIENT_SECRET
-          - name: KEYCLOAK_ADMIN_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: kc-secrets
-                key: KEYCLOAK_ADMIN_PASSWORD
           volumeMounts:
             - name: respv
               mountPath: {{ .Values.federatedNode.volumes.results_path }}

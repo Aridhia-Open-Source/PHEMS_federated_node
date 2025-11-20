@@ -1,6 +1,11 @@
 # Releases Changelog
 
 ## 1.6.0
+- Upgraded Keycloak to version 26.4
+- Changed the init realm daemonset to a deployment, as it behaves like a controller for keycloak
+- Changed token exchange API body to not include `subject_token_type`
+- Made use of bootsrap user for the `keycloak-realm-init` daemonset to not share credentials
+- Updated keycloak-role to monitor statefulsets in its namespace to allow a better performance on the `keycloak-realm-init`
 - Docker images' sha/digest supported on top of tags for a more precise snapshot in history.
 - Added a `/refresh-token` endpoint so that a token can be renewed. This is successful only with tokens that are not expired. Ideally, every 29 days (default expiration is 30) this endpoint is pinged either manually, or automated. This response body is the same as `/login`.
 - Added a new endpoint `/delivery-secret` to update the results delivery credentials in case the Task Controller is deployed with it.
