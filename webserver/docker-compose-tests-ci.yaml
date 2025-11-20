@@ -10,7 +10,7 @@ services:
     container_name: keycloak_test
     build:
       context: ../build/keycloak
-      dockerfile: keycloak.Dockerfile
+      dockerfile: Dockerfile
     command: [
       "start",
       "--import-realm",
