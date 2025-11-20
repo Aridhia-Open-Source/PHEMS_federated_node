@@ -9,7 +9,7 @@ on:
       - main
       - develop
     paths-ignore:
-      - '*.md'
+      - '**/*.md'
       - 'README'
       - 'LICENSE'
       - 'DEPLOYMENT'
@@ -26,7 +26,7 @@ on:
       - main
       - develop
     paths-ignore:
-      - '*.md'
+      - '**/*.md'
       - 'README'
       - 'LICENSE'
       - 'DEPLOYMENT'
@@ -81,6 +81,11 @@ jobs:
             echo "CHART_VERSION=${version}-v${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
             echo "TAG=${appVersion}-v${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
           fi
+      - name: set lower case owner name
+        run: |
+          echo "OWNER_LC=${OWNER,,}" >> ${GITHUB_ENV}
+        env:
+          OWNER: '${{ github.repository_owner }}'
   linters:
     needs: init
     if: needs.init.outputs.is_tag == 'false'
@@ -124,76 +129,86 @@ jobs:
           filename: artifacts/coverage.xml
           fail_below_min: true
           thresholds: '60 80'
-  build:
+  build-flask-image:
     needs:
       - init
       - tests
     if: needs.init.outputs.is_tag == 'false'
-    defaults:
-      run:
-        shell: bash
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Need to get a registry where to push the image
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ vars.DOCKER_CR }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: set lower case owner name
-        run: |
-          echo "OWNER_LC=${OWNER,,}" >> ${GITHUB_ENV}
-        env:
-          OWNER: '${{ github.repository_owner }}'
-      - name: Build and push Flask image
-        uses: docker/build-push-action@v5
-        with:
-          context: webserver
-          file: webserver/build/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_node_run:${{ needs.init.outputs.tag }}
-          push: true
-      - name: Build and push Keycloak image
-        uses: docker/build-push-action@v5
-        with:
-          context: build/keycloak
-          file: build/keycloak/keycloak.Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_keycloak:${{ needs.init.outputs.tag }}
-          push: true
-      - name: Build and push Alpine image
-        uses: docker/build-push-action@v5
-        with:
-          context: build/alpine
-          file: build/alpine/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/alpine:${{ needs.init.outputs.tag }}
-          push: true
-      - name: Build and push KC initialiser image
-        uses: docker/build-push-action@v5
-        with:
-          context: build/kc-init
-          file: build/kc-init/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/keycloak_initializer:${{ needs.init.outputs.tag }}
-          push: true
-      - name: Build and push DB virtualizer image
-        uses: docker/build-push-action@v5
-        with:
-          context: build/db-connector
-          file: build/db-connector/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/db_connector:${{ needs.init.outputs.tag }}
-          push: true
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
+    with:
+      TAG: ${{ needs.init.outputs.tag }}
+      IMAGE: federated_node_run
+      BUILD_PATH: webserver
+      HASH_SUFFIX: false
+      DOCKER_ACR: ${{ vars.DOCKER_CR }}
+    secrets:
+      DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-keycloak-image:
+    needs:
+      - init
+      - tests
+    if: needs.init.outputs.is_tag == 'false'
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
+    with:
+      TAG: ${{ needs.init.outputs.tag }}
+      IMAGE: federated_keycloak
+      BUILD_PATH: build/keycloak/
+      HASH_SUFFIX: false
+      DOCKER_ACR: ${{ vars.DOCKER_CR }}
+    secrets:
+      DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-alpine-image:
+    needs:
+      - init
+      - tests
+    if: needs.init.outputs.is_tag == 'false'
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
+    with:
+      TAG: ${{ needs.init.outputs.tag }}
+      IMAGE: alpine
+      BUILD_PATH: build/alpine/
+      HASH_SUFFIX: false
+      DOCKER_ACR: ${{ vars.DOCKER_CR }}
+    secrets:
+      DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-kc-init-image:
+    needs:
+      - init
+      - tests
+    if: needs.init.outputs.is_tag == 'false'
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
+    with:
+      TAG: ${{ needs.init.outputs.tag }}
+      IMAGE: keycloak_initializer
+      BUILD_PATH: build/kc-init/
+      HASH_SUFFIX: false
+      DOCKER_ACR: ${{ vars.DOCKER_CR }}
+    secrets:
+      DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-db-connector-image:
+    needs:
+      - init
+      - tests
+    if: needs.init.outputs.is_tag == 'false'
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
+    with:
+      TAG: ${{ needs.init.outputs.tag }}
+      IMAGE: db-connector
+      BUILD_PATH: build/db-connector/
+      HASH_SUFFIX: false
+      DOCKER_ACR: ${{ vars.DOCKER_CR }}
+    secrets:
+      DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   release:
     uses: Aridhia-Open-Source/pipelines/.github/workflows/helm-build.yml@main
     if: always() && !failure() && !cancelled()
     needs:
       - init
-      - build
+      - build-flask-image
+      - build-keycloak-image
+      - build-alpine-image
+      - build-kc-init-image
+      - build-db-connector-image
     with:
       VERSION: ${{ needs.init.outputs.chart_version }}
       APP_VERSION: ${{ needs.init.outputs.tag }}

@@ -8,10 +8,10 @@ run:
 	flask -A app/app run --host=0.0.0.0
 
 build_docker:
-	docker build . -f build/Dockerfile -t ghcr.io/aridhia-open-source/federated_node_run:${TAG}
+	docker build . -t ghcr.io/aridhia-open-source/federated_node_run:${TAG}
 
 build_docker_dev:
-	docker build . -f build/Dockerfile -t ghcr.io/aridhia-open-source/federated_node_run:${TAG}-v$(shell git rev-parse --short HEAD)
+	docker build . -t ghcr.io/aridhia-open-source/federated_node_run:${TAG}-v$(shell git rev-parse --short HEAD)
 
 tests_local:
 	./run_tests.sh
