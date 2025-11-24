@@ -2,8 +2,7 @@ import base64
 import json
 from kubernetes.client import ApiException
 
-from app.helpers.const import TASK_NAMESPACE, DEFAULT_NAMESPACE
-from app.helpers.kubernetes import KubernetesClient
+from app.helpers.const import TASK_NAMESPACE
 from tests.fixtures.azure_cr_fixtures import *
 
 

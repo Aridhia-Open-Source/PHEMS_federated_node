@@ -47,25 +47,20 @@ class TestGetTasks:
 
     def test_get_task_by_id_admin(
             self,
-            mocks_kc_tasks,
+            mock_kc_client,
             cr_client,
             post_json_user_header,
             simple_admin_header,
             client,
             registry_client,
             k8s_client,
-            mocker,
-            task_body,
-
+            task_body
         ):
         """
         If an admin wants to check a specific task they should be allowed regardless
         of who requested it
         """
-        # k8s_client["list_namespaced_pod_mock"].return_value.items[0].status.container_statuses = []
-        # mocker.patch.object(Keycloak, "is_user_admin", return_value=False)
-        # mocker.patch.object(Keycloak, "is_token_valid", return_value=False)
-        mocks_kc_tasks["tasks"].return_value.get_user_by_id.return_value = {"username": "user"}
+        mock_kc_client["tasks_api_kc"].return_value.get_user_by_id.return_value = {"username": "user"}
         resp = client.post(
             '/tasks/',
             data=json.dumps(task_body),
@@ -80,24 +75,18 @@ class TestGetTasks:
         )
         assert resp.status_code == 200
 
-    @mock.patch('app.helpers.keycloak.Keycloak.is_user_admin', return_value=False)
-    @mock.patch('app.tasks_api.Keycloak.decode_token')
     def test_get_task_by_id_non_admin_owner(
             self,
-            mocks_decode,
-            mock_is_admin,
-            mocks_kc_tasks,
             simple_user_header,
             client,
             basic_user,
             task,
-            user_uuid,
-
+            mock_kc_client
         ):
         """
         If a user wants to check a specific task they should be allowed if they did request it
         """
-        mocks_decode.return_value = {"sub": basic_user["id"]}
+        mock_kc_client["tasks_api_kc"].return_value.decode_token.return_value = {"sub": basic_user["id"]}
         task.requested_by = basic_user["id"]
         resp = client.get(
             f'/tasks/{task.id}',
@@ -105,10 +94,8 @@ class TestGetTasks:
         )
         assert resp.status_code == 200, resp.json
 
-    @mock.patch('app.helpers.keycloak.Keycloak.is_user_admin', return_value=False)
     def test_get_task_by_id_non_admin_non_owner(
             self,
-            mock_is_admin,
             simple_user_header,
             client,
             task,
@@ -137,8 +124,7 @@ class TestGetTasks:
             client,
             task_body,
             mocker,
-            task,
-
+            task
         ):
         """
         Test to verify the correct task status when it's
@@ -904,8 +890,6 @@ class TestValidateTask:
 
     def test_validate_task_basic_user(
             self,
-            mocks_kc_tasks,
-            mocker,
             client,
             task_body,
             cr_client,
@@ -913,13 +897,12 @@ class TestValidateTask:
             post_json_user_header: dict[str, str],
             access_request,
             user_uuid,
-            dar_user,
-
+            mock_kc_client
         ):
         """
         Test the validation endpoint can be used by non-admins returns 201
         """
-        mocks_kc_tasks["wrappers"].return_value.get_user_by_username.return_value = {"id": user_uuid}
+        mock_kc_client["wrappers_kc"].return_value.get_user_by_username.return_value = {"id": user_uuid}
 
         post_json_user_header["project-name"] = access_request.project_name
         response = client.post(

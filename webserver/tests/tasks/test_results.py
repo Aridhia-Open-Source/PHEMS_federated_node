@@ -14,7 +14,6 @@ class TestTaskResults:
         simple_admin_header,
         client,
         results_job_mock,
-
         task_mock
     ):
         """
@@ -36,7 +35,6 @@ class TestTaskResults:
         client,
         reg_k8s_client,
         results_job_mock,
-
         task_mock
     ):
         """
@@ -57,8 +55,7 @@ class TestTaskResults:
         self,
         simple_admin_header,
         client,
-        task_mock,
-
+        task_mock
     ):
         """
         A task result are being deleted after a declared number of days.
@@ -79,8 +76,7 @@ class TestResultsReview:
         simple_admin_header,
         client,
         task_mock,
-        set_task_review_env,
-
+        set_task_review_env
     ):
         """
         Test to make sure the default value is None,
@@ -103,8 +99,7 @@ class TestResultsReview:
         k8s_client,
         set_task_review_env,
         v1_crd_mock,
-        mocker,
-
+        mocker
     ):
         """
         Test to make sure the approval allows the user
@@ -135,8 +130,7 @@ class TestResultsReview:
         set_task_review_env,
         set_task_controller_env,
         v1_crd_mock,
-        mocker,
-
+        mocker
     ):
         """
         Test to make sure the approval allows the task controller CRD
@@ -159,8 +153,7 @@ class TestResultsReview:
         client,
         results_job_mock,
         task_mock,
-        set_task_review_env,
-
+        set_task_review_env
     ):
         """
         Test to make sure the admin can fetch their results
@@ -244,8 +237,7 @@ class TestResultsReview:
         simple_user_header,
         client,
         task_mock,
-        set_task_review_env,
-
+        set_task_review_env
     ):
         """
         Trying to review an non-existing task should return 404
@@ -265,8 +257,7 @@ class TestResultsReview:
         k8s_client,
         set_task_review_env,
         v1_crd_mock,
-        mocker,
-
+        mocker
     ):
         """
         Tests that review can only happen once
@@ -302,8 +293,7 @@ class TestResultsReview:
         k8s_crd_500,
         set_task_review_env,
         v1_crd_mock,
-        mocker,
-
+        mocker
     ):
         """
         Tests that review fails when the CRD is not found
@@ -330,8 +320,7 @@ class TestResultsReview:
         task_mock,
         k8s_crd_404,
         set_task_review_env,
-        v1_crd_mock,
-
+        v1_crd_mock
     ):
         """
         Tests that if a task without a CRD will go through
@@ -350,8 +339,7 @@ class TestResultsReview:
         self,
         simple_admin_header,
         client,
-        task_mock,
-
+        task_mock
     ):
         """
         Tests that review cannot be used when the env var

@@ -1,5 +1,4 @@
 from app.models.catalogue import Catalogue
-from app.helpers.keycloak import Keycloak
 from tests.test_datasets import MixinTestDataset
 
 

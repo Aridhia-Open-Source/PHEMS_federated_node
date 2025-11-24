@@ -166,13 +166,10 @@ class TestDatasets(MixinTestDataset):
         assert response.json == {"error": "Could not find project"}
 
     @mock.patch('app.datasets_api.Request.approve', return_value={"token": "token"})
-    @mock.patch('app.datasets_api.Keycloak.get_user_by_email', return_value={"id": "id"})
     def test_get_dataset_by_id_project_approved(
             self,
-            kc_user_mock,
             req_approve_mock,
-            mocker,
-            mocks_kc_tasks,
+            mock_kc_client,
             post_json_admin_header,
             request_base_body,
             client,
@@ -194,7 +191,7 @@ class TestDatasets(MixinTestDataset):
         req = Request.query.filter(
             Request.project_name == request_base_body["project_name"]
         ).one_or_none()
-        mocks_kc_tasks["wrappers"].return_value.get_user_by_username.return_value = {"id": user_uuid}
+        mock_kc_client["wrappers_kc"].return_value.get_user_by_username.return_value = {"id": user_uuid}
         req.requested_by = user_uuid
 
         response = client.get(f"/datasets/{dataset.id}", headers={
@@ -211,7 +208,6 @@ class TestDatasets(MixinTestDataset):
             project_not_found,
             post_json_admin_header,
             request_base_body,
-            login_user,
             client,
             dataset,
             mock_kc_client
@@ -581,7 +577,6 @@ class TestPostDataset(MixinTestDataset):
             ds_add_mock,
             post_json_admin_header,
             client,
-            login_user,
             dataset,
             dataset_post_body
         ):
@@ -647,7 +642,6 @@ class TestPostDataset(MixinTestDataset):
             post_json_admin_header,
             dataset,
             client,
-            login_user,
             dataset_post_body
         ):
         """

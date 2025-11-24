@@ -1,21 +1,16 @@
 import pytest
-from responses import matchers
 
 from app.helpers.exceptions import InvalidRequest
 from app.models.task import Task
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
-from app.helpers.keycloak import URLS, Keycloak
 
 
 class TestResourceValidators:
     def test_valid_values(
             self,
-            mocker,
-            user_uuid,
             registry_client,
             cr_client,
-            mocks_kc_tasks,
             task_body
         ):
         """
@@ -35,7 +30,6 @@ class TestResourceValidators:
 
     def test_valid_values_exp(
             self,
-            user_uuid,
             registry_client,
             cr_client,
             task_body
@@ -57,11 +51,8 @@ class TestResourceValidators:
 
     def test_invalid_memory_values(
             self,
-            mocker,
-            user_uuid,
             cr_client,
             registry_client,
-            mocks_kc_tasks,
             task_body
         ):
         """
@@ -85,11 +76,8 @@ class TestResourceValidators:
 
     def test_invalid_cpu_values(
             self,
-            mocker,
-            user_uuid,
             cr_client,
             registry_client,
-            mocks_kc_tasks,
             task_body
         ):
         """
@@ -114,11 +102,8 @@ class TestResourceValidators:
 
     def test_mem_limit_lower_than_request_fails(
             self,
-            mocker,
-            user_uuid,
             cr_client,
             registry_client,
-            mocks_kc_tasks,
             task_body
         ):
         """
@@ -140,11 +125,8 @@ class TestResourceValidators:
 
     def test_cpu_limit_lower_than_request_fails(
             self,
-            mocker,
-            user_uuid,
             cr_client,
             registry_client,
-            mocks_kc_tasks,
             task_body
         ):
         """

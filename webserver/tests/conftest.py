@@ -14,7 +14,6 @@ from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
 from app.models.request import Request
 from app.models.task import Task
-from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import KeycloakError
 from app.models.task import Task
 from app.helpers.const import CRD_DOMAIN
@@ -42,13 +41,7 @@ def image_name():
     return "example:latest"
 
 @fixture
-def user_token(basic_user):
-    """
-    Since calling Keycloak.get_impersonation_token is not
-    viable as there is an "audience" conflict.
-    All clients are hardcoded, as only global and the DAR clients
-    are allowed to exchange tokens, not admin-cli.
-    """
+def user_token():
     return "user_refresh_token"
 
 @fixture
@@ -76,16 +69,6 @@ def admin_user(admin_user_uuid):
 @fixture
 def basic_user(user_uuid):
     return {"email": "test@basicuser.com", "username": "test@basicuser.com", "id": user_uuid}
-
-@fixture
-def login_user(client, mocker):
-    mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
-    mocker.patch(
-        'app.helpers.wrappers.Keycloak.decode_token',
-        return_value={"username": "test@basicuser.com", "sub": "123-123abc"}
-    )
-
-    return "impersonation_token"
 
 @fixture
 def project_not_found(mocker):
@@ -248,7 +231,7 @@ def secret_listed():
     return Mock(items=[secret])
 
 @fixture
-def k8s_client(mocker, secret_listed, pod_listed, v1_mock, v1_batch_mock, k8s_config):
+def k8s_client(secret_listed, pod_listed, v1_mock, v1_batch_mock, k8s_config):
     all_clients = {}
     all_clients.update(v1_mock)
     all_clients.update(v1_batch_mock)
@@ -269,29 +252,13 @@ def reg_k8s_client(k8s_client):
         })
     return k8s_client
 
-@fixture
-def mock_keycloak_class(mocker):
-    return mocker.patch(
-        'app.models.dataset.Keycloak',
-        return_value=Mock(
-            get_client_id=Mock(return_value="client_id"),
-            get_token=Mock(return_value="token"),
-            get_policy=Mock(return_value={"id": "policy"}),
-            get_scope=Mock(return_value={"id": "scope"}),
-            create_policy=Mock(return_value={"id": "policy"}),
-            create_resource=Mock(return_value={"_id": "resource"}),
-            create_permission=Mock(return_value={"id": "permission"}),
-            is_token_valid=Mock(return_value=True)
-        )
-    )
-
 # Dataset Mocking
 @fixture()
 def dataset_post_body():
     return deepcopy(sample_ds_body)
 
 @fixture
-def dataset(client, user_uuid, k8s_client, mock_keycloak_class) -> Dataset:
+def dataset(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
     dataset = Dataset(name="TestDs", host="example.com", password='pass', username='user')
     dataset.add(user_id=user_uuid)
     return dataset
@@ -318,7 +285,7 @@ def dictionary(dataset) -> List[Dictionary]:
     return [cat1, cat2]
 
 @fixture
-def task(user_uuid, image_name, dataset, container) -> Task:
+def task(user_uuid, dataset, container) -> Task:
     task = Task(
         dataset=dataset,
         docker_image=container.full_image_name(),
@@ -338,7 +305,7 @@ def dar_user():
     return "some@test.com"
 
 @fixture
-def access_request(dataset, user_uuid, k8s_client, dar_user):
+def access_request(dataset, user_uuid, k8s_client):
     request = Request(
         title="TestRequest",
         project_name="example.com",
@@ -419,33 +386,6 @@ def new_user(new_user_email):
     return {"email": new_user_email, "id": "8b707136-a2d8-4b69-9ab5-ec341011a62f", "username": new_user_email}
 
 @fixture
-def mocks_kc_tasks(mocker, dar_user, user_uuid):
-    return {
-        "wrappers": mocker.patch(
-            'app.helpers.wrappers.Keycloak',
-            return_value=Mock(
-                exchange_global_token=Mock(return_value=""),
-                get_token_from_headers=Mock(return_value=""),
-                is_token_valid=Mock(return_value=True),
-                is_user_admin=Mock(return_value=True),
-                get_user_by_username=Mock(return_value={"id": user_uuid}),
-                decode_token=Mock(return_value={
-                    "username": "test_user", "sub": user_uuid
-                }),
-            )
-        ),
-        "tasks": mocker.patch(
-            'app.models.task.Keycloak',
-            return_value=Mock(
-                get_user_by_id=Mock(return_value={"email": dar_user}),
-                decode_token=Mock(return_value={
-                    "username": "test_user", "sub": user_uuid
-                }),
-            )
-        )
-    }
-
-@fixture
 def set_task_other_delivery_env(mocker):
     mocker.patch('app.admin_api.TASK_CONTROLLER', return_value="enabled")
     mocker.patch('app.admin_api.OTHER_DELIVERY', return_value="url.delivery.com")
@@ -456,16 +396,21 @@ def set_task_github_delivery_env(mocker):
     mocker.patch('app.admin_api.GITHUB_DELIVERY', return_value="org/repository")
 
 @fixture
-def mock_user_unauthorized(mocker):
-    mocker.patch.object(Keycloak, "get_admin_token", return_value="token")
-    mocker.patch.object(Keycloak, "get_client_id", return_value="token")
-    mocker.patch.object(Keycloak, "_get_client_secret", return_value="token")
+def mock_keycloak_class(mocker):
+    return mocker.patch(
+        'app.models.dataset.Keycloak',
+        return_value=Mock(
+            get_client_id=Mock(return_value="client_id"),
+            get_token=Mock(return_value="token"),
+            get_policy=Mock(return_value={"id": "policy"}),
+            get_scope=Mock(return_value={"id": "scope"}),
+            create_policy=Mock(return_value={"id": "policy"}),
+            create_resource=Mock(return_value={"_id": "resource"}),
+            create_permission=Mock(return_value={"id": "permission"}),
+            is_token_valid=Mock(return_value=True)
+        )
+    )
 
-    mocker.patch.object(Keycloak, "decode_token", return_value={"username": "user", "sub": "id"})
-    mocker.patch.object(Keycloak, "get_user_by_username", return_value={"id": "user"})
-    mocker.patch.object(Keycloak, "has_user_roles", return_value="User")
-    mocker.patch.object(Keycloak, "is_user_admin", return_value=False)
-    mocker.patch.object(Keycloak, "is_token_valid", return_value=False)
 
 @fixture(autouse=True)
 def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):

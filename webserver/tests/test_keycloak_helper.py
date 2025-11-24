@@ -5,6 +5,7 @@ from responses import matchers
 from app.helpers.exceptions import KeycloakError
 from app.helpers.keycloak import URLS, Keycloak
 
+
 class TestKeycloakResponseFailures:
     """
     Collection of tests that aims to prove the correct exceptions are raised
