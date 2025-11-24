@@ -35,12 +35,14 @@ class TestGetRegistriesApi:
         registry,
         client,
         simple_user_header,
-        reg_k8s_client
+        reg_k8s_client,
+        mock_kc_client
     ):
         """
         Basic test for the GET /registries endpoint
         ensuring only admins can get information
         """
+        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
         resp = client.get(
             "/registries",
             headers=simple_user_header
@@ -104,12 +106,14 @@ class TestGetRegistriesApi:
         self,
         registry,
         client,
-        simple_user_header
+        simple_user_header,
+        mock_kc_client
     ):
         """
         Basic test to ensure only admins can browse
         by registry id
         """
+        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
         resp = client.get(
             f"registries/{registry.id}",
             headers=simple_user_header

@@ -1,5 +1,7 @@
 import pytest
+from pytest import fixture
 import responses
+from responses import matchers
 from app.helpers.exceptions import KeycloakError
 from app.helpers.keycloak import URLS, Keycloak
 
@@ -13,8 +15,165 @@ class TestKeycloakResponseFailures:
     """
     common_error_response = {"error": "invalid_grant", "error_description": "Test - Invalid refresh token"}
 
+    @fixture
+    def keycloak_login_request_mock(self, admin_user, admin_user_uuid, new_user):
+        rsps = responses.RequestsMock(assert_all_requests_are_fired=False)
+        rsps.start()
+        rsps.add(
+            responses.POST,
+            URLS["get_token"],
+            json={"access_token": "token", "refresh_token": "ref_token"},
+            match=[matchers.urlencoded_params_matcher(
+                    {
+                        'client_id': 'admin-cli',
+                        'grant_type': 'password',
+                        'username': 'admin',
+                        'password': 'password1'
+                    }
+                ),
+                matchers.header_matcher({"Content-Type": "application/x-www-form-urlencoded"})
+            ],
+            status=200
+        )
+        rsps.add(
+            responses.POST,
+            URLS["get_token"],
+            json={"access_token": "token", "refresh_token": "ref_token"},
+            match=[matchers.urlencoded_params_matcher(
+                    {
+                        'client_id': 'global',
+                        'client_secret': 'clientsecret',
+                        'grant_type': 'password',
+                        'username': 'admin',
+                        'password': 'password1'
+                    }
+                ),
+                matchers.header_matcher({"Content-Type": "application/x-www-form-urlencoded"})
+            ],
+            status=200
+        )
+        rsps.add(
+            responses.POST,
+            URLS["get_token"],
+            json={"access_token": "token", "refresh_token": "ref_token"},
+            match=[matchers.urlencoded_params_matcher(
+                    {
+                        'client_id': 'global',
+                        'client_secret': 'clientsecret',
+                        'grant_type': 'refresh_token',
+                        'refresh_token': 'admin_token'
+                    }
+                ),
+                matchers.header_matcher({"Content-Type": "application/x-www-form-urlencoded"})
+            ],
+            status=200
+        )
+        rsps.add(
+            responses.POST,
+            URLS["get_token"],
+            json={"access_token": "user_token", "refresh_token": "user_ref_token"},
+            match=[
+                matchers.urlencoded_params_matcher(
+                    {
+                        'client_id': 'global',
+                        'client_secret': 'clientsecret',
+                        'grant_type': 'refresh_token',
+                        'refresh_token': 'user_refresh_token'
+                    }
+                ),
+                matchers.header_matcher({
+                    "Content-Type": "application/x-www-form-urlencoded"
+                })
+            ],
+            status=200
+        )
+        rsps.add(
+            responses.POST,
+            URLS["get_token"],
+            match=[matchers.urlencoded_params_matcher({
+                    'grant_type': 'urn:ietf:params:oauth:grant-type:uma-ticket',
+                    'audience': 'global',
+                    'response_mode': 'decision',
+                    'permission': 'resid#can_do_admin'
+                }),
+                matchers.header_matcher({"Content-Type": "application/x-www-form-urlencoded"})
+            ],
+            status=200
+        )
+        rsps.add(
+            responses.GET,
+            URLS["client"],
+            json=[{"id": "clientid"}],
+            match=[matchers.query_string_matcher("clientId=global")],
+            status=200
+        )
+        rsps.add(
+            responses.GET,
+            URLS["client_secret"] % "clientid",
+            json={"value": "clientsecret"},
+            status=200
+        )
+        rsps.add(
+            responses.GET,
+            URLS["resource"] % "clientid",
+            json=[{"_id": "resid"}],
+            match=[matchers.query_string_matcher("name=endpoints")],
+            status=200
+        )
+        rsps.add(
+            responses.GET,
+            URLS["resource"] % "clientid",
+            json=[{"_id": "resid"}],
+            match=[matchers.query_string_matcher("name=1-testds")],
+            status=200
+        )
+        rsps.add(
+            responses.GET,
+            URLS["user"] + f"/{admin_user_uuid}",
+            json=admin_user,
+            status=200
+        )
+        rsps.add(
+            responses.GET,
+            URLS["user"] + f"/{new_user["id"]}",
+            json=new_user,
+            status=200
+        )
+        rsps.add(
+            responses.GET,
+            URLS["user_role"] % admin_user_uuid,
+            json=[{"name": "User"}],
+            status=200
+        )
+        rsps.add(
+            responses.GET,
+            URLS["user_role"] % new_user["id"],
+            json=[{"name": "User"}],
+            status=200
+        )
+        rsps.add(
+            responses.GET,
+            URLS["roles"] + "/Users",
+            json=[{"name": "User"}],
+            status=200
+        )
+        rsps.add(
+            responses.POST,
+            URLS["validate"],
+            json={
+                "active": True,
+                "username": admin_user["username"],
+                "sub": admin_user_uuid,
+                "realm_access": {"roles": "Administrator"}
+            },
+            status=200
+        )
+        yield rsps
+        rsps.stop()
+        rsps.reset()
+
     def test_exchange_global_token_access_token(
-            self
+            self, keycloak_login_request_mock
     ):
         """
         Test that the proper exception is raised when the
@@ -22,96 +181,89 @@ class TestKeycloakResponseFailures:
         """
         kc_client = Keycloak()
         # Mocking the requests for the specific token
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.POST,
-                URLS["get_token"],
-                json={"error": "Invalid credentials"},
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                kc_client.exchange_global_token('not a token')
-            assert exc.value.description == 'Cannot get an access token'
+        keycloak_login_request_mock.add(
+            responses.POST,
+            URLS["get_token"],
+            json={"error": "Invalid credentials"},
+            status=500
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client.exchange_global_token('not a token')
+        assert exc.value.description == 'Cannot get an access token'
 
     def test_exchange_global_token(
-            self
+            self, keycloak_login_request_mock
     ):
         """
         Test that the proper exception is raised when the
         keycloak API returns != 200 on token exchange
         """
         kc_client = Keycloak()
-        # Mocking the requests for the specific token
-        with responses.RequestsMock() as rsps:
-            # Mock the request in the order they are submitted.
-            # Unfortunately the match param doesn't detect form data
-            rsps.add(
-                responses.POST,
-                URLS["get_token"],
-                json={"access_token": "random token"},
-                content_type='application/x-www-form-urlencoded',
-                status=200
-            )
-            rsps.add(
-                responses.POST,
-                URLS["get_token"],
-                json=self.common_error_response,
-                content_type='application/x-www-form-urlencoded',
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                kc_client.exchange_global_token('not a token')
-            assert exc.value.description == 'Cannot exchange token'
+        # Mock the request in the order they are submitted.
+        # Unfortunately the match param doesn't detect form data
+        keycloak_login_request_mock.add(
+            responses.POST,
+            URLS["get_token"],
+            json={"access_token": "random token"},
+            content_type='application/x-www-form-urlencoded',
+            status=200
+        )
+        keycloak_login_request_mock.add(
+            responses.POST,
+            URLS["get_token"],
+            json=self.common_error_response,
+            content_type='application/x-www-form-urlencoded',
+            status=500
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client.exchange_global_token('not a token')
+        assert exc.value.description == 'Cannot exchange token'
 
     def test_impersonation_token(
-            self
+            self, keycloak_login_request_mock
     ):
         """
         Test that the proper exception is raised when the
         keycloak API returns != 200 on impersonation token
         """
         kc_client = Keycloak()
-        # Mocking the requests for the specific token
-        with responses.RequestsMock() as rsps:
-            # Mocking self.get_admin_token_global() request to be successful
-            rsps.add(
-                responses.POST,
-                URLS["get_token"],
-                json={"access_token": "random token"},
-                content_type='application/x-www-form-urlencoded',
-                status=200
-            )
-            rsps.add(
-                responses.POST,
-                URLS["get_token"],
-                json=self.common_error_response,
-                content_type='application/x-www-form-urlencoded',
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                kc_client.get_impersonation_token('some user id')
-            assert exc.value.description == 'Cannot exchange impersonation token'
+        # Mocking self.get_admin_token_global() request to be successful
+        keycloak_login_request_mock.add(
+            responses.POST,
+            URLS["get_token"],
+            json={"access_token": "random token"},
+            content_type='application/x-www-form-urlencoded',
+            status=200
+        )
+        keycloak_login_request_mock.add(
+            responses.POST,
+            URLS["get_token"],
+            json=self.common_error_response,
+            content_type='application/x-www-form-urlencoded',
+            status=500
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client.get_impersonation_token('some user id')
+        assert exc.value.description == 'Cannot exchange impersonation token'
 
     def test_get_client_secret(
-            self
+            self, keycloak_login_request_mock
     ):
         """
         Test that the proper exception is raised when the
         keycloak API returns != 200 on fetching the client secret
         """
         kc_client = Keycloak()
-        # Mocking the requests for the specific token
-        with responses.RequestsMock() as rsps:
-            # Mocking self.get_admin_token_global() request to be successful
-            rsps.add(
-                responses.GET,
-                URLS["client_secret"] % kc_client.client_id,
-                json=self.common_error_response,
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                kc_client._get_client_secret()
-            assert exc.value.description == f'Failed to fetch {kc_client.client_id}\'s secret'
+        # Mocking self.get_admin_token_global() request to be successful
+        keycloak_login_request_mock.add(
+            responses.GET,
+            URLS["client_secret"] % kc_client.client_id,
+            json=self.common_error_response,
+            status=500
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client._get_client_secret()
+        assert exc.value.description == f'Failed to fetch {kc_client.client_id}\'s secret'
 
     def test_get_client_id(
             self
@@ -142,103 +294,100 @@ class TestKeycloakResponseFailures:
             assert exc.value.description == 'Could not find client'
 
     def test_get_role(
-            self
+            self, keycloak_login_request_mock
     ):
         """
         Test that the proper exception is raised when the
         keycloak API returns != 200 on getting a specific role
         """
         kc_client = Keycloak()
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.GET,
-                URLS["roles"] + "/some_role",
-                json=self.common_error_response,
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                kc_client.get_role('some_role')
-            assert exc.value.description == 'Failed to fetch roles'
+        keycloak_login_request_mock.add(
+            responses.GET,
+            URLS["roles"] + "/some_role",
+            json=self.common_error_response,
+            status=500
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client.get_role('some_role')
+        assert exc.value.description == 'Failed to fetch roles'
 
     def test_get_resource(
-            self
+            self, keycloak_login_request_mock
     ):
         """
         Test that the proper exception is raised when the
         keycloak API returns != 200 on getting a specific permission
         """
         kc_client = Keycloak()
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.GET,
-                (URLS["resource"] % kc_client.client_id) + "?name=some_resource",
-                json=self.common_error_response,
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                kc_client.get_resource('some_resource')
-            assert exc.value.description == 'Failed to fetch the resource'
+        keycloak_login_request_mock.add(
+            responses.GET,
+            (URLS["resource"] % kc_client.client_id) + "?name=some_resource",
+            json=self.common_error_response,
+            status=500
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client.get_resource('some_resource')
+        assert exc.value.description == 'Failed to fetch the resource'
 
     def test_get_policy(
-            self
+            self, keycloak_login_request_mock
     ):
         """
         Test that the proper exception is raised when the
         keycloak API returns != 200 on getting a specific policy
         """
         kc_client = Keycloak()
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.GET,
-                (URLS["get_policies"] % kc_client.client_id) + "&name=some_policy",
-                json=self.common_error_response,
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                kc_client.get_policy('some_policy')
-            assert exc.value.description == 'Error when fetching the policies from Keycloak'
+        keycloak_login_request_mock.add(
+            responses.GET,
+            (URLS["get_policies"] % kc_client.client_id) + "&name=some_policy",
+            json=self.common_error_response,
+            status=500
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client.get_policy('some_policy')
+        assert exc.value.description == 'Error when fetching the policies from Keycloak'
 
     def test_get_scope(
-            self
+            self, keycloak_login_request_mock
     ):
         """
         Test that the proper exception is raised when the
         keycloak API returns != 200 on getting a specific policy
         """
         kc_client = Keycloak()
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.GET,
-                (URLS["scopes"] % kc_client.client_id) + "?permission=False&name=some_scope",
-                json=self.common_error_response,
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                kc_client.get_scope('some_scope')
-            assert exc.value.description == 'Error when fetching the scopes from Keycloak'
+        keycloak_login_request_mock.add(
+            responses.GET,
+            (URLS["scopes"] % kc_client.client_id) + "?permission=False&name=some_scope",
+            json=self.common_error_response,
+            status=500
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client.get_scope('some_scope')
+        assert exc.value.description == 'Error when fetching the scopes from Keycloak'
 
     def test_get_user(
-            self
+            self, keycloak_login_request_mock
     ):
         """
         Test that the proper exception is raised when the
         keycloak API returns != 200 on getting a user by its username
         """
+        import urllib.parse
         kc_client = Keycloak()
-        username = 'some@email.com'
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.GET,
-                f'{URLS["user"]}?username={username}&exact=True',
-                json=self.common_error_response,
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                kc_client.get_user_by_username(username)
-            assert exc.value.description == 'Failed to fetch the user'
+        username = 'user@email.com'
+        keycloak_login_request_mock.add(
+            responses.GET,
+            URLS["user"],
+            json=self.common_error_response,
+            match=[matchers.query_string_matcher(f"username={urllib.parse.quote_plus(username)}&exact=True")],
+            status=500
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client.get_user_by_username(username)
+        assert exc.value.description == 'Failed to fetch the user'
 
     def test_create_client(
-            self
+            self, keycloak_login_request_mock
     ):
         """
         Test that the proper exception is raised when the
@@ -250,19 +399,18 @@ class TestKeycloakResponseFailures:
         Here we simulate the failure of the former
         """
         kc_client = Keycloak()
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.POST,
-                URLS["client"],
-                json=self.common_error_response,
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                kc_client.create_client('some_client', 60)
-            assert exc.value.description == 'Failed to create a project'
+        keycloak_login_request_mock.add(
+            responses.POST,
+            URLS["client"],
+            json=self.common_error_response,
+            status=500
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client.create_client('some_client', 60)
+        assert exc.value.description == 'Failed to create a project'
 
     def test_create_client_update(
-            self
+            self, keycloak_login_request_mock
     ):
         """
         Test that the proper exception is raised when the
@@ -274,127 +422,121 @@ class TestKeycloakResponseFailures:
         Here we simulate the failure of the latter
         """
         kc_client = Keycloak()
-        with responses.RequestsMock() as rsps:
-            # get client id
-            rsps.add(
-                responses.GET,
-                URLS["client"] + '?clientId=some_client',
-                json=[{"id": 12}],
-                status=201
-            )
-            # create client
-            rsps.add(
-                responses.POST,
-                URLS["client"],
-                status=201
-            )
-            rsps.add(
-                responses.PUT,
-                URLS["client_auth"] % '12',
-                json=self.common_error_response,
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                kc_client.create_client('some_client', 60)
-            assert exc.value.description == 'Failed to create a project'
+        # get client id
+        keycloak_login_request_mock.add(
+            responses.GET,
+            URLS["client"] + '?clientId=some_client',
+            json=[{"id": 12}],
+            status=201
+        )
+        # create client
+        keycloak_login_request_mock.add(
+            responses.POST,
+            URLS["client"],
+            status=201
+        )
+        keycloak_login_request_mock.add(
+            responses.PUT,
+            URLS["client_auth"] % '12',
+            json=self.common_error_response,
+            status=500
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client.create_client('some_client', 60)
+        assert exc.value.description == 'Failed to create a project'
 
     def test_create_scope(
-            self
+            self, keycloak_login_request_mock
     ):
         """
         Test that the proper exception is raised when the
         keycloak API returns != 200 on creating a new scope
         """
         kc_client = Keycloak()
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.POST,
-                URLS["scopes"] % kc_client.client_id,
-                json=self.common_error_response,
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                kc_client.create_scope('some_scope')
-            assert exc.value.description == 'Failed to create a project\'s scope'
+        keycloak_login_request_mock.add(
+            responses.POST,
+            URLS["scopes"] % kc_client.client_id,
+            json=self.common_error_response,
+            status=500
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client.create_scope('some_scope')
+        assert exc.value.description == 'Failed to create a project\'s scope'
 
     def test_create_policy(
-            self
+            self, keycloak_login_request_mock
     ):
         """
         Test that the proper exception is raised when the
         keycloak API returns != 200 on creating a new policy
         """
         kc_client = Keycloak()
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.POST,
-                (URLS["policies"] % kc_client.client_id) + '/user',
-                json=self.common_error_response,
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                kc_client.create_policy({'name': 'some_policy'}, '/user')
-            assert exc.value.description == 'Failed to create a project\'s policy'
+        keycloak_login_request_mock.add(
+            responses.POST,
+            (URLS["policies"] % kc_client.client_id) + '/user',
+            json=self.common_error_response,
+            status=500
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client.create_policy({'name': 'some_policy'}, '/user')
+        assert exc.value.description == 'Failed to create a project\'s policy'
 
     def test_create_resource(
-            self
+            self, keycloak_login_request_mock
     ):
         """
         Test that the proper exception is raised when the
         keycloak API returns != 200 on creating a new resource
         """
         kc_client = Keycloak()
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.POST,
-                URLS["resource"] % kc_client.client_id,
-                json=self.common_error_response,
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                kc_client.create_resource({'name': 'some_resource'})
-            assert exc.value.description == 'Failed to create a project\'s resource'
+        keycloak_login_request_mock.add(
+            responses.POST,
+            URLS["resource"] % kc_client.client_id,
+            json=self.common_error_response,
+            status=500
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client.create_resource({'name': 'some_resource'})
+        assert exc.value.description == 'Failed to create a project\'s resource'
 
     def test_create_permission(
-            self
+            self, keycloak_login_request_mock
     ):
         """
         Test that the proper exception is raised when the
         keycloak API returns != 200 on creating a new permission
         """
         kc_client = Keycloak()
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.POST,
-                URLS["permission"] % kc_client.client_id,
-                json=self.common_error_response,
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                kc_client.create_permission({'name': 'some_permission'})
-            assert exc.value.description == 'Failed to create a project\'s permission'
+        keycloak_login_request_mock.add(
+            responses.POST,
+            URLS["permission"] % kc_client.client_id,
+            json=self.common_error_response,
+            status=500
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client.create_permission({'name': 'some_permission'})
+        assert exc.value.description == 'Failed to create a project\'s permission'
 
     def test_create_user(
-            self
+            self, keycloak_login_request_mock
     ):
         """
         Test that the proper exception is raised when the
         keycloak API returns != 200 on creating a new user
         """
         kc_client = Keycloak()
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.GET,
-                URLS["roles"] + "/Users",
-                json={"name": "Users"},
-                status=200
-            )
-            rsps.add(
-                responses.POST,
-                URLS["user"],
-                json=self.common_error_response,
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                kc_client.create_user(**{'email': 'some@email.com'})
-            assert exc.value.description == 'Failed to create the user'
+        keycloak_login_request_mock.add(
+            responses.GET,
+            URLS["roles"] + "/Users",
+            json={"name": "Users"},
+            status=200
+        )
+        keycloak_login_request_mock.add(
+            responses.POST,
+            URLS["user"],
+            json=self.common_error_response,
+            status=500
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client.create_user(**{'email': 'some@email.com'})
+        assert exc.value.description == 'Failed to create the user'

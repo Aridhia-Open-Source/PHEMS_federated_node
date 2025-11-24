@@ -768,10 +768,8 @@ class Keycloak:
         """
         auth_user = self.get_token(username=username, password=old_pass, raise_on_temp_pass=False)
 
-        if not re.match("Account is not fully set up", auth_user.json().get("error_description")):
-            raise AuthenticationError(
-                "Incorrect credentials"
-            )
+        if not re.match("Account is not fully set up", auth_user.json().get("error_description", "")):
+            raise AuthenticationError("Incorrect credentials")
 
         res_pass_resp = requests.put(
             URLS["user_reset"] % user_id,

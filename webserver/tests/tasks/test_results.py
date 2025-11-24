@@ -1,8 +1,8 @@
 from datetime import timedelta
 from kubernetes.client.exceptions import ApiException
-
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
+from app.helpers.keycloak import Keycloak
 from app.helpers.const import CLEANUP_AFTER_DAYS, CRD_DOMAIN
 
 
@@ -14,6 +14,7 @@ class TestTaskResults:
         simple_admin_header,
         client,
         results_job_mock,
+
         task_mock
     ):
         """
@@ -35,6 +36,7 @@ class TestTaskResults:
         client,
         reg_k8s_client,
         results_job_mock,
+
         task_mock
     ):
         """
@@ -55,7 +57,8 @@ class TestTaskResults:
         self,
         simple_admin_header,
         client,
-        task_mock
+        task_mock,
+
     ):
         """
         A task result are being deleted after a declared number of days.
@@ -76,7 +79,8 @@ class TestResultsReview:
         simple_admin_header,
         client,
         task_mock,
-        set_task_review_env
+        set_task_review_env,
+
     ):
         """
         Test to make sure the default value is None,
@@ -99,7 +103,8 @@ class TestResultsReview:
         k8s_client,
         set_task_review_env,
         v1_crd_mock,
-        mocker
+        mocker,
+
     ):
         """
         Test to make sure the approval allows the user
@@ -130,7 +135,8 @@ class TestResultsReview:
         set_task_review_env,
         set_task_controller_env,
         v1_crd_mock,
-        mocker
+        mocker,
+
     ):
         """
         Test to make sure the approval allows the task controller CRD
@@ -153,7 +159,8 @@ class TestResultsReview:
         client,
         results_job_mock,
         task_mock,
-        set_task_review_env
+        set_task_review_env,
+
     ):
         """
         Test to make sure the admin can fetch their results
@@ -171,12 +178,16 @@ class TestResultsReview:
         simple_user_header,
         client,
         task_mock,
-        set_task_review_env
+        set_task_review_env,
+        k8s_client,
+        mock_kc_client
     ):
         """
         Test to make sure the user can't fetch their results
         before the review took place
         """
+        mock_kc_client["tasks_api_kc"].return_value.is_user_admin.return_value = False
+        k8s_client["list_namespaced_pod_mock"].return_value.items[0].metadata.name = task_mock.name
         response = client.get(
             f'/tasks/{task_mock.id}/results',
             headers=simple_user_header
@@ -194,12 +205,14 @@ class TestResultsReview:
         k8s_client,
         set_task_review_env,
         v1_crd_mock,
+        mock_kc_client,
         mocker
     ):
         """
         Test to make sure the user can't fetch their results
         if they have been blocked by an administrator
         """
+        mocker.patch.object(Keycloak, "is_user_admin", return_value=False)
         mocker.patch(
             "app.models.task.Task.get_task_crd",
             return_value={
@@ -217,6 +230,8 @@ class TestResultsReview:
         )
         assert response.status_code == 201
 
+        mock_kc_client["tasks_api_kc"].return_value.is_user_admin.return_value = False
+
         response = client.get(
             f'/tasks/{task_mock.id}/results',
             headers=simple_user_header
@@ -229,7 +244,8 @@ class TestResultsReview:
         simple_user_header,
         client,
         task_mock,
-        set_task_review_env
+        set_task_review_env,
+
     ):
         """
         Trying to review an non-existing task should return 404
@@ -249,7 +265,8 @@ class TestResultsReview:
         k8s_client,
         set_task_review_env,
         v1_crd_mock,
-        mocker
+        mocker,
+
     ):
         """
         Tests that review can only happen once
@@ -285,7 +302,8 @@ class TestResultsReview:
         k8s_crd_500,
         set_task_review_env,
         v1_crd_mock,
-        mocker
+        mocker,
+
     ):
         """
         Tests that review fails when the CRD is not found
@@ -312,7 +330,8 @@ class TestResultsReview:
         task_mock,
         k8s_crd_404,
         set_task_review_env,
-        v1_crd_mock
+        v1_crd_mock,
+
     ):
         """
         Tests that if a task without a CRD will go through
@@ -331,7 +350,8 @@ class TestResultsReview:
         self,
         simple_admin_header,
         client,
-        task_mock
+        task_mock,
+
     ):
         """
         Tests that review cannot be used when the env var
