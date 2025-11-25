@@ -1,3 +1,5 @@
+import responses
+from responses import matchers
 from datetime import datetime
 from kubernetes.client.exceptions import ApiException
 
@@ -7,6 +9,7 @@ from pytest import fixture
 from copy import deepcopy
 from unittest.mock import Mock
 
+from app.helpers.keycloak import URLS
 from app.models.task import Task
 
 
@@ -43,6 +46,7 @@ def task_body(dataset, container):
 @fixture
 def running_state():
     return Mock(
+        name="running_pod",
         state=Mock(
             running=Mock(
                 started_at="1/1/2024"
@@ -55,6 +59,7 @@ def running_state():
 @fixture
 def waiting_state():
     return Mock(
+        name="waiting_pod",
         state=Mock(
             waiting=Mock(
                 started_at="1/1/2024"
@@ -67,6 +72,7 @@ def waiting_state():
 @fixture
 def terminated_state():
     return Mock(
+        name="terminated_pod",
         state=Mock(
             terminated=Mock(
                 started_at="1/1/2024",

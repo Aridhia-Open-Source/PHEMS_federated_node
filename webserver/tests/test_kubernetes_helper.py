@@ -23,6 +23,7 @@ from app.helpers.kubernetes import KubernetesClient, KubernetesBatchClient
 from tests.conftest import side_effect
 from app.helpers.task_pod import TaskPod
 
+
 @pytest.fixture
 def pod_dict(dataset):
     return {

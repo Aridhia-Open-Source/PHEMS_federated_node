@@ -1,5 +1,6 @@
 from app.models.audit import Audit
 
+
 def test_filter_by_date(
         client,
         simple_admin_header,

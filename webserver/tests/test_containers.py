@@ -125,12 +125,14 @@ class TestGetContainers(ContainersMixin):
         self,
         client,
         container,
-        simple_user_header
+        simple_user_header,
+        mock_kc_client
     ):
         """
         Basic test to make sure only admin users can
         use the endpoint
         """
+        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
         resp = client.get(
             f"/containers/{container.id}",
             headers=simple_user_header

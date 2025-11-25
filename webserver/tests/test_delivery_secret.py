@@ -34,12 +34,14 @@ class TestUpdateDeliverySecret:
         client,
         set_task_other_delivery_env,
         post_json_user_header,
-        k8s_client
+        k8s_client,
+        mock_kc_client
     ):
         """
         Test that when the other delivery is chosen
         at deployment time, 403 is returned for non-admins
         """
+        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
         resp = client.patch(
             "/delivery-secret",
             json={"auth": "test"},

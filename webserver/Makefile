@@ -13,6 +13,9 @@ build_docker:
 build_docker_dev:
 	docker build . -t ghcr.io/aridhia-open-source/federated_node_run:${TAG}-v$(shell git rev-parse --short HEAD)
 
+tests_integration:
+	./run_integration_tests.sh
+
 tests_local:
 	./run_tests.sh
 

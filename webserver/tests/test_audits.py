@@ -11,11 +11,14 @@ class TestAudits:
             self,
             simple_admin_header,
             client,
-            admin_user_uuid
+            admin_user_uuid,
+            mock_kc_client
         ):
         """
         Test that after a simple GET call we have an audit entry
         """
+        mock_kc_client["wrappers_kc"].return_value.decode_token.return_value["sub"] = admin_user_uuid
+
         r = client.get("/datasets/", headers=simple_admin_header)
         assert r.status_code == 200, r.text
         list_audit = db.session.execute(select(Audit)).all()
@@ -39,11 +42,13 @@ class TestAudits:
     def test_get_audit_events_not_by_standard_users(
             self,
             simple_user_header,
-            client
+            client,
+            mock_kc_client
         ):
         """
         Test that the endpoint returns 401 for non-admin users
         """
+        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
         response = client.get("/audit", headers=simple_user_header)
         assert response.status_code == 403
 

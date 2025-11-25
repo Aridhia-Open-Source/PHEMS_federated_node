@@ -113,18 +113,17 @@ class TestTransfers:
         assert response.status_code == 404
         assert response.json == {"error": "Dataset fake_dataset does not exist"}
 
-    @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
     def test_token_transfer_standard_user(
             self,
-            kc_valid_mock,
             client,
-            kc_user_mock,
             request_base_body,
-            post_json_user_header
+            post_json_user_header,
+            mock_kc_client
     ):
         """
         Test token transfer is accessible by admin users
         """
+        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
         response = client.post(
             "/datasets/token_transfer",
             data=json.dumps(request_base_body),
@@ -241,12 +240,11 @@ class TestTransfers:
             client,
             post_json_admin_header,
             access_request,
-            kc_user_mock,
+            mock_kc_client,
             request_model_body,
             request_base_body,
             dataset,
             dataset_oracle,
-            mocker
         ):
         """
         Tests that the entry is deleted when creating the permission
@@ -254,8 +252,7 @@ class TestTransfers:
         """
         request_base_body["dataset_id"] = dataset_oracle.id
 
-        mocker.patch("app.helpers.keycloak.Keycloak.get_user_by_id",
-                     side_effect=KeycloakError("error"))
+        mock_kc_client["datasets_api_kc"].return_value.get_user_by_email.side_effect = KeycloakError("error")
 
         response = client.post(
             "/datasets/token_transfer",

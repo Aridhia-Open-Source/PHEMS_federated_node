@@ -33,7 +33,7 @@ class TestCatalogues(MixinTestDataset):
             dataset,
             dataset_post_body,
             post_json_admin_header,
-            simple_admin_header
+            simple_admin_header,
     ):
         """
         Check that admin can see the catalogue for a given dataset
@@ -53,7 +53,7 @@ class TestCatalogues(MixinTestDataset):
             client,
             dataset_post_body,
             post_json_admin_header,
-            dataset
+            dataset,
         ):
         """
         Tests that sending PUT /dataset updates the dictionaries
@@ -80,7 +80,7 @@ class TestCatalogues(MixinTestDataset):
             client,
             dataset_post_body,
             post_json_admin_header,
-            dataset
+            dataset,
         ):
         """
         Tests that sending PUT /dataset creates a new Catalogue
@@ -112,7 +112,7 @@ class TestCatalogues(MixinTestDataset):
             client,
             dataset_post_body,
             post_json_admin_header,
-            dataset
+            dataset,
         ):
         """
         Tests that sending PUT /dataset does not create a new
@@ -140,7 +140,8 @@ class TestCatalogues(MixinTestDataset):
             dataset_post_body,
             post_json_admin_header,
             simple_user_header,
-            mocker
+            mocker,
+            mock_kc_client
     ):
         """
         Check that non-admin or non DAR approved users
@@ -150,7 +151,8 @@ class TestCatalogues(MixinTestDataset):
         data_body['name'] = 'TestDs78'
         resp_ds = self.post_dataset(client, post_json_admin_header, data_body)
 
-        mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
+        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
+
         response = client.get(
             f"/datasets/{resp_ds["dataset_id"]}/catalogue",
             headers=simple_user_header
