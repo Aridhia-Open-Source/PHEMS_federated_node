@@ -27,7 +27,6 @@ URLS = {
     "client_secret": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/client-secret",
     "client_exchange": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/management/permissions",
     "client_auth": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server",
-    "get_policies": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/policy?permission=false",
     "roles": f"{KEYCLOAK_URL}/admin/realms/{REALM}/roles",
     "policies": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/policy",
     "scopes": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/scope",
@@ -429,8 +428,8 @@ class Keycloak:
             'Authorization': f'Bearer {self.admin_token}'
         }
         policy_response = requests.get(
-            URLS["get_policies"] % self.client_id,
-            params={"name": name},
+            URLS["policies"] % self.client_id,
+            params={"name": name, "permission": False},
             headers=headers
         )
         if not policy_response.ok:
@@ -660,7 +659,7 @@ class Keycloak:
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
         if not user_response.ok:
-            raise KeycloakError("Failed to fetch the user")
+            raise KeycloakError("Failed to fetch the users")
 
         return user_response.json()
 
@@ -678,19 +677,6 @@ class Keycloak:
             return by_em
 
         raise KeycloakError("Failed to fetch the created user")
-
-    def get_user_by_id(self, user_id:str) -> dict:
-        """
-        Method to return a dictionary representing a Keycloak user
-        """
-        user_response = requests.get(
-            f"{URLS["user"]}/{user_id}",
-            headers={"Authorization": f"Bearer {self.admin_token}"}
-        )
-        if not user_response.ok:
-            raise KeycloakError("Failed to fetch the user")
-
-        return user_response.json() if user_response.json() else None
 
     def get_user_by_username(self, username:str) -> dict:
         """

@@ -6,7 +6,7 @@ from app.helpers.exceptions import KeycloakError
 from app.helpers.keycloak import URLS, Keycloak
 
 
-class TestKeycloakResponseFailures:
+class TestKeycloakMixin:
     """
     Collection of tests that aims to prove the correct exceptions are raised
         in case of failed requests in the context of the Keycloak class.
@@ -158,21 +158,12 @@ class TestKeycloakResponseFailures:
             json=[{"name": "User"}],
             status=200
         )
-        rsps.add(
-            responses.POST,
-            URLS["validate"],
-            json={
-                "active": True,
-                "username": admin_user["username"],
-                "sub": admin_user_uuid,
-                "realm_access": {"roles": "Administrator"}
-            },
-            status=200
-        )
         yield rsps
         rsps.stop()
         rsps.reset()
 
+
+class TestKeycloakResponseFailures(TestKeycloakMixin):
     def test_exchange_global_token_access_token(
             self, keycloak_login_request_mock
     ):
@@ -247,9 +238,7 @@ class TestKeycloakResponseFailures:
             kc_client.get_impersonation_token('some user id')
         assert exc.value.description == 'Cannot exchange impersonation token'
 
-    def test_get_client_secret(
-            self, keycloak_login_request_mock
-    ):
+    def test_get_client_secret(self, keycloak_login_request_mock):
         """
         Test that the proper exception is raised when the
         keycloak API returns != 200 on fetching the client secret
@@ -265,34 +254,6 @@ class TestKeycloakResponseFailures:
         with pytest.raises(KeycloakError) as exc:
             kc_client._get_client_secret()
         assert exc.value.description == f'Failed to fetch {kc_client.client_id}\'s secret'
-
-    def test_get_client_id(
-            self
-    ):
-        """
-        Test that the proper exception is raised when the
-        keycloak API returns != 200 on fetching a client id.
-        Usually invoked during the class init
-        """
-        # Mocking the requests for the specific token
-        with responses.RequestsMock() as rsps:
-            # Mocking self.get_admin_token() request to be successful
-            rsps.add(
-                responses.POST,
-                URLS["get_token"],
-                json={"access_token": "random token"},
-                content_type='application/x-www-form-urlencoded',
-                status=200
-            )
-            rsps.add(
-                responses.GET,
-                URLS["client"] + "?clientId=global",
-                json=self.common_error_response,
-                status=500
-            )
-            with pytest.raises(KeycloakError) as exc:
-                Keycloak()
-            assert exc.value.description == 'Could not find client'
 
     def test_get_role(
             self, keycloak_login_request_mock
@@ -323,164 +284,45 @@ class TestKeycloakResponseFailures:
         keycloak_login_request_mock.add(
             responses.GET,
             (URLS["resource"] % kc_client.client_id) + "?name=some_resource",
+            json=[{"_id": "resource_id"}]
+        )
+        kc_client.get_resource('some_resource')
+
+    def test_get_resource_empty_list_fails(
+            self, keycloak_login_request_mock
+    ):
+        """
+        Test that no exception is raised when the
+        keycloak API is successful but no match is returned in the results list
+        on getting a specific permission
+        """
+        kc_client = Keycloak()
+        keycloak_login_request_mock.add(
+            responses.GET,
+            (URLS["resource"] % kc_client.client_id) + "?name=some_resource",
+            json=[]
+        )
+        with pytest.raises(KeycloakError) as exc:
+            kc_client.get_resource('some_resource')
+        assert exc.value.description == 'Failed to fetch the resource'
+
+    def test_get_resource_fails(
+            self, keycloak_login_request_mock
+    ):
+        """
+        Test that the proper exception is raised when the
+        keycloak API returns != 200 on getting a specific permission
+        """
+        kc_client = Keycloak()
+        keycloak_login_request_mock.add(
+            responses.GET,
+            (URLS["resource"] % kc_client.client_id) + "?name=some_resource",
             json=self.common_error_response,
             status=500
         )
         with pytest.raises(KeycloakError) as exc:
             kc_client.get_resource('some_resource')
         assert exc.value.description == 'Failed to fetch the resource'
-
-    def test_get_policy(
-            self, keycloak_login_request_mock
-    ):
-        """
-        Test that the proper exception is raised when the
-        keycloak API returns != 200 on getting a specific policy
-        """
-        kc_client = Keycloak()
-        keycloak_login_request_mock.add(
-            responses.GET,
-            (URLS["get_policies"] % kc_client.client_id) + "&name=some_policy",
-            json=self.common_error_response,
-            status=500
-        )
-        with pytest.raises(KeycloakError) as exc:
-            kc_client.get_policy('some_policy')
-        assert exc.value.description == 'Error when fetching the policies from Keycloak'
-
-    def test_get_scope(
-            self, keycloak_login_request_mock
-    ):
-        """
-        Test that the proper exception is raised when the
-        keycloak API returns != 200 on getting a specific policy
-        """
-        kc_client = Keycloak()
-        keycloak_login_request_mock.add(
-            responses.GET,
-            (URLS["scopes"] % kc_client.client_id) + "?permission=False&name=some_scope",
-            json=self.common_error_response,
-            status=500
-        )
-        with pytest.raises(KeycloakError) as exc:
-            kc_client.get_scope('some_scope')
-        assert exc.value.description == 'Error when fetching the scopes from Keycloak'
-
-    def test_get_user(
-            self, keycloak_login_request_mock
-    ):
-        """
-        Test that the proper exception is raised when the
-        keycloak API returns != 200 on getting a user by its username
-        """
-        import urllib.parse
-        kc_client = Keycloak()
-        username = 'user@email.com'
-        keycloak_login_request_mock.add(
-            responses.GET,
-            URLS["user"],
-            json=self.common_error_response,
-            match=[matchers.query_string_matcher(f"username={urllib.parse.quote_plus(username)}&exact=True")],
-            status=500
-        )
-        with pytest.raises(KeycloakError) as exc:
-            kc_client.get_user_by_username(username)
-        assert exc.value.description == 'Failed to fetch the user'
-
-    def test_create_client(
-            self, keycloak_login_request_mock
-    ):
-        """
-        Test that the proper exception is raised when the
-        keycloak API returns != 200 on creating a new client
-        following a DAR approval. The creation includes 2 steps:
-            - Create the client
-            - Update the client-wide permission evaluation policy
-                which can't be done at creation time
-        Here we simulate the failure of the former
-        """
-        kc_client = Keycloak()
-        keycloak_login_request_mock.add(
-            responses.POST,
-            URLS["client"],
-            json=self.common_error_response,
-            status=500
-        )
-        with pytest.raises(KeycloakError) as exc:
-            kc_client.create_client('some_client', 60)
-        assert exc.value.description == 'Failed to create a project'
-
-    def test_create_client_update(
-            self, keycloak_login_request_mock
-    ):
-        """
-        Test that the proper exception is raised when the
-        keycloak API returns != 200 on creating a new client
-        following a DAR approval. The creation includes 2 steps:
-            - Create the client
-            - Update the client-wide permission evaluation policy
-                which can't be done at creation time
-        Here we simulate the failure of the latter
-        """
-        kc_client = Keycloak()
-        # get client id
-        keycloak_login_request_mock.add(
-            responses.GET,
-            URLS["client"] + '?clientId=some_client',
-            json=[{"id": 12}],
-            status=201
-        )
-        # create client
-        keycloak_login_request_mock.add(
-            responses.POST,
-            URLS["client"],
-            status=201
-        )
-        keycloak_login_request_mock.add(
-            responses.PUT,
-            URLS["client_auth"] % '12',
-            json=self.common_error_response,
-            status=500
-        )
-        with pytest.raises(KeycloakError) as exc:
-            kc_client.create_client('some_client', 60)
-        assert exc.value.description == 'Failed to create a project'
-
-    def test_create_scope(
-            self, keycloak_login_request_mock
-    ):
-        """
-        Test that the proper exception is raised when the
-        keycloak API returns != 200 on creating a new scope
-        """
-        kc_client = Keycloak()
-        keycloak_login_request_mock.add(
-            responses.POST,
-            URLS["scopes"] % kc_client.client_id,
-            json=self.common_error_response,
-            status=500
-        )
-        with pytest.raises(KeycloakError) as exc:
-            kc_client.create_scope('some_scope')
-        assert exc.value.description == 'Failed to create a project\'s scope'
-
-    def test_create_policy(
-            self, keycloak_login_request_mock
-    ):
-        """
-        Test that the proper exception is raised when the
-        keycloak API returns != 200 on creating a new policy
-        """
-        kc_client = Keycloak()
-        keycloak_login_request_mock.add(
-            responses.POST,
-            (URLS["policies"] % kc_client.client_id) + '/user',
-            json=self.common_error_response,
-            status=500
-        )
-        with pytest.raises(KeycloakError) as exc:
-            kc_client.create_policy({'name': 'some_policy'}, '/user')
-        assert exc.value.description == 'Failed to create a project\'s policy'
 
     def test_create_resource(
             self, keycloak_login_request_mock
@@ -500,44 +342,40 @@ class TestKeycloakResponseFailures:
             kc_client.create_resource({'name': 'some_resource'})
         assert exc.value.description == 'Failed to create a project\'s resource'
 
-    def test_create_permission(
-            self, keycloak_login_request_mock
-    ):
+    def test_patch_resource(self, keycloak_login_request_mock):
         """
-        Test that the proper exception is raised when the
-        keycloak API returns != 200 on creating a new permission
-        """
-        kc_client = Keycloak()
-        keycloak_login_request_mock.add(
-            responses.POST,
-            URLS["permission"] % kc_client.client_id,
-            json=self.common_error_response,
-            status=500
-        )
-        with pytest.raises(KeycloakError) as exc:
-            kc_client.create_permission({'name': 'some_permission'})
-        assert exc.value.description == 'Failed to create a project\'s permission'
-
-    def test_create_user(
-            self, keycloak_login_request_mock
-    ):
-        """
-        Test that the proper exception is raised when the
-        keycloak API returns != 200 on creating a new user
+        patch_resource does not return an object, only ensures
+        the keycloak API call is successful.
         """
         kc_client = Keycloak()
         keycloak_login_request_mock.add(
             responses.GET,
-            URLS["roles"] + "/Users",
-            json={"name": "Users"},
-            status=200
+            (URLS["resource"] % kc_client.client_id) + "?name=some_resource",
+            json=[{"_id": "resource_id"}]
         )
         keycloak_login_request_mock.add(
-            responses.POST,
-            URLS["user"],
-            json=self.common_error_response,
-            status=500
+            responses.PUT,
+            (URLS["resource"] % kc_client.client_id) + "/resource_id",
+            json=[{"id": "resource_id"}]
+        )
+        kc_client.patch_resource("some_resource", **{"name": "new_name"})
+
+    def test_patch_resource_fails(self, keycloak_login_request_mock):
+        """
+        patch_resource does not return an object, only ensures
+        a custom exception is raised if the keycloak API call fails
+        """
+        kc_client = Keycloak()
+        keycloak_login_request_mock.add(
+            responses.GET,
+            (URLS["resource"] % kc_client.client_id) + "?name=some_resource",
+            json=[{"_id": "resource_id"}]
+        )
+        keycloak_login_request_mock.add(
+            responses.PUT,
+            (URLS["resource"] % kc_client.client_id) + "/resource_id",
+            status=400
         )
         with pytest.raises(KeycloakError) as exc:
-            kc_client.create_user(**{'email': 'some@email.com'})
-        assert exc.value.description == 'Failed to create the user'
+            kc_client.patch_resource("some_resource", **{"name": "new_name"})
+        assert exc.value.description == 'Failed to patch the resource'
