@@ -193,7 +193,7 @@ jobs:
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
       TAG: ${{ needs.init.outputs.tag }}
-      IMAGE: db-connector
+      IMAGE: db_connector
       BUILD_PATH: build/db-connector/
       HASH_SUFFIX: false
       DOCKER_ACR: ${{ vars.DOCKER_CR }}
