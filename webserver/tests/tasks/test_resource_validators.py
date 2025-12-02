@@ -61,7 +61,9 @@ class TestResourceValidators:
         mocker.patch("app.helpers.keycloak.Keycloak.get_token_from_headers",
                      return_value="")
         mocker.patch("app.helpers.keycloak.Keycloak.decode_token",
-                     return_value={"sub": user_uuid})
+                return_value={"email": "test@basicuser.com"})
+        mocker.patch("app.helpers.keycloak.Keycloak.get_user_by_email",
+                     return_value={"id": user_uuid})
         Task.validate(task_body)
 
     def test_invalid_memory_values(

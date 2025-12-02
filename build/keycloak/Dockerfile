@@ -1,24 +1,11 @@
-
-FROM alpine:3.22.0 AS build
-
-WORKDIR /jars
-ENV INFINISPAN_REPO="https://repo1.maven.org/maven2/org/infinispan"
-ENV INFINISPAN_VERSION="14.0.27"
-RUN apk update && \
-    wget -q "${INFINISPAN_REPO}/infinispan-cachestore-jdbc/${INFINISPAN_VERSION}.Final/infinispan-cachestore-jdbc-${INFINISPAN_VERSION}.Final.jar" && \
-    wget -q "${INFINISPAN_REPO}/infinispan-cachestore-jdbc-common-jakarta/${INFINISPAN_VERSION}.Final/infinispan-cachestore-jdbc-common-jakarta-${INFINISPAN_VERSION}.Final.jar" && \
-    wget -q https://cacerts.digicert.com/DigiCertGlobalRootG2.crt.pem -O /DigiCertGlobalRootCA.crt.pem
-
-FROM quay.io/keycloak/keycloak:24.0.2
+FROM quay.io/keycloak/keycloak:26.4
 
 ARG USERNAME=fednode
 ARG USER_UID=1001
 ARG USER_GID=1001
+COPY --chmod=755 entrypoint.sh /opt/keycloak/bin/
 
-COPY cache-ispn.xml /opt/keycloak/conf/
-COPY --from=build /jars /opt/keycloak/providers
-COPY --from=build /DigiCertGlobalRootCA.crt.pem /opt/keycloak/.postgres/root.crt.pem
-RUN /opt/keycloak/bin/kc.sh build --cache=ispn --cache-config-file=cache-ispn.xml
+RUN /opt/keycloak/bin/kc.sh build --features="admin-fine-grained-authz:v1,token-exchange,scripts"
 
 # Re-enable SHA1 to be able to talk to azure postgres service
 USER root
@@ -28,3 +15,4 @@ RUN sed -i 's/SHA1, //' /etc/crypto-policies/back-ends/java.config \
     && chown -cR "${USERNAME}:${USERNAME}" /opt/keycloak
 
 USER ${USER_UID}
+ENTRYPOINT [ "/opt/keycloak/bin/entrypoint.sh" ]
