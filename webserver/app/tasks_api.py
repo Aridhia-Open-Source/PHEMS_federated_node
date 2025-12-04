@@ -39,8 +39,9 @@ def does_user_own_task(task:Task):
     kc_client = Keycloak()
     token = kc_client.get_token_from_headers()
     dec_token = kc_client.decode_token(token)
+    user_id = kc_client.get_user_by_email(dec_token["email"])["id"]
 
-    if task.requested_by != dec_token['sub'] and not kc_client.is_user_admin(token):
+    if task.requested_by != user_id and not kc_client.is_user_admin(token):
         raise UnauthorizedError("User does not have enough permissions")
 
 @bp.route('/service-info', methods=['GET'])
