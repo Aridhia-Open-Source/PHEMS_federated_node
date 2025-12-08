@@ -9,11 +9,8 @@ from tests.fixtures.tasks_fixtures import *
 class TestResourceValidators:
     def test_valid_values(
             self,
-            mocker,
-            user_uuid,
             registry_client,
             cr_client,
-            mocks_kc_tasks,
             task_body
         ):
         """
@@ -29,16 +26,10 @@ class TestResourceValidators:
                 "memory": "100Mi"
             }
         }
-        mocker.patch("app.helpers.keycloak.Keycloak.get_token_from_headers",
-                     return_value="")
-        mocker.patch("app.helpers.keycloak.Keycloak.decode_token",
-                     return_value={"sub": user_uuid})
         Task.validate(task_body)
 
     def test_valid_values_exp(
             self,
-            mocker,
-            user_uuid,
             registry_client,
             cr_client,
             task_body
@@ -56,33 +47,17 @@ class TestResourceValidators:
                 "memory": "1M"
             }
         }
-        mocker.patch("app.helpers.keycloak.Keycloak.is_user_admin",
-                     return_value=True)
-        mocker.patch("app.helpers.keycloak.Keycloak.get_token_from_headers",
-                     return_value="")
-        mocker.patch("app.helpers.keycloak.Keycloak.decode_token",
-                return_value={"email": "test@basicuser.com"})
-        mocker.patch("app.helpers.keycloak.Keycloak.get_user_by_email",
-                     return_value={"id": user_uuid})
         Task.validate(task_body)
 
     def test_invalid_memory_values(
             self,
-            mocker,
-            user_uuid,
             cr_client,
             registry_client,
-            mocks_kc_tasks,
             task_body
         ):
         """
         Tests that the unexpected memory values are not accepted
         """
-        mocker.patch("app.helpers.keycloak.Keycloak.get_token_from_headers",
-                     return_value="")
-        mocker.patch("app.helpers.keycloak.Keycloak.decode_token",
-                     return_value={"sub": user_uuid})
-
         invalid_values = ["hundredMi", "100ki", "100mi", "0.1Ki", "Mi100"]
         for in_val in invalid_values:
             task_body["resources"] = {
@@ -101,21 +76,13 @@ class TestResourceValidators:
 
     def test_invalid_cpu_values(
             self,
-            mocker,
-            user_uuid,
             cr_client,
             registry_client,
-            mocks_kc_tasks,
             task_body
         ):
         """
         Tests that the unexpected cpu values are not accepted
         """
-        mocker.patch("app.helpers.keycloak.Keycloak.get_token_from_headers",
-                     return_value="")
-        mocker.patch("app.helpers.keycloak.Keycloak.decode_token",
-                     return_value={"sub": user_uuid})
-
         invalid_values = ["5.24.1", "hundredm", "100Ki", "100mi", "0.1m"]
 
         for in_val in invalid_values:
@@ -135,21 +102,13 @@ class TestResourceValidators:
 
     def test_mem_limit_lower_than_request_fails(
             self,
-            mocker,
-            user_uuid,
             cr_client,
             registry_client,
-            mocks_kc_tasks,
             task_body
         ):
         """
         Tests that the unexpected cpu values are not accepted
         """
-        mocker.patch("app.helpers.keycloak.Keycloak.get_token_from_headers",
-                     return_value="")
-        mocker.patch("app.helpers.keycloak.Keycloak.decode_token",
-                     return_value={"sub": user_uuid})
-
         task_body["resources"] = {
             "limits": {
                 "cpu": "100m",
@@ -166,21 +125,13 @@ class TestResourceValidators:
 
     def test_cpu_limit_lower_than_request_fails(
             self,
-            mocker,
-            user_uuid,
             cr_client,
             registry_client,
-            mocks_kc_tasks,
             task_body
         ):
         """
         Tests that the unexpected cpu values are not accepted
         """
-        mocker.patch("app.helpers.keycloak.Keycloak.get_token_from_headers",
-                     return_value="")
-        mocker.patch("app.helpers.keycloak.Keycloak.decode_token",
-                     return_value={"sub": user_uuid})
-
         task_body["resources"] = {
             "limits": {
                 "cpu": "100m",

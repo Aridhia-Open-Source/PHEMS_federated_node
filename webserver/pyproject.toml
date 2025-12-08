@@ -38,5 +38,6 @@ dev = [
     "pytest-mock",
     "python-dotenv",
     "pytest-cov",
-    "responses"
+    "responses",
+    "pytest-responses"
 ]

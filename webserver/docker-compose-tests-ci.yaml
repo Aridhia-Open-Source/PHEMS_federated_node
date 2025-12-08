@@ -6,72 +6,8 @@ services:
       POSTGRES_DB: test_app
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: test_app
-  keycloak:
-    container_name: keycloak_test
-    build:
-      context: ../build/keycloak
-      dockerfile: Dockerfile
-    command: [
-      "start",
-      "--import-realm",
-      "--http-enabled=true",
-      "--optimized"
-    ]
-    healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080;echo -e 'GET /health/ready HTTP/1.1\r\nhost: localhost\r\nConnection: close\r\n\r\n' >&3;if [ $? -eq 0 ]; then echo 'Healthcheck Successful';exit 0;else echo 'Healthcheck Failed';exit 1;fi;"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-    depends_on:
-      - db
-    environment:
-      KC_HOSTNAME_STRICT: false
-      KC_FEATURES: admin-fine-grained-authz:v1,token-exchange,scripts
-      KC_HEALTH_ENABLED: true
-      KC_DB_URL_HOST: db
-      KC_DB: postgres
-      KC_DB_URL_PORT: ${PGPORT}
-      KC_DB_URL_DATABASE: ${PGDATABASE}
-      KC_DB_USERNAME: ${PGUSER}
-      KC_DB_PASSWORD: ${PGPASSWORD}
-      KEYCLOAK_ADMIN:
-      KEYCLOAK_ADMIN_PASSWORD:
-      KC_BOOTSTRAP_ADMIN_USERNAME:
-      KC_BOOTSTRAP_ADMIN_PASSWORD:
-      KEYCLOAK_SECRET:
-      KEYCLOAK_LOGLEVEL: DEBUG
-      KEYCLOAK_TOKEN_LIFE: 3600
-      KEYCLOAK_HOSTNAME: ${KEYCLOAK_URL}
     volumes:
-      - ../k8s/federated-node/scripts/realms.json:/opt/keycloak/data/import/realms.json
-  kc_init:
-    container_name: keycloak_test_initializer
-    build:
-      context: ../build/kc-init
-      dockerfile: Dockerfile
-    entrypoint: ["/bin/sh"]
-    command: ["-c", "python3 /scripts/setup_realm.py"]
-    links:
-      - keycloak
-    depends_on:
-      keycloak:
-        condition: service_healthy
-    environment:
-      KEYCLOAK_ADMIN_PASSWORD:
-      KEYCLOAK_SECRET:
-      KEYCLOAK_ADMIN:
-      KEYCLOAK_URL:
-      KC_BOOTSTRAP_ADMIN_USERNAME:
-      KC_BOOTSTRAP_ADMIN_PASSWORD:
-      FIRST_USER_EMAIL: "test@admin.com"
-      FIRST_USER_PASS: "test123!"
-      FIRST_USER_FIRST_NAME: User
-      FIRST_USER_LAST_NAME: Admin
-    volumes:
-      - ../build/kc-init/setup_realm.py:/scripts/setup_realm.py
-      - ../build/kc-init/common.py:/scripts/common.py
-      - ../build/kc-init/settings.py:/scripts/settings.py
+      - data:/var/lib/postgresql/data
   app:
     container_name: flask_app_test
     image: federated_node_app_test
@@ -80,9 +16,6 @@ services:
       dockerfile: build/test.Dockerfile
     links:
       - db
-    depends_on:
-      kc_init:
-        condition: service_completed_successfully
     environment:
       PGHOST:
       PGDATABASE:

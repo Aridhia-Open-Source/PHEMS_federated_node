@@ -4,8 +4,6 @@ import re
 from unittest import mock
 from unittest.mock import Mock
 
-from kubernetes.client.exceptions import ApiException
-
 from app.helpers.const import TASK_POD_RESULTS_PATH
 from app.helpers.base_model import db
 from app.models.task import Task
@@ -17,7 +15,8 @@ class TestGetTasks:
     def test_get_list_tasks(
             self,
             client,
-            simple_admin_header
+            simple_admin_header,
+
         ):
         """
         Tests that admin users can see the list of tasks
@@ -31,11 +30,15 @@ class TestGetTasks:
     def test_get_list_tasks_base_user(
             self,
             client,
-            simple_user_header
+            mocker,
+            simple_user_header,
+            mock_kc_client
         ):
         """
         Tests that non-admin users cannot see the list of tasks
         """
+        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
+
         response = client.get(
             '/tasks/',
             headers=simple_user_header
@@ -44,20 +47,20 @@ class TestGetTasks:
 
     def test_get_task_by_id_admin(
             self,
-            mocks_kc_tasks,
+            mock_kc_client,
             cr_client,
-            post_json_admin_header,
             post_json_user_header,
             simple_admin_header,
             client,
             registry_client,
+            k8s_client,
             task_body
         ):
         """
         If an admin wants to check a specific task they should be allowed regardless
         of who requested it
         """
-        mocks_kc_tasks["tasks"].return_value.get_user_by_id.return_value = {"username": "user"}
+        mock_kc_client["tasks_api_kc"].return_value.get_user_by_id.return_value = {"username": "user"}
         resp = client.post(
             '/tasks/',
             data=json.dumps(task_body),
@@ -72,23 +75,20 @@ class TestGetTasks:
         )
         assert resp.status_code == 200
 
-    @mock.patch('app.helpers.keycloak.Keycloak.is_user_admin', return_value=False)
-    @mock.patch('app.tasks_api.Keycloak.get_user_by_email')
     def test_get_task_by_id_non_admin_owner(
             self,
-            mocks_get_user,
-            mock_is_admin,
-            mocks_kc_tasks,
             simple_user_header,
             client,
             basic_user,
             task,
-            user_uuid
+            mock_kc_client
         ):
         """
         If a user wants to check a specific task they should be allowed if they did request it
         """
-        mocks_get_user.return_value = {"id": basic_user["id"]}
+        decode_return = {"sub": basic_user["id"]}
+        decode_return.update(basic_user)
+        mock_kc_client["tasks_api_kc"].return_value.decode_token.return_value = decode_return
         task.requested_by = basic_user["id"]
         resp = client.get(
             f'/tasks/{task.id}',
@@ -96,20 +96,19 @@ class TestGetTasks:
         )
         assert resp.status_code == 200, resp.json
 
-    @mock.patch('app.helpers.keycloak.Keycloak.is_user_admin', return_value=False)
     def test_get_task_by_id_non_admin_non_owner(
             self,
-            mock_is_admin,
-            mocks_kc_tasks,
             simple_user_header,
             client,
-            task
+            task,
+            mock_kc_client
         ):
         """
         If a user wants to check a specific task they should not be allowed if they did not request it
         """
         task_obj = db.session.get(Task, task.id)
         task_obj.requested_by = "some random uuid"
+        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
 
         resp = client.get(
             f'/tasks/{task.id}',
@@ -174,7 +173,8 @@ class TestGetTasks:
             client,
             task_body,
             mocker,
-            task
+            task,
+
         ):
         """
         Test to verify the correct task status when it's terminated on k8s
@@ -214,7 +214,8 @@ class TestPostTask:
             reg_k8s_client,
             registry_client,
             task_body,
-            v1_crd_mock
+            v1_crd_mock,
+
         ):
         """
         Tests task creation returns 201
@@ -239,7 +240,8 @@ class TestPostTask:
             client,
             reg_k8s_client,
             registry_client,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation returns 201, if the db_query field
@@ -270,7 +272,8 @@ class TestPostTask:
             client,
             reg_k8s_client,
             registry_client,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation returns an error if the db_query is
@@ -292,7 +295,8 @@ class TestPostTask:
             post_json_admin_header,
             client,
             registry_client,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation returns 4xx request when output
@@ -314,7 +318,8 @@ class TestPostTask:
             post_json_admin_header,
             client,
             registry_client,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation returns 201 but the volume mounted
@@ -339,7 +344,8 @@ class TestPostTask:
             client,
             registry_client,
             dataset,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation with a dataset name returns 201
@@ -362,7 +368,8 @@ class TestPostTask:
             client,
             registry_client,
             dataset,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation with a dataset name and id returns 201
@@ -383,7 +390,8 @@ class TestPostTask:
             post_json_admin_header,
             client,
             dataset,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation with a dataset name that does not exists
@@ -405,7 +413,8 @@ class TestPostTask:
             cr_client,
             post_json_admin_header,
             client,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation returns 404 when the requested dataset doesn't exist
@@ -427,7 +436,8 @@ class TestPostTask:
             post_json_admin_header,
             client,
             dataset,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation returns 404 when the
@@ -453,7 +463,8 @@ class TestPostTask:
             post_json_user_header,
             dataset,
             client,
-            task_body
+            task_body,
+            mock_kc_client
         ):
         """
         Tests task creation returns 403 if a user is not authorized to
@@ -461,6 +472,8 @@ class TestPostTask:
         """
         data = task_body
         data["dataset_id"] = dataset.id
+
+        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
 
         response = client.post(
             '/tasks/',
@@ -502,7 +515,8 @@ class TestPostTask:
             post_json_admin_header,
             client,
             container,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation is successful if two images are mapped with the
@@ -523,7 +537,8 @@ class TestPostTask:
             cr_client_404,
             post_json_admin_header,
             client,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation returns 500 with a requested docker image is not found
@@ -543,7 +558,8 @@ class TestPostTask:
             client,
             registry_client,
             reg_k8s_client,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation returns 201 and if users provide
@@ -572,7 +588,8 @@ class TestPostTask:
             client,
             registry_client,
             reg_k8s_client,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation returns 201 and if users provide
@@ -597,7 +614,8 @@ class TestPostTask:
             post_json_admin_header,
             client,
             registry_client,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation returns 4xx request when output
@@ -618,7 +636,8 @@ class TestPostTask:
             post_json_admin_header,
             client,
             registry_client,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation returns 4xx request when inputs
@@ -640,7 +659,8 @@ class TestPostTask:
             post_json_admin_header,
             client,
             registry_client,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation returns 201 but the resutls volume mounted
@@ -665,7 +685,8 @@ class TestPostTask:
             post_json_admin_header,
             client,
             registry_client,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation returns 201 but the volume mounted
@@ -691,7 +712,8 @@ class TestPostTask:
             registry_client,
             k8s_client,
             task_body,
-            v1_crd_mock
+            v1_crd_mock,
+
         ):
         """
         Tests task creation returns 201. It should not try to
@@ -714,7 +736,8 @@ class TestPostTask:
             set_task_controller_env,
             k8s_client,
             task_body,
-            v1_crd_mock
+            v1_crd_mock,
+
         ):
         """
         Tests task creation returns 201. It should try to
@@ -736,7 +759,8 @@ class TestPostTask:
             registry_client,
             k8s_client,
             v1_crd_mock,
-            task_body
+            task_body,
+
         ):
         """
         Tests task creation returns 201. Should be consistent
@@ -757,6 +781,7 @@ class TestPostTask:
             cr_client,
             reg_k8s_client,
             registry_client,
+
     ):
         """
         Simple test to make sure the generated connection string
@@ -775,7 +800,8 @@ class TestPostTask:
             cr_client,
             reg_k8s_client,
             registry_client,
-            dataset_oracle
+            dataset_oracle,
+
     ):
         """
         Simple test to make sure the generated connection string
@@ -809,7 +835,8 @@ class TestCancelTask:
     def test_cancel_404_task(
             self,
             client,
-            simple_admin_header
+            simple_admin_header,
+
         ):
         """
         Test that an admin can cancel a non-existing task returns a 404
@@ -828,7 +855,8 @@ class TestValidateTask:
             task_body,
             cr_client,
             registry_client,
-            post_json_admin_header
+            post_json_admin_header,
+
         ):
         """
         Test the validation endpoint can be used by admins returns 201
@@ -846,7 +874,8 @@ class TestValidateTask:
             task_body,
             cr_client,
             registry_client,
-            post_json_admin_header
+            post_json_admin_header,
+
         ):
         """
         Test the validation endpoint can be used by admins returns
@@ -863,8 +892,6 @@ class TestValidateTask:
 
     def test_validate_task_basic_user(
             self,
-            mocks_kc_tasks,
-            mocker,
             client,
             task_body,
             cr_client,
@@ -872,12 +899,12 @@ class TestValidateTask:
             post_json_user_header: dict[str, str],
             access_request,
             user_uuid,
-            dar_user
+            mock_kc_client
         ):
         """
         Test the validation endpoint can be used by non-admins returns 201
         """
-        mocks_kc_tasks["wrappers"].return_value.get_user_by_username.return_value = {"id": user_uuid}
+        mock_kc_client["wrappers_kc"].return_value.get_user_by_username.return_value = {"id": user_uuid}
 
         post_json_user_header["project-name"] = access_request.project_name
         response = client.post(
@@ -895,7 +922,8 @@ class TestTasksLogs:
             client,
             mocker,
             terminated_state,
-            task
+            task,
+
         ):
         """
         Basic test that will allow us to return
@@ -923,7 +951,8 @@ class TestTasksLogs:
             self,
             post_json_admin_header,
             client,
-            task
+            task,
+
         ):
         """
         Basic test that will check the appropriate error
@@ -942,7 +971,8 @@ class TestTasksLogs:
             client,
             mocker,
             waiting_state,
-            task
+            task,
+
         ):
         """
         Basic test that will try to get logs for a pod
@@ -968,7 +998,8 @@ class TestTasksLogs:
             post_json_admin_header,
             client,
             mocker,
-            task
+            task,
+
         ):
         """
         Basic test that will try to get the logs from a missing
@@ -992,7 +1023,8 @@ class TestTasksLogs:
             k8s_client,
             mocker,
             task,
-            terminated_state
+            terminated_state,
+
         ):
         """
         Basic test that will try to get the logs, but k8s
