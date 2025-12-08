@@ -188,7 +188,7 @@ class Dataset(db.Model, BaseModel):
         if new_pass:
             secret.data["PGPASSWORD"] = KubernetesClient.encode_secret_value(new_pass)
 
-        secret.metadata["labels"] = {
+        secret.metadata.labels = {
             "type": "database",
             "host": secret_name
         }
@@ -198,7 +198,7 @@ class Dataset(db.Model, BaseModel):
         try:
             # Create new secret if name is different
             if (new_host != self.host and new_host) or (new_name != self.name and new_name):
-                secret.metadata['name'] = self.get_creds_secret_name(new_host, new_name)
+                secret.metadata.name = self.get_creds_secret_name(new_host, new_name)
                 secret_task.metadata = secret.metadata
                 v1.create_namespaced_secret(DEFAULT_NAMESPACE, body=secret, pretty='true')
                 v1.create_namespaced_secret(TASK_NAMESPACE, body=secret_task, pretty='true')

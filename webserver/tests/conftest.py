@@ -420,11 +420,12 @@ def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
     create_user_return["password"] = "tempPassword!"
     kc_mock = {
         "main_kc": mocker.patch('app.main.Keycloak', return_value=Mock(
-            get_token=Mock(return_value={"access_token": "token"})
+            get_token=Mock(return_value={"access_token": "token"}),
         )),
         "wrappers_kc": mocker.patch('app.helpers.wrappers.Keycloak', return_value=Mock(
             get_token=Mock(return_value={"access_token": "token"}),
             decode_token=Mock(return_value=decode_token_return),
+            get_user_by_email=Mock(return_value=basic_user),
             get_user_by_username=Mock(return_value=basic_user)
         )),
         "datasets_api_kc": mocker.patch('app.datasets_api.Keycloak', return_value=Mock(

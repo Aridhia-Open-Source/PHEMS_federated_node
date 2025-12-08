@@ -21,24 +21,30 @@ TASK_NAMESPACE = os.getenv("TASK_NAMESPACE", "tasks")
 
 # Ready check on backend
 for i in range(10):
-  hc_resp = requests.get(f"{BACKEND_URL}/health_check")
-  if hc_resp.ok:
-    break
+  try:
+    hc_resp = requests.get(f"{BACKEND_URL}/health_check")
+    if hc_resp.ok:
+      break
+  except requests.exceptions.ConnectionError:
+    print(f"{i+1}/10 - Failed to connect. Will retry in 10 seconds")
+  time.sleep(10)
 
-  time.sleep(1)
+# Login as admin - Wait 10 seconds between retries. The keycloak init job relies on both kc pods to be up
+for i in range(10):
+  login_resp = requests.post(
+    f"{BACKEND_URL}/login",
+    data={
+      "username": ADMIN_USER,
+      "password": ADMIN_PASS,
+    },
+    headers={"Content-Type": "application/x-www-form-urlencoded"}
+  )
+  if not login_resp.ok:
+    print(f"{i+1}/10 - {login_resp.json()}")
+    time.sleep(10)
+    continue
 
-# Login
-login_resp = requests.post(
-  f"{BACKEND_URL}/login",
-  data={
-    "username": ADMIN_USER,
-    "password": ADMIN_PASS,
-  },
-  headers={"Content-Type": "application/x-www-form-urlencoded"}
-)
-if not login_resp.ok:
-  print("Failed to login")
-  sys.exit(1)
+  break
 
 bearer_token = login_resp.json()["token"]
 

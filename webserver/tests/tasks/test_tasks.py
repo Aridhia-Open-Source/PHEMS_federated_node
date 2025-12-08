@@ -86,7 +86,9 @@ class TestGetTasks:
         """
         If a user wants to check a specific task they should be allowed if they did request it
         """
-        mock_kc_client["tasks_api_kc"].return_value.decode_token.return_value = {"sub": basic_user["id"]}
+        decode_return = {"sub": basic_user["id"]}
+        decode_return.update(basic_user)
+        mock_kc_client["tasks_api_kc"].return_value.decode_token.return_value = decode_return
         task.requested_by = basic_user["id"]
         resp = client.get(
             f'/tasks/{task.id}',

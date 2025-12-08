@@ -17,7 +17,7 @@ class TestAudits:
         """
         Test that after a simple GET call we have an audit entry
         """
-        mock_kc_client["wrappers_kc"].return_value.decode_token.return_value["sub"] = admin_user_uuid
+        mock_kc_client["wrappers_kc"].return_value.get_user_by_email.return_value["id"] = admin_user_uuid
 
         r = client.get("/datasets/", headers=simple_admin_header)
         assert r.status_code == 200, r.text
