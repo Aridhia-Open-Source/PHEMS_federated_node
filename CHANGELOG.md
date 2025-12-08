@@ -6,6 +6,7 @@
 - Changed token exchange API body to not include `subject_token_type`
 - Made use of bootsrap user for the `keycloak-realm-init` daemonset to not share credentials
 - Updated keycloak-role to monitor statefulsets in its namespace to allow a better performance on the `keycloak-realm-init`
+- `regcred-migration` job has its max retries increased to 10. Also got post-* hooks set to delay its start as long as possible
 
 ## 1.6.0
 - Docker images' sha/digest supported on top of tags for a more precise snapshot in history.
