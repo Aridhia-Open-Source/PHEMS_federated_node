@@ -123,6 +123,11 @@ jobs:
         run: |
           make tests_ci
 
+      - name: Run Keycloak Integration Tests
+        working-directory: webserver
+        run: |
+          make tests_integration
+
       - uses: irongut/CodeCoverageSummary@v1.3.0
         name: Code Coverage Summary Report
         with:

@@ -1,8 +1,8 @@
 from datetime import timedelta
 from kubernetes.client.exceptions import ApiException
-
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
+from app.helpers.keycloak import Keycloak
 from app.helpers.const import CLEANUP_AFTER_DAYS, CRD_DOMAIN
 
 
@@ -171,12 +171,16 @@ class TestResultsReview:
         simple_user_header,
         client,
         task_mock,
-        set_task_review_env
+        set_task_review_env,
+        k8s_client,
+        mock_kc_client
     ):
         """
         Test to make sure the user can't fetch their results
         before the review took place
         """
+        mock_kc_client["tasks_api_kc"].return_value.is_user_admin.return_value = False
+        k8s_client["list_namespaced_pod_mock"].return_value.items[0].metadata.name = task_mock.name
         response = client.get(
             f'/tasks/{task_mock.id}/results',
             headers=simple_user_header
@@ -194,12 +198,14 @@ class TestResultsReview:
         k8s_client,
         set_task_review_env,
         v1_crd_mock,
+        mock_kc_client,
         mocker
     ):
         """
         Test to make sure the user can't fetch their results
         if they have been blocked by an administrator
         """
+        mocker.patch.object(Keycloak, "is_user_admin", return_value=False)
         mocker.patch(
             "app.models.task.Task.get_task_crd",
             return_value={
@@ -216,6 +222,8 @@ class TestResultsReview:
             headers=simple_admin_header
         )
         assert response.status_code == 201
+
+        mock_kc_client["tasks_api_kc"].return_value.is_user_admin.return_value = False
 
         response = client.get(
             f'/tasks/{task_mock.id}/results',

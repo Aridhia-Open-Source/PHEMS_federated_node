@@ -133,48 +133,43 @@ class TestDatasets(MixinTestDataset):
         assert response.status_code == 200
         assert response.json == self.expected_ds_entry(dataset)
 
-    @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
     def test_get_dataset_by_id_403(
             self,
-            mock_token_valid,
             simple_user_header,
             client,
-            dataset
+            dataset,
+            mock_kc_client
         ):
         """
         /datasets/{id} GET returns 403 for non-approved users
         """
+        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
         response = client.get(f"/datasets/{dataset.id}", headers=simple_user_header)
         assert response.status_code == 403, response.json
 
-    @mock.patch(
-        'app.helpers.wrappers.Keycloak.exchange_global_token',
-        side_effect=KeycloakError("Could not find project", 400)
-    )
     def test_get_dataset_by_id_project_not_valid(
             self,
-            kc_egt_mock,
             simple_user_header,
             client,
-            dataset
+            dataset,
+            mock_kc_client
         ):
         """
         /datasets/{id} GET returns 400 for non-existing project
         """
+        mock_kc_client["wrappers_kc"].return_value.has_user_roles.return_value = False
+        mock_kc_client["wrappers_kc"].return_value.exchange_global_token.side_effect = KeycloakError("Could not find project", 400)
         header = simple_user_header.copy()
         header["project-name"] = "test project"
         response = client.get(f"/datasets/{dataset.id}", headers=header)
         assert response.status_code == 400
-        assert response.json == {"error": "User does not belong to a valid project"}
+        assert response.json == {"error": "Could not find project"}
 
     @mock.patch('app.datasets_api.Request.approve', return_value={"token": "token"})
-    @mock.patch('app.datasets_api.Keycloak.get_user_by_email', return_value={"id": "id"})
     def test_get_dataset_by_id_project_approved(
             self,
-            kc_user_mock,
             req_approve_mock,
-            mocker,
-            mocks_kc_tasks,
+            mock_kc_client,
             post_json_admin_header,
             request_base_body,
             client,
@@ -196,7 +191,7 @@ class TestDatasets(MixinTestDataset):
         req = Request.query.filter(
             Request.project_name == request_base_body["project_name"]
         ).one_or_none()
-        mocks_kc_tasks["wrappers"].return_value.get_user_by_username.return_value = {"id": user_uuid}
+        mock_kc_client["wrappers_kc"].return_value.get_user_by_username.return_value = {"id": user_uuid}
         req.requested_by = user_uuid
 
         response = client.get(f"/datasets/{dataset.id}", headers={
@@ -206,20 +201,16 @@ class TestDatasets(MixinTestDataset):
         assert response.status_code == 200, response.json
         assert response.json == self.expected_ds_entry(dataset)
 
-    @mock.patch('app.helpers.keycloak.Keycloak.is_user_admin', return_value=False)
     @mock.patch('app.datasets_api.Request.approve', return_value={"token": "somejwttoken"})
-    @mock.patch('app.datasets_api.Keycloak.get_user_by_email', return_value={"id": "id"})
     def test_get_dataset_by_id_project_non_approved(
             self,
-            kc_user_mock,
             req_mock,
-            mocks_is_admin,
             project_not_found,
             post_json_admin_header,
             request_base_body,
-            login_user,
             client,
-            dataset
+            dataset,
+            mock_kc_client
         ):
         """
         /datasets/{id} GET returns 401 for non-approved users
@@ -233,6 +224,7 @@ class TestDatasets(MixinTestDataset):
         assert list(response.json.keys()) == ["token"]
 
         token = response.json["token"]
+        mock_kc_client["wrappers_kc"].return_value.is_user_admin.return_value = False
         response = client.get(f"/datasets/{dataset.id}", headers={
             "Authorization": f"Bearer {token}",
             "project-name": "test project"
@@ -472,18 +464,18 @@ class TestPostDataset(MixinTestDataset):
 
         self.assert_datasets_by_name(data_body['name'])
 
-    @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
     def test_post_dataset_is_unsuccessful_non_admin(
             self,
-            kc_tv_mock,
             post_json_user_header,
             client,
             dataset,
-            dataset_post_body
+            dataset_post_body,
+            mock_kc_client
         ):
         """
         /datasets POST is not successful for non-admin users
         """
+        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
         self.post_dataset(client, post_json_user_header, data_body, 403)
@@ -585,7 +577,6 @@ class TestPostDataset(MixinTestDataset):
             ds_add_mock,
             post_json_admin_header,
             client,
-            login_user,
             dataset,
             dataset_post_body
         ):
@@ -651,7 +642,6 @@ class TestPostDataset(MixinTestDataset):
             post_json_admin_header,
             dataset,
             client,
-            login_user,
             dataset_post_body
         ):
         """
@@ -673,14 +663,13 @@ class TestPostDataset(MixinTestDataset):
 
 
 class TestPatchDataset(MixinTestDataset):
-    @mock.patch('app.models.dataset.Keycloak.patch_resource', return_value=Mock())
     def test_patch_dataset_name_is_successful(
             self,
-            mock_kc_patch,
             dataset,
             post_json_admin_header,
             client,
-            k8s_client
+            k8s_client,
+            mock_kc_client
     ):
         """
         Tests that the PATCH request works as intended
@@ -711,24 +700,21 @@ class TestPatchDataset(MixinTestDataset):
                 **{'namespace':ns, 'name':expected_secret_name}
             )
 
-        mock_kc_patch.assert_called_with(
+        mock_kc_client["dataset_kc"].return_value.patch_resource.assert_called_with(
             f'{dataset.id}-{ds_old_name}',
             **{'displayName': f'{dataset.id} - new_name','name': f'{dataset.id}-new_name'}
         )
 
-    @mock.patch('app.models.dataset.Keycloak.patch_resource', return_value=Mock())
-    @mock.patch('app.datasets_api.Keycloak', return_value=Mock())
     def test_patch_dataset_name_with_dars(
             self,
-            mock_kc_patch_api,
-            mock_kc_patch,
             dataset,
             post_json_admin_header,
             client,
             access_request,
             dar_user,
             user_uuid,
-            k8s_client
+            k8s_client,
+            mock_kc_client
     ):
         """
         Tests that the PATCH request works as intended
@@ -740,8 +726,8 @@ class TestPatchDataset(MixinTestDataset):
         data_body = {"name": "new_name"}
         expected_client = f'Request {dar_user} - {dataset.host}'
 
-        mock_kc_patch_api.return_value.patch_resource.return_value = Mock()
-        mock_kc_patch_api.return_value.get_user_by_id.return_value = {"email": dar_user}
+        mock_kc_client["datasets_api_kc"].return_value.patch_resource.return_value = Mock()
+        mock_kc_client["datasets_api_kc"].return_value.get_user_by_id.return_value = {"email": dar_user}
 
         response = client.patch(
             f"/datasets/{dataset.id}",
@@ -752,12 +738,12 @@ class TestPatchDataset(MixinTestDataset):
         ds = Dataset.query.filter(Dataset.id == dataset.id).one_or_none()
         assert ds.name == "new_name"
 
-        mock_kc_patch.assert_called_with(
+        mock_kc_client["dataset_kc"].return_value.patch_resource.assert_called_with(
             f'{dataset.id}-{ds_old_name}',
             **{'displayName': f'{dataset.id} - new_name','name': f'{dataset.id}-new_name'}
         )
-        mock_kc_patch_api.assert_any_call(**{'client':expected_client})
-        mock_kc_patch_api.return_value.patch_resource.assert_called_with(
+        mock_kc_client["datasets_api_kc"].assert_any_call(**{'client':expected_client})
+        mock_kc_client["datasets_api_kc"].return_value.patch_resource.assert_called_with(
             f'{dataset.id}-{ds_old_name}',
             **{'displayName': f'{dataset.id} - new_name','name': f'{dataset.id}-new_name'}
         )
@@ -822,18 +808,18 @@ class TestPatchDataset(MixinTestDataset):
         ds = Dataset.query.filter(Dataset.id == dataset.id).one_or_none()
         assert ds.name == ds_old_name
 
-    @mock.patch('app.models.dataset.Keycloak.patch_resource', side_effect=KeycloakError("Failed to patch the resource"))
     def test_patch_dataset_fails_on_keycloak_update(
             self,
-            mock_kc_patch,
             dataset,
             post_json_admin_header,
-            client
+            client,
+            mock_kc_client
     ):
         """
         Tests that the PATCH request returns a 400 in case
         keycloak resource update goes wrong
         """
+        mock_kc_client["dataset_kc"].return_value.patch_resource.side_effect=KeycloakError("Failed to patch the resource")
         data_body = {
             "name": "new_name"
         }
@@ -1076,17 +1062,17 @@ class TestDeleteDataset(MixinTestDataset):
         assert Catalogue.query.filter_by(dataset_id=ds_id).count() == 0
         assert Dictionary.query.filter_by(dataset_id=ds_id).count() == 0
 
-    @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
     def test_delete_dataset_unauthorized(
             self,
-            token_valid_mock,
             client,
             dataset,
-            post_json_user_header
+            post_json_user_header,
+            mock_kc_client
     ):
         """
         Tests that a non admin cannot delete a dataset
         """
+        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
         ds_id = dataset.id
         response = client.delete(
             f"/datasets/{ds_id}",
