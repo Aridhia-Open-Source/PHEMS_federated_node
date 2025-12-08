@@ -1,7 +1,7 @@
 name: federated_node_integration_tests
 services:
   db:
-    image: 'postgres:13-alpine'
+    image: 'postgres:17-alpine'
     environment:
       POSTGRES_DB: test_app
       POSTGRES_USER: admin
