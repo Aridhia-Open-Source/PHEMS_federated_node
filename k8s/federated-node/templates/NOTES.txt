@@ -19,4 +19,4 @@ The smoketest pod will stay until the next one is run.
 It can be deleted with:
 kubectl delete pod -n {{ .Release.Namespace }} {{ .Release.Name }}-smoke-tests
 
-Also check out our "Getting Started" article: https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Getting-Started
+Also check out our "How to use it" article: https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/How-to-use-it

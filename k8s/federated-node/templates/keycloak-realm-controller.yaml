@@ -1,26 +1,25 @@
-{{- define "kcDaemonName" -}}
+{{- define "kcControlleName" -}}
   {{ print "keycloak-realm-init" }}
 {{- end -}}
 apiVersion: apps/v1
-kind: DaemonSet
+kind: Deployment
 metadata:
-  name: {{ include "kcDaemonName" . }}
+  name: {{ include "kcControlleName" . }}
   namespace: {{ include "kc_namespace" . }}
   labels:
-    name: {{ include "kcDaemonName" . }}
+    app: {{ include "kcControlleName" . }}
   annotations:
     helm.sh/hook: post-install,post-upgrade
     helm.sh/hook-delete-policy: before-hook-creation
     helm.sh/hook-weight: "-1"
-    {{ template "defaultAnnotations" . }}
 spec:
   selector:
     matchLabels:
-      name: {{ include "kcDaemonName" . }}
+      app: {{ include "kcControlleName" . }}
   template:
     metadata:
       labels:
-        name: {{ include "kcDaemonName" . }}
+        app: {{ include "kcControlleName" . }}
     spec:
       serviceAccountName: k8s-keycloak-handler
       containers:

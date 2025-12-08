@@ -20,7 +20,7 @@ helm_tests:
 	./scripts/run_helm_tests.sh
 
 build_keycloak:
-	docker build build/keycloak -f build/keycloak/keycloak.Dockerfile -t ghcr.io/aridhia-open-source/federated_keycloak:${TAG}
+	docker build build/keycloak -t ghcr.io/aridhia-open-source/federated_keycloak:${TAG}
 
 build_connector:
 	docker build build/db-connector -t ghcr.io/aridhia-open-source/db_connector:${TAG}

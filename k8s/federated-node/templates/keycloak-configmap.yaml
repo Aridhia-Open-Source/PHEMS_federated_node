@@ -4,6 +4,10 @@ metadata:
   name: keycloak-config
   namespace: {{ include "kc_namespace" . }}
 data:
+  KC_HEALTH_ENABLED: "true"
+  KC_HOSTNAME_STRICT: "false"
+  KC_FEATURES: admin-fine-grained-authz:v1,token-exchange,scripts
+  KC_BOOTSTRAP_ADMIN_USERNAME: tmpadmin
   KEYCLOAK_ADMIN: admin
   KC_DB_URL_HOST: {{ include "dbKeycloakHost" . }}
   KC_DB: postgres
@@ -13,6 +17,7 @@ data:
   KEYCLOAK_TOKEN_LIFE: {{ include "tokenLife" . }}
   KEYCLOAK_NAMESPACE: {{ include "kc_namespace" . }}
   KEYCLOAK_HOSTNAME: {{ .Values.host }}
+  KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "false"
   # PROXY_ADDRESS_FORWARDING: true
 ---
 {{- $list_ns := list .Release.Namespace -}}

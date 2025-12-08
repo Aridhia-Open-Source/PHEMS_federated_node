@@ -1,7 +1,14 @@
 # Releases Changelog
 
-## 1.7.0
+## 1.8.0
 - **BREAKING CHANGE**: Migration from nginx-ingress to the gateway api based controller, traefik. This will need manual intervention. See the [gateway-api-installer.sh](./scripts/gateway-api-installer.sh) script to one-step setup. If not, the chart will let you know some components are missing and provide instructions.
+
+## 1.7.0
+- Upgraded Keycloak to version 26.4
+- Changed the init realm daemonset to a deployment, as it behaves like a controller for keycloak
+- Changed token exchange API body to not include `subject_token_type`
+- Made use of bootsrap user for the `keycloak-realm-init` daemonset to not share credentials
+- Updated keycloak-role to monitor statefulsets in its namespace to allow a better performance on the `keycloak-realm-init`
 
 ## 1.6.0
 - Docker images' sha/digest supported on top of tags for a more precise snapshot in history.
