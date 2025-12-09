@@ -3,7 +3,7 @@ entries:
   federated-node:
   - apiVersion: v2
     appVersion: 1.8.0-vfe0858
-    created: "2025-12-08T18:03:14.091275837Z"
+    created: "2025-12-09T08:14:40.094561485Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -26,7 +26,7 @@ entries:
     version: 1.8.0-vfe0858
   - apiVersion: v2
     appVersion: 1.8.0-vcbbf3c
-    created: "2025-12-08T18:03:14.080084756Z"
+    created: "2025-12-09T08:14:40.083984468Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -49,7 +49,7 @@ entries:
     version: 1.8.0-vcbbf3c
   - apiVersion: v2
     appVersion: 1.8.0-v943f98
-    created: "2025-12-08T18:03:14.064641684Z"
+    created: "2025-12-09T08:14:40.069412456Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -72,7 +72,7 @@ entries:
     version: 1.8.0-v943f98
   - apiVersion: v2
     appVersion: 1.8.0-v909dcd
-    created: "2025-12-08T18:03:14.053533498Z"
+    created: "2025-12-09T08:14:40.058825461Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -95,7 +95,7 @@ entries:
     version: 1.8.0-v909dcd
   - apiVersion: v2
     appVersion: 1.8.0-v504a2e
-    created: "2025-12-08T18:03:14.038377773Z"
+    created: "2025-12-09T08:14:40.042789247Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -117,8 +117,31 @@ entries:
     - federated-node-1.8.0-v504a2e.tgz
     version: 1.8.0-v504a2e
   - apiVersion: v2
+    appVersion: 1.8.0-v306573
+    created: "2025-12-09T08:14:40.033171006Z"
+    dependencies:
+    - condition: outboundMode
+      name: fn-task-controller
+      repository: https://aridhia-open-source.github.io/federated-node-task-controller
+      version: 1.6.0
+    - condition: cert-manager.enabled
+      name: cert-manager
+      repository: https://charts.jetstack.io
+      version: v1.17.1
+    - condition: ingress-nginx.enabled
+      name: ingress-nginx
+      repository: https://kubernetes.github.io/ingress-nginx
+      version: 4.12.1
+    description: A Helm chart for deploying the Federated Node on Kubernetes
+    digest: 52b1d762e782905e8062442150cfd02b4772278c9d8e46262b2e7f5e38c4dfc3
+    name: federated-node
+    type: application
+    urls:
+    - federated-node-1.8.0-v306573.tgz
+    version: 1.8.0-v306573
+  - apiVersion: v2
     appVersion: 1.7.0
-    created: "2025-12-08T18:03:14.02869861Z"
+    created: "2025-12-09T08:14:40.023877554Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -141,7 +164,7 @@ entries:
     version: 1.7.0
   - apiVersion: v2
     appVersion: 1.7.0-vfb5ab4
-    created: "2025-12-08T18:03:14.018834334Z"
+    created: "2025-12-09T08:14:40.014144566Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -164,7 +187,7 @@ entries:
     version: 1.7.0-vfb5ab4
   - apiVersion: v2
     appVersion: 1.7.0-ve224f8
-    created: "2025-12-08T18:03:14.009285707Z"
+    created: "2025-12-09T08:14:40.004763387Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -187,7 +210,7 @@ entries:
     version: 1.7.0-ve224f8
   - apiVersion: v2
     appVersion: 1.7.0-vc79afd
-    created: "2025-12-08T18:03:13.999541487Z"
+    created: "2025-12-09T08:14:39.995262537Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -210,7 +233,7 @@ entries:
     version: 1.7.0-vc79afd
   - apiVersion: v2
     appVersion: 1.7.0-vb50e25
-    created: "2025-12-08T18:03:13.989830206Z"
+    created: "2025-12-09T08:14:39.985939243Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -233,7 +256,7 @@ entries:
     version: 1.7.0-vb50e25
   - apiVersion: v2
     appVersion: 1.7.0-vaac667
-    created: "2025-12-08T18:03:13.98037096Z"
+    created: "2025-12-09T08:14:39.976072785Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -256,7 +279,7 @@ entries:
     version: 1.7.0-vaac667
   - apiVersion: v2
     appVersion: 1.7.0-v808286
-    created: "2025-12-08T18:03:13.971016723Z"
+    created: "2025-12-09T08:14:39.965853729Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -279,7 +302,7 @@ entries:
     version: 1.7.0-v808286
   - apiVersion: v2
     appVersion: 1.7.0-v7fafbc
-    created: "2025-12-08T18:03:13.961431394Z"
+    created: "2025-12-09T08:14:39.957217771Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -302,7 +325,7 @@ entries:
     version: 1.7.0-v7fafbc
   - apiVersion: v2
     appVersion: 1.7.0-v711211
-    created: "2025-12-08T18:03:13.951855502Z"
+    created: "2025-12-09T08:14:39.947615975Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -325,7 +348,7 @@ entries:
     version: 1.7.0-v711211
   - apiVersion: v2
     appVersion: 1.7.0-v6dbe20
-    created: "2025-12-08T18:03:13.942117036Z"
+    created: "2025-12-09T08:14:39.937892917Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -348,7 +371,7 @@ entries:
     version: 1.7.0-v6dbe20
   - apiVersion: v2
     appVersion: 1.7.0-v46f8dc
-    created: "2025-12-08T18:03:13.932624042Z"
+    created: "2025-12-09T08:14:39.927998269Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -371,7 +394,7 @@ entries:
     version: 1.7.0-v46f8dc
   - apiVersion: v2
     appVersion: 1.6.0
-    created: "2025-12-08T18:03:13.923209105Z"
+    created: "2025-12-09T08:14:39.918129069Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -393,1204 +416,8 @@ entries:
     - federated-node-1.6.0.tgz
     version: 1.6.0
   - apiVersion: v2
-    appVersion: 1.6.0-vf6d2f6
-    created: "2025-12-08T18:03:13.91386367Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 3d87737fcda255f20895ddb1fb866bf1c4dce97bab461e83d58365f9c0a43e3d
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-vf6d2f6.tgz
-    version: 1.6.0-vf6d2f6
-  - apiVersion: v2
-    appVersion: 1.6.0-vf474d1
-    created: "2025-12-08T18:03:13.903718416Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 3780c5adb44681edf91223140b2838f4ac02d4136d4630b1816470e17b2848a5
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-vf474d1.tgz
-    version: 1.6.0-vf474d1
-  - apiVersion: v2
-    appVersion: 1.6.0-vf3da3b
-    created: "2025-12-08T18:03:13.893227462Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 37910e40c4b578819fca2a39b1a7be1f96130c84ec799b85fd0dcd43006896d3
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-vf3da3b.tgz
-    version: 1.6.0-vf3da3b
-  - apiVersion: v2
-    appVersion: 1.6.0-vea5565
-    created: "2025-12-08T18:03:13.883437352Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: fb9d4e65d38fdbffc891fc8bd9bb1f2fe1d3bdc00a6fa4493e6ad1b0a6cbf331
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-vea5565.tgz
-    version: 1.6.0-vea5565
-  - apiVersion: v2
-    appVersion: 1.6.0-ve86b02
-    created: "2025-12-08T18:03:13.873475843Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0-v212ed0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 752f10d74e2308b4798d36841aa80110337bef8588e517e22db880680af2550f
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-ve86b02.tgz
-    version: 1.6.0-ve86b02
-  - apiVersion: v2
-    appVersion: 1.6.0-ve55278
-    created: "2025-12-08T18:03:13.862910002Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 2a98e338d90b08de00ef7271dfe6ce7fb683f2a33408c1a00ed2d8da897a8de2
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-ve55278.tgz
-    version: 1.6.0-ve55278
-  - apiVersion: v2
-    appVersion: 1.6.0-ve0ad96
-    created: "2025-12-08T18:03:13.853425877Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 5723878a688c8b57358a80f3d17d85bf12656a35058a7bbbfec0991a5162cc1d
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-ve0ad96.tgz
-    version: 1.6.0-ve0ad96
-  - apiVersion: v2
-    appVersion: 1.6.0-vd35aeb
-    created: "2025-12-08T18:03:13.843996109Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0-v748f79
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 37c861afefe70d3d1f4fd653df2e24a210b53a7fd33b0b15e7b6c0d9a4c409b5
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-vd35aeb.tgz
-    version: 1.6.0-vd35aeb
-  - apiVersion: v2
-    appVersion: 1.6.0-vd0985f
-    created: "2025-12-08T18:03:13.834892864Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 66662c4165d3ca8e38efbab22509551d60581ba986da98cc4c671bff9d4b7992
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-vd0985f.tgz
-    version: 1.6.0-vd0985f
-  - apiVersion: v2
-    appVersion: 1.6.0-vc47908
-    created: "2025-12-08T18:03:13.825644557Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 58758e7ebf656cc8a2d0d112e5e4a3ac28db89e1f2134b7bdff761c6b03c862c
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-vc47908.tgz
-    version: 1.6.0-vc47908
-  - apiVersion: v2
-    appVersion: 1.6.0-vc12482
-    created: "2025-12-08T18:03:13.816341773Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: a7f43f93b7675af620ee050f7c3e5821ec690a60d959419ffcd9f748e1583a12
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-vc12482.tgz
-    version: 1.6.0-vc12482
-  - apiVersion: v2
-    appVersion: 1.6.0-vbd9bbe
-    created: "2025-12-08T18:03:13.806826298Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: dae02438be83d8e66fdd6229469a3980667cce2a1284fced808dc3d7adbae262
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-vbd9bbe.tgz
-    version: 1.6.0-vbd9bbe
-  - apiVersion: v2
-    appVersion: 1.6.0-vb520d6
-    created: "2025-12-08T18:03:13.797203265Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: a2841491bd05bebcfcf3d94c116ef8a40092f4f6fe4dc03b792622d67b8e5bf8
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-vb520d6.tgz
-    version: 1.6.0-vb520d6
-  - apiVersion: v2
-    appVersion: 1.6.0-vaed222
-    created: "2025-12-08T18:03:13.788053749Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0-v212ed0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 74acb366f2a356f92443346c5621325ab186b4d8f3277fba5c7ab286d542d475
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-vaed222.tgz
-    version: 1.6.0-vaed222
-  - apiVersion: v2
-    appVersion: 1.6.0-v96870a
-    created: "2025-12-08T18:03:13.778784572Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0-v32d1ea
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 71ffd4556f5e0d2ef9eee65a979a973f8c71963c373d1fc200275a3bb97abbb8
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v96870a.tgz
-    version: 1.6.0-v96870a
-  - apiVersion: v2
-    appVersion: 1.6.0-v94edee
-    created: "2025-12-08T18:03:13.769418662Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 40214cefef9d293d0625f0708438f7896ea8e74e5d1a71f309005be04a83d128
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v94edee.tgz
-    version: 1.6.0-v94edee
-  - apiVersion: v2
-    appVersion: 1.6.0-v92b8c8
-    created: "2025-12-08T18:03:13.758841792Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0-v744a59
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 30bc237169761337c161044643d3927010a74b0ac88abd8325f506c37c475377
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v92b8c8.tgz
-    version: 1.6.0-v92b8c8
-  - apiVersion: v2
-    appVersion: 1.6.0-v909fae
-    created: "2025-12-08T18:03:13.749286649Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0-v212ed0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 5fdc95dac00291aea978d404f622e0d5a288cac471a8cf5ff28c8a51f6d0e9b2
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v909fae.tgz
-    version: 1.6.0-v909fae
-  - apiVersion: v2
-    appVersion: 1.6.0-v8ffa72
-    created: "2025-12-08T18:03:13.739246239Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 5131e1b48248c1215abc9c98dd218f75564074b3c6147b2d4c7d0b9b076bea49
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v8ffa72.tgz
-    version: 1.6.0-v8ffa72
-  - apiVersion: v2
-    appVersion: 1.6.0-v8f449f
-    created: "2025-12-08T18:03:13.729338982Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 86a2b8ea65bca8ecb6e112db329426d15c9d4d2fb9476e40970a8f94e47aca16
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v8f449f.tgz
-    version: 1.6.0-v8f449f
-  - apiVersion: v2
-    appVersion: 1.6.0-v8c4f4d
-    created: "2025-12-08T18:03:13.719391209Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0-v744a59
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: a1f343fcb20e9ecb3f99a978bd6cfda899270e0927dd456aba74cebe4905254e
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v8c4f4d.tgz
-    version: 1.6.0-v8c4f4d
-  - apiVersion: v2
-    appVersion: 1.6.0-v8a7a21
-    created: "2025-12-08T18:03:13.701885973Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: e4a0577c1f690f9bc285a62e45c3b5f6624232fb61e72ff974b56ff060bdb3f5
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v8a7a21.tgz
-    version: 1.6.0-v8a7a21
-  - apiVersion: v2
-    appVersion: 1.6.0-v887bfa
-    created: "2025-12-08T18:03:13.692279557Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0-v212ed0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 7404ee19c07e526f3bb9a5e76444c28cd6091ce300da4a3af18b86117d9e68b5
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v887bfa.tgz
-    version: 1.6.0-v887bfa
-  - apiVersion: v2
-    appVersion: 1.6.0-v823f02
-    created: "2025-12-08T18:03:13.68283701Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 812ad5448f3a30dc48e692fb3254642fcd25efd059b7d5a7186628aa738de740
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v823f02.tgz
-    version: 1.6.0-v823f02
-  - apiVersion: v2
-    appVersion: 1.6.0-v80980e
-    created: "2025-12-08T18:03:13.670221438Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: traefik.enabled
-      name: traefik
-      repository: https://traefik.github.io/charts
-      version: 37.3.0
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: a2e17553c797e87dd40e6e9ce92f0318642dccfbda51c1a5530e3e57225c5047
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v80980e.tgz
-    version: 1.6.0-v80980e
-  - apiVersion: v2
-    appVersion: 1.6.0-v7cf8e0
-    created: "2025-12-08T18:03:13.655131412Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0-v744a59
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 66efa1168913fc6890f789097214b360b54e625dfaec1dade99191f0948e33e4
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v7cf8e0.tgz
-    version: 1.6.0-v7cf8e0
-  - apiVersion: v2
-    appVersion: 1.6.0-v7ae128
-    created: "2025-12-08T18:03:13.645909921Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: b4f98f226b77270932ff87b7cef25888278d9b974da0684d017e6bde38bcaf47
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v7ae128.tgz
-    version: 1.6.0-v7ae128
-  - apiVersion: v2
-    appVersion: 1.6.0-v7539e0
-    created: "2025-12-08T18:03:13.636798662Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: d18283b439668513edcb1b747a41c860af0056d5508090eab5bd88e10dab1306
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v7539e0.tgz
-    version: 1.6.0-v7539e0
-  - apiVersion: v2
-    appVersion: 1.6.0-v752a16
-    created: "2025-12-08T18:03:13.62781233Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: de2d09f91f47a2123725cb79b1f64a7a411aa1cccb8b98c58d75cca761be5dac
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v752a16.tgz
-    version: 1.6.0-v752a16
-  - apiVersion: v2
-    appVersion: 1.6.0-v71ea11
-    created: "2025-12-08T18:03:13.618670776Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0-v748f79
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: e6789698929cedd612f99d8b7957dc7f72a51124771054275f3f6dbfe825881d
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v71ea11.tgz
-    version: 1.6.0-v71ea11
-  - apiVersion: v2
-    appVersion: 1.6.0-v6c9521
-    created: "2025-12-08T18:03:13.609595443Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 5c9122e6448f061c90aefe0812eb1f4cea46b6e78e2787a10114a2bd77cca8ac
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v6c9521.tgz
-    version: 1.6.0-v6c9521
-  - apiVersion: v2
-    appVersion: 1.6.0-v67e8d4
-    created: "2025-12-08T18:03:13.599972491Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: de102dd728de8cc08da66047e8757eac4ad7f96f8046d31cb4fd92d3bc8c9dd4
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v67e8d4.tgz
-    version: 1.6.0-v67e8d4
-  - apiVersion: v2
-    appVersion: 1.6.0-v64b8a5
-    created: "2025-12-08T18:03:13.590733887Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 6d235dac034910aeb31f7c1a0884326da2535b9d8ffe2abd513e3637f29c516d
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v64b8a5.tgz
-    version: 1.6.0-v64b8a5
-  - apiVersion: v2
-    appVersion: 1.6.0-v607c3b
-    created: "2025-12-08T18:03:13.580950166Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: ddd249ff463c50cdb4b6f289655be68020a9b4d584ba0e1638276ff089e16806
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v607c3b.tgz
-    version: 1.6.0-v607c3b
-  - apiVersion: v2
-    appVersion: 1.6.0-v5e9dbd
-    created: "2025-12-08T18:03:13.570745344Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0-v744a59
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 932e9c44e5067b3a8289d0dfc8e77567f0519b3b523c910a6a679fff7528e2c3
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v5e9dbd.tgz
-    version: 1.6.0-v5e9dbd
-  - apiVersion: v2
-    appVersion: 1.6.0-v5da7ae
-    created: "2025-12-08T18:03:13.561089559Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 32502e08062afd8f00508e9589681ca763b6a0cc88860101a1f031f9687dc3c2
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v5da7ae.tgz
-    version: 1.6.0-v5da7ae
-  - apiVersion: v2
-    appVersion: 1.6.0-v5c8875
-    created: "2025-12-08T18:03:13.551399949Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 0a1ba338d20997434e2dacdc3657cfd8ed7bc68fe46266f81dbe35377e2af215
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v5c8875.tgz
-    version: 1.6.0-v5c8875
-  - apiVersion: v2
-    appVersion: 1.6.0-v4ac231
-    created: "2025-12-08T18:03:13.540741896Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0-vdcdde5
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 919440f3a914db470179cafa214832ee2c20a802caf690c23e1859ee4aea7bb6
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v4ac231.tgz
-    version: 1.6.0-v4ac231
-  - apiVersion: v2
-    appVersion: 1.6.0-v49ece6
-    created: "2025-12-08T18:03:13.530612436Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: traefik.enabled
-      name: traefik
-      repository: https://traefik.github.io/charts
-      version: 37.3.0
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 88b4ee06b9532e3224970effeb9469f4d7b3f772cf0b60c6a5bac5462956c6b0
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v49ece6.tgz
-    version: 1.6.0-v49ece6
-  - apiVersion: v2
-    appVersion: 1.6.0-v46f36e
-    created: "2025-12-08T18:03:13.51120912Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: c910777221b39872de2cd26b941c7fcc67b80f60431bd9dac8da54b1f204050b
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v46f36e.tgz
-    version: 1.6.0-v46f36e
-  - apiVersion: v2
-    appVersion: 1.6.0-v3dfe8a
-    created: "2025-12-08T18:03:13.501920402Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 7423371ac5ac609b9048f76b3737fbb30beb23cd368b4e387b2dd23f2115595b
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v3dfe8a.tgz
-    version: 1.6.0-v3dfe8a
-  - apiVersion: v2
-    appVersion: 1.6.0-v3d10b0
-    created: "2025-12-08T18:03:13.492688606Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 75ebcfb42bea3262416080a72fe7b462f9ddf09545a96ffa6c7fd1be16841e0f
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v3d10b0.tgz
-    version: 1.6.0-v3d10b0
-  - apiVersion: v2
-    appVersion: 1.6.0-v3c5205
-    created: "2025-12-08T18:03:13.482795721Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: traefik.enabled
-      name: traefik
-      repository: https://traefik.github.io/charts
-      version: 37.3.0
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: f978f6e244af0aaf7686885ec962e2a6b83b869e2f9f6b5f3605f68645029dfc
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v3c5205.tgz
-    version: 1.6.0-v3c5205
-  - apiVersion: v2
-    appVersion: 1.6.0-v289c42
-    created: "2025-12-08T18:03:13.46573785Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 0bce5f762cd7bfe53b3f3f3f2c921ae82a919a3be91b58d74903bcb62e315391
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v289c42.tgz
-    version: 1.6.0-v289c42
-  - apiVersion: v2
-    appVersion: 1.6.0-v2897bb
-    created: "2025-12-08T18:03:13.455881163Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: traefik.enabled
-      name: traefik
-      repository: https://traefik.github.io/charts
-      version: 37.3.0
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: e82f76386498e29d5abe288251311b273b4f1b4a9c19bc428da3288f4db135bb
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v2897bb.tgz
-    version: 1.6.0-v2897bb
-  - apiVersion: v2
-    appVersion: 1.6.0-v23460c
-    created: "2025-12-08T18:03:13.440560304Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 534822f22d4cc9edbe3837e645c3cf608f3e50e2c70ce580924216b25cc53bc7
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v23460c.tgz
-    version: 1.6.0-v23460c
-  - apiVersion: v2
-    appVersion: 1.6.0-v1ec067
-    created: "2025-12-08T18:03:13.429960961Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0-v744a59
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: c48a299d184f7fd30b28c68ab7a9ab0ec0605931de5456fa4e14333433cf381c
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v1ec067.tgz
-    version: 1.6.0-v1ec067
-  - apiVersion: v2
-    appVersion: 1.6.0-v1e19ca
-    created: "2025-12-08T18:03:13.419526573Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: da12523e87029b6d7f5478ff35668fcb8b3fc082283abe4d9613111bf61554c3
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v1e19ca.tgz
-    version: 1.6.0-v1e19ca
-  - apiVersion: v2
-    appVersion: 1.6.0-v14eb4a
-    created: "2025-12-08T18:03:13.409852227Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.5.0-v744a59
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 4f746169ab38210877f969c639bfc4d7e173f678fb05a2c6acc708ad2394d0e0
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v14eb4a.tgz
-    version: 1.6.0-v14eb4a
-  - apiVersion: v2
-    appVersion: 1.6.0-v12eab0
-    created: "2025-12-08T18:03:13.400413251Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 56647707ad7d2ce7bea6b56715cd7d7b2b28bef36bcbf242d35488c907f857da
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v12eab0.tgz
-    version: 1.6.0-v12eab0
-  - apiVersion: v2
-    appVersion: 1.6.0-v0aab2e
-    created: "2025-12-08T18:03:13.391263087Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 3bb6a78a6b38dd252790ad385f0e4483608c82ee1e9a15351d1c12c74321e4e9
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v0aab2e.tgz
-    version: 1.6.0-v0aab2e
-  - apiVersion: v2
-    appVersion: 1.6.0-v009685
-    created: "2025-12-08T18:03:13.38187955Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 2bd892fca7f2ba054b1a7b6f5ecb87be3c862da49b23b855c1753d9cfcaf281e
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.6.0-v009685.tgz
-    version: 1.6.0-v009685
-  - apiVersion: v2
     appVersion: 1.5.0
-    created: "2025-12-08T18:03:13.372417155Z"
+    created: "2025-12-09T08:14:39.908465863Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -1612,951 +439,8 @@ entries:
     - federated-node-1.5.0.tgz
     version: 1.5.0
   - apiVersion: v2
-    appVersion: 1.5.0-vfcf201
-    created: "2025-12-08T18:03:13.362806528Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 4cbf95a2ac5da4e8b0a2d3c1e3714fae9c10e0a286eb4fea64ef40a291dc0499
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-vfcf201.tgz
-    version: 1.5.0-vfcf201
-  - apiVersion: v2
-    appVersion: 1.5.0-vfb4c84
-    created: "2025-12-08T18:03:13.352521812Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 79c3ca417b29bd12b590d7f2d2df7a9865b3ed49c9e1ee121dda7cc7105be235
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-vfb4c84.tgz
-    version: 1.5.0-vfb4c84
-  - apiVersion: v2
-    appVersion: 1.5.0-vf9d0b6
-    created: "2025-12-08T18:03:13.3423559Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v70bcf2
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 83c87a3ba020e7f9157976e32184f891f0b58d528f91bc1dc8c00cb11ebfa4da
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-vf9d0b6.tgz
-    version: 1.5.0-vf9d0b6
-  - apiVersion: v2
-    appVersion: 1.5.0-vef9a92
-    created: "2025-12-08T18:03:13.332253387Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 3595bdf3cbd1a406d897d2c529512a2333a55a5e5337f558aeca7631010ee56c
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-vef9a92.tgz
-    version: 1.5.0-vef9a92
-  - apiVersion: v2
-    appVersion: 1.5.0-ve8b5b4
-    created: "2025-12-08T18:03:13.322507457Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 2d442da8e84f80c3ca9745987257a015cd8ec91f4262c97a1a46f5285370511e
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-ve8b5b4.tgz
-    version: 1.5.0-ve8b5b4
-  - apiVersion: v2
-    appVersion: 1.5.0-ve3e703
-    created: "2025-12-08T18:03:13.313336989Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: f551f72ec4d0ca79412b3b28ff58baefcc3a83a90664a99f248f979f88c61917
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-ve3e703.tgz
-    version: 1.5.0-ve3e703
-  - apiVersion: v2
-    appVersion: 1.5.0-vd471a0
-    created: "2025-12-08T18:03:13.304091077Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: d2db35b658741db31dc11843f5ea645640ffef7c92de082cd1c752c939591f40
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-vd471a0.tgz
-    version: 1.5.0-vd471a0
-  - apiVersion: v2
-    appVersion: 1.5.0-vd04cd1
-    created: "2025-12-08T18:03:13.294404702Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 12f43b23124059b224e53b8e7401563f823496db025ef24fd2332c888640646e
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-vd04cd1.tgz
-    version: 1.5.0-vd04cd1
-  - apiVersion: v2
-    appVersion: 1.5.0-vc881c2
-    created: "2025-12-08T18:03:13.284224555Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.3.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 5966f083c3862e0c0a59eae2620ff24066ae3a6fd5c84a7f9e0bbde77a7ddf92
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-vc881c2.tgz
-    version: 1.5.0-vc881c2
-  - apiVersion: v2
-    appVersion: 1.5.0-vbce9b5
-    created: "2025-12-08T18:03:13.27462356Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v56cf28
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 6470edc2977a1bf7004613c2ae4e6fd6cce168a20dafaaeea53afed50a9b0427
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-vbce9b5.tgz
-    version: 1.5.0-vbce9b5
-  - apiVersion: v2
-    appVersion: 1.5.0-vba68db
-    created: "2025-12-08T18:03:13.265547119Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.3.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: ed744a919098935dfe45496e549f2b34471b0c20330c918baf068b4cdd5e1adf
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-vba68db.tgz
-    version: 1.5.0-vba68db
-  - apiVersion: v2
-    appVersion: 1.5.0-va99561
-    created: "2025-12-08T18:03:13.255742167Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v56cf28
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 52bffd6614b635de2cdbe0e135734516db28b0cff2674469c9619ef7610b0b3f
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-va99561.tgz
-    version: 1.5.0-va99561
-  - apiVersion: v2
-    appVersion: 1.5.0-va98bf0
-    created: "2025-12-08T18:03:13.245363638Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: f7c6745a44c84cca181293e342ce88adf224d316656f7a48493ac2b91c067497
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-va98bf0.tgz
-    version: 1.5.0-va98bf0
-  - apiVersion: v2
-    appVersion: 1.5.0-va4cbc1
-    created: "2025-12-08T18:03:13.236056451Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: d69aa2280cf5bcfc241712425ba2ba78bd3fd8bbea4bc774b5c20c79f0a63e1e
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-va4cbc1.tgz
-    version: 1.5.0-va4cbc1
-  - apiVersion: v2
-    appVersion: 1.5.0-v990fe7
-    created: "2025-12-08T18:03:13.226391638Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v01a055
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 9a529adfce8c04a0d7bc4e134436fc8ff2abaf5cc1d3da27a7de0ef4974cf23a
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v990fe7.tgz
-    version: 1.5.0-v990fe7
-  - apiVersion: v2
-    appVersion: 1.5.0-v97f05e
-    created: "2025-12-08T18:03:13.217166538Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 6d31f4a942914fe99f5607789bcecf4791ff02647cb8c1e043796e546aaabe4f
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v97f05e.tgz
-    version: 1.5.0-v97f05e
-  - apiVersion: v2
-    appVersion: 1.5.0-v972a29
-    created: "2025-12-08T18:03:13.2078625Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.3.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: a802ecb1eded62005b4c29382270afc4aa9e9f1ef46eb8ce0d02615ac2f95447
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v972a29.tgz
-    version: 1.5.0-v972a29
-  - apiVersion: v2
-    appVersion: 1.5.0-v8d88be
-    created: "2025-12-08T18:03:13.198651987Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 90e955867068dafd5734aa6c4bce61cd63fc23aa7e8c451380c0db7912fe7c84
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v8d88be.tgz
-    version: 1.5.0-v8d88be
-  - apiVersion: v2
-    appVersion: 1.5.0-v8b4145
-    created: "2025-12-08T18:03:13.189527715Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: c7fb7cd3cc1b4d68f3364e222a7ef4ef07df296696d32b8b536faea13d9f74df
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v8b4145.tgz
-    version: 1.5.0-v8b4145
-  - apiVersion: v2
-    appVersion: 1.5.0-v725c79
-    created: "2025-12-08T18:03:13.180216112Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 6b542f47e5d48a608a98633a62647e814644d4aceb9f910e3f35a676870f8cf1
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v725c79.tgz
-    version: 1.5.0-v725c79
-  - apiVersion: v2
-    appVersion: 1.5.0-v70869c
-    created: "2025-12-08T18:03:13.17095287Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v01a055
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: b0063721ef66f67c7d870ffbc14a549033fdbfa3de4796a44f6d8f46b78c8afa
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v70869c.tgz
-    version: 1.5.0-v70869c
-  - apiVersion: v2
-    appVersion: 1.5.0-v6f58de
-    created: "2025-12-08T18:03:13.160831272Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 550431a766af7340d94b77e5d031a9868556c4a735aac1b93c1e35baff68901b
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v6f58de.tgz
-    version: 1.5.0-v6f58de
-  - apiVersion: v2
-    appVersion: 1.5.0-v6d83af
-    created: "2025-12-08T18:03:13.151409104Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v56cf28
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 58f89e0c0f601e0e576993a7f4b72a8e35cd9b6834acba02e0e4f324b45d6bb1
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v6d83af.tgz
-    version: 1.5.0-v6d83af
-  - apiVersion: v2
-    appVersion: 1.5.0-v67a46b
-    created: "2025-12-08T18:03:13.142473866Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.3.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 992424de727f9d493311398a09d8619d921e0f54900527bd71e0f2a81512abf4
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v67a46b.tgz
-    version: 1.5.0-v67a46b
-  - apiVersion: v2
-    appVersion: 1.5.0-v5c3771
-    created: "2025-12-08T18:03:13.133429232Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 5dcafd513007aa63e69226f1ccb47b894ce973395194d09c2ea9ffac07a4a879
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v5c3771.tgz
-    version: 1.5.0-v5c3771
-  - apiVersion: v2
-    appVersion: 1.5.0-v5196c2
-    created: "2025-12-08T18:03:13.123912086Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 781301cb2337fc136ce26ce09380099440ff50a7b4ed8dfcb283e21bb2e29407
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v5196c2.tgz
-    version: 1.5.0-v5196c2
-  - apiVersion: v2
-    appVersion: 1.5.0-v4b55e9
-    created: "2025-12-08T18:03:13.114712556Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 1f5334dd9d3cdb04580fc1c8c9ac1c2d239903281b14aed8f37e270cf59614be
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v4b55e9.tgz
-    version: 1.5.0-v4b55e9
-  - apiVersion: v2
-    appVersion: 1.5.0-v459957
-    created: "2025-12-08T18:03:13.105461585Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 4c697fb59e14a5b2ea2dab609f974de80b93206afb5810a4563d3aee19e6870e
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v459957.tgz
-    version: 1.5.0-v459957
-  - apiVersion: v2
-    appVersion: 1.5.0-v4527c3
-    created: "2025-12-08T18:03:13.095964405Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v56cf28
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 0a65eabbd79948dbe43e91b4bb05f892d209b81b60f1b514bca7f4f43d776507
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v4527c3.tgz
-    version: 1.5.0-v4527c3
-  - apiVersion: v2
-    appVersion: 1.5.0-v43ea7d
-    created: "2025-12-08T18:03:13.086871099Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.3.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: da1569fc56328313393d7d2b08dc562e6de43daeee63e2282469daeaa27886a9
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v43ea7d.tgz
-    version: 1.5.0-v43ea7d
-  - apiVersion: v2
-    appVersion: 1.5.0-v39a81e
-    created: "2025-12-08T18:03:13.077601991Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: b697d2ad04a118ce0f19136975d8889b348fb8ce40cfa3939a593e284ee4c80f
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v39a81e.tgz
-    version: 1.5.0-v39a81e
-  - apiVersion: v2
-    appVersion: 1.5.0-v34c2b7
-    created: "2025-12-08T18:03:13.068323848Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.3.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 3d54dff3da315a857bfa87142cdbe00e1c53160766058874146a5513c511dff3
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v34c2b7.tgz
-    version: 1.5.0-v34c2b7
-  - apiVersion: v2
-    appVersion: 1.5.0-v311947
-    created: "2025-12-08T18:03:13.059129486Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 95ce18f51dc312748b1b418187ca61f994b6dc3b8c5b466afbd120cbe0356ad4
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v311947.tgz
-    version: 1.5.0-v311947
-  - apiVersion: v2
-    appVersion: 1.5.0-v2eeb7e
-    created: "2025-12-08T18:03:13.049896809Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: e7fd2413085a0838136d78fb9efae22c8904e8baa46adc0862b37cdb11e4eb4d
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v2eeb7e.tgz
-    version: 1.5.0-v2eeb7e
-  - apiVersion: v2
-    appVersion: 1.5.0-v2c2618
-    created: "2025-12-08T18:03:13.040393219Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.3.0
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: c6e33b47d02bf1d87c4ea67d651e72cff9db467bb141a4a91cc14723301a922c
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v2c2618.tgz
-    version: 1.5.0-v2c2618
-  - apiVersion: v2
-    appVersion: 1.5.0-v2aef9a
-    created: "2025-12-08T18:03:13.029650873Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 7e570310b1d0b67321447189b82d493c863668f2068c4993ede004d28addfa46
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v2aef9a.tgz
-    version: 1.5.0-v2aef9a
-  - apiVersion: v2
-    appVersion: 1.5.0-v2855f9
-    created: "2025-12-08T18:03:13.019838471Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: a81c29f0ad7159c632bcd31d3ed2a3a4c6e413c32c1fb5ca40b24b2baebd85c3
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v2855f9.tgz
-    version: 1.5.0-v2855f9
-  - apiVersion: v2
-    appVersion: 1.5.0-v20580b
-    created: "2025-12-08T18:03:13.010512902Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 3e7980e6177d68367b73c955694ffd0f79571cdfc83505d354c145b56fc4f39b
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v20580b.tgz
-    version: 1.5.0-v20580b
-  - apiVersion: v2
-    appVersion: 1.5.0-v1e385c
-    created: "2025-12-08T18:03:13.001235452Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: 2b46608c3adb8f17075214d6ac898c92485c7f5ec1fc3219bd5de5abea294561
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v1e385c.tgz
-    version: 1.5.0-v1e385c
-  - apiVersion: v2
-    appVersion: 1.5.0-v18689c
-    created: "2025-12-08T18:03:12.991141157Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v56cf28
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: f50f3f76eb45ca3b393e672f7dd5a80d7d07e1fb984cc8b3da101795df0dbd3b
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v18689c.tgz
-    version: 1.5.0-v18689c
-  - apiVersion: v2
-    appVersion: 1.5.0-v125d4f
-    created: "2025-12-08T18:03:12.980646168Z"
-    dependencies:
-    - condition: outboundMode
-      name: fn-task-controller
-      repository: https://aridhia-open-source.github.io/federated-node-task-controller
-      version: 1.4.0-v2fc083
-    - condition: cert-manager.enabled
-      name: cert-manager
-      repository: https://charts.jetstack.io
-      version: v1.17.1
-    - condition: ingress-nginx.enabled
-      name: ingress-nginx
-      repository: https://kubernetes.github.io/ingress-nginx
-      version: 4.12.1
-    description: A Helm chart for deploying the Federated Node on Kubernetes
-    digest: c5927177c9f7c858415ca196f28bd69b277f3dc24ecd6f8b251a3dda036bd429
-    name: federated-node
-    type: application
-    urls:
-    - federated-node-1.5.0-v125d4f.tgz
-    version: 1.5.0-v125d4f
-  - apiVersion: v2
     appVersion: 1.4.0
-    created: "2025-12-08T18:03:12.971395796Z"
+    created: "2025-12-09T08:14:39.898572784Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -2579,7 +463,7 @@ entries:
     version: 1.4.0
   - apiVersion: v2
     appVersion: 1.3.0
-    created: "2025-12-08T18:03:12.96107335Z"
+    created: "2025-12-09T08:14:39.889099134Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -2602,7 +486,7 @@ entries:
     version: 1.3.0
   - apiVersion: v2
     appVersion: 1.2.0
-    created: "2025-12-08T18:03:12.950713073Z"
+    created: "2025-12-09T08:14:39.879526011Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -2625,7 +509,7 @@ entries:
     version: 1.2.0
   - apiVersion: v2
     appVersion: 1.1.0
-    created: "2025-12-08T18:03:12.941327133Z"
+    created: "2025-12-09T08:14:39.869924791Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -2648,7 +532,7 @@ entries:
     version: 1.1.0
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2025-12-08T18:03:12.932371497Z"
+    created: "2025-12-09T08:14:39.859917094Z"
     dependencies:
     - condition: outboundMode
       name: fn-task-controller
@@ -2671,7 +555,7 @@ entries:
     version: 1.0.0
   - apiVersion: v2
     appVersion: 0.11.0
-    created: "2025-12-08T18:03:12.914470164Z"
+    created: "2025-12-09T08:14:39.840543738Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -2690,7 +574,7 @@ entries:
     version: 0.11.0
   - apiVersion: v2
     appVersion: 0.10.0
-    created: "2025-12-08T18:03:12.905425189Z"
+    created: "2025-12-09T08:14:39.83136677Z"
     dependencies:
     - condition: cert-manager.enabled
       name: cert-manager
@@ -2709,7 +593,7 @@ entries:
     version: 0.10.0
   - apiVersion: v2
     appVersion: 0.9.0
-    created: "2025-12-08T18:03:12.923263385Z"
+    created: "2025-12-09T08:14:39.849477939Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 85fe6f19dc4656ea1103459bd6b98a17031ac1998ec795bd24f90c7c1b0dd628
     name: federated-node
@@ -2719,7 +603,7 @@ entries:
     version: 0.9.0
   - apiVersion: v2
     appVersion: 0.8.0
-    created: "2025-12-08T18:03:12.922612287Z"
+    created: "2025-12-09T08:14:39.848655398Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: aeecd07885d82c0ccd868efc825f25cac5a4abbe929fd7d4a6c998159f14a8c4
     name: federated-node
@@ -2729,7 +613,7 @@ entries:
     version: 0.8.0
   - apiVersion: v2
     appVersion: 0.7.2
-    created: "2025-12-08T18:03:12.922006503Z"
+    created: "2025-12-09T08:14:39.848033311Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 3a014bdb4a3e32dafa41eed45b0bf65b5adfe267166ce76256e29ba65fe75fef
     name: federated-node
@@ -2739,7 +623,7 @@ entries:
     version: 0.7.2
   - apiVersion: v2
     appVersion: 0.7.1
-    created: "2025-12-08T18:03:12.921389238Z"
+    created: "2025-12-09T08:14:39.847451025Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 1a2d73756ad6ea89635947806583e3915993ead86d8b1fa100613e2623f89a25
     name: federated-node
@@ -2749,7 +633,7 @@ entries:
     version: 0.7.1
   - apiVersion: v2
     appVersion: 0.7.0
-    created: "2025-12-08T18:03:12.920254108Z"
+    created: "2025-12-09T08:14:39.846851802Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 067ab01cefa677aa42b7f9edbc28686757fb36b4356603df6768e12b99b20acd
     name: federated-node
@@ -2759,7 +643,7 @@ entries:
     version: 0.7.0
   - apiVersion: v2
     appVersion: 0.6.0
-    created: "2025-12-08T18:03:12.919343652Z"
+    created: "2025-12-09T08:14:39.846253637Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 467148745f33e38330f265100c3af90b0e397638c44bfb641ab24e2a4551d2ee
     name: federated-node
@@ -2769,7 +653,7 @@ entries:
     version: 0.6.2
   - apiVersion: v2
     appVersion: 0.6.0
-    created: "2025-12-08T18:03:12.918728421Z"
+    created: "2025-12-09T08:14:39.845660564Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 596199213abfacdbe3d1e8c5fdd5e21c561f03fe74e02b3d9e08dd4a319ff838
     name: federated-node
@@ -2779,7 +663,7 @@ entries:
     version: 0.6.1
   - apiVersion: v2
     appVersion: 0.6.0
-    created: "2025-12-08T18:03:12.918107139Z"
+    created: "2025-12-09T08:14:39.844999023Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: b8d6f93816bf6545558425dd4c4c44bf2d66913edf4388d83dfdfd73b5737a24
     name: federated-node
@@ -2789,7 +673,7 @@ entries:
     version: 0.6.0
   - apiVersion: v2
     appVersion: 0.5.2
-    created: "2025-12-08T18:03:12.917461841Z"
+    created: "2025-12-09T08:14:39.84355273Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: dfac3d66dfe4f2fd66d9454c3826056862f15b69768a0ba3a435510ef9acca27
     name: federated-node
@@ -2799,7 +683,7 @@ entries:
     version: 0.5.2
   - apiVersion: v2
     appVersion: 0.5.0
-    created: "2025-12-08T18:03:12.916714092Z"
+    created: "2025-12-09T08:14:39.842812217Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 3e4044c1858f934a6854d9911f8dfcb9953a605734e8f31c7be18187b6687784
     name: federated-node
@@ -2809,7 +693,7 @@ entries:
     version: 0.5.1
   - apiVersion: v2
     appVersion: 0.5.0
-    created: "2025-12-08T18:03:12.915978846Z"
+    created: "2025-12-09T08:14:39.842070132Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: cf9cf58397f4ec70503ce4ec64b07d874acc4044f352a184c8e3c139aa189ba7
     name: federated-node
@@ -2819,7 +703,7 @@ entries:
     version: 0.5.0
   - apiVersion: v2
     appVersion: 0.5.0
-    created: "2025-12-08T18:03:12.915236838Z"
+    created: "2025-12-09T08:14:39.84132968Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 8adbc4b385b1aada1b87af9a662d9b0d81085715cbe749a94d81617ddcf7c150
     name: federated-node
@@ -2829,7 +713,7 @@ entries:
     version: 0.4.1
   - apiVersion: v2
     appVersion: 0.1.0
-    created: "2025-12-08T18:03:12.893852858Z"
+    created: "2025-12-09T08:14:39.821878405Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 8d8270f81a89ac5f14f6e6eb7c4fa46a92b460460e41ee86e31aa8346a150d28
     name: federated-node
@@ -2839,7 +723,7 @@ entries:
     version: 0.1.0
   - apiVersion: v2
     appVersion: 0.0.7
-    created: "2025-12-08T18:03:12.893087206Z"
+    created: "2025-12-09T08:14:39.821093704Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: 39039263a7379f3e92b9a1555cb894a9bd0454564f44b3f18448427051d55714
     name: federated-node
@@ -2849,7 +733,7 @@ entries:
     version: 0.0.7
   - apiVersion: v2
     appVersion: 0.0.6
-    created: "2025-12-08T18:03:12.892305312Z"
+    created: "2025-12-09T08:14:39.820341623Z"
     description: A Helm chart for deploying the Federated Node on Kubernetes
     digest: afe7f4df04bcd392c42d052d51f3e5d713e04ab7f167491189b50c928acb0729
     name: federated-node
@@ -2857,4 +741,4 @@ entries:
     urls:
     - federated-node-0.0.6.tgz
     version: 0.0.6
-generated: "2025-12-08T18:03:12.891322664Z"
+generated: "2025-12-09T08:14:39.81937763Z"
