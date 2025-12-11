@@ -795,6 +795,98 @@
         }
       }
     },
+    "/tasks/{id}/suspend": {
+      "patch": {
+        "operationId": "suspend_cron_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {"type": "integer"}
+          }
+        ],
+        "tags": ["Tasks"],
+        "summary": "If a cronjob, suspend its execution",
+        "responses": {
+          "200": {
+            "description": "Successfully suspended",
+            "content": {
+              "application/json":{
+                "schema":{
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "suspended"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks/{id}/resume": {
+      "patch": {
+        "operationId": "resume_cron_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {"type": "integer"}
+          }
+        ],
+        "tags": ["Tasks"],
+        "summary": "If a cronjob, resume its execution",
+        "responses": {
+          "200": {
+            "description": "Successfully enabled",
+            "content": {
+              "application/json":{
+                "schema":{
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "resumed"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/tasks/{id}/results/approve": {
       "post": {
         "operationId": "approve_results",
@@ -2323,6 +2415,10 @@
               "custom_tag": "value"
             },
             "required": ["dataset_id"]
+          },
+          "schedule": {
+            "type": "string",
+            "example": "0 12 * * *"
           },
           "outputs": {
             "type": "object",
