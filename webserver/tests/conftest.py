@@ -173,6 +173,15 @@ def v1_mock(mocker):
 @fixture
 def v1_batch_mock(mocker):
     return {
+        "create_namespaced_cron_job_with_http_info": mocker.patch(
+            'app.helpers.kubernetes.KubernetesBatchClient.create_namespaced_cron_job_with_http_info'
+        ),
+        "list_namespaced_cron_job": mocker.patch(
+            'app.helpers.kubernetes.KubernetesBatchClient.list_namespaced_cron_job'
+        ),
+        "patch_namespaced_cron_job": mocker.patch(
+            'app.helpers.kubernetes.KubernetesBatchClient.patch_namespaced_cron_job'
+        ),
         "create_namespaced_job_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesBatchClient.create_namespaced_job'
         ),
@@ -295,6 +304,23 @@ def task(user_uuid, dataset, container) -> Task:
                 "image": container.full_image_name()
             }
         ],
+        requested_by=user_uuid
+    )
+    task.add()
+    return task
+
+@fixture
+def cronjob(user_uuid, dataset, container) -> Task:
+    task = Task(
+        dataset=dataset,
+        docker_image=container.full_image_name(),
+        name="testTask",
+        executors=[
+            {
+                "image": container.full_image_name()
+            }
+        ],
+        schedule="0 12 * * *",
         requested_by=user_uuid
     )
     task.add()

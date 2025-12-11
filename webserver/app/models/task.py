@@ -348,8 +348,9 @@ class Task(db.Model, BaseModel):
                     pretty='true'
                 )
         except ApiException as e:
-            logger.error(json.loads(e.body))
-            raise InvalidRequest(f"Failed to run pod: {e.reason}") from e
+            err_body = json.loads(e.body)
+            logger.error(err_body)
+            raise InvalidRequest(f"Failed to run task: {"".join([cau["message"] for cau in err_body["details"].get("causes")])}") from e
 
         if self.needs_crd():
             # create CRD

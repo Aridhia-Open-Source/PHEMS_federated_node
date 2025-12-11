@@ -289,6 +289,74 @@ class TestPostTask:
         assert response.json["error"] == "`db_query` field must include a `query`"
         reg_k8s_client["create_namespaced_pod_mock"].assert_not_called()
 
+    def test_create_cronjob(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            reg_k8s_client,
+            registry_client,
+            task_body
+        ):
+        """
+        Tests cronjob creation returns 201
+        """
+        task_body["schedule"] = "0 12 * * *"
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        reg_k8s_client["create_namespaced_cron_job_with_http_info"].assert_called()
+
+    def test_create_cronjob_bad_cronrule(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            reg_k8s_client,
+            registry_client,
+            task_body
+        ):
+        """
+        Tests task creation returns fails if cronrule is missformatted
+        """
+        task_body["schedule"] = "0 12 * *"
+        reg_k8s_client["create_namespaced_cron_job_with_http_info"].side_effect = ApiException(
+            http_resp=Mock(status=500, reason="Error", data=json.dumps({
+                "details": {
+                    "causes": [{
+                    "message":"Invalid value: \"0 12 * *\": expected exactly 5 fields, found 4: [0 12 * *]"}]
+                }
+            }))
+        )
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+
+    def test_suspend_cronjob(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            reg_k8s_client,
+            registry_client,
+            cronjob
+        ):
+        """
+        Tests successful cronjob suspension
+        """
+        response = client.patch(
+            f'/tasks/{cronjob.id}/suspend',
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 202
+        reg_k8s_client["patch_namespaced_cron_job"].assert_called()
+
     def test_create_task_invalid_output_field(
             self,
             cr_client,
