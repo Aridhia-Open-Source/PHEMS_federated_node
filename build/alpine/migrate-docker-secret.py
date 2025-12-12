@@ -72,7 +72,12 @@ v1_client = client.CoreV1Api()
 # Loop through register's secrets and create a docker one
 for reg in registries:
   secret_name: str = re.sub(r'[\W_]+','-', reg["url"].lower())
-  secret: client.V1Secret = v1_client.read_namespaced_secret(name=secret_name, namespace=BACKEND_NAMESPACE)
+  try:
+    secret: client.V1Secret = v1_client.read_namespaced_secret(name="taskspull", namespace=BACKEND_NAMESPACE)
+  except ApiException as apie:
+    if apie.status == 404:
+      print("taskspull secret not found. Skiping")
+      break
 
   psw_key = base64.b64decode(secret.data["TOKEN"]).decode()
   usr_key = base64.b64decode(secret.data["USER"]).decode()
