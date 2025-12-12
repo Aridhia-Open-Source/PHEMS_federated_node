@@ -1,5 +1,10 @@
 # Releases Changelog
 
+## 1.7.1
+### Bugfixes
+- Fixed an issue with the `setup_realm` script which now ignores certain failed login attempts (after successful resets) and will retry at any kc pods restarts.
+- Fixed an issue with migrate docker secret job which was exiting on missing secrets. Also login failures cause from the other bugfix
+
 ## 1.7.0
 - Upgraded Keycloak to version 26.4
 - Changed the init realm daemonset to a deployment, as it behaves like a controller for keycloak
