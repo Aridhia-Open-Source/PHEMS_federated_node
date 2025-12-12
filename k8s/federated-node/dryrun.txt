@@ -1,0 +1,2232 @@
+Release "fn" does not exist. Installing it now.
+NAME: fn
+LAST DEPLOYED: Thu Dec 11 13:54:41 2025
+NAMESPACE: fn
+STATUS: pending-install
+REVISION: 1
+HOOKS:
+---
+# Source: federated-node/templates/keycloak-namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keycloak
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    helm.sh/hook: pre-install
+    helm.sh/hook-weight: "-6"
+    meta.helm.sh/release-name: fn
+    meta.helm.sh/release-namespace: fn
+---
+# Source: federated-node/templates/nginx-namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingress-nginx
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    helm.sh/hook: pre-install
+    helm.sh/hook-weight: "-6"
+    meta.helm.sh/release-name: fn
+    meta.helm.sh/release-namespace: fn
+---
+# Source: federated-node/charts/ingress-nginx/templates/admission-webhooks/job-patch/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fn-ingress-nginx-admission
+  namespace: ingress-nginx
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: admission-webhook
+automountServiceAccountToken: true
+---
+# Source: federated-node/templates/keycloak-start-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-start-config
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/resource-policy: keep
+    meta.helm.sh/release-name: fn
+    meta.helm.sh/release-namespace: fn
+data:
+  config.json: |-
+    {
+      "realm": "FederatedNode",
+      "enabled": true,
+      "registrationEmailAsUsername": false,
+      "offlineSessionIdleTimeout": "${KEYCLOAK_TOKEN_LIFE}",
+      "ssoSessionIdleTimeout": "${KEYCLOAK_TOKEN_LIFE}",
+      "ssoSessionMaxLifespan": "${KEYCLOAK_TOKEN_LIFE}",
+      "loginWithEmailAllowed": true,
+      "duplicateEmailsAllowed": false,
+      "resetPasswordAllowed": false,
+      "attributes": {
+        "userProfileEnabled": true
+      },
+      "groups": [
+        {
+          "name": "Administrator",
+          "path": "/Administrator"
+        },
+        {
+          "name": "Super Administrator",
+          "path": "/Super Administrator"
+        },
+        {
+          "name": "Users",
+          "path": "/Users"
+        }
+      ],
+      "requiredCredentials": [
+        "password"
+      ],
+      "roles": {
+        "realm": [
+          {
+            "name": "Administrator",
+            "description": "Administrators with limited, non-realm, related permissions",
+            "composite": true,
+            "composites": {
+              "realm": [
+                "Users"
+              ],
+              "client": {
+                "realm-management": [
+                  "view-users",
+                  "view-clients",
+                  "manage-users",
+                  "view-authorization",
+                  "query-groups",
+                  "query-users",
+                  "manage-clients",
+                  "view-realm",
+                  "manage-authorization",
+                  "query-clients",
+                  "view-events"
+                ],
+                "account": [
+                  "view-groups",
+                  "delete-account",
+                  "manage-account",
+                  "view-applications",
+                  "view-profile",
+                  "view-consent"
+                ]
+              }
+            },
+            "clientRole": false,
+            "attributes": {}
+          },
+          {
+            "name": "Super Administrator",
+            "description": "Super administrators with extensive permissions set",
+            "composite": true,
+            "composites": {
+              "realm": [
+                "Administrator",
+                "Users"
+              ],
+              "client": {
+                "realm-management": [
+                  "view-users",
+                  "view-clients",
+                  "manage-identity-providers",
+                  "view-authorization",
+                  "query-groups",
+                  "query-users",
+                  "view-realm",
+                  "manage-authorization",
+                  "query-clients",
+                  "realm-admin",
+                  "manage-users",
+                  "manage-events",
+                  "create-client",
+                  "query-realms",
+                  "view-identity-providers",
+                  "impersonation",
+                  "manage-realm",
+                  "manage-clients",
+                  "view-events"
+                ],
+                "broker": [
+                  "read-token"
+                ],
+                "account": [
+                  "manage-consent",
+                  "delete-account",
+                  "view-applications",
+                  "view-consent",
+                  "view-groups",
+                  "manage-account",
+                  "view-profile",
+                  "manage-account-links"
+                ]
+              }
+            },
+            "clientRole": false,
+            "attributes": {}
+          },
+          {
+            "name": "Users",
+            "description": "Basic Users",
+            "composite": true,
+            "composites": {
+              "client": {
+                "account": [
+                  "view-profile",
+                  "manage-account"
+                ]
+              }
+            },
+            "clientRole": false,
+            "attributes": {}
+          },
+          {
+            "name": "System",
+            "description": "Users for integrations",
+            "composite": true,
+            "composites": {
+              "client": {
+                "account": [
+                  "view-profile",
+                  "manage-account"
+                ]
+              }
+            },
+            "clientRole": false,
+            "attributes": {}
+          }
+        ]
+      },
+      "clients": [
+        {
+          "clientId": "global",
+          "name": "Global",
+          "description": "General access definition for endpoints",
+          "rootUrl": "",
+          "adminUrl": "",
+          "baseUrl": "/",
+          "enabled": true,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "${KEYCLOAK_SECRET}",
+          "redirectUris": [
+            "/*"
+          ],
+          "webOrigins": [
+            "http://keycloak.identities.svc.cluster.local",
+            "${KEYCLOAK_HOSTNAME}"
+          ],
+          "attributes": {
+            "client.session.idle.timeout": "${KEYCLOAK_TOKEN_LIFE}",
+            "standard.token.exchange.enabled": true
+          },
+          "notBefore": 0,
+          "bearerOnly": false,
+          "consentRequired": false,
+          "standardFlowEnabled": true,\\,
+          "directAccessGrantsEnabled": true,
+          "serviceAccountsEnabled": true,
+          "authorizationServicesEnabled": true,
+          "publicClient": false,
+          "frontchannelLogout": true,
+          "protocol": "openid-connect",
+          "defaultClientScopes": [
+            "web-origins",
+            "acr",
+            "roles",
+            "profile",
+            "email"
+          ],
+          "optionalClientScopes": [
+            "address",
+            "phone",
+            "offline_access",
+            "microprofile-jwt"
+          ],
+          "authorizationSettings": {
+            "allowRemoteResourceManagement": true,
+            "policyEnforcementMode": "ENFORCING",
+            "resources": [
+              {
+                "name": "endpoints",
+                "ownerManagedAccess": false,
+                "displayName": "",
+                "attributes": {},
+                "uris": [],
+                "scopes": [
+                  {
+                    "name": "can_admin_dataset"
+                  },
+                  {
+                    "name": "can_exec_task"
+                  },
+                  {
+                    "name": "can_admin_task"
+                  },
+                  {
+                    "name": "can_access_dataset"
+                  },
+                  {
+                    "name": "can_transfer_token"
+                  },
+                  {
+                    "name": "can_do_admin"
+                  },
+                  {
+                    "name": "can_send_request"
+                  },
+                  {
+                    "name": "can_admin_request"
+                  }
+                ],
+                "icon_uri": ""
+              }
+            ],
+            "policies": [
+              {
+                "name": "admin-policy",
+                "description": "",
+                "type": "role",
+                "logic": "POSITIVE",
+                "decisionStrategy": "UNANIMOUS",
+                "config": {
+                  "roles": "[{\"id\":\"Administrator\",\"required\":false},{\"id\":\"Super Administrator\",\"required\":false}]"
+                }
+              },
+              {
+                "name": "superadmin-policy",
+                "description": "",
+                "type": "role",
+                "logic": "POSITIVE",
+                "decisionStrategy": "UNANIMOUS",
+                "config": {
+                  "roles": "[{\"id\":\"Super Administrator\",\"required\":false}]"
+                }
+              },
+              {
+                "name": "all-users-policy",
+                "description": "",
+                "type": "role",
+                "logic": "POSITIVE",
+                "decisionStrategy": "UNANIMOUS",
+                "config": {
+                  "roles": "[{\"id\":\"Administrator\",\"required\":false},{\"id\":\"Users\",\"required\":false},{\"id\":\"Super Administrator\",\"required\":false}]"
+                }
+              },
+              {
+                "name": "system-policy",
+                "description": "",
+                "type": "role",
+                "logic": "POSITIVE",
+                "decisionStrategy": "UNANIMOUS",
+                "config": {
+                  "roles": "[{\"id\":\"System\",\"required\":false}]"
+                }
+              },
+              {
+                "name": "can admin dataset permission",
+                "description": "",
+                "type": "scope",
+                "logic": "POSITIVE",
+                "decisionStrategy": "AFFIRMATIVE",
+                "config": {
+                  "scopes": "[\"can_admin_dataset\"]",
+                  "applyPolicies": "[\"admin-policy\", \"system-policy\"]"
+                }
+              },
+              {
+                "name": "can admin task permission",
+                "description": "",
+                "type": "scope",
+                "logic": "POSITIVE",
+                "decisionStrategy": "AFFIRMATIVE",
+                "config": {
+                  "scopes": "[\"can_admin_task\"]",
+                  "applyPolicies": "[\"admin-policy\"]"
+                }
+              },
+              {
+                "name": "can admin request permission",
+                "description": "",
+                "type": "scope",
+                "logic": "POSITIVE",
+                "decisionStrategy": "AFFIRMATIVE",
+                "config": {
+                  "scopes": "[\"can_admin_request\"]",
+                  "applyPolicies": "[\"admin-policy\", \"system-policy\"]"
+                }
+              },
+              {
+                "name": "can exec task permission",
+                "description": "",
+                "type": "scope",
+                "logic": "POSITIVE",
+                "decisionStrategy": "AFFIRMATIVE",
+                "config": {
+                  "scopes": "[\"can_exec_task\"]",
+                  "applyPolicies": "[\"all-users-policy\", \"system-policy\"]"
+                }
+              },
+              {
+                "name": "can access dataset permission",
+                "description": "",
+                "type": "scope",
+                "logic": "POSITIVE",
+                "decisionStrategy": "AFFIRMATIVE",
+                "config": {
+                  "scopes": "[\"can_access_dataset\"]",
+                  "applyPolicies": "[\"all-users-policy\", \"system-policy\"]"
+                }
+              },
+              {
+                "name": "can transfer token permission",
+                "description": "",
+                "type": "scope",
+                "logic": "POSITIVE",
+                "decisionStrategy": "AFFIRMATIVE",
+                "config": {
+                  "scopes": "[\"can_transfer_token\"]",
+                  "applyPolicies": "[\"admin-policy\", \"system-policy\"]"
+                }
+              },
+              {
+                "name": "can do admin permission",
+                "description": "",
+                "type": "scope",
+                "logic": "POSITIVE",
+                "decisionStrategy": "AFFIRMATIVE",
+                "config": {
+                  "scopes": "[\"can_do_admin\"]",
+                  "applyPolicies": "[\"admin-policy\"]"
+                }
+              },
+              {
+                "name": "can send request permission",
+                "description": "",
+                "type": "scope",
+                "logic": "POSITIVE",
+                "decisionStrategy": "AFFIRMATIVE",
+                "config": {
+                  "scopes": "[\"can_send_request\"]",
+                  "applyPolicies": "[\"all-users-policy\", \"system-policy\"]"
+                }
+              }
+            ],
+            "scopes": [
+              {
+                "name": "can_admin_dataset"
+              },
+              {
+                "name": "can_exec_task"
+              },
+              {
+                "name": "can_admin_task"
+              },
+              {
+                "name": "can_access_dataset"
+              },
+              {
+                "name": "can_transfer_token"
+              },
+              {
+                "name": "can_do_admin"
+              },
+              {
+                "name": "can_send_request"
+              },
+              {
+                "name": "can_admin_request"
+              }
+            ],
+            "decisionStrategy": "UNANIMOUS"
+          }
+        }
+      ],
+      "components": {
+        "org.keycloak.userprofile.UserProfileProvider": [
+          {
+            "providerId": "declarative-user-profile",
+            "subComponents": {},
+            "config": {
+              "kc.user.profile.config": [
+                "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]}},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]}},{\"name\":\"firstName\",\"displayName\":\"${firstName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"annotations\":{},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]}},{\"name\":\"lastName\",\"displayName\":\"${lastName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"annotations\":{},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]}}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}"
+              ]
+            }
+          }
+        ]
+      }
+    }
+    
+  quarkus.properties: |-
+    quarkus.transaction-manager.enable-recovery=true
+---
+# Source: federated-node/templates/nginx-extra-headers-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fn-ingress-nginx-custom-add-headers
+  namespace: ingress-nginx
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/resource-policy: keep
+    meta.helm.sh/release-name: fn
+    meta.helm.sh/release-namespace: fn
+data:
+    strict-transport-security: "max-age=63072000"
+    content-security-policy: "default-src 'self' https: ; connect-src 'self' self; frame-ancestors: 'self'; script-src 'unsafe-inline'; script-src-elem 'unsafe-inline' https:; img-src https:  data:"
+    referrer-policy: "strict-origin"
+    permission-policy: "src"
+    x-content-type-options: "application/json"
+---
+# Source: federated-node/charts/ingress-nginx/templates/admission-webhooks/job-patch/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fn-ingress-nginx-admission
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: admission-webhook
+rules:
+  - apiGroups:
+      - admissionregistration.k8s.io
+    resources:
+      - validatingwebhookconfigurations
+    verbs:
+      - get
+      - update
+---
+# Source: federated-node/charts/ingress-nginx/templates/admission-webhooks/job-patch/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fn-ingress-nginx-admission
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: admission-webhook
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fn-ingress-nginx-admission
+subjects:
+  - kind: ServiceAccount
+    name: fn-ingress-nginx-admission
+    namespace: ingress-nginx
+---
+# Source: federated-node/charts/ingress-nginx/templates/admission-webhooks/job-patch/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: fn-ingress-nginx-admission
+  namespace: ingress-nginx
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: admission-webhook
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - create
+---
+# Source: federated-node/charts/ingress-nginx/templates/admission-webhooks/job-patch/rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: fn-ingress-nginx-admission
+  namespace: ingress-nginx
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: admission-webhook
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: fn-ingress-nginx-admission
+subjects:
+  - kind: ServiceAccount
+    name: fn-ingress-nginx-admission
+    namespace: ingress-nginx
+---
+# Source: federated-node/templates/keycloak-headless.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: keycloak
+  # Exception, so that init jobs can pick up the new port change.
+  # Need to manually add the default annotations as well
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    meta.helm.sh/release-name: fn
+    meta.helm.sh/release-namespace: fn
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-4"
+    helm.sh/resource-policy: keep
+spec:
+  ports:
+    - port: 80
+      name: http
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: keycloak
+  clusterIP: None
+---
+# Source: federated-node/templates/keycloak-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: keycloak
+  # Exception, so that init jobs can pick up the new port change.
+  # Need to manually add the default annotations as well
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    meta.helm.sh/release-name: fn
+    meta.helm.sh/release-namespace: fn
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-4"
+    helm.sh/resource-policy: keep
+spec:
+  ports:
+    - port: 80
+      name: http
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: keycloak
+---
+# Source: federated-node/templates/tests/test-connection.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "fn-tests"
+  namespace: fn
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  containers:
+    
+    - name: health-check
+      image: curlimages/curl
+      command: ['curl' , 'http://backend.fn.svc:5000/health_check']
+    
+    - name: containers
+      image: curlimages/curl
+      command: ['curl' , 'http://backend.fn.svc:5000/containers']
+    
+  restartPolicy: Never
+---
+# Source: federated-node/templates/keycloak-realm-controller.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak-realm-init
+  namespace: keycloak
+  labels:
+    app: keycloak-realm-init
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+    helm.sh/hook-weight: "-1"
+spec:
+  selector:
+    matchLabels:
+      app: keycloak-realm-init
+  template:
+    metadata:
+      labels:
+        app: keycloak-realm-init
+    spec:
+      serviceAccountName: k8s-keycloak-handler
+      containers:
+        - name: post-install-job
+          imagePullPolicy: Always
+          image: "ghcr.io/aridhia-open-source/keycloak_initializer:1.7.0"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ "ALL" ]
+          env:
+            - name: KC_NAMESPACE
+              value: keycloak
+            - name: KC_REPLICAS
+              value: "2"
+            - name: KEYCLOAK_URL
+              value: http://keycloak.keycloak.svc.cluster.local
+          envFrom:
+          - configMapRef:
+              name: keycloak-config
+          - secretRef:
+              name: kc-secrets
+---
+# Source: federated-node/charts/ingress-nginx/templates/admission-webhooks/job-patch/job-createSecret.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fn-ingress-nginx-admission-create
+  namespace: ingress-nginx
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: admission-webhook
+spec:
+  template:
+    metadata:
+      name: fn-ingress-nginx-admission-create
+      labels:
+        helm.sh/chart: ingress-nginx-4.12.1
+        app.kubernetes.io/name: ingress-nginx
+        app.kubernetes.io/instance: fn
+        app.kubernetes.io/version: "1.12.1"
+        app.kubernetes.io/part-of: ingress-nginx
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/component: admission-webhook
+    spec:
+      containers:
+        - name: create
+          image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.5.2@sha256:e8825994b7a2c7497375a9b945f386506ca6a3eda80b89b74ef2db743f66a5ea
+          imagePullPolicy: IfNotPresent
+          args:
+            - create
+            - --host=fn-ingress-nginx-controller-admission,fn-ingress-nginx-controller-admission.$(POD_NAMESPACE).svc
+            - --namespace=$(POD_NAMESPACE)
+            - --secret-name=fn-ingress-nginx-admission
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          securityContext: 
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 65532
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
+      restartPolicy: OnFailure
+      serviceAccountName: fn-ingress-nginx-admission
+      nodeSelector: 
+        kubernetes.io/os: linux
+---
+# Source: federated-node/charts/ingress-nginx/templates/admission-webhooks/job-patch/job-patchWebhook.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fn-ingress-nginx-admission-patch
+  namespace: ingress-nginx
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: admission-webhook
+spec:
+  template:
+    metadata:
+      name: fn-ingress-nginx-admission-patch
+      labels:
+        helm.sh/chart: ingress-nginx-4.12.1
+        app.kubernetes.io/name: ingress-nginx
+        app.kubernetes.io/instance: fn
+        app.kubernetes.io/version: "1.12.1"
+        app.kubernetes.io/part-of: ingress-nginx
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/component: admission-webhook
+    spec:
+      containers:
+        - name: patch
+          image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.5.2@sha256:e8825994b7a2c7497375a9b945f386506ca6a3eda80b89b74ef2db743f66a5ea
+          imagePullPolicy: IfNotPresent
+          args:
+            - patch
+            - --webhook-name=fn-ingress-nginx-admission
+            - --namespace=$(POD_NAMESPACE)
+            - --patch-mutating=false
+            - --secret-name=fn-ingress-nginx-admission
+            - --patch-failure-policy=Fail
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          securityContext: 
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 65532
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
+      restartPolicy: OnFailure
+      serviceAccountName: fn-ingress-nginx-admission
+      nodeSelector: 
+        kubernetes.io/os: linux
+---
+# Source: federated-node/templates/migrations/migrate-regcreds-secrets.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: regcred-migration
+  namespace: fn
+  annotations:
+    helm.sh/hook: post-install, post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 30
+  template:
+    metadata:
+      name: "regcred-migration"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: secret-backend-handler
+      containers:
+        - name: migrate
+          image: ghcr.io/aridhia-open-source/alpine:1.7.0
+          command: ["python3", "/usr/bin/migrate-docker-secret"]
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ "ALL" ]
+          env:
+          - name: BACKEND_URL
+            value: http://backend:5000
+          - name: KEYCLOAK_ADMIN
+            value: admin
+          - name: DEFAULT_NAMESPACE
+            value: "fn"
+          - name: TASK_NAMESPACE
+            value: "tasks"
+          - name: KEYCLOAK_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: kc-secrets
+                key: KEYCLOAK_ADMIN_PASSWORD
+---
+# Source: federated-node/templates/nginx-ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: federated-ingress
+  namespace: fn
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    meta.helm.sh/release-name: fn
+    meta.helm.sh/release-namespace: fn
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    helm.sh/hook: pre-install,pre-upgrade
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "self"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+spec:
+  ingressClassName: fn-nginx
+  tls:
+  - hosts:
+    - phems-federatednode.net
+  rules:
+    - host: phems-federatednode.net
+      http:
+        paths:
+        - path: /(.*)
+          pathType: ImplementationSpecific
+          backend:
+            service:
+              name: backend
+              port:
+                name: http
+MANIFEST:
+---
+# Source: federated-node/templates/task-namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tasks
+---
+# Source: federated-node/charts/ingress-nginx/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: fn-ingress-nginx
+  namespace: ingress-nginx
+automountServiceAccountToken: true
+---
+# Source: federated-node/templates/backend-roles.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: secret-backend-handler
+  namespace: fn
+---
+# Source: federated-node/templates/keycloak-roles.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: k8s-keycloak-handler
+  namespace: keycloak
+---
+# Source: federated-node/templates/result-cleaner-cronjob.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: task-cleaner-handler
+  namespace: fn
+---
+# Source: federated-node/templates/copy-secrets.yaml
+## This assumes for certain secrets to be present in the release namespace
+# Basically duplicates them to the keycloak's namespace
+apiVersion: v1
+kind: Secret
+metadata:
+  name: local-db
+  namespace: keycloak
+data:
+  value: bG9jYWwtZGItc2VjcmV0
+type: Opaque
+---
+# Source: federated-node/templates/keycloak-secrets.yaml
+kind: Secret
+apiVersion: v1
+metadata:
+    name: kc-secrets
+    namespace: fn
+data:
+    KEYCLOAK_SECRET: "VUN5Rm9KRUZaSjJIYTM5b1IzaFFOM0Ix"
+    KEYCLOAK_ADMIN_PASSWORD: "cEZwa094TFVXVmdVcjhZRFV0enZyeklW"
+    KC_BOOTSTRAP_ADMIN_PASSWORD: "cEZwa094TFVXVmdVcjhZRFV0enZyeklW"
+type: Obscure
+---
+# Source: federated-node/templates/keycloak-secrets.yaml
+kind: Secret
+apiVersion: v1
+metadata:
+    name: kc-secrets
+    namespace: keycloak
+data:
+    KEYCLOAK_SECRET: "VUN5Rm9KRUZaSjJIYTM5b1IzaFFOM0Ix"
+    KEYCLOAK_ADMIN_PASSWORD: "cEZwa094TFVXVmdVcjhZRFV0enZyeklW"
+    KC_BOOTSTRAP_ADMIN_PASSWORD: "cEZwa094TFVXVmdVcjhZRFV0enZyeklW"
+type: Obscure
+---
+# Source: federated-node/charts/ingress-nginx/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: fn-ingress-nginx-controller
+  namespace: ingress-nginx
+data:
+---
+# Source: federated-node/templates/backend-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-configmap
+  namespace: fn
+data:
+  FLASK_APP: "/app"
+  PGHOST: "db.federated-node.svc"
+  PGPORT: "5432"
+  PGDATABASE: "fndb"
+  PGUSER: "admin"
+  KEYCLOAK_URL: "http://keycloak.keycloak.svc.cluster.local"
+  DEFAULT_NAMESPACE: fn
+  KEYCLOAK_NAMESPACE: keycloak
+  TASK_NAMESPACE: tasks
+  CLEANUP_AFTER_DAYS: "1"
+  PUBLIC_URL: phems-federatednode.net
+  RESULTS_PATH: /mnt/results
+  TASK_POD_RESULTS_PATH: /mnt/data
+  IMAGE_TAG: 1.7.0
+  CLAIM_CAPACITY: 10Gi
+  STORAGE_CLASS: fn-shared-results
+  CRD_DOMAIN: tasks.federatednode.com
+---
+# Source: federated-node/templates/keycloak-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-config
+  namespace: keycloak
+data:
+  KC_HEALTH_ENABLED: "true"
+  KC_HOSTNAME_STRICT: "false"
+  KC_FEATURES: admin-fine-grained-authz:v1,token-exchange,scripts
+  KC_BOOTSTRAP_ADMIN_USERNAME: tmpadmin
+  KEYCLOAK_ADMIN: admin
+  KC_DB_URL_HOST: db.federated-node.svc
+  KC_DB: postgres
+  KC_DB_URL_PORT: "5432"
+  KC_DB_URL_DATABASE: "fn_fndb"
+  KC_DB_USERNAME: "admin"
+  KEYCLOAK_TOKEN_LIFE: "2592000"
+  KEYCLOAK_NAMESPACE: keycloak
+  KEYCLOAK_HOSTNAME: phems-federatednode.net
+  KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "false"
+  # PROXY_ADDRESS_FORWARDING: true
+---
+# Source: federated-node/templates/keycloak-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-config
+  namespace: fn
+data:
+  KEYCLOAK_ADMIN: admin
+  KC_DB_URL_HOST: db.federated-node.svc
+  KC_DB_USERNAME: "admin"
+---
+# Source: federated-node/templates/nginx-extra-headers-configmap.yaml
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: fn-ingress-nginx-controller
+  namespace: ingress-nginx
+data:
+  add-headers: ingress-nginx/fn-ingress-nginx-custom-add-headers
+  allow-snippet-annotations: 'true'
+---
+# Source: federated-node/templates/db-pv.yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fn-db-storage
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+volumeBindingMode: WaitForFirstConsumer
+provisioner: Local
+---
+# Source: federated-node/templates/storageclass.yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fn-shared-results
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+volumeBindingMode: WaitForFirstConsumer
+provisioner: Local
+---
+# Source: federated-node/templates/backend-results-pv.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: fn-backend-results-10gi-pv
+spec:
+  storageClassName: fn-shared-results
+  accessModes:
+    - ReadWriteMany
+    - ReadOnlyMany
+  capacity:
+    storage: 10Gi
+  
+  local:
+    path: /phems/data/flask
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/os
+          operator: In
+          values:
+          - linux
+---
+# Source: federated-node/templates/db-pv.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: fn-db-pv
+spec:
+  storageClassName: fn-db-storage
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: 1Gi
+  # This should be changed to some more reliable destination
+  
+  local:
+    path: /phems/data/db/
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/os
+          operator: In
+          values:
+          - linux
+---
+# Source: federated-node/templates/backend-results-pv.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backend-results-10gi-pv-vc
+  namespace: 
+spec:
+  storageClassName: fn-shared-results
+  volumeName: fn-backend-results-10gi-pv
+  resources:
+    requests:
+      storage: 10Gi
+  accessModes:
+    - ReadWriteMany
+---
+# Source: federated-node/templates/db-pv.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: db-volclaim
+  namespace: 
+spec:
+  storageClassName: fn-db-storage
+  # This should be changed to some more reliable destination
+  volumeName: fn-db-pv
+  resources:
+    requests:
+      storage: 100Mi
+  accessModes:
+    - ReadWriteMany
+---
+# Source: federated-node/charts/ingress-nginx/templates/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+  name: fn-ingress-nginx
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - endpoints
+      - nodes
+      - pods
+      - secrets
+      - namespaces
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingresses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingresses/status
+    verbs:
+      - update
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingressclasses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - discovery.k8s.io
+    resources:
+      - endpointslices
+    verbs:
+      - list
+      - watch
+      - get
+---
+# Source: federated-node/templates/backend-roles.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fn-backend-role
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "create", "patch", "delete"]
+- apiGroups: ["", "batch"]
+  resources: ["pods", "persistentvolumes", "persistentvolumeclaims", "jobs", "pods/exec", "pods/log"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list", "create"]
+---
+# Source: federated-node/charts/ingress-nginx/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+  name: fn-ingress-nginx
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fn-ingress-nginx
+subjects:
+  - kind: ServiceAccount
+    name: fn-ingress-nginx
+    namespace: ingress-nginx
+---
+# Source: federated-node/templates/backend-roles.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fn-backend-role-binding
+subjects:
+  - kind: ServiceAccount
+    namespace: fn
+    name: secret-backend-handler
+roleRef:
+  kind: ClusterRole
+  name: fn-backend-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: federated-node/charts/ingress-nginx/templates/controller-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: fn-ingress-nginx
+  namespace: ingress-nginx
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - pods
+      - secrets
+      - endpoints
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingresses
+    verbs:
+      - get
+      - list
+      - watch
+  # Omit Ingress status permissions if `--update-status` is disabled.
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingresses/status
+    verbs:
+      - update
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingressclasses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    resourceNames:
+      - fn-ingress-nginx-leader
+    verbs:
+      - get
+      - update
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - create
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - discovery.k8s.io
+    resources:
+      - endpointslices
+    verbs:
+      - list
+      - watch
+      - get
+---
+# Source: federated-node/templates/keycloak-roles.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: keycloak-role
+  namespace: keycloak
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: ["apps"]
+  resources: ["statefulsets"]
+  verbs: ["get", "watch", "list"]
+---
+# Source: federated-node/templates/result-cleaner-cronjob.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cleaner-role
+  namespace: fn
+rules:
+- apiGroups: ["", "batch"]
+  resources: ["pods", "persistentvolumes", "persistentvolumeclaims", "jobs", "pods/exec"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list", "create", "delete"]
+---
+# Source: federated-node/charts/ingress-nginx/templates/controller-rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: fn-ingress-nginx
+  namespace: ingress-nginx
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: fn-ingress-nginx
+subjects:
+  - kind: ServiceAccount
+    name: fn-ingress-nginx
+    namespace: ingress-nginx
+---
+# Source: federated-node/templates/keycloak-roles.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: keycloak-role-binding
+  namespace: keycloak
+subjects:
+  - kind: ServiceAccount
+    namespace: keycloak
+    name: k8s-keycloak-handler
+roleRef:
+  kind: Role
+  name: keycloak-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: federated-node/templates/result-cleaner-cronjob.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cleaner-role-binding
+subjects:
+  - kind: ServiceAccount
+    namespace: fn
+    name: task-cleaner-handler
+roleRef:
+  kind: Role
+  name: cleaner-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: federated-node/charts/ingress-nginx/templates/controller-service-webhook.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: fn-ingress-nginx-controller-admission
+  namespace: ingress-nginx
+spec:
+  type: ClusterIP
+  ports:
+    - name: https-webhook
+      port: 443
+      targetPort: webhook
+      appProtocol: https
+  selector:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/component: controller
+---
+# Source: federated-node/charts/ingress-nginx/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: fn-ingress-nginx-controller
+  namespace: ingress-nginx
+spec:
+  type: LoadBalancer
+  ipFamilyPolicy: SingleStack
+  ipFamilies: 
+    - IPv4
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: http
+      appProtocol: http
+    - name: https
+      port: 443
+      protocol: TCP
+      targetPort: https
+      appProtocol: https
+  selector:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/component: controller
+---
+# Source: federated-node/templates/backend-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: fn
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5000
+      name: http
+      targetPort: 5000
+      protocol: TCP
+  selector:
+    app: flask
+---
+# Source: federated-node/templates/db-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  namespace: fn
+spec:
+  ports:
+    - port: 5432
+      name: pgport
+      targetPort: 5432
+      protocol: TCP
+  selector:
+    app: postgres
+---
+# Source: federated-node/charts/ingress-nginx/templates/controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: fn-ingress-nginx-controller
+  namespace: ingress-nginx
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/instance: fn
+      app.kubernetes.io/component: controller
+  replicas: 1
+  revisionHistoryLimit: 10
+  minReadySeconds: 0
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: ingress-nginx-4.12.1
+        app.kubernetes.io/name: ingress-nginx
+        app.kubernetes.io/instance: fn
+        app.kubernetes.io/version: "1.12.1"
+        app.kubernetes.io/part-of: ingress-nginx
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/component: controller
+    spec:
+      dnsPolicy: ClusterFirst
+      containers:
+        - name: controller
+          image: registry.k8s.io/ingress-nginx/controller:v1.12.1@sha256:d2fbc4ec70d8aa2050dd91a91506e998765e86c96f32cffb56c503c9c34eed5b
+          imagePullPolicy: IfNotPresent
+          lifecycle: 
+            preStop:
+              exec:
+                command:
+                - /wait-shutdown
+          args: 
+            - /nginx-ingress-controller
+            - --publish-service=$(POD_NAMESPACE)/fn-ingress-nginx-controller
+            - --election-id=fn-ingress-nginx-leader
+            - --controller-class=k8s.io/ingress-nginx
+            - --ingress-class=fn-nginx
+            - --configmap=$(POD_NAMESPACE)/fn-ingress-nginx-controller
+            - --validating-webhook=:8443
+            - --validating-webhook-certificate=/usr/local/certificates/cert
+            - --validating-webhook-key=/usr/local/certificates/key
+            - --default-ssl-certificate=qcfederatednode/my-tls-secret
+          securityContext: 
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 82
+            allowPrivilegeEscalation: false
+            seccompProfile: 
+              type: RuntimeDefault
+            capabilities:
+              drop:
+              - ALL
+              add:
+              - NET_BIND_SERVICE
+            readOnlyRootFilesystem: false
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: LD_PRELOAD
+              value: /usr/local/lib/libmimalloc.so
+          livenessProbe: 
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: 10254
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          readinessProbe: 
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 10254
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+            - name: https
+              containerPort: 443
+              protocol: TCP
+            - name: webhook
+              containerPort: 8443
+              protocol: TCP
+          volumeMounts:
+            - name: webhook-cert
+              mountPath: /usr/local/certificates/
+              readOnly: true
+          resources: 
+            requests:
+              cpu: 100m
+              memory: 90Mi
+      nodeSelector: 
+        kubernetes.io/os: linux
+      serviceAccountName: fn-ingress-nginx
+      terminationGracePeriodSeconds: 300
+      volumes:
+        - name: webhook-cert
+          secret:
+            secretName: fn-ingress-nginx-admission
+---
+# Source: federated-node/templates/backend-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: fn
+  labels:
+    app: flask
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flask
+  template:
+    metadata:
+      annotations:
+        rollme: "yiEYu"
+      labels:
+        app: flask
+    spec:
+      serviceAccountName: secret-backend-handler
+      initContainers:
+        - image: ghcr.io/aridhia-open-source/alpine:1.7.0
+          name: dbinit
+          command: [ "dbinit" ]
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ "ALL" ]
+          env:
+          - name: PGUSER
+            valueFrom:
+              configMapKeyRef:
+                name: keycloak-config
+                key: KC_DB_USERNAME
+          - name: PGHOST
+            valueFrom:
+              configMapKeyRef:
+                name: keycloak-config
+                key: KC_DB_URL_HOST
+          - name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: local-db
+                key: password
+          - name: NEW_DB
+            valueFrom:
+              configMapKeyRef:
+                name: backend-configmap
+                key: PGDATABASE
+        - name: db-migrations
+          image: ghcr.io/aridhia-open-source/federated_node_run:1.7.0
+          command: ["/bin/sh"]
+          workingDir: /
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ "ALL" ]
+          args:
+            [
+              "-c",
+              'python -m alembic upgrade head'
+            ]
+          envFrom:
+            - configMapRef:
+                name: backend-configmap
+          env:
+          - name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: local-db
+                key: password
+        - name: storage-init
+          image: ghcr.io/aridhia-open-source/alpine:1.7.0
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - mkdir -p /mnt/storage/results
+          volumeMounts:
+            - name: respv
+              mountPath: /mnt/storage
+      containers:
+        - image: ghcr.io/aridhia-open-source/federated_node_run:1.7.0
+          name: backend
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ "ALL" ]
+          resources:
+            limits:
+              memory: 200Mi
+              cpu: 100m
+          ports:
+            - name: http
+              containerPort: 5000
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /ready_check
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 30
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /health_check
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 30
+            failureThreshold: 5
+          envFrom:
+            - configMapRef:
+                name: backend-configmap
+            - configMapRef:
+                name: keycloak-config
+            - secretRef:
+                name: kc-secrets
+          env:
+          - name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: local-db
+                key: password
+          volumeMounts:
+            - name: respv
+              mountPath: /mnt/results
+              subPath: results
+      volumes:
+        - name: respv
+          persistentVolumeClaim:
+            claimName: backend-results-10gi-pv-vc
+---
+# Source: federated-node/templates/db-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-internal
+  namespace: fn
+  labels:
+    app: postgres
+spec:
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - image: postgres:13-alpine
+          name: db-internal
+          env:
+            - name: POSTGRES_DB
+              value: "fndb"
+            - name: POSTGRES_USER
+              value: "admin"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: local-db
+                  key: password
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: db-volclaim
+---
+# Source: federated-node/templates/keycloak-statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: keycloak
+  namespace: keycloak
+  labels:
+    app: keycloak
+spec:
+  serviceName: keycloak-headless
+  replicas: 2
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      annotations:
+        rollme: "pI3dD"
+      labels:
+        app: keycloak
+    spec:
+      initContainers:
+        - image: ghcr.io/aridhia-open-source/alpine:1.7.0
+          name: dbinit
+          command: [ "dbinit" ]
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ "ALL" ]
+          env:
+          - name: PGUSER
+            valueFrom:
+              configMapKeyRef:
+                name: keycloak-config
+                key: KC_DB_USERNAME
+          - name: PGHOST
+            valueFrom:
+              configMapKeyRef:
+                name: keycloak-config
+                key: KC_DB_URL_HOST
+          - name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: local-db
+                key: password
+          - name: NEW_DB
+            valueFrom:
+              configMapKeyRef:
+                name: keycloak-config
+                key: KC_DB_URL_DATABASE
+        - name: credentials-reset
+          imagePullPolicy: Always
+          image: ghcr.io/aridhia-open-source/alpine:1.7.0
+          command: ["keycloak-reset"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ "ALL" ]
+          env:
+          - name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: local-db
+                key: password
+          - name: KC_NAMESPACE
+            value: keycloak
+          - name: PGDATABASE
+            value: "fn_fndb"
+          envFrom:
+          - secretRef:
+              name: kc-secrets
+          - configMapRef:
+              name: keycloak-config
+      containers:
+        - image: ghcr.io/aridhia-open-source/federated_keycloak:1.7.0
+          args: [
+            "start",
+            "--import-realm",
+            "--http-enabled=true",
+            "--optimized"
+          ]
+          name: keycloak
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          env:
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: local-db
+                  key: password
+          envFrom:
+          - secretRef:
+              name: kc-secrets
+          - configMapRef:
+              name: keycloak-config
+          volumeMounts:
+            - name: config
+              mountPath: /opt/keycloak/data/import/
+            - name: quarkus
+              mountPath: /opt/keycloak/conf/quarkus.properties
+              subPath: quarkus.properties
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ "ALL" ]
+      volumes:
+        - name: config
+          configMap:
+            name: keycloak-start-config
+            items:
+            - key: config.json
+              path: config.json
+        - name: quarkus
+          configMap:
+            name: keycloak-start-config
+            items:
+            - key: quarkus.properties
+              path: quarkus.properties
+        - name: db-init
+          configMap:
+            name: keycloak-start-config
+            defaultMode: 0777
+            items:
+            - key: dbinit.sh
+              path: dbinit.sh
+---
+# Source: federated-node/templates/registry-sync-cronjob.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: registry-sync
+  namespace: fn
+spec:
+  schedule: "0 12 * * *"
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 60
+      template:
+        spec:
+          containers:
+          - name: registry-sync
+            image: ghcr.io/aridhia-open-source/alpine:1.7.0
+            command: ["sync-registry"]
+            imagePullPolicy: Always
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              seccompProfile:
+                type: RuntimeDefault
+              capabilities:
+                drop: [ "ALL" ]
+            env:
+            - name: BASE_URL
+              value: http://backend:5000
+            - name: KEYCLOAK_ADMIN
+              value: admin
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kc-secrets
+                  key: KEYCLOAK_ADMIN_PASSWORD
+          restartPolicy: Never
+---
+# Source: federated-node/templates/result-cleaner-cronjob.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: result-cleaner
+  namespace: fn
+spec:
+  schedule: "0 12 * * *"
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 60
+      template:
+        spec:
+          serviceAccountName: task-cleaner-handler
+          containers:
+          - name: result-cleaner
+            image: ghcr.io/aridhia-open-source/alpine:1.7.0
+            command: ["cleanup"]
+            imagePullPolicy: Always
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              seccompProfile:
+                type: RuntimeDefault
+              capabilities:
+                drop: [ "ALL" ]
+            env:
+            - name: NAMESPACE
+              value: tasks
+            - name: RESULTS_PATH
+              value: /mnt/results
+            - name: CLEANUP_AFTER_DAYS
+              value: "1"
+            volumeMounts:
+            - name: respv
+              mountPath: /mnt/results
+              subPath: results
+          restartPolicy: Never
+          volumes:
+          - name: respv
+            persistentVolumeClaim:
+              claimName: backend-results-10gi-pv-vc
+---
+# Source: federated-node/charts/ingress-nginx/templates/controller-ingressclass.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: fn-nginx
+spec:
+  controller: k8s.io/ingress-nginx
+---
+# Source: federated-node/templates/nginx-ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: federated-ingress-keycloak
+  namespace: keycloak
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    helm.sh/hook-weight: "5"
+    rollme: "lsKE1"
+spec:
+  ingressClassName: fn-nginx
+  tls:
+  - hosts:
+    - phems-federatednode.net
+  rules:
+    - host: phems-federatednode.net
+      http:
+        paths:
+        - path: /keycloak/(.*)
+          pathType: ImplementationSpecific
+          backend:
+            service:
+              name: keycloak
+              port:
+                name: http
+---
+# Source: federated-node/charts/ingress-nginx/templates/controller-poddisruptionbudget.yaml
+# PDB is not supported for DaemonSets.
+# https://github.com/kubernetes/kubernetes/issues/108124
+---
+# Source: federated-node/templates/certificates/certificate.yaml
+# Only rendered if SSL certificates are needed
+---
+# Source: federated-node/templates/certificates/issuer.yaml
+# Only rendered if SSL certificates are needed
+---
+# Source: federated-node/templates/certificates/roles.yaml
+# Conditional Roles specifically for AWS certificates
+---
+# Source: federated-node/templates/copy-secrets.yaml
+## This is optional
+---
+# Source: federated-node/charts/ingress-nginx/templates/admission-webhooks/validating-webhook.yaml
+# before changing this value, check the required kubernetes version
+# https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#prerequisites
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  annotations:
+  labels:
+    helm.sh/chart: ingress-nginx-4.12.1
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.1"
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: admission-webhook
+  name: fn-ingress-nginx-admission
+webhooks:
+  - name: validate.nginx.ingress.kubernetes.io
+    matchPolicy: Equivalent
+    rules:
+      - apiGroups:
+          - networking.k8s.io
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - ingresses
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: fn-ingress-nginx-controller-admission
+        namespace: ingress-nginx
+        port: 443
+        path: /networking/v1/ingresses
+
+NOTES:
+Successfully installed federated-node version: 1.7.0
+Subcharts:
+    Ingress Nginx: 4.12.1
+
+You can run some smoketests with:
+helm test fn -n fn --logs
+
+The smoketest pod will stay until the next one is run.
+It can be deleted with:
+kubectl delete pod -n fn fn-smoke-tests
+
+Also check out our "How to use it" article: https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/How-to-use-it

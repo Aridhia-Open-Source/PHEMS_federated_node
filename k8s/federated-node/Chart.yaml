@@ -37,3 +37,4 @@ dependencies:
     version: "4.12.1"
     repository: https://kubernetes.github.io/ingress-nginx
     condition: ingress-nginx.enabled
+
