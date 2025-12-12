@@ -61,10 +61,10 @@ def login(kc_url:str, kc_user:str, kc_pass:str) -> str:
       if kc_user == settings.kc_bootstrap_admin_username:
         logger.error("Error while logging in with bootstrap user. Most likely due to the keycloak pods not having " \
         "created one yet as part of init containers. This daemonset will retry. " \
-        "If persist, restart the keycloak statefulset")
+        "If you can't login still, restart the keycloak statefulset")
       else:
         logger.error(response.json())
-      exit(1)
+      return
 
     logger.info("Successful")
     return response.json()["access_token"]
