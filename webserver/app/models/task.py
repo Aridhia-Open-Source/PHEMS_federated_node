@@ -102,9 +102,7 @@ class Task(db.Model, BaseModel):
         data = super().validate(data)
 
         data["from_controller"] = is_from_controller
-        # Cron Rule validation
-        # too long to validate all
-        # if re.match(r"", schedule):
+
         # Dataset validation
         if kc_client.is_user_admin(user_token):
             ds_id = data.get("tags", {}).get("dataset_id")

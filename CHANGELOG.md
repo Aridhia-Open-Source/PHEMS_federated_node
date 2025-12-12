@@ -1,5 +1,9 @@
 # Releases Changelog
 
+## 1.8.0
+- CronJobs are now supported. Use the `schedule` field in either the `/tasks` API, or the `Analytics` CRD (for outbound mode) to set a cron rule, like `"3 9 * * *"`.
+- Added two new endpoints for cronjobs: `/tasks/id/suspend` and `/tasks/id/resume` to pause/resume autoexecution.
+
 ## 1.7.0
 - Upgraded Keycloak to version 26.4
 - Changed the init realm daemonset to a deployment, as it behaves like a controller for keycloak

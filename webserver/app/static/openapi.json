@@ -2494,12 +2494,10 @@
             "example": "aabf657d-e912-43ab-8df7-924731b0f74f"
           },
           "status": {
-            "type": "object",
-            "properties": {
-              "running": {"type": "object"},
-              "terminated": {"type": "object"},
-              "waiting": {"type": "object"}
-            }
+            "anyOf": [
+              { "$ref": "#/components/schemas/TaskStatus" },
+              { "$ref": "#/components/schemas/CronStatus" }
+            ]
           },
           "title": {
             "type": "string",
@@ -2509,6 +2507,22 @@
             "type": "string",
             "example": "Mon, 19 Feb 2024 11:41:54 GMT"
           }
+        }
+      },
+      "TaskStatus": {
+        "type": "object",
+        "properties": {
+          "running": {"type": "object"},
+          "terminated": {"type": "object"},
+          "waiting": {"type": "object"}
+        }
+      },
+      "CronStatus": {
+        "type": "object",
+        "properties": {
+          "failed": {"type": "integer"},
+          "ready": {"type": "integer"},
+          "succeeded": {"type": "integer"}
         }
       },
       "UserEntry": {
