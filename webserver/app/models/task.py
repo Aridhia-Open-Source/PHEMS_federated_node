@@ -2,10 +2,7 @@ import logging
 import json
 import re
 from datetime import datetime, timedelta
-from kubernetes.client import (
-  V1CustomResourceDefinition, V1CronJob, V1ObjectMeta, V1CronJobSpec,
-  V1JobTemplateSpec, V1JobSpec, V1PodTemplateSpec, V1CronJobList
-)
+from kubernetes.client import V1CustomResourceDefinition, V1CronJob, V1CronJobList
 from kubernetes.client.exceptions import ApiException
 from kubernetes.client.models.v1_job import V1Job
 from kubernetes.client.models.v1_pod import V1Pod
@@ -356,18 +353,6 @@ class Task(db.Model, BaseModel):
             # create CRD
             self.create_controller_crd()
 
-    def get_current_cronjob(self) -> V1CronJob|None:
-        """
-        Fetches the cronjob
-        """
-        batch_v1 = KubernetesBatchClient()
-        cj_list:V1CronJobList = batch_v1.list_namespaced_cron_job(
-            namespace=TASK_NAMESPACE,
-            label_selector=f"task_id={self.id}"
-        ).items
-        if cj_list:
-            return cj_list[0]
-
     def get_current_pod(self, is_running:bool=True, all:bool=False) -> V1Pod|None:
         """
         Fetches the pod object from k8s API.
@@ -414,7 +399,7 @@ class Task(db.Model, BaseModel):
                         "ready": job.status.ready,
                         "failed": job.status.failed,
                     }
-                return active or "Not started yet",
+                return active or "Not started yet"
 
             status_obj = self.get_current_pod(is_running=False).status.container_statuses
             if status_obj is None:
@@ -675,7 +660,10 @@ class Task(db.Model, BaseModel):
         try:
             cj: V1CronJob = CronJob(self.id).get()
             if cj.spec.suspend == suspend:
-                raise TaskExecutionException(f"CronJob is already set to be {"suspended" if suspend else "enabled"}")
+                raise TaskExecutionException(
+                    f"CronJob is already set to be {"suspended" if suspend else "enabled"}",
+                    400
+                )
 
             cj.spec.suspend = suspend
             batch_v1.patch_namespaced_cron_job(

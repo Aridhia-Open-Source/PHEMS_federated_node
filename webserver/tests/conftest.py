@@ -3,7 +3,7 @@ from copy import deepcopy
 from typing import List
 from pytest import fixture
 from datetime import datetime as dt, timedelta
-from kubernetes.client import V1Pod, V1Secret
+from kubernetes.client import V1Pod, V1Secret, V1CronJob, V1Job, V1Volume
 from sqlalchemy.orm.session import close_all_sessions
 from unittest.mock import Mock
 
@@ -171,13 +171,26 @@ def v1_mock(mocker):
     }
 
 @fixture
-def v1_batch_mock(mocker):
+def cron_k8s_object():
+    cj = Mock(spec=V1CronJob)
+    vol = Mock(spec=V1Volume)
+    vol.persistent_volume_claim.claim_name = "claim"
+    cj.spec.job_template.spec.template.spec.volumes = [vol]
+    return cj
+
+@fixture
+def v1_batch_mock(mocker, cron_k8s_object):
     return {
         "create_namespaced_cron_job_with_http_info": mocker.patch(
             'app.helpers.kubernetes.KubernetesBatchClient.create_namespaced_cron_job_with_http_info'
         ),
+        "list_namespaced_job": mocker.patch(
+            'app.helpers.kubernetes.KubernetesBatchClient.list_namespaced_job',
+            return_value=Mock(items=[Mock(spec=V1Job)])
+        ),
         "list_namespaced_cron_job": mocker.patch(
-            'app.helpers.kubernetes.KubernetesBatchClient.list_namespaced_cron_job'
+            'app.helpers.kubernetes.KubernetesBatchClient.list_namespaced_cron_job',
+            return_value=Mock(items=[cron_k8s_object])
         ),
         "patch_namespaced_cron_job": mocker.patch(
             'app.helpers.kubernetes.KubernetesBatchClient.patch_namespaced_cron_job'
