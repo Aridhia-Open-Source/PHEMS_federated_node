@@ -1,0 +1,14 @@
+# This just works as a big check for available resources, so
+# the templates won't be filled with this, and will reduce code duplication
+
+{{- if .Values.traefik.enabled -}}
+{{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "httproutes.gateway.networking.k8s.io" -}}
+{{- if not $crd }}
+  {{ fail (.Files.Get "scripts/missing-gateway-api-crd.txt") }}
+{{- end -}}
+
+{{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "middlewares.traefik.io" -}}
+{{- if not $crd }}
+  {{ fail (.Files.Get "scripts/missing-traefik-crd.txt") }}
+{{- end -}}
+{{- end -}}

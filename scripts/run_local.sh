@@ -55,11 +55,6 @@ echo "If new images are needed, load them up with:"
 echo "docker save <image_name> > fn.tar"
 echo "microk8s ctr image import fn.tar"
 
-NGINX_NAMESPACE=$(grep -oP '(?<=nginx:\s).*' k8s/federated-node/dev.values.yaml)
-
-if [[ -z $NGINX_NAMESPACE ]]; then
-    NGINX_NAMESPACE=$(grep -oP '(?<=nginx:\s).*' k8s/federated-node/values.yaml)
-fi
 
 echo "You can reach the FN on https://<host-url>"
-kubectl port-forward -n "${NGINX_NAMESPACE}" svc/ingress-nginx-controller 443
+kubectl port-forward svc/federatednode-traefik 443

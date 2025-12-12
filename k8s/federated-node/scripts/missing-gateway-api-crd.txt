@@ -1,0 +1,10 @@
+
+Missing gateway API CRD. Run the gateway-api-installer.sh script:
+
+curl -LsSf https://raw.githubusercontent.com/Aridhia-Open-Source/PHEMS_federated_node/refs/heads/232-gateway-api/scripts/gateway-api-installer.sh | sh
+
+or directly from the Gateway API repository
+
+kubectl apply --server-side -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/experimental-install.yaml"
+
+Then you can run the upgrade/installation as normal.

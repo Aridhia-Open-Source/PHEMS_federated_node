@@ -1,0 +1,27 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ .Values.traefik.gateway.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  gatewayClassName: {{ .Values.traefik.gatewayClass.name }}
+  listeners:
+    - allowedRoutes:
+        namespaces:
+          from: Same
+      name: web
+      port: 8000
+      protocol: HTTP
+    - allowedRoutes:
+        namespaces:
+          from: Same
+      name: websecure
+      port: 8443
+      hostname: {{ .Values.host }}
+      protocol: HTTPS
+      tls:
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: {{ .Values.tls.secretName }}
+        mode: Terminate

@@ -30,10 +30,6 @@ The necessary values are:
 |-|-|-|
 |integrations|domains|The list of third party host that can reach the Federated Node. Otherwise these will be blocked by CSP policies. This will not affect direct user API usage.|
 |host|The URL where the FN will be hosted at|
-|whitelist|enabled|Enable the whitelist of IP CIDRs|
-|whitelist|ips|List of IP CIDRs|
-|blacklist|enabled|Enable the whitelist of IP CIDRs|
-|blacklist|ips|List of IP CIDRs|
 |tls|secretName|Secret name where the SSL certificate is. Defaults to `tls` if the `tls` section is set|
 
 ### Existing secrets
@@ -41,3 +37,9 @@ It is highly suggested to have some secrets pre-set in the namespace this helm c
 - db password
 - azure storage credentials
 - tls cert
+
+## Gateway API CRD update
+```sh
+VERSION=x.y.z
+wget "https://github.com/kubernetes-sigs/gateway-api/releases/download/v${VERSION}/standard-install.yaml -O k8s/federated-node/scripts/gateway-api-crds-${VERSION//./-}.yaml"
+```

@@ -1,0 +1,10 @@
+
+Missing Traefik CRDs. Run the gateway-api-installer.sh script:
+
+curl -LsSf https://raw.githubusercontent.com/Aridhia-Open-Source/PHEMS_federated_node/refs/heads/232-gateway-api/scripts/gateway-api-installer.sh | sh
+
+or directly from the traefik repository
+
+kubectl apply --server-side -f "https://raw.githubusercontent.com/traefik/traefik/v3.6/docs/content/reference/dynamic-configuration/kubernetes-crd-definition-v1.yml"
+
+Then you can run the upgrade/installation as normal.
