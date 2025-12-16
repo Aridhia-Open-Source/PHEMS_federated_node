@@ -37,4 +37,6 @@ dependencies:
     version: "4.12.1"
     repository: https://kubernetes.github.io/ingress-nginx
     condition: ingress-nginx.enabled
-
+  - name: dagster
+    version:  1.12.5
+    repository: https://dagster-io.github.io/helm

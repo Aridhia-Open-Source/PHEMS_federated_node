@@ -1,6 +1,6 @@
 Release "fn" does not exist. Installing it now.
 NAME: fn
-LAST DEPLOYED: Thu Dec 11 13:54:41 2025
+LAST DEPLOYED: Fri Dec 12 16:59:42 2025
 NAMESPACE: fn
 STATUS: pending-install
 REVISION: 1
@@ -18,38 +18,6 @@ metadata:
     helm.sh/hook-weight: "-6"
     meta.helm.sh/release-name: fn
     meta.helm.sh/release-namespace: fn
----
-# Source: federated-node/templates/nginx-namespace.yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: ingress-nginx
-  labels:
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    helm.sh/hook: pre-install
-    helm.sh/hook-weight: "-6"
-    meta.helm.sh/release-name: fn
-    meta.helm.sh/release-namespace: fn
----
-# Source: federated-node/charts/ingress-nginx/templates/admission-webhooks/job-patch/serviceaccount.yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: fn-ingress-nginx-admission
-  namespace: ingress-nginx
-  annotations:
-    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-  labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: admission-webhook
-automountServiceAccountToken: true
 ---
 # Source: federated-node/templates/keycloak-start-configmap.yaml
 apiVersion: v1
@@ -240,7 +208,8 @@ data:
           "notBefore": 0,
           "bearerOnly": false,
           "consentRequired": false,
-          "standardFlowEnabled": true,\\,
+          "standardFlowEnabled": true,
+          "implicitFlowEnabled": false,
           "directAccessGrantsEnabled": true,
           "serviceAccountsEnabled": true,
           "authorizationServicesEnabled": true,
@@ -477,128 +446,6 @@ data:
   quarkus.properties: |-
     quarkus.transaction-manager.enable-recovery=true
 ---
-# Source: federated-node/templates/nginx-extra-headers-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: fn-ingress-nginx-custom-add-headers
-  namespace: ingress-nginx
-  labels:
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/resource-policy: keep
-    meta.helm.sh/release-name: fn
-    meta.helm.sh/release-namespace: fn
-data:
-    strict-transport-security: "max-age=63072000"
-    content-security-policy: "default-src 'self' https: ; connect-src 'self' self; frame-ancestors: 'self'; script-src 'unsafe-inline'; script-src-elem 'unsafe-inline' https:; img-src https:  data:"
-    referrer-policy: "strict-origin"
-    permission-policy: "src"
-    x-content-type-options: "application/json"
----
-# Source: federated-node/charts/ingress-nginx/templates/admission-webhooks/job-patch/clusterrole.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: fn-ingress-nginx-admission
-  annotations:
-    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-  labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: admission-webhook
-rules:
-  - apiGroups:
-      - admissionregistration.k8s.io
-    resources:
-      - validatingwebhookconfigurations
-    verbs:
-      - get
-      - update
----
-# Source: federated-node/charts/ingress-nginx/templates/admission-webhooks/job-patch/clusterrolebinding.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: fn-ingress-nginx-admission
-  annotations:
-    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-  labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: admission-webhook
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: fn-ingress-nginx-admission
-subjects:
-  - kind: ServiceAccount
-    name: fn-ingress-nginx-admission
-    namespace: ingress-nginx
----
-# Source: federated-node/charts/ingress-nginx/templates/admission-webhooks/job-patch/role.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: fn-ingress-nginx-admission
-  namespace: ingress-nginx
-  annotations:
-    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-  labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: admission-webhook
-rules:
-  - apiGroups:
-      - ""
-    resources:
-      - secrets
-    verbs:
-      - get
-      - create
----
-# Source: federated-node/charts/ingress-nginx/templates/admission-webhooks/job-patch/rolebinding.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: fn-ingress-nginx-admission
-  namespace: ingress-nginx
-  annotations:
-    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-  labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: admission-webhook
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: fn-ingress-nginx-admission
-subjects:
-  - kind: ServiceAccount
-    name: fn-ingress-nginx-admission
-    namespace: ingress-nginx
----
 # Source: federated-node/templates/keycloak-headless.yaml
 apiVersion: v1
 kind: Service
@@ -718,128 +565,6 @@ spec:
           - secretRef:
               name: kc-secrets
 ---
-# Source: federated-node/charts/ingress-nginx/templates/admission-webhooks/job-patch/job-createSecret.yaml
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: fn-ingress-nginx-admission-create
-  namespace: ingress-nginx
-  annotations:
-    "helm.sh/hook": pre-install,pre-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-  labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: admission-webhook
-spec:
-  template:
-    metadata:
-      name: fn-ingress-nginx-admission-create
-      labels:
-        helm.sh/chart: ingress-nginx-4.12.1
-        app.kubernetes.io/name: ingress-nginx
-        app.kubernetes.io/instance: fn
-        app.kubernetes.io/version: "1.12.1"
-        app.kubernetes.io/part-of: ingress-nginx
-        app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/component: admission-webhook
-    spec:
-      containers:
-        - name: create
-          image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.5.2@sha256:e8825994b7a2c7497375a9b945f386506ca6a3eda80b89b74ef2db743f66a5ea
-          imagePullPolicy: IfNotPresent
-          args:
-            - create
-            - --host=fn-ingress-nginx-controller-admission,fn-ingress-nginx-controller-admission.$(POD_NAMESPACE).svc
-            - --namespace=$(POD_NAMESPACE)
-            - --secret-name=fn-ingress-nginx-admission
-          env:
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-          securityContext: 
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            readOnlyRootFilesystem: true
-            runAsGroup: 65532
-            runAsNonRoot: true
-            runAsUser: 65532
-            seccompProfile:
-              type: RuntimeDefault
-      restartPolicy: OnFailure
-      serviceAccountName: fn-ingress-nginx-admission
-      nodeSelector: 
-        kubernetes.io/os: linux
----
-# Source: federated-node/charts/ingress-nginx/templates/admission-webhooks/job-patch/job-patchWebhook.yaml
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: fn-ingress-nginx-admission-patch
-  namespace: ingress-nginx
-  annotations:
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-  labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: admission-webhook
-spec:
-  template:
-    metadata:
-      name: fn-ingress-nginx-admission-patch
-      labels:
-        helm.sh/chart: ingress-nginx-4.12.1
-        app.kubernetes.io/name: ingress-nginx
-        app.kubernetes.io/instance: fn
-        app.kubernetes.io/version: "1.12.1"
-        app.kubernetes.io/part-of: ingress-nginx
-        app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/component: admission-webhook
-    spec:
-      containers:
-        - name: patch
-          image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.5.2@sha256:e8825994b7a2c7497375a9b945f386506ca6a3eda80b89b74ef2db743f66a5ea
-          imagePullPolicy: IfNotPresent
-          args:
-            - patch
-            - --webhook-name=fn-ingress-nginx-admission
-            - --namespace=$(POD_NAMESPACE)
-            - --patch-mutating=false
-            - --secret-name=fn-ingress-nginx-admission
-            - --patch-failure-policy=Fail
-          env:
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-          securityContext: 
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            readOnlyRootFilesystem: true
-            runAsGroup: 65532
-            runAsNonRoot: true
-            runAsUser: 65532
-            seccompProfile:
-              type: RuntimeDefault
-      restartPolicy: OnFailure
-      serviceAccountName: fn-ingress-nginx-admission
-      nodeSelector: 
-        kubernetes.io/os: linux
----
 # Source: federated-node/templates/migrations/migrate-regcreds-secrets.yaml
 apiVersion: batch/v1
 kind: Job
@@ -884,39 +609,6 @@ spec:
               secretKeyRef:
                 name: kc-secrets
                 key: KEYCLOAK_ADMIN_PASSWORD
----
-# Source: federated-node/templates/nginx-ingress.yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: federated-ingress
-  namespace: fn
-  labels:
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    meta.helm.sh/release-name: fn
-    meta.helm.sh/release-namespace: fn
-    nginx.ingress.kubernetes.io/rewrite-target: /$1
-    helm.sh/hook: pre-install,pre-upgrade
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "self"
-    nginx.ingress.kubernetes.io/enable-cors: "true"
-spec:
-  ingressClassName: fn-nginx
-  tls:
-  - hosts:
-    - phems-federatednode.net
-  rules:
-    - host: phems-federatednode.net
-      http:
-        paths:
-        - path: /(.*)
-          pathType: ImplementationSpecific
-          backend:
-            service:
-              name: backend
-              port:
-                name: http
 MANIFEST:
 ---
 # Source: federated-node/templates/task-namespace.yaml
@@ -925,21 +617,46 @@ kind: Namespace
 metadata:
   name: tasks
 ---
-# Source: federated-node/charts/ingress-nginx/templates/controller-serviceaccount.yaml
+# Source: federated-node/charts/dagster/charts/dagster-user-deployments/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
+  name: fn-dagster-user-deployments-user-deployments
+  labels: 
+    helm.sh/chart: dagster-user-deployments-1.12.5
+    app.kubernetes.io/name: dagster-user-deployments
     app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/version: "1.12.5"
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: controller
-  name: fn-ingress-nginx
-  namespace: ingress-nginx
-automountServiceAccountToken: true
+  annotations:
+    {}
+automountServiceAccountToken: false
+---
+# Source: federated-node/charts/dagster/charts/rabbitmq/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fn-rabbitmq
+  labels:
+    app: rabbitmq
+    chart: rabbitmq-6.16.3
+    release: "fn"
+    heritage: "Helm"
+---
+# Source: federated-node/charts/dagster/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fn-dagster
+  labels: 
+    helm.sh/chart: dagster-1.12.5
+    app.kubernetes.io/name: dagster
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.5"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    {}
+automountServiceAccountToken: false
 ---
 # Source: federated-node/templates/backend-roles.yaml
 apiVersion: v1
@@ -962,6 +679,67 @@ metadata:
   name: task-cleaner-handler
   namespace: fn
 ---
+# Source: federated-node/charts/dagster/charts/postgresql/templates/secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: fn-postgresql
+  labels:
+    app: postgresql
+    chart: postgresql-8.1.0
+    release: "fn"
+    heritage: "Helm"
+type: Opaque
+data:
+  postgresql-password: "dGVzdA=="
+---
+# Source: federated-node/charts/dagster/charts/rabbitmq/templates/secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: fn-rabbitmq
+  labels:
+    app: rabbitmq
+    chart: rabbitmq-6.16.3
+    release: "fn"
+    heritage: "Helm"
+type: Opaque
+data:
+  
+  rabbitmq-password: "dGVzdA=="
+  
+  
+  rabbitmq-erlang-cookie: "WTVFWTZuUVpYaVZxSTdtbFRDRmh3ajBKOGg3bDBxY3E="
+---
+# Source: federated-node/charts/dagster/templates/secret-celery-config.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dagster-celery-config-secret
+  labels:
+    app: "dagster"
+    chart: "dagster-1.12.5"
+    release: "fn"
+    heritage: "Helm"
+type: Opaque
+data:
+  DAGSTER_CELERY_BROKER_URL: "cHlhbXFwOi8vdGVzdDp0ZXN0QGZuLXJhYmJpdG1xOjU2NzIvLw=="
+  DAGSTER_CELERY_BACKEND_URL: "cnBjOi8v"
+---
+# Source: federated-node/charts/dagster/templates/secret-postgres.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dagster-postgresql-secret
+  labels:
+    app: "dagster"
+    chart: "dagster-1.12.5"
+    release: "fn"
+    heritage: "Helm"
+type: Opaque
+data:
+  postgresql-password: "dGVzdA=="
+---
 # Source: federated-node/templates/copy-secrets.yaml
 ## This assumes for certain secrets to be present in the release namespace
 # Basically duplicates them to the keycloak's namespace
@@ -981,9 +759,9 @@ metadata:
     name: kc-secrets
     namespace: fn
 data:
-    KEYCLOAK_SECRET: "VUN5Rm9KRUZaSjJIYTM5b1IzaFFOM0Ix"
-    KEYCLOAK_ADMIN_PASSWORD: "cEZwa094TFVXVmdVcjhZRFV0enZyeklW"
-    KC_BOOTSTRAP_ADMIN_PASSWORD: "cEZwa094TFVXVmdVcjhZRFV0enZyeklW"
+    KEYCLOAK_SECRET: "QTI3eGpHOURtOW95RnByMjQ1cDdzejFI"
+    KEYCLOAK_ADMIN_PASSWORD: "Ymo5NXZuTnFJYzhpazhQTFdjRWlVTXpj"
+    KC_BOOTSTRAP_ADMIN_PASSWORD: "Ymo5NXZuTnFJYzhpazhQTFdjRWlVTXpj"
 type: Obscure
 ---
 # Source: federated-node/templates/keycloak-secrets.yaml
@@ -993,26 +771,326 @@ metadata:
     name: kc-secrets
     namespace: keycloak
 data:
-    KEYCLOAK_SECRET: "VUN5Rm9KRUZaSjJIYTM5b1IzaFFOM0Ix"
-    KEYCLOAK_ADMIN_PASSWORD: "cEZwa094TFVXVmdVcjhZRFV0enZyeklW"
-    KC_BOOTSTRAP_ADMIN_PASSWORD: "cEZwa094TFVXVmdVcjhZRFV0enZyeklW"
+    KEYCLOAK_SECRET: "QTI3eGpHOURtOW95RnByMjQ1cDdzejFI"
+    KEYCLOAK_ADMIN_PASSWORD: "Ymo5NXZuTnFJYzhpazhQTFdjRWlVTXpj"
+    KC_BOOTSTRAP_ADMIN_PASSWORD: "Ymo5NXZuTnFJYzhpazhQTFdjRWlVTXpj"
 type: Obscure
 ---
-# Source: federated-node/charts/ingress-nginx/templates/controller-configmap.yaml
+# Source: federated-node/charts/dagster/charts/dagster-user-deployments/templates/configmap-env-shared.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: fn-dagster-user-deployments-user-deployments-shared-env
   labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: controller
-  name: fn-ingress-nginx-controller
-  namespace: ingress-nginx
+    app: dagster-user-deployments
+    chart: dagster-user-deployments-1.12.5
+    release: fn
+    heritage: Helm
 data:
+  
+  
+  
+  DAGSTER_HOME: "/opt/dagster/dagster_home"
+  DAGSTER_K8S_PIPELINE_RUN_NAMESPACE: "fn"
+  DAGSTER_K8S_PIPELINE_RUN_ENV_CONFIGMAP: "fn-dagster-user-deployments-pipeline-env"
+---
+# Source: federated-node/charts/dagster/charts/dagster-user-deployments/templates/configmap-env-user.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fn-dagster-user-deployments-iris-analysis-user-env
+  labels:
+    app: dagster-user-deployments
+    chart: dagster-user-deployments-1.12.5
+    release: fn
+    heritage: Helm
+data:
+  # If this is a map, we write it to this configmap. If it's a list, we include it
+  # directly on the container (can use more k8s spec like valueFrom).
+---
+# Source: federated-node/charts/dagster/charts/rabbitmq/templates/configuration.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fn-rabbitmq-config
+  labels:
+    app: rabbitmq
+    chart: rabbitmq-6.16.3
+    release: "fn"
+    heritage: "Helm"
+data:
+  enabled_plugins: |-
+    [rabbitmq_management, rabbitmq_peer_discovery_k8s, rabbitmq_auth_backend_ldap].
+  rabbitmq.conf: |-
+    ##username and password
+    default_user=test
+    default_pass=CHANGEME
+    ## Clustering
+    cluster_formation.peer_discovery_backend  = rabbit_peer_discovery_k8s
+    cluster_formation.k8s.host = kubernetes.default.svc.cluster.local
+    cluster_formation.node_cleanup.interval = 10
+    cluster_formation.node_cleanup.only_log_warning = true
+    cluster_partition_handling = autoheal
+    # queue master locator
+    queue_master_locator=min-masters
+    # enable guest user
+    loopback_users.guest = false
+    #disk_free_limit.absolute = 50MB
+    #management.load_definitions = /app/load_definition.json
+---
+# Source: federated-node/charts/dagster/charts/rabbitmq/templates/healthchecks.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fn-rabbitmq-healthchecks
+  labels:
+    app: rabbitmq
+    chart: rabbitmq-6.16.3
+    release: "fn"
+    heritage: "Helm"
+data:
+  rabbitmq-health-check: |-
+    #!/bin/sh
+    START_FLAG=/opt/bitnami/rabbitmq/var/lib/rabbitmq/.start
+    if [ -f ${START_FLAG} ]; then
+        rabbitmqctl node_health_check
+        RESULT=$?
+        if [ $RESULT -ne 0 ]; then
+          rabbitmqctl status
+          exit $?
+        fi
+        rm -f ${START_FLAG}
+        exit ${RESULT}
+    fi
+    rabbitmq-api-check $1 $2
+  rabbitmq-api-check: |-
+    #!/bin/sh
+    set -e
+    URL=$1
+    EXPECTED=$2
+    ACTUAL=$(curl --silent --show-error --fail "${URL}")
+    echo "${ACTUAL}"
+    test "${EXPECTED}" = "${ACTUAL}"
+---
+# Source: federated-node/charts/dagster/templates/configmap-celery.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fn-dagster-celery-dagster
+  labels:
+    app: dagster
+    chart: dagster-1.12.5
+    release: fn
+    heritage: Helm
+data:
+  celery.yaml: |
+    execution:
+      celery:
+        broker:
+          env: DAGSTER_CELERY_BROKER_URL
+        backend:
+          env: DAGSTER_CELERY_BACKEND_URL
+        config_source: 
+          {}
+---
+# Source: federated-node/charts/dagster/templates/configmap-env-celery.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fn-dagster-celery-worker-env
+  labels:
+    app: dagster
+    chart: dagster-1.12.5
+    release: fn
+    heritage: Helm
+data:
+  DAGSTER_HOME: "/opt/dagster/dagster_home"
+  DAGSTER_K8S_PIPELINE_RUN_NAMESPACE: "fn"
+  DAGSTER_K8S_PIPELINE_RUN_ENV_CONFIGMAP: "fn-dagster-pipeline-env"
+  DAGSTER_K8S_PIPELINE_RUN_IMAGE: "docker.io/dagster/user-code-example:1.12.5"
+  DAGSTER_K8S_PIPELINE_RUN_IMAGE_PULL_POLICY: "Always"
+---
+# Source: federated-node/charts/dagster/templates/configmap-env-daemon.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fn-dagster-daemon-env
+  labels:
+    app: dagster
+    chart: dagster-1.12.5
+    release: fn
+    heritage: Helm
+data:
+  
+  DAGSTER_HOME: "/opt/dagster/dagster_home"
+  DAGSTER_K8S_PIPELINE_RUN_NAMESPACE: "fn"
+  DAGSTER_K8S_PIPELINE_RUN_ENV_CONFIGMAP: "fn-dagster-pipeline-env"
+  DAGSTER_K8S_PIPELINE_RUN_IMAGE: "docker.io/dagster/user-code-example:1.12.5"
+  DAGSTER_K8S_PIPELINE_RUN_IMAGE_PULL_POLICY: "Always"
+  # This is a list by default, but for backcompat it can be a map. If it's a list, the env is applied directly
+  # to the container.
+---
+# Source: federated-node/charts/dagster/templates/configmap-env-pipeline-run.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fn-dagster-pipeline-env
+  labels:
+    app: dagster
+    chart: dagster-1.12.5
+    release: fn
+    heritage: Helm
+data:
+  
+  DAGSTER_HOME: "/opt/dagster/dagster_home"
+  DAGSTER_K8S_PIPELINE_RUN_NAMESPACE: "fn"
+  DAGSTER_K8S_PIPELINE_RUN_ENV_CONFIGMAP: "fn-dagster-pipeline-env"
+  DAGSTER_K8S_PIPELINE_RUN_IMAGE: "docker.io/dagster/user-code-example:1.12.5"
+  DAGSTER_K8S_PIPELINE_RUN_IMAGE_PULL_POLICY: "Always"
+---
+# Source: federated-node/charts/dagster/templates/configmap-env-webserver.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fn-dagster-webserver-env
+  labels:
+    app: dagster
+    chart: dagster-1.12.5
+    release: fn
+    heritage: Helm
+data:
+  
+  DAGSTER_HOME: "/opt/dagster/dagster_home"
+  DAGSTER_K8S_PIPELINE_RUN_NAMESPACE: "fn"
+  DAGSTER_K8S_PIPELINE_RUN_ENV_CONFIGMAP: "fn-dagster-pipeline-env"
+  DAGSTER_K8S_PIPELINE_RUN_IMAGE: "docker.io/dagster/user-code-example:1.12.5"
+  DAGSTER_K8S_PIPELINE_RUN_IMAGE_PULL_POLICY: "Always"
+  # This is a list by default, but for backcompat it can be a map. If it's a list, the env is applied directly
+  # to the container.
+---
+# Source: federated-node/charts/dagster/templates/configmap-instance.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fn-dagster-instance
+  labels:
+    app: dagster
+    chart: dagster-1.12.5
+    release: fn
+    heritage: Helm
+data:
+  dagster.yaml: |
+    scheduler:      
+      module: dagster.core.scheduler
+      class: DagsterDaemonScheduler
+
+    schedule_storage:
+      module: dagster_postgres.schedule_storage
+      class: PostgresScheduleStorage
+      config:        
+        postgres_db:
+          username: test
+          password:
+            env: DAGSTER_PG_PASSWORD
+          hostname: fn-postgresql
+          db_name: test
+          port: 5432
+          params:
+            {}
+
+    run_launcher:      
+      module: dagster_celery_k8s
+      class: CeleryK8sRunLauncher
+      config:
+        dagster_home: "/opt/dagster/dagster_home"
+        instance_config_map: "fn-dagster-instance"
+        postgres_password_secret: "dagster-postgresql-secret"
+        job_namespace: fn
+        broker:
+          env: DAGSTER_CELERY_BROKER_URL
+        backend:
+          env: DAGSTER_CELERY_BACKEND_URL
+        env_config_maps:
+          - env: DAGSTER_K8S_PIPELINE_RUN_ENV_CONFIGMAP
+        env_secrets:
+          - dagster-celery-config-secret
+      
+        service_account_name: fn-dagster
+        image_pull_policy: Always
+
+    run_storage:
+      module: dagster_postgres.run_storage
+      class: PostgresRunStorage
+      config:        
+        postgres_db:
+          username: test
+          password:
+            env: DAGSTER_PG_PASSWORD
+          hostname: fn-postgresql
+          db_name: test
+          port: 5432
+          params:
+            {}
+
+    event_log_storage:
+      module: dagster_postgres.event_log
+      class: PostgresEventLogStorage
+      config:        
+        postgres_db:
+          username: test
+          password:
+            env: DAGSTER_PG_PASSWORD
+          hostname: fn-postgresql
+          db_name: test
+          port: 5432
+          params:
+            {}
+    run_coordinator:      
+      module: dagster.core.run_coordinator
+      class: QueuedRunCoordinator
+      config:
+        
+        max_concurrent_runs: -1
+        dequeue_use_threads: true
+        dequeue_num_workers: 4
+    compute_logs:      
+      module: dagster.core.storage.noop_compute_log_manager
+      class: NoOpComputeLogManager
+    run_monitoring:
+      enabled: true
+      start_timeout_seconds:  300
+      max_resume_run_attempts: 0
+      poll_interval_seconds: 120
+      free_slots_after_run_end_seconds: 0
+    run_retries:
+      enabled: true
+    sensors:
+      use_threads: true
+      num_workers: 4
+    schedules:
+      use_threads: true
+      num_workers: 4
+
+    telemetry:
+      enabled: true
+---
+# Source: federated-node/charts/dagster/templates/configmap-workspace.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fn-dagster-workspace-yaml
+  labels:
+    app: dagster
+    chart: dagster-1.12.5
+    release: fn
+    heritage: Helm
+data:
+  workspace.yaml: |
+    load_from:
+      - grpc_server:
+          host: iris-analysis
+          port: 3030
+          location_name: iris-analysis
 ---
 # Source: federated-node/templates/backend-configmap.yaml
 apiVersion: v1
@@ -1022,7 +1100,7 @@ metadata:
   namespace: fn
 data:
   FLASK_APP: "/app"
-  PGHOST: "db.federated-node.svc"
+  PGHOST: "db.fn.svc"
   PGPORT: "5432"
   PGDATABASE: "fndb"
   PGUSER: "admin"
@@ -1051,7 +1129,7 @@ data:
   KC_FEATURES: admin-fine-grained-authz:v1,token-exchange,scripts
   KC_BOOTSTRAP_ADMIN_USERNAME: tmpadmin
   KEYCLOAK_ADMIN: admin
-  KC_DB_URL_HOST: db.federated-node.svc
+  KC_DB_URL_HOST: db.fn.svc
   KC_DB: postgres
   KC_DB_URL_PORT: "5432"
   KC_DB_URL_DATABASE: "fn_fndb"
@@ -1070,18 +1148,8 @@ metadata:
   namespace: fn
 data:
   KEYCLOAK_ADMIN: admin
-  KC_DB_URL_HOST: db.federated-node.svc
+  KC_DB_URL_HOST: db.fn.svc
   KC_DB_USERNAME: "admin"
----
-# Source: federated-node/templates/nginx-extra-headers-configmap.yaml
-kind: ConfigMap
-apiVersion: v1
-metadata:
-  name: fn-ingress-nginx-controller
-  namespace: ingress-nginx
-data:
-  add-headers: ingress-nginx/fn-ingress-nginx-custom-add-headers
-  allow-snippet-annotations: 'true'
 ---
 # Source: federated-node/templates/db-pv.yaml
 apiVersion: storage.k8s.io/v1
@@ -1182,90 +1250,6 @@ spec:
   accessModes:
     - ReadWriteMany
 ---
-# Source: federated-node/charts/ingress-nginx/templates/clusterrole.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
-    app.kubernetes.io/managed-by: Helm
-  name: fn-ingress-nginx
-rules:
-  - apiGroups:
-      - ""
-    resources:
-      - configmaps
-      - endpoints
-      - nodes
-      - pods
-      - secrets
-      - namespaces
-    verbs:
-      - list
-      - watch
-  - apiGroups:
-      - coordination.k8s.io
-    resources:
-      - leases
-    verbs:
-      - list
-      - watch
-  - apiGroups:
-      - ""
-    resources:
-      - nodes
-    verbs:
-      - get
-  - apiGroups:
-      - ""
-    resources:
-      - services
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - networking.k8s.io
-    resources:
-      - ingresses
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - ""
-    resources:
-      - events
-    verbs:
-      - create
-      - patch
-  - apiGroups:
-      - networking.k8s.io
-    resources:
-      - ingresses/status
-    verbs:
-      - update
-  - apiGroups:
-      - networking.k8s.io
-    resources:
-      - ingressclasses
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - discovery.k8s.io
-    resources:
-      - endpointslices
-    verbs:
-      - list
-      - watch
-      - get
----
 # Source: federated-node/templates/backend-roles.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -1282,27 +1266,6 @@ rules:
   resources: ["pods"]
   verbs: ["get", "watch", "list", "create"]
 ---
-# Source: federated-node/charts/ingress-nginx/templates/clusterrolebinding.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
-    app.kubernetes.io/managed-by: Helm
-  name: fn-ingress-nginx
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: fn-ingress-nginx
-subjects:
-  - kind: ServiceAccount
-    name: fn-ingress-nginx
-    namespace: ingress-nginx
----
 # Source: federated-node/templates/backend-roles.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -1317,99 +1280,75 @@ roleRef:
   name: fn-backend-role
   apiGroup: rbac.authorization.k8s.io
 ---
-# Source: federated-node/charts/ingress-nginx/templates/controller-role.yaml
-apiVersion: rbac.authorization.k8s.io/v1
+# Source: federated-node/charts/dagster/charts/dagster-user-deployments/templates/role.yaml
 kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
+  name: fn-dagster-user-deployments-role
+  labels: 
+    helm.sh/chart: dagster-user-deployments-1.12.5
+    app.kubernetes.io/name: dagster-user-deployments
     app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/version: "1.12.5"
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: controller
-  name: fn-ingress-nginx
-  namespace: ingress-nginx
+
+# Allow the Dagster service account to read and write Kubernetes jobs, deployments, pods, and events.
 rules:
-  - apiGroups:
-      - ""
-    resources:
-      - namespaces
-    verbs:
-      - get
-  - apiGroups:
-      - ""
-    resources:
-      - configmaps
-      - pods
-      - secrets
-      - endpoints
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - ""
-    resources:
-      - services
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - networking.k8s.io
-    resources:
-      - ingresses
-    verbs:
-      - get
-      - list
-      - watch
-  # Omit Ingress status permissions if `--update-status` is disabled.
-  - apiGroups:
-      - networking.k8s.io
-    resources:
-      - ingresses/status
-    verbs:
-      - update
-  - apiGroups:
-      - networking.k8s.io
-    resources:
-      - ingressclasses
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - coordination.k8s.io
-    resources:
-      - leases
-    resourceNames:
-      - fn-ingress-nginx-leader
-    verbs:
-      - get
-      - update
-  - apiGroups:
-      - coordination.k8s.io
-    resources:
-      - leases
-    verbs:
-      - create
-  - apiGroups:
-      - ""
-    resources:
-      - events
-    verbs:
-      - create
-      - patch
-  - apiGroups:
-      - discovery.k8s.io
-    resources:
-      - endpointslices
-    verbs:
-      - list
-      - watch
-      - get
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "delete", "deletecollection", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs/status"]
+    verbs: ["get", "watch", "list"]
+  # The empty arg "" corresponds to the core API group
+  - apiGroups: [""]
+    resources: ["pods", "events"]
+    verbs: ["create", "delete", "deletecollection", "get", "list", "patch", "update", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log", "pods/status"]
+    verbs: ["get", "watch", "list"]
+---
+# Source: federated-node/charts/dagster/charts/rabbitmq/templates/role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: fn-rabbitmq-endpoint-reader
+  labels:
+    app: rabbitmq
+    chart: rabbitmq-6.16.3
+    release: "fn"
+    heritage: "Helm"
+rules:
+- apiGroups: [""]
+  resources: ["endpoints"]
+  verbs: ["get"]
+---
+# Source: federated-node/charts/dagster/templates/role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: fn-dagster-role
+  labels:
+    app: dagster
+    chart: dagster-1.12.5
+    release: "fn"
+    heritage: "Helm"
+
+# Allow the Dagster service account to read and write Kubernetes jobs, deployments, pods, and events.
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "delete", "deletecollection", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs/status"]
+    verbs: ["get", "watch", "list"]
+  # The empty arg "" corresponds to the core API group
+  - apiGroups: [""]
+    resources: ["pods", "events"]
+    verbs: ["create", "delete", "deletecollection", "get", "list", "patch", "update", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log", "pods/status"]
+    verbs: ["get", "watch", "list"]
 ---
 # Source: federated-node/templates/keycloak-roles.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -1439,28 +1378,61 @@ rules:
   resources: ["pods"]
   verbs: ["get", "watch", "list", "create", "delete"]
 ---
-# Source: federated-node/charts/ingress-nginx/templates/controller-rolebinding.yaml
-apiVersion: rbac.authorization.k8s.io/v1
+# Source: federated-node/charts/dagster/charts/dagster-user-deployments/templates/rolebinding.yaml
 kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
+  name: fn-dagster-user-deployments-rolebinding
+  labels: 
+    helm.sh/chart: dagster-user-deployments-1.12.5
+    app.kubernetes.io/name: dagster-user-deployments
     app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/version: "1.12.5"
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: controller
-  name: fn-ingress-nginx
-  namespace: ingress-nginx
+
+subjects:
+- kind: ServiceAccount
+  name: fn-dagster-user-deployments-user-deployments
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: fn-ingress-nginx
+  name: fn-dagster-user-deployments-role
+---
+# Source: federated-node/charts/dagster/charts/rabbitmq/templates/rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: fn-rabbitmq-endpoint-reader
+  labels:
+    app: rabbitmq
+    chart: rabbitmq-6.16.3
+    release: "fn"
+    heritage: "Helm"
 subjects:
-  - kind: ServiceAccount
-    name: fn-ingress-nginx
-    namespace: ingress-nginx
+- kind: ServiceAccount
+  name: fn-rabbitmq
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: fn-rabbitmq-endpoint-reader
+---
+# Source: federated-node/charts/dagster/templates/rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: fn-dagster-rolebinding
+  labels:
+    app: dagster
+    chart: dagster-1.12.5
+    release: "fn"
+    heritage: "Helm"
+subjects:
+- kind: ServiceAccount
+  name: fn-dagster
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: fn-dagster-role
 ---
 # Source: federated-node/templates/keycloak-roles.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -1491,67 +1463,159 @@ roleRef:
   name: cleaner-role
   apiGroup: rbac.authorization.k8s.io
 ---
-# Source: federated-node/charts/ingress-nginx/templates/controller-service-webhook.yaml
+# Source: federated-node/charts/dagster/charts/dagster-user-deployments/templates/service-user.yaml
 apiVersion: v1
 kind: Service
 metadata:
+  name: iris-analysis
   labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
+    helm.sh/chart: dagster-user-deployments-1.12.5
+    app.kubernetes.io/name: dagster-user-deployments
     app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/version: "1.12.5"
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: controller
-  name: fn-ingress-nginx-controller-admission
-  namespace: ingress-nginx
+    component: user-deployments
+    deployment: iris-analysis
+  annotations:
+spec:
+  type: "ClusterIP"
+  ports:
+    - port: 3030
+      protocol: TCP
+      name: grpc
+  selector:
+    app.kubernetes.io/name: dagster-user-deployments
+    app.kubernetes.io/instance: fn
+    component: user-deployments
+    deployment: iris-analysis
+---
+# Source: federated-node/charts/dagster/charts/postgresql/templates/svc-headless.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: fn-postgresql-headless
+  labels:
+    app: postgresql
+    chart: postgresql-8.1.0
+    release: "fn"
+    heritage: "Helm"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: tcp-postgresql
+      port: 5432
+      targetPort: tcp-postgresql
+  selector:
+    app: postgresql
+    release: "fn"
+---
+# Source: federated-node/charts/dagster/charts/postgresql/templates/svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: fn-postgresql
+  labels:
+    app: postgresql
+    chart: postgresql-8.1.0
+    release: "fn"
+    heritage: "Helm"
 spec:
   type: ClusterIP
   ports:
-    - name: https-webhook
-      port: 443
-      targetPort: webhook
-      appProtocol: https
+    - name: tcp-postgresql
+      port: 5432
+      targetPort: tcp-postgresql
   selector:
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: fn
-    app.kubernetes.io/component: controller
+    app: postgresql
+    release: "fn"
+    role: master
 ---
-# Source: federated-node/charts/ingress-nginx/templates/controller-service.yaml
+# Source: federated-node/charts/dagster/charts/rabbitmq/templates/svc-headless.yaml
 apiVersion: v1
 kind: Service
 metadata:
-  annotations:
+  name: fn-rabbitmq-headless
   labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: controller
-  name: fn-ingress-nginx-controller
-  namespace: ingress-nginx
+    app: rabbitmq
+    chart: rabbitmq-6.16.3
+    release: "fn"
+    heritage: "Helm"
 spec:
-  type: LoadBalancer
-  ipFamilyPolicy: SingleStack
-  ipFamilies: 
-    - IPv4
+  clusterIP: None
   ports:
-    - name: http
-      port: 80
-      protocol: TCP
-      targetPort: http
-      appProtocol: http
-    - name: https
-      port: 443
-      protocol: TCP
-      targetPort: https
-      appProtocol: https
+  - name: epmd
+    port: 4369
+    targetPort: epmd
+  - name: amqp
+    port: 5672
+    targetPort: amqp
+  - name: dist
+    port: 25672
+    targetPort: dist
+  - name: stats
+    port: 15672
+    targetPort: stats
   selector:
-    app.kubernetes.io/name: ingress-nginx
+    app: rabbitmq
+    release: "fn"
+---
+# Source: federated-node/charts/dagster/charts/rabbitmq/templates/svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: fn-rabbitmq
+  labels:
+    app: rabbitmq
+    chart: rabbitmq-6.16.3
+    release: "fn"
+    heritage: "Helm"
+spec:
+  type: ClusterIP
+  ports:
+  - name: epmd
+    port: 4369
+    targetPort: epmd
+    nodePort: null
+  - name: amqp
+    port: 5672
+    targetPort: amqp
+    nodePort: null
+  - name: dist
+    port: 25672
+    targetPort: dist
+    nodePort: null
+  - name: stats
+    port: 15672
+    targetPort: stats
+    nodePort: null
+  selector:
+    app: rabbitmq
+    release: "fn"
+---
+# Source: federated-node/charts/dagster/templates/service-webserver.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: fn-dagster-webserver
+  labels:
+    helm.sh/chart: dagster-1.12.5
+    app.kubernetes.io/name: dagster
     app.kubernetes.io/instance: fn
-    app.kubernetes.io/component: controller
+    app.kubernetes.io/version: "1.12.5"
+    app.kubernetes.io/managed-by: Helm
+    component: dagster-webserver
+  annotations:
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: dagster
+    app.kubernetes.io/instance: fn
+    component: dagster-webserver
 ---
 # Source: federated-node/templates/backend-service.yaml
 apiVersion: v1
@@ -1584,131 +1648,393 @@ spec:
   selector:
     app: postgres
 ---
-# Source: federated-node/charts/ingress-nginx/templates/controller-deployment.yaml
+# Source: federated-node/charts/dagster/charts/dagster-user-deployments/templates/deployment-user.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: fn-dagster-user-deployments-iris-analysis
   labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
+    helm.sh/chart: dagster-user-deployments-1.12.5
+    app.kubernetes.io/name: dagster-user-deployments
     app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/version: "1.12.5"
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: controller
-  name: fn-ingress-nginx-controller
-  namespace: ingress-nginx
+    component: user-deployments
+    deployment: iris-analysis
+  annotations: 
+    null
 spec:
+  replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/name: dagster-user-deployments
       app.kubernetes.io/instance: fn
-      app.kubernetes.io/component: controller
-  replicas: 1
-  revisionHistoryLimit: 10
-  minReadySeconds: 0
+      component: user-deployments
+      deployment: iris-analysis
   template:
     metadata:
       labels:
-        helm.sh/chart: ingress-nginx-4.12.1
-        app.kubernetes.io/name: ingress-nginx
+        app.kubernetes.io/name: dagster-user-deployments
         app.kubernetes.io/instance: fn
-        app.kubernetes.io/version: "1.12.1"
-        app.kubernetes.io/part-of: ingress-nginx
-        app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/component: controller
+        component: user-deployments
+        deployment: iris-analysis
+      annotations:
+        checksum/dagster-user-deployment: 0175405724c389153b47ef250864f4f048765099b797525452546ee2deab0b8b
     spec:
-      dnsPolicy: ClusterFirst
+      imagePullSecrets: 
+        []
+      serviceAccountName: fn-dagster-user-deployments-user-deployments
+      automountServiceAccountToken: true
+      securityContext: 
+        null
       containers:
-        - name: controller
-          image: registry.k8s.io/ingress-nginx/controller:v1.12.1@sha256:d2fbc4ec70d8aa2050dd91a91506e998765e86c96f32cffb56c503c9c34eed5b
-          imagePullPolicy: IfNotPresent
-          lifecycle: 
-            preStop:
-              exec:
-                command:
-                - /wait-shutdown
-          args: 
-            - /nginx-ingress-controller
-            - --publish-service=$(POD_NAMESPACE)/fn-ingress-nginx-controller
-            - --election-id=fn-ingress-nginx-leader
-            - --controller-class=k8s.io/ingress-nginx
-            - --ingress-class=fn-nginx
-            - --configmap=$(POD_NAMESPACE)/fn-ingress-nginx-controller
-            - --validating-webhook=:8443
-            - --validating-webhook-certificate=/usr/local/certificates/cert
-            - --validating-webhook-key=/usr/local/certificates/key
-            - --default-ssl-certificate=qcfederatednode/my-tls-secret
+        - name: dagster-user-deployments
           securityContext: 
-            runAsNonRoot: true
-            runAsUser: 101
-            runAsGroup: 82
-            allowPrivilegeEscalation: false
-            seccompProfile: 
-              type: RuntimeDefault
-            capabilities:
-              drop:
-              - ALL
-              add:
-              - NET_BIND_SERVICE
-            readOnlyRootFilesystem: false
+            null
+          imagePullPolicy: Always
+          image: "172.24.133.247:32000/iris-analytics:v3"
+          args: ["dagster", "api", "grpc", "-h", "0.0.0.0", "-p", "3030", "--python-file","/iris_analysis/definitions.py"]
           env:
-            - name: POD_NAME
+            - name: DAGSTER_CURRENT_IMAGE
+              value: "172.24.133.247:32000/iris-analytics:v3"
+            - name: DAGSTER_PG_PASSWORD
               valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: POD_NAMESPACE
+                secretKeyRef:
+                  name: dagster-postgresql-secret
+                  key: postgresql-password
+            # uses the auto_envvar_prefix of the dagster cli to set the --container-context arg
+            # on 'dagster api grpc'
+            - name: DAGSTER_CLI_API_GRPC_CONTAINER_CONTEXT
+              value: "{\"k8s\":{\"env_config_maps\":[\"fn-dagster-user-deployments-iris-analysis-user-env\"],\"image_pull_policy\":\"Always\",\"namespace\":\"fn\",\"run_k8s_config\":{\"pod_spec_config\":{\"automount_service_account_token\":true}},\"service_account_name\":\"fn-dagster-user-deployments-user-deployments\"}}"
+            # If this is a map, we write it to a configmap. If it's a list, we include it here (can use more k8s spec like valueFrom).
+          envFrom:
+            - configMapRef:
+                name: fn-dagster-user-deployments-user-deployments-shared-env
+            - configMapRef:
+                name: fn-dagster-user-deployments-iris-analysis-user-env
+            - secretRef:
+                name: dagster-celery-config-secret
+                optional: true
+          resources: 
+            null
+          volumeMounts:
+        # Only disable readiness if explicitly set to false
+          readinessProbe:
+            exec:
+              command: ["dagster", "api", "grpc-health-check", "-p", "3030"]
+            periodSeconds: 20
+            timeoutSeconds: 10
+            successThreshold: 1
+            failureThreshold: 15
+      nodeSelector: 
+        null
+      affinity: 
+        null
+      tolerations:
+        null
+      volumes:
+---
+# Source: federated-node/charts/dagster/templates/deployment-celery-queues.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fn-celery-workers-dagster
+  labels:
+    helm.sh/chart: dagster-1.12.5
+    app.kubernetes.io/name: dagster
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.5"
+    app.kubernetes.io/managed-by: Helm
+    component: celery
+  annotations:
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dagster
+      app.kubernetes.io/instance: fn
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dagster
+        app.kubernetes.io/instance: fn
+      annotations:
+        checksum/dagster-instance: 2afdf0fd78af465274b54aae8c48667d55efb248d74c22000eea33cb1727cff7
+    spec:
+      serviceAccountName: fn-dagster
+      automountServiceAccountToken: true
+      securityContext:
+        {}
+      initContainers:
+        - name: check-db-ready
+          image: "docker.io/library/postgres:14.6"
+          imagePullPolicy: "IfNotPresent"
+          command: ['sh', '-c', 'until pg_isready -h fn-postgresql -p 5432 -U test; do echo waiting for database; sleep 2; done;']
+          securityContext:
+            {}
+        - name: check-rabbitmq-ready
+          image: "docker.io/busybox:1.28"
+          imagePullPolicy: "IfNotPresent"
+          command: ["sh", "-c", "until wget http://test:test@fn-rabbitmq:15672/api/aliveness-test/%2F; do echo waiting for rabbitmq; sleep 2; done;"]
+          securityContext:
+            {}
+      containers:
+        - name: dagster
+          securityContext:
+            {}
+          imagePullPolicy: Always
+          image: "172.24.133.247:32000/iris-analytics:1.12.5"
+          command: ["dagster-celery"]
+          args: ["worker", "start", "-A", "dagster_celery_k8s.app", "-y", "/opt/dagster/dagster_home/celery-config.yaml", "-q", "dagster",]
+          env:
+            - name: DAGSTER_PG_PASSWORD
               valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            - name: LD_PRELOAD
-              value: /usr/local/lib/libmimalloc.so
-          livenessProbe: 
-            failureThreshold: 5
-            httpGet:
-              path: /healthz
-              port: 10254
-              scheme: HTTP
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 1
-          readinessProbe: 
-            failureThreshold: 3
-            httpGet:
-              path: /healthz
-              port: 10254
-              scheme: HTTP
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 1
+                secretKeyRef:
+                  name: "dagster-postgresql-secret"
+                  key: postgresql-password
+          envFrom:
+            - configMapRef:
+                name: fn-dagster-celery-worker-env
+            - secretRef:
+                name: dagster-celery-config-secret
+          volumeMounts:
+            - name: dagster-instance
+              mountPath: "/opt/dagster/dagster_home/dagster.yaml"
+              subPath: dagster.yaml
+            - name: dagster-celery
+              mountPath: "/opt/dagster/dagster_home/celery-config.yaml"
+              subPath: celery.yaml
+          resources:
+            {}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - dagster-celery status -A dagster_celery_k8s.app -y /opt/dagster/dagster_home/celery-config.yaml | grep "${HOSTNAME}:.*OK"
+            initialDelaySeconds:
+              15
+            periodSeconds:
+              10
+            timeoutSeconds:
+              10
+            successThreshold:
+              1
+            failureThreshold:
+              3
+      nodeSelector:
+        {}
+      volumes:
+        - name: dagster-instance
+          configMap:
+            name: fn-dagster-instance
+        - name: dagster-celery
+          configMap:
+            name: fn-dagster-celery-dagster
+---
+# Source: federated-node/charts/dagster/templates/deployment-daemon.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fn-dagster-daemon
+  labels:
+    helm.sh/chart: dagster-1.12.5
+    app.kubernetes.io/name: dagster
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.5"
+    app.kubernetes.io/managed-by: Helm
+    component: dagster-daemon
+    deployment: daemon
+  annotations:
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dagster
+      app.kubernetes.io/instance: fn
+      component: dagster-daemon
+      deployment: daemon
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dagster
+        app.kubernetes.io/instance: fn
+        component: dagster-daemon
+        deployment: daemon
+      annotations:
+        checksum/dagster-workspace: c10677e455819304d599f6112857983dc1b763cdda4d582c94ead0e82e6e0478
+        checksum/dagster-instance: 2afdf0fd78af465274b54aae8c48667d55efb248d74c22000eea33cb1727cff7
+    spec:
+      imagePullSecrets:
+        []
+      serviceAccountName: fn-dagster
+      automountServiceAccountToken: true
+      securityContext:
+        {}
+      initContainers:
+        - name: check-db-ready
+          image: "docker.io/library/postgres:14.6"
+          imagePullPolicy: "IfNotPresent"
+          command: ['sh', '-c', 'until pg_isready -h fn-postgresql -p 5432 -U test; do echo waiting for database; sleep 2; done;']
+          securityContext:
+            {}
+          resources:
+            {}
+        - name: "init-user-deployment-iris-analysis"
+          image: "docker.io/busybox:1.28"
+          command: ['sh', '-c', "until nslookup iris-analysis; do echo waiting for user service; sleep 2; done"]
+          securityContext:
+            {}
+      containers:
+        - name: dagster
+          securityContext:
+            {}
+          imagePullPolicy: Always
+          image: "docker.io/dagster/dagster-celery-k8s:1.12.5"
+          command: [
+            "/bin/bash",
+            "-c",
+            "dagster-daemon run -w /dagster-workspace/workspace.yaml"
+          ]
+          env:
+            - name: DAGSTER_PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: "dagster-postgresql-secret"
+                  key: postgresql-password
+            - name: DAGSTER_DAEMON_HEARTBEAT_TOLERANCE
+              value: "1800"
+            # This is a list by default, but for backcompat it can be a map. As a map it's written to the daemon-env
+            # configmap.
+          envFrom:
+            - configMapRef:
+                name: fn-dagster-daemon-env
+            - secretRef:
+                name: dagster-celery-config-secret
+          volumeMounts:
+            - name: dagster-instance
+              mountPath: "/opt/dagster/dagster_home/dagster.yaml"
+              subPath: dagster.yaml
+            # Do not use `subPath` to allow the configmap to update if modified
+            - name: dagster-workspace-yaml
+              mountPath: "/dagster-workspace/"
+          resources:
+            {}
+      nodeSelector:
+        {}
+      volumes:
+        - name: dagster-instance
+          configMap:
+            name: fn-dagster-instance
+        - name: dagster-workspace-yaml
+          configMap:
+            name: fn-dagster-workspace-yaml
+      affinity:
+        {}
+      tolerations:
+        []
+---
+# Source: federated-node/charts/dagster/templates/deployment-webserver.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fn-dagster-webserver
+  labels:
+    helm.sh/chart: dagster-1.12.5
+    app.kubernetes.io/name: dagster
+    app.kubernetes.io/instance: fn
+    app.kubernetes.io/version: "1.12.5"
+    app.kubernetes.io/managed-by: Helm
+    component: dagster-webserver
+  annotations:
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dagster
+      app.kubernetes.io/instance: fn
+      component: dagster-webserver
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dagster
+        app.kubernetes.io/instance: fn
+        component: dagster-webserver
+      annotations:
+        checksum/dagster-workspace: c10677e455819304d599f6112857983dc1b763cdda4d582c94ead0e82e6e0478
+        checksum/dagster-instance: 2afdf0fd78af465274b54aae8c48667d55efb248d74c22000eea33cb1727cff7
+    spec:
+      serviceAccountName: fn-dagster
+      automountServiceAccountToken: true
+      securityContext:
+        {}
+      initContainers:
+        - name: check-db-ready
+          image: "docker.io/library/postgres:14.6"
+          imagePullPolicy: IfNotPresent
+          command: ['sh', '-c', 'until pg_isready -h fn-postgresql -p 5432 -U test; do echo waiting for database; sleep 2; done;']
+          securityContext:
+            {}
+        - name: "init-user-deployment-iris-analysis"
+          image: "docker.io/busybox:1.28"
+          command: ['sh', '-c', "until nslookup iris-analysis; do echo waiting for user service; sleep 2; done"]
+          securityContext:
+            {}
+      containers:
+        - name: dagster
+          securityContext:
+            {}
+          imagePullPolicy: Always
+          image: "docker.io/dagster/dagster-celery-k8s:1.12.5"
+          command: [
+            "/bin/bash",
+            "-c",
+            "dagster-webserver -h 0.0.0.0 -p 80 -w /dagster-workspace/workspace.yaml"
+          ]
+          env:
+            - name: DAGSTER_PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: "dagster-postgresql-secret"
+                  key: postgresql-password
+            # This is a list by default, but for backcompat it can be a map. As
+            # a map it's written to the webserver-env configmap.
+          envFrom:
+            - configMapRef:
+                name: fn-dagster-webserver-env
+            - secretRef:
+                name: dagster-celery-config-secret
+          volumeMounts:
+            - name: dagster-instance
+              mountPath: "/opt/dagster/dagster_home/dagster.yaml"
+              subPath: dagster.yaml
+            # Do not use `subPath` to allow the configmap to update if modified
+            - name: dagster-workspace-yaml
+              mountPath: "/dagster-workspace/"
           ports:
             - name: http
               containerPort: 80
               protocol: TCP
-            - name: https
-              containerPort: 443
-              protocol: TCP
-            - name: webhook
-              containerPort: 8443
-              protocol: TCP
-          volumeMounts:
-            - name: webhook-cert
-              mountPath: /usr/local/certificates/
-              readOnly: true
-          resources: 
-            requests:
-              cpu: 100m
-              memory: 90Mi
-      nodeSelector: 
-        kubernetes.io/os: linux
-      serviceAccountName: fn-ingress-nginx
-      terminationGracePeriodSeconds: 300
+          resources:
+            {}
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /server_info
+              port: 80
+            periodSeconds: 20
+            successThreshold: 1
+            timeoutSeconds: 10
+
       volumes:
-        - name: webhook-cert
-          secret:
-            secretName: fn-ingress-nginx-admission
+        - name: dagster-instance
+          configMap:
+            name: fn-dagster-instance
+        - name: dagster-workspace-yaml
+          configMap:
+            name: fn-dagster-workspace-yaml
 ---
 # Source: federated-node/templates/backend-deployment.yaml
 apiVersion: apps/v1
@@ -1726,7 +2052,7 @@ spec:
   template:
     metadata:
       annotations:
-        rollme: "yiEYu"
+        rollme: "Rv7Pe"
       labels:
         app: flask
     spec:
@@ -1758,7 +2084,7 @@ spec:
             valueFrom:
               secretKeyRef:
                 name: local-db
-                key: password
+                key: value
           - name: NEW_DB
             valueFrom:
               configMapKeyRef:
@@ -1788,7 +2114,7 @@ spec:
             valueFrom:
               secretKeyRef:
                 name: local-db
-                key: password
+                key: value
         - name: storage-init
           image: ghcr.io/aridhia-open-source/alpine:1.7.0
           command: ["/bin/sh"]
@@ -1845,7 +2171,7 @@ spec:
             valueFrom:
               secretKeyRef:
                 name: local-db
-                key: password
+                key: value
           volumeMounts:
             - name: respv
               mountPath: /mnt/results
@@ -1884,7 +2210,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: local-db
-                  key: password
+                  key: value
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
@@ -1892,6 +2218,326 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: db-volclaim
+---
+# Source: federated-node/charts/dagster/charts/postgresql/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fn-postgresql
+  labels:
+    app: postgresql
+    chart: postgresql-8.1.0
+    release: "fn"
+    heritage: "Helm"
+spec:
+  serviceName: fn-postgresql-headless
+  replicas: 1
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: postgresql
+      release: "fn"
+      role: master
+  template:
+    metadata:
+      name: fn-postgresql
+      labels:
+        app: postgresql
+        chart: postgresql-8.1.0
+        release: "fn"
+        heritage: "Helm"
+        role: master
+    spec:      
+      securityContext:
+        fsGroup: 1001
+      initContainers:
+        - name: init-chmod-data
+          image: docker.io/bitnami/minideb:stretch
+          imagePullPolicy: "Always"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+          command:
+            - /bin/sh
+            - -c
+            - |
+              mkdir -p /bitnami/postgresql/data
+              chmod 700 /bitnami/postgresql/data
+              find /bitnami/postgresql -mindepth 0 -maxdepth 1 -not -name ".snapshot" -not -name "lost+found" | \
+                xargs chown -R 1001:1001
+              chmod -R 777 /dev/shm
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: data
+              mountPath: /bitnami/postgresql
+              subPath: 
+            - name: dshm
+              mountPath: /dev/shm
+      containers:
+        - name: fn-postgresql
+          image: docker.io/library/postgres:14.6
+          imagePullPolicy: "IfNotPresent"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            runAsUser: 1001
+          env:
+            - name: BITNAMI_DEBUG
+              value: "false"
+            - name: POSTGRESQL_PORT_NUMBER
+              value: "5432"
+            - name: POSTGRESQL_VOLUME_DIR
+              value: "/bitnami/postgresql"
+            - name: PGDATA
+              value: "/bitnami/postgresql/data"
+            - name: POSTGRES_USER
+              value: "test"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fn-postgresql
+                  key: postgresql-password
+            - name: POSTGRES_DB
+              value: "test"
+            - name: POSTGRESQL_ENABLE_LDAP
+              value: "no"
+          ports:
+            - name: tcp-postgresql
+              containerPort: 5432
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - exec pg_isready -U "test" -d "test" -h 127.0.0.1 -p 5432
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - -e
+                - |
+                  pg_isready -U "test" -d "test" -h 127.0.0.1 -p 5432
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 6
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+            - name: data
+              mountPath: /bitnami/postgresql
+              subPath: 
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: "8Gi"
+---
+# Source: federated-node/charts/dagster/charts/rabbitmq/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fn-rabbitmq
+  labels:
+    app: rabbitmq
+    chart: rabbitmq-6.16.3
+    release: "fn"
+    heritage: "Helm"
+spec:
+  serviceName: fn-rabbitmq-headless
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: rabbitmq
+      release: "fn"
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+        release: "fn"
+        chart: rabbitmq-6.16.3
+      annotations:
+        checksum/secret: 204bce02cbb16c8ff1acc43f13688b216488d7aad9f325bb1fcf0992e94f2969
+    spec:      
+      serviceAccountName: fn-rabbitmq
+      terminationGracePeriodSeconds: 10
+      initContainers:
+      - name: volume-permissions
+        image: "docker.io/bitnami/minideb:stretch"
+        imagePullPolicy: "IfNotPresent"
+        command: ["/bin/chown", "-R", "1001:1001", "/opt/bitnami/rabbitmq/var/lib/rabbitmq"]
+        securityContext:
+          runAsUser: 0
+        resources:
+          {}
+        volumeMounts:
+        - name: data
+          mountPath: "/opt/bitnami/rabbitmq/var/lib/rabbitmq"
+      containers:
+      - name: rabbitmq
+        image: docker.io/bitnamilegacy/rabbitmq:3.8.12
+        imagePullPolicy: "IfNotPresent"
+        command:
+         - bash
+         - -ec
+         - |
+            mkdir -p /opt/bitnami/rabbitmq/.rabbitmq/
+            mkdir -p /opt/bitnami/rabbitmq/etc/rabbitmq/
+            touch /opt/bitnami/rabbitmq/var/lib/rabbitmq/.start
+            #persist the erlang cookie in both places for server and cli tools
+            echo $RABBITMQ_ERL_COOKIE > /opt/bitnami/rabbitmq/var/lib/rabbitmq/.erlang.cookie
+            cp /opt/bitnami/rabbitmq/var/lib/rabbitmq/.erlang.cookie /opt/bitnami/rabbitmq/.rabbitmq/
+            #change permission so only the user has access to the cookie file
+            chmod 600 /opt/bitnami/rabbitmq/.rabbitmq/.erlang.cookie /opt/bitnami/rabbitmq/var/lib/rabbitmq/.erlang.cookie
+            #copy the mounted configuration to both places
+            cp  /opt/bitnami/rabbitmq/conf/* /opt/bitnami/rabbitmq/etc/rabbitmq
+            # Apply resources limits
+            ulimit -n "${RABBITMQ_ULIMIT_NOFILES}"
+            #replace the default password that is generated
+            sed -i "/CHANGEME/cdefault_pass=${RABBITMQ_PASSWORD//\\/\\\\}" /opt/bitnami/rabbitmq/etc/rabbitmq/rabbitmq.conf
+            exec rabbitmq-server
+        volumeMounts:
+          - name: config-volume
+            mountPath: /opt/bitnami/rabbitmq/conf
+          - name: healthchecks
+            mountPath: /usr/local/sbin/rabbitmq-api-check
+            subPath: rabbitmq-api-check
+          - name: healthchecks
+            mountPath: /usr/local/sbin/rabbitmq-health-check
+            subPath: rabbitmq-health-check
+          - name: data
+            mountPath: "/opt/bitnami/rabbitmq/var/lib/rabbitmq"
+        ports:
+        - name: epmd
+          containerPort: 4369
+        - name: amqp
+          containerPort: 5672
+        - name: dist
+          containerPort: 25672
+        - name: stats
+          containerPort: 15672
+        livenessProbe:
+          exec:
+            command:
+              - sh
+              - -c
+              - rabbitmq-api-check "http://test:$RABBITMQ_PASSWORD@127.0.0.1:15672/api/healthchecks/node" '{"status":"ok"}'
+          initialDelaySeconds: 120
+          timeoutSeconds: 20
+          periodSeconds: 30
+          failureThreshold: 6
+          successThreshold: 1
+        readinessProbe:
+          exec:
+            command:
+              - sh
+              - -c
+              - rabbitmq-health-check "http://test:$RABBITMQ_PASSWORD@127.0.0.1:15672/api/healthchecks/node" '{"status":"ok"}'
+          initialDelaySeconds: 10
+          timeoutSeconds: 20
+          periodSeconds: 30
+          failureThreshold: 3
+          successThreshold: 1
+        env:
+          - name: BITNAMI_DEBUG
+            value: "false"
+          - name: MY_POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          - name: MY_POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: MY_POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: K8S_SERVICE_NAME
+            value: "fn-rabbitmq-headless"
+          - name: K8S_ADDRESS_TYPE
+            value: hostname
+          - name: RABBITMQ_NODENAME
+            value: "rabbit@$(MY_POD_NAME).$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.cluster.local"
+          - name: K8S_HOSTNAME_SUFFIX
+            value: ".$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.cluster.local"
+          - name: RABBITMQ_LOGS
+            value: "-"
+          - name: RABBITMQ_ULIMIT_NOFILES
+            value: "65536"
+          - name: RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS
+            value: +S 2:1
+          - name: RABBITMQ_USE_LONGNAME
+            value: "true"
+          - name: RABBITMQ_ERL_COOKIE
+            valueFrom:
+              secretKeyRef:
+                name: fn-rabbitmq
+                key: rabbitmq-erlang-cookie
+          - name: RABBITMQ_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: fn-rabbitmq
+                key: rabbitmq-password
+      securityContext:
+        fsGroup: 1001
+        runAsUser: 1001
+      volumes:
+        - name: config-volume
+          configMap:
+            name: fn-rabbitmq-config
+            items:
+            - key: rabbitmq.conf
+              path: rabbitmq.conf
+            - key: enabled_plugins
+              path: enabled_plugins
+        - name: healthchecks
+          configMap:
+            name: fn-rabbitmq-healthchecks
+            items:
+            - key: rabbitmq-health-check
+              path: rabbitmq-health-check
+              mode: 111
+            - key: rabbitmq-api-check
+              path: rabbitmq-api-check
+              mode: 111
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app: rabbitmq
+          release: "fn"
+          heritage: "Helm"
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+            requests:
+              storage: "8Gi"
 ---
 # Source: federated-node/templates/keycloak-statefulset.yaml
 apiVersion: apps/v1
@@ -1910,7 +2556,7 @@ spec:
   template:
     metadata:
       annotations:
-        rollme: "pI3dD"
+        rollme: "uypSL"
       labels:
         app: keycloak
     spec:
@@ -1941,7 +2587,7 @@ spec:
             valueFrom:
               secretKeyRef:
                 name: local-db
-                key: password
+                key: value
           - name: NEW_DB
             valueFrom:
               configMapKeyRef:
@@ -1963,7 +2609,7 @@ spec:
             valueFrom:
               secretKeyRef:
                 name: local-db
-                key: password
+                key: value
           - name: KC_NAMESPACE
             value: keycloak
           - name: PGDATABASE
@@ -1998,7 +2644,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: local-db
-                  key: password
+                  key: value
           envFrom:
           - secretRef:
               name: kc-secrets
@@ -2118,53 +2764,6 @@ spec:
             persistentVolumeClaim:
               claimName: backend-results-10gi-pv-vc
 ---
-# Source: federated-node/charts/ingress-nginx/templates/controller-ingressclass.yaml
-apiVersion: networking.k8s.io/v1
-kind: IngressClass
-metadata:
-  labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: controller
-  name: fn-nginx
-spec:
-  controller: k8s.io/ingress-nginx
----
-# Source: federated-node/templates/nginx-ingress.yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: federated-ingress-keycloak
-  namespace: keycloak
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$1
-    helm.sh/hook-weight: "5"
-    rollme: "lsKE1"
-spec:
-  ingressClassName: fn-nginx
-  tls:
-  - hosts:
-    - phems-federatednode.net
-  rules:
-    - host: phems-federatednode.net
-      http:
-        paths:
-        - path: /keycloak/(.*)
-          pathType: ImplementationSpecific
-          backend:
-            service:
-              name: keycloak
-              port:
-                name: http
----
-# Source: federated-node/charts/ingress-nginx/templates/controller-poddisruptionbudget.yaml
-# PDB is not supported for DaemonSets.
-# https://github.com/kubernetes/kubernetes/issues/108124
----
 # Source: federated-node/templates/certificates/certificate.yaml
 # Only rendered if SSL certificates are needed
 ---
@@ -2176,51 +2775,10 @@ spec:
 ---
 # Source: federated-node/templates/copy-secrets.yaml
 ## This is optional
----
-# Source: federated-node/charts/ingress-nginx/templates/admission-webhooks/validating-webhook.yaml
-# before changing this value, check the required kubernetes version
-# https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#prerequisites
-apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingWebhookConfiguration
-metadata:
-  annotations:
-  labels:
-    helm.sh/chart: ingress-nginx-4.12.1
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: fn
-    app.kubernetes.io/version: "1.12.1"
-    app.kubernetes.io/part-of: ingress-nginx
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: admission-webhook
-  name: fn-ingress-nginx-admission
-webhooks:
-  - name: validate.nginx.ingress.kubernetes.io
-    matchPolicy: Equivalent
-    rules:
-      - apiGroups:
-          - networking.k8s.io
-        apiVersions:
-          - v1
-        operations:
-          - CREATE
-          - UPDATE
-        resources:
-          - ingresses
-    failurePolicy: Fail
-    sideEffects: None
-    admissionReviewVersions:
-      - v1
-    clientConfig:
-      service:
-        name: fn-ingress-nginx-controller-admission
-        namespace: ingress-nginx
-        port: 443
-        path: /networking/v1/ingresses
 
 NOTES:
 Successfully installed federated-node version: 1.7.0
 Subcharts:
-    Ingress Nginx: 4.12.1
 
 You can run some smoketests with:
 helm test fn -n fn --logs

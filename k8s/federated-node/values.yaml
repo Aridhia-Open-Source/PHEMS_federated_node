@@ -162,3 +162,59 @@ ingress-nginx:
     #   externalTrafficPolicy: Local
     extraArgs:
       default-ssl-certificate: default/tls
+
+### Dagster
+dagster:
+  rabbitmq:
+    enabled: true
+  postgresql:
+    enabled: true
+  runLauncher:
+    type: CeleryK8sRunLauncher
+    config:
+      celeryK8sRunLauncher:
+        # Change with caution! If you're using a fixed tag for pipeline run images, changing the
+        # image pull policy to anything other than "Always" will use a cached/stale image, which is
+        # almost certainly not what you want.
+        imagePullPolicy: "Always"
+
+        # The Celery workers can be deployed with a fixed image (no user code included)
+        image:
+          # When a tag is not supplied for a Dagster provided image,
+          # it will default as the Helm chart version.
+          repository: "172.24.133.247:32000/iris-analytics"
+          tag: ~
+          pullPolicy: "Always"
+
+  dagster-user-deployments:
+    # Creates a workspace file with the gRPC servers hosting your user code.
+    enabled: true
+
+    # If you plan on deploying user code in a separate Helm release, set this to false.
+    enableSubchart: true
+
+    # Specify secrets to run user code server containers based on images in private registries. See:
+    # https://kubernetes.io/docs/concepts/containers/images/#referring-to-an-imagepullsecrets-on-a-pod
+    imagePullSecrets: []
+
+    # List of unique deployments
+    deployments:
+      - name: "iris-analysis"
+        port: 3030
+        image:
+          # When a tag is not supplied, it will default as the Helm chart version.
+          repository: "172.24.133.247:32000/iris-analytics"
+          tag: "v3"
+
+          # Change with caution! If you're using a fixed tag for pipeline run images, changing the
+          # image pull policy to anything other than "Always" will use a cached/stale image, which is
+          # almost certainly not what you want.
+          pullPolicy: "Always"
+
+        # Arguments to `dagster api grpc`.
+        # Ex: "dagster api grpc -m dagster_test.test_project.test_jobs.repo -a define_demo_execution_repo"
+        # would translate to:
+        dagsterApiGrpcArgs:
+          - "--python-file"
+          - "/iris_analysis/definitions.py"
+

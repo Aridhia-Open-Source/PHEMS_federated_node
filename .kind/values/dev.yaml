@@ -1,0 +1,11 @@
+# values/dev.yaml
+ingress:
+  enabled: true
+  ingressClassName: nginx
+
+service:
+  type: ClusterIP
+
+persistence:
+  enabled: true
+  storageClass: standard
