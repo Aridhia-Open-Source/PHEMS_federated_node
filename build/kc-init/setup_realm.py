@@ -20,6 +20,8 @@ from settings import settings
 
 logger = logging.getLogger('realm_init')
 logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+logger.addHandler(handler)
 
 def init_k8s():
   if os.getenv('KUBERNETES_SERVICE_HOST'):
@@ -37,6 +39,9 @@ def setup_keycloak():
   logger.info(f"Accessing to keycloak {settings.realm} realm")
 
   admin_token = login(settings.keycloak_url, settings.kc_bootstrap_admin_username, settings.kc_bootstrap_admin_password)
+  if not admin_token:
+    logging.info("Skipping")
+    return
 
   logger.info("Got the token...Creating user in new Realm")
 
@@ -77,27 +82,31 @@ init_k8s()
 
 while True:
   watcher = Watch()
-  for kc_stat_set in watcher.stream(
-    client.AppsV1Api().list_namespaced_stateful_set,
+  for kc_pod in watcher.stream(
+    client.CoreV1Api().list_namespaced_pod,
     settings.keycloak_namespace,
     label_selector="app=keycloak"
   ):
     try:
-      logger.info("%s out of %s ready.", kc_stat_set["object"].status.ready_replicas, settings.max_replicas)
-      if kc_stat_set["object"].status.ready_replicas != settings.max_replicas:
-        logger.info("%s out of %s ready. Waiting..", kc_stat_set["object"].status.ready_replicas, settings.max_replicas)
-        continue
-
-      # Double check the pods, as the ready replicas do include the termminating ones
+      # Double check the pods, as the ready replicas do include the terminating ones
       pods = client.CoreV1Api().list_namespaced_pod(
         settings.keycloak_namespace,
         label_selector="app=keycloak"
       )
-      if len([pod.metadata.deletion_timestamp for pod in pods.items if pod.metadata.deletion_timestamp is None]) != settings.max_replicas:
+      readiness = []
+      # Ready state is not reliable, we will check all of the replicas and
+      # make sure they are ready
+      for pod in pods.items:
+        readiness += [condi for condi in pod.status.conditions if condi.type == "Ready" and condi.status == "True"]
+
+      # We expect only one event per pod to have Ready type and True status
+      if len(readiness) != settings.max_replicas:
         logger.info("One of the expected replicas is being terminated. Waiting..")
         continue
 
+      logging.info("All pods ready! Performing health check")
       health_check()
+      logging.info("Setting up credentials")
       setup_keycloak()
 
     except ApiException as apie:
