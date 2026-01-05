@@ -3,6 +3,7 @@
 ## 1.8.0
 - CronJobs are now supported. Use the `schedule` field in either the `/tasks` API, or the `Analytics` CRD (for outbound mode) to set a cron rule, like `"3 9 * * *"`.
 - Added two new endpoints for cronjobs: `/tasks/id/suspend` and `/tasks/id/resume` to pause/resume autoexecution.
+- Adjusted the results job cleanup
 
 ## 1.7.1
 ### Bugfixes

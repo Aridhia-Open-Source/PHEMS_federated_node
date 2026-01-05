@@ -495,7 +495,7 @@ class Task(db.Model, BaseModel):
             v1 = KubernetesClient()
             v1.is_pod_ready(label=f"job-name={job_name}")
 
-            job_pod = v1.list_namespaced_pod(namespace=TASK_NAMESPACE, label_selector=f"job-name={job_name}").items[0]
+            job_pod: V1Pod = v1.list_namespaced_pod(namespace=TASK_NAMESPACE, label_selector=f"job-name={job_name}").items[0]
 
             res_file = v1.cp_from_pod(
                 pod_name=job_pod.metadata.name,
@@ -503,15 +503,15 @@ class Task(db.Model, BaseModel):
                 dest_path=f"{RESULTS_PATH}/{self.id}/results",
                 out_name=f"{PUBLIC_URL}-results-{self.id}"
             )
-            v1.delete_pod(job_pod.metadata.name)
-            v1_batch.delete_job(job_name)
         except ApiException as e:
-            if 'job_pod' in locals() and self.get_current_pod(job_pod.metadata.name):
-                v1_batch.delete_job(job_name)
             logger.error(getattr(e, 'reason'))
             raise InvalidRequest(f"Failed to run pod: {e.reason}") from e
         except urllib3.exceptions.MaxRetryError as mre:
             raise InvalidRequest("The cluster could not create the job") from mre
+        finally:
+            if 'job_pod' in locals():
+                v1_batch.delete_job(job_name)
+                v1.delete_pod(job_pod.metadata.name)
         return res_file
 
     def create_controller_crd(self):
@@ -582,17 +582,6 @@ class Task(db.Model, BaseModel):
             san_dict["review_status"] = self.get_review_status()
 
         return san_dict
-
-    # def crd_name(self):
-    #     """
-    #     CRD name is set here for consistency's sake
-    #     """
-    #     v1_crds = KubernetesCRDClient().list_cluster_custom_object(
-    #         CRD_DOMAIN, "v1", "analytics"
-    #     )
-    #     for crd in v1_crds["items"]:
-    #         if crd["metadata"]["annotations"][f"{CRD_DOMAIN}/task_id"] == str(self.id):
-    #             return crd["metadata"]["name"]
 
     def get_task_crd(self) -> V1CustomResourceDefinition|None:
         """
