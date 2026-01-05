@@ -13,10 +13,8 @@ tasks-related endpoints:
 from datetime import datetime, timedelta
 from http import HTTPStatus
 from flask import Blueprint, request, send_file
-from kubernetes.client import V1CronJobList
-from kubernetes.client.exceptions import ApiException
 
-from app.helpers.const import CLEANUP_AFTER_DAYS, PUBLIC_URL, TASK_NAMESPACE, TASK_REVIEW
+from app.helpers.const import CLEANUP_AFTER_DAYS, PUBLIC_URL, TASK_REVIEW
 from app.helpers.exceptions import (
     DBRecordNotFoundError, FeatureNotAvailableException,
     UnauthorizedError, InvalidRequest
@@ -24,7 +22,6 @@ from app.helpers.exceptions import (
 from app.helpers.keycloak import Keycloak
 from app.helpers.wrappers import audit, auth
 from app.helpers.base_model import db
-from app.helpers.kubernetes import KubernetesBatchClient
 from app.helpers.query_filters import parse_query_params
 from app.models.task import Task
 

@@ -2,7 +2,7 @@ import logging
 import json
 import re
 from datetime import datetime, timedelta
-from kubernetes.client import V1CustomResourceDefinition, V1CronJob, V1CronJobList
+from kubernetes.client import V1CustomResourceDefinition, V1CronJob
 from kubernetes.client.exceptions import ApiException
 from kubernetes.client.models.v1_job import V1Job
 from kubernetes.client.models.v1_pod import V1Pod
@@ -67,6 +67,7 @@ class Task(db.Model, BaseModel):
                  outputs:dict = {},
                  description:str = '',
                  schedule:str|None = None,
+                 crd_name:str = None,
                  **kwargs
                  ):
         self.name = name
@@ -85,6 +86,7 @@ class Task(db.Model, BaseModel):
         self.schedule = schedule
         self.is_from_controller = kwargs.get("from_controller", False)
         self.db_query = kwargs.get("db_query", {})
+        self.crd_name = crd_name
 
     @classmethod
     def validate(cls, data:dict):
@@ -98,10 +100,15 @@ class Task(db.Model, BaseModel):
         executors = data["executors"][0]
         data["docker_image"] = executors["image"]
         is_from_controller = data.pop("task_controller", False)
+        crd_name = data.pop("crd_name", None)
 
         data = super().validate(data)
 
         data["from_controller"] = is_from_controller
+        if is_from_controller and crd_name is None:
+            raise InvalidRequest("Missing crd name in the request, or None passed")
+
+        data["crd_name"] = crd_name
 
         # Dataset validation
         if kc_client.is_user_admin(user_token):
@@ -324,7 +331,7 @@ class Task(db.Model, BaseModel):
         }).create_pod_spec()
 
         if self.schedule:
-            cron: V1CronJob = CronJob.create_template(self.name, body, self.schedule)
+            cron: V1CronJob = CronJob.create_template(self.name, body, self.schedule, self.crd_name)
 
         try:
             if self.schedule:
@@ -576,16 +583,16 @@ class Task(db.Model, BaseModel):
 
         return san_dict
 
-    def crd_name(self):
-        """
-        CRD name is set here for consistency's sake
-        """
-        v1_crds = KubernetesCRDClient().list_cluster_custom_object(
-            CRD_DOMAIN, "v1", "analytics"
-        )
-        for crd in v1_crds["items"]:
-            if crd["metadata"]["annotations"][f"{CRD_DOMAIN}/task_id"] == str(self.id):
-                return crd["metadata"]["name"]
+    # def crd_name(self):
+    #     """
+    #     CRD name is set here for consistency's sake
+    #     """
+    #     v1_crds = KubernetesCRDClient().list_cluster_custom_object(
+    #         CRD_DOMAIN, "v1", "analytics"
+    #     )
+    #     for crd in v1_crds["items"]:
+    #         if crd["metadata"]["annotations"][f"{CRD_DOMAIN}/task_id"] == str(self.id):
+    #             return crd["metadata"]["name"]
 
     def get_task_crd(self) -> V1CustomResourceDefinition|None:
         """
@@ -598,7 +605,7 @@ class Task(db.Model, BaseModel):
                 CRD_DOMAIN,
                 "v1",
                 "analytics",
-                self.crd_name()
+                self.crd_name
             )
         except ApiException as apie:
             if apie.status == 404:
@@ -620,7 +627,7 @@ class Task(db.Model, BaseModel):
             annotations = task_crd["metadata"].get("annotations", {})
             annotations[f"{CRD_DOMAIN}/approved"] = str(approval)
             crd_client.patch_cluster_custom_object(
-                CRD_DOMAIN, "v1", "analytics", self.crd_name(),
+                CRD_DOMAIN, "v1", "analytics", self.crd_name,
                 [{"op": "add", "path": "/metadata/annotations", "value": annotations}]
             )
         except ApiException as apie:

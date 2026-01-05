@@ -1,9 +1,13 @@
 from uuid import uuid4
 from kubernetes.client import (
     V1ObjectMeta, V1CronJobSpec, V1JobTemplateSpec, V1JobSpec, V1PodTemplateSpec,
-    V1CronJobList, V1CronJob, V1JobList, V1Job, V1PodList, V1Pod
+    V1CronJobList, V1CronJob, V1JobList, V1Job, V1PodList, V1Pod,
+    V1Container, V1ServiceAccountTokenProjection,
+    V1VolumeProjection, V1Volume, V1ProjectedVolumeSource,
+    V1VolumeMount, V1DownwardAPIProjection, V1DownwardAPIVolumeFile,
+    V1ObjectFieldSelector, V1ConfigMapProjection, V1KeyToPath
 )
-from app.helpers.const import TASK_NAMESPACE
+from app.helpers.const import TASK_NAMESPACE, IMAGE_TAG, CRD_DOMAIN
 from app.helpers.kubernetes import KubernetesBatchClient, KubernetesClient
 
 
@@ -70,7 +74,7 @@ class CronJob:
         return self.get().spec.job_template.spec.template.spec.volumes[0].persistent_volume_claim.claim_name
 
     @classmethod
-    def create_template(cls, name:str, body:V1Pod, schedule:str) -> V1CronJob:
+    def create_template(cls, name:str, body:V1Pod, schedule:str, crd_name:str) -> V1CronJob:
         """
         Create the k8s V1CronJob object
 
@@ -81,6 +85,68 @@ class CronJob:
             schedule: the cron rule
         """
         labels:dict = body.metadata.labels
+        # Need to explicitly mount the k8s token manually as k8s
+        # can't really do it natively
+        creds_vols = [V1Volume(
+            name="sa-token",
+            projected=V1ProjectedVolumeSource(
+                sources=[
+                    V1VolumeProjection(
+                        service_account_token=V1ServiceAccountTokenProjection(
+                            path="token",
+                            expiration_seconds=3600
+                        )
+                    ),
+                    V1VolumeProjection(
+                        config_map=V1ConfigMapProjection(
+                            name="kube-root-ca.crt",
+                            items=[
+                                V1KeyToPath(
+                                    key="ca.crt",
+                                    path="ca.crt",
+                                )
+                            ],
+                        )
+                    ),
+                    V1VolumeProjection(
+                        downward_api=V1DownwardAPIProjection(
+                            items=[
+                                V1DownwardAPIVolumeFile(
+                                    path="namespace",
+                                    field_ref=V1ObjectFieldSelector(
+                                        field_path="metadata.namespace"
+                                    ),
+                                )
+                            ]
+                        )
+                    )
+                ]
+            )
+        ),
+        ]
+        body.spec.volumes += creds_vols
+        body.spec.service_account_name = "secret-backend-handler"
+
+        # If it's from the controller, let's add an initcontainer
+        # to update an annotation every time a new pod is created
+        # to trigger monitoring
+        body.spec.init_containers.append(
+            V1Container(
+                name="crd-refresher",
+                image=f"ghcr.io/aridhia-open-source/alpine:{IMAGE_TAG}",
+                image_pull_policy="Always",
+                command=["/bin/sh"],
+                args=[
+                    "-c",
+                    f"kubectl annotate --overwrite analytics {crd_name} {CRD_DOMAIN}/pod_timestamp=$(date +%s)"
+                ],
+                volume_mounts=[V1VolumeMount(
+                    name="sa-token",
+                    mount_path="/var/run/secrets/kubernetes.io/serviceaccount",
+                    read_only=True
+                )]
+            )
+        )
 
         labels["name"] = name
         return V1CronJob(

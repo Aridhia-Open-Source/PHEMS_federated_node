@@ -548,12 +548,37 @@ class TestPostTask:
         with or without the task_controller flag
         """
         task_body["task_controller"] = True
+        task_body["crd_name"] = "crd name test"
         response = client.post(
             '/tasks/',
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
         assert response.status_code == 201
+        v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
+
+    def test_create_task_from_controller_missing_name(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            registry_client,
+            k8s_client,
+            v1_crd_mock,
+            task_body
+        ):
+        """
+        Tests task creation returns an error if the mandatory crd_name field
+        is not provided from the controller
+        """
+        task_body["task_controller"] = True
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert response.json["error"] == "Missing crd name in the request, or None passed"
         v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
 
     def test_task_connection_string_postgres(

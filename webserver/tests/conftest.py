@@ -9,14 +9,13 @@ from unittest.mock import Mock
 
 from app import create_app
 from app.helpers.base_model import db
+from app.helpers.const import CRD_DOMAIN
+from app.helpers.exceptions import KeycloakError
 from app.models.dataset import Dataset
 from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
 from app.models.request import Request
 from app.models.task import Task
-from app.helpers.exceptions import KeycloakError
-from app.models.task import Task
-from app.helpers.const import CRD_DOMAIN
 
 
 sample_ds_body = {
