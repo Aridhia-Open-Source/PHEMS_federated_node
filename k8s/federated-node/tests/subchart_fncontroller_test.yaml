@@ -1,0 +1,80 @@
+suite: Federated Node Task Controller subchart
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-local.yaml
+kubernetesProvider:
+  scheme:
+    v1/Secret:
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+    v1/ConfigMap:
+      gvr:
+        version: v1
+        resource: configmaps
+      namespaced: true
+  objects:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: awscert-config
+        namespace: federatednode
+      type: Opaque
+      data:
+        EMAIL_CERT: dGVzdA==
+        REGION: dGVzdA==
+        ACCOUNT_ID: dGVzdA==
+        ROLE_NAME: dGVzdA==
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: local-db
+        namespace: federatednode
+      type: Opaque
+      data:
+        password: dGVzdA==
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: github-app
+        namespace: federatednode
+      type: Opaque
+      data:
+        GH_SECRET: dGVzdA==
+        GH_CLIENT_ID: dGVzdA==
+tests:
+  - it: kc-secrets is copied correctly to controller ns
+    template: ../templates/keycloak-secrets.yaml
+    asserts:
+      - hasDocuments:
+          count: 3
+  - it: controller secrets are copied correctly
+    template: ../charts/fn-task-controller/templates/copy-secrets-cm.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: github-app
+      - equal:
+          path: data.GH_SECRET
+          value: dGVzdA==
+  - it: backend configmap has github delivery info
+    template: ../templates/backend-configmap.yaml
+    asserts:
+      - equal:
+          path: data.GITHUB_DELIVERY
+          value: "Aridhia-Open-Source/Federated-Node-Example-App"
+  - it: backend configmap has other delivery info
+    set:
+      fn-task-controller:
+        delivery:
+          other:
+            url: delivery.url.com
+          github: null
+    template: ../templates/backend-configmap.yaml
+    asserts:
+      - equal:
+          path: data.OTHER_DELIVERY
+          value: delivery.url.com

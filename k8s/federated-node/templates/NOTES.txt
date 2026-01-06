@@ -1,0 +1,22 @@
+Successfully installed {{ .Chart.Name }} version: {{ .Chart.Version }}
+Subcharts:
+{{- range .Chart.Dependencies }}
+    {{- if eq .Name "ingress-nginx" }}
+    Ingress Nginx: {{ .Version }}
+    {{- end }}
+    {{- if eq .Name "cert-manager" }}
+    Cert manager: {{ .Version }}
+    {{- end }}
+    {{- if eq .Name  "fn-task-controller" }}
+    Task Controller: {{ .Version }}
+    {{- end }}
+{{- end }}
+
+You can run some smoketests with:
+helm test {{ .Release.Name }} -n {{ .Release.Namespace }} --logs
+
+The smoketest pod will stay until the next one is run.
+It can be deleted with:
+kubectl delete pod -n {{ .Release.Namespace }} {{ .Release.Name }}-smoke-tests
+
+Also check out our "How to use it" article: https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/How-to-use-it

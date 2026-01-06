@@ -1,0 +1,54 @@
+{{- define "kcControlleName" -}}
+  {{ print "keycloak-realm-init" }}
+{{- end -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kcControlleName" . }}
+  namespace: {{ include "kc_namespace" . }}
+  labels:
+    app: {{ include "kcControlleName" . }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+    helm.sh/hook-weight: "-1"
+spec:
+  selector:
+    matchLabels:
+      app: {{ include "kcControlleName" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "kcControlleName" . }}
+    spec:
+      serviceAccountName: k8s-keycloak-handler
+      containers:
+        - name: post-install-job
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          image: "ghcr.io/aridhia-open-source/keycloak_initializer:{{ .Values.keycloak.tag | default .Chart.AppVersion }}"
+          {{- include "nonRootSC" . | nindent 10 }}
+          env:
+            - name: KC_NAMESPACE
+              value: {{ include "kc_namespace" . }}
+            - name: KC_REPLICAS
+              value: {{ .Values.keycloak.replicas | default 2 | quote }}
+            - name: KEYCLOAK_URL
+              value: http://keycloak.{{ include "kc_namespace" . }}.svc.cluster.local
+            {{- if (.Values.firstUserSecret).name }}
+            - name: FIRST_USER_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.firstUserSecret.name }}
+                  key: {{ .Values.firstUserSecret.passKey }}
+            - name: FIRST_USER_EMAIL
+              value: {{ .Values.firstUserSecret.email }}
+            - name: FIRST_USER_FIRST_NAME
+              value: {{ .Values.firstUserSecret.firstName }}
+            - name: FIRST_USER_LAST_NAME
+              value: {{ .Values.firstUserSecret.lastName }}
+            {{- end }}
+          envFrom:
+          - configMapRef:
+              name: keycloak-config
+          - secretRef:
+              name: kc-secrets

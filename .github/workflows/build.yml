@@ -1,13 +1,15 @@
 name: Build Docker Image
 run-name: Building images
 on:
+  workflow_dispatch:
   push:
     tags:
       - '**'
     branches:
       - main
+      - develop
     paths-ignore:
-      - '*.md'
+      - '**/*.md'
       - 'README'
       - 'LICENSE'
       - 'DEPLOYMENT'
@@ -22,8 +24,9 @@ on:
   pull_request:
     branches:
       - main
+      - develop
     paths-ignore:
-      - '*.md'
+      - '**/*.md'
       - 'README'
       - 'LICENSE'
       - 'DEPLOYMENT'
@@ -44,6 +47,7 @@ env:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   init:
@@ -65,18 +69,23 @@ jobs:
           echo "Setting version according to the Chart.yaml"
           cd k8s/federated-node
 
-          version=$(grep 'version:.*' Chart.yaml | sed 's/^.*: //')
+          version=$(grep '^version:.*' Chart.yaml | sed 's/^.*: //')
           echo "Chart version: ${version}"
-          appVersion=$(grep 'appVersion:.*' Chart.yaml | sed 's/^.*: \"//'| sed 's/\"//')
+          appVersion=$(grep '^appVersion:.*' Chart.yaml | sed 's/^.*: \"//'| sed 's/\"//')
           echo "Chart appVersion: ${appVersion}"
 
           if [[ "${{ env.DEV_BUILD }}" == "false" ]]; then
             echo "CHART_VERSION=${version}" >> ${GITHUB_OUTPUT}
             echo "TAG=${appVersion}" >> ${GITHUB_OUTPUT}
           else
-            echo "CHART_VERSION=${version}-${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
-            echo "TAG=${appVersion}-${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
+            echo "CHART_VERSION=${version}-v${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
+            echo "TAG=${appVersion}-v${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
           fi
+      - name: set lower case owner name
+        run: |
+          echo "OWNER_LC=${OWNER,,}" >> ${GITHUB_ENV}
+        env:
+          OWNER: '${{ github.repository_owner }}'
   linters:
     needs: init
     if: needs.init.outputs.is_tag == 'false'
@@ -86,15 +95,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check for vulnerabilities
-        run: |
-          docker run --entrypoint /bin/sh \
-            -v ./webserver/app/Pipfile:/app/Pipfile \
-            -v ./webserver/app/Pipfile.lock:/app/Pipfile.lock \
-            -v ./webserver/vuln.sh:/vuln.sh \
-            python:3.12 \
-            /vuln.sh
-
       - name: Run pylint
         run: |
           make pylint
@@ -114,10 +114,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Run Helm unittests
+        run: |
+          make helm_tests
+
       - name: Run Python Tests
         working-directory: webserver
         run: |
           make tests_ci
+
+      - name: Run Keycloak Integration Tests
+        working-directory: webserver
+        run: |
+          make tests_integration
 
       - uses: irongut/CodeCoverageSummary@v1.3.0
         name: Code Coverage Summary Report
@@ -125,81 +134,102 @@ jobs:
           filename: artifacts/coverage.xml
           fail_below_min: true
           thresholds: '60 80'
-  build:
+  build-flask-image:
     needs:
       - init
       - tests
     if: needs.init.outputs.is_tag == 'false'
-    defaults:
-      run:
-        shell: bash
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Need to get a registry where to push the image
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ vars.DOCKER_CR }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.DOCKER_TOKEN }}
-      - name: set lower case owner name
-        run: |
-          echo "OWNER_LC=${OWNER,,}" >> ${GITHUB_ENV}
-        env:
-          OWNER: '${{ github.repository_owner }}'
-      - name: Build and push Flask image
-        uses: docker/build-push-action@v5
-        with:
-          context: webserver
-          file: webserver/build/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_node_run:${{ needs.init.outputs.tag }}
-          push: true
-      - name: Build and push Keycloak image
-        uses: docker/build-push-action@v5
-        with:
-          context: build/keycloak
-          file: build/keycloak/keycloak.Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/federated_keycloak:${{ needs.init.outputs.tag }}
-          push: true
-      - name: Build and push Cleaner image
-        uses: docker/build-push-action@v5
-        with:
-          context: build/alpine
-          file: build/alpine/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/alpine:3.19
-          push: true
-      - name: Build and push DB initialiser image
-        uses: docker/build-push-action@v5
-        with:
-          context: build/db-init
-          file: build/db-init/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/db_init:${{ needs.init.outputs.tag }}
-          push: true
-      - name: Build and push KC initialiser image
-        uses: docker/build-push-action@v5
-        with:
-          context: build/kc-init
-          file: build/kc-init/Dockerfile
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/keycloak_initializer:${{ needs.init.outputs.tag }}
-          push: true
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
+    with:
+      TAG: ${{ needs.init.outputs.tag }}
+      IMAGE: federated_node_run
+      BUILD_PATH: webserver
+      HASH_SUFFIX: false
+      DOCKER_ACR: ${{ vars.DOCKER_CR }}
+    secrets:
+      DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-keycloak-image:
+    needs:
+      - init
+      - tests
+    if: needs.init.outputs.is_tag == 'false'
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
+    with:
+      TAG: ${{ needs.init.outputs.tag }}
+      IMAGE: federated_keycloak
+      BUILD_PATH: build/keycloak/
+      HASH_SUFFIX: false
+      DOCKER_ACR: ${{ vars.DOCKER_CR }}
+    secrets:
+      DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-alpine-image:
+    needs:
+      - init
+      - tests
+    if: needs.init.outputs.is_tag == 'false'
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
+    with:
+      TAG: ${{ needs.init.outputs.tag }}
+      IMAGE: alpine
+      BUILD_PATH: build/alpine/
+      HASH_SUFFIX: false
+      DOCKER_ACR: ${{ vars.DOCKER_CR }}
+    secrets:
+      DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-kc-init-image:
+    needs:
+      - init
+      - tests
+    if: needs.init.outputs.is_tag == 'false'
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
+    with:
+      TAG: ${{ needs.init.outputs.tag }}
+      IMAGE: keycloak_initializer
+      BUILD_PATH: build/kc-init/
+      HASH_SUFFIX: false
+      DOCKER_ACR: ${{ vars.DOCKER_CR }}
+    secrets:
+      DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-db-connector-image:
+    needs:
+      - init
+      - tests
+    if: needs.init.outputs.is_tag == 'false'
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
+    with:
+      TAG: ${{ needs.init.outputs.tag }}
+      IMAGE: db_connector
+      BUILD_PATH: build/db-connector/
+      HASH_SUFFIX: false
+      DOCKER_ACR: ${{ vars.DOCKER_CR }}
+    secrets:
+      DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   release:
     uses: Aridhia-Open-Source/pipelines/.github/workflows/helm-build.yml@main
     if: always() && !failure() && !cancelled()
     needs:
       - init
-      - build
+      - build-flask-image
+      - build-keycloak-image
+      - build-alpine-image
+      - build-kc-init-image
+      - build-db-connector-image
     with:
       VERSION: ${{ needs.init.outputs.chart_version }}
       APP_VERSION: ${{ needs.init.outputs.tag }}
       PATH_BUILD: k8s/federated-node
       CHART_NAME: federated-node
       IS_TAG: ${{ needs.init.outputs.is_tag }}
-    secrets:
-      HELM_TOKEN: ${{ secrets.HELM_TOKEN }}
+      HAS_SUBCHART: true
+  summary:
+    needs:
+      - init
+      - release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set summary
+        run: |
+          echo "# Docker Images Tags:" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ needs.init.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "# Helm Chart:" >> $GITHUB_STEP_SUMMARY
+          echo "- federated-node:${{ needs.init.outputs.chart_version }}" >> $GITHUB_STEP_SUMMARY

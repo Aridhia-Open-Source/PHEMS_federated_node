@@ -55,6 +55,14 @@
         "operationId": "getDataset",
         "tags": ["Datasets"],
         "summary": "List all datasets available to the user",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
         "responses": {
           "200":{
             "$ref": "#/components/responses/DatasetList"
@@ -163,6 +171,39 @@
         "responses": {
           "204": {
             "$ref": "#/components/responses/DatasetPost"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete":{
+        "operationId": "deleteDataset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema":{"type": "integer"},
+            "required": true
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Deletes a dataset mapping with its kubernetes secrets.",
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/NoContent"
           },
           "400":{
             "$ref": "#/components/responses/InvalidBody"
@@ -297,6 +338,81 @@
         "responses": {
           "200":{
             "$ref": "#/components/responses/DatasetById"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "editDataset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema":{"type": "integer"},
+            "required": true
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Edit a dataset information. Any of the fields provided on the POST or returned by the GET on this same endpoint, is a valid body",
+        "requestBody": {
+          "content": {
+            "application/json":{
+              "schema":{
+                "$ref": "#/components/schemas/DatasetPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/NoContent"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteDataset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema":{"type": "integer"},
+            "required": true
+          }
+        ],
+        "tags": ["Datasets"],
+        "summary": "Deletes a dataset mapping with its kubernetes secrets.",
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/DatasetPost"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
           },
           "401":{
             "$ref": "#/components/responses/Unauthenticated"
@@ -513,6 +629,14 @@
         "operationId": "get_tasks",
         "tags": ["Tasks"],
         "summary": "Get a full list of tasks",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
         "responses": {
           "200": {
             "$ref": "#/components/responses/TaskList"
@@ -653,6 +777,114 @@
           "200":{
             "$ref": "#/components/responses/TaskResults"
           },
+          "400":{
+            "$ref": "#/components/responses/ReviewNeededOrBlocked"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks/{id}/results/approve": {
+      "post": {
+        "operationId": "approve_results",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {"type": "integer"}
+          }
+        ],
+        "tags": ["Tasks"],
+        "summary": "Approve the results release",
+        "responses":{
+          "201":{
+            "description": "Review successful"
+          },
+          "400":{
+            "$ref": "#/components/responses/MultipleReviewError"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks/{id}/results/block": {
+      "post": {
+        "operationId": "block_results",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {"type": "integer"}
+          }
+        ],
+        "tags": ["Tasks"],
+        "summary": "Block the results release",
+        "responses":{
+          "201":{
+            "description": "Review successful"
+          },
+          "400":{
+            "$ref": "#/components/responses/MultipleReviewError"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks/{id}/logs": {
+      "get": {
+        "operationId": "get_task_logs",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {"type": "integer"}
+          }
+        ],
+        "tags": ["Tasks"],
+        "summary": "Get task logs if available",
+        "responses":{
+          "200":{
+            "$ref": "#/components/responses/TaskLogs"
+          },
           "401":{
             "$ref": "#/components/responses/Unauthenticated"
           },
@@ -693,6 +925,21 @@
         }
       }
     },
+    "/refresh_token": {
+      "post": {
+        "operationId": "refresh_token",
+        "tags": ["General"],
+        "summary": "Refresh an existing token",
+        "responses":{
+          "201":{
+            "$ref": "#/components/responses/TokenResponse"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          }
+        }
+      }
+    },
     "/audit": {
       "get": {
         "operationId": "get_audit",
@@ -720,13 +967,47 @@
             "description": "Filter by response status code",
             "name": "status_code",
             "schema": {"type": "integer"}
+          },
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
           }
         ],
         "tags": ["Admin"],
-        "summary": "Login with set of credentials (only admins can have them)",
+        "summary": "Get the audit logs for the whole API, with filters",
         "responses":{
           "200":{
             "$ref": "#/components/responses/AuditList"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/delivery-secret": {
+      "patch": {
+        "operationId": "update_delivery_secret",
+        "parameters": [],
+        "tags": ["Admin"],
+        "summary": "Admin-only endpoint that is active only when the task controller is deployed. This endpoint will update a secret linked with the automatic delivery credentials",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema":{
+                "$ref": "#/components/schemas/UpdateDeliverySecretBody"
+              }
+            }
+          }
+        },
+        "responses":{
+          "204":{
+            "$ref": "#/components/responses/NoContent"
           },
           "401":{
             "$ref": "#/components/responses/Unauthenticated"
@@ -747,8 +1028,8 @@
           "200":{
             "$ref": "#/components/responses/health_check"
           },
-          "500":{
-            "$ref": "#/components/responses/500_health_check"
+          "502":{
+            "$ref": "#/components/responses/502_health_check"
           }
         }
       }
@@ -758,6 +1039,14 @@
         "operationId": "get_all_users",
         "tags": ["Users"],
         "summary": "List of all of the users",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
         "responses": {
           "200": {
             "$ref": "#/components/responses/UserListResponse"
@@ -841,6 +1130,14 @@
         "operationId": "getContainers",
         "tags": ["Containers"],
         "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
         "summary": "List all containers available to the user",
         "responses": {
           "200":{
@@ -995,9 +1292,39 @@
         "operationId": "getRegisries",
         "tags": ["Registries"],
         "summary": "List all container registries available",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
         "responses": {
           "200":{
             "$ref": "#/components/responses/RegistryList"
+          },
+          "400":{
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteRegisries",
+        "tags": ["Registries"],
+        "summary": "List all container registries available",
+        "responses": {
+          "204":{
+            "$ref": "#/components/responses/NoContent"
           },
           "400":{
             "$ref": "#/components/responses/InvalidBody"
@@ -1021,7 +1348,7 @@
           "content": {
             "application/json":{
               "schema":{
-                "$ref": "#/components/schemas/RegistryBody"
+                "$ref": "#/components/schemas/RegistryPostBody"
               }
             }
           }
@@ -1058,6 +1385,42 @@
         ],
         "tags": ["Registries"],
         "summary": "Get a registry by id if available to the user",
+        "responses": {
+          "200":{
+            "$ref": "#/components/responses/RegistryEntry"
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchRegistryById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/registryIdPath"
+          }
+        ],
+        "tags": ["Registries"],
+        "summary": "Amend details for a registry",
+        "requestBody": {
+          "content": {
+            "application/json":{
+              "schema":{
+                "$ref": "#/components/schemas/RegistryPostBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200":{
             "$ref": "#/components/responses/RegistryEntry"
@@ -1129,6 +1492,18 @@
         "name": "registry_id",
         "schema":{"type": "integer"},
         "required": true
+      },
+      "paginationPage": {
+        "in": "query",
+        "name": "page",
+        "schema":{"type": "integer"},
+        "description": "Page to return"
+      },
+      "paginationPerPage": {
+        "in": "query",
+        "name": "per_page",
+        "schema":{"type": "integer"},
+        "description": "How many entries maximum per page"
       }
     },
     "responses": {
@@ -1162,11 +1537,27 @@
             "schema":{
               "type": "object",
               "properties": {
-                "datasets":{
+                "items":{
                   "type": "array",
                   "items":{
                     "$ref": "#/components/schemas/DatasetById"
                   }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
                 }
               }
             }
@@ -1227,9 +1618,30 @@
         "content": {
           "application/json":{
             "schema":{
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/TaskById"
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskById"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
               }
             }
           }
@@ -1258,6 +1670,33 @@
             "schema":{
               "type": "string",
               "format": "binary"
+            }
+          }
+        }
+      },
+      "TaskLogs": {
+        "description": "Pod's logs",
+        "content": {
+          "application/json":{
+            "schema":{
+              "type":"object",
+              "properties": {
+                "logs":{
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "example": "2025-03-11T14:14:43.770925327Z R version 4.3.3 (2024-02-29) -- \"Angel Food Cake\""
+                      }
+                    },{
+                      "type": "string",
+                      "description": "Response when a task is still initializing",
+                      "example": "Task queued"
+                    }
+                  ]
+                }
+              }
             }
           }
         }
@@ -1299,24 +1738,48 @@
           }
         }
       },
+      "NoContent": {
+        "description": "No content response"
+      },
       "AuditList": {
         "description": "List of actions performed against the webserver",
         "content": {
           "application/json": {
             "schema": {
-              "type": "array",
-              "items":{
-                "type": "object",
-                "properties": {
-                  "api_function": {"type": "string", "example": "get_datasets"},
-                  "details": {"type": "string", "example": "Requested by cea6868d-26b6-4e96-95d7-4aba8df7d06e - user@email.com"},
-                  "endpoint": {"type": "string", "example": "/datasets"},
-                  "event_time": {"type": "string", "example": "Thu, 14 Mar 2024 11:45:36 GMT"},
-                  "http_method": {"type": "string", "example": "GET"},
-                  "id": {"type": "integer", "example": 1},
-                  "ip_address": {"type": "string", "example": "15.24.87.9"},
-                  "requested_by": {"type": "string", "example": "cea6868d-26b6-4e96-95d7-4aba8df7d06e"},
-                  "status_code": {"type": "integer", "example": 200}
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items":{
+                    "type": "object",
+                    "properties": {
+                      "api_function": {"type": "string", "example": "get_datasets"},
+                      "details": {"type": "string", "example": "Requested by cea6868d-26b6-4e96-95d7-4aba8df7d06e - user@email.com"},
+                      "endpoint": {"type": "string", "example": "/datasets"},
+                      "event_time": {"type": "string", "example": "Thu, 14 Mar 2024 11:45:36 GMT"},
+                      "http_method": {"type": "string", "example": "GET"},
+                      "id": {"type": "integer", "example": 1},
+                      "ip_address": {"type": "string", "example": "15.24.87.9"},
+                      "requested_by": {"type": "string", "example": "cea6868d-26b6-4e96-95d7-4aba8df7d06e"},
+                      "status_code": {"type": "integer", "example": 200}
+                    }
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
                 }
               }
             }
@@ -1344,9 +1807,30 @@
         "content": {
           "application/json": {
             "schema": {
-              "type": "array",
-              "items":{
-                "$ref": "#/components/schemas/UserEntry"
+            "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserEntry"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
               }
             }
           }
@@ -1368,9 +1852,30 @@
         "content": {
           "application/json":{
             "schema":{
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/ContainerObject"
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContainerObject"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
               }
             }
           }
@@ -1394,10 +1899,19 @@
         "content": {
           "application/json":{
             "schema":{
-              "type": "array",
-              "items": {
-                "type": "string",
-                "example": "repo.azurecr.io/beautiful_image:1.2.0"
+              "type": "object",
+              "properties": {
+                "info": {
+                  "type": "string",
+                  "default": "The sync considers only the latest 100 tag per image. If an older one is needed, add it manually via the POST /images endpoint"
+                },
+                "images": {
+                  "type": "array",
+                    "items": {
+                      "type": "string",
+                      "example": "repo.azurecr.io/beautiful_image:1.2.0"
+                    }
+                  }
               }
             }
           }
@@ -1419,9 +1933,30 @@
         "content": {
           "application/json":{
             "schema":{
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/RegistryObject"
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RegistryObject"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
               }
             }
           }
@@ -1435,6 +1970,38 @@
               "type": "object",
               "properties": {
                 "id": {"type": "integer"}
+              }
+            }
+          }
+        }
+      },
+      "ReviewNeededOrBlocked": {
+        "description": "Review is needed, or release has been blocked",
+        "content": {
+          "application/json":{
+            "schema":{
+              "type": "object",
+              "properties": {
+                "status": { "type": "string"}
+              },
+              "example": {
+                "error": "Review needed"
+              }
+            }
+          }
+        }
+      },
+      "MultipleReviewError": {
+        "description": "Only one review per task is allowed",
+        "content": {
+          "application/json":{
+            "schema":{
+              "type": "object",
+              "properties": {
+                "error": { "type": "string"}
+              },
+              "example": {
+                "error": "Task has been already reviewed"
               }
             }
           }
@@ -1488,7 +2055,7 @@
           }
         }
       },
-      "500_health_check":{
+      "502_health_check":{
         "description": "Service unhealthy",
         "content": {
           "application/json": {
@@ -1664,7 +2231,12 @@
           },
           "dataset_id": {
             "type": "string",
+            "description": "This is here mostly for legacy purposes, but referring by name is more consistent across multiple nodes.",
             "example": "1"
+          },
+          "dataset_name": {
+            "type": "string",
+            "example": "blood_samples"
           }
         },
         "required": [
@@ -1672,7 +2244,7 @@
           "project_name",
           "requested_by",
           "description",
-          "dataset_id",
+          "dataset_name",
           "proj_start",
           "proj_end"
         ]
@@ -1700,6 +2272,14 @@
             "type": "string"
           },
           "password": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateDeliverySecretBody": {
+        "type": "object",
+        "properties": {
+          "auth": {
             "type": "string"
           }
         }
@@ -1745,13 +2325,31 @@
             "required": ["dataset_id"]
           },
           "outputs": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "description": "An object where the key is a human readable name and the value is the path to which a volume will be mounted on at run time to fetch the results. The key value, in the example folder1, will be used as folder name in the results archive as well.",
-              "example": {
-                "folder1": "/mnt/data/results",
-                "folder2": "/home/john/analysis/csvs"
+            "type": "object",
+            "description": "An object where the key is a human readable name and the value is the path to which a volume will be mounted on at run time to fetch the results. The key value, in the example folder1, will be used as folder name in the results archive as well.",
+            "example": {
+              "folder1": "/mnt/data/results",
+              "folder2": "/home/john/analysis/csvs"
+            }
+          },
+          "db_query": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "The intended query to run",
+                "example": "SELECT AVERAGE(pressure) FROM patients_blood;"
+              },
+              "dialect": {
+                "type": "string",
+                "description": "The type of query engine is written for, just so it can be accurately converted to the hosts' local DB",
+                "enum": [
+                  "postgres",
+                  "mssql",
+                  "oracle",
+                  "mysql",
+                  "mariadb"
+                ]
               }
             }
           },
@@ -1879,7 +2477,8 @@
         "properties": {
           "id": {"type": "integer", "example": 1},
           "url": {"type": "string", "example": "acrregistry.io"},
-          "needs_auth": {"type": "boolean", "example": true}
+          "needs_auth": {"type": "boolean", "example": true},
+          "active": {"type": "boolean", "example": true}
         }
       },
       "RegistryBody": {
@@ -1890,6 +2489,16 @@
           "username": {"type": "string", "example": "user"},
           "password": {"type": "string", "example": "secrettoken"},
           "needs_auth": {"type": "boolean", "example": true}
+        }
+      },
+      "RegistryPostBody": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string", "example": "acrregistry.io"},
+          "username": {"type": "string", "example": "user"},
+          "password": {"type": "string", "example": "secrettoken"},
+          "needs_auth": {"type": "boolean", "example": true},
+          "active": {"type": "boolean", "example": true}
         }
       }
     }

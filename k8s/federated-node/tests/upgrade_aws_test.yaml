@@ -1,0 +1,77 @@
+suite: Storage testing for AWS
+release:
+  namespace: federatednode
+  revision: 2
+  name: federatednode
+  upgrade: true
+kubernetesProvider:
+  scheme:
+    v1/Secret:
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+    v1/ConfigMap:
+      gvr:
+        version: v1
+        resource: configmaps
+      namespaced: true
+  objects:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: awscert-config
+        namespace: federatednode
+      type: Opaque
+      data:
+        EMAIL_CERT: dGVzdA==
+        REGION: dGVzdA==
+        ACCOUNT_ID: dGVzdA==
+        ROLE_NAME: dGVzdA==
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: local-db
+        namespace: federatednode
+      type: Opaque
+      data:
+        password: dGVzdA==
+tests:
+  - it: upgrade AWS storage
+    template: storageclass.yaml
+    values:
+      - values/values-aws.yaml
+    set:
+      storage:
+        aws:
+          fileSystemId: fs-newstring
+          accessPointId: fs-shortnewstring
+    asserts:
+      - equal:
+          path: parameters.fileSystemId
+          value: fs-newstring::fs-shortnewstring
+  - it: upgrade AWS certificate issuer
+    template: certificates/issuer.yaml
+    kubernetesProvider:
+      objects:
+        - apiVersion: v1
+          kind: Secret
+          metadata:
+            name: new-certificate-config
+            namespace: federatednode
+          data:
+            EMAIL_CERT: bmV3QGNlcnQuY29t
+            REGION: dGVzdA==
+            ACCOUNT_ID: dGVzdA==
+            ROLE_NAME: dGVzdA==
+    values:
+      - values/values-aws.yaml
+    set:
+      certs:
+        aws: new-certificate-config
+    asserts:
+      - equal:
+          path: spec.acme.email
+          value: new@cert.com
+      - exists:
+          path: spec.acme.solvers[0].dns01.route53

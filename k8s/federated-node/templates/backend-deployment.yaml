@@ -7,7 +7,7 @@ metadata:
     app: flask
 spec:
   {{- if not .Values.autoscaling.enabled }}
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .Values.backend.replicas }}
   {{- end }}
   selector:
     matchLabels:
@@ -21,17 +21,17 @@ spec:
     spec:
       serviceAccountName: secret-backend-handler
       initContainers:
-        {{ template "createDBInitContainer" . }}
+        {{- include "createDBInitContainer" . | nindent 8 }}
           - name: NEW_DB
             valueFrom:
               configMapKeyRef:
                 name: backend-configmap
                 key: PGDATABASE
         - name: db-migrations
-          image: {{ template "backend-image" . }}:{{ .Values.backend.tag | default .Chart.AppVersion }}
+          image: {{ template "backend-image" . }}
           command: ["/bin/sh"]
           workingDir: /
-          {{ include "nonRootSC" . }}
+          {{- include "nonRootSC" . | nindent 10 }}
           args:
             [
               "-c",
@@ -40,76 +40,68 @@ spec:
           envFrom:
             - configMapRef:
                 name: backend-configmap
-            {{ if .Values.db.configMap }}
-            - configMapRef:
-                name: {{ .Values.db.configMap }}
-            {{ end }}
           env:
           - name: PGPASSWORD
             valueFrom:
               secretKeyRef:
                 name: {{.Values.db.secret.name}}
                 key: {{.Values.db.secret.key}}
+        - name: storage-init
+          image: {{ include "fn-alpine" . }}
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - mkdir -p /mnt/storage/results
+          volumeMounts:
+            - name: respv
+              mountPath: /mnt/storage
       containers:
-        - image: {{ template "backend-image" . }}:{{ .Values.backend.tag | default .Chart.AppVersion }}
+        - image: {{ template "backend-image" . }}
           name: backend
           imagePullPolicy: {{ .Values.pullPolicy }}
-          {{ include "nonRootSC" . }}
+          {{- include "nonRootSC" . | nindent 10 }}
           resources:
             limits:
               memory: 200Mi
               cpu: 100m
           ports:
             - name: http
-              containerPort: {{ .Values.federatedNode.port | default 5000 }}
+              containerPort: {{ .Values.federatedNode.port }}
               protocol: TCP
           readinessProbe:
             httpGet:
               path: /ready_check
               port: http
-            initialDelaySeconds: 30
-            periodSeconds: 180
+            initialDelaySeconds: 10
+            periodSeconds: 15
             timeoutSeconds: 30
+            failureThreshold: 5
           livenessProbe:
             httpGet:
               path: /health_check
               port: http
             initialDelaySeconds: 10
-            periodSeconds: 60
+            periodSeconds: 30
             timeoutSeconds: 30
+            failureThreshold: 5
           envFrom:
             - configMapRef:
                 name: backend-configmap
-            {{ if .Values.db.configMap }}
-            - configMapRef:
-                name: {{ .Values.db.configMap }}
-            {{ end }}
             - configMapRef:
                 name: keycloak-config
+            - secretRef:
+                name: kc-secrets
           env:
-          - name: RESULTS_PATH
-            value: {{ .Values.federatedNode.volumes.results_path }}
-          - name: TASK_POD_RESULTS_PATH
-            value: {{ .Values.federatedNode.volumes.task_pod_results_path }}
           - name: PGPASSWORD
             valueFrom:
               secretKeyRef:
                 name: {{.Values.db.secret.name}}
                 key: {{.Values.db.secret.key}}
-          - name: KEYCLOAK_SECRET
-            valueFrom:
-              secretKeyRef:
-                name: kc-secrets
-                key: KEYCLOAK_GLOBAL_CLIENT_SECRET
-          - name: KEYCLOAK_ADMIN_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: kc-secrets
-                key: KEYCLOAK_ADMIN_PASSWORD
           volumeMounts:
             - name: respv
               mountPath: {{ .Values.federatedNode.volumes.results_path }}
+              subPath: results
       volumes:
         - name: respv
           persistentVolumeClaim:
-            claimName: flask-results-pv-volclaim
+            claimName: {{ include "pvcName" . }}

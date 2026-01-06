@@ -2,11 +2,12 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: keycloak
-  namespace: {{ .Values.namespaces.keycloak }}
+  namespace: {{ include "kc_namespace" . }}
   labels:
     app: keycloak
 spec:
-  replicas: 2
+  serviceName: keycloak-headless
+  replicas: {{ .Values.keycloak.replicas | default 2 }}
   selector:
     matchLabels:
       app: keycloak
@@ -18,24 +19,39 @@ spec:
         app: keycloak
     spec:
       initContainers:
-        {{ template "createDBInitContainer" . }}
+        {{- include "createDBInitContainer" . | nindent 8 }}
           - name: NEW_DB
             valueFrom:
               configMapKeyRef:
                 name: keycloak-config
                 key: KC_DB_URL_DATABASE
+        - name: credentials-reset
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          image: {{ include "fn-alpine" . }}
+          command: ["keycloak-reset"]
+          {{- include "nonRootSC" . | nindent 10 }}
+          env:
+          - name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{.Values.db.secret.name}}
+                key: {{.Values.db.secret.key}}
+          - name: KC_NAMESPACE
+            value: {{ include "kc_namespace" . }}
+          - name: PGDATABASE
+            value: {{ include "dbKeycloakName" . }}
+          envFrom:
+          - secretRef:
+              name: kc-secrets
+          - configMapRef:
+              name: keycloak-config
       containers:
         - image: ghcr.io/aridhia-open-source/federated_keycloak:{{ .Values.keycloak.tag | default .Chart.AppVersion }}
           args: [
             "start",
-            "--cache=ispn",
-            "--cache-config-file=cache-ispn.xml",
             "--import-realm",
-            "--features=preview",
             "--http-enabled=true",
-            "--hostname-strict=false",
-            "--hostname-strict-https=false",
-            "-Dkeycloak.infinispan.ignoreSkipCacheStore=true"
+            "--optimized"
           ]
           name: keycloak
           imagePullPolicy: {{ .Values.pullPolicy }}
@@ -45,27 +61,19 @@ spec:
               protocol: TCP
           readinessProbe:
             httpGet:
-              path: /realms/master
-              port: 8080
+              path: /health
+              port: 9000
             initialDelaySeconds: 20
-            periodSeconds: 30
+            periodSeconds: 10
           env:
             - name: KC_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{.Values.db.secret.name}}
                   key: {{.Values.db.secret.key}}
-            - name: KEYCLOAK_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: kc-secrets
-                  key: KEYCLOAK_GLOBAL_CLIENT_SECRET
-            - name: KEYCLOAK_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: kc-secrets
-                  key: KEYCLOAK_ADMIN_PASSWORD
           envFrom:
+          - secretRef:
+              name: kc-secrets
           - configMapRef:
               name: keycloak-config
           volumeMounts:
@@ -74,7 +82,7 @@ spec:
             - name: quarkus
               mountPath: /opt/keycloak/conf/quarkus.properties
               subPath: quarkus.properties
-          {{ include "nonRootSC" . }}
+          {{- include "nonRootSC" . | nindent 10 }}
       volumes:
         - name: config
           configMap:

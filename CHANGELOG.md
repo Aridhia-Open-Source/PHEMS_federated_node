@@ -1,5 +1,178 @@
 # Releases Changelog
 
+## 1.7.1
+### Bugfixes
+- Fixed an issue with the `setup_realm` script which now ignores certain failed login attempts (after successful resets) and will retry at any kc pods restarts.
+- Fixed an issue with migrate docker secret job which was exiting on missing secrets. Also login failures cause from the other bugfix
+
+## 1.7.0
+- Upgraded Keycloak to version 26.4
+- Changed the init realm daemonset to a deployment, as it behaves like a controller for keycloak
+- Changed token exchange API body to not include `subject_token_type`
+- Made use of bootsrap user for the `keycloak-realm-init` daemonset to not share credentials
+- Updated keycloak-role to monitor statefulsets in its namespace to allow a better performance on the `keycloak-realm-init`
+- `regcred-migration` job has its max retries increased to 10. Also got post-* hooks set to delay its start as long as possible
+
+## 1.6.0
+- Docker images' sha/digest supported on top of tags for a more precise snapshot in history.
+- Added a `/refresh-token` endpoint so that a token can be renewed. This is successful only with tokens that are not expired. Ideally, every 29 days (default expiration is 30) this endpoint is pinged either manually, or automated. This response body is the same as `/login`.
+- Added a new endpoint `/delivery-secret` to update the results delivery credentials in case the Task Controller is deployed with it.
+
+## 1.5.0
+- Prefixed cluster-wide resources with the release name (unique by helm standards). Moved unnecessarily cluster-wide resources to namespaced ones
+- Added the option to setup an initial user to avoid using the backend credentials. To set it up, the following section in the values file has been added:
+    ```yaml
+    firstUserSecret:
+        name:
+        passKey:
+        firstName:
+        lastName:
+        email:
+    ```
+    Where a secret needs to be created in the helm chart base namespace. The `name` should be the secret name.
+    The `passKey` is the secret's key that holds the password for the user. The rest of the fields are optional, but it is advisable to set them.
+
+## 1.4.0
+- Added a dedicated Cluster Role for keycloak init daemonset
+
+### Bugfixes
+- Fixed an intermittent issue with authentication post helm upgrades.
+- Removed unnecessary jobs for keycloak credentials reset.
+- Changed `keycloak-realm-init` to a DaemonSet so it will run automatically at cluster restart.
+- Fixed an issue with admins not being able to get results regardless of review status
+
+## 1.3.0
+- Upgraded all python images to use `python:3.13-slim`
+- Upgraded alpine image to 3.22
+- Added a `taskReview` flag on the values to enable task results review before being released. Set to `false` by default.
+- Results can also be delivered automatically after bein g triggered by the API call directly. The `/tasks/<id>/results` endpoint will still work.
+
+## 1.2.0
+- Added two `DELETE` enpoints for datasets and registries. Using them will remove related k8s secrets, and DB entries. In the case of datasets, dictionaries and catalogues. For registries, all related containers added either manually of via sync (manual or scheduled).
+- Added support for AWS EFS persistent volume through the csi driver `efs.csi.aws.com`
+    To configure it, set in the values file:
+    ```yaml
+    storage:
+    aws:
+        fileSystemId: <your EFS system ID>
+        accessPointId: <Optional, access point id for better permission and isolation management in the EFS>
+    ```
+
+- Removed the option to provide db credentials in plaintext on the values file (which wasn't actively used, but it might have been misleading)
+
+### Security
+- Added the following headers to nginx:
+    - `strict-transport-security`
+    - `content-security-policy`
+    - `referrer-policy`
+    - `permission-policy`
+    - `x-content-type-options`
+    - `cors-allow-origin` (list of allowed hosts can be set via `.integrations.domains` in the values file. Defaults to `self`)
+
+## 1.1.0
+- Results are now delivered as a `zip` file.
+- Added a `PATCH` endpoint for `/registries` so it's easier to update credentials
+- Added the `active` field for registries, so outdated ones can be safely deactivated
+- `db_query` field for `/tasks` POST is now optional, and its related env variables are not set if not provided
+- `CONNECTION_STRING` is a new env var passed to the task pod containing info about DB connection
+- The `fetch-data` init pod is conditional to the `db_query` field
+- `cert-manager`'s Certificate now supports `rotationPolicy` via the `certs.rotationPolicy` field. Defaults to `Never`. The other value supported is `Always`.
+
+### Bugfixes
+- The secret for the cert manager are now automatically copied to the appropriate namespace.
+
+## 1.0.0
+- Added the Federated Node Task Controller as a chart dependency. This can be installed by setting `outboundMode` to true on the values file. By default, it won't be installed.
+- Some jobs will be cleaned before and after an upgrade.
+- Fixed issues with rendering nfs templates due to an extra `-`
+- Multiple database engines now supported:
+    - MS SQL
+    - Postgres
+    - MariaDB
+    - MySQL
+    - OracleDB
+- Tasks do not need to fetch data themselves. The node will do so and mount a file called `input.csv` as default. This can be specified by the `inputs` field in the `/tasks` request. Where it will have the following format:
+    ```json
+    {
+        "file_name": "file_path"
+    }
+    ```
+
+### Bugfixes
+- Issue with new user fixed due to a format mismatch
+
+## 0.11.0
+- Changed the way data is fetched from datasets, now the FN will gather it in a `csv` file and mount it to the analytics pod.
+- The dataset now has an optional `schema` field, mostly for MS SQL services.
+- The POST `tasks` endpoint now uses `db_query` as a new field. This is a json object with `query` and `dialect` as properties.
+- POST `tasks` uses the `input` field to set where the fetched data csv file should be called and where it should be mounted. The format will be
+    ```json
+    {
+        "file_name": "path_to_mount"
+    }
+    ```
+- DB credentials are not passed to the task's pod anymore
+- Replaced the keycloak-credential-refresh job with a re-setter one.
+- Added a new value, `create_db_deployment`, only for local deployments. Defaults to `false`
+- Added a weight on the nginx namespace template, as new installation might complain
+- The datasets are now strictly linked to the `token_transfer` request body. A non-admin user can only trigger a task by providing the project-name they have been approved for. This will avoid inconsistencies with names and ids.
+- The alpine helper image now has the same tag as the backend.
+
+### Bugfixes
+- Fixed an issue with the result cleaner where the volume mounted would include too much
+
+## 0.10.0
+**With this update, if using nginx, you will need to update your dns record to the new ingress' IP**
+
+- Added `cert-manager` to handle SSL renewal. Set `cert-manager.enabled` in the values file to `true`.
+
+    An example of configuration on AKS would be:
+    ```yaml
+    cert-manager:
+        enabled: true
+    certs:
+        azure:
+            configmap: azuredns-config
+            secretName: azuredns-secret
+    ```
+    If not needed leave `cert-manager` and `certs` out of the values file.
+- nginx is explicitly set to off. To enable it, set `ingress-nginx.enabled: true` in your values file.
+- Restructured the way nginx is configured. Most of the settings were migrated to the root level from `ingress`. In detail:
+    - `ingress.on_aks` moved to `on_aks`
+    - `ingress.on_eks` moved to `on_eks`
+    - `ingress.host` moved to `host`
+    - `ingress.tls.secretName` moved to `tls.secretName`
+    - `ingress.whitelist.*` moved to `whitelist.*`
+    - `ingress.blacklist.*` moved to `blacklist.*`
+
+- on AKS-based deployments would need to add:
+    ```yaml
+    ingress-nginx:
+        controller:
+            service:
+                externalTrafficPolicy: Local
+    ```
+- nginx namespace is now defined in `ingress-nginx.namespaceOverride`
+- Added the `/tasks/<task_id>/logs` to fetch a task pod's logs.
+- Task's pods will not have service account tokens mounted
+
+### Security
+- Updated the nginx version to `1.12.1` to address a vulnerability
+
+## 0.9.0
+- Added a test suite for the helm chart. This can be simply run with `helm test federatednode`
+- __smoketests__ can be also run if the values file contains
+    ```yaml
+    smoketests: true
+    ```
+    __Warning__ this will add and then remove the test data from keycloak and the db. It will not be enabled by default.
+
+### Bugfixes
+- Fixed a deployment issue issue with first-time installations where on azure storage, the results folder should exist already. Now this is done by the backend's initcontainer.
+- Fixed a deployment issue where ingresses were not updated or deleted during upgrades
+- Fixed a deployment issue when using azure storage accounts, the secret containing auth credentials is missing on the tasks namespace. This led tasks to fail to start.
+- Fixed a bug where tasks always have a fixed creation date, depending on server start. That caused some of them to be deemed expired.
+
 ## 0.8.0
 - Added Container and Registry management:
     - /containers

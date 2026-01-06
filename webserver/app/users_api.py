@@ -4,6 +4,7 @@ user-related endpoints:
 - POST /users
 - PUT /users/reset-password
 """
+from http import HTTPStatus
 from flask import Blueprint, request
 
 from app.helpers.exceptions import InvalidRequest
@@ -45,7 +46,7 @@ def create_user():
         "tempPassword": user_info["password"],
         "info": "The user should change the temp password at " \
             f"https://{PUBLIC_URL}/users/reset-password"
-    }, 201
+    }, HTTPStatus.CREATED
 
 
 @bp.route('reset-password', methods=['PUT'])
@@ -62,7 +63,7 @@ def reset_password():
         old_pass=request.json.get("tempPassword"),
         new_pass=request.json.get("newPassword")
     )
-    return '', 204
+    return '', HTTPStatus.NO_CONTENT
 
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
@@ -85,4 +86,4 @@ def get_users_list():
         } for user in ls_users if user["username"] != KEYCLOAK_ADMIN
     ]
 
-    return normalised_list, 200
+    return normalised_list, HTTPStatus.OK

@@ -8,10 +8,12 @@ export PGUSER=admin
 export PGPASSWORD=test_app
 export KEYCLOAK_URL=http://keycloak:8080
 export KEYCLOAK_REALM=FederatedNode
-export KEYCLOAK_SECRET=asdf12ad89123ocasASD129
 export KEYCLOAK_CLIENT=global
 export KEYCLOAK_ADMIN=admin
 export KEYCLOAK_ADMIN_PASSWORD=password1
+export KC_BOOTSTRAP_ADMIN_USERNAME=tmpadmin
+export KC_BOOTSTRAP_ADMIN_PASSWORD=password1
+export KEYCLOAK_SECRET=qwtirtvJJ4PW4skOlW6Oifk2
 export PYTHONPATH=/app
 export RESULTS_PATH=/tmp/results
 export TASK_POD_RESULTS_PATH=/mnt/data
@@ -20,21 +22,21 @@ export TASK_NAMESPACE=tasks
 export KEYCLOAK_NAMESPACE=keycloak
 export CLEANUP_AFTER_DAYS=1
 export PUBLIC_URL=localhost:5000
+export CLAIM_CAPACITY=100Mi
+export CONTROLLER_NAMESPACE=fn-controller
 
 is_ci=$1
 
 echo "Starting docker compose"
 if [[ "$is_ci" != "ci" ]]; then
-    docker compose -f docker-compose-tests-ci.yaml -f docker-compose-tests.yaml run --name flask-app-test app
+    docker compose -f docker-compose-tests-ci.yaml -f docker-compose-tests.yaml run --build --name flask-app-test app
     docker cp flask-app-test:/app/artifacts/coverage.xml ../artifacts/
     docker rm flask-app-test
 else
-    docker compose -f docker-compose-tests-ci.yaml run --quiet-pull --name flask-app-test app
+    docker compose -f docker-compose-tests-ci.yaml run --build --quiet-pull --name flask-app-test app
     exit_code=$?
     if [[ exit_code -gt 0 ]]; then
         echo "Something went wrong. Here are some logs"
-        docker compose -f docker-compose-tests-ci.yaml logs keycloak
-        docker compose -f docker-compose-tests-ci.yaml logs kc_init
         docker compose -f docker-compose-tests-ci.yaml logs app
     fi
     docker cp flask-app-test:/app/artifacts/coverage.xml ../artifacts/

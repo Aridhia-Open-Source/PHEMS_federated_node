@@ -4,7 +4,7 @@ import requests
 import os
 from datetime import datetime as dt, timedelta
 from sqlalchemy import update
-from app.helpers.db import db
+from app.helpers.base_model import db
 from app.models.request import Request
 from app.helpers.keycloak import Keycloak
 
@@ -190,7 +190,7 @@ class TestRequests:
             post_json_admin_header,
             simple_admin_header,
             dataset,
-            dataset2,
+            dataset_oracle,
             client
         ):
         """
@@ -210,13 +210,13 @@ class TestRequests:
         assert kc_client.get_resource(f"{dataset.id}-{dataset.name}") is not None
 
         # Second request
-        request_base_body["dataset_id"] = dataset2.id
+        request_base_body["dataset_id"] = dataset_oracle.id
         response_req = self.create_request(client, request_base_body, post_json_admin_header)
         req_id = response_req['request_id']
 
         self.approve_request(client, req_id, simple_admin_header)
         kc_client2 = Keycloak(f"Request {request_base_body["requested_by"]["email"]} - {request_base_body["project_name"]}")
-        assert kc_client2.get_resource(f"{dataset2.id}-{dataset2.name}") is not None
+        assert kc_client2.get_resource(f"{dataset_oracle.id}-{dataset_oracle.name}") is not None
 
         # Cleanup
         for cl_id in [kc_client, kc_client2]:

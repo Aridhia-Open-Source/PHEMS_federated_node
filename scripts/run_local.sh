@@ -2,28 +2,39 @@
 
 set -e
 
-LOCAL_CLUSTER=$1
-if [[ "$LOCAL_CLUSTER" == "minikube" ]]; then
-    export CLUSTER_NAME=federatednode
-    echo "Starting MK"
-    minikube start -p $CLUSTER_NAME --driver=docker
-    echo "Switching context"
-    kubectl config use-context $CLUSTER_NAME
-else
-    echo "Switching context"
-    kubectl config use-context microk8s
-fi
-
-echo "applying definitions"
-
+DEV_VALUES=${1:-"-f k8s/federated-node/dev.values.yaml"}
 HELM_CHART_NAME=federatednode
 INSTALLED_VERSION=$(helm list --filter "^$HELM_CHART_NAME" -o json | jq -r .[].chart)
 CHART_VERSION=federated-node-$(grep 'version:' k8s/federated-node/Chart.yaml | sed 's/^.*: //')
-DEV_VALUES="-f k8s/federated-node/values.yaml"
 
-if [[ -f "k8s/federated-node/dev.values.yaml" ]]; then
-    DEV_VALUES="$DEV_VALUES -f k8s/federated-node/dev.values.yaml"
+if [[ ! microk8s ]]; then
+    echo "Micork8s is not installed"
+    exit 1
 fi
+
+echo "If getting context errors:"
+echo
+echo "mv ~/.kube/config > ~/.kube/config.backup"
+echo "yq eval-all '. as $item ireduce ({}; . * $item)' microconfig.yaml ~/.kube/config > ~/.kube/config"
+echo
+
+
+if [[ ! jq ]]; then
+    echo "jq is not installed"
+    echo "apt-get install jq"
+    echo "or"
+    echo "sudo apt-get install jq"
+    exit 1
+fi
+
+kubectl config use-context microk8s
+
+echo "applying definitions"
+
+pushd k8s/federated-node
+    helm dependency update
+    helm dependency build
+popd
 
 if [[ -z "$INSTALLED_VERSION" ]]; then
     echo "Applying helm chart"
@@ -38,15 +49,12 @@ else
 fi
 
 echo "Creating a separate test db"
-kubectl apply -f dev.k8s/deployments
+kubectl apply -f dev.k8s/deployments/db.yaml
 
 echo "If new images are needed, load them up with:"
-if [[ "$LOCAL_CLUSTER" == "minikube" ]]; then
-    echo "minikube -p $CLUSTER_NAME image load <image_name>"
-else
-    echo "docker save <image_name> > fn.tar"
-    echo "microk8s ctr image import fn.tar"
-fi
+echo "docker save <image_name> > fn.tar"
+echo "microk8s ctr image import fn.tar"
+
 NGINX_NAMESPACE=$(grep -oP '(?<=nginx:\s).*' k8s/federated-node/dev.values.yaml)
 
 if [[ -z $NGINX_NAMESPACE ]]; then

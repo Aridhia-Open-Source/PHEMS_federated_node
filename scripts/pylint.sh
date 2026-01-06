@@ -23,7 +23,7 @@ docker run \
   federated_node_lint
 exit_status=$?
 set -e
-docker cp "${container_name}":/tmp/pylint.xml "${OUTPUT_DIR}/pylint.xml"
+docker cp "${container_name}":/tmp/pylint.txt "${OUTPUT_DIR}/pylint.txt"
 docker rm "${container_name}"
 exit "${exit_status}"
 

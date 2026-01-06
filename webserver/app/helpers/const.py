@@ -1,5 +1,6 @@
 import os
 import string
+from urllib.parse import quote
 
 def build_sql_uri(
         username=os.getenv('PGUSER'),
@@ -8,13 +9,15 @@ def build_sql_uri(
         port=os.getenv('PGPORT'),
         database=os.getenv('PGDATABASE')
         ):
-    return f"postgresql://{username}:{password}@{host}:{port}/{database}"
+    return f"postgresql://{username}:{quote(password)}@{host}:{port}/{database}".replace("%", "%%")
 
 PASS_GENERATOR_SET = string.ascii_letters + string.digits + "!$@#.-_"
-DEFAULT_NAMESPACE = os.getenv("DEFAULT_NAMESPACE")
 PUBLIC_URL = os.getenv("PUBLIC_URL")
-TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
+
 DEFAULT_NAMESPACE = os.getenv("DEFAULT_NAMESPACE")
+TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
+CONTROLLER_NAMESPACE= os.getenv("CONTROLLER_NAMESPACE")
+
 TASK_PULL_SECRET_NAME = "taskspull"
 # Pod resource validation constants
 CPU_RESOURCE_REGEX = r'^\d*(m|\.\d+){0,1}$'
@@ -36,5 +39,12 @@ MEMORY_UNITS = {
 }
 CLEANUP_AFTER_DAYS = int(os.getenv("CLEANUP_AFTER_DAYS"))
 TASK_POD_RESULTS_PATH = os.getenv("TASK_POD_RESULTS_PATH")
+TASK_POD_INPUTS_PATH = "/mnt/inputs"
 RESULTS_PATH = os.getenv("RESULTS_PATH")
 PUBLIC_URL = os.getenv("PUBLIC_URL")
+CRD_DOMAIN = os.getenv("CRD_DOMAIN")
+TASK_REVIEW = os.getenv("TASK_REVIEW")
+TASK_CONTROLLER= os.getenv("TASK_CONTROLLER")
+STORAGE_CLASS = os.getenv("STORAGE_CLASS")
+GITHUB_DELIVERY = os.getenv("GITHUB_DELIVERY")
+OTHER_DELIVERY = os.getenv("OTHER_DELIVERY")

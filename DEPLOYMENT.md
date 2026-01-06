@@ -32,48 +32,17 @@ If you plan to deploy on a dedicated namespace, create it manually first or the 
 kubectl create namespace <new namespace name>
 ```
 
-__Please keep in mind that every secret value has to be a base64 encoded string.__ It can be achieved with the following command:
+__Please keep in mind that every secret value has to be a base64 encoded string if using the yaml templates. Via command line this conversion is done for you__ It can be achieved with the following command:
 ```sh
 echo -n "value" | base64
 ```
-
-#### Container Registries
-The following examples aims to setup container registries (CRs) credentials. The assumption is that all container registries are private, not public. That is because is expected that all the code to be run in the datasets has to be vetted, supervised by the data controllers.
-
-In general, to create a k8s secret you run a command like the following:
-```sh
-kubectl create secret generic $secret_name \
-    --from-literal=username=$(echo -n $username | base64) \
-    --from-literal=password=$(echo -n $password | base64)
-```
-or using the yaml template:
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-    # set a name of your choosing
-    name:
-    # use the namespace name in case you plan to deploy in a non-default one.
-    # Otherwise you can set to default, or not use the next field altogether
-    namespace:
-data:
-  password:
-  username:
-type: Opaque
-```
-
-then you can apply this secret with the command:
-```sh
-kubectl apply -f file.yaml
-```
-replace file.yaml with the name of the file you created above.
 
 #### Database
 In case you want to set DB secrets the structure is slightly different:
 
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=value=$(echo -n $password | base64)
+    --from-literal=value="$password"
 ```
 or using the yaml template:
 ```yaml
@@ -95,8 +64,8 @@ type: Opaque
 _Note: The azure storage account file share has to exist already_
 ```sh
 kubectl create secret generic $secret_name \
-    --from-literal=azurestorageaccountkey=$(echo -n $accountkey | base64) \
-    --from-literal=azurestorageaccountname=$(echo -n $accountname | base64)
+    --from-literal=azurestorageaccountkey="$accountkey" \
+    --from-literal=azurestorageaccountname="$accountname"
 ```
 or using the yaml template:
 ```yaml
@@ -122,6 +91,85 @@ Granted that the `pem` and `crt` file already in the current working folder, run
 kubectl create secret tls tls --key key.pem --cert cert.crt
 ```
 This will create a special kubernetes secret in the default namespace, append `-n namespace_name` to create it in a specific namespace (i.e. the one where the chart is going to be deployed on)
+
+##### Automatic certificate renewal
+The `cert-manager` tool will be used to provide this functionality. It is disabled by default, if it's needed, set `cert-manager.enabled` to `true` in your values file at deployment time.
+
+If used, it will need few information based on which cloud platform it needs to interface with.
+
+##### Azure
+For azure dns issued certificates, the service principle approach is used. `cert manager` [documentation](https://cert-manager.io/docs/configuration/acme/dns01/azuredns/#service-principal) explains what is needed.
+```sh
+kubectl create secret generic $secret_name \
+    --from-literal=SP_SECRET="$SP_SECRET"
+```
+or using the yaml template:
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+    # set a name of your choosing
+    name:
+    # use the namespace name in case you plan to deploy in a non-default one.
+    # Otherwise you can set to default, or not use the next field altogether
+    namespace:
+data:
+  SP_SECRET:
+type: Opaque
+```
+In addition, a ConfigMap is needed with the less sensitive data:
+```sh
+kubectl create configmap $configmap \
+    --from-literal=SP_ID="$SP_ID" \
+    --from-literal=EMAIL_CERT="$EMAIL_CERT" \
+    --from-literal=HOSTED_ZONE="$HOSTED_ZONE" \
+    --from-literal=RG_NAME="$RG_NAME" \
+    --from-literal=SUBSCRIPTION_ID="$SUB_ID" \
+    --from-literal=TENANT_ID="$TENANT_ID"
+```
+or using the yaml template:
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    # set a name of your choosing
+    name:
+    # use the namespace name in case you plan to deploy in a non-default one.
+    # Otherwise you can set to default, or not use the next field altogether
+    namespace:
+data:
+  SP_ID:
+  EMAIL_CERT:
+  HOSTED_ZONE:
+  RG_NAME:
+  SUBSCRIPTION_ID:
+  TENANT_ID:
+```
+##### AWS:
+```sh
+kubectl create secret generic $secret_name \
+    --from-literal=EMAIL_CERT="$EMAIL_CERT" \
+    --from-literal=ACCOUNT_ID="$ACCOUNT_ID" \
+    --from-literal=REGION="$REGION" \
+    --from-literal=ROLE_NAME="$ROLE_NAME"
+```
+or using the yaml template:
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+    # set a name of your choosing
+    name:
+    # use the namespace name in case you plan to deploy in a non-default one.
+    # Otherwise you can set to default, or not use the next field altogether
+    namespace:
+data:
+  EMAIL_CERT:
+  ACCOUNT_ID:
+  REGION:
+  ROLE_NAME:
+type: Opaque
+```
 
 ### Copying existing secrets
 If the secret(s) exist in another namespace, you can "copy" them with this command:

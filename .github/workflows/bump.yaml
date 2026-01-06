@@ -16,6 +16,21 @@ on:
         required: false
         type: boolean
         default: true
+      taskController:
+        description: 'Task controller sub-chart version'
+        required: false
+        type: string
+        default: null
+      certManager:
+        description: 'CertManager sub-chart version'
+        required: false
+        type: string
+        default: null
+      ingressNginx:
+        description: 'Nginx ingress sub-chart version'
+        required: false
+        type: string
+        default: null
 
 permissions:
   contents: write
@@ -24,33 +39,60 @@ jobs:
   bump:
     runs-on: ubuntu-latest
     steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.BUMP_APP_ID }}
+          private-key: ${{ secrets.BUMP_APP_SECRET }}
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
-      - name: Update Version
+          token: ${{ steps.generate-token.outputs.token }}
+      - name: Update Chart Version
         working-directory: k8s/federated-node
         env:
           CHART_VERSION: ${{ inputs.chartVersion }}
           APP_VERSION: ${{ inputs.appVersion }}
         run: |
-          if [[ ! $(grep '${CHART_VERSION}' Chart.yaml) ]]; then
+          if [[ $(grep '${CHART_VERSION}' Chart.yaml) ]]; then
             echo "Nothing to change. Exiting early"
             exit 0
           fi
-          sed -i "s/version: .*/version: ${CHART_VERSION}/" Chart.yaml
+          sed -i "s/^version: .*/version: ${CHART_VERSION}/" Chart.yaml
 
           if [[ -n "${APP_VERSION}" ]]; then
-            sed -i "s/version: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
+            sed -i "s/^appVersion: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
+            sed -i "s/version = .*/version = \"${APP_VERSION}\"/" ../../webserver/pyproject.toml
+            sed -i "s/version = .*/version = \"${APP_VERSION}\"/" ../../build/db-connector/pyproject.toml
           fi
-
           cat Chart.yaml
-
-          if [[ "${{ inputs.dryRun }}" == "false" ]]; then
-            git config user.email "phemsbot@phems.com"
-            git config user.name "PHEMS bot"
-
-            git add Chart.yaml
-            git commit -m "Version bump to ${CHART_VERSION}"
-            git push
+          grep version ../../webserver/pyproject.toml
+          grep version ../../build/db-connector/pyproject.toml
+      - name: Update SubCharts Version
+        env:
+          CERTMANAGER_VERSION: ${{ inputs.certManager }}
+          NGINX_VERSION: ${{ inputs.ingressNginx }}
+          FNTC_VERSION: ${{ inputs.taskController }}
+        run: |
+          if [[ -n "${CERTMANAGER_VERSION}" ]]; then
+            python scripts/upgrade_subchart.py -s cert-manager -v ${CERTMANAGER_VERSION}
           fi
+          if [[ -n "${NGINX_VERSION}" ]]; then
+            python scripts/upgrade_subchart.py -s ingress-nginx -v ${NGINX_VERSION}
+          fi
+          if [[ -n "${FNTC_VERSION}" ]]; then
+            python scripts/upgrade_subchart.py -s fn-task-controller -v ${FNTC_VERSION}
+          fi
+          cat k8s/federated-node/Chart.yaml
+      - name: Commit Changes
+        if: ${{ ! inputs.dryRun }}
+        working-directory: k8s/federated-node
+        run: |
+          git config user.email "phemsbot@phems.com"
+          git config user.name "PHEMS bot"
+
+          git add Chart.yaml
+          git commit -m "Version bump to ${CHART_VERSION}"
+          git push

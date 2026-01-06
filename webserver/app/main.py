@@ -3,9 +3,11 @@ A collection of general use endpoints
 These won't have any restrictions and won't go through
     Keycloak for token validation.
 """
+from http import HTTPStatus
 import requests
 from flask import Blueprint, redirect, url_for, request
-from app.helpers.keycloak import Keycloak, URLS
+from .helpers.keycloak import Keycloak, URLS
+from .helpers.exceptions import AuthenticationError
 
 bp = Blueprint('main', __name__, url_prefix='/')
 
@@ -23,7 +25,7 @@ def ready_check():
     GET /ready_check endpoint
         Mostly to tell k8s Flask has started
     """
-    return {"status": "ready"}, 200
+    return {"status": "ready"}, HTTPStatus.OK
 
 @bp.route("/health_check")
 def health_check():
@@ -35,11 +37,11 @@ def health_check():
         kc_request = requests.get(URLS["health_check"], timeout=30)
         kc_status = kc_request.ok
         status_text = "ok" if kc_request.ok else "non operational"
-        code = 200 if kc_request.ok else 500
+        code = HTTPStatus.OK if kc_request.ok else HTTPStatus.BAD_GATEWAY
     except requests.exceptions.ConnectionError:
         kc_status = False
         status_text = "non operational"
-        code = 500
+        code = HTTPStatus.BAD_GATEWAY
 
     return {
         "status": status_text,
@@ -55,4 +57,20 @@ def login():
     credentials = request.form.to_dict()
     return {
         "token": Keycloak().get_token(**credentials)
-    }, 200
+    }, HTTPStatus.OK
+
+@bp.route("/refresh_token", methods=['POST'])
+def refresh_token():
+    """
+    POST /refresh_token endpoint.
+        Given a token, exchanges it for a new one. Returns the same
+        response as /login
+    """
+    token = Keycloak.get_token_from_headers()
+    kc_client = Keycloak()
+    if not kc_client.is_token_valid(token, resource=None, scope=None, with_permissions=False):
+        raise AuthenticationError()
+
+    return {
+        "token": kc_client.exchange_global_token(token, "refresh_token")
+    }, HTTPStatus.OK

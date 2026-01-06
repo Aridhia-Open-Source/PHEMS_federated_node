@@ -15,19 +15,23 @@ from app import (
     main, admin_api, datasets_api, tasks_api, requests_api,
     containers_api, registries_api, users_api
 )
-from app.helpers.db import build_sql_uri, db
+from app.helpers.base_model import build_sql_uri, db
 from app.helpers.exceptions import (
     InvalidDBEntry, DBError, DBRecordNotFoundError, InvalidRequest,
     AuthenticationError, UnauthorizedError, KeycloakError, TaskImageException,
-    TaskExecutionException, KubernetesException, exception_handler, unknown_exception_handler
+    ContainerRegistryException, TaskExecutionException, KubernetesException,
+    exception_handler, unknown_exception_handler
 )
+from app.fn_flask import FNFlask
+
+
 logging.basicConfig(level=logging.WARN)
 
 def create_app():
     """
     Standard Flask initialization function
     """
-    app = Flask(__name__)
+    app = FNFlask(__name__)
     app.config["SQLALCHEMY_DATABASE_URI"] = build_sql_uri()
 
     swagger_ui_blueprint = get_swaggerui_blueprint(
@@ -60,6 +64,7 @@ def create_app():
     app.register_error_handler(TaskImageException, exception_handler)
     app.register_error_handler(TaskExecutionException, exception_handler)
     app.register_error_handler(KubernetesException, exception_handler)
+    app.register_error_handler(ContainerRegistryException, exception_handler)
     app.register_error_handler(NotFound, exception_handler)
     app.register_error_handler(Exception, unknown_exception_handler)
 

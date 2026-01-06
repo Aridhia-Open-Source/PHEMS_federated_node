@@ -1,5 +1,5 @@
 SHELL=/bin/bash
-VERSION=0.0.1
+TAG := $(or $(TAG), 1.3.0)
 
 env:
 	set -o allexport && source dev.env && set +o allexport
@@ -8,10 +8,13 @@ run:
 	flask -A app/app run --host=0.0.0.0
 
 build_docker:
-	docker build . -f build/Dockerfile -t ghcr.io/aridhia-open-source/federated_node_run:${VERSION}
+	docker build . -t ghcr.io/aridhia-open-source/federated_node_run:${TAG}
 
 build_docker_dev:
-	docker build . -f build/Dockerfile -t ghcr.io/aridhia-open-source/federated_node_run:${VERSION}-$(shell git rev-parse --short HEAD)
+	docker build . -t ghcr.io/aridhia-open-source/federated_node_run:${TAG}-v$(shell git rev-parse --short HEAD)
+
+tests_integration:
+	./run_integration_tests.sh
 
 tests_local:
 	./run_tests.sh

@@ -1,21 +1,22 @@
 import base64
-import copy
-import json
-import os
-import pytest
-import requests
+from copy import deepcopy
+from typing import List
+from pytest import fixture
 from datetime import datetime as dt, timedelta
-from kubernetes.client import V1Pod
+from kubernetes.client import V1Pod, V1Secret
 from sqlalchemy.orm.session import close_all_sessions
 from unittest.mock import Mock
 
 from app import create_app
-from app.helpers.db import db
+from app.helpers.base_model import db
 from app.models.dataset import Dataset
+from app.models.catalogue import Catalogue
+from app.models.dictionary import Dictionary
 from app.models.request import Request
-from app.helpers.keycloak import Keycloak, URLS, KEYCLOAK_SECRET, KEYCLOAK_CLIENT
-from tests.helpers.keycloak import clean_kc
+from app.models.task import Task
 from app.helpers.exceptions import KeycloakError
+from app.models.task import Task
+from app.helpers.const import CRD_DOMAIN
 
 
 sample_ds_body = {
@@ -35,99 +36,70 @@ sample_ds_body = {
     }]
 }
 
-@pytest.fixture
+@fixture
 def image_name():
     return "example:latest"
 
-@pytest.fixture
-def user_token(basic_user):
-    """
-    Since calling Keycloak.get_impersonation_token is not
-    viable as there is an "audience" conflict.
-    All clients are hardcoded, as only global and the DAR clients
-    are allowed to exchange tokens, not admin-cli.
-    """
-    admin_token = Keycloak().get_token(
-        username=os.getenv("KEYCLOAK_ADMIN"),
-        password=os.getenv("KEYCLOAK_ADMIN_PASSWORD"),
-        token_type='access_token'
-    )
-    payload = {
-        'client_secret': KEYCLOAK_SECRET,
-        'client_id': KEYCLOAK_CLIENT,
-        'grant_type': 'urn:ietf:params:oauth:grant-type:token-exchange',
-        'requested_token_type': 'urn:ietf:params:oauth:token-type:refresh_token',
-        'subject_token': admin_token,
-        'requested_subject': basic_user["id"],
-        'audience': 'global'
-    }
-    exchange_resp = requests.post(
-        URLS["get_token"],
-        data=payload,
-        headers={
-            'Content-Type': 'application/x-www-form-urlencoded'
-        }
-    )
-    return exchange_resp.json()["refresh_token"]
+@fixture
+def user_token():
+    return "user_refresh_token"
 
-@pytest.fixture
+@fixture
 def app_ctx(app):
     with app.app_context():
         yield
 
 # Users' section
-@pytest.fixture
+@fixture
+def admin_user_uuid():
+    return "9f18d2b5-edbc-4b4a-aab9-3a57bf67adbb"
+
+@fixture
 def user_uuid():
-    return Keycloak().get_user_by_username(os.getenv("KEYCLOAK_ADMIN"))["id"]
+    return "af3301a1-8b02-47b3-8fae-a36b16a6ca32"
 
-@pytest.fixture
-def login_admin(client):
-    return Keycloak().get_token(
-        username=os.getenv("KEYCLOAK_ADMIN"),
-        password=os.getenv("KEYCLOAK_ADMIN_PASSWORD")
-    )
+@fixture
+def login_admin():
+    return "admin_token"
 
-@pytest.fixture
-def basic_user():
-    return Keycloak().create_user(**{"email": "test@basicuser.com"})
+@fixture
+def admin_user(admin_user_uuid):
+    return {"email": "admin@admin.com", "username": "admin", "id": admin_user_uuid}
 
-@pytest.fixture
-def login_user(client, basic_user, mocker):
-    mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
-    mocker.patch('app.helpers.wrappers.Keycloak.decode_token', return_value={"username": "test@basicuser.com", "sub": "123-123abc"})
+@fixture
+def basic_user(user_uuid):
+    return {"email": "test@basicuser.com", "username": "test@basicuser.com", "id": user_uuid}
 
-    return Keycloak().get_impersonation_token(basic_user["id"])
-
-@pytest.fixture
+@fixture
 def project_not_found(mocker):
     return mocker.patch(
         'app.helpers.wrappers.Keycloak.exchange_global_token',
         side_effect=KeycloakError("Could not find project", 400)
     )
 
-@pytest.fixture
+@fixture
 def simple_admin_header(login_admin):
     return {"Authorization": f"Bearer {login_admin}"}
 
-@pytest.fixture
+@fixture
 def post_json_admin_header(login_admin):
     return {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {login_admin}"
     }
 
-@pytest.fixture
+@fixture
 def simple_user_header(user_token):
     return {"Authorization": f"Bearer {user_token}"}
 
-@pytest.fixture
+@fixture
 def post_json_user_header(user_token):
     return {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {user_token}"
     }
 
-@pytest.fixture
+@fixture
 def post_form_admin_header(login_admin):
     return {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -135,7 +107,7 @@ def post_form_admin_header(login_admin):
     }
 
 # Flask client to perform requests
-@pytest.fixture
+@fixture
 def client():
     app = create_app()
     app.testing = True
@@ -145,15 +117,14 @@ def client():
             yield tclient
             close_all_sessions()
             db.drop_all()
-            clean_kc()
 
 # K8s
-@pytest.fixture
+@fixture
 def k8s_config(mocker):
     mocker.patch('kubernetes.config.load_kube_config', return_value=Mock())
     mocker.patch('app.helpers.kubernetes.config.load_kube_config', Mock())
 
-@pytest.fixture
+@fixture
 def v1_mock(mocker):
     return {
         "create_namespaced_pod_mock": mocker.patch(
@@ -167,6 +138,9 @@ def v1_mock(mocker):
         ),
         "read_namespaced_secret_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.read_namespaced_secret'
+        ),
+        "list_namespaced_secret_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.list_namespaced_secret'
         ),
         "patch_namespaced_secret_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.patch_namespaced_secret'
@@ -186,13 +160,17 @@ def v1_mock(mocker):
         "is_pod_ready_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.is_pod_ready'
         ),
+        "read_namespaced_pod_log": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.read_namespaced_pod_log',
+            return_value="Example logs\nanother line"
+        ),
         "cp_from_pod_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.cp_from_pod',
-            return_value="../tests/files/results.tar.gz"
+            return_value="../tests/files/results.zip"
         )
     }
 
-@pytest.fixture
+@fixture
 def v1_batch_mock(mocker):
     return {
         "create_namespaced_job_mock": mocker.patch(
@@ -203,15 +181,57 @@ def v1_batch_mock(mocker):
         )
     }
 
-@pytest.fixture
-def pod_listed(mocker):
-    pod = Mock(spec=V1Pod)
-    pod.spec.containers = [Mock(image="some_image")]
-    pod.status.container_statuses = [Mock(terminated=Mock())]
+@fixture
+def v1_crd_mock(mocker, task):
+    return mocker.patch(
+        "app.models.task.KubernetesCRDClient",
+        return_value=Mock(
+            list_cluster_custom_object=Mock(
+                return_value={"items": [{
+                    "metadata": {
+                        "name": "crd_name",
+                        "annotations": {
+                            f"{CRD_DOMAIN}/task_id": str(task.id)
+                        }
+                    }
+                }]
+            },
+            patch_cluster_custom_object=Mock(),
+            create_cluster_custom_object=Mock(),
+            get_cluster_custom_object=Mock()
+            )
+        )
+    )
+
+@fixture
+def pod_listed(image_name):
+    pod = Mock(name="default_pod", spec=V1Pod)
+    pod.spec.containers = [Mock(image=f"acr.azurecr.io/{image_name}")]
+    pod.status.container_statuses = [Mock(
+        name="default_status",
+        state=Mock(
+            running=None,
+            waiting=None,
+            terminated=Mock(
+                finished_at="1/1/2024",
+                exit_code="0",
+                reason="Done",
+                started_at="1/1/2024",
+            )
+        )
+    )]
     return Mock(items=[pod])
 
-@pytest.fixture
-def k8s_client(mocker, pod_listed, v1_mock, v1_batch_mock, k8s_config):
+@fixture
+def secret_listed():
+    secret = Mock(spec=V1Secret)
+    secret.metadata.name = "url.delivery.com"
+    secret.metadata.labels = {"url": "url.delivery.com"}
+    secret.data = {"auth": "originalSecret"}
+    return Mock(items=[secret])
+
+@fixture
+def k8s_client(secret_listed, pod_listed, v1_mock, v1_batch_mock, k8s_config):
     all_clients = {}
     all_clients.update(v1_mock)
     all_clients.update(v1_batch_mock)
@@ -222,9 +242,10 @@ def k8s_client(mocker, pod_listed, v1_mock, v1_batch_mock, k8s_config):
         "TOKEN": "YWJjMTIz"
     }
     all_clients["list_namespaced_pod_mock"].return_value = pod_listed
+    all_clients["list_namespaced_secret_mock"].return_value = secret_listed
     return all_clients
 
-@pytest.fixture
+@fixture
 def reg_k8s_client(k8s_client):
     k8s_client["read_namespaced_secret_mock"].return_value.data.update({
             ".dockerconfigjson": base64.b64encode("{\"auths\": {}}".encode()).decode()
@@ -232,33 +253,63 @@ def reg_k8s_client(k8s_client):
     return k8s_client
 
 # Dataset Mocking
-@pytest.fixture(scope='function')
+@fixture()
 def dataset_post_body():
-    return copy.deepcopy(sample_ds_body)
+    return deepcopy(sample_ds_body)
 
-@pytest.fixture
-def dataset(mocker, client, user_uuid, k8s_client):
-    mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
+@fixture
+def dataset(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
     dataset = Dataset(name="TestDs", host="example.com", password='pass', username='user')
     dataset.add(user_id=user_uuid)
     return dataset
 
-@pytest.fixture
-def dataset2(client, user_uuid, k8s_client):
-    dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user')
+@fixture
+def dataset_oracle(mocker, client, user_uuid, k8s_client)  -> Dataset:
+    mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
+    dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user', type="oracle")
     dataset.add(user_id=user_uuid)
     return dataset
 
-@pytest.fixture
+@fixture
+def catalogue(dataset) -> Catalogue:
+    cat = Catalogue(dataset=dataset, title="new catalogue", description="shiny fresh data")
+    cat.add()
+    return cat
+
+@fixture
+def dictionary(dataset) -> List[Dictionary]:
+    cat1 = Dictionary(dataset=dataset, description="Patient id", table_name="patients", field_name="id", label="p_id")
+    cat2 = Dictionary(dataset=dataset, description="Patient info", table_name="patients", field_name="name", label="p_name")
+    cat1.add()
+    cat2.add()
+    return [cat1, cat2]
+
+@fixture
+def task(user_uuid, dataset, container) -> Task:
+    task = Task(
+        dataset=dataset,
+        docker_image=container.full_image_name(),
+        name="testTask",
+        executors=[
+            {
+                "image": container.full_image_name()
+            }
+        ],
+        requested_by=user_uuid
+    )
+    task.add()
+    return task
+
+@fixture
 def dar_user():
     return "some@test.com"
 
-@pytest.fixture
-def access_request(client, dataset, user_uuid, k8s_client, dar_user):
+@fixture
+def access_request(dataset, user_uuid, k8s_client):
     request = Request(
         title="TestRequest",
         project_name="example.com",
-        requested_by=json.dumps({"email": dar_user}),
+        requested_by=user_uuid,
         dataset=dataset,
         proj_start=dt.now().date().strftime("%Y-%m-%d"),
         proj_end=(dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")
@@ -295,10 +346,10 @@ def side_effect(dict_mock:dict):
         )
     return _url_side_effects
 
-@pytest.fixture
+@fixture
 def request_base_body(dataset):
     return {
-        "title": "Test Task",
+        "title": "TestRequest",
         "dataset_id": dataset.id,
         "project_name": "project1",
         "requested_by": { "email": "test@test.com" },
@@ -307,17 +358,113 @@ def request_base_body(dataset):
         "proj_end": (dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")
     }
 
-@pytest.fixture
+@fixture
+def request_base_body_name(dataset):
+    return {
+        "title": "Test Task",
+        "dataset_name": dataset.name,
+        "project_name": "project1",
+        "requested_by": { "email": "test@test.com" },
+        "description": "First task ever!",
+        "proj_start": dt.now().date().strftime("%Y-%m-%d"),
+        "proj_end": (dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")
+    }
+
+@fixture
 def approve_request(mocker):
     return mocker.patch(
         'app.datasets_api.Request.approve',
         return_value={"token": "somejwttoken"}
     )
 
-@pytest.fixture
+@fixture
 def new_user_email():
     return "test@test.com"
 
-@pytest.fixture
+@fixture
 def new_user(new_user_email):
-    return Keycloak().create_user(set_temp_pass=True, **{"email": new_user_email})
+    return {"email": new_user_email, "id": "8b707136-a2d8-4b69-9ab5-ec341011a62f", "username": new_user_email}
+
+@fixture
+def set_task_other_delivery_env(mocker):
+    mocker.patch('app.admin_api.TASK_CONTROLLER', return_value="enabled")
+    mocker.patch('app.admin_api.OTHER_DELIVERY', return_value="url.delivery.com")
+
+@fixture
+def set_task_github_delivery_env(mocker):
+    mocker.patch('app.admin_api.TASK_CONTROLLER', return_value="enabled")
+    mocker.patch('app.admin_api.GITHUB_DELIVERY', return_value="org/repository")
+
+@fixture
+def mock_keycloak_class(mocker):
+    return mocker.patch(
+        'app.models.dataset.Keycloak',
+        return_value=Mock(
+            get_client_id=Mock(return_value="client_id"),
+            get_token=Mock(return_value="token"),
+            get_policy=Mock(return_value={"id": "policy"}),
+            get_scope=Mock(return_value={"id": "scope"}),
+            create_policy=Mock(return_value={"id": "policy"}),
+            create_resource=Mock(return_value={"_id": "resource"}),
+            create_permission=Mock(return_value={"id": "permission"}),
+            is_token_valid=Mock(return_value=True)
+        )
+    )
+
+
+@fixture(autouse=True)
+def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
+    decode_token_return = deepcopy(basic_user)
+    create_user_return = deepcopy(basic_user)
+    decode_token_return["sub"] = user_uuid
+    create_user_return["password"] = "tempPassword!"
+    kc_mock = {
+        "main_kc": mocker.patch('app.main.Keycloak', return_value=Mock(
+            get_token=Mock(return_value={"access_token": "token"}),
+        )),
+        "wrappers_kc": mocker.patch('app.helpers.wrappers.Keycloak', return_value=Mock(
+            get_token=Mock(return_value={"access_token": "token"}),
+            decode_token=Mock(return_value=decode_token_return),
+            get_user_by_email=Mock(return_value=basic_user),
+            get_user_by_username=Mock(return_value=basic_user)
+        )),
+        "datasets_api_kc": mocker.patch('app.datasets_api.Keycloak', return_value=Mock(
+            get_token=Mock(return_value={"access_token": "token"}),
+            get_admin_token=Mock(return_value={"access_token": "admin_token"}),
+            decode_token=Mock(return_value=decode_token_return),
+            get_user_by_email=Mock(return_value=basic_user),
+            list_users=Mock(return_value=[basic_user]),
+            create_user=Mock(return_value=create_user_return),
+            get_user_role=Mock(return_value="Users"),
+        )),
+        "users_api_kc": mocker.patch('app.users_api.Keycloak', return_value=Mock(
+            get_token=Mock(return_value={"access_token": "token"}),
+            get_admin_token=Mock(return_value={"access_token": "admin_token"}),
+            get_user_by_email=Mock(return_value=basic_user),
+            list_users=Mock(return_value=[basic_user]),
+            create_user=Mock(return_value=create_user_return),
+            get_user_role=Mock(return_value="Users"),
+        )),
+        "dataset_kc": mock_keycloak_class,
+        "task_kc": mocker.patch('app.models.task.Keycloak', return_value=Mock(
+            get_token=Mock(return_value={"access_token": "token"}),
+            get_admin_token=Mock(return_value={"access_token": "admin_token"}),
+            decode_token=Mock(return_value=decode_token_return),
+            get_user_by_email=Mock(return_value=basic_user),
+            get_user_by_id=Mock(return_value=basic_user),
+            list_users=Mock(return_value=[basic_user]),
+            create_user=Mock(return_value=create_user_return),
+            get_user_role=Mock(return_value="Users"),
+        )),
+        "tasks_api_kc": mocker.patch('app.tasks_api.Keycloak', return_value=Mock(
+            get_token=Mock(return_value={"access_token": "token"}),
+            get_admin_token=Mock(return_value={"access_token": "admin_token"}),
+            decode_token=Mock(return_value=decode_token_return),
+            get_user_by_email=Mock(return_value=basic_user),
+            get_user_by_id=Mock(return_value=basic_user),
+            list_users=Mock(return_value=[basic_user]),
+            create_user=Mock(return_value=create_user_return),
+            get_user_role=Mock(return_value="Users"),
+        ))
+    }
+    return kc_mock

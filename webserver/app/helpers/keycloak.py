@@ -1,10 +1,10 @@
+import json
 import logging
 import os
 import random
 import re
 import requests
 from base64 import b64encode
-import urllib.parse
 from flask import request
 
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
@@ -25,11 +25,9 @@ URLS = {
     "get_token": f"{KEYCLOAK_URL}/realms/{REALM}/protocol/openid-connect/token",
     "validate": f"{KEYCLOAK_URL}/realms/{REALM}/protocol/openid-connect/token/introspect",
     "client": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients",
-    "client_id": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients?clientId=",
     "client_secret": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/client-secret",
     "client_exchange": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/management/permissions",
     "client_auth": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server",
-    "get_policies": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/policy?permission=false",
     "roles": f"{KEYCLOAK_URL}/admin/realms/{REALM}/roles",
     "policies": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/policy",
     "scopes": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/scope",
@@ -43,7 +41,6 @@ URLS = {
 
 class Keycloak:
     def __init__(self, client='global') -> None:
-        self.client_secret = KEYCLOAK_SECRET
         self.client_name = client
         self.admin_token = self.get_admin_token()
         self.client_id = self.get_client_id()
@@ -65,7 +62,7 @@ class Keycloak:
             "Content-Type": "application/json"
         }
 
-    def exchange_global_token(self, token:str) -> str:
+    def exchange_global_token(self, token:str, type:str="access_token") -> str:
         """
         Token exchange across clients. From global to the instanced one
         """
@@ -83,7 +80,7 @@ class Keycloak:
             }
         )
         if not ac_resp.ok:
-            logger.info(ac_resp.content.decode())
+            logger.error(ac_resp.text)
             raise KeycloakError("Cannot get an access token")
         access_token = ac_resp.json()["access_token"]
 
@@ -91,7 +88,6 @@ class Keycloak:
             'client_secret': KEYCLOAK_SECRET,
             'client_id': KEYCLOAK_CLIENT,
             'grant_type': 'urn:ietf:params:oauth:grant-type:token-exchange',
-            'subject_token_type': 'urn:ietf:params:oauth:token-type:access_token',
             'requested_token_type': 'urn:ietf:params:oauth:token-type:access_token',
             'subject_token': access_token,
             'audience': self.client_name
@@ -104,9 +100,9 @@ class Keycloak:
             }
         )
         if not exchange_resp.ok:
-            logger.info(exchange_resp.content.decode())
+            logger.error(exchange_resp.text)
             raise KeycloakError("Cannot exchange token")
-        return exchange_resp.json()["access_token"]
+        return exchange_resp.json()[type]
 
     def get_impersonation_token(self, user_id:str) -> str:
         """
@@ -143,19 +139,23 @@ class Keycloak:
         """
         return response.status_code == 409 or response.ok
 
-    def _get_client_secret(self) -> str:
+    def _get_client_secret(self, client_id:str=None) -> str:
         """
         Given the client id, fetches the client's secret if has one.
         """
+        if not client_id:
+            client_id = self.client_id
+
         secret_resp = requests.get(
-            URLS["client_secret"] % self.client_id,
+            URLS["client_secret"] % client_id,
             headers={
                 "Authorization": f"Bearer {self.admin_token}"
             }
         )
         if not secret_resp.ok:
             logger.info(secret_resp.content.decode())
-            raise KeycloakError("Failed to fetch client's secret")
+            raise KeycloakError(f"Failed to fetch {client_id}'s secret")
+
         return secret_resp.json()["value"]
 
     def get_token(self, username=None, password=None, token_type='refresh_token', payload:dict=None, raise_on_temp_pass:bool=True) -> str:
@@ -168,6 +168,7 @@ class Keycloak:
             return the whole response object, otherwise it will raise exceptions
             on status code != 200
         """
+        logger.info("%s) get_token", self.client_name)
         if payload is None:
             payload = {
                 'client_id': self.client_name,
@@ -221,6 +222,7 @@ class Keycloak:
         """
         Get administrative level token
         """
+        logger.info("get_admin_token_global")
         payload = {
             'client_id': KEYCLOAK_CLIENT,
             'client_secret': KEYCLOAK_SECRET,
@@ -242,7 +244,7 @@ class Keycloak:
         }
         return self.get_token(token_type='access_token', payload=payload)
 
-    def is_token_valid(self, token:str, scope:str, resource:str, tok_type='refresh_token') -> bool:
+    def is_token_valid(self, token:str, scope:str, resource:str, tok_type='refresh_token', with_permissions:bool=True) -> bool:
         """
         Ping KC to check if the token is valid or not
         """
@@ -272,13 +274,17 @@ class Keycloak:
                     'Content-Type': 'application/x-www-form-urlencoded'
                 }
             )
-        return response_auth.ok and self.check_permissions(token, scope, resource, is_access_token)
+        if with_permissions:
+            return response_auth.ok and self.check_permissions(token, scope, resource, is_access_token)
+
+        return response_auth.ok
 
     def decode_token(self, token:str) -> dict:
         """
         Simple token decode, mostly to fetch user general info or exp date
         """
         b64_auth = b64encode(f"{self.client_name}:{self.client_secret}".encode()).decode()
+        token = self._access_from_refresh(token)
         response_validate = requests.post(
             URLS["validate"],
             data=f"token={token}",
@@ -303,7 +309,8 @@ class Keycloak:
             client_name = self.client_name
 
         client_id_resp = requests.get(
-            URLS["client_id"] + client_name,
+            URLS["client"],
+            params = {"clientId": client_name},
             headers=headers
         )
         if not client_id_resp.ok:
@@ -314,17 +321,24 @@ class Keycloak:
 
         return client_id_resp.json()[0]["id"]
 
+    def _access_from_refresh(self, token:str) -> str:
+        """
+        Simply exchanges the refresh token for an access token
+        """
+        return self.get_token(
+            payload={
+                "grant_type": "refresh_token",
+                "refresh_token": token,
+                "client_id": self.client_name,
+                "client_secret": self.client_secret,
+            },
+            token_type='access_token'
+        )
+
     def check_permissions(self, token:str, scope:str, resource:str, is_access_token=False) -> bool:
         if not is_access_token:
-            token = self.get_token(
-                payload={
-                    "grant_type": "refresh_token",
-                    "refresh_token": token,
-                    "client_id": self.client_name,
-                    "client_secret": self.client_secret,
-                },
-                token_type='access_token'
-            )
+            token = self._access_from_refresh(token)
+
         headers={
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -374,7 +388,10 @@ class Keycloak:
             'Authorization': f'Bearer {self.admin_token}'
         }
         response_res = requests.get(
-            (URLS["resource"] % self.client_id) + f"?name={resource_name}",
+            URLS["resource"] % self.client_id,
+            params={
+                "name": resource_name
+            },
             headers=headers
         )
         if not response_res.ok:
@@ -419,7 +436,8 @@ class Keycloak:
             'Authorization': f'Bearer {self.admin_token}'
         }
         policy_response = requests.get(
-            (URLS["get_policies"] % self.client_id) + f'&name={name}',
+            URLS["policies"] % self.client_id,
+            params={"name": name, "permission": False},
             headers=headers
         )
         if not policy_response.ok:
@@ -437,7 +455,11 @@ class Keycloak:
             'Authorization': f'Bearer {self.admin_token}'
         }
         scope_response = requests.get(
-            (URLS["scopes"] % self.client_id) + f'?permission=false&name={name}',
+            URLS["scopes"] % self.client_id,
+            params={
+                "permission": False,
+                "name": name
+            },
             headers=headers
         )
         if not scope_response.ok:
@@ -512,6 +534,7 @@ class Keycloak:
             json=payload,
             headers=self._post_json_headers()
         )
+        # If it exists already
         if policy_response.status_code == 409:
             return self.get_policy(payload["name"])
         elif not policy_response.ok:
@@ -519,6 +542,28 @@ class Keycloak:
             raise KeycloakError("Failed to create a project's policy")
 
         return policy_response.json()
+
+    def create_or_update_time_policy(self, payload:dict, policy_type:str) -> dict:
+        """
+        Time policies need a separate treatement. This is the only policy that we will
+        allow to be updated, in cases of token renewals via DAR
+        """
+        current_policy = self.create_policy(payload, policy_type)
+        # Only update the time policy. If it's a brand new, it will return
+        # the payload as response, otherwise the "config" field will be there
+        if current_policy.get("config"):
+            current_policy["config"]["noa"] = payload['notOnOrAfter']
+            current_policy["config"]["nbf"] = payload['notBefore']
+            policy_response = requests.put(
+                (URLS["policies"] % self.client_id) + "/" + current_policy["id"],
+                json=current_policy,
+                headers=self._post_json_headers()
+            )
+            if not policy_response.ok:
+                logger.info(policy_response.content.decode())
+                raise KeycloakError("Failed to create a project's policy")
+
+        return current_policy
 
     def create_resource(self, payload:dict, client_name='global') -> dict:
         payload["owner"] = {
@@ -622,7 +667,7 @@ class Keycloak:
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
         if not user_response.ok:
-            raise KeycloakError("Failed to fetch the user")
+            raise KeycloakError("Failed to fetch the users")
 
         return user_response.json()
 
@@ -645,9 +690,12 @@ class Keycloak:
         """
         Method to return a dictionary representing a Keycloak user
         """
-        username_encoded = urllib.parse.quote_plus(username)
         user_response = requests.get(
-            f"{URLS["user"]}?username={username_encoded}&exact=true",
+            URLS["user"],
+            params= {
+                "username": username,
+                "exact": True
+            },
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
         if not user_response.ok:
@@ -660,16 +708,32 @@ class Keycloak:
         Method to return a dictionary representing a Keycloak user,
         using their email
         """
-        email_encoded = urllib.parse.quote_plus(email)
-
         user_response = requests.get(
-            f"{URLS["user"]}?email={email_encoded}&exact=true",
+            URLS["user"],
+            params= {
+                "email": email,
+                "exact": True
+            },
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
         if not user_response.ok:
             raise KeycloakError("Failed to fetch the user")
 
         return user_response.json()[0] if user_response.json() else None
+
+    def get_user_by_id(self, user_id:str) -> dict:
+        """
+        Method to return a dictionary representing a Keycloak user,
+        using their id
+        """
+        user_response = requests.get(
+            f"{URLS["user"]}/{user_id}",
+            headers={"Authorization": f"Bearer {self.admin_token}"}
+        )
+        if not user_response.ok:
+            raise KeycloakError("Failed to fetch the user")
+
+        return user_response.json() if user_response.json() else None
 
     def get_user_role(self, user_id:str) -> list[str]:
         """
@@ -698,10 +762,8 @@ class Keycloak:
         """
         auth_user = self.get_token(username=username, password=old_pass, raise_on_temp_pass=False)
 
-        if not re.match("Account is not fully set up", auth_user.json().get("error_description")):
-            raise AuthenticationError(
-                "Incorrect credentials"
-            )
+        if not re.match("Account is not fully set up", auth_user.json().get("error_description", "")):
+            raise AuthenticationError("Incorrect credentials")
 
         res_pass_resp = requests.put(
             URLS["user_reset"] % user_id,
@@ -734,7 +796,11 @@ class Keycloak:
 
         # Fetching the token exchange scope
         client_te_scope_resp = requests.get(
-            (URLS["scopes"] % rm_client_id) + '?permission=false&name=token-exchange',
+            URLS["scopes"] % rm_client_id,
+            params = {
+                "permission": False,
+                "name": "token-exchange"
+            },
             headers = {
                 'Authorization': f'Bearer {self.admin_token}'
             }
@@ -744,7 +810,10 @@ class Keycloak:
 
         token_exch_scope = client_te_scope_resp.json()[0]["id"]
         resource_scope_resp = requests.get(
-            (URLS["resource"] % rm_client_id) + f"?name=client.resource.{self.client_id}",
+            URLS["resource"] % rm_client_id,
+            params = {
+                "name": f"client.resource.{self.client_id}"
+            },
             headers = {
                 'Authorization': f'Bearer {self.admin_token}'
             }
@@ -763,17 +832,24 @@ class Keycloak:
         )
         if global_client_policy_resp.status_code == 409:
             global_policy_id = requests.get(
-                (URLS["policies"] % rm_client_id) + f"/client?name=token-exchange-{self.client_name}",
+                (URLS["policies"] % rm_client_id) + "/client",
+                params = {
+                    "name": f"token-exchange-{self.client_name}"
+                },
                 headers = self._post_json_headers()
             ).json()[0]["id"]
         elif not global_client_policy_resp.ok:
-            raise KeycloakError("Error on keycloak")
+            logger.error(global_client_policy_resp.json())
+            raise KeycloakError("Something went wrong in creating the set of permissions on Keycloak")
         else:
             global_policy_id = global_client_policy_resp.json()["id"]
 
         token_exch_name = f"token-exchange.permission.client.{self.client_id}"
         token_exch_permission_resp = requests.get(
-            (URLS["permission"] % rm_client_id) + f"?name={token_exch_name}",
+            URLS["permission"] % rm_client_id,
+            params = {
+                "name": token_exch_name
+            },
             headers = {
                 'Authorization': f'Bearer {self.admin_token}'
             }

@@ -22,7 +22,7 @@ class TestAzureRegistry:
         with responses.RequestsMock() as rsps:
             rsps.add(
                 responses.GET,
-                f"https://{cr_name}/oauth2/token?service={registry.url}&scope=repository:{container.name}:metadata_read",
+                f"https://{cr_name}/oauth2/token?service={registry.url}&scope=repository:{container.name}:*",
                 status=401
             )
             with pytest.raises(ContainerRegistryException) as cre:
@@ -42,7 +42,7 @@ class TestAzureRegistry:
         with responses.RequestsMock() as rsps:
             rsps.add(
                 responses.GET,
-                f"https://{cr_name}/oauth2/token?service={cr_name}&scope=repository:{container.name}:metadata_read",
+                f"https://{cr_name}/oauth2/token?service={cr_name}&scope=repository:{container.name}:*",
                 json={"access_token": "12345asdf"},
                 status=200
             )
@@ -52,7 +52,7 @@ class TestAzureRegistry:
                 json=[],
                 status=200
             )
-            assert not cr_class.get_image_tags(container.name)
+            assert cr_class.get_image_tags(container.name) == {'tag': [], 'sha': []}
 
     def test_cr_metadata_tag_not_in_api_response(
             self,
@@ -64,20 +64,28 @@ class TestAzureRegistry:
         Test that the Container registry helper behaves as expected when the
             tag is not in the list of the metadata info. Which is a `False`
         """
+        expected_tags = ["1.2.3", "dev"]
         with responses.RequestsMock() as rsps:
             rsps.add(
                 responses.GET,
-                f"https://{cr_name}/oauth2/token?service={cr_name}&scope=repository:{container.name}:metadata_read",
+                f"https://{cr_name}/oauth2/token?service={cr_name}&scope=repository:{container.name}:*",
                 json={"access_token": "12345asdf"},
                 status=200
             )
             rsps.add(
                 responses.GET,
                 f"https://{cr_name}/v2/{container.name}/tags/list",
-                json={"tags": ["1.2.3", "dev"]},
+                json={"tags": expected_tags},
                 status=200
             )
-            assert not cr_class.get_image_tags(container.name, "latest")
+            for t in expected_tags:
+                rsps.add(
+                    responses.GET,
+                    f"https://{cr_name}/v2/{container.name}/manifests/{t}",
+                    json={"config": {"digest": "sha256:123123123"}},
+                    status=200
+                )
+            assert not cr_class.has_image_tag_or_sha(container.name, "latest")
 
     def test_cr_login_connection_error(
         self,
@@ -121,7 +129,7 @@ class TestAzureRegistry:
             )
             rsps.add(
                 responses.GET,
-                f"https://{cr_name}/oauth2/token?service={cr_name}&scope=repository:{container.name}:metadata_read",
+                f"https://{cr_name}/oauth2/token?service={cr_name}&scope=repository:{container.name}:*",
                 json={"access_token": "12345asdf"},
                 status=200
             )
@@ -151,7 +159,7 @@ class TestAzureRegistry:
             )
             rsps.add(
                 responses.GET,
-                f"https://{cr_name}/oauth2/token?service={cr_name}&scope=repository:{container.name}:metadata_read",
+                f"https://{cr_name}/oauth2/token?service={cr_name}&scope=repository:{container.name}:*",
                 json={"access_token": "12345asdf"},
                 status=200
             )

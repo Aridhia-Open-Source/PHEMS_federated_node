@@ -24,6 +24,10 @@ configs:
           hs.status = "Healthy"
           hs.message = "Not verifying for Ingress"
           return  hs
+      tasks.federatednode.com/Analytics:
+        ignoreDifferences: |
+          jsonPointers:
+          - /metadata/annotations
       Service:
         health.lua: |
           hs = {}

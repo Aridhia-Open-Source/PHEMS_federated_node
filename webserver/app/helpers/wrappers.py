@@ -3,10 +3,11 @@ from functools import wraps
 from flask import request
 from sqlalchemy.exc import IntegrityError
 
-from app.helpers.exceptions import AuthenticationError, UnauthorizedError, DBRecordNotFoundError, LogAndException
+from app.helpers.exceptions import AuthenticationError, UnauthorizedError, LogAndException
 from app.helpers.keycloak import Keycloak
 from app.models.audit import Audit
 from app.models.dataset import Dataset
+from app.models.request import Request
 
 
 logger = logging.getLogger('wrappers')
@@ -26,7 +27,17 @@ def auth(scope:str, check_dataset=True):
             client = 'global'
             token_type = 'refresh_token'
 
-            if check_dataset:
+            kc_client = Keycloak()
+            token_info = kc_client.decode_token(token)
+            user = kc_client.get_user_by_username(token_info['username'])
+
+            if requested_project and not kc_client.is_user_admin(token):
+                dar = Request.get_active_project(requested_project, user["id"])
+                if dar.dataset_id:
+                    ds = Dataset.get_dataset_by_name_or_id(id=dar.dataset_id)
+                    resource = f"{ds.id}-{ds.name}"
+
+            elif check_dataset:
                 ds_id = kwargs.get("dataset_id")
                 ds_name = kwargs.get("dataset_name", "")
 
@@ -39,12 +50,8 @@ def auth(scope:str, check_dataset=True):
                     ds = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
                     resource = f"{ds.id}-{ds.name}"
 
-            kc_client = Keycloak()
-            token_info = kc_client.decode_token(token)
-            user = kc_client.get_user_by_username(token_info['username'])
-
             # If the user is an admin or system, ignore the project
-            if not kc_client.has_user_roles(user["id"], {"Administrator", "System"}):
+            if not kc_client.has_user_roles(user["id"], {"Super Administrator", "Administrator", "System"}):
                 if requested_project:
                     client = f"Request {token_info['username']} - {requested_project}"
                     kc_client = Keycloak(client)
@@ -91,8 +98,9 @@ def audit(func):
 
         requested_by = ""
         if "Authorization" in request.headers:
-            token = Keycloak().decode_token(Keycloak.get_token_from_headers())
-            requested_by = token.get('sub')
+            kc_client = Keycloak()
+            token = kc_client.decode_token(Keycloak.get_token_from_headers())
+            requested_by = kc_client.get_user_by_email(token["email"])["id"]
 
         http_method = request.method
         http_endpoint = request.path
@@ -101,21 +109,6 @@ def audit(func):
         to_save.add()
         return response_object, http_status
     return _audit
-
-def find_and_delete_key(obj: dict, key: str):
-    """
-    Given a dictionary, tries to find a (nested) key and pops it
-    """
-    copy_obj = obj.copy()
-    for k, v in copy_obj.items():
-        if isinstance(v, dict):
-            find_and_delete_key(v, key)
-        elif isinstance(v, list):
-            for item in obj[k]:
-                if isinstance(item, dict):
-                    find_and_delete_key(item, key)
-        elif k == key:
-            obj.pop(key, None)
 
 def find_and_redact_key(obj: dict, key: str):
     """

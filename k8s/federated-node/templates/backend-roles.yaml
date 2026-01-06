@@ -1,29 +1,34 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: backend-role
+  name: {{ .Release.Name }}-backend-role
 rules:
 - apiGroups: [""]
   resources: ["secrets"]
-  verbs: ["get", "list", "create", "patch"]
+  verbs: ["get", "list", "create", "patch", "delete"]
 - apiGroups: ["", "batch"]
-  resources: ["pods", "persistentvolumes", "persistentvolumeclaims", "jobs", "pods/exec"]
+  resources: ["pods", "persistentvolumes", "persistentvolumeclaims", "jobs", "pods/exec", "pods/log"]
   verbs: ["*"]
 - apiGroups: [""]
   resources: ["pods"]
   verbs: ["get", "watch", "list", "create"]
+{{- if .Values.outboundMode }}
+- apiGroups: [{{ include "controllerCrdGroup" . | quote }}]
+  resources: ["analytics"]
+  verbs: ["*"]
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: backend-role
+  name: {{ .Release.Name }}-backend-role-binding
 subjects:
   - kind: ServiceAccount
     namespace: {{ .Release.Namespace }}
     name: secret-backend-handler
 roleRef:
   kind: ClusterRole
-  name: backend-role
+  name: {{ .Release.Name }}-backend-role
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: v1

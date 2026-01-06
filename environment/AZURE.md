@@ -47,7 +47,7 @@ az network vnet create --name "vnet-${RG}" \
 az network vnet subnet create --name federatedNode \
                               --resource-group "$RG" \
                               --vnet-name "vnet-${RG}" \
-                              --address-prefixes 10.3.2.0/23
+                              --address-prefixes 10.3.0.0/24
 ```
 
 ### Create another subnet for the kubernetes cluster in the virtual network
