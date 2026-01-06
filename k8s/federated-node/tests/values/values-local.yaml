@@ -34,9 +34,6 @@ ingress:
   tls:
     secretName: my-tls-secret
 
-certs:
-  frequency: 65
-
 integrations:
   domains:
     - http://localhost:8088

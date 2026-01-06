@@ -8,7 +8,11 @@
     "definitions": {
         "tag": {
             "type": "string",
-            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-z0-9]+)$"
+            "pattern": "^\\d+\\.\\d+\\.\\d+(-v[a-z0-9]+)?$"
+        },
+        "host": {
+            "type": "string",
+            "description": "Hostname where the FN can be reached at. Optional, also used to name the results files"
         },
         "iplist": {
             "type": "array",
@@ -19,6 +23,23 @@
                     "ips": {
                         "$ref": "#/definitions/ip_address"
                     }
+                }
+            }
+        },
+        "namespaces": {
+            "type": "object",
+            "properties": {
+                "keycloak": {
+                    "type": "string",
+                    "default": "keycloak"
+                },
+                "tasks": {
+                    "type": "string",
+                    "default": "tasks"
+                },
+                "controller": {
+                    "type": "string",
+                    "default": "fn-controller"
                 }
             }
         },
@@ -33,10 +54,11 @@
     "properties": {
         "backend": {
             "type": "object",
-            "required": [
-                "tag"
-            ],
             "properties": {
+                "replicas": {
+                    "type": "integer",
+                    "default": 1
+                },
                 "tag": {
                     "$ref": "#/definitions/tag"
                 }
@@ -44,109 +66,37 @@
         },
         "keycloak": {
             "type": "object",
-            "required": [
-                "tag"
-            ],
             "properties": {
+                "replicas": {
+                    "type": "integer",
+                    "default": 2
+                },
                 "tag": {
                     "$ref": "#/definitions/tag"
                 }
             }
         },
+        "autoscaling": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false
+                }
+            }
+        },
         "namespaces": {
+            "$ref": "#/definitions/namespaces"
+        },
+        "global": {
             "type": "object",
+            "description": "Shared values across all charts",
             "properties": {
-                "keycloak": {
-                    "type": "string"
+                "namespaces": {
+                    "$ref": "#/definitions/namespaces"
                 },
-                "tasks": {
-                    "type": "string"
-                },
-                "nginx": {
-                    "type": "string"
-                }
-            }
-        },
-        "db":{
-            "type": "object",
-            "required": ["user"],
-            "dependentRequired": {
-                "name": ["host"],
-                "host": ["name"]
-            },
-            "properties": {
-                "user": {"type": "string"},
-                "name": {"type": "string", "default": "db"},
-                "host": {"type": "string"},
-                "secret": {
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string"},
-                        "key": {"type": "string"}
-                    }
-                }
-            }
-        },
-        "cleanupTime":{
-            "type": "integer",
-            "description": "Amount of days the result stored in the storage will be kept for"
-        },
-        "federatedNode":{
-            "type": "object",
-            "properties": {
-                "port": {"type": "integer"},
-                "volumes": {
-                    "type": "object",
-                    "properties": {
-                        "results_path": {"type": "string"},
-                        "task_pod_results_path": {"type": "string"}
-                    }
-                }
-            }
-        },
-        "storage": {
-            "type": "object",
-            "oneOf": [{
-                "azure": {
-                    "type": "object",
-                    "properties": {
-                        "secretName": {"type": "string"},
-                        "storageAccountName": {"type": "string"},
-                        "storageAccountKey": {"type": "string"},
-                        "shareName": {"type": "string"}
-                    }
-                },
-                "nfs": {
-                    "type": "object",
-                    "properties": {
-                        "provisioner": {"type": "string"},
-                        "path": {"type": "string"},
-                        "url": {"type": "string"}
-                    }
-                },
-                "local": {
-                    "type": "object",
-                    "properties": {
-                        "path": {"type": "string"},
-                        "dbpath": {"type": "string"}
-                    }
-                }
-            }]
-        },
-        "registries": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "url": {"type": "string"},
-                    "secret": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string"},
-                            "passKey": {"type": "string"},
-                            "userKey": {"type": "string"}
-                        }
-                    }
+                "host": {
+                    "$ref": "#/definitions/host"
                 }
             }
         },
@@ -160,7 +110,137 @@
                 }
             }
         },
-        "imagePullSecrets": {"type": "string"},
+        "local_development":{
+            "type": "boolean",
+            "description": "Toggle for local development. Mostly to ignore SSL",
+            "default": false
+        },
+        "create_db_deployment":{
+            "type": "boolean",
+            "description": "Only for development purposes. Instable for production usage",
+            "default": false
+        },
+        "db":{
+            "type": "object",
+            "dependentRequired": {
+                "name": ["host"],
+                "host": ["name"]
+            },
+            "properties": {
+                "user": {"type": "string"},
+                "name": {"type": "string", "default": "db"},
+                "host": {"type": "string"},
+                "secret": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Secret for DB credentials"},
+                        "key": {"type": "string", "description": "Secret key where the password is stored"}
+                    }
+                }
+            }
+        },
+        "cleanupTime":{
+            "type": "integer",
+            "description": "Amount of days the result stored in the storage will be kept for"
+        },
+        "taskReview":{
+            "type": "boolean",
+            "default": false
+        },
+        "firstUserSecret":{
+            "type": "object",
+            "required": ["name", "email", "passKey"],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The secret name that will hold the password to use for the user"
+                },
+                "passKey": {
+                    "type": "string",
+                    "description": "The key holding the password"
+                },
+                "firstName": {
+                    "type": "string",
+                    "description": "User's last name"
+                },
+                "lastName": {
+                    "type": "string",
+                    "description": "User's last name"
+                },
+                "email": {
+                    "type": "string",
+                    "description": "User's email address, this will also be the username"
+                }
+            }
+        },
+        "federatedNode":{
+            "type": "object",
+            "properties": {
+                "port": {"type": "integer", "default": 5000},
+                "volumes": {
+                    "type": "object",
+                    "properties": {
+                        "results_path": {"type": "string"},
+                        "task_pod_results_path": {"type": "string"}
+                    }
+                }
+            }
+        },
+        "storage": {
+            "type": "object",
+            "properties": {
+                "capacity": {
+                    "type": "string",
+                    "description": "How much to reserve for tasks, defaults to 10Gi. Other possible units are Mi, Ti, Ki"
+                }
+            },
+            "oneOf": [{
+                "azure": {
+                    "type": "object",
+                    "description": "If running a cluster on azure, or using an Azure Storage Class, this will be the suggested config",
+                    "properties": {
+                        "secretName": {
+                            "type": "string",
+                            "description": "Secret name where the credentials for the azure storage are saved"
+                        },
+                        "shareName": {
+                            "type": "string",
+                            "description": "Share name within the azure storage account"
+                        }
+                    }
+                },
+                "aws": {
+                    "type": "object",
+                    "description": "If running a cluster on AWS this will be the suggested config",
+                    "properties": {
+                        "fileSystemId": {
+                            "type": "string",
+                            "description": "EFS system id, e.g. fs-xxxxxxxxx"
+                        },
+                        "accessPointId": {
+                            "type": "string",
+                            "description": "Optional, access point id for better permission and isolation management in the EFS"
+                        }
+                    }
+                },
+                "nfs": {
+                    "type": "object",
+                    "description": "If running a cluster off the cloud, this will be the suggested config",
+                    "properties": {
+                        "provisioner": {"type": "string"},
+                        "path": {"type": "string"},
+                        "url": {"type": "string"}
+                    }
+                },
+                "local": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Where to persist files in the host machine"},
+                        "dbpath": {"type": "string"}
+                    }
+                }
+            }]
+        },
         "pullPolicy": {
             "type": "string",
             "enum": [
@@ -168,94 +248,27 @@
                 "IfNotPresent"
             ]
         },
-        "ingress":{
+        "host": {
+            "$ref": "#/definitions/host"
+        },
+        "tls":{
             "type": "object",
-            "required": [
-                "host"
-            ],
             "properties": {
-                "host": {
+                "secretName": {
                     "type": "string",
-                    "description": "The URL where the FN will be hosted at"
-                },
-                "ingressClass": {
-                    "type": "string",
-                    "description": "Ingress class name",
-                    "default": "fn-nginx"
-                },
-                "on_aks": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Flag to set custom settings for Azure"
-                },
-                "nginx": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {"type": "boolean"}
-                    }
-                },
-                "whitelist": {
-                    "type": "object",
-                    "description": "List of IPs that are allowed to connect to the service",
-                    "properties": {
-                        "ips": {
-                            "$ref": "#/definitions/iplist"
-                        }
-                    }
-                },
-                "blacklist": {
-                    "type": "object",
-                    "description": "List of IPs that are not allowed to connect to the service",
-                    "properties": {
-                        "ips": {
-                            "$ref": "#/definitions/iplist"
-                        }
-                    }
-                },
-                "tls": {
-                    "type": "object",
-                    "description": "Certificates for nginx to use to allow HTTPS. Leaving it empty or not present at all will trigger a browser warning about the connection not being secure",
-                    "required": [],
-                    "dependencies": {
-                        "keyFile": {
-                            "allOf": [
-                                {
-                                    "required": ["certFile"]
-                                }
-                            ]
-                        },
-                        "certFile": {
-                            "allOf": [
-                                {
-                                    "required": ["keyFile"]
-                                }
-                            ]
-                        },
-                        "secretName": {
-                            "allOf": [
-                                {
-                                    "required": ["keyFile", "certFile"]
-                                }
-                            ]
-                        }
-                    },
-                    "properties": {
-                        "keyFile": {
-                            "type": "string",
-                            "description": "The .key file path. Has lower priority than the secret."
-                        },
-                        "certFile": {
-                            "type": "string",
-                            "description": "The .cert file path. Has lower priority than the secret."
-                        },
-                        "secretName": {
-                            "type": "string",
-                            "description": "Secret name where the certs are. Defaults to `tls` if the `ingress.tls` section is set",
-                            "default": "tls"
-                        }
-                    }
+                    "description": "Secret name where the SSL certificate is. Defaults to tls if the tls section is set"
                 }
             }
+        },
+        "on_aks":{
+            "type": "boolean",
+            "description": "Deploying on Azure?",
+            "default": false
+        },
+        "on_eks":{
+            "type": "boolean",
+            "description": "Deploying on AWS?",
+            "default": false
         },
         "integrations":{
             "type": "object",
@@ -268,6 +281,35 @@
                     }
                 }
             }
+        },
+        "certs": {
+            "type": "object",
+            "properties": {
+                "rotationPolicy": {
+                    "type": "string",
+                    "enum": [
+                        "Never"
+                    ]
+                },
+                "azure": {
+                    "type": "object",
+                    "properties": {
+                        "secretName": {"type": "string"},
+                        "configmap": {"type": "string"}
+                    }
+                },
+                "aws": {"type": "string"}
+            }
+        },
+        "smoketests": {
+            "type": "boolean",
+            "description": "Enables simple smoketests on the helm charts",
+            "default": false
+        },
+        "outboundMode": {
+            "type": "boolean",
+            "description": "Enables outbound connection mode",
+            "default": false
         }
     }
 }
