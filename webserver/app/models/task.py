@@ -2,10 +2,8 @@ import logging
 import json
 import re
 from datetime import datetime, timedelta
-from kubernetes.client import V1CustomResourceDefinition, V1CronJob
+from kubernetes.client import V1CustomResourceDefinition, V1CronJob, V1Job, V1Pod
 from kubernetes.client.exceptions import ApiException
-from kubernetes.client.models.v1_job import V1Job
-from kubernetes.client.models.v1_pod import V1Pod
 from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
