@@ -1,3 +1,4 @@
+{{- if .Values.traefik.enabled -}}
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -28,3 +29,4 @@ spec:
     stsSeconds: 63072000
     referrerPolicy: "strict-origin"
     permissionsPolicy: "src"
+{{- end -}}
