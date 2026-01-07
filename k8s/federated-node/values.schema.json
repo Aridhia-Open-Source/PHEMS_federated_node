@@ -310,6 +310,86 @@
             "type": "boolean",
             "description": "Enables outbound connection mode",
             "default": false
+        },
+        "cert-manager": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "namespace": {
+                    "type": "string",
+                    "default": "fn-certmanager"
+                },
+                "installCRDs": {
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "ingress-nginx": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "namespaceOverride": {
+                    "type": "string",
+                    "default": "ingress-nginx"
+                },
+                "controller": {
+                    "type": "object",
+                    "properties": {
+                        "allowSnippetAnnotations": {
+                            "type": "boolean",
+                            "default": true
+                        },
+                        "admissionWebhooks": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean",
+                                    "default": false
+                                }
+                            }
+                        },
+                        "ingressClassResource": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "default": "fn-nginx"
+                                }
+                            }
+                        },
+                        "extraArgs": {
+                            "type": "object",
+                            "properties": {
+                                "default-ssl-certificate": {
+                                    "type": "string",
+                                    "default": "default/tls"
+                                }
+                            }
+                        },
+                        "service": {
+                            "type": "object",
+                            "properties": {
+                                "externalTrafficPolicy": {
+                                    "type": "string",
+                                    "default": "Local"
+                                }
+                            }
+                        },
+                        "ingressClass": {
+                            "type": "string",
+                            "default": "fn-nginx"
+                        }
+                    }
+                }
+
+            }
         }
     }
 }
