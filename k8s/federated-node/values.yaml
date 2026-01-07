@@ -104,7 +104,7 @@ integrations:
 
 certs:
   rotationPolicy: Never
-  azure: {}
+  azure:
     # secretName:
     # configmap:
   aws: ""

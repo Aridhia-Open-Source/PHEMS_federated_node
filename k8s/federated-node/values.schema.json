@@ -7,8 +7,17 @@
     ],
     "definitions": {
         "tag": {
-            "type": "string",
+            "type": ["string", "null"],
             "pattern": "^\\d+\\.\\d+\\.\\d+(-v[a-z0-9]+)?$"
+        },
+        "taskReview": {
+            "type": "boolean",
+            "default": false
+        },
+        "capacity": {
+            "type": "string",
+            "description": "How much to reserve for tasks, defaults to 10Gi. Other possible units are Mi, Ti, Ki",
+            "pattern": "^\\d+(M|G|K)i{0,1}$"
         },
         "host": {
             "type": "string",
@@ -97,6 +106,9 @@
                 },
                 "host": {
                     "$ref": "#/definitions/host"
+                },
+                "taskReview": {
+                    "$ref": "#/definitions/taskReview"
                 }
             }
         },
@@ -144,8 +156,7 @@
             "description": "Amount of days the result stored in the storage will be kept for"
         },
         "taskReview":{
-            "type": "boolean",
-            "default": false
+            "$ref": "#/definitions/taskReview"
         },
         "firstUserSecret":{
             "type": "object",
@@ -176,7 +187,10 @@
         "federatedNode":{
             "type": "object",
             "properties": {
-                "port": {"type": "integer", "default": 5000},
+                "port": {
+                    "type": "integer",
+                    "default": 5000
+                },
                 "volumes": {
                     "type": "object",
                     "properties": {
@@ -190,13 +204,16 @@
             "type": "object",
             "properties": {
                 "capacity": {
-                    "type": "string",
-                    "description": "How much to reserve for tasks, defaults to 10Gi. Other possible units are Mi, Ti, Ki"
+                    "$ref": "#/definitions/capacity"
                 }
             },
             "oneOf": [{
                 "azure": {
                     "type": "object",
+                    "required": [
+                        "secretName",
+                        "shareName"
+                    ],
                     "description": "If running a cluster on azure, or using an Azure Storage Class, this will be the suggested config",
                     "properties": {
                         "secretName": {
@@ -211,6 +228,10 @@
                 },
                 "aws": {
                     "type": "object",
+                    "required": [
+                        "fileSystemId",
+                        "accessPointId"
+                    ],
                     "description": "If running a cluster on AWS this will be the suggested config",
                     "properties": {
                         "fileSystemId": {
@@ -234,6 +255,9 @@
                 },
                 "local": {
                     "type": "object",
+                    "required": [
+                        "path"
+                    ],
                     "properties": {
                         "path": {"type": "string", "description": "Where to persist files in the host machine"},
                         "dbpath": {"type": "string"}
@@ -292,13 +316,20 @@
                     ]
                 },
                 "azure": {
-                    "type": "object",
+                    "type": ["object", "null"],
+                    "required": [
+                        "secretName",
+                        "configmap"
+                    ],
                     "properties": {
                         "secretName": {"type": "string"},
                         "configmap": {"type": "string"}
                     }
                 },
-                "aws": {"type": "string"}
+                "aws": {
+                    "type": "string",
+                    "description": "Secret that holds all of the AWS related info for SSL certificate management"
+                }
             }
         },
         "smoketests": {
