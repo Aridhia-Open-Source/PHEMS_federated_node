@@ -1,0 +1,158 @@
+# Default values for federated_node.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+pullPolicy: Always
+create_db_deployment: true
+local_development: true
+smoketests: true
+taskReview: true
+cleanupTime: 3
+
+backend:
+  volumes:
+    results_path: /data/flask/results
+
+db:
+  user: admin
+  host: db.qcfederatednode.svc
+  port: 5432
+  secret:
+    key: password
+    name: local-db
+
+storage:
+  local:
+    path: /data/flask
+    dbpath: /data/db
+
+certs:
+  frequency: 65
+
+integrations:
+  domains:
+    - http://localhost:8088
+    - https://phems-federatednode.net
+
+host: &host phems-federatednode.net
+whitelist:
+  enabled: false
+blacklist:
+  enabled: false
+tls:
+  secretName: &tls my-tls-secret
+
+global:
+  host: *host
+  delivery_url: federated-node.uksouth.analytixagility.aridhiadev.net
+
+cert-manager:
+  enabled: true
+
+ingress-nginx:
+  enabled: false
+  controller:
+    extraArgs:
+      default-ssl-certificate: qcfederatednode/my-tls-secret
+
+outboundMode: true
+
+## Sub Charts
+
+### Gateway API
+gatewayApi:
+  installCRD: true
+
+### Traefik
+traefik:
+  providers:
+    kubernetesIngress:
+      enabled: false
+  enabled: true
+
+### FN Task Controller
+fn-task-controller:
+  controller:
+    tag:
+  storage:
+    size: 100Mi
+    local:
+      path: /data/controller
+
+  # idp:
+  #   github:
+  #     secret_name: github-app
+  #     secret_key: GH_SECRET
+  #     clientid_key: GH_CLIENT_ID
+  #     orgAndRepo: Aridhia-Open-Source/Federated-Node-Example-App
+  delivery:
+    # github:
+    #   repository: Aridhia-Open-Source/Federated-Node-Example-App
+    other:
+      url: federated-node.uksouth.analytixagility.aridhiadev.net
+      auth_type: AzCopy
+
+
+## Dagster
+dagster:
+  rabbitmq:
+    enabled: true
+    persistence:
+      enabled: true
+      size: 2Gi
+      storageClass: ""
+  postgresql:
+    enabled: true
+    primary:
+      persistence:
+        enabled: true
+        size: 4Gi
+        storageClass: ""
+  runLauncher:
+    type: CeleryK8sRunLauncher
+    config:
+      celeryK8sRunLauncher:
+        # Change with caution! If you're using a fixed tag for pipeline run images, changing the
+        # image pull policy to anything other than "Always" will use a cached/stale image, which is
+        # almost certainly not what you want.
+        imagePullPolicy: "Always"
+
+        # The Celery workers can be deployed with a fixed image (no user code included)
+        image:
+          # When a tag is not supplied for a Dagster provided image,
+          # it will default as the Helm chart version.
+          repository: localhost:5001/iris-analytics
+          tag: v3
+          pullPolicy: "Always"
+
+  dagster-user-deployments:
+    # Creates a workspace file with the gRPC servers hosting your user code.
+    enabled: true
+
+    # If you plan on deploying user code in a separate Helm release, set this to false.
+    enableSubchart: true
+
+    # Specify secrets to run user code server containers based on images in private registries. See:
+    # https://kubernetes.io/docs/concepts/containers/images/#referring-to-an-imagepullsecrets-on-a-pod
+    imagePullSecrets: []
+
+    # List of unique deployments
+    deployments:
+      - name: "iris-analysis"
+        port: 3030
+        image:
+            # When a tag is not supplied, it will default as the Helm chart version.
+          repository: localhost:5001/iris-analytics
+          tag: v3
+
+          # Change with caution! If you're using a fixed tag for pipeline run images, changing the
+          # image pull policy to anything other than "Always" will use a cached/stale image, which is
+          # almost certainly not what you want.
+          pullPolicy: "Always"
+
+        # Arguments to `dagster api grpc`.
+        # Ex: "dagster api grpc -m dagster_test.test_project.test_jobs.repo -a define_demo_execution_repo"
+        # would translate to:
+        dagsterApiGrpcArgs:
+          - "--python-file"
+          - "/iris_analysis/definitions.py"

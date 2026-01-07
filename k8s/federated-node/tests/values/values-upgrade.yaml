@@ -84,7 +84,7 @@ ingress-nginx:
 outboundMode: true
 fn-task-controller:
   controller:
-    vol_path: /data/controller
+    vol_path: /phems/data/controller
 
   storage:
     aws:

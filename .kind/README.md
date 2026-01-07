@@ -15,34 +15,21 @@ sudo mv kubectl /usr/local/bin/
 # Verify kind
 kind version
 
-# Install ingress-nginx
-kubectl apply -f \
-  https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
-
-# Verify ingress-nginx
-kubectl get ingressclass
-
 # Install helm
 curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
 # Verify helm
 helm version
-
-# Install App
-helm install fn ./charts/my-app \
-  -n fn --create-namespace \
-  -f values/dev.yaml
 ```
 
 ## Commands
 ```bash
 # Create cluster
-kind create cluster --config .kind/kind-config.yaml -n fn
+kind create cluster --config kind-config.yaml -n fn
 
 # Verify cluster
 kubectl cluster-info
 kubectl get nodes
-kubectl get pods -A
 
 # Delete cluster
 kind delete cluster

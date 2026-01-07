@@ -1,0 +1,16 @@
+
+*
+!iris_analysis/
+!iris_analysis/**
+
+
+!requirements.txt
+!pyproject.toml
+!setup.py
+!setup.cfg
+!py.typed
+
+!workspace.yaml
+
+!Dockerfile
+!.dockerignore
