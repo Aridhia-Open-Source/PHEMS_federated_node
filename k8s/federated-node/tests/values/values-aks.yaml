@@ -14,15 +14,8 @@ db:
     name: local-db
   user: user
 host: test.aridhiatest.net
-ingress-nginx:
-  controller:
-    extraArgs:
-      default-ssl-certificate: federatednode/tls
-    service:
-      externalTrafficPolicy: Local
-      loadBalancerIP: 127.0.0.1
+traefik:
   enabled: true
-  namespaceOverride: ingress-nginx
 integrations:
   domains:
   - '*.test.aridhia.io'
