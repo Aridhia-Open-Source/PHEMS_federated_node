@@ -14,17 +14,18 @@ backend:
     results_path: /data/flask/results
 
 db:
-  user: admin
+  user: &userDB admin
   host: db.qcfederatednode.svc
-  port: 5432
+  port: &portDB 5432
   secret:
     key: password
-    name: local-db
+    name: &secretDB local-db
 
 storage:
   local:
     path: /data/flask
     dbpath: /data/db
+    rabbit: /data/dagster/rabbitmq
 
 certs:
   frequency: 65
@@ -99,15 +100,17 @@ dagster:
     enabled: true
     persistence:
       enabled: true
-      size: 2Gi
-      storageClass: local-hostpath
+      storageClass: "-"
+      existingClaim: rabbit-pvc
   postgresql:
     enabled: true
-    primary:
-      persistence:
-        enabled: true
-        size: 4Gi
-        storageClass: local-hostpath
+    postgresqlUsername: *userDB
+    postgresqlDatabase: fn-dagster
+    # it expects the key to be postgresql-password rather than be flexible
+    secretName: *secretDB
+    service:
+      port: *portDB
+
   runLauncher:
     type: CeleryK8sRunLauncher
     config:

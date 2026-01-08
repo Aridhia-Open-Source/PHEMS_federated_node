@@ -7,10 +7,10 @@ spec:
     storage: 2Gi
   accessModes:
     - ReadWriteOnce
-  storageClassName: local-hostpath
+  storageClassName: {{ include "storageClassName" . }}
   persistentVolumeReclaimPolicy: Retain
   local:
-    path: /data/dagster/rabbitmq
+    path: {{ .Values.storage.local.rabbit }}
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -19,3 +19,17 @@ spec:
           operator: In
           values:
           - fn-control-plane
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rabbit-pvc
+spec:
+  storageClassName: {{ include "storageClassName" . }}
+  volumeName: dagster-rabbitmq-pv
+  resources:
+    requests:
+      storage: {{ .Values.storage.capacity }}
+  accessModes:
+    - ReadWriteMany
+
