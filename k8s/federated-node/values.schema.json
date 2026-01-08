@@ -399,7 +399,7 @@
                             "type": "object",
                             "properties": {
                                 "externalIPs": {
-                                    "$ref": "#/definitions/ip_list"
+                                    "$ref": "#/definitions/iplist"
                                 },
                                 "externalTrafficPolicy": {
                                     "type": "string",
