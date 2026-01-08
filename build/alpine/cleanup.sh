@@ -11,6 +11,7 @@ deleteEntity(){
 
 date=$(python3 -c "from datetime import datetime, timedelta;print((datetime.now() - timedelta(days=$CLEANUP_AFTER_DAYS)).strftime('%Y-%m-%d'))")
 deleteEntity pods "${NAMESPACE}"
+deleteEntity jobs "${NAMESPACE}"
 deleteEntity pvc "${NAMESPACE}"
 deleteEntity pv "${NAMESPACE}"
 find "${RESULTS_PATH}/" -type d -mtime "+${CLEANUP_AFTER_DAYS}" -name '[0-9]*' -print0 | xargs -r0 rm -r --

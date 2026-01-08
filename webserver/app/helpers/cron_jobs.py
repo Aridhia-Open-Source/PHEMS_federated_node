@@ -85,6 +85,7 @@ class CronJob:
             schedule: the cron rule
         """
         labels:dict = body.metadata.labels
+        labels["crd_name"] = crd_name
         # Need to explicitly mount the k8s token manually as k8s
         # can't really do it natively
         creds_vols = [V1Volume(

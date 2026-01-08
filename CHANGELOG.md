@@ -4,6 +4,7 @@
 - CronJobs are now supported. Use the `schedule` field in either the `/tasks` API, or the `Analytics` CRD (for outbound mode) to set a cron rule, like `"3 9 * * *"`.
 - Added two new endpoints for cronjobs: `/tasks/id/suspend` and `/tasks/id/resume` to pause/resume autoexecution.
 - Adjusted the results job cleanup
+- Automatic task results cleanup is now an toggleable feature by setting `cleanupResults.enabled` to `false`. It is enabled by default.
 
 ## 1.8.0
 - **BREAKING CHANGE**: Migration from nginx-ingress to the gateway api based controller, traefik. This will need manual intervention. See the [gateway-api-installer.sh](./scripts/gateway-api-installer.sh) script to one-step setup. If not, the chart will let you know some components are missing and provide instructions.

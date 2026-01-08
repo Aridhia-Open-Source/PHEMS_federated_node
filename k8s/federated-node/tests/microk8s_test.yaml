@@ -91,3 +91,16 @@ tests:
     asserts:
       - hasDocuments:
           count: 1
+  - it: clenup created
+    template: result-cleaner-cronjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 4
+  - it: clenup not created
+    template: result-cleaner-cronjob.yaml
+    set:
+      cleanupResults:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

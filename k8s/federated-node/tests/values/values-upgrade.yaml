@@ -1,6 +1,5 @@
 pullPolicy: Always
 
-cleanupTime: 1
 keycloak:
   replicas: 1
 backend:
