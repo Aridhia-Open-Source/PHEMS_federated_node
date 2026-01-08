@@ -358,25 +358,84 @@
                 }
             }
         },
-        "ingress-nginx": {
+        "traefik": {
             "type": "object",
             "properties": {
                 "enabled": {
                     "type": "boolean",
                     "default": false
                 },
-                "namespaceOverride": {
-                    "type": "string",
-                    "default": "ingress-nginx"
-                },
-                "controller": {
+                "gateway": {
                     "type": "object",
                     "properties": {
-                        "allowSnippetAnnotations": {
+                        "enabled": {
                             "type": "boolean",
                             "default": true
                         },
-                        "admissionWebhooks": {
+                        "name": {
+                            "type": "string",
+                            "default": "traefik-fn-gateway"
+                        }
+                    }
+                },
+                "gatewayClass": {
+                    "type": "object",
+                    "properties": {
+                        "ingressClassResource": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "default": "traefik-fn-gateway-class"
+                                }
+                            }
+                        }
+                    }
+                },
+                "service": {
+                    "type": "object",
+                    "properties": {
+                        "spec": {
+                            "type": "object",
+                            "properties": {
+                                "externalIPs": {
+                                    "$ref": "#/definitions/ip_list"
+                                },
+                                "externalTrafficPolicy": {
+                                    "type": "string",
+                                    "description": "For AKS deployment only",
+                                    "default": "Local",
+                                    "enum": [
+                                        "Local",
+                                        "Cluster"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "providers": {
+                    "type": "object",
+                    "properties": {
+                        "kubernetesCRD": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean",
+                                    "default": true
+                                }
+                            }
+                        },
+                        "kubernetesGateway": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean",
+                                    "default": true
+                                }
+                            }
+                        },
+                        "kubernetesIngress": {
                             "type": "object",
                             "properties": {
                                 "enabled": {
@@ -384,41 +443,18 @@
                                     "default": false
                                 }
                             }
-                        },
-                        "ingressClassResource": {
-                            "type": "object",
-                            "properties": {
-                                "name": {
-                                    "type": "string",
-                                    "default": "fn-nginx"
-                                }
-                            }
-                        },
-                        "extraArgs": {
-                            "type": "object",
-                            "properties": {
-                                "default-ssl-certificate": {
-                                    "type": "string",
-                                    "default": "default/tls"
-                                }
-                            }
-                        },
-                        "service": {
-                            "type": "object",
-                            "properties": {
-                                "externalTrafficPolicy": {
-                                    "type": "string",
-                                    "default": "Local"
-                                }
-                            }
-                        },
-                        "ingressClass": {
-                            "type": "string",
-                            "default": "fn-nginx"
+                        }
+                    }
+                },
+                "api": {
+                    "type": "object",
+                    "properties": {
+                        "dashboard": {
+                            "type": "boolean",
+                            "default": false
                         }
                     }
                 }
-
             }
         }
     }

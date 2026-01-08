@@ -13,9 +13,9 @@ The Federated Node is based on three existing open source projects:
 
 - [The Common API](https://github.com/federated-data-sharing/common-api/tree/master)
 - [Keycloak](https://github.com/keycloak)
-- [Nginx](https://github.com/nginx)
+- [Traefik](https://github.com/traefik/traefik)
 
-The Common API provides the structure of the API calls, Keycloak is used for token and user management, and Nginx is used as a reverse proxy. The FN needs to be deployed to a Kubernetes cluster, and requires a Postgres database for storing user credentials.
+The Common API provides the structure of the API calls, Keycloak is used for token and user management, and Traefik is used as a reverse proxy. The FN needs to be deployed to a Kubernetes cluster, and requires a Postgres database for storing user credentials.
 
 ![FN_ACR_Diagram](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/main/images/FN%20Diagram.jpg)
 

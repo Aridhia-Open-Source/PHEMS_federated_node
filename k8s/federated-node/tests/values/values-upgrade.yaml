@@ -35,16 +35,6 @@ tls:
   secretName: tls
 on_eks: true
 on_aks: false
-ingress:
-  nginx:
-    enabled: true
-  host: phems-federatednode.net
-  whitelist:
-    enabled: false
-  blacklist:
-    enabled: false
-  tls:
-    secretName: my-tls-secret
 token:
   life: 2592000
 certs:
@@ -64,21 +54,8 @@ cert-manager:
   namespace: fn-certmanager
   installCRDs: true
 
-ingress-nginx:
+traefik:
   enabled: false
-  namespaceOverride: ingress-nginx
-  controller:
-    # admissionWebhooks:
-    #   enabled: false
-    ingressClassResource:
-      name: "fn-nginx"
-    allowSnippetAnnotations: false
-    ingressClass: "fn-nginx"
-    # If running on aks:
-    # service:
-    #   externalTrafficPolicy: Local
-    extraArgs:
-      default-ssl-certificate: default/tls
 
 outboundMode: true
 fn-task-controller:
@@ -99,12 +76,6 @@ fn-task-controller:
   delivery:
     github:
       repository: Aridhia-Open-Source/Federated-Node-Example-App
-whitelist:
-  enabled: false
-  ips: []
-blacklist:
-  enabled: false
-  ips: []
 integrations:
   domains:
    - 'self'

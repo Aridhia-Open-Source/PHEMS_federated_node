@@ -23,16 +23,8 @@ storage:
     path: /data/flask
     dbpath: /data/db/
 
-ingress:
-  nginx:
-    enabled: true
-  host: phems-federatednode.net
-  whitelist:
-    enabled: false
-  blacklist:
-    enabled: false
-  tls:
-    secretName: my-tls-secret
+certs:
+  frequency: 65
 
 integrations:
   domains:
@@ -48,7 +40,7 @@ whitelist:
 blacklist:
   enabled: false
 tls:
-  secretName: my-tls-secret
+  secretName: &tls my-tls-secret
 
 global:
   host: *host
@@ -56,11 +48,14 @@ global:
 cert-manager:
   enabled: true
 
-ingress-nginx:
+traefik:
   enabled: true
-  controller:
-    extraArgs:
-      default-ssl-certificate: federatednode/my-tls-secret
+  gateway:
+    listeners:
+      websecure:
+        certificateRefs:
+        - kind: Secret
+          name: *tls
 
 outboundMode: true
 fn-task-controller:

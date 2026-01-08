@@ -47,7 +47,7 @@ global:
 cert-manager:
   enabled: true
 
-ingress-nginx:
+traefik:
   enabled: false
 
 outboundMode: false
