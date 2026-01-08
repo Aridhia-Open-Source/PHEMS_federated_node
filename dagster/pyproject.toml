@@ -1,3 +1,16 @@
+[project]
+name = "iris-analysis"
+description = "Dagster example project analyzing the Iris dataset"
+authors = [{ name = "George Eddie", email = "george.eddie@aridhia.com" }]
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "dagster",
+    "dagster-celery-k8s",
+    "pandas",
+]
+
+
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"

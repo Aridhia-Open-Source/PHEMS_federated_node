@@ -1,0 +1,9 @@
+README.md
+pyproject.toml
+setup.cfg
+setup.py
+iris_analysis.egg-info/PKG-INFO
+iris_analysis.egg-info/SOURCES.txt
+iris_analysis.egg-info/dependency_links.txt
+iris_analysis.egg-info/requires.txt
+iris_analysis.egg-info/top_level.txt

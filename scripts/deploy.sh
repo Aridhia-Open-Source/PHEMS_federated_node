@@ -35,7 +35,7 @@ HOST_MOUNT_PATHS=(
 )
 
 ###############################################################################
-echo "=== [1/7] Ensuring host paths exist on the machine ========================"
+echo "=== [1/8] Ensuring host paths exist on the machine ========================"
 
 for path in "${HOST_MOUNT_PATHS[@]}"; do
   sudo mkdir -p "$path"
@@ -45,22 +45,22 @@ done
 sudo chmod -R 777 /data
 
 ###############################################################################
-echo "=== [2/7] Deleting existing kind cluster (if it exists) ==================="
+echo "=== [2/8] Deleting existing kind cluster (if it exists) ==================="
 
 kind delete cluster --name "$CLUSTER_NAME" || true
 docker rm -f "${CLUSTER_NAME}-control-plane" || true
 
 ###############################################################################
-echo "=== [3/7] Creating kind cluster ==========================================="
+echo "=== [3/8] Creating kind cluster ==========================================="
 
 kind create cluster --name "$CLUSTER_NAME" --config "$KIND_CONFIG_FILE"
 
 ###############################################################################
-echo "=== [4/7] Applying local registry discovery metadata ======================="
+echo "=== [4/8] Applying local registry discovery metadata ======================="
 
 kubectl apply -f .kind/docker-registry.yaml
 
-echo "=== [5/7] Ensuring local Docker registry is running ========================"
+echo "=== [5/8] Ensuring local Docker registry is running ========================"
 
 if [ "$(docker inspect -f '{{.State.Running}}' "${REGISTRY_NAME}" 2>/dev/null || true)" != 'true' ]; then
   docker run \
@@ -75,7 +75,7 @@ docker network connect kind kind-registry || true
 
 
 ###############################################################################
-echo "=== [6/7] Creating namespace and secrets =================================="
+echo "=== [6/8] Creating namespace and secrets =================================="
 
 kubectl create namespace "$NAMESPACE" \
   --dry-run=client -o yaml | kubectl apply -f -
@@ -86,18 +86,16 @@ kubectl create secret generic local-db \
   --dry-run=client -o yaml | kubectl apply -f -
 
 ###############################################################################
-echo "=== [7/7] Deploying Helm release =========================================="
+echo "=== [7/8] Building Code Location(s) =========================================="
 
-cd k8s/federated-node
-
-helm upgrade \
-  --install "$RELEASE_NAME" . \
-  -n "$NAMESPACE" \
-  -f "$VALUES_FILE"
+cd dagster
+# ./compile.sh # include if you have updated dependencies in pyproject.toml
+./build.sh
+cd ../
 
 
 ###############################################################################
-echo "=== Deployment triggered =================================================="
+echo "=== [8/8] Deploying Helm release =========================================="
 echo
 echo "Watch progress with:"
 echo "  kubectl get pods -n $NAMESPACE -w"
@@ -109,3 +107,17 @@ echo "If something fails:"
 echo "  - Fix config"
 echo "  - Rerun this script"
 ###############################################################################
+
+
+cd k8s/federated-node
+
+helm upgrade \
+  --install "$RELEASE_NAME" . \
+  -n "$NAMESPACE" \
+  -f "$VALUES_FILE" \
+  --timeout 20m \
+  --wait
+
+echo "=== Deployment completed ======================================"
+echo
+
