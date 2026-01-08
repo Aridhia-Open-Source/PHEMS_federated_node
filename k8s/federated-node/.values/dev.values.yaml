@@ -100,14 +100,14 @@ dagster:
     persistence:
       enabled: true
       size: 2Gi
-      storageClass: ""
+      storageClass: local-hostpath
   postgresql:
     enabled: true
     primary:
       persistence:
         enabled: true
         size: 4Gi
-        storageClass: ""
+        storageClass: local-hostpath
   runLauncher:
     type: CeleryK8sRunLauncher
     config:
