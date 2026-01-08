@@ -1,0 +1,32 @@
+{{- if .Values.traefik.enabled -}}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: cors-headers
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook-weight: "-1"
+spec:
+  headers:
+    # This section manages the CORS response headers
+    accessControlAllowOriginList:
+{{ .Values.integrations.domains | toYaml  | indent 4 }}
+    accessControlAllowCredentials: true
+    contentSecurityPolicy: "default-src 'self' https: ; connect-src 'self' {{ include "cspDomainsSpace" . }}; frame-ancestors: 'self'; script-src 'unsafe-inline'; script-src-elem 'unsafe-inline' https:; img-src https: data:"
+    accessControlAllowMethods:
+      - GET
+      - POST
+      - PATCH
+      - PUT
+      - OPTIONS
+      - DELETE
+    accessControlAllowHeaders:
+      - Content-Type
+      - Authorization
+      - project-name
+    accessControlMaxAge: 100
+    addVaryHeader: true
+    stsSeconds: 63072000
+    referrerPolicy: "strict-origin"
+    permissionsPolicy: "src"
+{{- end -}}

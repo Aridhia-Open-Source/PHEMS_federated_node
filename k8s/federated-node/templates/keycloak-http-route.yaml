@@ -1,0 +1,50 @@
+{{- if .Values.traefik.enabled -}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: keycloak-route
+  namespace: {{ .Release.Namespace }}
+  labels:
+    rollme: {{ template "rollMe" . }}
+spec:
+  parentRefs:
+  - name: {{ .Values.traefik.gateway.name }}
+    sectionName: websecure
+    namespace: {{ .Release.Namespace }}
+  hostnames:
+  - {{ .Values.host }}
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /keycloak
+    filters:
+    - type: ResponseHeaderModifier
+      responseHeaderModifier:
+        set:
+        - name: Access-Control-Allow-Origin
+          value: {{ include "cspDomains" . | quote }}
+    - type: ExtensionRef
+      extensionRef:
+        group: traefik.io
+        kind: Middleware
+        name: cors-headers
+    backendRefs:
+    - name: keycloak
+      namespace: {{ include "kc_namespace" . }}
+      port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: refgrant-keycloak
+  namespace: {{ include "kc_namespace" . }}
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: {{ .Release.Namespace }}
+  to:
+  - group: ""
+    kind: Service
+{{- end -}}
