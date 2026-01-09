@@ -52,6 +52,7 @@ taskReview: false
   # email:
 
 federatedNode:
+  enable_registry_sync: false
   port: 5000
   volumes:
     results_path: /mnt/results
