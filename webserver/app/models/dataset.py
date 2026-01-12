@@ -4,7 +4,7 @@ import requests
 from sqlalchemy import Column, Integer, String
 from app.helpers.base_model import BaseModel, db
 from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, PUBLIC_URL
-from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
+from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, KubernetesException
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
 from kubernetes.client import V1Secret
@@ -200,6 +200,7 @@ class Dataset(db.Model, BaseModel):
             if (new_host != self.host and new_host) or (new_name != self.name and new_name):
                 secret.metadata.name = self.get_creds_secret_name(new_host, new_name)
                 secret_task.metadata = secret.metadata
+                secret.metadata.resource_version = None
                 v1.create_namespaced_secret(DEFAULT_NAMESPACE, body=secret, pretty='true')
                 v1.create_namespaced_secret(TASK_NAMESPACE, body=secret_task, pretty='true')
                 v1.delete_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=secret_name)
@@ -210,7 +211,7 @@ class Dataset(db.Model, BaseModel):
         except ApiException as e:
             # Host and name are unique so there shouldn't be duplicates. If so
             # let the exception to be re-raised with the internal one
-            raise InvalidRequest(e.reason) from e
+            raise KubernetesException(e.body, 400) from e
 
         # Check resource names on KC and update them
         if new_name and new_name != self.name:

@@ -1,28 +1,19 @@
-from werkzeug.exceptions import HTTPException
+from http.client import HTTPException
 from werkzeug.sansio.response import Response
-import logging
 import json
 import traceback
 
-logger = logging.getLogger('exception_handler')
-logger.setLevel(logging.INFO)
-
-def exception_handler(e:HTTPException):
-    return {"error": e.description}, getattr(e, 'code', 500)
-
-# Special case, just so we won't return stacktraces
-def unknown_exception_handler(e:Exception):
-    logger.error("\n".join(traceback.format_exception(e)))
-    return {"error": "Internal Error"}, 500
 
 class LogAndException(HTTPException):
     code = 500
+    description = None
+
     def __init__(self, message:str = "", code=None, description: str | None = None, response: Response | None = None) -> None:
-        super().__init__(description, response)
         traceback.print_exc()
-        self.description = message or self.description
+        self.description = message or getattr(self, "description") or description
         if code:
             self.code = code
+        super().__init__(self.description, response)
 
 class InvalidDBEntry(LogAndException):
     code = 400
@@ -82,10 +73,16 @@ class TaskCRDExecutionException(LogAndException):
             self.code = 500
             self.description = self.details
 
-
-
 class KubernetesException(LogAndException):
-    pass
+    def __init__(self, body:dict|str = None, code:int = None):
+        try:
+            body_json: dict = json.loads(body)
+            self.code = body_json.pop("code")
+            self.description = body_json["message"]
+            self.extra_fields = body_json["details"]
+        except json.decoder.JSONDecodeError:
+            description = body
+        super().__init__()
 
 class ContainerRegistryException(LogAndException):
     pass

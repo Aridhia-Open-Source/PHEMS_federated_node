@@ -243,11 +243,8 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
             try:
                 self.create_namespaced_secret(ns, body=body, pretty='true')
             except ApiException as e:
-                if e.status == 409:
-                    pass
-                else:
-                    logger.error(e.body)
-                    raise InvalidRequest(e.reason)
+                if e.status != 409:
+                    raise KubernetesException(e.body)
         return body
 
 

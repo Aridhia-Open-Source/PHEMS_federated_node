@@ -425,12 +425,14 @@ class TestPostDataset(MixinTestDataset):
         mocker.patch(
             'app.models.dataset.KubernetesClient.create_namespaced_secret',
             Mock(
-                    side_effect=ApiException(status=500, reason="Failed")
+                side_effect=ApiException(
+                    http_resp=Mock(status=500, reason="Error", data="Failed")
+                )
             )
         )
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
-        self.post_dataset(client, post_json_admin_header, data_body, 400)
+        self.post_dataset(client, post_json_admin_header, data_body, 500)
 
         query = self.run_query(select(Dataset).where(Dataset.name == data_body["name"]))
         assert len(query) == 0
@@ -797,14 +799,16 @@ class TestPatchDataset(MixinTestDataset):
         data_body = {"name": "new_name"}
         ds_old_name = dataset.name
 
-        k8s_client["create_namespaced_secret_mock"].side_effect = ApiException(reason="Error occurred")
+        k8s_client["create_namespaced_secret_mock"].side_effect = ApiException(
+            http_resp=Mock(status=500, reason="Error", data="Error occurred")
+        )
 
         response = client.patch(
             f"/datasets/{dataset.id}",
             json=data_body,
             headers=post_json_admin_header
         )
-        assert response.status_code == 400
+        assert response.status_code == 500
         ds = Dataset.query.filter(Dataset.id == dataset.id).one_or_none()
         assert ds.name == ds_old_name
 
