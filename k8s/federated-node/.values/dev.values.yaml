@@ -15,7 +15,7 @@ backend:
 
 db:
   user: &userDB admin
-  host: db.qcfederatednode.svc
+  host: db.fn.svc
   port: &portDB 5432
   secret:
     key: password
@@ -46,6 +46,7 @@ tls:
 global:
   host: *host
   delivery_url: federated-node.uksouth.analytixagility.aridhiadev.net
+  postgresqlSecretName: dagster-postgresql-secret
 
 cert-manager:
   enabled: true
@@ -96,20 +97,22 @@ fn-task-controller:
 
 ## Dagster
 dagster:
+  generatePostgresqlPasswordSecret: false
+
+  postgresql:
+    enabled: false
+    postgresqlHost: db.fn.svc
+    postgresqlUsername: admin
+    postgresqlDatabase: dagster
+    service:
+      port: 5432
+
   rabbitmq:
     enabled: true
     persistence:
       enabled: true
       storageClass: "-"
       existingClaim: rabbit-pvc
-  postgresql:
-    enabled: true
-    postgresqlUsername: *userDB
-    postgresqlDatabase: fn-dagster
-    # it expects the key to be postgresql-password rather than be flexible
-    secretName: *secretDB
-    service:
-      port: *portDB
 
   runLauncher:
     type: CeleryK8sRunLauncher

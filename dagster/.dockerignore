@@ -9,6 +9,7 @@
 !setup.py
 !setup.cfg
 !py.typed
+!dagster.yaml
 
 !workspace.yaml
 

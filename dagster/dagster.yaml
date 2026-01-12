@@ -1,0 +1,71 @@
+python_logs:
+  dagster_handler_config:
+    handlers:
+      stdout:
+        class: logging.StreamHandler
+        level: INFO
+        stream: ext://sys.stdout
+      stderr:
+        class: logging.StreamHandler
+        level: ERROR
+        stream: ext://sys.stderr
+
+storage:
+  postgres:
+    postgres_db:
+      db_name: dagster
+      username: admin
+      password:
+        env: DAGSTER_PG_PASSWORD
+      hostname: db.fn.svc
+      port: 5432
+
+run_monitoring:
+  enabled: true
+  start_timeout_seconds: 180
+  cancel_timeout_seconds: 180
+  max_resume_run_attempts: 0
+  poll_interval_seconds: 60
+
+# compute_logs:
+#   module: logger
+#   class: S3ComputeLogManagerExtended
+#   config:
+#     access_key: minio
+#     secret_key: miniosecret
+#     endpoint_url: "http://minio.node.svc.cluster.local:9000"
+#     region: "us-east-1"
+#     bucket: phems-bucket
+#     prefix: "logs"
+#     use_ssl: false
+#     verify: false
+#     upload_interval: 10
+
+run_launcher:
+  module: dagster_celery_k8s.launcher
+  class: CeleryK8sRunLauncher
+  config:
+    instance_config_map: dagster-config
+    dagster_home: /opt/dagster/home
+    job_namespace: code
+    load_incluster_config: true
+    postgres_password_secret: dagster-postgres-password-secret
+    broker:
+      env: DAGSTER_CELERY_BROKER_URL
+    backend:
+      env: DAGSTER_CELERY_BACKEND_URL
+    env_config_maps:
+      - dagster-env-config
+    # volumes:
+    #   - name: job
+    #     configMap:
+    #       name: dagster-job-config
+    #   - name: artifacts-pvc
+    #     persistentVolumeClaim:
+    #       claimName: artifacts-pvc
+    # volume_mounts:
+    #   - name: job
+    #     mountPath: /opt/dagster/home/job_spec.yaml
+    #     subPath: job_spec.yaml
+    #   - name: artifacts-pvc
+    #     mountPath: /mnt/dagster/artifacts

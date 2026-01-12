@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dagster-postgres-init
+  namespace: fn
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: init-db
+          image: postgres:14
+          env:
+            - name: PGHOST
+              value: db.fn.svc
+            - name: PGPORT
+              value: "5432"
+            - name: PGUSER
+              value: admin
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: local-db
+                  key: password
+          command:
+            - sh
+            - -c
+            - |
+              echo "Ensuring dagster database exists..."
+              psql -v ON_ERROR_STOP=1 <<'EOF'
+              SELECT 1 FROM pg_database WHERE datname = 'dagster';
+              \gexec
+              CREATE DATABASE dagster;
+              EOF
+              echo "Done."

@@ -14,5 +14,11 @@ containerdConfigPatches:
     [plugins."io.containerd.grpc.v1.cri".containerd.default_runtime.options]
       mtu = 1200
   - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
+      endpoint = ["http://proxy-docker-hub-registry:5000"]
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."ghcr.io"]
+      endpoint = ["http://proxy-ghcr-registry:5000"]
+  - |-
     [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:5001"]
       endpoint = ["http://kind-registry:5000"]

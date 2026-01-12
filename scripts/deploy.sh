@@ -24,14 +24,14 @@ RELEASE_NAME="fn-dev"
 VALUES_FILE=".values/dev.values.yaml"
 KIND_CONFIG_FILE=".kind/kind-config.yaml"
 DB_SECRET_KEY="local-db-secret"
-REGISTRY_NAME="kind-registry"
-REGISTRY_PORT="5001"
+
 
 # Host paths required by hostPath / local PVs
 HOST_MOUNT_PATHS=(
   "/data/flask"
   "/data/db"
   "/data/controller"
+  "/data/dagster/rabbitmq"
 )
 
 ###############################################################################
@@ -45,15 +45,34 @@ done
 sudo chmod -R 777 /data
 
 ###############################################################################
-echo "=== [2/8] Ensuring local Docker registry is running ========================"
+echo "=== [2/8] Ensuring local docker registries are running ========================"
 
-if [ "$(docker inspect -f '{{.State.Running}}' "${REGISTRY_NAME}" 2>/dev/null || true)" != "true" ]; then
+if [ "$(docker inspect -f '{{.State.Running}}' "kind-registry" 2>/dev/null || true)" != "true" ]; then
   docker run \
     -d --restart=always \
-    -p "127.0.0.1:${REGISTRY_PORT}:5000" \
-    --name "${REGISTRY_NAME}" \
+    -p "127.0.0.1:5001:5000" \
+    --name kind-registry \
     registry:2
 fi
+
+if [ "$(docker inspect -f '{{.State.Running}}' "proxy-docker-hub-registry" 2>/dev/null || true)" != "true" ]; then
+  docker run \
+    -d --restart=always \
+    -p "127.0.0.1:5002:5000" \
+    -e REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io \
+    --name proxy-docker-hub-registry \
+    registry:2
+fi
+
+if [ "$(docker inspect -f '{{.State.Running}}' "proxy-ghcr-registry" 2>/dev/null || true)" != "true" ]; then
+  docker run \
+    -d --restart=always \
+    -p "127.0.0.1:5003:5000" \
+    -e REGISTRY_PROXY_REMOTEURL=ghcr.io/ \
+    --name proxy-ghcr-registry \
+    registry:2
+fi
+
 
 ###############################################################################
 echo "=== [3/8] Deleting existing kind cluster (if it exists) ==================="
@@ -63,10 +82,13 @@ kind delete cluster --name "$CLUSTER_NAME" || true
 ###############################################################################
 echo "=== [4/8] Creating kind cluster ==========================================="
 
+# create cluster
 kind create cluster --name "$CLUSTER_NAME" --config "$KIND_CONFIG_FILE"
 
 # Ensure registry is reachable from the kind network
-docker network connect kind "$REGISTRY_NAME" || true
+docker network connect kind kind-registry || true
+docker network connect kind proxy-docker-hub-registry || true
+docker network connect kind proxy-ghcr-registry || true
 
 ###############################################################################
 echo "=== [5/8] Applying local registry discovery metadata ======================="
@@ -83,6 +105,10 @@ kubectl create namespace "$NAMESPACE" \
 kubectl create secret generic local-db \
   -n "$NAMESPACE" \
   --from-literal=password="$DB_SECRET_KEY" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create secret generic dagster-postgresql-secret \
+  --from-literal=postgresql-password=${DB_SECRET_KEY} \
   --dry-run=client -o yaml | kubectl apply -f -
 
 ###############################################################################
@@ -108,7 +134,6 @@ echo "  - Rerun this script"
 echo
 
 cd k8s/federated-node
-
 kubectl config set-context --current --namespace="$NAMESPACE"
 
 helm upgrade \

@@ -4,9 +4,9 @@ metadata:
   name: dagster-rabbitmq-pv
 spec:
   capacity:
-    storage: 2Gi
+    storage: {{ .Values.storage.capacity }}
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   storageClassName: {{ include "storageClassName" . }}
   persistentVolumeReclaimPolicy: Retain
   local:
