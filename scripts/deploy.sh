@@ -102,8 +102,10 @@ echo "=== [6/8] Creating namespace and secrets =================================
 kubectl create namespace "$NAMESPACE" \
   --dry-run=client -o yaml | kubectl apply -f -
 
+kubectl config set-context \
+  --current --namespace="$NAMESPACE"
+
 kubectl create secret generic local-db \
-  -n "$NAMESPACE" \
   --from-literal=password="$DB_SECRET_KEY" \
   --dry-run=client -o yaml | kubectl apply -f -
 
@@ -111,9 +113,7 @@ kubectl create secret generic dagster-postgresql-secret \
   --from-literal=postgresql-password=${DB_SECRET_KEY} \
   --dry-run=client -o yaml | kubectl apply -f -
 
-# apply dagster pg init job
-kubectl apply -f k8s/federated-node/dagster-postgres-init.yaml
-
+# kubectl apply -f k8s/federated-node/dagster-postgres-init.yaml
 
 ###############################################################################
 echo "=== [7/8] Building Code Location(s) ========================================"
@@ -122,6 +122,7 @@ cd dagster
 # ./compile.sh  # enable if dependencies changed
 ./build.sh
 cd ..
+
 
 ###############################################################################
 echo "=== [8/8] Deploying Helm release =========================================="
@@ -138,7 +139,6 @@ echo "  - Rerun this script"
 echo
 
 cd k8s/federated-node
-kubectl config set-context --current --namespace="$NAMESPACE"
 
 helm upgrade \
   --install "$RELEASE_NAME" . \
@@ -146,5 +146,9 @@ helm upgrade \
   --timeout 20m \
   --wait
 
+
+#### ADD AS HOOK ####
+# k8s apply -f k8s/federated-node/templates/dagster-postgres-init.yaml
+######################
 echo
 echo "=== Deployment completed ======================================"

@@ -1,9 +1,0 @@
-Metadata-Version: 2.4
-Name: iris-analysis
-Version: 0.1.0
-Summary: Dagster example project analyzing the Iris dataset
-Author-email: George Eddie <george.eddie@aridhia.com>
-Requires-Python: >=3.12
-Requires-Dist: dagster
-Requires-Dist: dagster-celery-k8s
-Requires-Dist: pandas

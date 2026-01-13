@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-IMAGE_TAG="v3"
+IMAGE_TAG="v5"
 IMAGE_NAME="iris-analytics"
 CONTAINER_REG_URI="localhost:5001"
 
