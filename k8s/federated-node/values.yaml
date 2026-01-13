@@ -204,7 +204,7 @@ dagster:
         image:
           # When a tag is not supplied, it will default as the Helm chart version.
           repository: "172.24.133.247:32000/iris-analytics"
-          tag: "v3"
+          tag: "v5"
 
           # Change with caution! If you're using a fixed tag for pipeline run images, changing the
           # image pull policy to anything other than "Always" will use a cached/stale image, which is
@@ -216,5 +216,4 @@ dagster:
         # would translate to:
         dagsterApiGrpcArgs:
           - "--python-file"
-          - "/opt/dagster/home/iris_analysis/definitions.py"
-
+          - "iris_analysis/definitions.py"
