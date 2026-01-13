@@ -111,6 +111,10 @@ kubectl create secret generic dagster-postgresql-secret \
   --from-literal=postgresql-password=${DB_SECRET_KEY} \
   --dry-run=client -o yaml | kubectl apply -f -
 
+# apply dagster pg init job
+kubectl apply -f k8s/federated-node/dagster-postgres-init.yaml
+
+
 ###############################################################################
 echo "=== [7/8] Building Code Location(s) ========================================"
 

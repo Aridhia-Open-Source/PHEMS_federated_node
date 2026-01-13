@@ -216,5 +216,5 @@ dagster:
         # would translate to:
         dagsterApiGrpcArgs:
           - "--python-file"
-          - "/iris_analysis/definitions.py"
+          - "/opt/dagster/home/iris_analysis/definitions.py"
 
