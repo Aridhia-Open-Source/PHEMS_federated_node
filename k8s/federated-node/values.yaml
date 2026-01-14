@@ -77,18 +77,10 @@ storage:
 
 pullPolicy: Always
 
-# If using nginx, or ssl certificates, this will set the hostname
-host:
+# If using a reverse proxy, or ssl certificates, this will set the hostname
+host: &host
 tls:
-  secretName: tls
-
-# nginx white/black-listing, at ingress level
-whitelist:
-  enabled: false
-  ips: []
-blacklist:
-  enabled: false
-  ips: []
+  secretName: &tls tls
 
 # Running on azure?
 on_aks: false
@@ -100,7 +92,7 @@ on_eks: false
 # ping the FN
 integrations:
   domains:
-   - 'self'
+    - 'self'
 
 certs:
   rotationPolicy: Never
@@ -146,19 +138,27 @@ cert-manager:
   namespace: fn-certmanager
   installCRDs: true
 
-### Ingress nginx
-ingress-nginx:
+### Ingress
+traefik:
+  gateway:
+    enabled: false
+    name: traefik-fn-gateway
+  gatewayClass:
+    name: traefik-fn-gateway-class
+  providers:
+    kubernetesCRD:
+      enabled: true
+    kubernetesGateway:
+      enabled: true
+    kubernetesIngress:
+      enabled: false
   enabled: false
-  namespaceOverride: ingress-nginx
-  controller:
-    # admissionWebhooks:
-    #   enabled: false
-    ingressClassResource:
-      name: "fn-nginx"
-    allowSnippetAnnotations: false
-    ingressClass: "fn-nginx"
-    # If running on aks:
-    # service:
-    #   externalTrafficPolicy: Local
-    extraArgs:
-      default-ssl-certificate: default/tls
+  api:
+    dashboard: false
+  # service:
+  #   spec:
+  ## in case you want to preserve the previous external ips
+  #     externalIPs:
+  #       -
+  ## For AKS only
+  #     externalTrafficPolicy: Local

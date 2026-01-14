@@ -189,7 +189,7 @@ class TestDictionaries(MixinTestDataset):
             dataset_post_body,
             post_json_admin_header,
             simple_user_header,
-            mocker
+            mock_kc_client
     ):
         """
         Check that non-admin or non DAR approved users
@@ -199,7 +199,7 @@ class TestDictionaries(MixinTestDataset):
         data_body['name'] = 'TestDs78'
         resp_ds = self.post_dataset(client, post_json_admin_header, data_body)
 
-        mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
+        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
         response = client.get(
             f"/datasets/{resp_ds["dataset_id"]}/dictionaries",
             headers=simple_user_header
@@ -276,7 +276,7 @@ class TestDictionaryTable(MixinTestDataset):
             dataset_post_body,
             post_json_admin_header,
             simple_user_header,
-            mocker
+            mock_kc_client
     ):
         """
         Check that non-admin or non DAR approved users
@@ -286,7 +286,7 @@ class TestDictionaryTable(MixinTestDataset):
         data_body['name'] = 'TestDs78'
         resp_ds = self.post_dataset(client, post_json_admin_header, data_body)
 
-        mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
+        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
         response = client.get(
             f"/datasets/{resp_ds["dataset_id"]}/dictionaries/test",
             headers=simple_user_header

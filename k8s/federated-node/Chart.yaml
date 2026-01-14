@@ -15,25 +15,25 @@ type: application
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 1.7.1
+version: 1.8.0
 
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are not expected to
 # follow Semantic Versioning. They should reflect the version the application is using.
 # It is recommended to use it with quotes.
-appVersion: "1.7.1"
+appVersion: "1.8.0"
 
 # Subcharts
 dependencies:
   - name: fn-task-controller
     repository: https://aridhia-open-source.github.io/federated-node-task-controller
-    version: "1.6.0"
+    version: "1.7.0"
     condition: outboundMode
   - name: cert-manager
     version: "v1.17.1"
     repository: https://charts.jetstack.io
     condition: cert-manager.enabled
-  - name: ingress-nginx
-    version: "4.12.1"
-    repository: https://kubernetes.github.io/ingress-nginx
-    condition: ingress-nginx.enabled
+  - name: traefik
+    version: "37.3.0"
+    repository: https://traefik.github.io/charts
+    condition: traefik.enabled
