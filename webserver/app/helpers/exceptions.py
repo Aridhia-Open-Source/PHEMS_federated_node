@@ -81,7 +81,7 @@ class KubernetesException(LogAndException):
             self.description = body_json["message"]
             self.extra_fields = body_json["details"]
         except json.decoder.JSONDecodeError:
-            description = body
+            self.description = body
         super().__init__()
 
 class ContainerRegistryException(LogAndException):
