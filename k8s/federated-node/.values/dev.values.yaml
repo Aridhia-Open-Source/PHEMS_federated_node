@@ -159,6 +159,6 @@ dagster:
         # Arguments to `dagster api grpc`.
         # Ex: "dagster api grpc -m dagster_test.test_project.test_jobs.repo -a define_demo_execution_repo"
         # would translate to:
-        dagsterApiGrpcArgs:
-          - "--python-file"
-          - "iris_analysis/definitions.py"
+        # dagsterApiGrpcArgs:
+        #   - "--python-file"
+        #   - "iris_analysis/definitions.py"

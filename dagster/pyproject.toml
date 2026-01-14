@@ -1,21 +1,31 @@
 [project]
-name = "iris-analysis"
-description = "Dagster example project analyzing the Iris dataset"
+name = "code"
+description = "Dagster example"
 authors = [{ name = "George Eddie", email = "george.eddie@aridhia.com" }]
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "celery",
     "dagster",
-    "dagster-postgres",
+    "dagster-aws",
     "dagster-celery-k8s",
+    "dagster-mlflow",
+    "dagster-postgres",
+    "mlflow",
     "pandas",
+    "python-dotenv",
+    "requests",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
 
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.dagster]
-module_name = "iris_analysis.definitions"
-code_location_name = "iris_analysis"
+module_name = "app.definitions"
+code_location_name = "code"

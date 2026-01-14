@@ -20,9 +20,3 @@ def iris_dataset_size(context: dg.AssetExecutionContext) -> None:
     )
 
     context.log.info(f"Loaded {df.shape[0]} data points.")
-
-
-defs = dg.Definitions(
-    executor=celery_k8s_executor,
-    assets=[iris_dataset_size]
-)

@@ -4,6 +4,7 @@ artifacts/**
 !.keep
 
 *.pyc
+*.egg-info
 __pycache__/
 
 .env
