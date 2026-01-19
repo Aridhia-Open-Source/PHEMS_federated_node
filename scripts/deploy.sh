@@ -116,12 +116,12 @@ kubectl create secret generic dagster-postgresql-secret \
 ###############################################################################
 echo "=== [7/8] Building Docker Images(s) ========================================"
 
-echo "Building dagster code image...""
+echo "Building dagster image..."
 cd dagster
 ./build.sh
-cd ..
+cd ../
 
-echo "Building julia model image...""
+echo "Building model image..."
 cd docker_models
 ./build.sh julia
 cd ../
@@ -148,9 +148,10 @@ helm upgrade \
   --timeout 20m \
   --wait
 
-
-# FIXME: Create a kubernetes pre-deploy hook (needs idempotency long term)
-# kubectl apply -f k8s/federated-node/dagster-postgres-init.yaml
+# TODO: Create a kubernetes pre-deploy hook (needs idempotency long term)
+# kubectl apply -f k8s/federated-node/templates/dagster-postgres-init-job.yaml
+# TODO Use rollout restart where possible to speed up dev loop (see below)
+# kubectl rollout restart deployment fn-dev-dagster-user-deployments-dagster-fn
 
 echo
 echo "=== Deployment completed ======================================"

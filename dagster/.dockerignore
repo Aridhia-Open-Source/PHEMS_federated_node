@@ -1,12 +1,8 @@
 
 *
-!definitions/**
+
+!app/**
 !requirements.txt
 !pyproject.toml
-!setup.py
-!setup.cfg
 !dagster.yaml
 !workspace.yaml
-
-!Dockerfile
-!.dockerignore

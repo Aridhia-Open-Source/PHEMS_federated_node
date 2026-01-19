@@ -6,7 +6,7 @@ spec:
   capacity:
     storage: {{ .Values.storage.capacity }}
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   storageClassName: {{ include "storageClassName" . }}
   persistentVolumeReclaimPolicy: Retain
   local:
@@ -31,5 +31,5 @@ spec:
     requests:
       storage: {{ .Values.storage.capacity }}
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
 
