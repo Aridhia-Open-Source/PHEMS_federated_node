@@ -28,9 +28,10 @@ DB_SECRET_KEY="local-db-secret"
 
 # Host paths required by hostPath / local PVs
 HOST_MOUNT_PATHS=(
-  "/data/flask"
   "/data/db"
+  "/data/flask"
   "/data/controller"
+  "/data/dagster/minio"
   "/data/dagster/rabbitmq"
 )
 
@@ -145,10 +146,9 @@ cd k8s/federated-node
 helm upgrade \
   --install "$RELEASE_NAME" . \
   -f "$VALUES_FILE" \
-  --timeout 20m \
-  --wait
+  --timeout 10m \
 
-# TODO: Create a kubernetes pre-deploy hook (needs idempotency long term)
+# TODO: Create a k  ubernetes pre-deploy hook (needs idempotency long term)
 # kubectl apply -f k8s/federated-node/templates/dagster-postgres-init-job.yaml
 # TODO Use rollout restart where possible to speed up dev loop (see below)
 # kubectl rollout restart deployment fn-dev-dagster-user-deployments-dagster-fn

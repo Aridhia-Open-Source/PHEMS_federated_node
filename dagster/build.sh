@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-IMAGE_TAG="v1"
+IMAGE_TAG="v2"
 IMAGE_NAME="dagster-fn"
 REGISTRY_URI="localhost:5001"
 

@@ -128,7 +128,7 @@ dagster:
           # When a tag is not supplied for a Dagster provided image,
           # it will default as the Helm chart version.
           repository: localhost:5001/dagster-fn
-          tag: v1
+          tag: v2
           pullPolicy: "Always"
 
   dagster-user-deployments:

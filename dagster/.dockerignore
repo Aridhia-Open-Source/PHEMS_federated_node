@@ -6,3 +6,5 @@
 !pyproject.toml
 !dagster.yaml
 !workspace.yaml
+
+!.dockerignore
