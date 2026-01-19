@@ -1,0 +1,219 @@
+# Default values for federated-node.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+
+backend:
+  replicas: 1
+  tag:
+
+keycloak:
+  replicas: 2
+  tag:
+
+autoscaling:
+  enabled: false
+
+namespaces: &namespaces
+  keycloak: keycloak
+  tasks: tasks
+  controller: fn-controller
+
+global:
+  namespaces: *namespaces
+
+token:
+  life: 2592000
+
+# Local Development-related options
+local_development: false
+create_db_deployment: false
+
+db:
+  user: admin
+  name: fndb
+  host: db
+  port: 5432
+  # If a secret with password exists, use that
+  # secret:
+  #   name:
+  #   key:
+
+# How many days the results and k8s resources are kept for
+cleanupTime: 3
+
+taskReview: false
+
+firstUserSecret:
+  name:
+  passKey:
+  firstName:
+  lastName:
+  email:
+
+federatedNode:
+  port: 5000
+  volumes:
+    results_path: /mnt/results
+    task_pod_results_path: /mnt/data
+
+storage:
+  capacity: 10Gi
+  # azure:
+    # secretName:
+    # shareName:
+  # aws:
+    # fileSystemId:
+    # accessPointId:
+  # nfs:
+    # provisioner:
+    # url:
+    # path:
+  local: {}
+    # Local storage that will be shared with the backend
+    # path:
+    # Local storage that will be shared with the db
+    # dbpath: /data/db
+
+pullPolicy: Always
+
+# If using nginx, or ssl certificates, this will set the hostname
+host:
+tls:
+  secretName: tls
+
+# nginx white/black-listing, at ingress level
+whitelist:
+  enabled: false
+  ips: []
+blacklist:
+  enabled: false
+  ips: []
+
+# Running on azure?
+on_aks: false
+# Running on AWS?
+on_eks: false
+
+# Set the domains that are allowed to send requests
+# to the federated node, in case there is a web UI that tries to
+# ping the FN
+integrations:
+  domains:
+   - 'self'
+
+certs:
+  rotationPolicy: Never
+  azure: {}
+    # secretName:
+    # configmap:
+  aws:
+
+# Enables full smoketests when running `helm test`.
+# This will actively try to add new database and keycloak entries
+# and then remove them as part of the cleanup process. Basic tests will be carried anyway.
+# If not comfortable with these smoketests, do no overwrite this value.
+smoketests: false
+
+outboundMode: false
+
+##SUBCHARTS
+### Task controller
+fn-task-controller:
+  controller: {}
+    # tag:
+
+  storage: {}
+    # size:
+    # local:
+    #   path:
+
+  idp: {}
+    # github:
+    #   secret_name:
+    #   secret_key:
+    #   clientid_key:
+  delivery:
+    github: {}
+      # repository:
+    other: {}
+      # url
+      # auth_type
+
+### Cert manager
+cert-manager:
+  enabled: false
+  namespace: fn-certmanager
+  installCRDs: true
+
+### Ingress nginx
+ingress-nginx:
+  enabled: false
+  namespaceOverride: ingress-nginx
+  controller:
+    # admissionWebhooks:
+    #   enabled: false
+    ingressClassResource:
+      name: "fn-nginx"
+    allowSnippetAnnotations: false
+    ingressClass: "fn-nginx"
+    # If running on aks:
+    # service:
+    #   externalTrafficPolicy: Local
+    extraArgs:
+      default-ssl-certificate: default/tls
+
+### Dagster
+dagster:
+  rabbitmq:
+    enabled: true
+  postgresql:
+    enabled: true
+  runLauncher:
+    type: CeleryK8sRunLauncher
+    config:
+      celeryK8sRunLauncher:
+        # Change with caution! If you're using a fixed tag for pipeline run images, changing the
+        # image pull policy to anything other than "Always" will use a cached/stale image, which is
+        # almost certainly not what you want.
+        imagePullPolicy: "Always"
+        # TODO: USE FIXED GENERIC IMAGE (NO USER CODE)
+        # The Celery workers can be deployed with a fixed image (no user code included)
+        image:
+          # When a tag is not supplied for a Dagster provided image,
+          # it will default as the Helm chart version.
+          repository: localhost:5001/dagster-fn
+          tag: "v4"
+          pullPolicy: "Always"
+
+  dagster-user-deployments:
+    # Creates a workspace file with the gRPC servers hosting your user code.
+    enabled: true
+    # TODO: IMPLEMENT USER CODE IN SUBCHARTS
+    # If you plan on deploying user code in a separate Helm release, set this to false.
+    enableSubchart: true
+
+    # Specify secrets to run user code server containers based on images in private registries. See:
+    # https://kubernetes.io/docs/concepts/containers/images/#referring-to-an-imagepullsecrets-on-a-pod
+    imagePullSecrets: []
+
+    # List of unique deployments
+    deployments:
+      - name: "dagster-fn"
+        port: 3030
+        image:
+          # When a tag is not supplied, it will default as the Helm chart version.
+          repository: localhost:5001/dagster-fn
+          tag: "v4"
+
+          # Change with caution! If you're using a fixed tag for pipeline run images, changing the
+          # image pull policy to anything other than "Always" will use a cached/stale image, which is
+          # almost certainly not what you want.
+          pullPolicy: "Always"
+
+        # Arguments to `dagster api grpc`.
+        # Ex: "dagster api grpc -m dagster_test.test_project.test_jobs.repo -a define_demo_execution_repo"
+        # would translate to:
+        dagsterApiGrpcArgs:
+          - "-m"
+          - "app.definitions"

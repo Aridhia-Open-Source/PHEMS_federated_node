@@ -146,7 +146,7 @@ cd k8s/federated-node
 helm upgrade \
   --install "$RELEASE_NAME" . \
   -f "$VALUES_FILE" \
-  --timeout 10m \
+  --timeout 20m
 
 # TODO: Create a k  ubernetes pre-deploy hook (needs idempotency long term)
 # kubectl apply -f k8s/federated-node/templates/dagster-postgres-init-job.yaml

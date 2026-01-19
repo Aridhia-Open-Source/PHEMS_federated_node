@@ -122,13 +122,13 @@ dagster:
         # image pull policy to anything other than "Always" will use a cached/stale image, which is
         # almost certainly not what you want.
         imagePullPolicy: "Always"
-        # TODO: pUSE FIXED GENERIC IMAGE (NO USER CODE)
+        # TODO: USE FIXED GENERIC IMAGE (NO USER CODE)
         # The Celery workers can be deployed with a fixed image (no user code included)
         image:
           # When a tag is not supplied for a Dagster provided image,
           # it will default as the Helm chart version.
           repository: localhost:5001/dagster-fn
-          tag: v2
+          tag: v4
           pullPolicy: "Always"
 
   dagster-user-deployments:
@@ -149,7 +149,7 @@ dagster:
         image:
             # When a tag is not supplied, it will default as the Helm chart version.
           repository: localhost:5001/dagster-fn
-          tag: v1
+          tag: v4
 
           # Change with caution! If you're using a fixed tag for pipeline run images, changing the
           # image pull policy to anything other than "Always" will use a cached/stale image, which is

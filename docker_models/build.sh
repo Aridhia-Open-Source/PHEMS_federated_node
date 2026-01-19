@@ -1,22 +1,19 @@
 #! /usr/bin/env bash
-
 set -euo pipefail
 
 TARGET_DIR=$1
-IMAGE_TAG="v1"
+
+IMAGE_TAG="v4"
 IMAGE_NAME="dagster-pipes-$TARGET_DIR"
-REGISTRY_URI="localhost:5001"
+REGISTRY="localhost:5001"
+IMAGE_REF="$REGISTRY/$IMAGE_NAME"
 
 cd $TARGET_DIR
 
-# Build the local Docker image
-echo "Building image: $IMAGE_NAME:$IMAGE_TAG"
-docker build -t $IMAGE_NAME:$IMAGE_TAG --progress=plain .
+docker build --progress=plain \
+  -t "$IMAGE_REF:latest" \
+  -t "$IMAGE_REF:$IMAGE_TAG" \
+  .
 
-# Tag the image
-echo "Tagging image -> $REGISTRY_URI/$IMAGE_NAME:$IMAGE_TAG"
-docker tag $IMAGE_NAME:$IMAGE_TAG $REGISTRY_URI/$IMAGE_NAME:$IMAGE_TAG
-
-# Push to local registry
-echo "Pushing image -> $REGISTRY_URI/$IMAGE_NAME:$IMAGE_TAG"
-docker push $REGISTRY_URI/$IMAGE_NAME:$IMAGE_TAG
+docker push "$IMAGE_REF:latest"
+docker push "$IMAGE_REF:$IMAGE_TAG"

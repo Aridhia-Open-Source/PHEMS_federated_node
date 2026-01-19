@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
-
 set -euo pipefail
 
-IMAGE_TAG="v2"
-IMAGE_NAME="dagster-fn"
-REGISTRY_URI="localhost:5001"
+IMAGE_TAG=v4
+IMAGE_NAME=dagster-fn
+REGISTRY=localhost:5001
 
-# Build the local Docker image
-echo "Building image: $IMAGE_NAME:$IMAGE_TAG"
-docker build -t $IMAGE_NAME:$IMAGE_TAG --progress=plain .
+IMAGE_REF="$REGISTRY/$IMAGE_NAME"
 
-# Tag the image
-echo "Tagging image -> $REGISTRY_URI/$IMAGE_NAME:$IMAGE_TAG"
-docker tag $IMAGE_NAME:$IMAGE_TAG $REGISTRY_URI/$IMAGE_NAME:$IMAGE_TAG
+docker build --progress=plain \
+  -t "$IMAGE_REF:latest" \
+  -t "$IMAGE_REF:$IMAGE_TAG" \
+  .
 
-# Push to local registry
-echo "Pushing image -> $REGISTRY_URI/$IMAGE_NAME:$IMAGE_TAG"
-docker push $REGISTRY_URI/$IMAGE_NAME:$IMAGE_TAG
+docker push "$IMAGE_REF:latest"
+docker push "$IMAGE_REF:$IMAGE_TAG"

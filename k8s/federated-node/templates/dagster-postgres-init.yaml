@@ -1,10 +1,10 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: dagster-postgres-init
-  namespace: fn
+  name: regcred-migration
+  namespace: {{ .Release.Namespace }}
   annotations:
-    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook: post-install, post-upgrade
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 5
