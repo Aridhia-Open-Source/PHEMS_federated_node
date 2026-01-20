@@ -34,6 +34,7 @@ class Dataset(db.Model, BaseModel):
     schema = Column(String(256), nullable=True)
     type = Column(String(256), server_default="postgres", nullable=False)
     extra_connection_args = Column(String(4096), nullable=True)
+    repository = Column(String(4096), nullable=True)
 
     def __init__(self,
                  name:str,
@@ -44,6 +45,7 @@ class Dataset(db.Model, BaseModel):
                  schema:str=None,
                  type:str="postgres",
                  extra_connection_args:str=None,
+                 repository:str=None,
                  **kwargs
                 ):
         self.name = requests.utils.unquote(name).lower()
@@ -56,6 +58,8 @@ class Dataset(db.Model, BaseModel):
         self.username = username
         self.password = password
         self.extra_connection_args = extra_connection_args
+        if repository:
+            self.repository = repository.lower()
 
         if self.type.lower() not in SUPPORTED_ENGINES:
             raise InvalidRequest(f"DB type {self.type} is not supported.")
@@ -220,6 +224,8 @@ class Dataset(db.Model, BaseModel):
             }
             kc_client.patch_resource(f"{self.id}-{self.name}", **update_args)
 
+        if kwargs.get("repository"):
+            kwargs["repository"] = kwargs.get("repository").lower()
         # Update table
         if kwargs:
             self.query.filter(Dataset.id == self.id).update(kwargs, synchronize_session='evaluate')
