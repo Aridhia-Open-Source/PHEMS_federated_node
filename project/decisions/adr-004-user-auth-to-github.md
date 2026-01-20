@@ -12,14 +12,14 @@ This causes few manual steps in order to be successful:
 - The user has to exist in the Federated Node with the permission to access to the dataset
 - A secret needs to be created at deployment time so the user identity can be double checked as a pre-execution step
 
-## Decsion
+## Decision
 It would be preferable to avoid this process entirely and trust GitHub when it comes to user management. Basically, any user that has been granted access to the task trigger repository, will have permissions to access the dataset.
 
 ## Implementation
 This will be a two stage process:
 - The Task Controller will drop the user link step
 
-  Fairily straightforward, the Custom Resource Definition (task definition) annotations for the users will be ignored. And the task will be submitted from the backend user credentials.
+  Fairly straightforward, the Custom Resource Definition (task definition) annotations for the users will be ignored. And the task will be submitted from the backend user credentials.
 
 - A dataset is linked to a repository
 
