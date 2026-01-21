@@ -92,7 +92,7 @@ on_eks: false
 # ping the FN
 integrations:
   domains:
-    - 'self'
+    - self
 
 certs:
   rotationPolicy: Never
