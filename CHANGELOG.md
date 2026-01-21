@@ -1,5 +1,8 @@
 # Releases Changelog
 
+## 1.9.0
+- Added a dataset link to a repo, so that on outbound connection mode, the CRD applied from a repository, will be associated with the dataset
+
 ## 1.8.0
 - **BREAKING CHANGE**: Migration from nginx-ingress to the gateway api based controller, traefik. This will need manual intervention. See the [gateway-api-installer.sh](./scripts/gateway-api-installer.sh) script to one-step setup. If not, the chart will let you know some components are missing and provide instructions.
 
