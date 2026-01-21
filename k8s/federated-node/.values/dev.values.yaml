@@ -181,10 +181,10 @@ dagster:
                 name: minio-secret
                 key: secretKey
           - name: DAGSTER_MINIO_BUCKET
-            value: dagster-io
-          - name: DAGSTER_MLFLOW_ARTIFACT_BUCKET
-            value: mlflow-artifacts
-          - name: DAGSTER_MINIO_IO_PREFIX
             value: dagster
+          - name: DAGSTER_MLFLOW_ARTIFACT_BUCKET
+            value: mlflow
+          - name: DAGSTER_MINIO_IO_PREFIX
+            value: io
           - name: DAGSTER_MINIO_REGION
             value: us-east-1
