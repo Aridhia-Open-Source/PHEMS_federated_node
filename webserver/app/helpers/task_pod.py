@@ -223,6 +223,8 @@ class TaskPod:
             self.env_init.append(V1EnvVar(name="TO_DIALECT", value=self.dataset.type))
 
         self.env.append(V1EnvVar(name="CONNECTION_STRING", value=self.dataset.get_connection_string()))
+        self.env.append(V1EnvVar(name="CDM_SCHEMA", value=self.dataset.schema))
+        self.env.append(V1EnvVar(name="WRITE_SCHEMA", value=self.dataset.schema_write))
         self.env.append(V1EnvVar(name="ORACLE_SID", value=self.dataset.name))
         container = V1Container(
             name=self.name,

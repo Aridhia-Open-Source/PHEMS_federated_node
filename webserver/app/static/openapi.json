@@ -2111,6 +2111,14 @@
             "description": "For outbound mode, it links the repository source to a dataset. So all of the CRD with that repo will be \"pre-authorized\" to run on that dataset",
             "example": "Aridhia-Open-Source/PHEMS_federated_node"
           },
+          "schema": {
+            "type": "string",
+            "description": "Read from DB schema"
+          },
+          "schema_write": {
+            "type": "string",
+            "description": "DB schema to write to in case is needed"
+          },
           "type": {
             "type": "string",
             "description": "Type of DB engine",
@@ -2138,6 +2146,8 @@
           "port": {"type": "integer", "example": 5432},
           "name": {"type": "string", "example": "Blood Cancer Database"},
           "slug": {"type": "string", "example": "blood_cancer_database"},
+          "schema": {"type": "string", "example": "readSchema"},
+          "schema_write": {"type": "string", "example": "writeSchema"},
           "url": {"type": "string", "example": "https://federatednode.com/datasets/blood_cancer_database"},
           "type": {"type": "string", "example": "mssql"},
           "repository": {"type": "string", "example": "Aridhia-Open-Source/PHEMS_federated_node"},
