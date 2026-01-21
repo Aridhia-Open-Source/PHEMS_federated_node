@@ -75,7 +75,7 @@ class Dataset(db.Model, BaseModel):
                 raise InvalidRequest(
                     "Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
                 )
-        data = super().validate(data)
+        return super().validate(data)
 
     def get_creds_secret_name(self, host=None, name=None):
         host = host or self.host
