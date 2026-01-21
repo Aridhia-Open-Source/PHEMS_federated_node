@@ -67,6 +67,16 @@ class Dataset(db.Model, BaseModel):
         if self.type.lower() not in SUPPORTED_ENGINES:
             raise InvalidRequest(f"DB type {self.type} is not supported.")
 
+    @classmethod
+    def validate(cls, data:dict) -> dict:
+        if data.get("repository"):
+            existing_link = cls.query.filter(Dataset.repository == data.get("repository")).one_or_none()
+            if existing_link:
+                raise InvalidRequest(
+                    "Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
+                )
+        data = super().validate(data)
+
     def get_creds_secret_name(self, host=None, name=None):
         host = host or self.host
         name = name or self.name

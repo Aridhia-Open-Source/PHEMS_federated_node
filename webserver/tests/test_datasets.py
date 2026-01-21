@@ -395,6 +395,28 @@ class TestPostDataset(MixinTestDataset):
         ).one_or_none()
         assert ds is not None
 
+    def test_post_dataset_with_existing_repo_linked(
+            self,
+            post_json_admin_header,
+            client,
+            dataset_with_repo,
+            dataset_post_body
+        ):
+        """
+        /datasets POST fails if the new dataset uses a repository that
+        already has an association on an existing FN dataset
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        data_body['repository'] = dataset_with_repo.repository
+        resp = self.post_dataset(client, post_json_admin_header, data_body, 400)
+        assert resp["error"] == "Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
+
+        ds = Dataset.query.filter(
+            Dataset.repository == dataset_with_repo.repository
+        ).one_or_none()
+        assert ds is not None
+
     def test_post_dataset_invalid_type(
             self,
             post_json_admin_header,
