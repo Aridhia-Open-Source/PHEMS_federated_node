@@ -148,7 +148,7 @@ helm upgrade \
   -f "$VALUES_FILE" \
   --timeout 20m
 
-# TODO: Create a k  ubernetes pre-deploy hook (needs idempotency long term)
+# TODO: Create a kubernetes pre-deploy hook (needs idempotency long term)
 # kubectl apply -f k8s/federated-node/templates/dagster-postgres-init-job.yaml
 # TODO Use rollout restart where possible to speed up dev loop (see below)
 # kubectl rollout restart deployment fn-dev-dagster-user-deployments-dagster-fn

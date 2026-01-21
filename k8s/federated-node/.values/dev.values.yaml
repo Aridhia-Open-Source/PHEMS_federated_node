@@ -21,12 +21,17 @@ db:
     key: password
     name: &secretDB local-db
 
+minio:
+  accessKey: minioadmin
+  secretKey: minioadmin
+
 storage:
   capacity: 10Gi
   local:
     path: /data/flask
     dbpath: /data/db
     rabbit: /data/dagster/rabbitmq
+    minio: /data/dagster/minio
 
 certs:
   frequency: 65
@@ -157,8 +162,29 @@ dagster:
           pullPolicy: "Always"
 
         # Arguments to `dagster api grpc`.
-        # Ex: "dagster api grpc -m dagster_test.test_project.test_jobs.repo -a define_demo_execution_repo"
+        # Ex: "dagster api grpc -m dag  ster_test.test_project.test_jobs.repo -a define_demo_execution_repo"
         # would translate to:
         dagsterApiGrpcArgs:
           - "-m"
           - "app.definitions"
+        env:
+          - name: DAGSTER_MINIO_ENDPOINT
+            value: http://minio:9000
+          - name: DAGSTER_MINIO_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-secret
+                key: accessKey
+          - name: DAGSTER_MINIO_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-secret
+                key: secretKey
+          - name: DAGSTER_MINIO_BUCKET
+            value: dagster-io
+          - name: DAGSTER_MLFLOW_ARTIFACT_BUCKET
+            value: mlflow-artifacts
+          - name: DAGSTER_MINIO_IO_PREFIX
+            value: dagster
+          - name: DAGSTER_MINIO_REGION
+            value: us-east-1
