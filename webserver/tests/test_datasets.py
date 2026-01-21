@@ -69,6 +69,7 @@ class TestDatasets(MixinTestDataset):
             "slug": dataset.name,
             "schema": None,
             "schema_write": None,
+            "repository": None,
             "extra_connection_args": None
         }
 
@@ -348,6 +349,7 @@ class TestPostDataset(MixinTestDataset):
             "slug": "test-dataset",
             "schema": None,
             "schema_write": None,
+            "repository": None,
             "extra_connection_args": None,
             "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset"
         }
