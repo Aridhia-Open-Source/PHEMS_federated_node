@@ -1,13 +1,18 @@
-
 #!/usr/bin/env bash
-
 set -euo pipefail
 
 unset AWS_DEFAULT_PROFILE
+
 export AWS_BUCKET_NAME="phems-bucket"
-export AWS_ACCESS_KEY_ID="minio"
-export AWS_SECRET_ACCESS_KEY="miniosecret"
+export AWS_ACCESS_KEY_ID="minioadmin"
+export AWS_SECRET_ACCESS_KEY="minioadmin"
+export AWS_DEFAULT_REGION="us-east-1"
 export AWS_ENDPOINT_URL="http://localhost:9000"
+
+aws s3 ls "s3://$AWS_BUCKET_NAME/artifacts/" \
+  --endpoint-url "$AWS_ENDPOINT_URL" \
+  --no-verify-ssl \
+  --recursive
 
 
 # aws s3 get file

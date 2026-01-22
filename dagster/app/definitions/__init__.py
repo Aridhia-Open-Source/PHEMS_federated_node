@@ -6,9 +6,7 @@ from app.definitions import jobs, pipes, examples, iris_analysis
 from app.resources.minio import MinioManager
 
 minio = MinioManager().setup()
-
 asset_modules = [pipes, examples, iris_analysis]
-
 celery_k8s_executor = celery_k8s_job_executor.configured(
     {"config_source": {"task_default_queue": "node"}}
 )

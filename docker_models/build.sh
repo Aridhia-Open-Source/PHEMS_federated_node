@@ -3,7 +3,7 @@ set -euo pipefail
 
 TARGET_DIR=$1
 
-IMAGE_TAG="v4"
+IMAGE_TAG="v7"
 IMAGE_NAME="dagster-pipes-$TARGET_DIR"
 REGISTRY="localhost:5001"
 IMAGE_REF="$REGISTRY/$IMAGE_NAME"

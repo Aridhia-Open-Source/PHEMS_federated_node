@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 minio = MinioManager()
 
 
-NAMESPACE = 'code'
+NAMESPACE = 'fn'
 PVC_NAME = 'artifacts-pvc'
 SERVICE_ACCOUNT_NAME = 'dagster-user-code'
 DOCKER_IMAGE = 'dagster-pipes-python:v11'

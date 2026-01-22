@@ -169,6 +169,7 @@ dagster:
     enabled: true
   postgresql:
     enabled: true
+  
   runLauncher:
     type: CeleryK8sRunLauncher
     config:
@@ -177,19 +178,29 @@ dagster:
         # image pull policy to anything other than "Always" will use a cached/stale image, which is
         # almost certainly not what you want.
         imagePullPolicy: "Always"
-        # TODO: USE FIXED GENERIC IMAGE (NO USER CODE)
         # The Celery workers can be deployed with a fixed image (no user code included)
         image:
           # When a tag is not supplied for a Dagster provided image,
           # it will default as the Helm chart version.
           repository: localhost:5001/dagster-fn
-          tag: "v4"
+          tag: "v7"
           pullPolicy: "Always"
+      envConfigMaps:
+        - dagster-env-config
+
+      # configSource will be merged with the shared configSource above.
+      workerQueues:
+        - name: "dagster"
+          replicaCount: 1
+          labels: {}
+          nodeSelector: {}
+          configSource: {}
+          additionalCeleryArgs: []
+
 
   dagster-user-deployments:
     # Creates a workspace file with the gRPC servers hosting your user code.
     enabled: true
-    # TODO: IMPLEMENT USER CODE IN SUBCHARTS
     # If you plan on deploying user code in a separate Helm release, set this to false.
     enableSubchart: true
 
@@ -204,7 +215,7 @@ dagster:
         image:
           # When a tag is not supplied, it will default as the Helm chart version.
           repository: localhost:5001/dagster-fn
-          tag: "v4"
+          tag: "v7"
 
           # Change with caution! If you're using a fixed tag for pipeline run images, changing the
           # image pull policy to anything other than "Always" will use a cached/stale image, which is

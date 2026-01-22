@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 )
 def random_int(context) -> int:
     return 1
-    # return random.randint(context.op_config["x"], context.op_config["y"])\
 
 
 @dg.op

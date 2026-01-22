@@ -5,9 +5,6 @@ import botocore.exceptions
 from boto3.s3.transfer import S3Transfer
 from dagster_aws.s3 import S3PickleIOManager, S3Resource
 
-from app.resources.minio import MinioManager
-
-minio = MinioManager().setup()
 
 class MinioManager:
     def __init__(self):
@@ -56,7 +53,7 @@ class MinioManager:
         except botocore.exceptions.ClientError:
             return False
 
-    def upload_dir(self, source_dir, target_prefix):
+    def upload_dir(self, source_dir, target_prefix) -> bool:
         client = self.resource.get_client()
         transfer = S3Transfer(client)
 

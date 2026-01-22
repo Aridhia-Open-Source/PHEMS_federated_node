@@ -33,3 +33,9 @@ build_kc_init:
 
 deploy:
 	./scripts/deploy.sh
+
+portfwd:
+	./scripts/portfwd.sh
+
+upgrade:
+	./scripts/upgrade.sh

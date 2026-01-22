@@ -10,7 +10,7 @@ spec:
   storageClassName: {{ include "storageClassName" . }}
   persistentVolumeReclaimPolicy: Retain
   local:
-    path: {{ .Values.storage.local.rabbit }}
+    path: {{ .Values.storage.local.minio }}
   nodeAffinity:
     required:
       nodeSelectorTerms:

@@ -1,6 +1,6 @@
 [project]
 name = "code"
-description = "Dagster example"
+description = "Dagster Example Codebase"
 authors = [{ name = "George Eddie", email = "george.eddie@aridhia.com" }]
 version = "0.1.0"
 requires-python = ">=3.12"

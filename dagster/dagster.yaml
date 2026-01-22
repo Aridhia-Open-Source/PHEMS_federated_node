@@ -27,36 +27,38 @@ run_monitoring:
   max_resume_run_attempts: 0
   poll_interval_seconds: 60
 
-# compute_logs:
-#   module: logger
-#   class: S3ComputeLogManagerExtended
-#   config:
-#     access_key: minio
-#     secret_key: miniosecret
-#     endpoint_url: "http://minio.node.svc.cluster.local:9000"
-#     region: "us-east-1"
-#     bucket: phems-bucket
-#     prefix: "logs"
-#     use_ssl: false
-#     verify: false
-#     upload_interval: 10
+compute_logs:
+  module: logger
+  class: S3ComputeLogManagerExtended
+  config:
+    endpoint_url: http://minio:9000
+    region: us-east-1
+    bucket: dagster
+    prefix: logs
+    use_ssl: false
+    verify: false
+    upload_interval: 10
+    access_key:
+      env: DAGSTER_MINIO_ACCESS_KEY
+    secret_key:
+      env: DAGSTER_MINIO_SECRET_KEY
 
 run_launcher:
   module: dagster_celery_k8s.launcher
   class: CeleryK8sRunLauncher
   config:
-    instance_config_map: dagster-config
     dagster_home: /opt/dagster/home
-    job_namespace: code
+    job_namespace: fn
     load_incluster_config: true
-    postgres_password_secret: dagster-postgres-password-secret
+
     broker:
       env: DAGSTER_CELERY_BROKER_URL
     backend:
       env: DAGSTER_CELERY_BACKEND_URL
 
-    # env_config_maps:
-    #   - dagster-env-config
+    env_config_maps:
+      - dagster-env-config
+
     # volumes:
     #   - name: job
     #     configMap:
@@ -64,6 +66,7 @@ run_launcher:
     #   - name: artifacts-pvc
     #     persistentVolumeClaim:
     #       claimName: artifacts-pvc
+
     # volume_mounts:
     #   - name: job
     #     mountPath: /opt/dagster/home/job_spec.yaml

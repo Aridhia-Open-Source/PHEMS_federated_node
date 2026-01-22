@@ -30,7 +30,6 @@ storage:
   local:
     path: /data/flask
     dbpath: /data/db
-    rabbit: /data/dagster/rabbitmq
     minio: /data/dagster/minio
 
 certs:
@@ -101,7 +100,7 @@ fn-task-controller:
       auth_type: AzCopy
 
 
-## Dagster
+### Dagster
 dagster:
   generatePostgresqlPasswordSecret: false
 
@@ -116,8 +115,7 @@ dagster:
   rabbitmq:
     enabled: true
     persistence:
-      enabled: true
-      existingClaim: rabbit-pvc
+      enabled: false
 
   runLauncher:
     type: CeleryK8sRunLauncher
@@ -127,19 +125,50 @@ dagster:
         # image pull policy to anything other than "Always" will use a cached/stale image, which is
         # almost certainly not what you want.
         imagePullPolicy: "Always"
-        # TODO: USE FIXED GENERIC IMAGE (NO USER CODE)
         # The Celery workers can be deployed with a fixed image (no user code included)
         image:
           # When a tag is not supplied for a Dagster provided image,
           # it will default as the Helm chart version.
           repository: localhost:5001/dagster-fn
-          tag: v4
+          tag: "v7"
           pullPolicy: "Always"
+
+        envConfigMaps:
+          - name: dagster-env-config
+
+      # configSource will be merged with the shared configSource above.
+      workerQueues:
+        - name: "dagster"
+          replicaCount: 1
+          labels: {}
+          nodeSelector: {}
+          configSource: {}
+          additionalCeleryArgs: []
+
+      # Additional volumes that should be included in the Job's Pod. See:
+      # https://v1-18.docs.kubernetes.io/docs/reference/generated/kubernetes-api/v1.18/#volume-v1-core
+      #
+      # Example:
+      #
+      # volumes:
+      #   - name: my-volume
+      #     configMap: my-config-map
+      volumes: []
+
+      # Additional volume mounts that should be included in the container in the Job's Pod. See:
+      # See: https://v1-18.docs.kubernetes.io/docs/reference/generated/kubernetes-api/v1.18/#volumemount-v1-core
+      #
+      # Example:
+      #
+      # volumeMounts:
+      #   - name: test-volume
+      #     mountPath: /opt/dagster/test_folder
+      #     subPath: test_file.yaml
+      volumeMounts: []
 
   dagster-user-deployments:
     # Creates a workspace file with the gRPC servers hosting your user code.
     enabled: true
-
     # If you plan on deploying user code in a separate Helm release, set this to false.
     enableSubchart: true
 
@@ -149,42 +178,24 @@ dagster:
 
     # List of unique deployments
     deployments:
-      - name: "dagster"
+      - name: "dagster-fn"
         port: 3030
         image:
-            # When a tag is not supplied, it will default as the Helm chart version.
+          # When a tag is not supplied, it will default as the Helm chart version.
           repository: localhost:5001/dagster-fn
-          tag: v4
+          tag: "v7"
 
           # Change with caution! If you're using a fixed tag for pipeline run images, changing the
           # image pull policy to anything other than "Always" will use a cached/stale image, which is
           # almost certainly not what you want.
           pullPolicy: "Always"
 
+        envConfigMaps:
+          - name: dagster-env-config
+
         # Arguments to `dagster api grpc`.
-        # Ex: "dagster api grpc -m dag  ster_test.test_project.test_jobs.repo -a define_demo_execution_repo"
+        # Ex: "dagster api grpc -m dagster_test.test_project.test_jobs.repo -a define_demo_execution_repo"
         # would translate to:
         dagsterApiGrpcArgs:
           - "-m"
           - "app.definitions"
-        env:
-          - name: DAGSTER_MINIO_ENDPOINT
-            value: http://minio:9000
-          - name: DAGSTER_MINIO_ACCESS_KEY
-            valueFrom:
-              secretKeyRef:
-                name: minio-secret
-                key: accessKey
-          - name: DAGSTER_MINIO_SECRET_KEY
-            valueFrom:
-              secretKeyRef:
-                name: minio-secret
-                key: secretKey
-          - name: DAGSTER_MINIO_BUCKET
-            value: dagster
-          - name: DAGSTER_MLFLOW_ARTIFACT_BUCKET
-            value: mlflow
-          - name: DAGSTER_MINIO_IO_PREFIX
-            value: io
-          - name: DAGSTER_MINIO_REGION
-            value: us-east-1

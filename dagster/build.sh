@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE_TAG=v4
-IMAGE_NAME=dagster-fn
-REGISTRY=localhost:5001
+IMAGE_TAG="v7"
+IMAGE_NAME="dagster-fn"
+REGISTRY="localhost:5001"
 
 IMAGE_REF="$REGISTRY/$IMAGE_NAME"
 

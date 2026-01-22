@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dagster-env-config
+  namespace: {{ .Release.Namespace }}
+data:
+  DAGSTER_HOME: /opt/dagster/home
+  DAGSTER_ARTIFACT_MOUNT_PATH: /mnt/dagster/artifacts
+
+  DAGSTER_CELERY_BROKER_URL: amqp://guest:guest@fn-dev-rabbitmq:5672//
+  DAGSTER_CELERY_BACKEND_URL: db+postgresql://admin@db:5432/dagster
+
+  DAGSTER_MINIO_ENDPOINT: http://minio:9000
+  DAGSTER_MINIO_BUCKET: dagster
+  DAGSTER_MINIO_IO_PREFIX: io
+  DAGSTER_MINIO_REGION: us-east-1
+
+  DAGSTER_MINIO_ACCESS_KEY: {{ .Values.minio.accessKey }}
+  DAGSTER_MINIO_SECRET_KEY: {{ .Values.minio.secretKey }}
+  AWS_ACCESS_KEY_ID: {{ .Values.minio.accessKey }}
+  AWS_SECRET_ACCESS_KEY: {{ .Values.minio.secretKey }}
+
+  DAGSTER_MLFLOW_ARTIFACT_BUCKET: mlflow
+  MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+  AWS_REGION: us-east-1

@@ -16,8 +16,7 @@ set -euo pipefail
 # Disposable cluster. No waits. No sanity checks.
 ###############################################################################
 
-### CONFIG ####################################################################
-
+### Config ####################################################################
 CLUSTER_NAME="fn"
 NAMESPACE="fn"
 RELEASE_NAME="fn-dev"
@@ -25,14 +24,13 @@ VALUES_FILE=".values/dev.values.yaml"
 KIND_CONFIG_FILE=".kind/kind-config.yaml"
 DB_SECRET_KEY="local-db-secret"
 
-
 # Host paths required by hostPath / local PVs
 HOST_MOUNT_PATHS=(
   "/data/db"
   "/data/flask"
   "/data/controller"
   "/data/dagster/minio"
-  "/data/dagster/rabbitmq"
+  # "/data/dagster/rabbitmq"
 )
 
 ###############################################################################
@@ -111,7 +109,7 @@ kubectl create secret generic local-db \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl create secret generic dagster-postgresql-secret \
-  --from-literal=postgresql-password=${DB_SECRET_KEY} \
+  --from-literal=postgresql-password="$DB_SECRET_KEY" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 ###############################################################################
@@ -146,12 +144,12 @@ cd k8s/federated-node
 helm upgrade \
   --install "$RELEASE_NAME" . \
   -f "$VALUES_FILE" \
-  --timeout 20m
+  --timeout 30m
 
 # TODO: Create a kubernetes pre-deploy hook (needs idempotency long term)
 # kubectl apply -f k8s/federated-node/templates/dagster-postgres-init-job.yaml
 # TODO Use rollout restart where possible to speed up dev loop (see below)
 # kubectl rollout restart deployment fn-dev-dagster-user-deployments-dagster-fn
 
-echo
+echodock
 echo "=== Deployment completed ======================================"
