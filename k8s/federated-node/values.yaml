@@ -30,6 +30,7 @@ local_development: false
 create_db_deployment: false
 
 db:
+  enforceSSL: false
   user: admin
   name: fndb
   host: db
