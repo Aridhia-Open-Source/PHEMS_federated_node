@@ -30,7 +30,7 @@ HOST_MOUNT_PATHS=(
   "/data/flask"
   "/data/controller"
   "/data/dagster/minio"
-  # "/data/dagster/rabbitmq"
+  "/data/dagster/artifacts"
 )
 
 ###############################################################################

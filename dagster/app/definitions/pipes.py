@@ -13,18 +13,18 @@ logger = logging.getLogger(__name__)
 minio = MinioManager()
 
 
-NAMESPACE = 'fn'
-PVC_NAME = 'artifacts-pvc'
-SERVICE_ACCOUNT_NAME = 'dagster-user-code'
-DOCKER_IMAGE = 'dagster-pipes-python:v11'
+NAMESPACE = os.environ['DAGSTER_DEPLOYMENT_NAMESPACE']
+PVC_NAME = os.environ['DAGSTER_ARTIFACTS_PVC_NAME']
+SERVICE_ACCOUNT_NAME = os.environ['DAGSTER_USER_SERVICE_ACCOUNT_NAME']
 S3_BASE_PATH = f"s3://{os.environ['DAGSTER_MINIO_BUCKET']}/artifacts"
 MNT_BASE_PATH = os.environ['DAGSTER_ARTIFACT_MOUNT_PATH']
+JULIA_MODEL_DOCKER_IMAGE = os.environ['DAGSTER_PIPES_JULIA_IMAGE']
 
 
 @dg.asset
 def k8s_pipes_asset(context: dg.AssetExecutionContext, k8s_pipes_client: PipesK8sClient):
     task = K8sPipeAsset(k8s_pipes_client, context)
-    run = task(image=DOCKER_IMAGE)
+    run = task(image=JULIA_MODEL_DOCKER_IMAGE)
     return run.output
 
 
@@ -72,6 +72,9 @@ class K8sPipeAsset:
 
     def _load_base_pod_spec(self):
         return {
+            "nodeSelector": {
+                "kubernetes.io/hostname": "fn-control-plane",
+            },
             "volumes": [
                 {
                     "name": PVC_NAME,

@@ -169,7 +169,7 @@ dagster:
     enabled: true
   postgresql:
     enabled: true
-  
+
   runLauncher:
     type: CeleryK8sRunLauncher
     config:
@@ -183,7 +183,7 @@ dagster:
           # When a tag is not supplied for a Dagster provided image,
           # it will default as the Helm chart version.
           repository: localhost:5001/dagster-fn
-          tag: "v7"
+          tag: "v12"
           pullPolicy: "Always"
       envConfigMaps:
         - dagster-env-config
@@ -215,7 +215,7 @@ dagster:
         image:
           # When a tag is not supplied, it will default as the Helm chart version.
           repository: localhost:5001/dagster-fn
-          tag: "v7"
+          tag: "v12"
 
           # Change with caution! If you're using a fixed tag for pipeline run images, changing the
           # image pull policy to anything other than "Always" will use a cached/stale image, which is
