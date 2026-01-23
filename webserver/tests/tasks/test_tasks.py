@@ -775,6 +775,25 @@ class TestPostTask:
         assert response.status_code == 201
         v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
 
+    def test_task_schema_env_variables(
+            self,
+            task,
+            cr_client,
+            reg_k8s_client,
+            registry_client,
+
+    ):
+        """
+        Simple test to make sure the environment passed to the pod includes
+        the two schemas, regardless of their value
+        """
+        task.db_query = None
+        task.run()
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        env = [env.name for env in pod_body.spec.containers[0].env if re.match(".+_SCHEMA", env.name)]
+        assert len(set(env).intersection({"CDM_SCHEMA", "WRITE_SCHEMA"})) == 2
+
     def test_task_connection_string_postgres(
             self,
             task,

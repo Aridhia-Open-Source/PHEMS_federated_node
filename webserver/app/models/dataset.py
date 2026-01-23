@@ -32,6 +32,7 @@ class Dataset(db.Model, BaseModel):
     host = Column(String(256), nullable=False)
     port = Column(Integer, default=5432)
     schema = Column(String(256), nullable=True)
+    schema_write = Column(String(256), nullable=True)
     type = Column(String(256), server_default="postgres", nullable=False)
     extra_connection_args = Column(String(4096), nullable=True)
 
@@ -42,6 +43,7 @@ class Dataset(db.Model, BaseModel):
                  password:str,
                  port:int=5432,
                  schema:str=None,
+                 schema_write:str=None,
                  type:str="postgres",
                  extra_connection_args:str=None,
                  **kwargs
@@ -52,6 +54,7 @@ class Dataset(db.Model, BaseModel):
         self.host = host
         self.port = port
         self.schema = schema
+        self.schema_write = schema_write
         self.type = type
         self.username = username
         self.password = password
@@ -227,12 +230,12 @@ class Dataset(db.Model, BaseModel):
     @classmethod
     def get_dataset_by_name_or_id(cls, id:int=None, name:str="") -> "Dataset":
         """
-        Common funcion to get a dataset by name or id.
+        Common function to get a dataset by name or id.
         If both arguments are provided, then tries to find as an AND condition
             rather than an OR.
 
         Returns:
-         Datset:
+         Dataset:
 
         Raises:
             DBRecordNotFoundError: if no record is found
