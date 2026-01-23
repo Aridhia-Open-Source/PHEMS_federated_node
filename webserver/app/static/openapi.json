@@ -2106,6 +2106,11 @@
             "description": "Extra argument to use for connecting to the DB. Eventually this is passed to the tasks' pod as environment variable",
             "example": "TrustServerCertificate=Yes"
           },
+          "repository": {
+            "type": "string",
+            "description": "For outbound mode, it links the repository source to a dataset. So all of the CRD with that repo will be \"pre-authorized\" to run on that dataset",
+            "example": "Aridhia-Open-Source/PHEMS_federated_node"
+          },
           "schema": {
             "type": "string",
             "description": "Read from DB schema"
@@ -2145,6 +2150,7 @@
           "schema_write": {"type": "string", "example": "writeSchema"},
           "url": {"type": "string", "example": "https://federatednode.com/datasets/blood_cancer_database"},
           "type": {"type": "string", "example": "mssql"},
+          "repository": {"type": "string", "example": "Aridhia-Open-Source/PHEMS_federated_node"},
           "extra_connection_args": {"type": "string", "example": "TrustServerCertificate=Yes"}
         }
       },
@@ -2373,9 +2379,9 @@
               "zones": { "type": "string" }
             }
           },
-          "volumes": {
-            "type": "array",
-            "items": { "type": "string" }
+          "repository": {
+            "type": "string",
+            "example": "Aridhia-Open-Source/PHEMS_federated_node"
           }
         },
         "required": ["executors", "name", "tags"]

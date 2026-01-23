@@ -90,12 +90,20 @@ class Task(db.Model, BaseModel):
         executors = data["executors"][0]
         data["docker_image"] = executors["image"]
         is_from_controller = data.pop("task_controller", False)
+        repository = data.pop("repository", None)
 
         data = super().validate(data)
 
         data["from_controller"] = is_from_controller
         # Dataset validation
-        if kc_client.is_user_admin(user_token):
+        if repository:
+            data["dataset"] = Dataset.query.filter(
+                Dataset.repository.ilike(repository)
+            ).one_or_none()
+            if data["dataset"] is None:
+                raise InvalidRequest(f"No datasets linked with the repository {repository}")
+
+        elif kc_client.is_user_admin(user_token):
             ds_id = data.get("tags", {}).get("dataset_id")
             ds_name = data.get("tags", {}).get("dataset_name")
             if ds_name or ds_id:

@@ -19,11 +19,13 @@ spec:
         type: PathPrefix
         value: /keycloak
     filters:
+    {{- if .Values.integrations }}
     - type: ResponseHeaderModifier
       responseHeaderModifier:
         set:
         - name: Access-Control-Allow-Origin
           value: {{ include "cspDomains" . | quote }}
+    {{- end }}
     - type: ExtensionRef
       extensionRef:
         group: traefik.io
