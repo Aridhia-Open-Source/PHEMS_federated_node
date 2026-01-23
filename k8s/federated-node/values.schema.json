@@ -138,6 +138,7 @@
                 "host": ["name"]
             },
             "properties": {
+                "enforceSSL": {"type": "boolean", "default": false},
                 "user": {"type": "string"},
                 "name": {"type": "string", "default": "db"},
                 "host": {"type": "string"},
