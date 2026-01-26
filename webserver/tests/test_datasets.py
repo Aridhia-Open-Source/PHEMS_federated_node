@@ -68,6 +68,7 @@ class TestDatasets(MixinTestDataset):
             "url": f"https://{self.hostname}/datasets/{dataset.name}",
             "slug": dataset.name,
             "schema": None,
+            "schema_write": None,
             "extra_connection_args": None
         }
 
@@ -346,6 +347,7 @@ class TestPostDataset(MixinTestDataset):
             "type": "postgres",
             "slug": "test-dataset",
             "schema": None,
+            "schema_write": None,
             "extra_connection_args": None,
             "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset"
         }
