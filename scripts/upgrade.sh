@@ -5,7 +5,6 @@ set -euo pipefail
 NAMESPACE="fn"
 RELEASE_NAME="fn-dev"
 VALUES_FILE=".values/dev.values.yaml"
-DB_SECRET_KEY="local-db-secret"
 
 set -euo pipefail
 

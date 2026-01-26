@@ -12,4 +12,8 @@ cd docker_models
 ./build.sh julia
 cd ../
 
+cd docker_models
+./build.sh python
+cd ../
+
 echo "Image builds successful!"

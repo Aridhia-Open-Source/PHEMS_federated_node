@@ -24,7 +24,7 @@ VALUES_FILE=".values/dev.values.yaml"
 KIND_CONFIG_FILE=".kind/kind-config.yaml"
 DB_SECRET_KEY="local-db-secret"
 
-# Host paths required by hostPath / local PVs
+# Host paths required local PVs
 HOST_MOUNT_PATHS=(
   "/data/db"
   "/data/flask"
@@ -115,15 +115,20 @@ kubectl create secret generic dagster-postgresql-secret \
 ###############################################################################
 echo "=== [7/8] Building Docker Images(s) ========================================"
 
-echo "Building dagster image..."
+
 cd dagster
 ./build.sh
 cd ../
 
-echo "Building model image..."
 cd docker_models
 ./build.sh julia
 cd ../
+
+cd docker_models
+./build.sh python
+cd ../
+
+echo "Image builds successful!"
 
 ###############################################################################
 echo "=== [8/8] Deploying Helm release =========================================="
@@ -151,5 +156,5 @@ helm upgrade \
 # TODO Use rollout restart where possible to speed up dev loop (see below)
 # kubectl rollout restart deployment fn-dev-dagster-user-deployments-dagster-fn
 
-echodock
-echo "=== Deployment completed ======================================"
+echo
+echo "== Deployment completed ======================================"

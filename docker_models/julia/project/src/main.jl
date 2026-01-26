@@ -29,12 +29,11 @@ function main(dataset_name::String)
         return 1
     end
 
-    output_dir = "$(MNT_BASE_PATH)/$(task_id)/$(dataset_name)"
-    isdir(output_dir) || mkpath(output_dir)
-
     population = load_data(source_dataset)
     ps_opt = run_optimisation(population)
 
+    output_dir = "$(MNT_BASE_PATH)/$(task_id)/$(dataset_name)"
+    isdir(output_dir) || mkpath(output_dir)
     filepath = joinpath(output_dir, "$(dataset_name).json")
     open(filepath, "w") do io
         JSON.print(io, ps_opt)

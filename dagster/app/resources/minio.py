@@ -54,6 +54,9 @@ class MinioManager:
             return False
 
     def upload_dir(self, source_dir, target_prefix) -> bool:
+        if not os.path.exists(source_dir):
+            raise FileNotFoundError(f"Source directory does not exist: {source_dir}")
+
         client = self.resource.get_client()
         transfer = S3Transfer(client)
 

@@ -3,11 +3,8 @@
 import sys
 import subprocess
 import logging
-import time
-
 
 from dagster_pipes import open_dagster_pipes
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

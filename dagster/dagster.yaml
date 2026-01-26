@@ -59,17 +59,23 @@ run_launcher:
     env_config_maps:
       - dagster-env-config
 
-    # volumes:
-    #   - name: job
-    #     configMap:
-    #       name: dagster-job-config
-    #   - name: artifacts-pvc
-    #     persistentVolumeClaim:
-    #       claimName: artifacts-pvc
+    volumes:
+      - name: artifacts-pvc
+        persistentVolumeClaim:
+          claimName: artifacts-pvc
 
-    # volume_mounts:
-    #   - name: job
-    #     mountPath: /opt/dagster/home/job_spec.yaml
-    #     subPath: job_spec.yaml
-    #   - name: artifacts-pvc
-    #     mountPath: /mnt/dagster/artifacts
+    volume_mounts:
+      - name: artifacts-pvc
+        mountPath: /mnt/dagster/artifacts
+
+    k8sRunConfig:
+      pod_spec_config:
+        volumes:
+          - name: artifacts-pvc
+            persistentVolumeClaim:
+              claimName: artifacts-pvc
+
+      container_config:
+        volume_mounts:
+          - name: artifacts-pvc
+            mount_path: /mnt/dagster/artifacts

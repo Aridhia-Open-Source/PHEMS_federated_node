@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE_TAG="v12"
+IMAGE_TAG="v13"
 IMAGE_NAME="dagster-fn"
 REGISTRY="localhost:5001"
 
