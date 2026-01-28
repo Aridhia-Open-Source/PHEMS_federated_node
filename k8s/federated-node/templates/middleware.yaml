@@ -9,8 +9,10 @@ metadata:
 spec:
   headers:
     # This section manages the CORS response headers
+    {{- if .Values.integrations }}
     accessControlAllowOriginList:
 {{ .Values.integrations.domains | toYaml  | indent 4 }}
+    {{- end }}
     accessControlAllowCredentials: true
     contentSecurityPolicy: "default-src 'self' https: ; connect-src 'self' {{ include "cspDomainsSpace" . }}; frame-ancestors: 'self'; script-src 'unsafe-inline'; script-src-elem 'unsafe-inline' https:; img-src https: data:"
     accessControlAllowMethods:

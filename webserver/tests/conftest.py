@@ -15,7 +15,6 @@ from app.models.dictionary import Dictionary
 from app.models.request import Request
 from app.models.task import Task
 from app.helpers.exceptions import KeycloakError
-from app.models.task import Task
 from app.helpers.const import CRD_DOMAIN
 
 
@@ -260,6 +259,12 @@ def dataset_post_body():
 @fixture
 def dataset(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
     dataset = Dataset(name="TestDs", host="example.com", password='pass', username='user')
+    dataset.add(user_id=user_uuid)
+    return dataset
+
+@fixture
+def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
+    dataset = Dataset(name="TestDsRepo", host="example.com", password='pass', username='user', repository="organisation/repository")
     dataset.add(user_id=user_uuid)
     return dataset
 

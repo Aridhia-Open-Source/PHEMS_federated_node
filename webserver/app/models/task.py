@@ -90,12 +90,20 @@ class Task(db.Model, BaseModel):
         executors = data["executors"][0]
         data["docker_image"] = executors["image"]
         is_from_controller = data.pop("task_controller", False)
+        repository = data.pop("repository", None)
 
         data = super().validate(data)
 
         data["from_controller"] = is_from_controller
         # Dataset validation
-        if kc_client.is_user_admin(user_token):
+        if repository:
+            data["dataset"] = Dataset.query.filter(
+                Dataset.repository.ilike(repository)
+            ).one_or_none()
+            if data["dataset"] is None:
+                raise InvalidRequest(f"No datasets linked with the repository {repository}")
+
+        elif kc_client.is_user_admin(user_token):
             ds_id = data.get("tags", {}).get("dataset_id")
             ds_name = data.get("tags", {}).get("dataset_name")
             if ds_name or ds_id:
@@ -540,7 +548,7 @@ class Task(db.Model, BaseModel):
             CRD_DOMAIN, "v1", "analytics"
         )
         for crd in v1_crds["items"]:
-            if crd["metadata"]["annotations"][f"{CRD_DOMAIN}/task_id"] == str(self.id):
+            if crd["metadata"]["annotations"].get(f"{CRD_DOMAIN}/task_id") == str(self.id):
                 return crd["metadata"]["name"]
 
     def get_task_crd(self) -> V1CustomResourceDefinition|None:
