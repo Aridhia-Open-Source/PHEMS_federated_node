@@ -581,13 +581,64 @@ class TestPostTask:
         assert response.json["error"] == "Missing crd name in the request, or None passed"
         v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
 
+    def test_task_dataset_with_repo(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            registry_client,
+            k8s_client,
+            v1_crd_mock,
+            task_body,
+            dataset_with_repo
+        ):
+        """
+        Simple test to make sure the task triggers with a specific dataset repo
+        """
+        task_body["task_controller"] = True
+        task_body["tags"] = {}
+        task_body["repository"] = "organisation/repository"
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
+
+    def test_task_dataset_with_repo_unlinked(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            registry_client,
+            k8s_client,
+            v1_crd_mock,
+            task_body,
+            dataset_with_repo
+        ):
+        """
+        Simple test to make sure the task is not created if the repository provided
+        has no dataset linked to it
+        """
+        task_body["task_controller"] = True
+        task_body["tags"] = {}
+        task_body["repository"] = "organisation/repository2"
+        response = client.post(
+            '/tasks/',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert response.json["error"] == "No datasets linked with the repository organisation/repository2"
+        v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
+
     def test_task_schema_env_variables(
             self,
             task,
             cr_client,
             reg_k8s_client,
-            registry_client,
-
+            registry_client
     ):
         """
         Simple test to make sure the environment passed to the pod includes

@@ -34,6 +34,9 @@ data:
 {{- if .Values.taskReview }}
   TASK_REVIEW: enabled
 {{- end }}
+{{- if .Values.db.enforceSSL }}
+  DB_SSL: "?sslmode=require"
+{{- end }}
 {{- if .Values.outboundMode }}
   CONTROLLER_NAMESPACE: {{ include "controller_namespace" . }}
   TASK_CONTROLLER: enabled

@@ -150,10 +150,10 @@ securityContext:
     meta.helm.sh/release-namespace: {{ .Release.Namespace }}
 {{- end -}}
 {{- define "cspDomains" -}}
-  {{- join ", " .Values.integrations.domains -}}
+  {{- join ", " (.Values.integrations).domains -}}
 {{- end -}}
 {{- define "cspDomainsSpace" -}}
-  {{- join " " .Values.integrations.domains -}}
+  {{- join " " (.Values.integrations).domains -}}
 {{- end -}}
 {{- define "kc_namespace" -}}
 {{ ((.Values.global).namespaces).keycloak | default .Values.namespaces.keycloak }}

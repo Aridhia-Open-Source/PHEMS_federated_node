@@ -36,7 +36,7 @@ class TaskPod:
             db_query:dict,
             regcred_secret:str
         ):
-        self.name = name
+        self.name = name[:63]
         self.image = image
         self.dataset = dataset
         self.labels = labels

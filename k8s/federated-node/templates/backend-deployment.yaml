@@ -40,6 +40,7 @@ spec:
           envFrom:
             - configMapRef:
                 name: backend-configmap
+          imagePullPolicy: {{ .Values.pullPolicy }}
           env:
           - name: PGPASSWORD
             valueFrom:
@@ -49,6 +50,7 @@ spec:
         - name: storage-init
           image: {{ include "fn-alpine" . }}
           command: ["/bin/sh"]
+          imagePullPolicy: {{ .Values.pullPolicy }}
           args:
             - -c
             - mkdir -p /mnt/storage/results

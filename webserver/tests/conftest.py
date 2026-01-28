@@ -285,6 +285,12 @@ def dataset(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
     return dataset
 
 @fixture
+def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
+    dataset = Dataset(name="TestDsRepo", host="example.com", password='pass', username='user', repository="organisation/repository")
+    dataset.add(user_id=user_uuid)
+    return dataset
+
+@fixture
 def dataset_oracle(mocker, client, user_uuid, k8s_client)  -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
     dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user', type="oracle")
