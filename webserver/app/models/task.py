@@ -548,7 +548,7 @@ class Task(db.Model, BaseModel):
             CRD_DOMAIN, "v1", "analytics"
         )
         for crd in v1_crds["items"]:
-            if crd["metadata"]["annotations"][f"{CRD_DOMAIN}/task_id"] == str(self.id):
+            if crd["metadata"]["annotations"].get(f"{CRD_DOMAIN}/task_id") == str(self.id):
                 return crd["metadata"]["name"]
 
     def get_task_crd(self) -> V1CustomResourceDefinition|None:

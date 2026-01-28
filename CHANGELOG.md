@@ -5,6 +5,7 @@
 - Added a write_schema field on db and api for dataset. This will be passed to the task as env var `WRITE_SCHEMA`.
 
   The existing database `schema` value will be passed as `CDM_SCHEMA` to the task env var
+- Added `db.enforceSSL` to enforce ssl connection to the postgres db for the backend (not data sources)
 
 ## 1.8.0
 - **BREAKING CHANGE**: Migration from nginx-ingress to the gateway api based controller, traefik. This will need manual intervention. See the [gateway-api-installer.sh](./scripts/gateway-api-installer.sh) script to one-step setup. If not, the chart will let you know some components are missing and provide instructions.
