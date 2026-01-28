@@ -30,6 +30,7 @@ local_development: false
 create_db_deployment: false
 
 db:
+  enforceSSL: false
   user: admin
   name: fndb
   host: db
@@ -92,7 +93,7 @@ on_eks: false
 # ping the FN
 integrations:
   domains:
-    - 'self'
+    - self
 
 certs:
   rotationPolicy: Never
