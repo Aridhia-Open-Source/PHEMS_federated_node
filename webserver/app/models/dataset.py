@@ -32,8 +32,10 @@ class Dataset(db.Model, BaseModel):
     host = Column(String(256), nullable=False)
     port = Column(Integer, default=5432)
     schema = Column(String(256), nullable=True)
+    schema_write = Column(String(256), nullable=True)
     type = Column(String(256), server_default="postgres", nullable=False)
     extra_connection_args = Column(String(4096), nullable=True)
+    repository = Column(String(4096), nullable=True)
 
     def __init__(self,
                  name:str,
@@ -42,8 +44,10 @@ class Dataset(db.Model, BaseModel):
                  password:str,
                  port:int=5432,
                  schema:str=None,
+                 schema_write:str=None,
                  type:str="postgres",
                  extra_connection_args:str=None,
+                 repository:str=None,
                  **kwargs
                 ):
         self.name = requests.utils.unquote(name).lower()
@@ -52,13 +56,26 @@ class Dataset(db.Model, BaseModel):
         self.host = host
         self.port = port
         self.schema = schema
+        self.schema_write = schema_write
         self.type = type
         self.username = username
         self.password = password
         self.extra_connection_args = extra_connection_args
+        if repository:
+            self.repository = repository.lower()
 
         if self.type.lower() not in SUPPORTED_ENGINES:
             raise InvalidRequest(f"DB type {self.type} is not supported.")
+
+    @classmethod
+    def validate(cls, data:dict) -> dict:
+        if data.get("repository"):
+            existing_link = cls.query.filter(Dataset.repository == data.get("repository")).one_or_none()
+            if existing_link:
+                raise InvalidRequest(
+                    "Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
+                )
+        return super().validate(data)
 
     def get_creds_secret_name(self, host=None, name=None):
         host = host or self.host
@@ -220,6 +237,8 @@ class Dataset(db.Model, BaseModel):
             }
             kc_client.patch_resource(f"{self.id}-{self.name}", **update_args)
 
+        if kwargs.get("repository"):
+            kwargs["repository"] = kwargs.get("repository").lower()
         # Update table
         if kwargs:
             self.query.filter(Dataset.id == self.id).update(kwargs, synchronize_session='evaluate')
@@ -227,12 +246,12 @@ class Dataset(db.Model, BaseModel):
     @classmethod
     def get_dataset_by_name_or_id(cls, id:int=None, name:str="") -> "Dataset":
         """
-        Common funcion to get a dataset by name or id.
+        Common function to get a dataset by name or id.
         If both arguments are provided, then tries to find as an AND condition
             rather than an OR.
 
         Returns:
-         Datset:
+         Dataset:
 
         Raises:
             DBRecordNotFoundError: if no record is found

@@ -68,6 +68,8 @@ class TestDatasets(MixinTestDataset):
             "url": f"https://{self.hostname}/datasets/{dataset.name}",
             "slug": dataset.name,
             "schema": None,
+            "schema_write": None,
+            "repository": None,
             "extra_connection_args": None
         }
 
@@ -346,6 +348,8 @@ class TestPostDataset(MixinTestDataset):
             "type": "postgres",
             "slug": "test-dataset",
             "schema": None,
+            "schema_write": None,
+            "repository": None,
             "extra_connection_args": None,
             "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset"
         }
@@ -388,6 +392,28 @@ class TestPostDataset(MixinTestDataset):
         ds = Dataset.query.filter(
             Dataset.name == data_body["name"].lower(),
             Dataset.extra_connection_args == data_body['extra_connection_args']
+        ).one_or_none()
+        assert ds is not None
+
+    def test_post_dataset_with_existing_repo_linked(
+            self,
+            post_json_admin_header,
+            client,
+            dataset_with_repo,
+            dataset_post_body
+        ):
+        """
+        /datasets POST fails if the new dataset uses a repository that
+        already has an association on an existing FN dataset
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        data_body['repository'] = dataset_with_repo.repository
+        resp = self.post_dataset(client, post_json_admin_header, data_body, 400)
+        assert resp["error"] == "Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
+
+        ds = Dataset.query.filter(
+            Dataset.repository == dataset_with_repo.repository
         ).one_or_none()
         assert ds is not None
 
