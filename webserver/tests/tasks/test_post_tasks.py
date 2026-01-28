@@ -596,6 +596,7 @@ class TestPostTask:
         Simple test to make sure the task triggers with a specific dataset repo
         """
         task_body["task_controller"] = True
+        task_body["crd_name"] = "custom-task"
         task_body["tags"] = {}
         task_body["repository"] = "organisation/repository"
         response = client.post(
@@ -603,7 +604,7 @@ class TestPostTask:
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
-        assert response.status_code == 201
+        assert response.status_code == 201, response.json
         v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
 
     def test_task_dataset_with_repo_unlinked(
@@ -622,6 +623,7 @@ class TestPostTask:
         has no dataset linked to it
         """
         task_body["task_controller"] = True
+        task_body["crd_name"] = "custom-task"
         task_body["tags"] = {}
         task_body["repository"] = "organisation/repository2"
         response = client.post(
