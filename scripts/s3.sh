@@ -9,14 +9,13 @@ export AWS_SECRET_ACCESS_KEY="minioadmin"
 export AWS_DEFAULT_REGION="us-east-1"
 export AWS_ENDPOINT_URL="http://localhost:9000"
 
-aws s3 ls "s3://$AWS_BUCKET_NAME/" \
+aws s3 ls "s3://$AWS_BUCKET_NAME/artifacts" \
   --endpoint-url "$AWS_ENDPOINT_URL" \
   --no-verify-ssl \
   --recursive
 
-
 # list all buckets
-# aws s3 
+# aws s3
 
 # aws s3 get file
 # filepath="f9896ce9-0a72-4916-9f23-248c9f4f4d3e/simulated_data_centre_1/simulated_data_centre_1.json"

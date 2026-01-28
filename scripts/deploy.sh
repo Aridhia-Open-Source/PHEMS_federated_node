@@ -58,7 +58,7 @@ if [ "$(docker inspect -f '{{.State.Running}}' "proxy-docker-hub-registry" 2>/de
   docker run \
     -d --restart=always \
     -p "127.0.0.1:5002:5000" \
-    -e REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io \
+    -e REGISTRY_PROXY_REMOTEURL=https://docker.io \
     --name proxy-docker-hub-registry \
     registry:2
 fi
@@ -67,7 +67,7 @@ if [ "$(docker inspect -f '{{.State.Running}}' "proxy-ghcr-registry" 2>/dev/null
   docker run \
     -d --restart=always \
     -p "127.0.0.1:5003:5000" \
-    -e REGISTRY_PROXY_REMOTEURL=ghcr.io/ \
+    -e REGISTRY_PROXY_REMOTEURL=https://ghcr.io \
     --name proxy-ghcr-registry \
     registry:2
 fi
@@ -108,9 +108,9 @@ kubectl create secret generic local-db \
   --from-literal=password="$DB_SECRET_KEY" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-kubectl create secret generic dagster-postgresql-secret \
-  --from-literal=postgresql-password="$DB_SECRET_KEY" \
-  --dry-run=client -o yaml | kubectl apply -f -
+# kubectl create secret generic h \
+#   --from-literal=postgresql-password="$DB_SECRET_KEY" \
+#   --dry-run=client -o yaml | kubectl apply -f -
 
 ###############################################################################
 echo "=== [7/8] Building Docker Images(s) ========================================"

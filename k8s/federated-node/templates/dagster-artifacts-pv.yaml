@@ -6,8 +6,8 @@ spec:
   capacity:
     storage: {{ .Values.storage.capacity }}
   accessModes:
-    - ReadWriteMany
-  storageClassName: {{ include "storageClassName" . }}
+    - ReadWriteOnce
+  # storageClassName: {{ include "storageClassName" . }}
   persistentVolumeReclaimPolicy: Retain
   local:
     path: {{ .Values.storage.local.artifacts }}
@@ -24,13 +24,13 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: artifacts-pvc
-  namespace: {{ .Release.namespace }}
+  namespace: {{ .Release.Namespace }}
 spec:
-  storageClassName: {{ include "storageClassName" . }}
+  storageClassName: ""
   volumeName: dagster-artifacts-pv
   resources:
     requests:
       storage: {{ .Values.storage.capacity }}
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
 

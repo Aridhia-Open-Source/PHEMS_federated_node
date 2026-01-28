@@ -13,11 +13,11 @@ python_logs:
 storage:
   postgres:
     postgres_db:
-      db_name: dagster
-      username: admin
+      db_name: test
+      username: test
       password:
         env: DAGSTER_PG_PASSWORD
-      hostname: db.fn.svc
+      hostname: fn-dev-postgresql
       port: 5432
 
 run_monitoring:
@@ -67,15 +67,3 @@ run_launcher:
     volume_mounts:
       - name: artifacts-pvc
         mountPath: /mnt/dagster/artifacts
-
-    k8sRunConfig:
-      pod_spec_config:
-        volumes:
-          - name: artifacts-pvc
-            persistentVolumeClaim:
-              claimName: artifacts-pvc
-
-      container_config:
-        volume_mounts:
-          - name: artifacts-pvc
-            mount_path: /mnt/dagster/artifacts

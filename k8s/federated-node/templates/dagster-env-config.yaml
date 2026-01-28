@@ -8,13 +8,14 @@ data:
   DAGSTER_USER_SERVICE_ACCOUNT_NAME: {{ .Release.Name }}-dagster-user-deployments-user-deployments
   DAGSTER_HOME: /opt/dagster/home
   DAGSTER_ARTIFACT_MOUNT_PATH: /mnt/dagster/artifacts
-  DAGSTER_PIPES_MODEL_IMAGE: localhost:5001/dagster-pipes-python
-  # DAGSTER_PIPES_MODEL_IMAGE: localhost:5001/dagster-pipes-julia
+  # DAGSTER_PIPES_MODEL_IMAGE: localhost:5001/dagster-pipes-python
+  DAGSTER_PIPES_MODEL_IMAGE: localhost:5001/dagster-pipes-julia
 
   DAGSTER_ARTIFACTS_PVC_NAME: artifacts-pvc
 
   DAGSTER_CELERY_BROKER_URL: amqp://guest:guest@fn-dev-rabbitmq:5672//
-  DAGSTER_CELERY_BACKEND_URL: db+postgresql://admin@db:5432/dagster
+  DAGSTER_CELERY_BACKEND_URL: db+postgresql://test:${DAGSTER_PG_PASSWORD}@fn-dev-postgresql:5432/test
+  # DAGSTER_CELERY_BACKEND_URL: db+postgresql://admin@db:5432/dagster
 
   DAGSTER_MINIO_ENDPOINT: http://minio:9000
   DAGSTER_MINIO_BUCKET: dagster

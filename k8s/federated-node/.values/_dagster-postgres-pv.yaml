@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: dagster-minio-pv
+  name: dagster-postgres-pv
 spec:
   capacity:
     storage: {{ .Values.storage.capacity }}
@@ -10,7 +10,7 @@ spec:
   # storageClassName: {{ include "storageClassName" . }}
   persistentVolumeReclaimPolicy: Retain
   local:
-    path: {{ .Values.storage.local.minio }}
+    path: {{ .Values.storage.local.dagster_db }}
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -23,11 +23,11 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: minio-pvc
+  name: dagster-postgres-pvc
   namespace: {{ .Release.Namespace }}
 spec:
   storageClassName: ""
-  volumeName: dagster-minio-pv
+  volumeName: dagster-postgres-pv
   resources:
     requests:
       storage: {{ .Values.storage.capacity }}

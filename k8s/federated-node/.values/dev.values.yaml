@@ -26,7 +26,7 @@ minio:
   secretKey: minioadmin
 
 storage:
-  capacity: 10Gi
+  capacity: 1Gi
   local:
     path: /data/flask
     dbpath: /data/db
@@ -103,15 +103,19 @@ fn-task-controller:
 
 ### Dagster
 dagster:
-  generatePostgresqlPasswordSecret: false
+  generatePostgresqlPasswordSecret: true
+  postgresqlHost: ""
+  postgresqlUsername: test
+  postgresqlPassword: test
+  postgresqlDatabase: test
 
   postgresql:
-    enabled: false
-    postgresqlHost: db.fn.svc
-    postgresqlUsername: admin
-    postgresqlDatabase: dagster
+    enabled: true
     service:
       port: 5432
+    persistence:
+      enabled: true
+      storageClass: standard
 
   rabbitmq:
     enabled: true
@@ -137,6 +141,15 @@ dagster:
         envConfigMaps:
           - name: dagster-env-config
 
+        # Add volumes and volume mounts for artifacts-pvc
+        volumes:
+          - name: artifacts-pvc
+            persistentVolumeClaim:
+              claimName: artifacts-pvc
+        volumeMounts:
+          - name: artifacts-pvc
+            mountPath: /mnt/dagster/artifacts
+
       # configSource will be merged with the shared configSource above.
       workerQueues:
         - name: "dagster"
@@ -145,27 +158,6 @@ dagster:
           nodeSelector: {}
           configSource: {}
           additionalCeleryArgs: []
-
-      # Additional volumes that should be included in the Job's Pod. See:
-      # https://v1-18.docs.kubernetes.io/docs/reference/generated/kubernetes-api/v1.18/#volume-v1-core
-      #
-      # Example:
-      #
-      # volumes:
-      #   - name: my-volume
-      #     configMap: my-config-map
-      volumes: []
-
-      # Additional volume mounts that should be included in the container in the Job's Pod. See:
-      # See: https://v1-18.docs.kubernetes.io/docs/reference/generated/kubernetes-api/v1.18/#volumemount-v1-core
-      #
-      # Example:
-      #
-      # volumeMounts:
-      #   - name: test-volume
-      #     mountPath: /opt/dagster/test_folder
-      #     subPath: test_file.yaml
-      volumeMounts: []
 
   dagster-user-deployments:
     # Creates a workspace file with the gRPC servers hosting your user code.
@@ -193,15 +185,6 @@ dagster:
 
         envConfigMaps:
           - name: dagster-env-config
-
-        # Add volumes and volume mounts for artifacts-pvc
-        volumes:
-          - name: artifacts-pvc
-            persistentVolumeClaim:
-              claimName: artifacts-pvc
-        volumeMounts:
-          - name: artifacts-pvc
-            mountPath: /mnt/dagster/artifacts
 
         # Arguments to `dagster api grpc`.
         # Ex: "dagster api grpc -m dagster_test.test_project.test_jobs.repo -a define_demo_execution_repo"
