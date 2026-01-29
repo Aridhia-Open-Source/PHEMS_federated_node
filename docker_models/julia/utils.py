@@ -1,21 +1,9 @@
-#!/usr/bin/env python3
-
-import sys
 import subprocess
-import logging
 
 from dagster_pipes import open_dagster_pipes, PipesContext
 
 
-# def entrypoint():
-#     with open_dagster_pipes() as _:
-#         return subprocess.run([
-#             "julia",
-#             "--project=/project",
-#             "/project/src/main.jl",
-#         ], check=True).returncode
-
-def entrypoint():
+def dagster_pipes_logging_redirect():
     with open_dagster_pipes():
         ctx = PipesContext()
 
@@ -47,7 +35,3 @@ def entrypoint():
 
         ctx.log.info("Julia process completed successfully")
         return returncode
-
-
-if __name__ == "__main__":
-    sys.exit(entrypoint())

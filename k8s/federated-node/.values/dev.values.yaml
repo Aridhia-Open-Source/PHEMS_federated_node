@@ -104,10 +104,6 @@ fn-task-controller:
 ### Dagster
 dagster:
   generatePostgresqlPasswordSecret: true
-  postgresqlHost: ""
-  postgresqlUsername: test
-  postgresqlPassword: test
-  postgresqlDatabase: test
 
   postgresql:
     enabled: true
@@ -135,11 +131,15 @@ dagster:
           # When a tag is not supplied for a Dagster provided image,
           # it will default as the Helm chart version.
           repository: localhost:5001/dagster-fn
+
           tag: "v13"
           pullPolicy: "Always"
 
         envConfigMaps:
           - name: dagster-env-config
+
+        env:
+          PYTHONUNBUFFERED: "1"
 
         # Add volumes and volume mounts for artifacts-pvc
         volumes:

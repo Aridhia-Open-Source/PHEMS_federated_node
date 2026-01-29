@@ -7,6 +7,9 @@ from dagster._serdes import ConfigurableClassData
 from boto3.session import Session # NOQA
 from dagster_aws.s3.compute_log_manager import S3ComputeLogManager
 
+# TODO: REMOVE THIS PRINT AFTER TESTING
+print("S3ComputeLogManagerExtended MODULE LOADED")
+
 
 class S3ComputeLogManagerExtended(S3ComputeLogManager):
     """

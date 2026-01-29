@@ -22,6 +22,7 @@ MODEL_IMAGE = os.environ['DAGSTER_PIPES_MODEL_IMAGE']
 
 @dg.asset
 def k8s_pipes_asset(context: dg.AssetExecutionContext, k8s_pipes_client: PipesK8sClient):
+    logger.info("Creating K8s Pipe Asset!")
     task = K8sPipeAsset(k8s_pipes_client, context)
     run = task(image=MODEL_IMAGE)
     return run.output

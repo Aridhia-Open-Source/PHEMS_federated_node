@@ -1,9 +1,15 @@
+import logging
+
 import dagster as dg
 from dagster_k8s import PipesK8sClient
 from dagster_celery_k8s import celery_k8s_job_executor
 
 from app.definitions import jobs, pipes, examples, iris_analysis
 from app.resources.minio import MinioManager
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 minio = MinioManager().setup()
 asset_modules = [pipes, examples, iris_analysis]

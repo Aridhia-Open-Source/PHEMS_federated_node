@@ -1,4 +1,6 @@
 python_logs:
+  managed_python_loggers:
+    - root
   dagster_handler_config:
     handlers:
       stdout:
@@ -27,21 +29,21 @@ run_monitoring:
   max_resume_run_attempts: 0
   poll_interval_seconds: 60
 
-compute_logs:
-  module: logger
-  class: S3ComputeLogManagerExtended
-  config:
-    endpoint_url: http://minio:9000
-    region: us-east-1
-    bucket: dagster
-    prefix: logs
-    use_ssl: false
-    verify: false
-    upload_interval: 10
-    access_key:
-      env: DAGSTER_MINIO_ACCESS_KEY
-    secret_key:
-      env: DAGSTER_MINIO_SECRET_KEY
+# compute_logs:
+#   module: app.logger
+#   class: S3ComputeLogManagerExtended
+#   config:
+#     endpoint_url: http://minio:9000
+#     region: us-east-1
+#     bucket: dagster
+#     prefix: logs
+#     use_ssl: false
+#     verify: false
+#     upload_interval: 10
+#     access_key:
+#       env: DAGSTER_MINIO_ACCESS_KEY
+#     secret_key:
+#       env: DAGSTER_MINIO_SECRET_KEY
 
 run_launcher:
   module: dagster_celery_k8s.launcher

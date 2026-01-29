@@ -37,5 +37,6 @@ COPY --from=julia-stage /root/.julia /root/.julia
 
 # Set PATH to include Julia binaries
 ENV PATH="/usr/local/julia/bin:${PATH}"
+ENV PYTHONUNBUFFERED=1
 
 ENTRYPOINT ["python3", "entrypoint.py"]
