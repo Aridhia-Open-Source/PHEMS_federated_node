@@ -10,7 +10,7 @@ RUN addgroup -S "${USERNAME}" --gid "${USER_GID}" \
 RUN apk add --no-cache \
     'postgresql16-client=~16' && \
     python3 -m venv /venv && \
-    /venv/bin/python3 -m pip install kubernetes requests
+    /venv/bin/python3 -m pip install kubernetes requests python-dotenv
 
 ENV PATH=/venv/bin:$PATH
 
@@ -21,3 +21,5 @@ COPY --chmod=755 cleanup.sh /usr/bin/cleanup
 COPY --chmod=755 dbinit.sh /usr/bin/dbinit
 COPY --chmod=755 keycloak-reset.sh /usr/bin/keycloak-reset
 COPY --chmod=755 migrate-docker-secret.py /usr/bin/migrate-docker-secret
+COPY --chmod=755 certificate_issuer.py /usr/bin/certificate_issuer
+COPY --chmod=755 copy-secrets.sh /usr/bin/copy-secrets

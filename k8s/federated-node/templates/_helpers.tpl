@@ -164,6 +164,9 @@ securityContext:
 {{- define "controller_namespace" -}}
 {{ ((.Values.global).namespaces).controller | default .Values.namespaces.controller }}
 {{- end -}}
+{{- define "certificate_namespace" -}}
+{{ index $.Values "cert-manager" "namespace" }}
+{{- end -}}
 {{- define "testsBaseUrl" }}
 {{- if not .Values.local_development -}}
 https://{{ .Values.host }}

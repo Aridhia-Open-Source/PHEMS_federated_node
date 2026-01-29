@@ -20,6 +20,8 @@ namespaces: &namespaces
   controller: fn-controller
 
 global:
+  # Set this to false if deploying with argoCD on a multi cluster setup
+  copySecretsWithTemplate: true
   namespaces: *namespaces
 
 token:
