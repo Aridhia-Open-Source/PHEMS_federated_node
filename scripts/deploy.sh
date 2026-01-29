@@ -20,7 +20,7 @@ set -euo pipefail
 CLUSTER_NAME="fn"
 NAMESPACE="fn"
 RELEASE_NAME="fn-dev"
-VALUES_FILE=".values/dev.values.yaml"
+VALUES_FILE="example.values.yaml.yaml"
 KIND_CONFIG_FILE=".kind/kind-config.yaml"
 DB_SECRET_KEY="local-db-secret"
 

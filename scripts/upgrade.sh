@@ -4,7 +4,7 @@ set -euo pipefail
 
 NAMESPACE="fn"
 RELEASE_NAME="fn-dev"
-VALUES_FILE=".values/dev.values.yaml"
+VALUES_FILE="example.values.yaml.yaml"
 
 set -euo pipefail
 
