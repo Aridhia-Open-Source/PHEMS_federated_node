@@ -11,7 +11,7 @@ from kubernetes.client import (
     V1PersistentVolumeClaimSpec, V1VolumeResourceRequirements,
     V1CSIPersistentVolumeSource
 )
-from app.helpers.const import RESULTS_PATH, STORAGE_CLASS, TASK_NAMESPACE
+from app.helpers.const import ALPINE_IMAGE, RESULTS_PATH, STORAGE_CLASS, TASK_NAMESPACE
 from app.helpers.kubernetes import KubernetesClient
 from app.models.dataset import Dataset
 
@@ -159,7 +159,7 @@ class TaskPod:
         )
         dir_init = V1Container(
             name=f"init-{task_id}",
-            image="alpine:3.19",
+            image=ALPINE_IMAGE,
             volume_mounts=[vol_mount],
             command=["/bin/sh"],
             args=[

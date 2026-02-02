@@ -9,7 +9,7 @@ from kubernetes.stream import stream
 from kubernetes.client.exceptions import ApiException
 from kubernetes.watch import Watch
 from app.helpers.exceptions import InvalidRequest, KubernetesException
-from app.helpers.const import TASK_NAMESPACE
+from app.helpers.const import ALPINE_IMAGE, TASK_NAMESPACE
 
 logger = logging.getLogger('kubernetes_helper')
 logger.setLevel(logging.INFO)
@@ -69,7 +69,7 @@ class KubernetesBase:
             ))
         container = client.V1Container(
             name=pod_spec["name"],
-            image="alpine:3.19",
+            image=ALPINE_IMAGE,
             volume_mounts=vol_mounts,
             command=["/bin/sh", "-c", f"sleep {60*60*24}"]
         )
@@ -243,11 +243,8 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
             try:
                 self.create_namespaced_secret(ns, body=body, pretty='true')
             except ApiException as e:
-                if e.status == 409:
-                    pass
-                else:
-                    logger.error(e.body)
-                    raise InvalidRequest(e.reason)
+                if e.status != 409:
+                    raise KubernetesException(e.body)
         return body
 
 

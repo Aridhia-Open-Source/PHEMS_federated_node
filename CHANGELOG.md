@@ -1,5 +1,8 @@
 # Releases Changelog
 
+## 1.10.0
+- Improved API error handling involving k8s library errors
+
 ## 1.9.0
 - Added a dataset link to a repo, so that on outbound connection mode, the CRD applied from a repository, will be associated with the dataset
 - Added a write_schema field on db and api for dataset. This will be passed to the task as env var `WRITE_SCHEMA`.

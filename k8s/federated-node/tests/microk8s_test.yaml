@@ -91,3 +91,11 @@ tests:
     asserts:
       - hasDocuments:
           count: 1
+  - it: no registry sync
+    template: registry-sync-cronjob.yaml
+    set:
+      federatedNode:
+        enable_registry_sync: false
+    asserts:
+      - hasDocuments:
+          count: 0
