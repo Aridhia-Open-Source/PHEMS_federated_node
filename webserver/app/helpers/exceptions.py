@@ -1,6 +1,7 @@
 from http.client import HTTPException
 from werkzeug.sansio.response import Response
 import json
+import re
 import traceback
 
 
@@ -78,8 +79,8 @@ class KubernetesException(LogAndException):
         try:
             body_json: dict = json.loads(body)
             self.code = body_json.pop("code")
-            self.description = body_json["message"]
-            self.extra_fields = body_json["details"]
+            self.description = "".join("An unexpected kubernetes error occurred. Check the details field")
+            self.extra_fields = body_json["details"]["causes"]
         except json.decoder.JSONDecodeError:
             self.description = body
         super().__init__()
