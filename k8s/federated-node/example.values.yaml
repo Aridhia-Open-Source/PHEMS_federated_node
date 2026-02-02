@@ -28,6 +28,9 @@ storage:
     dbpath: /data/db
     artifacts: /data/dagster/artifacts
 
+minio:
+  enabled: false
+
 certs:
   frequency: 65
 

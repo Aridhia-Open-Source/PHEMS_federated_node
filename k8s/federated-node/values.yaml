@@ -75,6 +75,9 @@ storage:
     # Local storage that will be shared with the db
     # dbpath: /data/db
 
+minio:
+  enabled: false
+
 pullPolicy: Always
 
 # If using nginx, or ssl certificates, this will set the hostname
