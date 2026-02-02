@@ -21,16 +21,11 @@ db:
     key: password
     name: &secretDB local-db
 
-minio:
-  accessKey: minioadmin
-  secretKey: minioadmin
-
 storage:
   capacity: 1Gi
   local:
     path: /data/flask
     dbpath: /data/db
-    minio: /data/dagster/minio
     artifacts: /data/dagster/artifacts
 
 certs:
@@ -118,19 +113,19 @@ dagster:
       storageClass: standard
 
   rabbitmq:
-    enabled: true
+    enabled: false
     persistence:
       enabled: false
 
   runLauncher:
-    type: CeleryK8sRunLauncher
+    type: K8sRunLauncher
     config:
-      celeryK8sRunLauncher:
+      k8sRunLauncher:
         # Change with caution! If you're using a fixed tag for pipeline run images, changing the
         # image pull policy to anything other than "Always" will use a cached/stale image, which is
         # almost certainly not what you want.
         imagePullPolicy: "Always"
-        # The Celery workers can be deployed with a fixed image (no user code included)
+        # The run launcher can be deployed with a fixed image (no user code included)
         image:
           # When a tag is not supplied for a Dagster provided image,
           # it will default as the Helm chart version.
@@ -149,15 +144,6 @@ dagster:
         volumeMounts:
           - name: artifacts-pvc
             mountPath: /mnt/dagster/artifacts
-
-      # configSource will be merged with the shared configSource above.
-      workerQueues:
-        - name: "dagster"
-          replicaCount: 1
-          labels: {}
-          nodeSelector: {}
-          configSource: {}
-          additionalCeleryArgs: []
 
   dagster-user-deployments:
     # Creates a workspace file with the gRPC servers hosting your user code.

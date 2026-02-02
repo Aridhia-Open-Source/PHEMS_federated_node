@@ -29,7 +29,6 @@ HOST_MOUNT_PATHS=(
   "/data/db"
   "/data/flask"
   "/data/controller"
-  "/data/dagster/minio"
   "/data/dagster/artifacts"
 )
 

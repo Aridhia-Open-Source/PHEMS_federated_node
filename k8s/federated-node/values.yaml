@@ -166,19 +166,19 @@ ingress-nginx:
 ### Dagster
 dagster:
   rabbitmq:
-    enabled: true
+    enabled: false
   postgresql:
     enabled: true
 
   runLauncher:
-    type: CeleryK8sRunLauncher
+    type: K8sRunLauncher
     config:
-      celeryK8sRunLauncher:
+      k8sRunLauncher:
         # Change with caution! If you're using a fixed tag for pipeline run images, changing the
         # image pull policy to anything other than "Always" will use a cached/stale image, which is
         # almost certainly not what you want.
         imagePullPolicy: "Always"
-        # The Celery workers can be deployed with a fixed image (no user code included)
+        # The run launcher can be deployed with a fixed image (no user code included)
         image:
           # When a tag is not supplied for a Dagster provided image,
           # it will default as the Helm chart version.
@@ -187,15 +187,6 @@ dagster:
           pullPolicy: "Always"
       envConfigMaps:
         - dagster-env-config
-
-      # configSource will be merged with the shared configSource above.
-      workerQueues:
-        - name: "dagster"
-          replicaCount: 1
-          labels: {}
-          nodeSelector: {}
-          configSource: {}
-          additionalCeleryArgs: []
 
 
   dagster-user-deployments:
