@@ -26,6 +26,7 @@ storage:
   local:
     path: /data/flask
     dbpath: /data/db
+    # Artifacts are stored on shared PV (no longer using MinIO)
     artifacts: /data/dagster/artifacts
 
 minio:
