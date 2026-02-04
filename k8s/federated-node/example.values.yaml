@@ -5,21 +5,27 @@
 pullPolicy: Always
 create_db_deployment: true
 local_development: true
-smoketests: true
+smoketests: false
 taskReview: true
 cleanupTime: 3
+copySecrets: false
 
 backend:
+  tag: 1.9.0
   volumes:
     results_path: /data/flask/results
+
+keycloak:
+  tag: 1.9.0
 
 db:
   user: &userDB admin
   host: db.fn.svc
   port: &portDB 5432
   secret:
+    name: local-db
     key: password
-    name: &secretDB local-db
+    value: local-db-secret
 
 storage:
   capacity: 1Gi
@@ -27,6 +33,11 @@ storage:
     path: /data/flask
     dbpath: /data/db
     artifacts: /data/dagster/artifacts
+
+global:
+  host:
+  delivery_url: federated-node.uksouth.analytixagility.aridhiadev.net
+  postgresqlSecretName: dagster-postgresql-secret
 
 certs:
   frequency: 65
@@ -44,13 +55,8 @@ blacklist:
 tls:
   secretName: &tls my-tls-secret
 
-global:
-  host: *host
-  delivery_url: federated-node.uksouth.analytixagility.aridhiadev.net
-  postgresqlSecretName: dagster-postgresql-secret
-
 cert-manager:
-  enabled: true
+  enabled: false
 
 ingress-nginx:
   enabled: false
@@ -64,14 +70,14 @@ outboundMode: true
 
 ### Gateway API
 gatewayApi:
-  installCRD: true
+  installCRD: false
 
 ### Traefik
 traefik:
   providers:
     kubernetesIngress:
       enabled: false
-  enabled: true
+  enabled: false
 
 ### FN Task Controller
 fn-task-controller:
@@ -98,8 +104,9 @@ fn-task-controller:
 
 ### Dagster
 dagster:
+  enabled: true
+
   generatePostgresqlPasswordSecret: true
-  postgresqlHost: ""
   postgresqlUsername: test
   postgresqlPassword: test
   postgresqlDatabase: test
@@ -111,11 +118,6 @@ dagster:
     persistence:
       enabled: true
       storageClass: standard
-
-  rabbitmq:
-    enabled: false
-    persistence:
-      enabled: false
 
   runLauncher:
     type: K8sRunLauncher
