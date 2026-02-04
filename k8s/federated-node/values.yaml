@@ -76,6 +76,7 @@ storage:
     # Local storage that will be shared with the db
     # dbpath: /data/db
 
+
 pullPolicy: Always
 
 # If using a reverse proxy, or ssl certificates, this will set the hostname
