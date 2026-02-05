@@ -21,6 +21,7 @@ on:
       - 'sub-license/**'
       - 'environment/*.md'
       - 'install_argocd/**'
+      - 'paper/**'
   pull_request:
     branches:
       - main
@@ -38,6 +39,7 @@ on:
       - 'sub-license/**'
       - 'environment/*.md'
       - 'install_argocd/**'
+      - 'paper/**'
 env:
   TAG: ''
   OWNER_LC: ''
