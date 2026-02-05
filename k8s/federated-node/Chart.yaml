@@ -21,13 +21,13 @@ version: 1.10.0-v043bff
 # incremented each time you make changes to the application. Versions are not expected to
 # follow Semantic Versioning. They should reflect the version the application is using.
 # It is recommended to use it with quotes.
-appVersion: "1.10.0-v043bff"
+appVersion: "1.10.0-v672b0a"
 
 # Subcharts
 dependencies:
   - name: fn-task-controller
     repository: https://aridhia-open-source.github.io/federated-node-task-controller
-    version: "1.9.0-v764c19"
+    version: "1.9.0-v672b0a"
     condition: outboundMode
   - name: cert-manager
     version: "v1.17.1"
