@@ -1,7 +1,6 @@
 pullPolicy: Always
 
 create_db_deployment: true
-cleanupTime: 1
 keycloak:
   replicas: 1
 backend:

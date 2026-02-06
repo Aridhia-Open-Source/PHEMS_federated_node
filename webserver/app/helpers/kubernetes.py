@@ -117,7 +117,7 @@ class KubernetesBase:
 
     def delete_job(self, name:str, namespace=TASK_NAMESPACE):
         """
-        Given a pod name, delete it. If it doesn't exist
+        Given a job name, delete it. If it doesn't exist
         ignores the exception and logs a message.
         """
         try:
