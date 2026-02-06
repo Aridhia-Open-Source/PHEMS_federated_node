@@ -8,12 +8,12 @@ metadata:
   namespace: {{ include "kc_namespace" . }}
   labels:
     app: {{ include "kcControlleName" . }}
+  {{- if not .Release.IsInstall }}
   annotations:
-    {{- if not .Release.IsInstall }}
     helm.sh/hook: post-upgrade
-    {{- end }}
     helm.sh/hook-delete-policy: before-hook-creation
     helm.sh/hook-weight: "-1"
+  {{- end }}
 spec:
   selector:
     matchLabels:
