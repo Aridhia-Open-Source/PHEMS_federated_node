@@ -9,7 +9,9 @@ metadata:
   labels:
     app: {{ include "kcControlleName" . }}
   annotations:
-    helm.sh/hook: post-install,post-upgrade
+    {{- if not .Release.IsInstall }}
+    helm.sh/hook: post-upgrade
+    {{- end }}
     helm.sh/hook-delete-policy: before-hook-creation
     helm.sh/hook-weight: "-1"
 spec:
