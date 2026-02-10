@@ -103,7 +103,7 @@ while True:
         readiness += [condi for condi in pod.status.conditions if condi.type == "Ready" and condi.status == "True"]
 
       # We expect only one event per pod to have Ready type and True status
-      if len(readiness) != settings.max_replicas:
+      if len(readiness) != settings.kc_replicas:
         logger.info("One of the expected replicas is being terminated. Waiting..")
         continue
 

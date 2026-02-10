@@ -17,7 +17,7 @@ class Settings:
   realm:str = "master"
   kc_namespace:str = "keycloak"
   max_retries:int = 20
-  max_replicas:int = 2
+  kc_replicas:int = 2
 
   def __init__(self):
     for attr in self.__annotations__.keys():
