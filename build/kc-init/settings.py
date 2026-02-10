@@ -2,13 +2,13 @@ import os
 
 
 class Settings:
-  keycloak_namespace:str
-  keycloak_client:str
-  keycloak_admin:str
-  keycloak_admin_password:str
-  kc_bootstrap_admin_username:str
-  kc_bootstrap_admin_password:str
-  keycloak_url:str
+  keycloak_namespace:str = ""
+  keycloak_client:str = ""
+  keycloak_admin:str = ""
+  keycloak_admin_password:str = ""
+  kc_bootstrap_admin_username:str = ""
+  kc_bootstrap_admin_password:str = ""
+  keycloak_url:str = ""
   first_user_pass:str = ""
   first_user_email:str = ""
   first_user_first_name:str = ""
@@ -22,7 +22,7 @@ class Settings:
   def __init__(self):
     for attr in self.__annotations__.keys():
       if os.getenv(attr.upper()):
-        if isinstance(attr, int):
+        if isinstance(getattr(self, attr), int):
           setattr(self, attr, int(os.getenv(attr.upper())))
         else:
           setattr(self, attr, os.getenv(attr.upper()))
