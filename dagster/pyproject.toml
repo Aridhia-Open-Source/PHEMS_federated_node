@@ -8,6 +8,7 @@ dependencies = [
     "dagster",
     "dagster-k8s",
     "dagster-postgres",
+    'dagster-graphql',
     "python-dotenv",
     "pandas",
     "requests",

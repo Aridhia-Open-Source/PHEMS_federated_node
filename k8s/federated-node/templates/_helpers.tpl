@@ -34,13 +34,13 @@ Create chart name and version as used by the chart label.
 # a custom path as helpers are merged and the individual chart values
 # are then applied
 {{- define "backend-image" -}}
-ghcr.io/aridhia-open-source/federated_node_run:{{ include "image-tag" . }}
+{{ printf "%s:%s" (.Values.backend.image) (.Values.backend.tag) }}
 {{- end }}
 {{- define "fn-alpine" -}}
-ghcr.io/aridhia-open-source/alpine:{{ include "image-tag" . }}
+{{ printf "%s:%s" (.Values.alpine.image) (.Values.alpine.tag) }}
 {{- end }}
 {{- define "image-tag" -}}
-{{ (.Values.backend).tag | default .Chart.AppVersion }}
+{{ (.Values.default_image_tag) | default .Chart.AppVersion }}
 {{- end }}
 {{- define "keycloak-image-tag" -}}
 {{ (.Values.keycloak).tag | default .Chart.AppVersion }}
