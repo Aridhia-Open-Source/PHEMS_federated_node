@@ -107,7 +107,6 @@ kubectl create secret generic local-db \
   --from-literal=password="$DB_SECRET_KEY" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-
 ###############################################################################
 echo "=== [7/8] Building Docker Images(s) ========================================"
 
