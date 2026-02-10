@@ -31,9 +31,7 @@ create_db_deployment: false
 
 db:
   enforceSSL: false
-  user: admin
   name: fndb
-  host: db
   port: 5432
   # If a secret with password exists, use that
   # secret:

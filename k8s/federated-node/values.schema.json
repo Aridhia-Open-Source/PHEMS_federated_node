@@ -133,10 +133,7 @@
         },
         "db":{
             "type": "object",
-            "dependentRequired": {
-                "name": ["host"],
-                "host": ["name"]
-            },
+            "required": ["secret", "host", "user"],
             "properties": {
                 "enforceSSL": {"type": "boolean", "default": false},
                 "user": {"type": "string"},
