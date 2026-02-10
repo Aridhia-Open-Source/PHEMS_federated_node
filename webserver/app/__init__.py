@@ -13,7 +13,7 @@ from werkzeug.exceptions import NotFound
 
 from app import (
     main, admin_api, datasets_api, tasks_api, requests_api,
-    containers_api, registries_api, users_api
+    containers_api, registries_api, users_api, dagster_api
 )
 from app.helpers.base_model import build_sql_uri, db
 from app.helpers.exceptions import (
@@ -53,6 +53,7 @@ def create_app():
     app.register_blueprint(containers_api.bp)
     app.register_blueprint(registries_api.bp)
     app.register_blueprint(users_api.bp)
+    app.register_blueprint(dagster_api.bp)
 
     app.register_error_handler(InvalidDBEntry, exception_handler)
     app.register_error_handler(DBError, exception_handler)

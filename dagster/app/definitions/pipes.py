@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @dg.op(
     config_schema={
-        "image": str,
+        "docker_image": str,
     }
 )
 def k8s_pipes_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> dg.Output:
@@ -32,7 +32,7 @@ class K8sPipeOP:
         self.context = context
         self.run_id = context.run_id
         self.config = context.op_config
-        self.image = self.config['image']
+        self.image = self.config['docker_image']
 
     @property
     def env(self) -> dict:

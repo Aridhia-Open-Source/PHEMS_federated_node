@@ -86,6 +86,7 @@ class Task(db.Model, BaseModel):
         decoded_token = kc_client.decode_token(user_token)
         data["requested_by"] = kc_client.get_user_by_email(decoded_token["email"])["id"]
         user = kc_client.get_user_by_id(data["requested_by"])
+
         # Support only for one image at a time, the standard is executors == list
         executors = data["executors"][0]
         data["docker_image"] = executors["image"]

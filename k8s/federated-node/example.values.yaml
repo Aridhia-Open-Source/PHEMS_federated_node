@@ -9,11 +9,17 @@ smoketests: false
 taskReview: true
 cleanupTime: 3
 copySecrets: false
+default_image_tag: 1.9.0
 
 backend:
-  tag: 1.9.0
+  image: localhost:5001/backend-webserver-fn
+  tag: v1
   volumes:
     results_path: /data/flask/results
+
+alpine:
+  image: ghcr.io/aridhia-open-source/alpine
+  tag: 1.9.0
 
 keycloak:
   tag: 1.9.0
