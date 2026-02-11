@@ -233,6 +233,26 @@ class TestPostTask:
         assert len(pod_body.spec.init_containers) == 2
         assert [pod.name for pod in pod_body.spec.init_containers] == [f"init-{response.json["task_id"]}", "fetch-data"]
 
+    def test_create_task_no_name_fails(
+            self,
+            post_json_admin_header,
+            client,
+            task_body,
+
+        ):
+        """
+        Tests task creation returns an error when name is empty or null
+        """
+        for value in ["", None]:
+            task_body["name"] = value
+            response = client.post(
+                '/tasks/',
+                json=task_body,
+                headers=post_json_admin_header
+            )
+            assert response.status_code == 400
+            assert response.json["error"] == "name is a mandatory field"
+
     def test_create_task_no_db_query(
             self,
             cr_client,
