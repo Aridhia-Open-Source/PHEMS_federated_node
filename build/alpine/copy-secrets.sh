@@ -7,7 +7,7 @@ copySecret(){
   source_namespace=$2
   destination_namespace=$3
   echo "Copying $secret from $source_namespace to $destination_namespace"
-  kubectl get secret "${secret}" -n "${source_namespace}" -o json | jq 'del(.metadata.namespace, .metadata.resourceVersion, .metadata.creationTimestamp, .metadata.uid, .metadata.meta."helm.sh/release-name", .metadata.meta."helm.sh/release-namespace", .labels.app."kub
+  kubectl get secret "${secret}" -n "${source_namespace}" -o json | jq 'del(.metadata.namespace, .metadata.resourceVersion, .metadata.creationTimestamp, .metadata.uid, .metadata.annotations."meta.helm.sh/release-name", .metadata.annotations."meta.helm.sh/release-namespace", .labels.app."kub
 ernetes.io/managed-by")' | kubectl apply -n "${destination_namespace}" -f -
 }
 
