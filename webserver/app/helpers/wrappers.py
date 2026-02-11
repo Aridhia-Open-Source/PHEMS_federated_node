@@ -1,9 +1,10 @@
+from http.client import HTTPException
 import logging
 from functools import wraps
 from flask import request
 from sqlalchemy.exc import IntegrityError
 
-from app.helpers.exceptions import AuthenticationError, UnauthorizedError, LogAndException
+from app.helpers.exceptions import AuthenticationError, UnauthorizedError
 from app.helpers.keycloak import Keycloak
 from app.models.audit import Audit
 from app.models.dataset import Dataset
@@ -69,14 +70,17 @@ def auth(scope:str, check_dataset=True):
 def audit(func):
     @wraps(func)
     def _audit(*args, **kwargs):
+        raised_exception = None
         try:
             response_object, http_status = func(*args, **kwargs)
-        except LogAndException as exc:
+        except HTTPException as exc:
             response_object = { "error": exc.description }
             http_status = exc.code
-        except IntegrityError:
+            raised_exception = exc
+        except IntegrityError as inte:
             response_object = { "error": "Record already exists" }
             http_status = 500
+            raised_exception = inte
 
         if 'HTTP_X_REAL_IP' in request.environ:
             # if behind a proxy
@@ -107,6 +111,9 @@ def audit(func):
         api_function = func.__name__
         to_save = Audit(source_ip, http_method, http_endpoint, requested_by, http_status, api_function, details)
         to_save.add()
+        if raised_exception:
+            raise raised_exception
+
         return response_object, http_status
     return _audit
 
