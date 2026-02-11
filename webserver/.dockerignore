@@ -1,9 +1,10 @@
+
 *
 
 !app/**
+!migrations/**
 !requirements.txt
 !pyproject.toml
-!dagster.yaml
-!workspace.yaml
+!alembic.ini
 
 !.dockerignore
