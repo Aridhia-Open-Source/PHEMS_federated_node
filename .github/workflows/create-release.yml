@@ -28,75 +28,17 @@ permissions:
   contents: write
 
 jobs:
-  tag:
-    runs-on: ubuntu-latest
+  release:
     if: ${{inputs.majorVersion == 'true'}} || ${{inputs.minorVersion == 'true'}} || ${{inputs.patchVersion == 'true'}}
-    outputs:
-      current_version: ${{ steps.create_tag.outputs.CURRENT_VERSION }}
-    steps:
-      - name: Generate a token
-        id: generate-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ vars.BUMP_APP_ID }}
-          private-key: ${{ secrets.BUMP_APP_SECRET }}
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          token: ${{ steps.generate-token.outputs.token }}
-      - name: Create Tag
-        id: create_tag
-        working-directory: k8s/federated-node
-        run: |
-          set -e
-          version=$(grep '^version:.*' Chart.yaml | sed 's/^.*: //')
-          echo "CURRENT_VERSION=$version" >> ${GITHUB_OUTPUT}
-          echo "Creating tag $version"
-          if [[ "${{ inputs.dryRun }}" == "false" ]]; then
-            git tag "$version"
-            git push origin "$version"
-          fi
-  setNewVersion:
-    runs-on: ubuntu-latest
-    needs:
-      - tag
-    steps:
-      - name: Generate a token
-        id: generate-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ vars.BUMP_APP_ID }}
-          private-key: ${{ secrets.BUMP_APP_SECRET }}
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          token: ${{ steps.generate-token.outputs.token }}
-      - name: New Version Bump
-        id: newversion
-        env:
-          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
-        run: |
-          set -e
-          base_args=""
-
-          if [[ "${{ inputs.majorVersion }}" == "true" ]]; then
-            base_args+="-m "
-          fi
-          if [[ "${{ inputs.minorVersion }}" == "true" ]]; then
-            base_args+="-n "
-          fi
-          if [[ "${{ inputs.patchVersion }}" == "true" ]]; then
-            base_args+="-p "
-          fi
-
-          NEW_VERSION=$(python3 scripts/semver_bump.py -v ${{ needs.tag.outputs.current_version }} $base_args)
-
-          echo "New Version: $NEW_VERSION"
-          gh workflow run "Version bump" \
-            -f chartVersion=$NEW_VERSION \
-            -f appVersion=$NEW_VERSION \
-            -f dryRun="${{ inputs.dryRun }}" \
-            --ref develop
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/create-release.yml@main
+    with:
+      chartPath: k8s/federated-node
+      majorVersion: ${{ inputs.majorVersion }}
+      minorVersion: ${{ inputs.minorVersion }}
+      patchVersion: ${{ inputs.patchVersion }}
+      dryRun: ${{ inputs.dryRun }}
+      stagingBranch: develop
+      BUMP_APP_ID: ${{ vars.BUMP_APP_ID }}
+    secrets:
+      BUMP_APP_SECRET: ${{ secrets.BUMP_APP_SECRET }}
 

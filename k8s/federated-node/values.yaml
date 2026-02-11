@@ -8,7 +8,7 @@ backend:
   tag:
 
 keycloak:
-  replicas: 2
+  replicas: 1
   tag:
 
 autoscaling:
