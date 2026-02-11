@@ -1,4 +1,5 @@
 # Only rendered if SSL certificates are needed
+{{- if .Values.global.copySecretsWithTemplate -}}
 {{- if (index .Values "cert-manager" "enabled" ) }}
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
@@ -48,4 +49,5 @@ spec:
   {{- else if .Values.local_development }}
   selfSigned: {}
   {{- end }}
+{{- end }}
 {{- end }}
