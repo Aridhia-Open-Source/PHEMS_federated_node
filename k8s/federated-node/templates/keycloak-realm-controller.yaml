@@ -8,10 +8,6 @@ metadata:
   namespace: {{ include "kc_namespace" . }}
   labels:
     app: {{ include "kcControlleName" . }}
-  annotations:
-    helm.sh/hook: post-install,post-upgrade
-    helm.sh/hook-delete-policy: before-hook-creation
-    helm.sh/hook-weight: "-1"
 spec:
   selector:
     matchLabels:
@@ -23,7 +19,7 @@ spec:
     spec:
       serviceAccountName: k8s-keycloak-handler
       containers:
-        - name: post-install-job
+        - name: {{ include "kcControlleName" . }}
           imagePullPolicy: {{ .Values.pullPolicy }}
           image: "ghcr.io/aridhia-open-source/keycloak_initializer:{{ .Values.keycloak.tag | default .Chart.AppVersion }}"
           {{- include "nonRootSC" . | nindent 10 }}
