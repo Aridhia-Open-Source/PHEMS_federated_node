@@ -11,19 +11,19 @@ DAGSTER_WEBSERVER_HOSTNAME = "fn-dev-dagster-webserver"
 DAGSTER_REPOSITORY_LOCATION_NAME = "dagster-fn"
 DAGSTER_WEBSERVER_PORT = 80
 DAGSTER_WEBSERVER_USE_SSL = False
-K8S_PIPES_JOB_NAME = 'k8s_pipes_job'
-K8S_PIPES_OP_NAME = 'k8s_pipes_op'
+K8S_PIPES_JOB_NAME = "k8s_pipes_job"
+K8S_PIPES_OP_NAME = "k8s_pipes_op"
 
 
-bp = Blueprint('dagster', __name__, url_prefix='/dagster')
+bp = Blueprint("dagster", __name__, url_prefix="/dagster")
 dg_client = DagsterGraphQLClient(
     hostname=DAGSTER_WEBSERVER_HOSTNAME,
-    port=DAGSTER_WEBSERVER_PORT,
-    use_ssl=DAGSTER_WEBSERVER_USE_SSL
+    port_number=DAGSTER_WEBSERVER_PORT,
+    use_https=DAGSTER_WEBSERVER_USE_SSL,
 )
 
 
-@bp.route('/jobs', methods=['POST'])
+@bp.route("/jobs", methods=["POST"])
 def post_job():
     """
     POST /jobs endpoint.
