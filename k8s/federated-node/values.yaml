@@ -8,7 +8,7 @@ backend:
   tag:
 
 keycloak:
-  replicas: 2
+  replicas: 1
   tag:
 
 autoscaling:
@@ -47,14 +47,15 @@ cleanupTime: 3
 
 taskReview: false
 
-firstUserSecret:
-  name:
-  passKey:
-  firstName:
-  lastName:
-  email:
+# firstUserSecret:
+  # name:
+  # passKey:
+  # firstName:
+  # lastName:
+  # email:
 
 federatedNode:
+  enable_registry_sync: false
   port: 5000
   volumes:
     results_path: /mnt/results
@@ -99,10 +100,10 @@ integrations:
 
 certs:
   rotationPolicy: Never
-  azure: {}
+  azure:
     # secretName:
     # configmap:
-  aws:
+  aws: ""
 
 # Enables full smoketests when running `helm test`.
 # This will actively try to add new database and keycloak entries

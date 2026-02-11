@@ -1,0 +1,461 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "type": "object",
+    "required": [
+        "db"
+    ],
+    "definitions": {
+        "tag": {
+            "type": ["string", "null"],
+            "pattern": "^\\d+\\.\\d+\\.\\d+(-v[a-z0-9]+)?$"
+        },
+        "taskReview": {
+            "type": "boolean",
+            "default": false
+        },
+        "capacity": {
+            "type": "string",
+            "description": "How much to reserve for tasks, defaults to 10Gi. Other possible units are Mi, Ti, Ki",
+            "pattern": "^\\d+(M|G|K)i{0,1}$"
+        },
+        "host": {
+            "type": "string",
+            "description": "Hostname where the FN can be reached at. Optional, also used to name the results files"
+        },
+        "iplist": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "enabled": {"type": "boolean"},
+                    "ips": {
+                        "$ref": "#/definitions/ip_address"
+                    }
+                }
+            }
+        },
+        "namespaces": {
+            "type": "object",
+            "properties": {
+                "keycloak": {
+                    "type": "string",
+                    "default": "keycloak"
+                },
+                "tasks": {
+                    "type": "string",
+                    "default": "tasks"
+                },
+                "controller": {
+                    "type": "string",
+                    "default": "fn-controller"
+                }
+            }
+        },
+        "ip_address": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "pattern": "^[0-9]{1,3}/.[0-9]{1,3}/.[0-9]{1,3}/.[0-9]{1,3}(//[0-9]{1,3}){0,1}$"
+            }
+        }
+    },
+    "properties": {
+        "backend": {
+            "type": "object",
+            "properties": {
+                "replicas": {
+                    "type": "integer",
+                    "default": 1
+                },
+                "tag": {
+                    "$ref": "#/definitions/tag"
+                }
+            }
+        },
+        "keycloak": {
+            "type": "object",
+            "properties": {
+                "replicas": {
+                    "type": "integer",
+                    "default": 2
+                },
+                "tag": {
+                    "$ref": "#/definitions/tag"
+                }
+            }
+        },
+        "autoscaling": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false
+                }
+            }
+        },
+        "namespaces": {
+            "$ref": "#/definitions/namespaces"
+        },
+        "global": {
+            "type": "object",
+            "description": "Shared values across all charts",
+            "properties": {
+                "namespaces": {
+                    "$ref": "#/definitions/namespaces"
+                },
+                "host": {
+                    "$ref": "#/definitions/host"
+                },
+                "taskReview": {
+                    "$ref": "#/definitions/taskReview"
+                }
+            }
+        },
+        "token":{
+            "type": "object",
+            "properties": {
+                "life": {
+                    "type": "integer",
+                    "default": 2592000,
+                    "description": "Duration in seconds for tokens"
+                }
+            }
+        },
+        "local_development":{
+            "type": "boolean",
+            "description": "Toggle for local development. Mostly to ignore SSL",
+            "default": false
+        },
+        "create_db_deployment":{
+            "type": "boolean",
+            "description": "Only for development purposes. Instable for production usage",
+            "default": false
+        },
+        "db":{
+            "type": "object",
+            "dependentRequired": {
+                "name": ["host"],
+                "host": ["name"]
+            },
+            "properties": {
+                "user": {"type": "string"},
+                "name": {"type": "string", "default": "db"},
+                "host": {"type": "string"},
+                "secret": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Secret for DB credentials"},
+                        "key": {"type": "string", "description": "Secret key where the password is stored"}
+                    }
+                }
+            }
+        },
+        "cleanupTime":{
+            "type": "integer",
+            "description": "Amount of days the result stored in the storage will be kept for"
+        },
+        "taskReview":{
+            "$ref": "#/definitions/taskReview"
+        },
+        "firstUserSecret":{
+            "type": "object",
+            "required": ["name", "email", "passKey"],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The secret name that will hold the password to use for the user"
+                },
+                "passKey": {
+                    "type": "string",
+                    "description": "The key holding the password"
+                },
+                "firstName": {
+                    "type": "string",
+                    "description": "User's last name"
+                },
+                "lastName": {
+                    "type": "string",
+                    "description": "User's last name"
+                },
+                "email": {
+                    "type": "string",
+                    "description": "User's email address, this will also be the username"
+                }
+            }
+        },
+        "federatedNode":{
+            "type": "object",
+            "properties": {
+                "port": {
+                    "type": "integer",
+                    "default": 5000
+                },
+                "volumes": {
+                    "type": "object",
+                    "properties": {
+                        "results_path": {"type": "string"},
+                        "task_pod_results_path": {"type": "string"}
+                    }
+                }
+            }
+        },
+        "storage": {
+            "type": "object",
+            "properties": {
+                "capacity": {
+                    "$ref": "#/definitions/capacity"
+                }
+            },
+            "oneOf": [{
+                "azure": {
+                    "type": "object",
+                    "required": [
+                        "secretName",
+                        "shareName"
+                    ],
+                    "description": "If running a cluster on azure, or using an Azure Storage Class, this will be the suggested config",
+                    "properties": {
+                        "secretName": {
+                            "type": "string",
+                            "description": "Secret name where the credentials for the azure storage are saved"
+                        },
+                        "shareName": {
+                            "type": "string",
+                            "description": "Share name within the azure storage account"
+                        }
+                    }
+                },
+                "aws": {
+                    "type": "object",
+                    "required": [
+                        "fileSystemId",
+                        "accessPointId"
+                    ],
+                    "description": "If running a cluster on AWS this will be the suggested config",
+                    "properties": {
+                        "fileSystemId": {
+                            "type": "string",
+                            "description": "EFS system id, e.g. fs-xxxxxxxxx"
+                        },
+                        "accessPointId": {
+                            "type": "string",
+                            "description": "Optional, access point id for better permission and isolation management in the EFS"
+                        }
+                    }
+                },
+                "nfs": {
+                    "type": "object",
+                    "description": "If running a cluster off the cloud, this will be the suggested config",
+                    "properties": {
+                        "provisioner": {"type": "string"},
+                        "path": {"type": "string"},
+                        "url": {"type": "string"}
+                    }
+                },
+                "local": {
+                    "type": "object",
+                    "required": [
+                        "path"
+                    ],
+                    "properties": {
+                        "path": {"type": "string", "description": "Where to persist files in the host machine"},
+                        "dbpath": {"type": "string"}
+                    }
+                }
+            }]
+        },
+        "pullPolicy": {
+            "type": "string",
+            "enum": [
+                "Always",
+                "IfNotPresent"
+            ]
+        },
+        "host": {
+            "$ref": "#/definitions/host"
+        },
+        "tls":{
+            "type": "object",
+            "properties": {
+                "secretName": {
+                    "type": "string",
+                    "description": "Secret name where the SSL certificate is. Defaults to tls if the tls section is set"
+                }
+            }
+        },
+        "on_aks":{
+            "type": "boolean",
+            "description": "Deploying on Azure?",
+            "default": false
+        },
+        "on_eks":{
+            "type": "boolean",
+            "description": "Deploying on AWS?",
+            "default": false
+        },
+        "integrations":{
+            "type": "object",
+            "properties": {
+                "domains": {
+                    "type": "array",
+                    "description": "The list of third party host that can reach the Federated Node. Otherwise these will be blocked by CSP policies. This will not affect direct user API usage.",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "certs": {
+            "type": "object",
+            "properties": {
+                "rotationPolicy": {
+                    "type": "string",
+                    "enum": [
+                        "Never"
+                    ]
+                },
+                "azure": {
+                    "type": ["object", "null"],
+                    "required": [
+                        "secretName",
+                        "configmap"
+                    ],
+                    "properties": {
+                        "secretName": {"type": "string"},
+                        "configmap": {"type": "string"}
+                    }
+                },
+                "aws": {
+                    "type": "string",
+                    "description": "Secret that holds all of the AWS related info for SSL certificate management"
+                }
+            }
+        },
+        "smoketests": {
+            "type": "boolean",
+            "description": "Enables simple smoketests on the helm charts",
+            "default": false
+        },
+        "outboundMode": {
+            "type": "boolean",
+            "description": "Enables outbound connection mode",
+            "default": false
+        },
+        "cert-manager": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "namespace": {
+                    "type": "string",
+                    "default": "fn-certmanager"
+                },
+                "installCRDs": {
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "traefik": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "gateway": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "default": true
+                        },
+                        "name": {
+                            "type": "string",
+                            "default": "traefik-fn-gateway"
+                        }
+                    }
+                },
+                "gatewayClass": {
+                    "type": "object",
+                    "properties": {
+                        "ingressClassResource": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "default": "traefik-fn-gateway-class"
+                                }
+                            }
+                        }
+                    }
+                },
+                "service": {
+                    "type": "object",
+                    "properties": {
+                        "spec": {
+                            "type": "object",
+                            "properties": {
+                                "externalIPs": {
+                                    "$ref": "#/definitions/iplist"
+                                },
+                                "externalTrafficPolicy": {
+                                    "type": "string",
+                                    "description": "For AKS deployment only",
+                                    "default": "Local",
+                                    "enum": [
+                                        "Local",
+                                        "Cluster"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "providers": {
+                    "type": "object",
+                    "properties": {
+                        "kubernetesCRD": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean",
+                                    "default": true
+                                }
+                            }
+                        },
+                        "kubernetesGateway": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean",
+                                    "default": true
+                                }
+                            }
+                        },
+                        "kubernetesIngress": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean",
+                                    "default": false
+                                }
+                            }
+                        }
+                    }
+                },
+                "api": {
+                    "type": "object",
+                    "properties": {
+                        "dashboard": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
