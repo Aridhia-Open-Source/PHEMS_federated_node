@@ -12,8 +12,8 @@ copySecrets: false
 default_image_tag: 1.9.0
 
 backend:
-  image: localhost:5001/backend-webserver-fn
-  tag: v1
+  image: localhost:5001/webserver-fn
+  tag: v30
   volumes:
     results_path: /data/flask/results
 
@@ -138,8 +138,8 @@ dagster:
           # When a tag is not supplied for a Dagster provided image,
           # it will default as the Helm chart version.
           repository: localhost:5001/dagster-fn
-          tag: "v15"
-          pullPolicy: "Always"
+          tag: v30
+          pullPolicy: Always
 
         envConfigMaps:
           - name: dagster-env-config
@@ -165,17 +165,17 @@ dagster:
 
     # List of unique deployments
     deployments:
-      - name: "dagster-fn"
+      - name: dagster-fn
         port: 3030
         image:
           # When a tag is not supplied, it will default as the Helm chart version.
           repository: localhost:5001/dagster-fn
-          tag: "v15"
+          tag: v30
 
           # Change with caution! If you're using a fixed tag for pipeline run images, changing the
-          # image pull policy to anything other than "Always" will use a cached/stale image, which is
+          # image pull policy to anything other than Always will use a cached/stale image, which is
           # almost certainly not what you want.
-          pullPolicy: "Always"
+          pullPolicy: Always
 
         envConfigMaps:
           - name: dagster-env-config

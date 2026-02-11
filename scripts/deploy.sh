@@ -2,9 +2,9 @@
 set -euo pipefail
 
 ###############################################################################
-# Federated Node - Dev Cluster Full Reset & Redeploy (kind)
+# Federated Node - Development Cluster Deployment
 #
-# Fast-path dev workflow:
+# Workflow
 #   1. Ensure local Docker registry is running
 #   2. Delete existing kind cluster
 #   3. Recreate cluster with required mounts
@@ -13,10 +13,11 @@ set -euo pipefail
 #   6. Build code locations
 #   7. Deploy Helm release
 #
-# Disposable cluster. No waits. No sanity checks.
+# Disposable cluster
 ###############################################################################
 
 ### Config ####################################################################
+DOCKER_TAG="v30"
 CLUSTER_NAME="fn"
 NAMESPACE="fn"
 RELEASE_NAME="fn-dev"
@@ -110,20 +111,7 @@ kubectl create secret generic local-db \
 ###############################################################################
 echo "=== [7/8] Building Docker Images(s) ========================================"
 
-
-cd dagster
-./build.sh
-cd ../
-
-cd docker_models
-./build.sh julia
-cd ../
-
-cd docker_models
-./build.sh python
-cd ../
-
-echo "Image builds successful!"
+./scripts/build_all_images.sh $DOCKER_TAG
 
 ###############################################################################
 echo "=== [8/8] Deploying Helm release =========================================="

@@ -1,4 +1,4 @@
-bfrom werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import HTTPException
 from werkzeug.sansio.response import Response
 import logging
 import json
