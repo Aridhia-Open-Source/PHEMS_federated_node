@@ -259,6 +259,7 @@
             "oneOf": [
                 { "required": ["azure"] },
                 { "required": ["aws"] },
+                { "required": ["local"] },
                 { "required": ["nfs"] }
             ]
         },
