@@ -202,9 +202,7 @@
             "properties": {
                 "capacity": {
                     "$ref": "#/definitions/capacity"
-                }
-            },
-            "oneOf": [{
+                },
                 "azure": {
                     "type": "object",
                     "required": [
@@ -260,7 +258,13 @@
                         "dbpath": {"type": "string"}
                     }
                 }
-            }]
+            },
+            "oneOf": [
+                { "required": ["azure"] },
+                { "required": ["aws"] },
+                { "required": ["nfs"] },
+                { "required": ["local"] }
+            ]
         },
         "pullPolicy": {
             "type": "string",

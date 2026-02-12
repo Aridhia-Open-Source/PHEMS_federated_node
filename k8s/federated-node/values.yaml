@@ -69,7 +69,7 @@ storage:
     # provisioner:
     # url:
     # path:
-  local: {}
+  # local: {}
     # Local storage that will be shared with the backend
     # path:
     # Local storage that will be shared with the db
