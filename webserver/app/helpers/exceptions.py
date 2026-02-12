@@ -24,6 +24,7 @@ class LogAndException(HTTPException):
         if code:
             self.code = code
 
+
 class InvalidDBEntry(LogAndException):
     code = 400
 
