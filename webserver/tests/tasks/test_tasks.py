@@ -253,6 +253,26 @@ class TestPostTask:
             assert response.status_code == 400
             assert response.json["error"] == "name is a mandatory field"
 
+    def test_create_task_space_name_fails(
+            self,
+            post_json_admin_header,
+            client,
+            task_body,
+
+        ):
+        """
+        Tests task creation returns an error when name is one or more spaces
+        """
+        for value in [" ", " " * 10]:
+            task_body["name"] = value
+            response = client.post(
+                '/tasks/',
+                json=task_body,
+                headers=post_json_admin_header
+            )
+            assert response.status_code == 400
+            assert response.json["error"] == "name is a mandatory field"
+
     def test_create_task_no_db_query(
             self,
             cr_client,
