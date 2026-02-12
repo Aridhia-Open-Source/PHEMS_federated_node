@@ -133,11 +133,9 @@
         },
         "db":{
             "type": "object",
-            "dependentRequired": {
-                "name": ["host"],
-                "host": ["name"]
-            },
+            "required": ["secret", "host", "user"],
             "properties": {
+                "enforceSSL": {"type": "boolean", "default": false},
                 "user": {"type": "string"},
                 "name": {"type": "string", "default": "db"},
                 "host": {"type": "string"},
@@ -204,9 +202,7 @@
             "properties": {
                 "capacity": {
                     "$ref": "#/definitions/capacity"
-                }
-            },
-            "oneOf": [{
+                },
                 "azure": {
                     "type": "object",
                     "required": [
@@ -254,15 +250,18 @@
                 },
                 "local": {
                     "type": "object",
-                    "required": [
-                        "path"
-                    ],
                     "properties": {
                         "path": {"type": "string", "description": "Where to persist files in the host machine"},
                         "dbpath": {"type": "string"}
                     }
                 }
-            }]
+            },
+            "oneOf": [
+                { "required": ["azure"] },
+                { "required": ["aws"] },
+                { "required": ["local"] },
+                { "required": ["nfs"] }
+            ]
         },
         "pullPolicy": {
             "type": "string",
