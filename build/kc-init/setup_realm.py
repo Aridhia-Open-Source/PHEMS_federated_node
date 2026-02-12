@@ -14,7 +14,7 @@ from common import (
   create_user, delete_bootstrap_user,
   enable_user_profile_at_realm_level,
   login, health_check, set_token_exchange_for_global_client,
-  set_users_required_fields
+  set_users_required_fields, setup_master_user
 )
 from settings import settings
 
@@ -46,12 +46,15 @@ def setup_keycloak():
   logger.info("Got the token...Creating user in new Realm")
 
   # Create backend user
-  create_user(
+  master_admin_id = create_user(
     settings.keycloak_admin,
     settings.keycloak_admin_password,
     email="admin@federatednode.com",
     admin_token=admin_token,
     realm="master", with_role=False
+  )
+  setup_master_user(
+    master_admin_id, admin_token, ["admin", "create-realm"]
   )
   create_user(
     settings.keycloak_admin,
@@ -100,7 +103,7 @@ while True:
         readiness += [condi for condi in pod.status.conditions if condi.type == "Ready" and condi.status == "True"]
 
       # We expect only one event per pod to have Ready type and True status
-      if len(readiness) != settings.max_replicas:
+      if len(readiness) != settings.kc_replicas:
         logger.info("One of the expected replicas is being terminated. Waiting..")
         continue
 
