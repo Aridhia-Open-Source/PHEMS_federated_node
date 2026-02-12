@@ -250,9 +250,6 @@
                 },
                 "local": {
                     "type": "object",
-                    "required": [
-                        "path"
-                    ],
                     "properties": {
                         "path": {"type": "string", "description": "Where to persist files in the host machine"},
                         "dbpath": {"type": "string"}
@@ -262,8 +259,7 @@
             "oneOf": [
                 { "required": ["azure"] },
                 { "required": ["aws"] },
-                { "required": ["nfs"] },
-                { "required": ["local"] }
+                { "required": ["nfs"] }
             ]
         },
         "pullPolicy": {

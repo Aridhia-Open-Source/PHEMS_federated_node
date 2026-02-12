@@ -71,7 +71,7 @@ storage:
     # path:
   # local: {}
     # Local storage that will be shared with the backend
-    # path:
+    # path: /data/results
     # Local storage that will be shared with the db
     # dbpath: /data/db
 
