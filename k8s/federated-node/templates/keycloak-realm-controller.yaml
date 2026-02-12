@@ -8,6 +8,9 @@ metadata:
   namespace: {{ include "kc_namespace" . }}
   labels:
     app: {{ include "kcControlleName" . }}
+    {{ include "defaultLabels" .}}
+  annotations:
+    {{ include "defaultAnnotations" . }}
 spec:
   selector:
     matchLabels:
