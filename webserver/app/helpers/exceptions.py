@@ -16,6 +16,7 @@ class LogAndException(HTTPException):
             self.code = code
         super().__init__(self.description, response)
 
+
 class InvalidDBEntry(LogAndException):
     code = 400
 
