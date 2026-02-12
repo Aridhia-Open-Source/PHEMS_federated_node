@@ -80,8 +80,8 @@ class Task(db.Model, BaseModel):
 
     @classmethod
     def validate(cls, data:dict):
-        name = data.get("name") or ""
-        if not name.replace(" ", ""):
+        data["name"] = (data.get("name") or "").replace(" ", "")
+        if not data["name"]:
             raise InvalidRequest("name is a mandatory field")
 
         kc_client = Keycloak()
