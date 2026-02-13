@@ -5,8 +5,7 @@ description = ""
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "cffi==1.17.1",
-    "cryptography==44.0.2",
+    "cffi>=1.17.1",
     "greenlet==3.2.1",
     "mariadb==1.1.12",
     "mysqlclient==2.2.7",
@@ -15,6 +14,7 @@ dependencies = [
     "psycopg2==2.9.10",
     "pycparser==2.22",
     "pyodbc==5.2.0",
+    "cryptography>=46.0.5",
     "setuptools>=78.1.1",
     "SQLAlchemy==2.0.40",
     "sqlglot==26.16.2",
