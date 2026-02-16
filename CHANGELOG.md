@@ -4,6 +4,7 @@
 - Improved API error handling involving k8s library errors
 
 ### Bugfixes
+- Fixed the containers add query check, which was incorrectly referring to the same field
 - Added validation for task name missing or empty string
 
 ## 1.9.0

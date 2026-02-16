@@ -5,16 +5,9 @@ ARG USERNAME=fednode
 ARG USER_UID=1001
 ARG USER_GID=1001
 
-COPY app /app
 COPY migrations /migrations
 COPY alembic.ini /
 COPY pyproject.toml /
-
-WORKDIR /app
-
-RUN groupadd -g "$USER_GID" "$USERNAME" \
-    && useradd --uid "$USER_UID" --gid "$USER_GID" "$USERNAME" \
-    && chown -R "$USERNAME":"$USERNAME" /app
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -31,6 +24,13 @@ RUN apt-get update \
     && PATH=$(which pg_config):$PATH \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+COPY app /app
+WORKDIR /app
+
+RUN groupadd -g "$USER_GID" "$USERNAME" \
+    && useradd --uid "$USER_UID" --gid "$USER_GID" "$USERNAME" \
+    && chown -R "$USERNAME":"$USERNAME" /app
 
 ENV PATH="/.venv/bin:$PATH"
 USER ${USER_UID}
