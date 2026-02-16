@@ -3,7 +3,6 @@ pullPolicy: Always
 local_development: true
 create_db_deployment: true
 
-cleanupTime: 1
 keycloak:
   replicas: 1
 backend:
