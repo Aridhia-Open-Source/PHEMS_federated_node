@@ -1,5 +1,12 @@
 # Releases Changelog
 
+## 1.10.0
+- Improved API error handling involving k8s library errors
+
+### Bugfixes
+- Fixed the containers add query check, which was incorrectly referring to the same field
+- Added validation for task name missing or empty string
+
 ## 1.9.0
 - Added a dataset link to a repo, so that on outbound connection mode, the CRD applied from a repository, will be associated with the dataset
 - Added a write_schema field on db and api for dataset. This will be passed to the task as env var `WRITE_SCHEMA`.

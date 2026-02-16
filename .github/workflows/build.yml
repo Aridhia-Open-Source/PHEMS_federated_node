@@ -223,6 +223,8 @@ jobs:
       CHART_NAME: federated-node
       IS_TAG: ${{ needs.init.outputs.is_tag }}
       HAS_SUBCHART: true
+    secrets:
+      CHART_APP_SECRET: ${{ secrets.CHART_APP_SECRET }}
   summary:
     needs:
       - init

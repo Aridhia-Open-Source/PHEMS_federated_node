@@ -1,5 +1,6 @@
 import os
 import logging
+from typing import List
 import requests
 import time
 from requests import Response
@@ -69,14 +70,22 @@ def login(kc_url:str, kc_user:str, kc_pass:str) -> str:
     logger.info("Successful")
     return response.json()["access_token"]
 
-def get_role(role_name:str, admin_token:str):
+def setup_master_user(user_id:str, admin_token:str, roles:List[str]):
+    """
+    Mostly to restore Keycloak UI access to the main super admin
+    """
+    for role in roles:
+      role_id = get_role(role, admin_token, realm='master')
+      assign_role(role, role_id, admin_token, 'master', user_id)
+
+def get_role(role_name:str, admin_token:str, realm:str=settings.keycloak_realm):
     logger.info(f"Getting realms role {role_name} id")
     headers = {
       'Authorization': f'Bearer {admin_token}'
     }
 
     response = requests.get(
-      f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}/roles",
+      f"{settings.keycloak_url}/admin/realms/{realm}/roles",
       headers=headers
     )
     is_response_good(response)
@@ -94,7 +103,7 @@ def create_user(
       with_role:bool=True,
       admin_token:str=None,
       realm:str=settings.keycloak_realm
-    ):
+    ) -> str:
     """
     Given a set of info about the user, create in the settings.keycloak_realm and
     assigns it the role as it can't be done all in one call.
@@ -129,31 +138,35 @@ def create_user(
     )
     is_response_good(response_create_user)
 
+    response_user_id = requests.get(
+      f"{settings.keycloak_url}/admin/realms/{realm}/users",
+      params={"username": username},
+      headers=headers
+    )
+    is_response_good(response_user_id)
+    user_id = response_user_id.json()[0]["id"]
+
     if with_role:
-      response_user_id = requests.get(
-        f"{settings.keycloak_url}/admin/realms/{realm}/users",
-        params={"username": username},
-        headers=headers
-      )
-      is_response_good(response_user_id)
-      user_id = response_user_id.json()[0]["id"]
-
       logger.info(f"Assigning role {role_name} to {username}")
+      assign_role(role_name, get_role(role_name, admin_token), admin_token, realm, user_id)
 
-      response_assign_role = requests.post(
-        f"{settings.keycloak_url}/admin/realms/{realm}/users/{user_id}/role-mappings/realm",
-        headers={
-          'Content-Type': 'application/json',
-          'Authorization': f'Bearer {admin_token}'
-        },
-        json=[
-          {
-            "id": get_role(role_name, admin_token),
-            "name": role_name
-          }
-        ]
-      )
-      is_response_good(response_assign_role)
+    return user_id
+
+def assign_role(role_name, role_id, admin_token, realm, user_id):
+  response_assign_role = requests.post(
+    f"{settings.keycloak_url}/admin/realms/{realm}/users/{user_id}/role-mappings/realm",
+    headers={
+      'Content-Type': 'application/json',
+      'Authorization': f'Bearer {admin_token}'
+    },
+    json=[
+      {
+        "id": role_id,
+        "name": role_name
+      }
+    ]
+  )
+  is_response_good(response_assign_role)
 
 def set_token_exchange_v2(admin_token:str):
   """

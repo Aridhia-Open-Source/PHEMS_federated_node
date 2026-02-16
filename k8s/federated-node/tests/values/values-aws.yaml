@@ -35,7 +35,6 @@ ingress:
     secretName: my-tls-secret
 
 certs:
-  frequency: 65
   aws: awscert-config
 
 smoketests: false
