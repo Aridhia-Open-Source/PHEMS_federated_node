@@ -101,6 +101,9 @@ tests:
     set:
       cleanupResults:
         enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
   - it: no registry sync
     template: registry-sync-cronjob.yaml
     set:
