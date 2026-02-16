@@ -101,6 +101,11 @@ tests:
     set:
       cleanupResults:
         enabled: false
+  - it: no registry sync
+    template: registry-sync-cronjob.yaml
+    set:
+      federatedNode:
+        enable_registry_sync: false
     asserts:
       - hasDocuments:
           count: 0

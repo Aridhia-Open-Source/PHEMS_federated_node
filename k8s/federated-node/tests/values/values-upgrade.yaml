@@ -37,7 +37,6 @@ on_aks: false
 token:
   life: 2592000
 certs:
-  frequency: 65
   aws: awscert-config
   rotationPolicy: Never
 

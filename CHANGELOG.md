@@ -1,10 +1,17 @@
 # Releases Changelog
 
-## 1.10.0
+## 1.11.0
 - CronJobs are now supported. Use the `schedule` field in either the `/tasks` API, or the `Analytics` CRD (for outbound mode) to set a cron rule, like `"3 9 * * *"`.
 - Added two new endpoints for cronjobs: `/tasks/id/suspend` and `/tasks/id/resume` to pause/resume autoexecution.
 - Adjusted the results job cleanup
 - Automatic task results cleanup is now an toggleable feature by setting `cleanupResults.enabled` to `false`. It is enabled by default.
+
+## 1.10.0
+- Improved API error handling involving k8s library errors
+
+### Bugfixes
+- Fixed the containers add query check, which was incorrectly referring to the same field
+- Added validation for task name missing or empty string
 
 ## 1.9.0
 

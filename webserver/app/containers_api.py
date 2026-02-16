@@ -53,7 +53,7 @@ def add_image():
         Container.name == body["name"],
         Registry.url==body["registry"].url
     ).filter(
-        (Container.tag==body.get("tag")) | (Container.tag==body.get("sha"))
+        (Container.tag==body.get("tag")) & (Container.sha==body.get("sha"))
     ).join(Registry).one_or_none()
 
     if existing_image:

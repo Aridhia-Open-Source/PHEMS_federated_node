@@ -8,7 +8,7 @@ backend:
   tag:
 
 keycloak:
-  replicas: 2
+  replicas: 1
   tag:
 
 autoscaling:
@@ -31,9 +31,7 @@ create_db_deployment: false
 
 db:
   enforceSSL: false
-  user: admin
   name: fndb
-  host: db
   port: 5432
   # If a secret with password exists, use that
   # secret:
@@ -48,14 +46,15 @@ cleanupResults:
 
 taskReview: false
 
-firstUserSecret:
-  name:
-  passKey:
-  firstName:
-  lastName:
-  email:
+# firstUserSecret:
+  # name:
+  # passKey:
+  # firstName:
+  # lastName:
+  # email:
 
 federatedNode:
+  enable_registry_sync: false
   port: 5000
   volumes:
     results_path: /mnt/results
@@ -73,9 +72,9 @@ storage:
     # provisioner:
     # url:
     # path:
-  local: {}
+  # local: {}
     # Local storage that will be shared with the backend
-    # path:
+    # path: /data/results
     # Local storage that will be shared with the db
     # dbpath: /data/db
 
@@ -100,10 +99,10 @@ integrations:
 
 certs:
   rotationPolicy: Never
-  azure: {}
+  azure:
     # secretName:
     # configmap:
-  aws:
+  aws: ""
 
 # Enables full smoketests when running `helm test`.
 # This will actively try to add new database and keycloak entries
