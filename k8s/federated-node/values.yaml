@@ -33,9 +33,7 @@ create_db_deployment: false
 
 db:
   enforceSSL: false
-  user: admin
   name: fndb
-  host: db
   port: 5432
   # If a secret with password exists, use that
   # secret:
@@ -73,9 +71,9 @@ storage:
     # provisioner:
     # url:
     # path:
-  local: {}
+  # local: {}
     # Local storage that will be shared with the backend
-    # path:
+    # path: /data/results
     # Local storage that will be shared with the db
     # dbpath: /data/db
 
