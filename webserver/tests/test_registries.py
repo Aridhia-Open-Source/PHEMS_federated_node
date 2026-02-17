@@ -180,6 +180,42 @@ class TestPostRegistriesApi:
         assert resp.status_code == 400
         assert resp.json["error"] == "Could not authenticate against the registry"
 
+    def test_create_registry_missing_secret(
+        self,
+        client,
+        k8s_client,
+        post_json_admin_header
+    ):
+        """
+        Basic POST request when the docker secret does not exist, so it get correctly
+        created
+        """
+        new_registry = "shiny.azurecr.io"
+        k8s_client["read_namespaced_secret_mock"].side_effect = [
+            ApiException(status=404, reason="Not Found"),
+            Mock(data={
+                ".dockerconfigjson": base64.b64encode("{\"auths\": {}}".encode()).decode()
+            })
+        ]
+        with responses.RequestsMock() as rsps:
+            rsps.add_passthru(KEYCLOAK_URL)
+            rsps.add(
+                responses.GET,
+                f"https://{new_registry}/oauth2/token?service={new_registry}&scope=registry:catalog:*",
+                json={"access_token": "12jio12buds89"},
+                status=200
+            )
+            resp = client.post(
+                "/registries",
+                json={
+                    "url": new_registry,
+                    "username": "blabla",
+                    "password": "secret"
+                },
+                headers=post_json_admin_header
+            )
+        assert resp.status_code == 201
+
     def test_create_missing_field(
         self,
         client,
