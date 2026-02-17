@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 from flask import Blueprint, request, send_file
 
-from app.helpers.const import CLEANUP_AFTER_DAYS, PUBLIC_URL, TASK_REVIEW
+from app.helpers.settings import settings
 from app.helpers.exceptions import (
     DBRecordNotFoundError, FeatureNotAvailableException,
     UnauthorizedError, InvalidRequest
@@ -145,14 +145,14 @@ def get_task_results(task_id):
     kc_client = Keycloak()
     token = kc_client.get_token_from_headers()
     # admin should be able to fetch them regardless
-    if TASK_REVIEW and not task.review_status and not kc_client.is_user_admin(token):
+    if settings.task_review and not task.review_status and not kc_client.is_user_admin(token):
         return {"status": task.get_review_status()}, 400
 
-    if task.created_at.date() + timedelta(days=CLEANUP_AFTER_DAYS) <= datetime.now().date():
+    if task.created_at.date() + timedelta(days=settings.cleanup_after_days) <= datetime.now().date():
         return {"error": "Tasks results are not available anymore. Please, run the task again"}, 500
 
     results_file = task.get_results()
-    return send_file(results_file, download_name=f"{PUBLIC_URL}-{task_id}-results.zip"), 200
+    return send_file(results_file, download_name=f"{settings.public_url}-{task_id}-results.zip"), 200
 
 @bp.route('/<task_id>/logs', methods=['GET'])
 @audit
@@ -178,7 +178,7 @@ def approve_results(task_id):
         Approves the release (automatic or manual) of
         a task's results
     """
-    if not TASK_REVIEW:
+    if not settings.task_review:
         raise FeatureNotAvailableException("Task Review")
 
     task: Task = Task.get_by_id(task_id)
@@ -205,7 +205,7 @@ def block_results(task_id):
         Blocks the release (automatic or manual) of
         a task's results
     """
-    if not TASK_REVIEW:
+    if not settings.task_review:
         raise FeatureNotAvailableException("Task Review")
 
     task = Task.get_by_id(task_id)

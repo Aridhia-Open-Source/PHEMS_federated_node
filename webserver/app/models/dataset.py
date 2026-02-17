@@ -3,7 +3,7 @@ import re
 import requests
 from sqlalchemy import Column, Integer, String
 from app.helpers.base_model import BaseModel, db
-from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, PUBLIC_URL
+from app.helpers.settings import settings
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, KubernetesException
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
@@ -52,7 +52,7 @@ class Dataset(db.Model, BaseModel):
                 ):
         self.name = requests.utils.unquote(name).lower()
         self.slug = self.slugify_name()
-        self.url = f"https://{PUBLIC_URL}/datasets/{self.slug}"
+        self.url = f"https://{settings.public_url}/datasets/{self.slug}"
         self.host = host
         self.port = port
         self.schema = schema
@@ -101,7 +101,7 @@ class Dataset(db.Model, BaseModel):
     def sanitized_dict(self):
         dataset = super().sanitized_dict()
         dataset["slug"] = self.slugify_name()
-        dataset["url"] = f"https://{PUBLIC_URL}/datasets/{dataset["slug"]}"
+        dataset["url"] = f"https://{settings.public_url}/datasets/{dataset["slug"]}"
         return dataset
 
     def slugify_name(self) -> str:
@@ -118,7 +118,7 @@ class Dataset(db.Model, BaseModel):
         """
         v1 = KubernetesClient()
         secret:V1Secret = v1.read_namespaced_secret(
-            self.get_creds_secret_name(), DEFAULT_NAMESPACE, pretty='pretty'
+            self.get_creds_secret_name(), settings.default_namespace, pretty='pretty'
         )
         # Doesn't matter which key it's being picked up, the value it's the same
         # in terms of *USER or *PASSWORD
@@ -139,7 +139,7 @@ class Dataset(db.Model, BaseModel):
                 "MSSQL_PASSWORD": self.password,
                 "MSSQL_USER": self.username
             },
-            namespaces=[DEFAULT_NAMESPACE, TASK_NAMESPACE]
+            namespaces=[settings.default_namespace, settings.task_namespace]
         )
         delattr(self, "username")
         delattr(self, "password")
@@ -194,8 +194,8 @@ class Dataset(db.Model, BaseModel):
         secret_name:str = self.get_creds_secret_name()
 
         # Get existing secret
-        secret: V1Secret = v1.read_namespaced_secret(secret_name, DEFAULT_NAMESPACE, pretty='pretty')
-        secret_task: V1Secret = v1.read_namespaced_secret(secret_name, TASK_NAMESPACE, pretty='pretty')
+        secret: V1Secret = v1.read_namespaced_secret(secret_name, settings.default_namespace, pretty='pretty')
+        secret_task: V1Secret = v1.read_namespaced_secret(secret_name, settings.task_namespace, pretty='pretty')
 
         # Update secret if credentials are provided
         new_name = kwargs.get("name", None)
@@ -218,13 +218,13 @@ class Dataset(db.Model, BaseModel):
                 secret.metadata.name = self.get_creds_secret_name(new_host, new_name)
                 secret_task.metadata = secret.metadata
                 secret.metadata.resource_version = None
-                v1.create_namespaced_secret(DEFAULT_NAMESPACE, body=secret, pretty='true')
-                v1.create_namespaced_secret(TASK_NAMESPACE, body=secret_task, pretty='true')
-                v1.delete_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=secret_name)
-                v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=secret_name)
+                v1.create_namespaced_secret(settings.default_namespace, body=secret, pretty='true')
+                v1.create_namespaced_secret(settings.task_namespace, body=secret_task, pretty='true')
+                v1.delete_namespaced_secret(namespace=settings.default_namespace, name=secret_name)
+                v1.delete_namespaced_secret(namespace=settings.task_namespace, name=secret_name)
             else:
-                v1.patch_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=secret_name, body=secret)
-                v1.patch_namespaced_secret(namespace=TASK_NAMESPACE, name=secret_name, body=secret_task)
+                v1.patch_namespaced_secret(namespace=settings.default_namespace, name=secret_name, body=secret)
+                v1.patch_namespaced_secret(namespace=settings.task_namespace, name=secret_name, body=secret_task)
         except ApiException as e:
             # Host and name are unique so there shouldn't be duplicates. If so
             # let the exception to be re-raised with the internal one

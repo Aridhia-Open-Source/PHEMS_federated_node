@@ -4,7 +4,7 @@ import re
 from unittest import mock
 from unittest.mock import Mock
 
-from app.helpers.const import TASK_POD_RESULTS_PATH
+from app.helpers.settings import settings
 from app.helpers.base_model import db
 from app.models.task import Task
 from tests.fixtures.azure_cr_fixtures import *
@@ -375,7 +375,7 @@ class TestPostTask:
         reg_k8s_client["create_namespaced_pod_mock"].assert_called()
         pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
         assert len(pod_body.spec.containers[0].volume_mounts) == 1
-        assert pod_body.spec.containers[0].volume_mounts[0].mount_path == TASK_POD_RESULTS_PATH
+        assert pod_body.spec.containers[0].volume_mounts[0].mount_path == settings.task_pod_results_path
 
     def test_create_task_with_ds_name(
             self,
@@ -716,7 +716,7 @@ class TestPostTask:
         reg_k8s_client["create_namespaced_pod_mock"].assert_called()
         pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
         assert len(pod_body.spec.containers[0].volume_mounts) == 2
-        assert TASK_POD_RESULTS_PATH in [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts]
+        assert settings.task_pod_results_path in [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts]
 
     def test_create_task_no_inputs_field_reverts_to_default(
             self,
@@ -742,7 +742,7 @@ class TestPostTask:
         reg_k8s_client["create_namespaced_pod_mock"].assert_called()
         pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
         assert len(pod_body.spec.containers[0].volume_mounts) == 2
-        assert [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts] == ["/mnt/inputs", TASK_POD_RESULTS_PATH]
+        assert [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts] == ["/mnt/inputs", settings.task_pod_results_path]
 
     def test_create_task_controller_not_deployed_no_crd(
             self,

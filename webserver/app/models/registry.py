@@ -5,7 +5,7 @@ import re
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import Column, Integer, String, Boolean
 
-from app.helpers.const import TASK_NAMESPACE
+from app.helpers.settings import settings
 from app.helpers.container_registries import AzureRegistry, BaseRegistry, DockerRegistry, GitHubRegistry
 from app.helpers.base_model import BaseModel, db
 from app.helpers.exceptions import ContainerRegistryException, InvalidRequest
@@ -75,13 +75,13 @@ class Registry(db.Model, BaseModel):
             key = "https://index.docker.io/v1/"
 
         try:
-            secret = v1.read_namespaced_secret(secret_name, TASK_NAMESPACE)
+            secret = v1.read_namespaced_secret(secret_name, settings.task_namespace)
         except ApiException as apie:
             if apie.status == 404:
                 v1.create_secret(
                     name=secret_name,
                     values={".dockerconfigjson": json.dumps({"auths" : {}})},
-                    namespaces=[TASK_NAMESPACE],
+                    namespaces=[settings.task_namespace],
                     type='kubernetes.io/dockerconfigjson'
                 )
             else:
@@ -97,7 +97,7 @@ class Registry(db.Model, BaseModel):
             }
         }
         secret.data['.dockerconfigjson'] = v1.encode_secret_value(json.dumps(dockerjson))
-        v1.patch_namespaced_secret(namespace=TASK_NAMESPACE, name=secret_name, body=secret)
+        v1.patch_namespaced_secret(namespace=settings.task_namespace, name=secret_name, body=secret)
 
     def _get_creds(self):
         if hasattr(self, "username") and hasattr(self, "password"):
@@ -147,7 +147,7 @@ class Registry(db.Model, BaseModel):
         super().delete(commit)
         v1 = KubernetesClient()
         try:
-            v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=self.slugify_name())
+            v1.delete_namespaced_secret(namespace=settings.task_namespace, name=self.slugify_name())
         except ApiException as kae:
             session.rollback()
             logger.error("%s:\n\tDetails: %s", kae.reason, kae.body)
@@ -177,7 +177,9 @@ class Registry(db.Model, BaseModel):
         if isinstance(self.get_registry_class(), DockerRegistry):
             key = "https://index.docker.io/v1/"
         try:
-            regcred = v1.read_namespaced_secret(self.slugify_name(), namespace=TASK_NAMESPACE)
+            regcred = v1.read_namespaced_secret(
+                self.slugify_name(), namespace=settings.task_namespace
+            )
             dockerjson = json.loads(v1.decode_secret_value(regcred.data['.dockerconfigjson']))
             self.username = dockerjson['auths'][key]["username"]
             self.password = dockerjson['auths'][key]["password"]

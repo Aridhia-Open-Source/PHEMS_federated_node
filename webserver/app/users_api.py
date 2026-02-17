@@ -8,8 +8,8 @@ from http import HTTPStatus
 from flask import Blueprint, request
 
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.keycloak import KEYCLOAK_ADMIN, Keycloak
-from app.helpers.const import PUBLIC_URL
+from app.helpers.keycloak import Keycloak
+from app.helpers.settings import kc_settings, settings
 from app.helpers.wrappers import audit, auth
 
 bp = Blueprint('users', __name__, url_prefix='/users')
@@ -45,7 +45,7 @@ def create_user():
         "username": user_info["username"],
         "tempPassword": user_info["password"],
         "info": "The user should change the temp password at " \
-            f"https://{PUBLIC_URL}/users/reset-password"
+            f"https://{settings.public_url}/users/reset-password"
     }, HTTPStatus.CREATED
 
 
@@ -83,7 +83,7 @@ def get_users_list():
             "lastName": user.get("lastName", ''),
             "role": kc.get_user_role(user["id"]),
             "needs_to_reset_password": user.get("requiredActions", []) != []
-        } for user in ls_users if user["username"] != KEYCLOAK_ADMIN
+        } for user in ls_users if user["username"] != kc_settings.keycloak_admin
     ]
 
     return normalised_list, HTTPStatus.OK

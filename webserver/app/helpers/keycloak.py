@@ -9,34 +9,28 @@ from flask import request
 
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
 from app.helpers.const import PASS_GENERATOR_SET
+from app.helpers.settings import kc_settings
 
 logger = logging.getLogger('keycloak_helper')
 logger.setLevel(logging.INFO)
 
-KEYCLOAK_NAMESPACE = os.getenv("KEYCLOAK_NAMESPACE")
-KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", f"http://keycloak.{KEYCLOAK_NAMESPACE}.svc.cluster.local")
-REALM = os.getenv("KEYCLOAK_REALM", "FederatedNode")
-KEYCLOAK_CLIENT = os.getenv("KEYCLOAK_CLIENT", "global")
-KEYCLOAK_SECRET = os.getenv("KEYCLOAK_SECRET")
-KEYCLOAK_ADMIN = os.getenv("KEYCLOAK_ADMIN")
-KEYCLOAK_ADMIN_PASSWORD = os.getenv("KEYCLOAK_ADMIN_PASSWORD")
 URLS = {
-    "health_check": f"{KEYCLOAK_URL}/realms/master",
-    "get_token": f"{KEYCLOAK_URL}/realms/{REALM}/protocol/openid-connect/token",
-    "validate": f"{KEYCLOAK_URL}/realms/{REALM}/protocol/openid-connect/token/introspect",
-    "client": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients",
-    "client_secret": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/client-secret",
-    "client_exchange": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/management/permissions",
-    "client_auth": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server",
-    "roles": f"{KEYCLOAK_URL}/admin/realms/{REALM}/roles",
-    "policies": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/policy",
-    "scopes": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/scope",
-    "resource": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/resource",
-    "permission": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/permission/scope",
-    "permissions_check": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/policy/evaluate",
-    "user": f"{KEYCLOAK_URL}/admin/realms/{REALM}/users",
-    "user_role": f"{KEYCLOAK_URL}/admin/realms/{REALM}/users/%s/role-mappings/realm",
-    "user_reset": f"{KEYCLOAK_URL}/admin/realms/{REALM}/users/%s/reset-password"
+    "health_check": f"{kc_settings.keycloak_url}/realms/master",
+    "get_token": f"{kc_settings.keycloak_url}/realms/{kc_settings.realm}/protocol/openid-connect/token",
+    "validate": f"{kc_settings.keycloak_url}/realms/{kc_settings.realm}/protocol/openid-connect/token/introspect",
+    "client": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/clients",
+    "client_secret": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/clients/%s/client-secret",
+    "client_exchange": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/clients/%s/management/permissions",
+    "client_auth": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/clients/%s/authz/resource-server",
+    "roles": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/roles",
+    "policies": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/clients/%s/authz/resource-server/policy",
+    "scopes": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/clients/%s/authz/resource-server/scope",
+    "resource": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/clients/%s/authz/resource-server/resource",
+    "permission": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/clients/%s/authz/resource-server/permission/scope",
+    "permissions_check": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/clients/%s/authz/resource-server/policy/evaluate",
+    "user": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/users",
+    "user_role": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/users/%s/role-mappings/realm",
+    "user_reset": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/users/%s/reset-password"
 }
 
 class Keycloak:
@@ -67,8 +61,8 @@ class Keycloak:
         Token exchange across clients. From global to the instanced one
         """
         acpayload = {
-            'client_secret': KEYCLOAK_SECRET,
-            'client_id': KEYCLOAK_CLIENT,
+            'client_secret': kc_settings.keycloak_secret,
+            'client_id': kc_settings.keycloak_client,
             'grant_type': 'refresh_token',
             'refresh_token': token
         }
@@ -85,8 +79,8 @@ class Keycloak:
         access_token = ac_resp.json()["access_token"]
 
         payload = {
-            'client_secret': KEYCLOAK_SECRET,
-            'client_id': KEYCLOAK_CLIENT,
+            'client_secret': kc_settings.keycloak_secret,
+            'client_id': kc_settings.keycloak_client,
             'grant_type': 'urn:ietf:params:oauth:grant-type:token-exchange',
             'requested_token_type': 'urn:ietf:params:oauth:token-type:access_token',
             'subject_token': access_token,
@@ -110,13 +104,13 @@ class Keycloak:
         : user_id : The keycloak user's id to impersonate
         """
         payload = {
-            'client_secret': KEYCLOAK_SECRET, # Target client
-            'client_id': KEYCLOAK_CLIENT, #Target client
+            'client_secret': kc_settings.keycloak_secret, # Target client
+            'client_id': kc_settings.keycloak_client, #Target client
             'grant_type': 'urn:ietf:params:oauth:grant-type:token-exchange',
             'requested_token_type': 'urn:ietf:params:oauth:token-type:refresh_token',
             'subject_token': self.get_admin_token_global(),
             'requested_subject': user_id,
-            'audience': KEYCLOAK_CLIENT
+            'audience': kc_settings.keycloak_client
         }
         exchange_resp = requests.post(
             URLS["get_token"],
@@ -224,11 +218,11 @@ class Keycloak:
         """
         logger.info("get_admin_token_global")
         payload = {
-            'client_id': KEYCLOAK_CLIENT,
-            'client_secret': KEYCLOAK_SECRET,
+            'client_id': kc_settings.keycloak_client,
+            'client_secret': kc_settings.keycloak_secret,
             'grant_type': 'password',
-            'username': KEYCLOAK_ADMIN,
-            'password': KEYCLOAK_ADMIN_PASSWORD
+            'username': kc_settings.keycloak_admin,
+            'password': kc_settings.keycloak_admin_password
         }
         return self.get_token(token_type='access_token', payload=payload)
 
@@ -239,8 +233,8 @@ class Keycloak:
         payload = {
             'client_id': 'admin-cli',
             'grant_type': 'password',
-            'username': KEYCLOAK_ADMIN,
-            'password': KEYCLOAK_ADMIN_PASSWORD
+            'username': kc_settings.keycloak_admin,
+            'password': kc_settings.keycloak_admin_password
         }
         return self.get_token(token_type='access_token', payload=payload)
 

@@ -2,7 +2,7 @@ import base64
 import json
 from kubernetes.client import ApiException
 
-from app.helpers.const import TASK_NAMESPACE
+from app.helpers.settings import kc_settings, settings
 from tests.fixtures.azure_cr_fixtures import *
 
 
@@ -133,7 +133,7 @@ class TestPostRegistriesApi:
         new_registry = "shiny.azurecr.io"
 
         with responses.RequestsMock() as rsps:
-            rsps.add_passthru(KEYCLOAK_URL)
+            rsps.add_passthru(kc_settings.keycloak_url)
             rsps.add(
                 responses.GET,
                 f"https://{new_registry}/oauth2/token?service={new_registry}&scope=registry:catalog:*",
@@ -161,7 +161,7 @@ class TestPostRegistriesApi:
         """
         new_registry = "shiny.azurecr.io"
         with responses.RequestsMock() as rsps:
-            rsps.add_passthru(KEYCLOAK_URL)
+            rsps.add_passthru(kc_settings.keycloak_url)
             rsps.add(
                 responses.GET,
                 f"https://{new_registry}/oauth2/token?service={new_registry}&scope=registry:catalog:*",
@@ -211,7 +211,7 @@ class TestPostRegistriesApi:
         url as an existing one, fails
         """
         with responses.RequestsMock() as rsps:
-            rsps.add_passthru(KEYCLOAK_URL)
+            rsps.add_passthru(kc_settings.keycloak_url)
             rsps.add(
                 responses.GET,
                 f"https://{registry.url}/oauth2/token?service={registry.url}&scope=registry:catalog:*",
@@ -250,7 +250,7 @@ class TestDeleteRegistries:
         )
         assert response.status_code == 204
         reg_k8s_client["delete_namespaced_secret_mock"].assert_called_with(
-            **{"name": secret_name, "namespace": TASK_NAMESPACE}
+            **{"name": secret_name, "namespace": settings.task_namespace}
         )
 
     def test_delete_registry_not_found(

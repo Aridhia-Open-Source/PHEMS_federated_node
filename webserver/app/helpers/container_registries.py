@@ -7,7 +7,7 @@ from requests.exceptions import ConnectionError
 
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.exceptions import ContainerRegistryException
-from app.helpers.const import TASK_NAMESPACE
+from app.helpers.settings import settings
 
 
 logger = logging.getLogger('registries_handler')
@@ -37,7 +37,7 @@ class BaseRegistry:
         Get the registry-related secret
         """
         v1 = KubernetesClient()
-        regcred = v1.read_namespaced_secret(self.secret_name, TASK_NAMESPACE, pretty='pretty')
+        regcred = v1.read_namespaced_secret(self.secret_name, settings.task_namespace, pretty='pretty')
 
         dockerjson = json.loads(v1.decode_secret_value(regcred.data['.dockerconfigjson']))
         key = list(dockerjson["auths"].keys())[0]

@@ -11,11 +11,9 @@ from kubernetes.client import (
     V1PersistentVolumeClaimSpec, V1VolumeResourceRequirements,
     V1CSIPersistentVolumeSource
 )
-from app.helpers.const import ALPINE_IMAGE, RESULTS_PATH, STORAGE_CLASS, TASK_NAMESPACE
+from app.helpers.settings import settings
 from app.helpers.kubernetes import KubernetesClient
 from app.models.dataset import Dataset
-
-IMAGE_TAG = os.getenv("IMAGE_TAG")
 
 
 class TaskPod:
@@ -103,40 +101,40 @@ class TaskPod:
         """
         pv_spec = V1PersistentVolumeSpec(
             access_modes=['ReadWriteMany'],
-            capacity={"storage": os.getenv("CLAIM_CAPACITY")},
-            storage_class_name=STORAGE_CLASS
+            capacity={"storage": settings.claim_capacity},
+            storage_class_name=settings.storage_class
         )
-        if os.getenv("AZURE_STORAGE_ENABLED"):
+        if settings.azure_storage_enabled:
             pv_spec.azure_file=V1AzureFilePersistentVolumeSource(
                 read_only=False,
-                secret_name=os.getenv("AZURE_SECRET_NAME"),
-                share_name=os.getenv("AZURE_SHARE_NAME")
+                secret_name=settings.azure_secret_name,
+                share_name=settings.azure_share_name
             )
-        elif os.getenv("AWS_STORAGE_ENABLED"):
+        elif settings.aws_storage_enabled:
             pv_spec.csi=V1CSIPersistentVolumeSource(
-                driver=os.getenv("AWS_STORAGE_DRIVER"),
-                volume_handle=os.getenv("AWS_FILES_SYSTEM_ID")
+                driver=settings.aws_storage_driver,
+                volume_handle=settings.aws_files_system_id
             )
         else:
             pv_spec.host_path=V1HostPathVolumeSource(
-                path=RESULTS_PATH
+                path=settings.results_path
             )
 
         self.pv = V1PersistentVolume(
             api_version='v1',
             kind='PersistentVolume',
-            metadata=V1ObjectMeta(name=self.name, namespace=TASK_NAMESPACE, labels=self.labels),
+            metadata=V1ObjectMeta(name=self.name, namespace=settings.task_namespace, labels=self.labels),
             spec=pv_spec
         )
 
         self.pvc = V1PersistentVolumeClaim(
             api_version='v1',
             kind='PersistentVolumeClaim',
-            metadata=V1ObjectMeta(name=f"{self.name}-volclaim", namespace=TASK_NAMESPACE, labels=self.labels),
+            metadata=V1ObjectMeta(name=f"{self.name}-volclaim", namespace=settings.task_namespace, labels=self.labels),
             spec=V1PersistentVolumeClaimSpec(
                 access_modes=['ReadWriteMany'],
                 volume_name=self.name,
-                storage_class_name=STORAGE_CLASS,
+                storage_class_name=settings.storage_class,
                 resources=V1VolumeResourceRequirements(requests={"storage": "100Mi"})
             )
         )
@@ -159,7 +157,7 @@ class TaskPod:
         )
         dir_init = V1Container(
             name=f"init-{task_id}",
-            image=ALPINE_IMAGE,
+            image=settings.alpine_image,
             volume_mounts=[vol_mount],
             command=["/bin/sh"],
             args=[
@@ -174,7 +172,7 @@ class TaskPod:
         if self.db_query:
             data_init = V1Container(
                 name="fetch-data",
-                image=f"ghcr.io/aridhia-open-source/db_connector:{IMAGE_TAG}",
+                image=f"ghcr.io/aridhia-open-source/db_connector:{settings.image_tag}",
                 volume_mounts=[vol_mount],
                 image_pull_policy="Always",
                 env=self.env_init,
@@ -253,7 +251,7 @@ class TaskPod:
         )
         metadata = V1ObjectMeta(
             name=self.name,
-            namespace=TASK_NAMESPACE,
+            namespace=settings.task_namespace,
             labels=self.labels
         )
         return V1Pod(
