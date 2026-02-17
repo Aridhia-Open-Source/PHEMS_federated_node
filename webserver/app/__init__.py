@@ -39,14 +39,18 @@ def create_app():
             'app_name': "Federated Node"
         }
     )
+    def create_handler(exception_class):
+        @app.errorhandler(exception_class)
+        def handler(e):
+            # Using 'e' instead of 'excp' inside here is safe
+            error_response = {"error": getattr(e, "description", str(e))}
+            if hasattr(e, "extra_fields"):
+                error_response["details"] = e.extra_fields
+            return error_response, getattr(e, "code", 500)
+        return handler
 
     for excp in [LogAndException, HTTPException]:
-        @app.errorhandler(excp)
-        def exception_handler(e:LogAndException):
-            error_response = {"error": e.description}
-            if getattr(e, "extra_fields", None):
-                error_response["details"] = e.extra_fields
-            return error_response, getattr(e, 'code', 500)
+        create_handler(excp)
 
     # Need to register the exception handler this way as we need access
     # to the db session

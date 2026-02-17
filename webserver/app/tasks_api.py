@@ -148,11 +148,14 @@ def get_task_results(task_id):
     if settings.task_review and not task.review_status and not kc_client.is_user_admin(token):
         return {"status": task.get_review_status()}, 400
 
-    if task.created_at.date() + timedelta(days=settings.cleanup_after_days) <= datetime.now().date():
+    now = datetime.now().date()
+    if task.created_at.date() + timedelta(days=settings.cleanup_after_days) <= now:
         return {"error": "Tasks results are not available anymore. Please, run the task again"}, 500
 
     results_file = task.get_results()
-    return send_file(results_file, download_name=f"{settings.public_url}-{task_id}-results.zip"), 200
+    return send_file(
+        results_file, download_name=f"{settings.public_url}-{task_id}-results.zip"
+    ), 200
 
 @bp.route('/<task_id>/logs', methods=['GET'])
 @audit
