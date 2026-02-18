@@ -1,6 +1,5 @@
 import os
 import logging
-from functools import cached_property
 
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx
@@ -42,10 +41,9 @@ class K8sPipeOP:
             "IMAGE": self.image,
         }
 
-    @cached_property
+    @property
     def artifact_path(self) -> str:
-        image_string = self.image.replace("/", "_").replace(":", "_")
-        return f"{self.mnt_base_path}/{image_string}/{self.run_id}"
+        return f"{self.mnt_base_path}/{self.run_id}"
 
     def __call__(self):
         self.log(f"Pipes op starting - {self.image}")
@@ -62,8 +60,8 @@ class K8sPipeOP:
         return K8sPipesResponse(
             run_id=self.run_id,
             image=self.image,
-            artifact_path=self.artifact_path,
             result=result,
+            artifact_path=self.artifact_path,
         )
 
     def log(self, message: str):
@@ -95,7 +93,6 @@ class K8sPipeOP:
                 }
             ],
         }
-
 
 
 class K8sPipesResponse:
