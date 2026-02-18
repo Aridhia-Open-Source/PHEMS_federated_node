@@ -117,6 +117,9 @@ dagster:
   postgresqlPassword: test
   postgresqlDatabase: test
 
+  envConfigMaps:
+    - name: dagster-env-config
+
   postgresql:
     enabled: true
     service:
