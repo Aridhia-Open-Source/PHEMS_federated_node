@@ -11,7 +11,7 @@ include("lib/helpers.jl")
 
 install_logger()
 
-const SOURCE_PATH = "/project/data"
+const SOURCE_PATH = "/project/data" # FIXME: Load from database or shared volume
 const OUTPUT_PATH = required_env("ARTIFACT_PATH")
 
 
