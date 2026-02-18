@@ -22,22 +22,6 @@ class Dictionary( db.Model, BaseModel):
     dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
     dataset = relationship("Dataset")
 
-    def __init__(self,
-                 table_name:str,
-                 description:str,
-                 dataset:Dataset,
-                 label:str='',
-                 field_name:str='',
-                 created_at:datetime=datetime.now(),
-                 **kwargs):
-        self.table_name = table_name
-        self.description = description
-        self.dataset = dataset
-        self.label = label
-        self.field_name = field_name
-        self.created_at = created_at
-        self.updated_at = datetime.now()
-
     def update(self, **data):
         for k, v in data.items():
             if not hasattr(self, k):

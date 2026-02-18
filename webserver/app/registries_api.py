@@ -8,11 +8,14 @@ containers endpoints:
 
 from http import HTTPStatus
 from flask import Blueprint, request
+from pydantic import ValidationError
 
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.wrappers import audit, auth
 from app.models.registry import Registry
-
+from app.schemas.pagination import PageResponse
+from app.schemas.registries import RegistryBase, RegistryFilters
+from app.helpers.query_filters import apply_filters
 
 bp = Blueprint('registries', __name__, url_prefix='/registries')
 
@@ -25,7 +28,13 @@ def list_registries():
     """
     GET /registries endpoint.
     """
-    return Registry.get_all(), HTTPStatus.OK
+    try:
+        filter_params = RegistryFilters(**request.args.to_dict())
+    except ValidationError as ve:
+        raise InvalidRequest(ve.errors())
+
+    pagination = apply_filters(Registry, filter_params)
+    return PageResponse[RegistryBase].model_validate(pagination).model_dump(), 200
 
 
 @bp.route('/<int:registry_id>', methods=['GET'])
@@ -38,7 +47,8 @@ def registry_by_id(registry_id:int):
     registry = Registry.query.filter_by(id=registry_id).one_or_none()
     if registry is None:
         raise DBRecordNotFoundError("Registry not found")
-    return registry.sanitized_dict(), HTTPStatus.OK
+
+    return RegistryBase.model_validate(registry).model_dump(), HTTPStatus.OK
 
 
 @bp.route('/<int:registry_id>', methods=['DELETE'])

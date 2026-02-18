@@ -60,9 +60,6 @@ class BaseModel():
     @classmethod
     def get_all(cls) -> list[dict]:
         obj_list = cls._query()
-        jsonized = []
-        for obj in obj_list.items:
-            jsonized.append(obj.sanitized_dict())
         return obj_list
 
     @classmethod

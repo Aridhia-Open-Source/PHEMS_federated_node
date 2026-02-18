@@ -1,4 +1,6 @@
 import re
+
+from pydantic import BaseModel
 from app.helpers.base_model import Base
 from app.helpers.exceptions import InvalidRequest
 
@@ -66,3 +68,28 @@ def parse_query_params(model: Base, query_params: dict): # type: ignore
 
     return current_query.paginate(page=page, per_page=per_page)
 
+
+def apply_filters(model, filter_dto: BaseModel):
+    query = model.query
+    # filter_dto.model_dump(exclude_none=True) gives us only what the user sent
+    filters = filter_dto.model_dump(exclude={"page", "per_page"}, exclude_none=True)
+
+    operators = {
+        "lte": lambda col, val: col <= val,
+        "gte": lambda col, val: col >= val,
+        "gt":  lambda col, val: col > val,
+        "lt":  lambda col, val: col < val,
+        "ne":  lambda col, val: col != val,
+        "eq":  lambda col, val: col == val,
+    }
+
+    for key, value in filters.items():
+        if "__" in key:
+            field_name, op_name = key.split("__")
+        else:
+            field_name, op_name = key, "eq"
+
+        column = getattr(model, field_name)
+        query = query.filter(operators[op_name](column, value))
+
+    return query.paginate(page=filter_dto.page, per_page=filter_dto.per_page)

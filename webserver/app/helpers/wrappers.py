@@ -71,6 +71,7 @@ def audit(func):
     @wraps(func)
     def _audit(*args, **kwargs):
         raised_exception = None
+        audit_body = {}
         try:
             response_object, http_status = func(*args, **kwargs)
         except HTTPException as exc:
@@ -82,15 +83,16 @@ def audit(func):
             http_status = 500
             raised_exception = inte
 
+        audit_body["status_code"] = http_status
+
         if 'HTTP_X_REAL_IP' in request.environ:
             # if behind a proxy
-            source_ip = request.environ['HTTP_X_REAL_IP']
+            audit_body["ip_address"] = request.environ['HTTP_X_REAL_IP']
         else:
-            source_ip = request.environ['REMOTE_ADDR']
+            audit_body["ip_address"] = request.environ['REMOTE_ADDR']
 
-        details = None
         if request.data:
-            details = request.data.decode()
+            audit_body["details"] = request.data.decode()
             # details should include the request body. If a json and the body is not empty
             if request.is_json:
                 details = request.json
@@ -98,18 +100,17 @@ def audit(func):
                 # sensitive data, so far only username and password on dataset POST
                 for field in ["username", "password"]:
                     find_and_redact_key(details, field)
-                details = str(details)
+                audit_body["details"] = str(details)
 
-        requested_by = ""
         if "Authorization" in request.headers:
             kc_client = Keycloak()
             token = kc_client.decode_token(Keycloak.get_token_from_headers())
-            requested_by = kc_client.get_user_by_email(token["email"])["id"]
+            audit_body["requested_by"] = kc_client.get_user_by_email(token["email"])["id"]
 
-        http_method = request.method
-        http_endpoint = request.path
-        api_function = func.__name__
-        to_save = Audit(source_ip, http_method, http_endpoint, requested_by, http_status, api_function, details)
+        audit_body["http_method"] = request.method
+        audit_body["endpoint"] = request.path
+        audit_body["api_function"] = func.__name__
+        to_save = Audit(**audit_body)
         to_save.add()
         if raised_exception:
             raise raised_exception

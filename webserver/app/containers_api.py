@@ -9,15 +9,17 @@ containers endpoints:
 import logging
 from http import HTTPStatus
 from flask import Blueprint, request
+from pydantic import ValidationError
 
-from .helpers.query_filters import parse_query_params
+from .helpers.query_filters import apply_filters
 
 from .helpers.base_model import db
 from .helpers.exceptions import InvalidRequest
 from .helpers.wrappers import audit, auth
 from .models.container import Container
 from .models.registry import Registry
-
+from .schemas.containers import ContainerBase, ContainerFilters
+from .schemas.pagination import PageResponse
 
 bp = Blueprint('containers', __name__, url_prefix='/containers')
 
@@ -33,7 +35,13 @@ def get_all_containers():
     GET /containers endpoint.
         Returns the list of allowed containers
     """
-    return parse_query_params(Container, request.args.copy()), HTTPStatus.OK
+    try:
+        filter_params = ContainerFilters(**request.args.to_dict())
+    except ValidationError as ve:
+        raise InvalidRequest(ve.errors())
+
+    pagination = apply_filters(Container, filter_params)
+    return PageResponse[ContainerBase].model_validate(pagination).model_dump(), 200
 
 
 @bp.route('/', methods=['POST'])
@@ -74,9 +82,9 @@ def get_image_by_id(image_id:int=None):
     """
     GET /containers/<image_id>
     """
-    image = Container.get_by_id(image_id)
+    image: Container = Container.get_by_id(image_id)
 
-    return Container.sanitized_dict(image), HTTPStatus.OK
+    return ContainerBase.model_validate(image).model_dump(), HTTPStatus.OK
 
 
 @bp.route('/<int:image_id>', methods=['PATCH'])

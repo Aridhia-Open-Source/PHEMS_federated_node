@@ -6,17 +6,21 @@ admin endpoints:
 from http import HTTPStatus
 from flask import Blueprint, request
 from kubernetes.client.exceptions import ApiException
+from pydantic import ValidationError
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from .helpers.base_model import engine
 from .helpers.const import (
-    TASK_CONTROLLER, CONTROLLER_NAMESPACE, GITHUB_DELIVERY, OTHER_DELIVERY
+    TASK_CONTROLLER, CONTROLLER_NAMESPACE,
+    GITHUB_DELIVERY, OTHER_DELIVERY
 )
 from .helpers.exceptions import FeatureNotAvailableException, InvalidRequest
 from .helpers.kubernetes import KubernetesClient
-from .helpers.query_filters import parse_query_params
+from .helpers.query_filters import apply_filters
 from .helpers.wrappers import audit, auth
 from .models.audit import Audit
+from .schemas.audits import AuditBase, AuditFilters
+from .schemas.pagination import PageResponse
 
 
 bp = Blueprint('admin', __name__, url_prefix='/')
@@ -31,7 +35,14 @@ def get_audit_logs():
     GET /audit endpoint.
         Returns a list of audit entries
     """
-    return parse_query_params(Audit, request.args.copy()), HTTPStatus.OK
+    try:
+        filter_params = AuditFilters(**request.args.to_dict())
+    except ValidationError as ve:
+        raise InvalidRequest(ve.errors())
+
+    pagination = apply_filters(Audit, filter_params)
+    return PageResponse[AuditBase].model_validate(pagination).model_dump(), 200
+
 
 @bp.route('/delivery-secret', methods=['PATCH'])
 @auth(scope='can_do_admin', check_dataset=False)

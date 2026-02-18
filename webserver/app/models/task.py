@@ -11,18 +11,20 @@ from uuid import uuid4
 
 import urllib3
 from app.helpers.const import (
-    CLEANUP_AFTER_DAYS, CRD_DOMAIN, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, PUBLIC_URL, TASK_CONTROLLER,
-    TASK_NAMESPACE, TASK_POD_RESULTS_PATH, TASK_POD_INPUTS_PATH, RESULTS_PATH, TASK_REVIEW
+    CLEANUP_AFTER_DAYS, CRD_DOMAIN, MEMORY_RESOURCE_REGEX, MEMORY_UNITS,
+    CPU_RESOURCE_REGEX, PUBLIC_URL, TASK_CONTROLLER,
+    TASK_NAMESPACE, TASK_POD_RESULTS_PATH, RESULTS_PATH, TASK_REVIEW
 )
 from app.helpers.base_model import BaseModel, db
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesBatchClient, KubernetesCRDClient, KubernetesClient
-from app.helpers.exceptions import DBError, InvalidRequest, TaskCRDExecutionException, TaskImageException, TaskExecutionException
+from app.helpers.exceptions import (
+    DBError, InvalidRequest, TaskCRDExecutionException, TaskImageException, TaskExecutionException
+)
 from app.helpers.task_pod import TaskPod
 from app.models.dataset import Dataset
 from app.models.container import Container
 from app.models.registry import Registry
-from app.models.request import Request
 
 logger = logging.getLogger('task_model')
 logger.setLevel(logging.INFO)
@@ -49,106 +51,10 @@ class Task(db.Model, BaseModel):
     dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
     dataset = relationship("Dataset")
 
-    def __init__(self,
-                 name:str,
-                 docker_image:str,
-                 requested_by:str,
-                 dataset:Dataset,
-                 executors:list[dict] = [],
-                 tags:dict = {},
-                 resources:dict = {},
-                 inputs:dict = {},
-                 outputs:dict = {},
-                 description:str = '',
-                 **kwargs
-                 ):
-        self.name = name
-        self.status = 'scheduled'
-        self.docker_image = docker_image
-        self.requested_by = requested_by
-        self.dataset = dataset
-        self.description = description
-        self.created_at = datetime.now()
-        self.updated_at = datetime.now()
-        self.tags = tags
-        self.executors = executors
-        self.resources = resources
-        self.inputs = inputs
-        self.outputs = outputs
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.is_from_controller = kwargs.get("from_controller", False)
         self.db_query = kwargs.get("db_query", {})
-
-    @classmethod
-    def validate(cls, data:dict):
-        data["name"] = (data.get("name") or "").replace(" ", "")
-        if not data["name"]:
-            raise InvalidRequest("name is a mandatory field")
-
-        kc_client = Keycloak()
-        user_token = Keycloak.get_token_from_headers()
-
-        decoded_token = kc_client.decode_token(user_token)
-        data["requested_by"] = kc_client.get_user_by_email(decoded_token["email"])["id"]
-        user = kc_client.get_user_by_id(data["requested_by"])
-        # Support only for one image at a time, the standard is executors == list
-        executors = data["executors"][0]
-        data["docker_image"] = executors["image"]
-        is_from_controller = data.pop("task_controller", False)
-        repository = data.pop("repository", None)
-
-        data = super().validate(data)
-
-        data["from_controller"] = is_from_controller
-        # Dataset validation
-        if repository:
-            data["dataset"] = Dataset.query.filter(
-                Dataset.repository.ilike(repository)
-            ).one_or_none()
-            if data["dataset"] is None:
-                raise InvalidRequest(f"No datasets linked with the repository {repository}")
-
-        elif kc_client.is_user_admin(user_token):
-            ds_id = data.get("tags", {}).get("dataset_id")
-            ds_name = data.get("tags", {}).get("dataset_name")
-            if ds_name or ds_id:
-                data["dataset"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
-            else:
-                raise InvalidRequest("Administrators need to provide `tags.dataset_id` or `tags.dataset_name`")
-        else:
-            data["dataset"] = Request.get_active_project(
-                data["project_name"],
-                user["id"]
-            ).dataset
-
-        # Docker image validation
-        Container.validate_image_format(data["docker_image"], data["docker_image"])
-        data["docker_image"] = cls.get_image_with_repo(data["docker_image"])
-
-        # Output volumes validation
-        if not isinstance(data.get("outputs", {}), dict):
-            raise InvalidRequest("\"outputs\" field must be a json object or dictionary")
-        if not data.get("outputs", {}):
-            data["outputs"] = {"results": TASK_POD_RESULTS_PATH}
-        if not isinstance(data.get("inputs", {}), dict):
-            raise InvalidRequest("\"inputs\" field must be a json object or dictionary")
-        if not data.get("inputs", {}):
-            data["inputs"] = {"inputs.csv": TASK_POD_INPUTS_PATH}
-
-        # Validate resource values
-        if "resources" in data:
-            cls.validate_cpu_resources(
-                data["resources"].get("limits", {}).get("cpu"),
-                data["resources"].get("requests", {}).get("cpu")
-            )
-            cls.validate_memory_resources(
-                data["resources"].get("limits", {}).get("memory"),
-                data["resources"].get("requests", {}).get("memory")
-            )
-        if data.get("db_query") is not None and "query" not in data["db_query"]:
-            raise InvalidRequest("`db_query` field must include a `query`")
-
-        data["db_query"] = data.pop("db_query", {})
-        return data
 
     @classmethod
     def validate_cpu_resources(cls, limit_value:str, request_value:str):
@@ -289,7 +195,7 @@ class Task(db.Model, BaseModel):
     def needs_crd(self):
         return ((not self.is_from_controller) and TASK_CONTROLLER)
 
-    def run(self, validate=False):
+    def run(self, schema:dict, validate=False):
         """
         Method to spawn a new pod with the requested image
         : param validate : An optional parameter to basically run in dry_run mode
@@ -297,11 +203,11 @@ class Task(db.Model, BaseModel):
         """
         v1 = KubernetesClient()
         secret_name = self.dataset.get_creds_secret_name()
-        provided_env = self.executors[0].get("env", {})
+        provided_env = schema._executors[0].get("env", {})
 
         command=None
         if len(self.executors):
-            command=self.executors[0].get("command", '')
+            command=self._executors[0].get("command", '')
 
         image: Container = self.get_image_with_repo(self.docker_image, False)
 
@@ -319,9 +225,9 @@ class Task(db.Model, BaseModel):
             "dry_run": 'true' if validate else 'false',
             "environment": provided_env,
             "command": command,
-            "mount_path": self.outputs,
-            "input_path": self.inputs,
-            "resources": self.resources,
+            "mount_path": schema.outputs,
+            "input_path": schema.inputs,
+            "resources": schema.resources,
             "env_from": v1.create_from_env_object(secret_name),
             "regcred_secret": image.registry.slugify_name()
         }).create_pod_spec()
