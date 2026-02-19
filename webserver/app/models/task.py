@@ -52,9 +52,13 @@ class Task(db.Model, BaseModel):
     dataset = relationship("Dataset")
 
     def __init__(self, **kwargs):
+        self.executors = kwargs.pop("executors")
+        self.outputs = kwargs.pop("outputs", {})
+        self.inputs = kwargs.pop("inputs", {})
+        self.is_from_controller = kwargs.pop("from_controller", False)
+        self.db_query = kwargs.pop("db_query", {})
+        self.resources = kwargs.pop("resources", {})
         super().__init__(**kwargs)
-        self.is_from_controller = kwargs.get("from_controller", False)
-        self.db_query = kwargs.get("db_query", {})
 
     @classmethod
     def validate_cpu_resources(cls, limit_value:str, request_value:str):
@@ -195,7 +199,7 @@ class Task(db.Model, BaseModel):
     def needs_crd(self):
         return ((not self.is_from_controller) and TASK_CONTROLLER)
 
-    def run(self, schema:dict, validate=False):
+    def run(self, validate=False):
         """
         Method to spawn a new pod with the requested image
         : param validate : An optional parameter to basically run in dry_run mode
@@ -203,11 +207,11 @@ class Task(db.Model, BaseModel):
         """
         v1 = KubernetesClient()
         secret_name = self.dataset.get_creds_secret_name()
-        provided_env = schema._executors[0].get("env", {})
+        provided_env = self.executors[0].get("env", {})
 
         command=None
         if len(self.executors):
-            command=self._executors[0].get("command", '')
+            command= self.executors[0].get("command", '')
 
         image: Container = self.get_image_with_repo(self.docker_image, False)
 
@@ -225,9 +229,9 @@ class Task(db.Model, BaseModel):
             "dry_run": 'true' if validate else 'false',
             "environment": provided_env,
             "command": command,
-            "mount_path": schema.outputs,
-            "input_path": schema.inputs,
-            "resources": schema.resources,
+            "mount_path": self.outputs,
+            "input_path": self.inputs,
+            "resources": self.resources,
             "env_from": v1.create_from_env_object(secret_name),
             "regcred_secret": image.registry.slugify_name()
         }).create_pod_spec()

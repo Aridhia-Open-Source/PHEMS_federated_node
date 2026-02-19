@@ -15,7 +15,7 @@ class DatasetBase(BaseModel):
     name: str
     host: str
     port: int = 5432
-    schema_read: Optional[str] = Field(None, alias="schema")
+    schema_read: Optional[str] = None
     schema_write: Optional[str] = None
     type: str = "postgres"
     extra_connection_args: Optional[str] = None
@@ -27,7 +27,7 @@ class DatasetCreate(BaseModel):
     password: str
     name: str
     host: str
-    port: int = 5432
+    port: Optional[int] = 5432
     schema_read: Optional[str] = Field(None, alias="schema_name")
     schema_write: Optional[str] = None
     type: str = "postgres"
@@ -53,6 +53,13 @@ class DatasetCreate(BaseModel):
         if v.lower() not in SUPPORTED_ENGINES:
             raise ValueError(f"DB type {v} is not supported.")
         return v
+
+class DatasetUpdate(DatasetCreate):
+    # Host not allowed to be updated
+    host: None = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    name: Optional[str] = None
 
 
 class DatasetRead(DatasetBase):

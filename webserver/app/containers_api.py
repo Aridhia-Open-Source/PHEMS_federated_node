@@ -18,7 +18,7 @@ from .helpers.exceptions import InvalidRequest
 from .helpers.wrappers import audit, auth
 from .models.container import Container
 from .models.registry import Registry
-from .schemas.containers import ContainerBase, ContainerFilters
+from .schemas.containers import ContainerCreate, ContainerRead, ContainerFilters, ContainerUpdate
 from .schemas.pagination import PageResponse
 
 bp = Blueprint('containers', __name__, url_prefix='/containers')
@@ -41,7 +41,7 @@ def get_all_containers():
         raise InvalidRequest(ve.errors())
 
     pagination = apply_filters(Container, filter_params)
-    return PageResponse[ContainerBase].model_validate(pagination).model_dump(), 200
+    return PageResponse[ContainerRead].model_validate(pagination).model_dump(), 200
 
 
 @bp.route('/', methods=['POST'])
@@ -52,21 +52,19 @@ def add_image():
     """
     POST /containers endpoint.
     """
-    body = Container.validate(request.json)
-    if not (body.get("tag") or body.get("sha")):
-        raise InvalidRequest("Make sure `tag` or `sha` are provided")
+    body = ContainerCreate(**request.json).model_dump()
 
     # Make sure it doesn't exist already
     existing_image = Container.query.filter(
         Container.name == body["name"],
-        Registry.url==body["registry"].url
+        Registry.id==body["registry_id"]
     ).filter(
         (Container.tag==body.get("tag")) & (Container.sha==body.get("sha"))
     ).join(Registry).one_or_none()
 
     if existing_image:
         raise InvalidRequest(
-            f"Image {body["name"]}:{body["tag"]} already exists in registry {body["registry"].url}",
+            f"Image {body["name"]}:{body["tag"]} already exists in the registry",
             409
         )
 
@@ -84,7 +82,7 @@ def get_image_by_id(image_id:int=None):
     """
     image: Container = Container.get_by_id(image_id)
 
-    return ContainerBase.model_validate(image).model_dump(), HTTPStatus.OK
+    return ContainerRead.model_validate(image).model_dump(), HTTPStatus.OK
 
 
 @bp.route('/<int:image_id>', methods=['PATCH'])
@@ -100,17 +98,12 @@ def patch_datasets_by_id_or_name(image_id:int=None):
             400
         )
 
-    data = request.json
-    # validation, only ml and dashboard are allowed
-    if not (data.get("ml") or data.get("dashboard")):
-        raise InvalidRequest("Either `ml` or `dashboard` field must be provided")
+    image: Container = Container.get_by_id(image_id)
+    changes = ContainerUpdate(**request.json).model_dump(exclude_unset=True)
+    if not changes:
+        raise InvalidRequest("No valid changes detected")
 
-    image = Container.get_by_id(image_id)
-
-    for field in ["ml", "dashboard"]:
-        if data.get(field) and isinstance(data.get(field), bool):
-            setattr(image, field, data.get(field))
-
+    image.query.update(changes)
     return {}, HTTPStatus.CREATED
 
 
@@ -139,15 +132,12 @@ def sync():
                     ).one_or_none():
                         logger.info("Image %s already synched", image["name"])
                         continue
+
                     if key == "tag":
-                        data = Container.validate(
-                            {"name": image["name"], "registry": registry.url, "tag": tag_or_sha}
-                        )
+                        data = ContainerCreate(**{"name": image["name"], "registry": registry.url, "tag": tag_or_sha})
                     else:
-                        data = Container.validate(
-                            {"name": image["name"], "registry": registry.url, "sha": tag_or_sha}
-                        )
-                    cont = Container(**data)
+                        data = ContainerCreate(**{"name": image["name"], "registry": registry.url, "sha": tag_or_sha})
+                    cont = Container(**data.model_dump())
                     cont.add(commit=False)
                     synched.append(cont.full_image_name())
     session.commit()

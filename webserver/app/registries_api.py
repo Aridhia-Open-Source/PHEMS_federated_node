@@ -14,8 +14,9 @@ from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.wrappers import audit, auth
 from app.models.registry import Registry
 from app.schemas.pagination import PageResponse
-from app.schemas.registries import RegistryBase, RegistryFilters
+from app.schemas.registries import RegistryCreate, RegistryFilters, RegistryRead, RegistryUpdate
 from app.helpers.query_filters import apply_filters
+from app.services.registries import RegistryService
 
 bp = Blueprint('registries', __name__, url_prefix='/registries')
 
@@ -34,7 +35,7 @@ def list_registries():
         raise InvalidRequest(ve.errors())
 
     pagination = apply_filters(Registry, filter_params)
-    return PageResponse[RegistryBase].model_validate(pagination).model_dump(), 200
+    return PageResponse[RegistryRead].model_validate(pagination).model_dump(), 200
 
 
 @bp.route('/<int:registry_id>', methods=['GET'])
@@ -48,7 +49,7 @@ def registry_by_id(registry_id:int):
     if registry is None:
         raise DBRecordNotFoundError("Registry not found")
 
-    return RegistryBase.model_validate(registry).model_dump(), HTTPStatus.OK
+    return RegistryRead.model_validate(registry).model_dump(), HTTPStatus.OK
 
 
 @bp.route('/<int:registry_id>', methods=['DELETE'])
@@ -74,13 +75,9 @@ def add_registry():
     """
     POST /registries endpoint.
     """
-    body = Registry.validate(request.json)
-    if Registry.query.filter_by(url=body['url']).one_or_none():
-        raise InvalidRequest(f"Registry {body['url']} already exist")
-
-    registry = Registry(**body)
-    registry.add()
-    return {"id": registry.id}, 201
+    body = RegistryCreate(**request.json)
+    registry = RegistryService.add(body)
+    return RegistryRead.model_validate(registry).model_dump(), HTTPStatus.CREATED
 
 
 @bp.route('/<int:registry_id>', methods=['PATCH'])
@@ -90,10 +87,14 @@ def patch_registry(registry_id:int):
     """
     PATCH /registries/<registry_id> endpoint.
     """
-    registry = Registry.query.filter(Registry.id == registry_id).one_or_none()
+    registry: Registry = Registry.query.filter(Registry.id == registry_id).one_or_none()
     if registry is None:
         raise InvalidRequest(f"Registry {registry_id} not found")
 
-    registry.update(**request.json)
+    changes = RegistryUpdate(**request.json).model_dump(exclude_unset=True)
+    if not changes:
+        raise InvalidRequest("No valid changes detected")
+
+    registry.update(**changes)
 
     return {}, 204

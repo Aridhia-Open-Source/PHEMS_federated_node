@@ -1,11 +1,16 @@
+from typing import List
+from kubernetes.client import V1Secret
+from kubernetes.client.exceptions import ApiException
+
 from app.helpers.base_model import db
 from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE
 from app.helpers.kubernetes import KubernetesClient
 from app.models.dataset import Dataset
-from app.schemas.datasets import DatasetCreate
+from app.schemas.datasets import DatasetCreate, DatasetUpdate
 from app.helpers.keycloak import Keycloak
 from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
+from app.helpers.exceptions import KubernetesException
 
 
 class DatasetService:
@@ -18,7 +23,6 @@ class DatasetService:
         if data.catalogue:
           dataset.catalogue = Catalogue(**data.catalogue.model_dump())
 
-        # 3. Attach Dictionaries (SQLA maps dataset_id for every item in list)
         if data.dictionaries:
             dataset.dictionaries = [
                 Dictionary(**d.model_dump()) for d in data.dictionaries
@@ -79,3 +83,78 @@ class DatasetService:
             # If K8s fails, we might want to rollback the DB or log a critical error.
             db.session.rollback()
             raise e
+
+    @staticmethod
+    def update(ds:Dataset, data: DatasetUpdate):
+        """
+        Updates the instance with new values. These should be
+        already validated.
+        """
+        kc_client = Keycloak()
+        v1 = KubernetesClient()
+
+        new_name: dict = data.get("name")
+        secret_name: str = ds.get_creds_secret_name()
+
+        cata: dict = data.pop("catalogue", None)
+        if cata:
+          ds.catalogue = Catalogue(**cata)
+
+        dicts: List[dict] = data.pop("dictionaries", None)
+        if dicts:
+            # Needs to validate existing dictionaries and update them if
+            # necessary or add them
+            for d in dicts:
+                if not Dictionary.query.filter_by(dataset_id=ds.id, **d).all():
+                    ds.dictionaries.append(Dictionary(**d))
+
+        # Get existing secret
+        secret: V1Secret = v1.read_namespaced_secret(secret_name, DEFAULT_NAMESPACE, pretty='pretty')
+        secret_task: V1Secret = v1.read_namespaced_secret(secret_name, TASK_NAMESPACE, pretty='pretty')
+
+        # Update secret if credentials are provided
+        new_username = data.pop("username", None)
+        if new_username:
+            secret.data["PGUSER"] = KubernetesClient.encode_secret_value(new_username)
+        new_pass = data.pop("password", None)
+        if new_pass:
+            secret.data["PGPASSWORD"] = KubernetesClient.encode_secret_value(new_pass)
+
+        secret.metadata.labels = {
+            "type": "database",
+            "host": secret_name
+        }
+        secret_task.data = secret.data
+        # Check secret names
+        new_host = data.get("host", None)
+        try:
+            # Create new secret if name is different
+            if (new_host != ds.host and new_host) or (new_name != ds.name and new_name):
+                secret.metadata.name = ds.get_creds_secret_name(new_host, new_name)
+                secret_task.metadata = secret.metadata
+                secret.metadata.resource_version = None
+                v1.create_namespaced_secret(DEFAULT_NAMESPACE, body=secret, pretty='true')
+                v1.create_namespaced_secret(TASK_NAMESPACE, body=secret_task, pretty='true')
+                v1.delete_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=secret_name)
+                v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=secret_name)
+            else:
+                v1.patch_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=secret_name, body=secret)
+                v1.patch_namespaced_secret(namespace=TASK_NAMESPACE, name=secret_name, body=secret_task)
+        except ApiException as e:
+            # Host and name are unique so there shouldn't be duplicates. If so
+            # let the exception to be re-raised with the internal one
+            raise KubernetesException(e.body, 400) from e
+
+        # Check resource names on KC and update them
+        if new_name and new_name != ds.name:
+            update_args = {
+                "name": f"{ds.id}-{data["name"]}",
+                "displayName": f"{ds.id} - {data["name"]}"
+            }
+            kc_client.patch_resource(f"{ds.id}-{ds.name}", **update_args)
+
+        if data.get("repository"):
+            data["repository"] = data.get("repository").lower()
+        # Update table
+        if data:
+            ds.query.update(data, synchronize_session='evaluate')

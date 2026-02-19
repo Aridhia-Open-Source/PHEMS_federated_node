@@ -27,7 +27,7 @@ from app.helpers.query_filters import apply_filters, parse_query_params
 from app.models.task import Task
 from app.schemas.pagination import PageResponse
 from app.schemas.tasks import TaskCreate, TaskFilters, TaskRead
-from webserver.app.services.tasks import TaskService
+from app.services.tasks import TaskService
 
 
 bp = Blueprint('tasks', __name__, url_prefix='/tasks')
@@ -118,12 +118,11 @@ def post_tasks():
     POST /tasks/ endpoint. Creates a new task
     """
     try:
-        body = request.json
-        data = TaskCreate(**body)
+        data = TaskCreate(**request.json)
         task = TaskService.add(data=data)
         # Create pod/start ML pipeline
         task.run()
-        return {"task_id": task.id}, HTTPStatus.CREATED
+        return TaskRead.model_validate(task).model_dump(), HTTPStatus.CREATED
     except:
         session.rollback()
         raise
@@ -139,7 +138,7 @@ def post_tasks_validate():
     """
     req_body = request.json
     req_body["project_name"] = request.headers.get("project-name")
-    Task.validate(req_body)
+    TaskCreate(**req_body)
     return "Ok", 200
 
 

@@ -1,4 +1,3 @@
-import base64
 import json
 import logging
 import re
@@ -23,43 +22,13 @@ class Registry(db.Model, BaseModel):
     needs_auth = Column(Boolean, default=True)
     active = Column(Boolean, default=True)
 
-    def __init__(
-            self,
-            url: str,
-            username: str,
-            password: str,
-            needs_auth:bool=True,
-            active:bool=True
-        ):
-        self.url = url
-        self.needs_auth = needs_auth
-        self.active = active
-        self.username = username
-        self.password = password
-
-    def sanitized_dict(self):
-        san_dict = super().sanitized_dict()
-        keys = list(san_dict.keys())
-        for k in keys:
-            if k not in self._get_fields_name():
-                san_dict.pop(k, None)
-        return san_dict
-
-    @classmethod
-    def validate(cls, data:dict):
-        data = super().validate(data)
-
-        # Test credentials
-        _class = cls(**data).get_registry_class()
-        _class.login()
-        return data
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.username = kwargs.get("username")
+        self.password = kwargs.get("password")
 
     def _get_name(self):
         return re.sub('^http(s{,1})://', '', self.url)
-
-    def add(self, commit=True):
-        self.update_regcred()
-        super().add(commit)
 
     def update_regcred(self):
         """
@@ -159,10 +128,6 @@ class Registry(db.Model, BaseModel):
         Updates the instance with new values. These should be
         already validated.
         """
-        for key in kwargs.keys():
-            if key not in ["username", "password", "active"]:
-                raise InvalidRequest(f"Field {key} is not valid")
-
         if kwargs.get("active") is not None:
             self.query.filter(Registry.id == self.id).update(
                 {"active": kwargs.get("active")},
