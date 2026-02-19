@@ -46,7 +46,7 @@ class TestAudits:
             mock_kc_client
         ):
         """
-        Test that the endpoint returns 401 for non-admin users
+        Test that the endpoint returns 403 for non-admin users
         """
         mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
         response = client.get("/audit", headers=simple_user_header)

@@ -22,7 +22,7 @@ class TestPagination:
             host="host.url",
             username="user",
             password="pass"
-        ).add(user_id=user_uuid)
+        ).add()
         resp = client.get('/datasets', query_string={"page": "2", "per_page": '2'}, headers=simple_admin_header)
 
         assert resp.status_code == 200
@@ -54,4 +54,5 @@ class TestPagination:
         resp = client.get('/datasets', query_string={"page": "asdf", "per_page": '2'}, headers=simple_admin_header)
 
         assert resp.status_code == 400
-        assert resp.json["error"] == "page and per_page parameters should be integers"
+        assert "Input should be a valid integer, unable to parse string as an integer" in resp.json["error"][0]["msg"]
+        assert resp.json["error"][0]["loc"] == ["page"]

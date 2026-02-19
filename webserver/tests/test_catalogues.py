@@ -21,7 +21,7 @@ class TestCatalogues(MixinTestDataset):
         data_body['name'] = 'TestDs78'
         resp_ds = self.post_dataset(client, post_json_admin_header, data_body)
         response = client.get(
-            f"/datasets/{resp_ds["dataset_id"]}/catalogue",
+            f"/datasets/{resp_ds["id"]}/catalogue",
             headers=simple_admin_header
         )
         assert response.status_code == 200
@@ -53,7 +53,7 @@ class TestCatalogues(MixinTestDataset):
             client,
             dataset_post_body,
             post_json_admin_header,
-            dataset,
+            dataset
         ):
         """
         Tests that sending PUT /dataset updates the dictionaries
@@ -66,12 +66,12 @@ class TestCatalogues(MixinTestDataset):
         data_body["catalogue"]["description"] = "shiny new table"
 
         response = client.patch(
-            f"/datasets/{resp_ds["dataset_id"]}",
+            f"/datasets/{resp_ds["id"]}",
             json=data_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        catalogue = Catalogue.query.filter(Catalogue.dataset_id == resp_ds["dataset_id"]).all()
+        catalogue = Catalogue.query.filter(Catalogue.dataset_id == resp_ds["id"]).all()
         assert len(catalogue) == 1
         assert catalogue[0].description == "shiny new table"
 
@@ -91,21 +91,22 @@ class TestCatalogues(MixinTestDataset):
         data_body['name'] = 'TestDs78'
         resp_ds = self.post_dataset(client, post_json_admin_header, data_body)
 
-        assert Catalogue.query.filter(Catalogue.dataset_id == resp_ds["dataset_id"]).count() == 0
+        assert Catalogue.query.filter(Catalogue.dataset_id == resp_ds["id"]).count() == 0
 
         data_body = {
             "catalogue": {
                 "title": "new_table",
+                "version": "2a",
                 "description": "data dummy"
             }
         }
         response = client.patch(
-            f"/datasets/{resp_ds["dataset_id"]}",
+            f"/datasets/{resp_ds["id"]}",
             json=data_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        assert Catalogue.query.filter(Catalogue.dataset_id == resp_ds["dataset_id"]).count() == 1
+        assert Catalogue.query.filter(Catalogue.dataset_id == resp_ds["id"]).count() == 1
 
     def test_patch_catalogue_doesnt_add_new_one_if_exists(
             self,
@@ -126,12 +127,12 @@ class TestCatalogues(MixinTestDataset):
             "catalogue": data_body["catalogue"]
         }
         response = client.patch(
-            f"/datasets/{resp_ds["dataset_id"]}",
+            f"/datasets/{resp_ds["id"]}",
             json=data_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        assert Catalogue.query.filter(Catalogue.dataset_id == resp_ds["dataset_id"]).count() == 1
+        assert Catalogue.query.filter(Catalogue.dataset_id == resp_ds["id"]).count() == 1
 
     def test_get_catalogue_not_allowed_user(
             self,
@@ -154,7 +155,7 @@ class TestCatalogues(MixinTestDataset):
         mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
 
         response = client.get(
-            f"/datasets/{resp_ds["dataset_id"]}/catalogue",
+            f"/datasets/{resp_ds["id"]}/catalogue",
             headers=simple_user_header
         )
         assert response.status_code == 403

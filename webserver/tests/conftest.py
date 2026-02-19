@@ -1,4 +1,5 @@
 import base64
+import json
 from copy import deepcopy
 from typing import List
 from pytest import fixture
@@ -26,6 +27,7 @@ sample_ds_body = {
     "password": "pass",
     "catalogue": {
         "title": "test",
+        "version": "1",
         "description": "test description"
     },
     "dictionaries": [{
@@ -245,10 +247,20 @@ def k8s_client(secret_listed, pod_listed, v1_mock, v1_batch_mock, k8s_config):
     return all_clients
 
 @fixture
-def reg_k8s_client(k8s_client):
-    k8s_client["read_namespaced_secret_mock"].return_value.data.update({
-            ".dockerconfigjson": base64.b64encode("{\"auths\": {}}".encode()).decode()
-        })
+def dockerconfigjson_mock():
+    contents = {"auths": {"acr.azurecr.io": {
+        "username": "self.username",
+        "password": "self.password",
+        "email": "",
+        "auth": "YWJjMTIz"
+    }}}
+    return {
+        ".dockerconfigjson": base64.b64encode(json.dumps(contents).encode()).decode()
+    }
+
+@fixture
+def reg_k8s_client(k8s_client, dockerconfigjson_mock):
+    k8s_client["read_namespaced_secret_mock"].return_value.data.update(dockerconfigjson_mock)
     return k8s_client
 
 # Dataset Mocking
@@ -258,21 +270,21 @@ def dataset_post_body():
 
 @fixture
 def dataset(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
-    dataset = Dataset(name="TestDs", host="example.com", password='pass', username='user')
-    dataset.add(user_id=user_uuid)
+    dataset = Dataset(name="TestDs", host="example.com")
+    dataset.add()
     return dataset
 
 @fixture
 def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
-    dataset = Dataset(name="TestDsRepo", host="example.com", password='pass', username='user', repository="organisation/repository")
-    dataset.add(user_id=user_uuid)
+    dataset = Dataset(name="TestDsRepo", host="example.com", repository="organisation/repository")
+    dataset.add()
     return dataset
 
 @fixture
 def dataset_oracle(mocker, client, user_uuid, k8s_client)  -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
     dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user', type="oracle")
-    dataset.add(user_id=user_uuid)
+    dataset.add()
     return dataset
 
 @fixture
@@ -403,7 +415,7 @@ def set_task_github_delivery_env(mocker):
 @fixture
 def mock_keycloak_class(mocker):
     return mocker.patch(
-        'app.models.dataset.Keycloak',
+        'app.services.datasets.Keycloak',
         return_value=Mock(
             get_client_id=Mock(return_value="client_id"),
             get_token=Mock(return_value="token"),
@@ -452,6 +464,16 @@ def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
         )),
         "dataset_kc": mock_keycloak_class,
         "task_kc": mocker.patch('app.models.task.Keycloak', return_value=Mock(
+            get_token=Mock(return_value={"access_token": "token"}),
+            get_admin_token=Mock(return_value={"access_token": "admin_token"}),
+            decode_token=Mock(return_value=decode_token_return),
+            get_user_by_email=Mock(return_value=basic_user),
+            get_user_by_id=Mock(return_value=basic_user),
+            list_users=Mock(return_value=[basic_user]),
+            create_user=Mock(return_value=create_user_return),
+            get_user_role=Mock(return_value="Users"),
+        )),
+        "tasks_schema_kc": mocker.patch('app.schemas.tasks.Keycloak', return_value=Mock(
             get_token=Mock(return_value={"access_token": "token"}),
             get_admin_token=Mock(return_value={"access_token": "admin_token"}),
             decode_token=Mock(return_value=decode_token_return),

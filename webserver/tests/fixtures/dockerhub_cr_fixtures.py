@@ -67,13 +67,13 @@ def registry(client, mocker, reg_k8s_client, dockerhub_login_request, cr_name) -
             json={"token": "12345asdf"},
             status=200
         )
-        reg = Registry(cr_name, '', '')
+        reg = Registry(url=cr_name, username='', password='')
         reg.add()
         return reg
 
 @pytest.fixture
 def container(client, k8s_client, registry, image_name) -> Container:
     img, tag = image_name.split(':')
-    cont = Container(img, registry, tag, dashboard=True)
+    cont = Container(name=img, registry=registry, tag=tag, dashboard=True)
     cont.add()
     return cont

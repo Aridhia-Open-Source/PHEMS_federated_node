@@ -275,7 +275,8 @@ class Task(db.Model, BaseModel):
         except IndexError:
             return
 
-    def get_status(self) -> dict | str:
+    @property
+    def status(self):
         """
         k8s sdk returns a bunch of nested objects as a pod's status.
         Here the objects are deconstructed and a customized dictionary is returned
@@ -296,7 +297,6 @@ class Task(db.Model, BaseModel):
                 if st is not None:
                     break
 
-            self.status = status
             returned_status =  {
                 "started_at": st.started_at
             }
@@ -310,7 +310,7 @@ class Task(db.Model, BaseModel):
                 status: returned_status
             }
         except AttributeError:
-            return self.status if self.status != 'running' else 'deleted'
+            return status if status != 'running' else 'deleted'
 
     def terminate_pod(self):
         """
@@ -443,17 +443,6 @@ class Task(db.Model, BaseModel):
         """
         return REVIEW_STATUS[self.review_status]
 
-    def sanitized_dict(self):
-        """
-        Extend the method to add custom status and review
-        """
-        san_dict = super().sanitized_dict()
-        san_dict["status"] = self.get_status()
-        if TASK_REVIEW:
-            san_dict["review_status"] = self.get_review_status()
-
-        return san_dict
-
     def crd_name(self):
         """
         CRD name is set here for consistency's sake
@@ -508,7 +497,7 @@ class Task(db.Model, BaseModel):
         """
         Retrieve the pod's logs
         """
-        if 'waiting' in self.get_status():
+        if 'waiting' in self.status:
             return "Task queued"
 
         pod = self.get_current_pod(is_running=False)

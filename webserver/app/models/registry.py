@@ -23,9 +23,9 @@ class Registry(db.Model, BaseModel):
     active = Column(Boolean, default=True)
 
     def __init__(self, **kwargs):
+        self.username = kwargs.pop("username", None)
+        self.password = kwargs.pop("password", None)
         super().__init__(**kwargs)
-        self.username = kwargs.get("username")
-        self.password = kwargs.get("password")
 
     def _get_name(self):
         return re.sub('^http(s{,1})://', '', self.url)

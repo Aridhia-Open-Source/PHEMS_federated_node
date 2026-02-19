@@ -1,7 +1,7 @@
 import pytest
 
 from app.helpers.exceptions import InvalidRequest
-from app.models.task import Task
+from app.schemas.tasks import TaskCreate
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
 
@@ -26,7 +26,7 @@ class TestResourceValidators:
                 "memory": "100Mi"
             }
         }
-        Task.validate(task_body)
+        TaskCreate(**task_body)
 
     def test_valid_values_exp(
             self,
@@ -47,7 +47,7 @@ class TestResourceValidators:
                 "memory": "1M"
             }
         }
-        Task.validate(task_body)
+        TaskCreate(**task_body)
 
     def test_invalid_memory_values(
             self,
@@ -71,7 +71,7 @@ class TestResourceValidators:
                 }
             }
             with pytest.raises(InvalidRequest) as ir:
-                Task.validate(task_body)
+                TaskCreate(**task_body)
             assert ir.value.description == f'Memory resource value {in_val} not valid.'
 
     def test_invalid_cpu_values(
@@ -97,7 +97,7 @@ class TestResourceValidators:
                 }
             }
             with pytest.raises(InvalidRequest) as ir:
-                Task.validate(task_body)
+                TaskCreate(**task_body)
             assert ir.value.description == f'Cpu resource value {in_val} not valid.'
 
     def test_mem_limit_lower_than_request_fails(
@@ -120,7 +120,7 @@ class TestResourceValidators:
             }
         }
         with pytest.raises(InvalidRequest) as ir:
-            Task.validate(task_body)
+            TaskCreate(**task_body)
         assert ir.value.description == 'Memory limit cannot be lower than request'
 
     def test_cpu_limit_lower_than_request_fails(
@@ -143,5 +143,5 @@ class TestResourceValidators:
             }
         }
         with pytest.raises(InvalidRequest) as ir:
-            Task.validate(task_body)
+            TaskCreate(**task_body)
         assert ir.value.description == 'Cpu limit cannot be lower than request'

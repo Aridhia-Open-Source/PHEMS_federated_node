@@ -8,6 +8,7 @@ All general configs are taken care in here:
 import logging
 import traceback
 from flask_swagger_ui import get_swaggerui_blueprint
+from pydantic import ValidationError
 from sqlalchemy import exc
 from werkzeug.exceptions import HTTPException
 
@@ -55,6 +56,14 @@ def create_app():
         logging.error(error)
         db.session.rollback()
         return {"error": "Record already exists"}, 500
+
+    @app.errorhandler(ValidationError)
+    # Special case, just so we won't return stacktraces
+    def pydandic_validation_handler(e:ValidationError):
+        list_of_messages = []
+        for err in e.errors():
+            list_of_messages.append({"type": err["type"], "field": err["loc"], "message": err["msg"]})
+        return {"error": list_of_messages}, 400
 
     @app.errorhandler(Exception)
     # Special case, just so we won't return stacktraces

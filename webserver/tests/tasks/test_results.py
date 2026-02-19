@@ -87,7 +87,7 @@ class TestResultsReview:
             headers=simple_admin_header
         )
         assert response.status_code == 200
-        assert response.json["review_status"] == "Pending Review"
+        assert response.json["review"] == "Pending Review"
 
     def test_review_approved(
         self,

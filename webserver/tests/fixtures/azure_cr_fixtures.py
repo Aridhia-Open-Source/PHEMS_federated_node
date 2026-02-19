@@ -111,20 +111,20 @@ def cr_class(mocker, cr_name):
 
 @pytest.fixture
 def registry(client, reg_k8s_client, k8s_client, cr_name, azure_login_request) -> Registry:
-    reg = Registry(cr_name, '', '')
+    reg = Registry(url=cr_name, username='', password='')
     reg.add()
     return reg
 
 @pytest.fixture
 def container(client, k8s_client, registry, image_name) -> Container:
     img, tag = image_name.split(':')
-    cont = Container(img, registry, tag, dashboard=True)
+    cont = Container(name=img, registry=registry, tag=tag, dashboard=True)
     cont.add()
     return cont
 
 @pytest.fixture
 def container_with_sha(client, k8s_client, registry, image_name, expected_digest_list) -> Container:
     img, _ = image_name.split(':')
-    cont = Container(img, registry, sha=expected_digest_list, dashboard=True)
+    cont = Container(name=img, registry=registry, sha=expected_digest_list, dashboard=True)
     cont.add()
     return cont

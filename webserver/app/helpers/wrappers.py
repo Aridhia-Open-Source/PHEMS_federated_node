@@ -102,6 +102,7 @@ def audit(func):
                     find_and_redact_key(details, field)
                 audit_body["details"] = str(details)
 
+        audit_body["requested_by"] = "No auth"
         if "Authorization" in request.headers:
             kc_client = Keycloak()
             token = kc_client.decode_token(Keycloak.get_token_from_headers())

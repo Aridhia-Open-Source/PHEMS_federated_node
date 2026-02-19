@@ -106,6 +106,7 @@ def results_job_mock(mocker, task_body, reg_k8s_client):
 def task_mock(dataset, user_uuid, container):
     task = Task(
         name="Test Task",
+        executors=[],
         docker_image=container.full_image_name(),
         description="something",
         requested_by=user_uuid,

@@ -67,7 +67,7 @@ class TestGetTasks:
             headers=post_json_user_header
         )
         assert resp.status_code == 201
-        task_id = resp.json["task_id"]
+        task_id = resp.json["id"]
 
         resp = client.get(
             f'/tasks/{task_id}',
@@ -231,7 +231,7 @@ class TestPostTask:
         pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
         # Make sure the two init containers are created
         assert len(pod_body.spec.init_containers) == 2
-        assert [pod.name for pod in pod_body.spec.init_containers] == [f"init-{response.json["task_id"]}", "fetch-data"]
+        assert [pod.name for pod in pod_body.spec.init_containers] == [f"init-{response.json["id"]}", "fetch-data"]
 
     def test_create_task_no_name_fails(
             self,
@@ -970,7 +970,7 @@ class TestValidateTask:
         """
         response = client.post(
             '/tasks/validate',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 200
@@ -991,7 +991,7 @@ class TestValidateTask:
         task_body["tags"].pop("dataset_id")
         response = client.post(
             '/tasks/validate',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -1016,7 +1016,7 @@ class TestValidateTask:
         post_json_user_header["project-name"] = access_request.project_name
         response = client.post(
             '/tasks/validate',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_user_header
         )
         assert response.status_code == 200, response.json

@@ -22,8 +22,13 @@ class AuditFilters(BaseModel):
     ip_address: Optional[str] = None
     endpoint: Optional[str] = None
     api_function: Optional[str] = None
+    event_time: Optional[str] = None
     event_time__lte: Optional[str] = None
     event_time__gte: Optional[str] = None
+    event_time__ne: Optional[str] = None
+    event_time__eq: Optional[str] = None
+    event_time__lt: Optional[str] = None
+    event_time__gt: Optional[str] = None
 
     page: int = 1
     per_page: int = 25

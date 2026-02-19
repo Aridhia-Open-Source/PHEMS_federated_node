@@ -10,8 +10,8 @@ class ContainerBase(BaseModel):
     name: str
     tag: Optional[str] = None
     sha: Optional[str] = None
-    ml: bool
-    dashboard: bool
+    ml: bool = False
+    dashboard: bool = False
     registry_id: int
 
     model_config = ConfigDict(from_attributes=True)

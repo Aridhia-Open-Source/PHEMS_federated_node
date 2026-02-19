@@ -2,12 +2,10 @@ import logging
 import re
 from sqlalchemy import Column, Integer, String
 from app.helpers.base_model import BaseModel, db
-from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE
-from app.helpers.exceptions import DBRecordNotFoundError, KubernetesException
-from app.helpers.keycloak import Keycloak
+from app.helpers.const import DEFAULT_NAMESPACE
+from app.helpers.exceptions import DBRecordNotFoundError
 from app.helpers.kubernetes import KubernetesClient
 from kubernetes.client import V1Secret
-from kubernetes.client.exceptions import ApiException
 
 from app.helpers.connection_string import Mssql, Postgres, Mysql, Oracle, MariaDB
 
@@ -38,6 +36,11 @@ class Dataset(db.Model, BaseModel):
 
     catalogue = db.relationship("Catalogue", back_populates="dataset", uselist=False, cascade="all, delete-orphan")
     dictionaries = db.relationship("Dictionary", back_populates="dataset", cascade="all, delete-orphan")
+
+    def __init__(self, **kwargs):
+        self.username = kwargs.pop("username", None)
+        self.password = kwargs.pop("password", None)
+        super().__init__(**kwargs)
 
     def get_creds_secret_name(self, host=None, name=None):
         host = host or self.host

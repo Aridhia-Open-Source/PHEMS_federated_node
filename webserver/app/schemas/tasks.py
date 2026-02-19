@@ -1,5 +1,5 @@
-from typing import Any, List, Optional
-from pydantic import BaseModel, ConfigDict, PrivateAttr, field_validator, computed_field, model_validator
+from typing import List, Optional
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, computed_field, model_validator
 from datetime import datetime as dt
 
 from app.helpers.keycloak import Keycloak
@@ -10,7 +10,7 @@ from app.helpers.exceptions import InvalidRequest
 from app.models.dataset import Dataset
 from app.models.container import Container
 from app.models.request import Request
-from app.models.task import Task
+from app.models.task import REVIEW_STATUS, Task
 
 class TaskBase(BaseModel):
     name: str
@@ -120,11 +120,15 @@ class TaskCreate(TaskBase):
 class TaskRead(TaskBase):
     id: int
     dataset_id: int
-    status: str = "scheduled"
-    review_status: bool|None
+    status: str|dict = "scheduled"
+    review_status: bool|None = Field(exclude=True)
     created_at: Optional[dt] = None
     updated_at: Optional[dt] = None
 
+    @computed_field
+    @property
+    def review(self) -> str:
+        return REVIEW_STATUS[self.review_status]
 
 class TaskFilters(BaseModel):
     id__lte: Optional[int] = None
