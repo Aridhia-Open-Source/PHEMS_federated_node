@@ -63,7 +63,7 @@ class TestGetTasks:
         mock_kc_client["tasks_api_kc"].return_value.get_user_by_id.return_value = {"username": "user"}
         resp = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_user_header
         )
         assert resp.status_code == 201
@@ -143,7 +143,7 @@ class TestGetTasks:
 
         response_id = client.get(
             f'/tasks/{task.id}',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response_id.status_code == 200
@@ -160,7 +160,7 @@ class TestGetTasks:
 
         response_id = client.get(
             f'/tasks/{task.id}',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response_id.status_code == 200
@@ -190,7 +190,7 @@ class TestGetTasks:
 
         response_id = client.get(
             f'/tasks/{task.id}',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response_id.status_code == 200
@@ -273,6 +273,68 @@ class TestPostTask:
             assert response.status_code == 400
             assert response.json["error"] == "name is a mandatory field"
 
+    def test_automatic_delivery_via_crd(
+        self,
+        cr_client,
+        registry_client,
+        post_json_admin_header,
+        reg_k8s_client,
+        set_task_other_delivery_allowed_env,
+        client,
+        v1_crd_mock,
+        task_body
+    ):
+        """
+        Tests that with the right conditions (from env variables)
+        the auto delivery is performed
+        """
+        response = client.post(
+            '/tasks/',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        v1_crd_mock.return_value.create_cluster_custom_object.assert_called()
+
+    def test_automatic_delivery_via_crd_is_not_performed(
+        self,
+        cr_client,
+        registry_client,
+        post_json_admin_header,
+        reg_k8s_client,
+        client,
+        v1_crd_mock,
+        task_body,
+        mocker
+    ):
+        """
+        Tests that with the missing conditions (from env variables)
+        the auto delivery is not performed
+        """
+        mocker.patch(f'app.models.task.TASK_CONTROLLER', "enabled")
+
+        response = client.post(
+            '/tasks/',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
+
+        mocker.patch(f'app.models.task.TASK_CONTROLLER', None)
+        mocker.patch(f'app.models.task.AUTO_DELIVERY_RESULTS', "enabled")
+
+        response = client.post(
+            '/tasks/',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
+
     def test_create_task_no_db_query(
             self,
             cr_client,
@@ -293,7 +355,7 @@ class TestPostTask:
         task_body.pop("db_query")
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -345,7 +407,7 @@ class TestPostTask:
         task_body["outputs"] = []
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -368,7 +430,7 @@ class TestPostTask:
         task_body.pop("outputs")
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -585,7 +647,7 @@ class TestPostTask:
         """
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 500
@@ -608,7 +670,7 @@ class TestPostTask:
         task_body["inputs"] = {"file.csv": "/data/in"}
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -638,7 +700,7 @@ class TestPostTask:
         task_body["executors"][0]["env"] = {"INPUT_PATH": "/data/in/file.csv"}
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -664,7 +726,7 @@ class TestPostTask:
         task_body["outputs"] = []
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -686,7 +748,7 @@ class TestPostTask:
         task_body["inputs"] = []
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -709,7 +771,7 @@ class TestPostTask:
         task_body.pop("outputs")
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -735,7 +797,7 @@ class TestPostTask:
         task_body.pop("inputs")
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -761,35 +823,11 @@ class TestPostTask:
         """
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
         v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
-
-    def test_create_task_controller_deployed_create_crd(
-            self,
-            cr_client,
-            post_json_admin_header,
-            client,
-            registry_client,
-            set_task_controller_env,
-            k8s_client,
-            task_body,
-            v1_crd_mock,
-
-        ):
-        """
-        Tests task creation returns 201. It should try to
-        create a CRD if the task controller is deployed
-        """
-        response = client.post(
-            '/tasks/',
-            data=json.dumps(task_body),
-            headers=post_json_admin_header
-        )
-        assert response.status_code == 201
-        v1_crd_mock.return_value.create_cluster_custom_object.assert_called()
 
     def test_create_task_from_controller(
             self,
@@ -808,7 +846,7 @@ class TestPostTask:
         task_body["task_controller"] = True
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -833,7 +871,7 @@ class TestPostTask:
         task_body["repository"] = "organisation/repository"
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -859,7 +897,7 @@ class TestPostTask:
         task_body["repository"] = "organisation/repository2"
         response = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -970,7 +1008,7 @@ class TestValidateTask:
         """
         response = client.post(
             '/tasks/validate',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 200
@@ -991,7 +1029,7 @@ class TestValidateTask:
         task_body["tags"].pop("dataset_id")
         response = client.post(
             '/tasks/validate',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -1016,7 +1054,7 @@ class TestValidateTask:
         post_json_user_header["project-name"] = access_request.project_name
         response = client.post(
             '/tasks/validate',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_user_header
         )
         assert response.status_code == 200, response.json
