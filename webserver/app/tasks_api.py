@@ -23,7 +23,7 @@ from app.helpers.exceptions import (
 from app.helpers.keycloak import Keycloak
 from app.helpers.wrappers import audit, auth
 from app.helpers.base_model import db
-from app.helpers.query_filters import apply_filters, parse_query_params
+from app.helpers.query_filters import apply_filters
 from app.models.task import Task
 from app.schemas.pagination import PageResponse
 from app.schemas.tasks import TaskCreate, TaskFilters, TaskRead
@@ -74,7 +74,7 @@ def get_tasks():
     try:
         filter_params = TaskFilters(**request.args.to_dict())
     except ValidationError as ve:
-        raise InvalidRequest(ve.errors())
+        raise InvalidRequest(ve.errors()) from ve
 
     pagination = apply_filters(Task, filter_params)
     return PageResponse[TaskRead].model_validate(pagination).model_dump(), 200

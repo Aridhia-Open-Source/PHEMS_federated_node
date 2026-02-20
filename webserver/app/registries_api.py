@@ -32,7 +32,7 @@ def list_registries():
     try:
         filter_params = RegistryFilters(**request.args.to_dict())
     except ValidationError as ve:
-        raise InvalidRequest(ve.errors())
+        raise InvalidRequest(ve.errors()) from ve
 
     pagination = apply_filters(Registry, filter_params)
     return PageResponse[RegistryRead].model_validate(pagination).model_dump(), 200

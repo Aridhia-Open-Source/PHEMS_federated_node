@@ -55,7 +55,7 @@ def get_datasets():
     try:
         filter_params = DatasetFilters(**request.args.to_dict())
     except ValidationError as ve:
-        raise InvalidRequest(ve.errors())
+        raise InvalidRequest(ve.errors()) from ve
 
     pagination = apply_filters(Dataset, filter_params)
     return PageResponse[DatasetRead].model_validate(pagination).model_dump(), 200

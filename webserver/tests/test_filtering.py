@@ -17,9 +17,6 @@ def test_filter_by_date(
         - __lt  => less than
         - __ne  => not equal
     """
-    # client.get('/datasets/', headers=simple_admin_header)
-    # client.get('/datasets/', headers=simple_admin_header)
-    # client.get('/datasets/', headers=simple_admin_header)
     base_audit = {
         "ip_address": "127.0.0.1",
         "http_method": "GET",

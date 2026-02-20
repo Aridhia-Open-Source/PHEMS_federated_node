@@ -12,21 +12,20 @@ from app.helpers.wrappers import audit, auth
 from app.helpers.base_model import db
 from app.models.dataset import Dataset
 from app.models.request import Request
-from app.helpers.query_filters import parse_query_params
 
 bp = Blueprint('requests', __name__, url_prefix='/requests')
 session = db.session
 
-@bp.route('/', methods=['GET'])
-@bp.route('', methods=['GET'])
+# @bp.route('/', methods=['GET'])
+# @bp.route('', methods=['GET'])
+# pylint: disable=R0801
 @audit
 @auth(scope='can_admin_request')
 def get_requests():
     """
     GET /requests/ endpoint. Gets a list of Data Access Request
     """
-    query = parse_query_params(Request, request.args.copy())
-    res = session.execute(query).all()
+    res = Request.query.all()
     if res:
         res = [r[0].sanitized_dict() for r in res]
     return res, HTTPStatus.OK

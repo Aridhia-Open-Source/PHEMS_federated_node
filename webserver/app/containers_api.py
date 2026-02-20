@@ -38,7 +38,7 @@ def get_all_containers():
     try:
         filter_params = ContainerFilters(**request.args.to_dict())
     except ValidationError as ve:
-        raise InvalidRequest(ve.errors())
+        raise InvalidRequest(ve.errors()) from ve
 
     pagination = apply_filters(Container, filter_params)
     return PageResponse[ContainerRead].model_validate(pagination).model_dump(), 200
@@ -133,10 +133,16 @@ def sync():
                         logger.info("Image %s already synched", image["name"])
                         continue
 
+                    container_data = {
+                        "name": image["name"],
+                        "registry": registry.url
+                    }
                     if key == "tag":
-                        data = ContainerCreate(**{"name": image["name"], "registry": registry.url, "tag": tag_or_sha})
+                        container_data["tag"] = tag_or_sha
                     else:
-                        data = ContainerCreate(**{"name": image["name"], "registry": registry.url, "sha": tag_or_sha})
+                        container_data["sha"] = tag_or_sha
+
+                    data = ContainerCreate(**container_data)
                     cont = Container(**data.model_dump())
                     cont.add(commit=False)
                     synched.append(cont.full_image_name())

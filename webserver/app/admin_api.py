@@ -38,7 +38,7 @@ def get_audit_logs():
     try:
         filter_params = AuditFilters(**request.args.to_dict())
     except ValidationError as ve:
-        raise InvalidRequest(ve.errors())
+        raise InvalidRequest(ve.errors()) from ve
 
     pagination = apply_filters(Audit, filter_params)
     return PageResponse[AuditBase].model_validate(pagination).model_dump(), 200

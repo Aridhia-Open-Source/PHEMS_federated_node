@@ -62,7 +62,11 @@ def create_app():
     def pydandic_validation_handler(e:ValidationError):
         list_of_messages = []
         for err in e.errors():
-            list_of_messages.append({"type": err["type"], "field": err["loc"], "message": err["msg"]})
+            list_of_messages.append({
+                "type": err["type"],
+                "field": err["loc"],
+                "message": err["msg"]
+            })
         return {"error": list_of_messages}, 400
 
     @app.errorhandler(Exception)
