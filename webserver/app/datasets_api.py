@@ -58,7 +58,7 @@ def get_datasets():
         raise InvalidRequest(ve.errors()) from ve
 
     pagination = apply_filters(Dataset, filter_params)
-    return PageResponse[DatasetRead].model_validate(pagination).model_dump(), 200
+    return PageResponse[DatasetRead].model_validate(pagination).model_dump(), HTTPStatus.OK
 
 
 @bp.route('/', methods=['POST'])

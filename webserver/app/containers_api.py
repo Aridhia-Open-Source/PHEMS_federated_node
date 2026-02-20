@@ -41,7 +41,7 @@ def get_all_containers():
         raise InvalidRequest(ve.errors()) from ve
 
     pagination = apply_filters(Container, filter_params)
-    return PageResponse[ContainerRead].model_validate(pagination).model_dump(), 200
+    return PageResponse[ContainerRead].model_validate(pagination).model_dump(), HTTPStatus.OK
 
 
 @bp.route('/', methods=['POST'])

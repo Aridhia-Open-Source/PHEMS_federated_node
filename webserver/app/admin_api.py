@@ -41,7 +41,7 @@ def get_audit_logs():
         raise InvalidRequest(ve.errors()) from ve
 
     pagination = apply_filters(Audit, filter_params)
-    return PageResponse[AuditBase].model_validate(pagination).model_dump(), 200
+    return PageResponse[AuditBase].model_validate(pagination).model_dump(), HTTPStatus.OK
 
 
 @bp.route('/delivery-secret', methods=['PATCH'])

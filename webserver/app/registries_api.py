@@ -35,7 +35,7 @@ def list_registries():
         raise InvalidRequest(ve.errors()) from ve
 
     pagination = apply_filters(Registry, filter_params)
-    return PageResponse[RegistryRead].model_validate(pagination).model_dump(), 200
+    return PageResponse[RegistryRead].model_validate(pagination).model_dump(), HTTPStatus.OK
 
 
 @bp.route('/<int:registry_id>', methods=['GET'])
@@ -97,4 +97,4 @@ def patch_registry(registry_id:int):
 
     registry.update(**changes)
 
-    return {}, 204
+    return {}, HTTPStatus.NO_CONTENT

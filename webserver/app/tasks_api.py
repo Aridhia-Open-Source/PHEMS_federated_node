@@ -77,7 +77,7 @@ def get_tasks():
         raise InvalidRequest(ve.errors()) from ve
 
     pagination = apply_filters(Task, filter_params)
-    return PageResponse[TaskRead].model_validate(pagination).model_dump(), 200
+    return PageResponse[TaskRead].model_validate(pagination).model_dump(), HTTPStatus.OK
 
 
 @bp.route('/<task_id>', methods=['GET'])
