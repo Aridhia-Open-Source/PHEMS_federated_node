@@ -285,10 +285,11 @@ class Task(db.Model, BaseModel):
             :dict: if the pod exists
             :str: if the pod is not found or deleted
         """
+        status = "pending"
         try:
             status_obj = self.get_current_pod(is_running=False).status.container_statuses
             if status_obj is None:
-                return self.status
+                return status
 
             status_obj = status_obj[0].state
 
@@ -312,6 +313,10 @@ class Task(db.Model, BaseModel):
         except AttributeError:
             return status if status != 'running' else 'deleted'
 
+    @status.setter
+    def status(self, value):
+        self._status = value
+
     def terminate_pod(self):
         """
         Terminate a pod, checking if during the process
@@ -332,7 +337,6 @@ class Task(db.Model, BaseModel):
 
         if has_error:
             raise TaskExecutionException("Task already cancelled")
-        return self.sanitized_dict()
 
     def get_results(self):
         """

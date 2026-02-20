@@ -67,7 +67,7 @@ class TestDatasets(MixinTestDataset):
             "type": "postgres",
             "url": f"https://{self.hostname}/datasets/{dataset.name}",
             "slug": dataset.name,
-            "schema": None,
+            "schema_read": None,
             "schema_write": None,
             "repository": None,
             "extra_connection_args": None
@@ -275,10 +275,8 @@ class TestDatasets(MixinTestDataset):
 
 
 class TestPostDataset(MixinTestDataset):
-    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_is_successful(
             self,
-            ds_add_mock,
             post_json_admin_header,
             client,
             dataset,
@@ -300,10 +298,8 @@ class TestPostDataset(MixinTestDataset):
             query = self.run_query(select(Dictionary).where(Dictionary.table_name == d["table_name"]))
             assert len(query)== 1
 
-    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_fails_with_same_name_case_sensitive(
             self,
-            ds_add_mock,
             post_json_admin_header,
             client,
             dataset,
@@ -318,10 +314,8 @@ class TestPostDataset(MixinTestDataset):
 
         self.assert_datasets_by_name(data_body['name'])
 
-    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_with_url_encoded_name(
             self,
-            ds_add_mock,
             post_json_admin_header,
             client,
             dataset,
@@ -341,13 +335,13 @@ class TestPostDataset(MixinTestDataset):
         response = client.get("/datasets/" + data_body['name'], headers=simple_admin_header)
         assert response.status_code == 200
         assert response.json == {
-            "id": new_ds["dataset_id"],
+            "id": new_ds["id"],
             "name": "test dataset",
             "host": data_body["host"],
             "port": 5432,
             "type": "postgres",
             "slug": "test-dataset",
-            "schema": None,
+            "schema_read": None,
             "schema_write": None,
             "repository": None,
             "extra_connection_args": None,
@@ -410,7 +404,7 @@ class TestPostDataset(MixinTestDataset):
         data_body['name'] = 'TestDs78'
         data_body['repository'] = dataset_with_repo.repository
         resp = self.post_dataset(client, post_json_admin_header, data_body, 400)
-        assert resp["error"] == "Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
+        assert resp["error"][0]["message"] == "Value error, Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
 
         ds = Dataset.query.filter(
             Dataset.repository == dataset_with_repo.repository
@@ -432,7 +426,7 @@ class TestPostDataset(MixinTestDataset):
         data_body['name'] = 'TestDs78'
         data_body['type'] = 'invalid'
         resp = self.post_dataset(client, post_json_admin_header, data_body, code=400)
-        assert resp["error"] == "DB type invalid is not supported."
+        assert resp["error"][0]["message"] == "Value error, DB type invalid is not supported."
 
         query = self.run_query(select(Dataset).where(Dataset.name == data_body["name"], Dataset.type == "mssql"))
         assert len(query) == 0
@@ -449,7 +443,7 @@ class TestPostDataset(MixinTestDataset):
         /datasets POST fails if the k8s secrets cannot be created successfully
         """
         mocker.patch(
-            'app.models.dataset.KubernetesClient.create_namespaced_secret',
+            'app.services.datasets.KubernetesClient.create_namespaced_secret',
             Mock(
                 side_effect=ApiException(
                     http_resp=Mock(status=500, reason="Error", data="Failed")
@@ -465,10 +459,8 @@ class TestPostDataset(MixinTestDataset):
 
         self.assert_datasets_by_name(data_body['name'], count=0)
 
-    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_k8s_secrets_exists(
             self,
-            ds_add_mock,
             post_json_admin_header,
             client,
             k8s_config,
@@ -479,7 +471,7 @@ class TestPostDataset(MixinTestDataset):
         /datasets POST is successful if the k8s secrets already exists
         """
         mocker.patch(
-            'app.models.dataset.KubernetesClient',
+            'app.services.datasets.KubernetesClient',
             return_value=Mock(
                 create_namespaced_secret=Mock(
                     side_effect=ApiException(status=409, reason="Conflict")
@@ -520,14 +512,13 @@ class TestPostDataset(MixinTestDataset):
             query = self.run_query(select(Dictionary).where(Dictionary.table_name == d["table_name"]))
             assert len(query)== 0
 
-    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_with_duplicate_dictionaries_fails(
             self,
-            ds_add_mock,
             post_json_admin_header,
             client,
             dataset,
-            dataset_post_body
+            dataset_post_body,
+            mock_kc_client
         ):
         """
         /datasets POST is not successful
@@ -544,10 +535,8 @@ class TestPostDataset(MixinTestDataset):
         assert len(query) == 0
         self.assert_datasets_by_name(data_body['name'], count=0)
 
-    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_with_empty_dictionaries_succeeds(
             self,
-            ds_add_mock,
             post_json_admin_header,
             client,
             dataset,
@@ -565,13 +554,11 @@ class TestPostDataset(MixinTestDataset):
         self.assert_datasets_by_name(data_body['name'])
         query = self.run_query(select(Catalogue).where(Catalogue.title == data_body["catalogue"]["title"]))
         assert len(query) == 1
-        query = self.run_query(select(Dictionary).where(Dictionary.dataset_id == query_ds["dataset_id"]))
+        query = self.run_query(select(Dictionary).where(Dictionary.dataset_id == query_ds["id"]))
         assert len(query) == 0
 
-    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_with_wrong_dictionaries_format(
             self,
-            ds_add_mock,
             post_json_admin_header,
             client,
             dataset,
@@ -587,7 +574,7 @@ class TestPostDataset(MixinTestDataset):
             "description": "test description"
         }
         response = self.post_dataset(client, post_json_admin_header, data_body, 400)
-        assert response == {'error': 'dictionaries should be a list.'}
+        assert response["error"][0]["message"] == "Input should be a valid list"
 
         # Make sure any db entry is created
         query = self.run_query(select(Dataset).where(Dataset.name == data_body["name"]))
@@ -599,10 +586,8 @@ class TestPostDataset(MixinTestDataset):
         query = self.run_query(select(Dictionary).where(Dictionary.table_name == data_body["dictionaries"]["table_name"]))
         assert len(query) == 0
 
-    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_datasets_with_same_dictionaries_succeeds(
             self,
-            ds_add_mock,
             post_json_admin_header,
             client,
             dataset,
@@ -639,10 +624,8 @@ class TestPostDataset(MixinTestDataset):
             query = self.run_query(select(Dictionary).where(Dictionary.table_name == d["table_name"]))
             assert len(query) == 2
 
-    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_with_catalogue_only(
             self,
-            ds_add_mock,
             post_json_admin_header,
             dataset,
             client,
@@ -660,13 +643,11 @@ class TestPostDataset(MixinTestDataset):
         self.assert_datasets_by_name(data_body['name'])
         query = self.run_query(select(Catalogue).where(Catalogue.title == data_body["catalogue"]["title"]))
         assert len(query) == 1
-        query = self.run_query(select(Dictionary).where(Dictionary.dataset_id == query_ds["dataset_id"]))
+        query = self.run_query(select(Dictionary).where(Dictionary.dataset_id == query_ds["id"]))
         assert len(query) == 0
 
-    @mock.patch('app.datasets_api.Dataset.add')
     def test_post_dataset_with_dictionaries_only(
             self,
-            ds_add_mock,
             post_json_admin_header,
             dataset,
             client,
@@ -683,7 +664,7 @@ class TestPostDataset(MixinTestDataset):
         # Make sure any db entry is created
         self.assert_datasets_by_name(data_body['name'])
 
-        query = self.run_query(select(Catalogue).where(Catalogue.dataset_id == query_ds["dataset_id"]))
+        query = self.run_query(select(Catalogue).where(Catalogue.dataset_id == query_ds["id"]))
         assert len(query) == 0
         for d in data_body["dictionaries"]:
             query = self.run_query(select(Dictionary).where(Dictionary.table_name == d["table_name"]))
@@ -863,7 +844,7 @@ class TestPatchDataset(MixinTestDataset):
         ds = Dataset.query.filter(Dataset.id == dataset.id).one_or_none()
         assert ds.name == ds_old_name
 
-    @mock.patch('app.models.dataset.Keycloak.patch_resource', side_effect=KeycloakError("Failed to patch the resource"))
+    @mock.patch('app.services.datasets.Keycloak.patch_resource', side_effect=KeycloakError("Failed to patch the resource"))
     def test_patch_dataset_not_found(
             self,
             mock_kc_patch,

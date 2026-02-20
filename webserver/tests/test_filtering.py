@@ -17,15 +17,24 @@ def test_filter_by_date(
         - __lt  => less than
         - __ne  => not equal
     """
-    client.get('/datasets/', headers=simple_admin_header)
-    client.get('/datasets/', headers=simple_admin_header)
-    client.get('/datasets/', headers=simple_admin_header)
-
-    for idx, audit in enumerate(Audit.query.all()):
-        audit.query.update({"event_time": dt.now() - td(days=idx)})
+    # client.get('/datasets/', headers=simple_admin_header)
+    # client.get('/datasets/', headers=simple_admin_header)
+    # client.get('/datasets/', headers=simple_admin_header)
+    base_audit = {
+        "ip_address": "127.0.0.1",
+        "http_method": "GET",
+        "endpoint": "/dataset",
+        "api_function": "get_datasets",
+        "requested_by": "admin",
+        "status_code": "200",
+        "details": "",
+    }
+    for idx in range(3):
+        base_audit["event_time"] = dt.now() - td(days=idx)
+        Audit(**base_audit).add()
 
     filters = {
-        # '': 1,
+        '': 1,
         '__lte': 2,
         '__gte': 2,
         '__eq': 1,

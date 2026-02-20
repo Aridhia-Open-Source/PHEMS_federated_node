@@ -1,5 +1,3 @@
-import base64
-import json
 import pytest
 import responses
 from unittest.mock import Mock
@@ -20,7 +18,7 @@ def expected_image_names(container):
 
 @pytest.fixture
 def expected_tags_list():
-    return ["1.2.3", "dev"]
+    return ["1.2.3", "dev", "latest"]
 
 @pytest.fixture
 def expected_digest_list():

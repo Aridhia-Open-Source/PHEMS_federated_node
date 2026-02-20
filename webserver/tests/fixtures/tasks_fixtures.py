@@ -1,5 +1,3 @@
-import responses
-from responses import matchers
 from datetime import datetime
 from kubernetes.client.exceptions import ApiException
 
@@ -9,7 +7,6 @@ from pytest import fixture
 from copy import deepcopy
 from unittest.mock import Mock
 
-from app.helpers.keycloak import URLS
 from app.models.task import Task
 
 
@@ -88,7 +85,7 @@ def terminated_state():
 @fixture
 def results_job_mock(mocker, task_body, reg_k8s_client):
     mocker.patch(
-        'app.models.task.Task.get_status',
+        'app.models.task.Task.status',
         return_value={"running": {}}
     )
     mocker.patch('app.models.task.uuid4', return_value="1dc6c6d1-417f-409a-8f85-cb9d20f7c741")

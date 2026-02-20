@@ -106,7 +106,8 @@ def cancel_tasks(task_id):
     does_user_own_task(task)
 
     # Should remove pod/stop ML pipeline
-    return task.terminate_pod(), HTTPStatus.CREATED
+    task.terminate_pod()
+    return TaskRead.model_validate(task).model_dump(), HTTPStatus.CREATED
 
 
 @bp.route('/', methods=['POST'])

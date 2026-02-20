@@ -238,12 +238,15 @@ class TestPostTask:
             post_json_admin_header,
             client,
             task_body,
-
+            container,
+            cr_name,
+            registry,
+            tags_request
         ):
         """
         Tests task creation returns an error when name is empty or null
         """
-        for value in ["", None]:
+        for value in ["", " ", " " * 10]:
             task_body["name"] = value
             response = client.post(
                 '/tasks/',
@@ -258,20 +261,24 @@ class TestPostTask:
             post_json_admin_header,
             client,
             task_body,
-
+            container,
+            cr_name,
+            registry,
+            tags_request
         ):
         """
-        Tests task creation returns an error when name is one or more spaces
+        Tests task creation returns an error when name is empty or null
+        or one or more spaces
         """
-        for value in [" ", " " * 10]:
-            task_body["name"] = value
-            response = client.post(
-                '/tasks/',
-                json=task_body,
-                headers=post_json_admin_header
-            )
-            assert response.status_code == 400
-            assert response.json["error"] == "name is a mandatory field"
+        task_body["name"] = None
+        response = client.post(
+            '/tasks/',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert response.json["error"][0]["field"] == ["name"]
+        assert response.json["error"][0]["message"] == "Input should be a valid string"
 
     def test_create_task_no_db_query(
             self,
@@ -938,6 +945,7 @@ class TestCancelTask:
             headers=simple_admin_header
         )
         assert response.status_code == 201
+        assert "terminated" in response.json["status"]
 
     def test_cancel_404_task(
             self,

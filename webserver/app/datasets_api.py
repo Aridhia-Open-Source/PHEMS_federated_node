@@ -69,21 +69,9 @@ def post_datasets():
     """
     POST /datasets/ endpoint. Creates a new dataset
     """
-    try:
-        data = DatasetCreate(**request.json)
-
-        kc_client = Keycloak()
-        token_info = kc_client.decode_token(kc_client.get_token_from_headers())
-        user_id = kc_client.get_user_by_email(token_info["email"])["id"]
-        dataset = DatasetService.add(
-            data=data,
-            user_id=user_id
-        )
-        return DatasetRead.model_validate(dataset).model_dump(), HTTPStatus.CREATED
-
-    except:
-        session.rollback()
-        raise
+    data = DatasetCreate(**request.json)
+    dataset: Dataset = DatasetService.add(data)
+    return DatasetRead.model_validate(dataset).model_dump(), HTTPStatus.CREATED
 
 
 @bp.route('/<int:dataset_id>', methods=['GET'])

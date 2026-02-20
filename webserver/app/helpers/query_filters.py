@@ -1,5 +1,6 @@
 import re
 
+from sqlalchemy import func, DateTime
 from pydantic import BaseModel
 from app.helpers.base_model import Base
 from app.helpers.exceptions import InvalidRequest
@@ -90,6 +91,8 @@ def apply_filters(model, filter_dto: BaseModel):
             field_name, op_name = key, "eq"
 
         column = getattr(model, field_name)
+        if column.type.__class__ == DateTime:
+            column = func.date(column)
         query = query.filter(operators[op_name](column, value))
 
     return query.paginate(page=filter_dto.page, per_page=filter_dto.per_page)

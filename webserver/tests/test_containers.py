@@ -365,8 +365,16 @@ class TestSync:
             "/containers/sync",
             headers=post_json_admin_header
         )
-        expected_resp = [f"{registry.url}/{im}:{t}" for im in expected_image_names for t in expected_tags_list]
-        expected_resp += [f"{registry.url}/{im}@{expected_digest_list}" for im in expected_image_names]
+        expected_resp = [
+            'acr.azurecr.io/testimage:1.2.3',
+            'acr.azurecr.io/testimage:dev',
+            'acr.azurecr.io/testimage:latest',
+            'acr.azurecr.io/example:1.2.3',
+            'acr.azurecr.io/example:dev',
+            # 'acr.azurecr.io/example:latest', This is already present and not synched
+            'acr.azurecr.io/testimage@sha256:c1e51a68c68a448a',
+            'acr.azurecr.io/example@sha256:c1e51a68c68a448a'
+        ]
         assert resp.status_code == 201
         assert sorted(resp.json["images"]) == sorted(expected_resp)
 

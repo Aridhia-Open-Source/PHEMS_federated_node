@@ -2,7 +2,7 @@ import logging
 import re
 from sqlalchemy import Column, Integer, String
 from app.helpers.base_model import BaseModel, db
-from app.helpers.const import DEFAULT_NAMESPACE
+from app.helpers.const import DEFAULT_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError
 from app.helpers.kubernetes import KubernetesClient
 from kubernetes.client import V1Secret
@@ -41,6 +41,14 @@ class Dataset(db.Model, BaseModel):
         self.username = kwargs.pop("username", None)
         self.password = kwargs.pop("password", None)
         super().__init__(**kwargs)
+
+    @property
+    def slug(self):
+        return re.sub(r'[\W_]+', '-', self.name)
+
+    @property
+    def url(self) -> str:
+        return f"https://{PUBLIC_URL}/datasets/{self.slug}"
 
     def get_creds_secret_name(self, host=None, name=None):
         host = host or self.host

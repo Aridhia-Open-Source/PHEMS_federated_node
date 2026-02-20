@@ -78,8 +78,8 @@ class TestAudits:
         date_filter = datetime.now().date()
         response = client.get(f"/audit?event_time__lte={date_filter}", headers=simple_admin_header)
 
-        assert response.status_code == 200, response.json
-        assert response.json["total"] == 0
+        assert response.status_code == 200
+        assert response.json["total"] == 1
 
     def test_sensitive_data_is_purged(
         self,

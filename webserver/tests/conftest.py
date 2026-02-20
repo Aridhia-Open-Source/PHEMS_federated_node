@@ -270,20 +270,20 @@ def dataset_post_body():
 
 @fixture
 def dataset(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
-    dataset = Dataset(name="TestDs", host="example.com")
+    dataset = Dataset(name="testds", host="example.com")
     dataset.add()
     return dataset
 
 @fixture
 def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
-    dataset = Dataset(name="TestDsRepo", host="example.com", repository="organisation/repository")
+    dataset = Dataset(name="testdsrepo", host="example.com", repository="organisation/repository")
     dataset.add()
     return dataset
 
 @fixture
 def dataset_oracle(mocker, client, user_uuid, k8s_client)  -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
-    dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user', type="oracle")
+    dataset = Dataset(name="anotherds", host="example.com", password='pass', username='user', type="oracle")
     dataset.add()
     return dataset
 
@@ -413,7 +413,13 @@ def set_task_github_delivery_env(mocker):
     mocker.patch('app.admin_api.GITHUB_DELIVERY', return_value="org/repository")
 
 @fixture
-def mock_keycloak_class(mocker):
+def decode_token_return(basic_user, user_uuid):
+    decode_token_return = deepcopy(basic_user)
+    decode_token_return["sub"] = user_uuid
+    return decode_token_return
+
+@fixture
+def mock_keycloak_class(mocker, decode_token_return, basic_user):
     return mocker.patch(
         'app.services.datasets.Keycloak',
         return_value=Mock(
@@ -421,6 +427,8 @@ def mock_keycloak_class(mocker):
             get_token=Mock(return_value="token"),
             get_policy=Mock(return_value={"id": "policy"}),
             get_scope=Mock(return_value={"id": "scope"}),
+            decode_token=Mock(return_value=decode_token_return),
+            get_user_by_email=Mock(return_value=basic_user),
             create_policy=Mock(return_value={"id": "policy"}),
             create_resource=Mock(return_value={"_id": "resource"}),
             create_permission=Mock(return_value={"id": "permission"}),
@@ -428,12 +436,9 @@ def mock_keycloak_class(mocker):
         )
     )
 
-
 @fixture(autouse=True)
-def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
-    decode_token_return = deepcopy(basic_user)
+def mock_kc_client(mocker, basic_user, decode_token_return, mock_keycloak_class):
     create_user_return = deepcopy(basic_user)
-    decode_token_return["sub"] = user_uuid
     create_user_return["password"] = "tempPassword!"
     kc_mock = {
         "main_kc": mocker.patch('app.main.Keycloak', return_value=Mock(

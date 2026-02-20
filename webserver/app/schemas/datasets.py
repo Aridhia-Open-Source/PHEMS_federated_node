@@ -1,17 +1,15 @@
-import re
-from pydantic import BaseModel, ConfigDict, Field, field_validator, computed_field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing import List, Optional
 
 import requests
 
-from app.helpers.const import PUBLIC_URL
-from app.models.dataset import SUPPORTED_ENGINES
+from app.models.dataset import SUPPORTED_ENGINES, Dataset
 from app.schemas.catalogues import CatalogueCreate
 from app.schemas.dictionaries import DictionaryCreate
+from app.helpers.exceptions import InvalidRequest
 
 
 class DatasetBase(BaseModel):
-    id: int
     name: str
     host: str
     port: int = 5432
@@ -22,17 +20,9 @@ class DatasetBase(BaseModel):
     repository: Optional[str] = None
 
 
-class DatasetCreate(BaseModel):
+class DatasetCreate(DatasetBase):
     username: str
     password: str
-    name: str
-    host: str
-    port: Optional[int] = 5432
-    schema_read: Optional[str] = Field(None, alias="schema_name")
-    schema_write: Optional[str] = None
-    type: str = "postgres"
-    extra_connection_args: Optional[str] = None
-    repository: Optional[str] = None
 
     catalogue: Optional[CatalogueCreate] = None
     dictionaries: List[DictionaryCreate] = Field(default_factory=list)
@@ -54,6 +44,16 @@ class DatasetCreate(BaseModel):
             raise ValueError(f"DB type {v} is not supported.")
         return v
 
+    @field_validator('repository')
+    @classmethod
+    def validate_repo(cls, v: str):
+        if Dataset.query.filter_by(repository=v).one_or_none():
+            raise ValueError(
+                "Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
+            )
+        return v
+
+
 class DatasetUpdate(DatasetCreate):
     # Host not allowed to be updated
     host: None = None
@@ -63,21 +63,11 @@ class DatasetUpdate(DatasetCreate):
 
 
 class DatasetRead(DatasetBase):
+    id: int
+    url: str
+    slug: str
+
     model_config = ConfigDict(from_attributes=True)
-
-    @computed_field
-    @property
-    def url(self) -> str:
-        return f"https://{PUBLIC_URL}/datasets/{self.slug}"
-
-    @computed_field
-    @property
-    def slug(self) -> str:
-        """
-        Based on the provided name, it will return the slugified name
-        so that it will be sade to save on the DB
-        """
-        return re.sub(r'[\W_]+', '-', self.name)
 
 
 class DatasetFilters(BaseModel):

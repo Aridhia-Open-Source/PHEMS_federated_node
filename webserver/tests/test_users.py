@@ -161,7 +161,7 @@ class TestCreateUser(UserMixin):
         assert resp.status_code == 400
         assert resp.json == {"error": "An email should be provided"}
 
-    @mock.patch('app.models.dataset.Keycloak.create_user', return_value=mock.Mock())
+    @mock.patch('app.users_api.Keycloak.create_user', return_value=mock.Mock())
     def test_create_user_with_same_email(
         self,
         mock_kc_create,
