@@ -146,3 +146,76 @@ az storage container create --name federatednode \
                             --account-name "$SA_NAME"
 ```
 
+## Storage Backup (Optional)
+
+### Create a separated resource group for the backups
+```
+az group create \
+  --location "${LOCATION}" \
+  --name "bac-${RG}" \
+  --tags "product=FederatedNode"
+```
+### Create a recovery service vault
+```
+az backup vault create \
+  --resource-group "bac-${RG}" \
+  --name "bac-${RG}-recovery" \
+  --location "${LOCATION}" \
+  --tags "product=FederatedNode"
+```
+
+### Create a backup policy for the file share from the storage account
+```
+az backup policy create \
+  --resource-group "bac-${RG}" \
+  --vault-name "bac-${RG}-recovery" \
+  --name "federatednode-files-policy" \
+  --backup-management-type AzureStorage \
+  --workload-type AzureFileShare \
+  --policy \
+  '{
+    "properties": {
+      "backupManagementType": "AzureStorage",
+      "protectedItemsCount": 2,
+      "resourceGuardOperationRequests": null,
+      "retentionPolicy": {
+        "dailySchedule": {
+          "retentionDuration": {
+            "count": 14,
+            "durationType": "Days"
+          },
+          "retentionTimes": [
+            "2026-02-11T01:00:00"
+          ]
+        },
+        "monthlySchedule": null,
+        "retentionPolicyType": "LongTermRetentionPolicy",
+        "weeklySchedule": null,
+        "yearlySchedule": null
+      },
+      "schedulePolicy": {
+        "hourlySchedule": null,
+        "schedulePolicyType": "SimpleSchedulePolicy",
+        "scheduleRunDays": null,
+        "scheduleRunFrequency": "Daily",
+        "scheduleRunTimes": [
+          "2026-02-11T01:00:00"
+        ],
+        "scheduleWeeklyFrequency": 0
+      },
+      "timeZone": "GMT Standard Time",
+      "vaultRetentionPolicy": null,
+      "workLoadType": "AzureFileShare"
+    }
+  }'
+```
+
+### Associate the file share to the backup policy
+```
+az backup protection enable-for-azurefileshare \
+  --resource-group "bac-${RG}" \
+  --vault-name "bac-${RG}-recovery" \
+  --storage-account "${SA_NAME}" \
+  --azure-file-share "files" \
+  --policy-name "federatednode-files-policy"
+```
