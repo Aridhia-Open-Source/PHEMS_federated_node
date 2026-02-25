@@ -1,5 +1,8 @@
 # Releases Changelog
 
+## 1.11.0
+- Added a flag for conditional automatic results returns for tasks triggered by the API, `federatedNode.allow_delivery_api`. Defaults to `false`.
+
 ## 1.10.0
 - Improved API error handling involving k8s library errors
 
