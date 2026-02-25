@@ -1,4 +1,3 @@
-import json
 from unittest.mock import Mock
 
 from app.helpers.base_model import db
@@ -59,7 +58,7 @@ class TestGetTasks:
         mock_kc_client["tasks_api_kc"].return_value.get_user_by_id.return_value = {"username": "user"}
         resp = client.post(
             '/tasks/',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_user_header
         )
         assert resp.status_code == 201
@@ -139,7 +138,7 @@ class TestGetTasks:
 
         response_id = client.get(
             f'/tasks/{task.id}',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response_id.status_code == 200
@@ -156,7 +155,7 @@ class TestGetTasks:
 
         response_id = client.get(
             f'/tasks/{task.id}',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response_id.status_code == 200
@@ -185,7 +184,7 @@ class TestGetTasks:
 
         response_id = client.get(
             f'/tasks/{task.id}',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response_id.status_code == 200
@@ -198,3 +197,4 @@ class TestGetTasks:
             }
         }
         assert response_id.json["status"] == expected_status
+
