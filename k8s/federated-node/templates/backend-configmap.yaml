@@ -22,6 +22,9 @@ data:
   CLAIM_CAPACITY: {{ .Values.storage.capacity }}
   STORAGE_CLASS: {{ include "storageClassName" . }}
   CRD_DOMAIN: {{ include "controllerCrdGroup" . }}
+{{- if .Values.federatedNode.allow_delivery_api }}
+  AUTO_DELIVERY_RESULTS: "true"
+{{- end }}
 {{- if .Values.storage.aws }}
   AWS_STORAGE_ENABLED: "true"
   AWS_STORAGE_DRIVER: "efs.csi.aws.com"

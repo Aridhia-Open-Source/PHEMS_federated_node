@@ -216,11 +216,10 @@ def v1_crd_mock(mocker, task):
                         }
                     }
                 }]
-            },
+            }),
             patch_cluster_custom_object=Mock(),
             create_cluster_custom_object=Mock(),
             get_cluster_custom_object=Mock()
-            )
         )
     )
 
@@ -431,13 +430,18 @@ def new_user(new_user_email):
 
 @fixture
 def set_task_other_delivery_env(mocker):
-    mocker.patch('app.admin_api.TASK_CONTROLLER', return_value="enabled")
-    mocker.patch('app.admin_api.OTHER_DELIVERY', return_value="url.delivery.com")
+    mocker.patch('app.admin_api.TASK_CONTROLLER', "enabled")
+    mocker.patch('app.admin_api.OTHER_DELIVERY', "url.delivery.com")
+
+@fixture
+def set_task_other_delivery_allowed_env(mocker, set_task_other_delivery_env):
+    mocker.patch('app.models.task.TASK_CONTROLLER', "enabled")
+    mocker.patch('app.models.task.AUTO_DELIVERY_RESULTS', "enabled")
 
 @fixture
 def set_task_github_delivery_env(mocker):
-    mocker.patch('app.admin_api.TASK_CONTROLLER', return_value="enabled")
-    mocker.patch('app.admin_api.GITHUB_DELIVERY', return_value="org/repository")
+    mocker.patch('app.admin_api.TASK_CONTROLLER', "enabled")
+    mocker.patch('app.admin_api.GITHUB_DELIVERY', "org/repository")
 
 @fixture
 def mock_keycloak_class(mocker):

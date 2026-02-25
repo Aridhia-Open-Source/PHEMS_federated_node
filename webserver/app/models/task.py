@@ -11,7 +11,7 @@ from uuid import uuid4
 
 import urllib3
 from app.helpers.const import (
-    CLEANUP_AFTER_DAYS, CRD_DOMAIN, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, PUBLIC_URL, TASK_CONTROLLER,
+    AUTO_DELIVERY_RESULTS, CLEANUP_AFTER_DAYS, CRD_DOMAIN, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, PUBLIC_URL, TASK_CONTROLLER,
     TASK_NAMESPACE, TASK_POD_RESULTS_PATH, TASK_POD_INPUTS_PATH, RESULTS_PATH, TASK_REVIEW
 )
 from app.helpers.base_model import BaseModel, db
@@ -301,7 +301,7 @@ class Task(db.Model, BaseModel):
         return (datetime.now() + timedelta(days=CLEANUP_AFTER_DAYS)).strftime("%Y%m%d")
 
     def needs_crd(self):
-        return ((not self.is_from_controller) and TASK_CONTROLLER)
+        return ((not self.is_from_controller) and TASK_CONTROLLER is not None and AUTO_DELIVERY_RESULTS is not None )
 
     def run(self, validate=False):
         """
@@ -535,9 +535,6 @@ class Task(db.Model, BaseModel):
 
         If the TASK_CONTROLLER env variable is not set, do nothing
         """
-        if not TASK_CONTROLLER:
-            return
-
         crd_client = KubernetesCRDClient()
         try:
             crd_client.create_cluster_custom_object(
@@ -558,7 +555,7 @@ class Task(db.Model, BaseModel):
                         "image": self.docker_image,
                         "project": "federated_node",
                         "source": {
-                            "repository": "Aridhia-Open-Source/PHEMS_federated_node"
+                            "repository": self.dataset.repository or "Aridhia-Open-Source/PHEMS_federated_node"
                         },
                         "user": {
                             "idpId": "",

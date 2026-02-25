@@ -84,6 +84,7 @@ class Registry(db.Model, BaseModel):
                     namespaces=[TASK_NAMESPACE],
                     type='kubernetes.io/dockerconfigjson'
                 )
+                secret = v1.read_namespaced_secret(secret_name, TASK_NAMESPACE)
             else:
                 raise InvalidRequest("Something went wrong when creating registry secrets")
 

@@ -5,6 +5,7 @@
 - Added two new endpoints for cronjobs: `/tasks/id/suspend` and `/tasks/id/resume` to pause/resume autoexecution.
 - Adjusted the results job cleanup
 - Automatic task results cleanup is now an toggleable feature by setting `cleanupResults.enabled` to `false`. It is enabled by default.
+- Added a flag for conditional automatic results returns for tasks triggered by the API, `federatedNode.allow_delivery_api`. Defaults to `false`.
 
 ## 1.10.0
 - Improved API error handling involving k8s library errors
@@ -12,6 +13,7 @@
 ### Bugfixes
 - Fixed the containers add query check, which was incorrectly referring to the same field
 - Added validation for task name missing or empty string
+- Fixed an error within the registry endpoint due to an un-initialized variable
 
 ## 1.9.0
 
