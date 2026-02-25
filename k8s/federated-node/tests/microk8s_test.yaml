@@ -104,6 +104,11 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+  - it: clenup created
+    template: result-cleaner-cronjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 4
   - it: no registry sync
     template: registry-sync-cronjob.yaml
     set:
