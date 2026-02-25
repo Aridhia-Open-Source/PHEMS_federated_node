@@ -1,3 +1,4 @@
+
 # TODO
 
 
@@ -28,7 +29,29 @@ RESULTS_DIR = "mgmt/results"
 - Setup a dagster sensor which detects successful run events for dagster-pipes jobs []
 - Setup a dagster sensor which detects failed run events for dagster-pipes jobs []
 - Setup the dagster success sensor so that it uploads the zipped results as a new pr []
-- setup the dagster failure sensor so that it adds a comment to the original PR with the error as comment []
+- Setup the dagster failure sensor so that it adds a comment to the original PR with the error as comment []
+- We should always add a comment to the PR when the dagster run status changes or when it completes (TBC)
+
+---
+
+# Proof of concept
+
+Use local scripts and file cursor to test conceptual functionality with base case
+
+1) Detect new pull requests from the target repo
+2) Filter pull requests that have existed before startup or already processed
+3) Filter pull requests where there are no changes to the run requests dir
+4) Parse JSON file requests from dir and print them out (will be api calls later)
+
+---
+
+1) Zip up the contents of a specified directory (small json files)
+2) Create a new results branch with zip commited and push it to target repo
+3) Open a new pull request using the new results branch
+
+---
+
+1) add a comment to a PR with a comment describing the jobs state
 
 
-
+# Demo MVP
