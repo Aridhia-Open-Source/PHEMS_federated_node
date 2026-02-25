@@ -1,12 +1,12 @@
-from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, UniqueConstraint, select, update
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from app.helpers.base_model import BaseModel, db
+from app.helpers.base_model import BaseModel, get_db
 from app.models.dataset import Dataset
 from app.helpers.exceptions import InvalidRequest
 
 
-class Catalogue( db.Model, BaseModel):
+class Catalogue(BaseModel):
     __tablename__ = 'catalogues'
     __table_args__ = (
         UniqueConstraint('title', 'dataset_id'),
@@ -27,16 +27,4 @@ class Catalogue( db.Model, BaseModel):
                 raise InvalidRequest(f"Field {k} is not a valid one")
             else:
                 setattr(self, k, v)
-        self.query.filter(Catalogue.id == self.id).update(data, synchronize_session='evaluate')
-
-    @classmethod
-    def update_or_create(cls, data:dict, ds:Dataset):
-        """
-        """
-        current_cata = cls.query.filter(cls.dataset_id == ds.id).one_or_none()
-        if current_cata:
-            current_cata.update(**data)
-        else:
-            cata_body = cls.validate(data)
-            catalogue = cls(dataset=ds, **cata_body)
-            catalogue.add(commit=False)
+        Catalogue.update(self.id, data)

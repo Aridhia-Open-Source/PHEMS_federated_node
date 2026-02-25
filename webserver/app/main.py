@@ -1,76 +1,73 @@
 """
-A collection of general use endpoints
-These won't have any restrictions and won't go through
-    Keycloak for token validation.
+Entrypoint for the webserver.
+All general configs are taken care in here:
+    - Exception handlers
+    - Blueprint used
+    - pre and post request handlers
 """
-from http import HTTPStatus
-import requests
-from flask import Blueprint, redirect, url_for, request
-from .helpers.keycloak import Keycloak, URLS
-from .helpers.exceptions import AuthenticationError
+import logging
+import traceback
+from fastapi.responses import JSONResponse
+from pydantic import ValidationError
+from sqlalchemy import exc
+from werkzeug.exceptions import HTTPException
 
-bp = Blueprint('main', __name__, url_prefix='/')
+from app.helpers.exceptions import LogAndException
+from app.helpers.base_model import get_db
 
-@bp.route('/')
-def index():
-    """
-    GET / endpoint.
-        Redirects to /health_check
-    """
-    return redirect(url_for('main.health_check'))
+from fastapi import FastAPI
 
-@bp.route("/ready_check")
-def ready_check():
-    """
-    GET /ready_check endpoint
-        Mostly to tell k8s Flask has started
-    """
-    return {"status": "ready"}, HTTPStatus.OK
 
-@bp.route("/health_check")
-def health_check():
-    """
-    GET /health_check endpoint
-        Checks the connection to keycloak and returns a jsonized summary
-    """
-    try:
-        kc_request = requests.get(URLS["health_check"], timeout=30)
-        kc_status = kc_request.ok
-        status_text = "ok" if kc_request.ok else "non operational"
-        code = HTTPStatus.OK if kc_request.ok else HTTPStatus.BAD_GATEWAY
-    except requests.exceptions.ConnectionError:
-        kc_status = False
-        status_text = "non operational"
-        code = HTTPStatus.BAD_GATEWAY
+logging.basicConfig(level=logging.WARN)
+logger = logging.getLogger('main')
+logger.setLevel(logging.INFO)
 
-    return {
-        "status": status_text,
-        "keycloak": kc_status
-    }, code
 
-@bp.route("/login", methods=['POST'])
-def login():
-    """
-    POST /login endpoint.
-        Given a form, logs the user in, returning a refresh_token from Keycloak
-    """
-    credentials = request.form.to_dict()
-    return {
-        "token": Keycloak().get_token(**credentials)
-    }, HTTPStatus.OK
+app = FastAPI()
 
-@bp.route("/refresh_token", methods=['POST'])
-def refresh_token():
-    """
-    POST /refresh_token endpoint.
-        Given a token, exchanges it for a new one. Returns the same
-        response as /login
-    """
-    token = Keycloak.get_token_from_headers()
-    kc_client = Keycloak()
-    if not kc_client.is_token_valid(token, resource=None, scope=None, with_permissions=False):
-        raise AuthenticationError()
+for excp in [LogAndException, HTTPException]:
+    @app.exception_handler(excp)
+    async def exception_handler(request, e:LogAndException) -> JSONResponse:
+        error_response = {"error": e.description}
+        if getattr(e, "extra_fields", None):
+            error_response["details"] = e.extra_fields
+        return JSONResponse(error_response, status_code=getattr(e, 'code', 500))
 
-    return {
-        "token": kc_client.exchange_global_token(token, "refresh_token")
-    }, HTTPStatus.OK
+# Need to register the exception handler this way as we need access
+# to the db session
+@app.exception_handler(exc.IntegrityError)
+async def handle_db_exceptions(request, excp:exc.IntegrityError) -> JSONResponse:
+    logging.error(excp)
+    with get_db() as db:
+        db.rollback()
+    return JSONResponse({"error": "Record already exists"}, status_code=500)
+
+@app.exception_handler(ValidationError)
+# Special case, just so we won't return stacktraces
+async def pydandic_validation_handler(request, e:ValidationError) -> JSONResponse:
+    list_of_messages = []
+    for err in e.errors():
+        list_of_messages.append({
+            "type": err["type"],
+            "field": err["loc"],
+            "message": err["msg"]
+        })
+    return JSONResponse({"error": list_of_messages}, status_code=400)
+
+@app.exception_handler(Exception)
+# Special case, just so we won't return stacktraces
+async def unknown_exception_handler(request, e:Exception) -> JSONResponse:
+    logger.error("\n".join(traceback.format_exception(e)))
+    with get_db() as db:
+        db.rollback()
+    return JSONResponse({"error": "Internal Error"}, status_code=500)
+
+from app.routes import (
+    general, admin, users, containers, tasks, registries
+)
+app.include_router(admin.router)
+app.include_router(containers.router)
+app.include_router(general.router)
+app.include_router(registries.router)
+app.include_router(tasks.router)
+app.include_router(users.router)

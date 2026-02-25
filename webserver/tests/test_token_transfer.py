@@ -3,13 +3,13 @@ import pytest
 from datetime import datetime, timedelta
 import json
 from unittest import mock
-from app.models.request import Request
+from app.models.request import RequestModel
 from app.helpers.exceptions import KeycloakError
 
 @pytest.fixture
 def kc_user_mock(mocker, user_uuid):
     return mocker.patch(
-        'app.datasets_api.Keycloak.get_user_by_email',
+        'app.routes.datasets.Keycloak.get_user_by_email',
         return_value={"id": user_uuid}
     )
 
@@ -145,7 +145,7 @@ class TestTransfers:
         """
         Tests that a duplicate request is not accepted.
         """
-        Request(**request_model_body).add()
+        RequestModel(**request_model_body).add()
 
         response = client.post(
             "/datasets/token_transfer",
@@ -170,7 +170,7 @@ class TestTransfers:
         Tests that a duplicate, or a time-overlapping request
         is not accepted.
         """
-        Request(**request_model_body).add()
+        RequestModel(**request_model_body).add()
         request_base_body["proj_end"] = (
             datetime.strptime(request_base_body["proj_end"], "%Y-%m-%d") + timedelta(days=20)
         ).strftime("%Y-%m-%d")
@@ -198,7 +198,7 @@ class TestTransfers:
         is accepted with same ds and project name.
         """
         request_model_body["proj_end"] = datetime.now().date().strftime("%Y-%m-%d")
-        Request(**request_model_body).add()
+        RequestModel(**request_model_body).add()
         request_base_body["proj_start"] = (
             datetime.strptime(request_base_body["proj_end"], "%Y-%m-%d") + timedelta(days=1)
         ).strftime("%Y-%m-%d")
@@ -225,7 +225,7 @@ class TestTransfers:
         """
         Tests that only one dataset per active project is allowed.
         """
-        Request(**request_model_body).add()
+        RequestModel(**request_model_body).add()
         request_base_body["dataset_id"] = dataset_oracle.id
 
         response = client.post(
@@ -252,7 +252,7 @@ class TestTransfers:
         """
         request_base_body["dataset_id"] = dataset_oracle.id
 
-        mock_kc_client["datasets_api_kc"].return_value.get_user_by_email.side_effect = KeycloakError("error")
+        mock_kc_client["routes.datasets_kc"].return_value.get_user_by_email.side_effect = KeycloakError("error")
 
         response = client.post(
             "/datasets/token_transfer",
@@ -260,7 +260,7 @@ class TestTransfers:
             data=json.dumps(request_base_body)
         )
         assert response.status_code == 500
-        assert Request.query.filter(
-            Request.title == request_base_body["title"],
-            Request.project_name == request_base_body["project_name"],
+        assert RequestModel.query.filter(
+            RequestModel.title == request_base_body["title"],
+            RequestModel.project_name == request_base_body["project_name"],
         ).count() == 0

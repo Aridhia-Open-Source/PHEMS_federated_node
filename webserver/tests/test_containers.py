@@ -342,7 +342,7 @@ class TestPatchContainers:
             headers={"Authorization": f"Bearer {login_admin}"}
         )
         assert resp.status_code == 400
-        assert resp.json["error"] == "Request body must be a valid json, or set the Content-Type to application/json"
+        assert resp.json["error"] == "RequestModel body must be a valid json, or set the Content-Type to application/json"
 
 
 class TestSync:

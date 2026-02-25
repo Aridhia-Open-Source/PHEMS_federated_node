@@ -12,8 +12,11 @@ tasks-related endpoints:
 """
 from datetime import datetime, timedelta
 from http import HTTPStatus
-from flask import Blueprint, request, send_file
-from pydantic import ValidationError
+from typing import Annotated, Any, Literal
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import FileResponse, JSONResponse
+from requests import Session
+from sqlalchemy import update
 
 from app.helpers.const import CLEANUP_AFTER_DAYS, PUBLIC_URL, TASK_REVIEW
 from app.helpers.exceptions import (
@@ -21,8 +24,8 @@ from app.helpers.exceptions import (
     UnauthorizedError, InvalidRequest
 )
 from app.helpers.keycloak import Keycloak
-from app.helpers.wrappers import audit, auth
-from app.helpers.base_model import db
+from app.helpers.wrappers import Auth, audit
+from app.helpers.base_model import get_db
 from app.helpers.query_filters import apply_filters
 from app.models.task import Task
 from app.schemas.pagination import PageResponse
@@ -30,11 +33,10 @@ from app.schemas.tasks import TaskCreate, TaskFilters, TaskRead
 from app.services.tasks import TaskService
 
 
-bp = Blueprint('tasks', __name__, url_prefix='/tasks')
-session = db.session
+router = APIRouter(tags=["tasks"], prefix="/tasks")
 
 
-def does_user_own_task(task:Task):
+async def does_user_own_task(task:Task):
     """
     Simple wrapper to check if the user is the one who
     triggered the task, or is admin.
@@ -50,89 +52,87 @@ def does_user_own_task(task:Task):
         raise UnauthorizedError("User does not have enough permissions")
 
 
-@bp.route('/service-info', methods=['GET'])
+@router.post('/service-info', dependencies=[Depends(Auth("can_do_admin"))])
 @audit
-@auth(scope='can_do_admin')
-def get_service_info():
+async def get_service_info(request: Request) -> dict[str, str]:
     """
     GET /tasks/service-info endpoint. Gets the server info
     """
     return {
         "name": "Federated Node",
         "doc": "Part of the PHEMS network"
-    }, HTTPStatus.OK
+    }
 
 
-@bp.route('/', methods=['GET'])
-@bp.route('', methods=['GET'])
+@router.get('', dependencies=[Depends(Auth("can_admin_task"))])
 @audit
-@auth(scope='can_admin_task')
-def get_tasks():
+async def get_tasks(request: Request, params: Annotated[TaskFilters, Query()], db: Session = Depends(get_db)) -> dict[str, Any]:
     """
-    GET /tasks/ endpoint. Gets the list of tasks
+    GET /tasks endpoint. Gets the list of tasks
     """
-    try:
-        filter_params = TaskFilters(**request.args.to_dict())
-    except ValidationError as ve:
-        raise InvalidRequest(ve.errors()) from ve
-
-    pagination = apply_filters(Task, filter_params)
-    return PageResponse[TaskRead].model_validate(pagination).model_dump(), HTTPStatus.OK
+    pagination = apply_filters(db, Task, params)
+    return PageResponse[TaskRead].model_validate(pagination).model_dump()
 
 
-@bp.route('/<task_id>', methods=['GET'])
+@router.get('/{task_id}', dependencies=[Depends(Auth("can_admin_task"))])
 @audit
-@auth(scope='can_exec_task')
-def get_task_id(task_id):
+async def get_task_id(task_id: int, request:Request):
     """
     GET /tasks/id endpoint. Gets a single task
     """
     task = Task.get_by_id(task_id)
 
-    does_user_own_task(task)
+    await does_user_own_task(task)
 
-    return TaskRead.model_validate(task).model_dump(), HTTPStatus.OK
+    return TaskRead.model_validate(task).model_dump()
 
 
-@bp.route('/<task_id>/cancel', methods=['POST'])
+@router.post('/{task_id}/cancel', dependencies=[Depends(Auth("can_admin_task"))])
 @audit
-@auth(scope='can_admin_task')
-def cancel_tasks(task_id):
+async def cancel_tasks(task_id:int, request: Request):
     """
     POST /tasks/id/cancel endpoint. Cancels a task either scheduled or running one
     """
     task = Task.get_by_id(task_id)
 
-    does_user_own_task(task)
+    await does_user_own_task(task)
 
     # Should remove pod/stop ML pipeline
     task.terminate_pod()
     return TaskRead.model_validate(task).model_dump(), HTTPStatus.CREATED
 
 
-@bp.route('/', methods=['POST'])
-@bp.route('', methods=['POST'])
+@router.post(
+        '',
+        status_code=HTTPStatus.CREATED,
+        dependencies=[Depends(Auth("can_exec_admin"))],
+    )
+
 @audit
-@auth(scope='can_exec_task')
-def post_tasks():
+async def post_tasks(
+    body: TaskCreate,
+    request: Request
+):
     """
     POST /tasks/ endpoint. Creates a new task
     """
-    try:
-        data = TaskCreate(**request.json)
-        task = TaskService.add(data=data)
-        # Create pod/start ML pipeline
-        task.run()
-        return TaskRead.model_validate(task).model_dump(), HTTPStatus.CREATED
-    except:
-        session.rollback()
-        raise
+    with get_db() as session:
+        try:
+            task = TaskService.add(data=body)
+            # Create pod/start ML pipeline
+            task.run()
+            return TaskRead.model_validate(task).model_dump()
+        except:
+            session.rollback()
+            raise
 
 
-@bp.route('/validate', methods=['POST'])
+@router.post('/validate', dependencies=[Depends(Auth("can_exec_task"))])
 @audit
-@auth(scope='can_exec_task', check_dataset=False)
-def post_tasks_validate():
+async def post_tasks_validate(
+    body: TaskCreate,
+    request: Request
+) -> Literal['Ok']:
     """
     POST /tasks/validate endpoint.
         Allows task definition validation and the DB query that will be used
@@ -140,57 +140,73 @@ def post_tasks_validate():
     req_body = request.json
     req_body["project_name"] = request.headers.get("project-name")
     TaskCreate(**req_body)
-    return "Ok", 200
+    return "Ok"
 
 
-@bp.route('/<task_id>/results', methods=['GET'])
+@router.get('/{task_id}/results', dependencies=[Depends(Auth("can_exectask"))])
 @audit
-@auth(scope='can_exec_task')
-def get_task_results(task_id):
+async def get_task_results(
+    task_id:int,
+    request: Request
+):
     """
     GET /tasks/id/results endpoint.
         Allows to get tasks results if approved to be released
         or, if an admin is trying to view them
     """
-    task: Task = Task.query.filter(Task.id == task_id).one_or_none()
+    task: Task = Task.get_by_id(task_id)
     if task is None:
         raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
 
-    does_user_own_task(task)
+    await does_user_own_task(task)
 
     kc_client = Keycloak()
     token = kc_client.get_token_from_headers()
     # admin should be able to fetch them regardless
     if TASK_REVIEW and not task.review_status and not kc_client.is_user_admin(token):
-        return {"status": task.get_review_status()}, 400
+        return JSONResponse(
+            {"status": task.get_review_status()},
+            status_code=HTTPStatus.BAD_REQUEST
+        )
 
     if task.created_at.date() + timedelta(days=CLEANUP_AFTER_DAYS) <= datetime.now().date():
-        return {"error": "Tasks results are not available anymore. Please, run the task again"}, 500
+        return JSONResponse(
+            {"error": "Tasks results are not available anymore. Please, run the task again"},
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+        )
 
     results_file = task.get_results()
-    return send_file(results_file, download_name=f"{PUBLIC_URL}-{task_id}-results.zip"), 200
+    return FileResponse(results_file, filename=f"{PUBLIC_URL}-{task_id}-results.zip", status_code=HTTPStatus.OK)
 
 
-@bp.route('/<task_id>/logs', methods=['GET'])
+@router.get('/{task_id}/logs', dependencies=[Depends(Auth("can_admin_task"))])
 @audit
-@auth(scope='can_exec_task')
-def get_tasks_logs(task_id:int):
+async def get_tasks_logs(
+    task_id:int,
+    request: Request
+):
     """
     From a given task, return its pods logs
     """
-    task = Task.query.filter(Task.id == task_id).one_or_none()
+    task: Task = Task.get_by_id(task_id)
     if task is None:
         raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
 
-    does_user_own_task(task)
+    await does_user_own_task(task)
 
-    return {"logs": task.get_logs()}, 200
+    return {"logs": task.get_logs()}
 
 
-@bp.route('/<task_id>/results/approve', methods=['POST'])
+@router.post(
+        '/{task_id}/results/approve',
+        status_code=HTTPStatus.CREATED,
+        dependencies=[Depends(Auth("can_admin_task"))]
+)
 @audit
-@auth(scope='can_admin_task')
-def approve_results(task_id):
+async def approve_results(
+    task_id:int,
+    request: Request
+) -> dict[str, str]:
     """
     POST /tasks/id/results/approve endpoint.
         Approves the release (automatic or manual) of
@@ -207,18 +223,23 @@ def approve_results(task_id):
     if task.get_task_crd():
         task.update_task_crd(True)
 
-    task.review_status = True
-    session.commit()
+    with get_db() as session:
+        session.execute(update(Task).where(Task.id == task_id).values({"review_status": True}))
+        session.commit()
 
-    return {
-        "status": task.get_review_status()
-    }, HTTPStatus.CREATED
+    return {"status": task.get_review_status()}
 
 
-@bp.route('/<task_id>/results/block', methods=['POST'])
+@router.post(
+        '/{task_id}/results/block',
+        status_code=HTTPStatus.CREATED,
+        dependencies=[Depends(Auth("can_admin_task"))]
+    )
 @audit
-@auth(scope='can_admin_task')
-def block_results(task_id):
+async def block_results(
+    task_id:int,
+    request: Request
+) -> dict[str, str]:
     """
     POST /tasks/id/results/block endpoint.
         Blocks the release (automatic or manual) of
@@ -235,8 +256,10 @@ def block_results(task_id):
     if task.get_task_crd():
         task.update_task_crd(False)
 
-    task.review_status = False
+    with get_db() as session:
+        session.execute(update(Task).where(Task.id == task_id).values({"review_status": False}))
+        session.commit()
 
     return {
         "status": task.get_review_status()
-    }, HTTPStatus.CREATED
+    }

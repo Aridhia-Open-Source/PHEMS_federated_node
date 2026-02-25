@@ -3,6 +3,7 @@ import logging
 import os
 import random
 import re
+from fastapi import Request
 import requests
 from base64 import b64encode
 from flask import request
@@ -47,7 +48,7 @@ class Keycloak:
         self.client_secret = self._get_client_secret()
 
     @classmethod
-    def get_token_from_headers(cls) -> str:
+    def get_token_from_headers(cls, request:Request) -> str:
         """
         Public method for generalize the token fetching from an HTTP header
         """

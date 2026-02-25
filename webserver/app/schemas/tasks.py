@@ -2,6 +2,8 @@ from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, computed_field, model_validator
 from datetime import datetime as dt
 
+from sqlalchemy import select
+
 from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.const import TASK_POD_RESULTS_PATH, TASK_POD_INPUTS_PATH
@@ -9,8 +11,9 @@ from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import InvalidRequest
 from app.models.dataset import Dataset
 from app.models.container import Container
-from app.models.request import Request
+from app.models.request import RequestModel
 from app.models.task import REVIEW_STATUS, Task
+from app.helpers.base_model import get_db
 
 class TaskBase(BaseModel):
     name: str
@@ -52,9 +55,10 @@ class TaskCreate(TaskBase):
 
         # Dataset validation
         if repository:
-            ds: Dataset = Dataset.query.filter(
-                Dataset.repository.ilike(repository)
-            ).one_or_none()
+            with get_db() as session:
+                ds = session.execute(
+                    select(Dataset).where(Dataset.repository.ilike(repository))
+                ).scalars().one_or_none()
             if ds is None:
                 raise InvalidRequest(f"No datasets linked with the repository {repository}")
 
@@ -68,7 +72,7 @@ class TaskCreate(TaskBase):
             else:
                 raise InvalidRequest("Administrators need to provide `tags.dataset_id` or `tags.dataset_name`")
         else:
-            data["dataset_id"] = Request.get_active_project(
+            data["dataset_id"] = RequestModel.get_active_project(
                 data["project_name"],
                 user["id"]
             ).dataset.id
@@ -107,9 +111,17 @@ class TaskCreate(TaskBase):
         data["db_query"] = data.pop("db_query", {})
         return data
 
+    @field_validator('dataset_id')
+    @classmethod
+    def validate_dataset_id(cls, v: int) -> int:
+        if not Dataset.get_by_id(v):
+            raise InvalidRequest(f"Dataset {v} does not exist")
+
+        return v
+
     @field_validator('name')
     @classmethod
-    def validate_name(cls, v: str):
+    def validate_name(cls, v: str) -> str:
         name = (v or "").replace(" ", "")
         if not name:
             raise InvalidRequest("name is a mandatory field")

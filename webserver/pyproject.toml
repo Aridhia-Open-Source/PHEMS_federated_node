@@ -31,6 +31,10 @@ dependencies = [
     "cryptography>=46.0.5",
     "urllib3>=2.6.3",
     "pydantic>=2.12.5",
+    "fastapi>=0.129.0",
+    "uvicorn>=0.41.0",
+    "python-multipart>=0.0.22",
+    "httpx>=0.28.1",
 ]
 
 [project.optional-dependencies]
@@ -41,5 +45,6 @@ dev = [
     "python-dotenv",
     "pytest-cov",
     "responses",
-    "pytest-responses"
+    "pytest-responses",
+    "sqlalchemy-utils"
 ]

@@ -1,8 +1,17 @@
-from sqlalchemy import func, DateTime
+from typing import Any
+
+from sqlalchemy import func, DateTime, select
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from app.helpers.base_model import BaseModel as DBBaseModel
 
 
-def apply_filters(model, filter_dto: BaseModel):
+def apply_filters(
+        db: Session,
+        model: DBBaseModel,
+        filter_dto: BaseModel,
+        as_pagination:bool = True
+    )-> dict[str, Any] | Any:
     """
     We aim to convert query strings in models fields
     to be used as filters.
@@ -15,7 +24,7 @@ def apply_filters(model, filter_dto: BaseModel):
         - __lt  => less than
         - __ne  => not equal
     """
-    query = model.query
+    query = select(model)
     # filter_dto.model_dump(exclude_none=True) gives us only what the user sent
     filters = filter_dto.model_dump(exclude={"page", "per_page"}, exclude_none=True)
 
@@ -37,6 +46,19 @@ def apply_filters(model, filter_dto: BaseModel):
         column = getattr(model, field_name)
         if column.type.__class__ == DateTime:
             column = func.date(column)
-        query = query.filter(operators[op_name](column, value))
+        query = query.where(operators[op_name](column, value))
 
-    return query.paginate(page=filter_dto.page, per_page=filter_dto.per_page)
+    offset = (filter_dto.page - 1) * filter_dto.per_page
+    stmt = query.offset(offset).limit(filter_dto.per_page)
+    items = db.execute(stmt).scalars().all()
+    total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+
+    if as_pagination:
+        return {
+            "items": items,
+            "total": total,
+            "page": filter_dto.page,
+            "per_page": filter_dto.per_page,
+            "pages": (total + filter_dto.per_page - 1) // filter_dto.per_page
+        }
+    return stmt

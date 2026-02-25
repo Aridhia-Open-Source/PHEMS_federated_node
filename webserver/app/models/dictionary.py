@@ -1,25 +1,25 @@
-from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, UniqueConstraint
-from sqlalchemy.orm import relationship
+from sqlalchemy import Integer, DateTime, String, ForeignKey, UniqueConstraint, select, update
+from sqlalchemy.orm import relationship, mapped_column
 from sqlalchemy.sql import func
-from app.helpers.base_model import BaseModel, db
+from app.helpers.base_model import BaseModel, get_db
 from app.helpers.exceptions import InvalidRequest
 from app.models.dataset import Dataset
 
 
-class Dictionary( db.Model, BaseModel):
+class Dictionary(BaseModel):
     __tablename__ = 'dictionaries'
     __table_args__ = (
         UniqueConstraint('table_name', 'dataset_id', 'field_name'),
     )
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    table_name = Column(String(256), nullable=False)
-    field_name = Column(String(256), nullable=False)
-    label = Column(String(256))
-    description = Column(String(4096), nullable=False)
-    created_at = Column(DateTime(timezone=False), server_default=func.now())
-    updated_at = Column(DateTime(timezone=False), onupdate=func.now())
+    id = mapped_column(Integer, primary_key=True, autoincrement=True)
+    table_name = mapped_column(String(256), nullable=False)
+    field_name = mapped_column(String(256), nullable=False)
+    label = mapped_column(String(256))
+    description = mapped_column(String(4096), nullable=False)
+    created_at = mapped_column(DateTime(timezone=False), server_default=func.now())
+    updated_at = mapped_column(DateTime(timezone=False), onupdate=func.now())
 
-    dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
+    dataset_id = mapped_column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
     dataset = relationship("Dataset")
 
     def update(self, **data):
@@ -28,19 +28,4 @@ class Dictionary( db.Model, BaseModel):
                 raise InvalidRequest(f"Field {k} is not a valid one")
             else:
                 setattr(self, k, v)
-        self.query.filter(Dictionary.id == self.id).update(data, synchronize_session='evaluate')
-
-    @classmethod
-    def update_or_create(cls, data:dict, ds:Dataset):
-        cls.validate(data)
-        current_dict = cls.query.filter(
-            cls.dataset_id == ds.id,
-            cls.field_name == data["field_name"],
-            cls.table_name == data["table_name"]
-        ).one_or_none()
-        if current_dict:
-            current_dict.update(**data)
-        else:
-            dict_body = cls.validate(data)
-            dictionary = cls(dataset=ds, **dict_body)
-            dictionary.add(commit=False)
+        Dictionary.update(self.id, data)

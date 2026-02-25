@@ -2,10 +2,11 @@ import logging
 import json
 import re
 from datetime import datetime, timedelta
+from typing import Self
 from kubernetes.client import V1CustomResourceDefinition
 from kubernetes.client.exceptions import ApiException
-from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, Boolean
-from sqlalchemy.orm import relationship
+from sqlalchemy import Integer, DateTime, String, ForeignKey, Boolean, select
+from sqlalchemy.orm import Mapped, joinedload, relationship, mapped_column
 from sqlalchemy.sql import func
 from uuid import uuid4
 
@@ -13,9 +14,9 @@ import urllib3
 from app.helpers.const import (
     CLEANUP_AFTER_DAYS, CRD_DOMAIN, MEMORY_RESOURCE_REGEX, MEMORY_UNITS,
     CPU_RESOURCE_REGEX, PUBLIC_URL, TASK_CONTROLLER,
-    TASK_NAMESPACE, TASK_POD_RESULTS_PATH, RESULTS_PATH, TASK_REVIEW
+    TASK_NAMESPACE, TASK_POD_RESULTS_PATH, RESULTS_PATH
 )
-from app.helpers.base_model import BaseModel, db
+from app.helpers.base_model import BaseModel, get_db
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesBatchClient, KubernetesCRDClient, KubernetesClient
 from app.helpers.exceptions import (
@@ -37,19 +38,21 @@ REVIEW_STATUS = {
 }
 
 
-class Task(db.Model, BaseModel):
+class Task(BaseModel):
     __tablename__ = 'tasks'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(256), nullable=False)
-    docker_image = Column(String(256), nullable=False)
-    description = Column(String(4096))
-    status = Column(String(256), default='scheduled')
-    created_at = Column(DateTime(timezone=False), server_default=func.now())
-    updated_at = Column(DateTime(timezone=False), onupdate=func.now())
-    requested_by = Column(String(256), nullable=False)
-    review_status = Column(Boolean, nullable=True)
-    dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
-    dataset = relationship("Dataset")
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    docker_image: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str] = mapped_column(String(4096))
+    status: Mapped[str] = mapped_column(String(256), default='scheduled')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), onupdate=func.now())
+    requested_by: Mapped[str] = mapped_column(String(256), nullable=False)
+    review_status: Mapped[bool] = mapped_column(Boolean, nullable=True)
+
+    dataset_id: Mapped[int] = mapped_column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
+    dataset: Mapped["Dataset"]  = relationship("Dataset", overlaps="task")
 
     def __init__(self, **kwargs):
         self.executors = kwargs.pop("executors")
@@ -59,6 +62,14 @@ class Task(db.Model, BaseModel):
         self.db_query = kwargs.pop("db_query", {})
         self.resources = kwargs.pop("resources", {})
         super().__init__(**kwargs)
+        with get_db() as session:
+            self.dataset = session.execute(select(Dataset).where(Dataset.id == self.dataset_id)).scalar_one_or_none()
+
+    @classmethod
+    def get_by_id(cls, id: int) -> Self:
+        q = select(cls).options(joinedload(cls.dataset)).where(cls.id == id)
+        with get_db() as session:
+            return session.execute(q).scalars().one_or_none()
 
     @classmethod
     def validate_cpu_resources(cls, limit_value:str, request_value:str):
@@ -139,8 +150,12 @@ class Task(db.Model, BaseModel):
         """
         for i in range(len(docker_image.split('/'))):
             registry = "/".join(docker_image.split('/')[0:i])
-            if Registry.query.filter_by(url=registry).count() == 1:
-                return registry, "/".join(docker_image.split('/')[i:])
+
+            q = select(func.count(Registry.id)).where(Registry.url == registry)
+
+            with get_db() as session:
+                if session.execute(q).scalar_one() == 1:
+                    return registry, "/".join(docker_image.split('/')[i:])
 
         raise InvalidRequest("Could not find the image in the mapped registries. Check the image has the full name")
 
@@ -158,12 +173,18 @@ class Task(db.Model, BaseModel):
             image_name, sha = image.split('@')
         else:
             image_name, tag = image.split(':')
-        image: Container = Container.query.filter(
+
+        q = select(Container).options(
+            joinedload(Container.registry)
+        ).where(
             Container.name==image_name,
             Registry.url == registry,
-        ).filter(
+        ).where(
             (((Container.tag==tag) & (Container.tag != None)) | ((Container.sha==sha) & (Container.sha != None)))
-        ).join(Registry).one_or_none()
+        )
+        with get_db() as session:
+            image = session.execute(q).scalars().one_or_none()
+
         if image is None:
             raise TaskExecutionException(f"Image {docker_image} could not be found")
 

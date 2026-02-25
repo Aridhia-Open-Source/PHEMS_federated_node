@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from sqlalchemy import select
 
-from app.helpers.base_model import db
+from app.helpers.base_model import get_db
 from app.models.audit import Audit
 
 
@@ -21,7 +21,8 @@ class TestAudits:
 
         r = client.get("/datasets/", headers=simple_admin_header)
         assert r.status_code == 200, r.text
-        list_audit = db.session.execute(select(Audit)).all()
+        with get_db() as session:
+            list_audit = session.execute(select(Audit)).all()
         assert len(list_audit) > 0
         response = client.get("/audit", headers=simple_admin_header)
 
@@ -99,7 +100,7 @@ class TestAudits:
             headers=post_json_admin_header
         )
 
-        # Request will fail as secret is not recognized as dictionaries field
+        # RequestModel will fail as secret is not recognized as dictionaries field
         assert resp.status_code == 201, resp.json
         audit_list = Audit.query.all()[-1]
         details = json.loads(audit_list.details.replace("'", "\""))

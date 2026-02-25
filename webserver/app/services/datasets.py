@@ -1,8 +1,9 @@
 from typing import List
 from kubernetes.client import V1Secret
 from kubernetes.client.exceptions import ApiException
+from sqlalchemy import select, update
 
-from app.helpers.base_model import db
+from app.helpers.base_model import get_db
 from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE
 from app.helpers.kubernetes import KubernetesClient
 from app.models.dataset import Dataset
@@ -80,12 +81,12 @@ class DatasetService:
                 "resources": [resource_ds["_id"]],
                 "scopes": [scope["id"] for scope in admin_ds_scope]
             })
-            db.session.commit()
+            get_db().commit()
             return dataset
         except Exception as e:
             # If the DB commit failed, we haven't touched K8s yet.
             # If K8s fails, we might want to rollback the DB or log a critical error.
-            db.session.rollback()
+            get_db().rollback()
             raise e
 
     @staticmethod
@@ -101,27 +102,36 @@ class DatasetService:
         secret_name: str = ds.get_creds_secret_name()
 
         cata: dict = data.pop("catalogue", None)
-        if cata:
-          if ds.catalogue and ds.catalogue.title == cata["title"]:
-              ds.catalogue.query.update(cata)
-          else:
-            ds.catalogue = Catalogue(**cata)
+        with get_db() as session:
+            if cata:
+                if ds.catalogue and ds.catalogue.title == cata["title"]:
+                    session.execute(
+                        update(Catalogue).where(Catalogue.title == cata["title"]).values(cata)
+                    )
+                else:
+                    ds.catalogue = Catalogue(**cata)
 
-        dicts: List[dict] = data.pop("dictionaries", None)
-        if dicts:
-            # Needs to validate existing dictionaries and update them if
-            # necessary or add them
-            for d in dicts:
-                if not Dictionary.query.filter_by(dataset_id=ds.id, **d).all():
-                    existing_dict_to_update: Dictionary = Dictionary.query.filter_by(
-                        dataset_id=ds.id,
-                        field_name=d["field_name"],
-                        table_name=d["table_name"]
-                    ).one_or_none()
-                    if existing_dict_to_update:
-                        existing_dict_to_update.query.update(d)
-                    else:
-                        ds.dictionaries.append(Dictionary(**d))
+                dicts: List[dict] = data.pop("dictionaries", None)
+                if dicts:
+                    # Needs to validate existing dictionaries and update them if
+                    # necessary or add them
+                    for d in dicts:
+                        if not session.execute(
+                            select(Dictionary).where(Dictionary.dataset_id == ds.id, **d)
+                        ).all():
+                            q = select(Dictionary).where(
+                                dataset_id=ds.id,
+                                field_name=d["field_name"],
+                                table_name=d["table_name"]
+                            )
+                            if session.execute(q).all():
+                                update(Dictionary).where(
+                                    dataset_id=ds.id,
+                                    field_name=d["field_name"],
+                                    table_name=d["table_name"]
+                                ).values(d)
+                            else:
+                                ds.dictionaries.append(Dictionary(**d))
 
         # Get existing secret
         secret: V1Secret = v1.read_namespaced_secret(secret_name, DEFAULT_NAMESPACE, pretty='pretty')
@@ -172,4 +182,4 @@ class DatasetService:
             data["repository"] = data.get("repository").lower()
         # Update table
         if data:
-            ds.query.update(data, synchronize_session='evaluate')
+            Dataset.update(ds.id, data)

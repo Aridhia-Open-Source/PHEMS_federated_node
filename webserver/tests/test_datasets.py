@@ -8,12 +8,12 @@ from sqlalchemy.exc import ProgrammingError, OperationalError
 from unittest import mock
 from unittest.mock import Mock
 
-from app.helpers.base_model import db
+from app.helpers.base_model import get_db
 from app.helpers.exceptions import KeycloakError
 from app.models.dataset import Dataset
 from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
-from app.models.request import Request
+from app.models.request import RequestModel
 from tests.conftest import sample_ds_body
 from app.helpers.exceptions import KeycloakError
 
@@ -28,7 +28,8 @@ class MixinTestDataset:
         """
         Helper to run query through the ORM
         """
-        return db.session.execute(query).all()
+        with get_db() as db:
+            return db.execute(query).all()
 
     def assert_datasets_by_name(self, dataset_name:str, count:int = 1):
         """
@@ -53,7 +54,7 @@ class MixinTestDataset:
             data=json.dumps(data_body),
             headers=headers
         )
-        assert response.status_code == code, response.data.decode()
+        assert response.status_code == code, response.text
         return response.json
 
 
@@ -167,7 +168,7 @@ class TestDatasets(MixinTestDataset):
         assert response.status_code == 400
         assert response.json == {"error": "Could not find project"}
 
-    @mock.patch('app.datasets_api.Request.approve', return_value={"token": "token"})
+    @mock.patch('app.routes.datasets.RequestModel.approve', return_value={"token": "token"})
     def test_get_dataset_by_id_project_approved(
             self,
             req_approve_mock,
@@ -190,8 +191,8 @@ class TestDatasets(MixinTestDataset):
         assert "token" in response.json
 
         token = response.json["token"]
-        req = Request.query.filter(
-            Request.project_name == request_base_body["project_name"]
+        req = RequestModel.query.filter(
+            RequestModel.project_name == request_base_body["project_name"]
         ).one_or_none()
         mock_kc_client["wrappers_kc"].return_value.get_user_by_username.return_value = {"id": user_uuid}
         req.requested_by = user_uuid
@@ -203,7 +204,7 @@ class TestDatasets(MixinTestDataset):
         assert response.status_code == 200, response.json
         assert response.json == self.expected_ds_entry(dataset)
 
-    @mock.patch('app.datasets_api.Request.approve', return_value={"token": "somejwttoken"})
+    @mock.patch('app.routes.datasets.RequestModel.approve', return_value={"token": "somejwttoken"})
     def test_get_dataset_by_id_project_non_approved(
             self,
             req_mock,
@@ -733,10 +734,10 @@ class TestPatchDataset(MixinTestDataset):
         """
         ds_old_name = dataset.name
         data_body = {"name": "new_name"}
-        expected_client = f'Request {dar_user} - {dataset.host}'
+        expected_client = f'RequestModel {dar_user} - {dataset.host}'
 
-        mock_kc_client["datasets_api_kc"].return_value.patch_resource.return_value = Mock()
-        mock_kc_client["datasets_api_kc"].return_value.get_user_by_id.return_value = {"email": dar_user}
+        mock_kc_client["routes.datasets_kc"].return_value.patch_resource.return_value = Mock()
+        mock_kc_client["routes.datasets_kc"].return_value.get_user_by_id.return_value = {"email": dar_user}
 
         response = client.patch(
             f"/datasets/{dataset.id}",
@@ -751,8 +752,8 @@ class TestPatchDataset(MixinTestDataset):
             f'{dataset.id}-{ds_old_name}',
             **{'displayName': f'{dataset.id} - new_name','name': f'{dataset.id}-new_name'}
         )
-        mock_kc_client["datasets_api_kc"].assert_any_call(**{'client':expected_client})
-        mock_kc_client["datasets_api_kc"].return_value.patch_resource.assert_called_with(
+        mock_kc_client["routes.datasets_kc"].assert_any_call(**{'client':expected_client})
+        mock_kc_client["routes.datasets_kc"].return_value.patch_resource.assert_called_with(
             f'{dataset.id}-{ds_old_name}',
             **{'displayName': f'{dataset.id} - new_name','name': f'{dataset.id}-new_name'}
         )

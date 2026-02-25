@@ -2,11 +2,12 @@ import json
 import logging
 import re
 from kubernetes.client.exceptions import ApiException
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, select, update
+from sqlalchemy.orm import relationship
 
 from app.helpers.const import TASK_NAMESPACE
 from app.helpers.container_registries import AzureRegistry, BaseRegistry, DockerRegistry, GitHubRegistry
-from app.helpers.base_model import BaseModel, db
+from app.helpers.base_model import BaseModel, get_db
 from app.helpers.exceptions import ContainerRegistryException, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
 
@@ -14,13 +15,15 @@ logger = logging.getLogger("registry_model")
 logger.setLevel(logging.INFO)
 
 
-class Registry(db.Model, BaseModel):
+class Registry(BaseModel):
     __tablename__ = 'registries'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     url = Column(String(256), nullable=False)
     needs_auth = Column(Boolean, default=True)
     active = Column(Boolean, default=True)
+
+    container = relationship("Container", cascade="all, delete-orphan")
 
     def __init__(self, **kwargs):
         self.username = kwargs.pop("username", None)
@@ -37,7 +40,7 @@ class Registry(db.Model, BaseModel):
         """
         v1 = KubernetesClient()
         secret_name:str = self.slugify_name()
-        dockerjson = dict()
+        dockerjson = {}
 
         key = self.url
         if isinstance(self.get_registry_class(), DockerRegistry):
@@ -113,15 +116,15 @@ class Registry(db.Model, BaseModel):
         return _class.list_repos()
 
     def delete(self, commit:bool=False):
-        session = db.session
-        super().delete(commit)
-        v1 = KubernetesClient()
-        try:
-            v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=self.slugify_name())
-        except ApiException as kae:
-            session.rollback()
-            logger.error("%s:\n\tDetails: %s", kae.reason, kae.body)
-            raise ContainerRegistryException("Error while deleting entity")
+        with get_db() as session:
+            super().delete(commit)
+            v1 = KubernetesClient()
+            try:
+                v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=self.slugify_name())
+            except ApiException as kae:
+                session.rollback()
+                logger.error("%s:\n\tDetails: %s", kae.reason, kae.body)
+                raise ContainerRegistryException("Error while deleting entity")
 
     def update(self, **kwargs) -> None:
         """
@@ -129,10 +132,7 @@ class Registry(db.Model, BaseModel):
         already validated.
         """
         if kwargs.get("active") is not None:
-            self.query.filter(Registry.id == self.id).update(
-                {"active": kwargs.get("active")},
-                synchronize_session='evaluate'
-            )
+            Registry.update(self.id, {"active": kwargs.get("active")})
 
         if not(kwargs.get("username") or kwargs.get("password")):
             return

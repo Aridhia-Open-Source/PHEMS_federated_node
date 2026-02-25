@@ -1,9 +1,11 @@
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, model_validator
+from sqlalchemy import select
 
 from app.helpers.exceptions import ContainerRegistryException, InvalidRequest
 from app.models.registry import Registry
 from app.models.container import Container
+from app.helpers.base_model import get_db
 
 
 class ContainerBase(BaseModel):
@@ -23,7 +25,10 @@ class ContainerCreate(ContainerBase):
         if not (data.get("tag") or data.get("sha")):
             raise InvalidRequest("Make sure `tag` or `sha` are provided")
 
-        reg: Registry = Registry.query.filter(Registry.url==data["registry"]).one_or_none()
+        q = select(Registry).where(Registry.url == data["registry"])
+        with get_db() as session:
+            reg = session.execute(q).scalars().one_or_none()
+
         if reg is None:
             raise ContainerRegistryException(f"Registry {data["registry"]} could not be found")
         data["registry_id"] = reg.id

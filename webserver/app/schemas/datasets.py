@@ -1,12 +1,14 @@
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import List, Optional
 
 import requests
 
+from sqlalchemy import select
+
 from app.models.dataset import SUPPORTED_ENGINES, Dataset
 from app.schemas.catalogues import CatalogueCreate
 from app.schemas.dictionaries import DictionaryCreate
-from app.helpers.exceptions import InvalidRequest
+from app.helpers.base_model import get_db
 
 
 class DatasetBase(BaseModel):
@@ -32,25 +34,22 @@ class DatasetCreate(DatasetBase):
     def sanitize_name(cls, v: str) -> str:
         return requests.utils.unquote(v).lower()
 
-    @field_validator('repository')
-    @classmethod
-    def sanitize_repo(cls, v: Optional[str]) -> Optional[str]:
-        return v.lower() if v else v
-
     @field_validator('type')
     @classmethod
-    def validate_type(cls, v: str):
+    def validate_type(cls, v: str) -> str:
         if v.lower() not in SUPPORTED_ENGINES:
             raise ValueError(f"DB type {v} is not supported.")
         return v
 
     @field_validator('repository')
     @classmethod
-    def validate_repo(cls, v: str):
-        if Dataset.query.filter_by(repository=v).one_or_none():
-            raise ValueError(
-                "Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
-            )
+    def validate_repo(cls, v: str) -> str:
+        q = select(Dataset).where(Dataset.repository == v)
+        with get_db() as session:
+            if session.execute(q).one_or_none():
+                raise ValueError(
+                    "Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
+                )
         return v
 
 

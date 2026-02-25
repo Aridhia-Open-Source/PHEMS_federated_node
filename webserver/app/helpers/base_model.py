@@ -1,21 +1,28 @@
+from contextlib import contextmanager
 from datetime import datetime
 from flask import request
 from typing import Self
-from flask_sqlalchemy import SQLAlchemy
 from flask_sqlalchemy.pagination import QueryPagination
-from sqlalchemy import create_engine, Column
-from sqlalchemy.orm import Relationship, declarative_base
+from sqlalchemy import create_engine, Column, select, update
+from sqlalchemy.orm import DeclarativeBase, Relationship, sessionmaker
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidDBEntry, InvalidRequest
 from app.helpers.const import build_sql_uri
 
 
 engine = create_engine(build_sql_uri())
-Base = declarative_base()
-db = SQLAlchemy(model_class=Base)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+@contextmanager
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 # Another helper class for common methods
-class BaseModel():
+class BaseModel(DeclarativeBase):
     @classmethod
     def _query(cls) -> QueryPagination:
         try:
@@ -46,21 +53,36 @@ class BaseModel():
         return jsonized
 
     def add(self, commit=True):
-        db.session.add(self)
-        db.session.flush()
-        if commit:
-            db.session.commit()
+        with get_db() as db:
+            db.add(self)
+            db.flush()
+            if commit:
+                db.commit()
+
+    @classmethod
+    def update(cls, id:int, data: dict):
+        with get_db() as session:
+            session.execute(
+                update(cls).where(cls.id == id).values(data)
+            )
 
     def delete(self, commit=True):
-        db.session.delete(self)
-        db.session.flush()
-        if commit:
-            db.session.commit()
+        with get_db() as db:
+            db.delete(self)
+            db.flush()
+            if commit:
+                db.commit()
 
     @classmethod
     def get_all(cls) -> list[dict]:
-        obj_list = cls._query()
-        return obj_list
+        with get_db() as session:
+            return session.execute(select(cls)).scalars().all()
+
+    @classmethod
+    def get_by_id(cls, id: int) -> Self:
+        q = select(cls).where(cls.id == id)
+        with get_db() as session:
+            return session.execute(q).scalars().one_or_none()
 
     @classmethod
     def _get_fields(cls) -> list[Column]:
@@ -112,7 +134,9 @@ class BaseModel():
         Common wrapper to get by id, and raise an
         exception if not found
         """
-        obj = cls.query.filter(cls.id == obj_id).one_or_none()
+        q = select(cls).where(cls.id == obj_id)
+        with get_db() as session:
+            obj = session.execute(q).scalars().one_or_none()
         if obj is None:
             raise DBRecordNotFoundError(f"{cls.__name__.capitalize()} with id {obj_id} does not exist")
         return obj
