@@ -3,19 +3,19 @@ from copy import deepcopy
 from typing import List
 from pytest import fixture
 from datetime import datetime as dt, timedelta
-from kubernetes.client import V1Pod, V1Secret
+from kubernetes.client import V1Pod, V1Secret, V1CronJob, V1Job, V1Volume
 from sqlalchemy.orm.session import close_all_sessions
 from unittest.mock import Mock
 
 from app import create_app
 from app.helpers.base_model import db
+from app.helpers.const import CRD_DOMAIN
+from app.helpers.exceptions import KeycloakError
 from app.models.dataset import Dataset
 from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
 from app.models.request import Request
 from app.models.task import Task
-from app.helpers.exceptions import KeycloakError
-from app.helpers.const import CRD_DOMAIN
 
 
 sample_ds_body = {
@@ -170,8 +170,30 @@ def v1_mock(mocker):
     }
 
 @fixture
-def v1_batch_mock(mocker):
+def cron_k8s_object():
+    cj = Mock(spec=V1CronJob)
+    vol = Mock(spec=V1Volume)
+    vol.persistent_volume_claim.claim_name = "claim"
+    cj.spec.job_template.spec.template.spec.volumes = [vol]
+    return cj
+
+@fixture
+def v1_batch_mock(mocker, cron_k8s_object):
     return {
+        "create_namespaced_cron_job_with_http_info": mocker.patch(
+            'app.helpers.kubernetes.KubernetesBatchClient.create_namespaced_cron_job_with_http_info'
+        ),
+        "list_namespaced_job": mocker.patch(
+            'app.helpers.kubernetes.KubernetesBatchClient.list_namespaced_job',
+            return_value=Mock(items=[Mock(spec=V1Job)])
+        ),
+        "list_namespaced_cron_job": mocker.patch(
+            'app.helpers.kubernetes.KubernetesBatchClient.list_namespaced_cron_job',
+            return_value=Mock(items=[cron_k8s_object])
+        ),
+        "patch_namespaced_cron_job": mocker.patch(
+            'app.helpers.kubernetes.KubernetesBatchClient.patch_namespaced_cron_job'
+        ),
         "create_namespaced_job_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesBatchClient.create_namespaced_job'
         ),
@@ -299,6 +321,23 @@ def task(user_uuid, dataset, container) -> Task:
                 "image": container.full_image_name()
             }
         ],
+        requested_by=user_uuid
+    )
+    task.add()
+    return task
+
+@fixture
+def cronjob(user_uuid, dataset, container) -> Task:
+    task = Task(
+        dataset=dataset,
+        docker_image=container.full_image_name(),
+        name="testTask",
+        executors=[
+            {
+                "image": container.full_image_name()
+            }
+        ],
+        schedule="0 12 * * *",
         requested_by=user_uuid
     )
     task.add()

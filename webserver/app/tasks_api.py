@@ -221,3 +221,43 @@ def block_results(task_id):
     return {
         "status": task.get_review_status()
     }, HTTPStatus.CREATED
+
+@bp.route('/<task_id>/suspend', methods=['PATCH'])
+@audit
+@auth(scope='can_admin_task')
+def suspend_cron_job(task_id):
+    """
+    PATCH /tasks/id/suspend endpoint
+
+    this will deactivate the cron job
+    """
+    task: Task = Task.query.filter(Task.id == task_id).one_or_none()
+    if task is None:
+        raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
+
+    if not task.schedule:
+        raise InvalidRequest("Task is not a cronjob", 400)
+
+    task.set_cronjob_suspension(True)
+
+    return {"status": "suspended"}, HTTPStatus.ACCEPTED
+
+@bp.route('/<task_id>/resume', methods=['PATCH'])
+@audit
+@auth(scope='can_admin_task')
+def resume_cron_job(task_id):
+    """
+    PATCH /tasks/id/resume endpoint
+
+    this will re-activate the cron job
+    """
+    task: Task = Task.query.filter(Task.id == task_id).one_or_none()
+    if task is None:
+        raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
+
+    if not task.schedule:
+        raise InvalidRequest("Task is not a cronjob", 400)
+
+    task.set_cronjob_suspension(False)
+
+    return {"status": "resumed"}, HTTPStatus.ACCEPTED

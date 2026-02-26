@@ -2,7 +2,7 @@ import logging
 import json
 import re
 from datetime import datetime, timedelta
-from kubernetes.client import V1CustomResourceDefinition
+from kubernetes.client import V1CustomResourceDefinition, V1CronJob, V1Job, V1Pod
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
@@ -17,8 +17,11 @@ from app.helpers.const import (
 from app.helpers.base_model import BaseModel, db
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesBatchClient, KubernetesCRDClient, KubernetesClient
-from app.helpers.exceptions import DBError, InvalidRequest, TaskCRDExecutionException, TaskImageException, TaskExecutionException
+from app.helpers.exceptions import (
+    DBError, InvalidRequest, TaskCRDExecutionException, TaskImageException, TaskExecutionException
+)
 from app.helpers.task_pod import TaskPod
+from app.helpers.cron_jobs import CronJob
 from app.models.dataset import Dataset
 from app.models.container import Container
 from app.models.registry import Registry
@@ -46,6 +49,7 @@ class Task(db.Model, BaseModel):
     updated_at = Column(DateTime(timezone=False), onupdate=func.now())
     requested_by = Column(String(256), nullable=False)
     review_status = Column(Boolean, nullable=True)
+    schedule = Column(String(256), nullable=True)
     dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
     dataset = relationship("Dataset")
 
@@ -60,6 +64,8 @@ class Task(db.Model, BaseModel):
                  inputs:dict = {},
                  outputs:dict = {},
                  description:str = '',
+                 schedule:str|None = None,
+                 crd_name:str = None,
                  **kwargs
                  ):
         self.name = name
@@ -75,8 +81,10 @@ class Task(db.Model, BaseModel):
         self.resources = resources
         self.inputs = inputs
         self.outputs = outputs
+        self.schedule = schedule
         self.is_from_controller = kwargs.get("from_controller", False)
         self.db_query = kwargs.get("db_query", {})
+        self.crd_name = crd_name
 
     @classmethod
     def validate(cls, data:dict):
@@ -94,11 +102,17 @@ class Task(db.Model, BaseModel):
         executors = data["executors"][0]
         data["docker_image"] = executors["image"]
         is_from_controller = data.pop("task_controller", False)
+        crd_name = data.pop("crd_name", None)
         repository = data.pop("repository", None)
 
         data = super().validate(data)
 
         data["from_controller"] = is_from_controller
+        if is_from_controller and crd_name is None:
+            raise InvalidRequest("Missing crd name in the request, or None passed")
+
+        data["crd_name"] = crd_name
+
         # Dataset validation
         if repository:
             data["dataset"] = Dataset.query.filter(
@@ -305,7 +319,7 @@ class Task(db.Model, BaseModel):
 
         image: Container = self.get_image_with_repo(self.docker_image, False)
 
-        body = TaskPod(**{
+        body: V1Pod = TaskPod(**{
             "name": self.pod_name(),
             "image": self.docker_image,
             "dataset": self.dataset,
@@ -325,25 +339,36 @@ class Task(db.Model, BaseModel):
             "env_from": v1.create_from_env_object(secret_name),
             "regcred_secret": image.registry.slugify_name()
         }).create_pod_spec()
-        try:
-            current_pod = self.get_current_pod()
-            if current_pod:
-                raise TaskExecutionException("Pod is already running", code=409)
 
-            v1.create_namespaced_pod(
-                namespace=TASK_NAMESPACE,
-                body=body,
-                pretty='true'
-            )
+        if self.schedule:
+            cron: V1CronJob = CronJob.create_template(self.name, body, self.schedule, self.crd_name)
+
+        try:
+            if self.schedule:
+                KubernetesBatchClient().create_namespaced_cron_job(
+                    namespace=TASK_NAMESPACE,
+                    body=cron
+                )
+            else:
+                current_pod = self.get_current_pod()
+                if current_pod:
+                    raise TaskExecutionException("Pod is already running", code=409)
+
+                v1.create_namespaced_pod(
+                    namespace=TASK_NAMESPACE,
+                    body=body,
+                    pretty='true'
+                )
         except ApiException as e:
-            logger.error(json.loads(e.body))
-            raise InvalidRequest(f"Failed to run pod: {e.reason}") from e
+            err_body = json.loads(e.body)
+            logger.error(err_body)
+            raise InvalidRequest(f"Failed to run task: {"".join([cau["message"] for cau in err_body["details"].get("causes")])}") from e
 
         if self.needs_crd():
             # create CRD
             self.create_controller_crd()
 
-    def get_current_pod(self, is_running:bool=True):
+    def get_current_pod(self, is_running:bool=True, all:bool=False) -> V1Pod|None:
         """
         Fetches the pod object from k8s API.
             is_running will only consider running pods only
@@ -355,6 +380,9 @@ class Task(db.Model, BaseModel):
         )
         try:
             running_pods.items.sort(key=lambda x: x.metadata.creation_timestamp, reverse=True)
+            if all and not is_running:
+                return running_pods.items
+
             for pod in running_pods.items:
                 images = [im.image for im in pod.spec.containers]
                 statuses = []
@@ -375,6 +403,19 @@ class Task(db.Model, BaseModel):
             :str: if the pod is not found or deleted
         """
         try:
+            if self.schedule:
+                cj = CronJob(self.id)
+                job: V1Job = cj.get_job()
+                # Check jobs details if any
+                active = None
+                if job:
+                    active = {
+                        "succeeded": job.status.succeeded,
+                        "ready": job.status.ready,
+                        "failed": job.status.failed,
+                    }
+                return active or "Not started yet"
+
             status_obj = self.get_current_pod(is_running=False).status.container_statuses
             if status_obj is None:
                 return self.status
@@ -431,11 +472,19 @@ class Task(db.Model, BaseModel):
         """
         v1_batch = KubernetesBatchClient()
         job_name = f"result-job-{uuid4()}"
+        if self.schedule:
+            cj: CronJob = CronJob(self.id)
+            if not cj.get():
+                raise TaskExecutionException("CronJob not found")
+            pvname = cj.get_pvc_name()
+        else:
+            pvname = f"{self.get_current_pod(is_running=False).metadata.name}-volclaim"
+
         job = v1_batch.create_job_spec({
             "name": job_name,
             "persistent_volumes": [
                 {
-                    "name": f"{self.get_current_pod(is_running=False).metadata.name}-volclaim",
+                    "name": pvname,
                     "mount_path": TASK_POD_RESULTS_PATH,
                     "vol_name": "data",
                     "sub_path": f"{self.id}/results"
@@ -456,7 +505,7 @@ class Task(db.Model, BaseModel):
             v1 = KubernetesClient()
             v1.is_pod_ready(label=f"job-name={job_name}")
 
-            job_pod = v1.list_namespaced_pod(namespace=TASK_NAMESPACE, label_selector=f"job-name={job_name}").items[0]
+            job_pod: V1Pod = v1.list_namespaced_pod(namespace=TASK_NAMESPACE, label_selector=f"job-name={job_name}").items[0]
 
             res_file = v1.cp_from_pod(
                 pod_name=job_pod.metadata.name,
@@ -464,15 +513,15 @@ class Task(db.Model, BaseModel):
                 dest_path=f"{RESULTS_PATH}/{self.id}/results",
                 out_name=f"{PUBLIC_URL}-results-{self.id}"
             )
-            v1.delete_pod(job_pod.metadata.name)
-            v1_batch.delete_job(job_name)
         except ApiException as e:
-            if 'job_pod' in locals() and self.get_current_pod(job_pod.metadata.name):
-                v1_batch.delete_job(job_name)
             logger.error(getattr(e, 'reason'))
             raise InvalidRequest(f"Failed to run pod: {e.reason}") from e
         except urllib3.exceptions.MaxRetryError as mre:
             raise InvalidRequest("The cluster could not create the job") from mre
+        finally:
+            if 'job_pod' in locals():
+                v1_batch.delete_job(job_name)
+                v1.delete_pod(job_pod.metadata.name)
         return res_file
 
     def create_controller_crd(self):
@@ -541,17 +590,6 @@ class Task(db.Model, BaseModel):
 
         return san_dict
 
-    def crd_name(self):
-        """
-        CRD name is set here for consistency's sake
-        """
-        v1_crds = KubernetesCRDClient().list_cluster_custom_object(
-            CRD_DOMAIN, "v1", "analytics"
-        )
-        for crd in v1_crds["items"]:
-            if crd["metadata"]["annotations"].get(f"{CRD_DOMAIN}/task_id") == str(self.id):
-                return crd["metadata"]["name"]
-
     def get_task_crd(self) -> V1CustomResourceDefinition|None:
         """
         Find the CRD associated with the current task.
@@ -563,7 +601,7 @@ class Task(db.Model, BaseModel):
                 CRD_DOMAIN,
                 "v1",
                 "analytics",
-                self.crd_name()
+                self.crd_name
             )
         except ApiException as apie:
             if apie.status == 404:
@@ -585,7 +623,7 @@ class Task(db.Model, BaseModel):
             annotations = task_crd["metadata"].get("annotations", {})
             annotations[f"{CRD_DOMAIN}/approved"] = str(approval)
             crd_client.patch_cluster_custom_object(
-                CRD_DOMAIN, "v1", "analytics", self.crd_name(),
+                CRD_DOMAIN, "v1", "analytics", self.crd_name,
                 [{"op": "add", "path": "/metadata/annotations", "value": annotations}]
             )
         except ApiException as apie:
@@ -595,10 +633,13 @@ class Task(db.Model, BaseModel):
         """
         Retrieve the pod's logs
         """
+        if self.schedule:
+            return CronJob(self.id).get_all_logs()
+
         if 'waiting' in self.get_status():
             return "Task queued"
 
-        pod = self.get_current_pod(is_running=False)
+        pod: V1Pod | None = self.get_current_pod(is_running=False)
         if pod is None:
             raise TaskExecutionException(f"Task pod {self.id} not found", 400)
 
@@ -611,3 +652,25 @@ class Task(db.Model, BaseModel):
             ).splitlines()
         except ApiException as apie:
             raise TaskExecutionException("Failed to fetch the logs") from apie
+
+    def set_cronjob_suspension(self, suspend:bool):
+        """
+        Wrapper for k8s operation to patch the spec.suspend field
+        """
+        batch_v1 = KubernetesBatchClient()
+        try:
+            cj: V1CronJob = CronJob(self.id).get()
+            if cj.spec.suspend == suspend:
+                raise TaskExecutionException(
+                    f"CronJob is already set to be {"suspended" if suspend else "enabled"}",
+                    400
+                )
+
+            cj.spec.suspend = suspend
+            batch_v1.patch_namespaced_cron_job(
+                cj.metadata.name,
+                TASK_NAMESPACE,
+                cj
+            )
+        except ApiException as e:
+            raise TaskExecutionException(f"Failed set cronjob suspension: {e.reason}") from e

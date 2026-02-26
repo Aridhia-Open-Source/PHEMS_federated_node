@@ -1,6 +1,10 @@
 # Releases Changelog
 
 ## 1.11.0
+- CronJobs are now supported. Use the `schedule` field in either the `/tasks` API, or the `Analytics` CRD (for outbound mode) to set a cron rule, like `"3 9 * * *"`.
+- Added two new endpoints for cronjobs: `/tasks/id/suspend` and `/tasks/id/resume` to pause/resume autoexecution.
+- Adjusted the results job cleanup
+- Automatic task results cleanup is now an toggleable feature by setting `cleanupResults.enabled` to `false`. It is enabled by default.
 - Added a flag for conditional automatic results returns for tasks triggered by the API, `federatedNode.allow_delivery_api`. Defaults to `false`.
 
 ## 1.10.0
@@ -12,6 +16,7 @@
 - Fixed an error within the registry endpoint due to an un-initialized variable
 
 ## 1.9.0
+
 - Added a dataset link to a repo, so that on outbound connection mode, the CRD applied from a repository, will be associated with the dataset
 - Added a write_schema field on db and api for dataset. This will be passed to the task as env var `WRITE_SCHEMA`.
 

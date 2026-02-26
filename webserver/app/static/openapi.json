@@ -795,6 +795,98 @@
         }
       }
     },
+    "/tasks/{id}/suspend": {
+      "patch": {
+        "operationId": "suspend_cron_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {"type": "integer"}
+          }
+        ],
+        "tags": ["Tasks"],
+        "summary": "If a cronjob, suspend its execution",
+        "responses": {
+          "200": {
+            "description": "Successfully suspended",
+            "content": {
+              "application/json":{
+                "schema":{
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "suspended"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks/{id}/resume": {
+      "patch": {
+        "operationId": "resume_cron_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {"type": "integer"}
+          }
+        ],
+        "tags": ["Tasks"],
+        "summary": "If a cronjob, resume its execution",
+        "responses": {
+          "200": {
+            "description": "Successfully enabled",
+            "content": {
+              "application/json":{
+                "schema":{
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "resumed"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401":{
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403":{
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404":{
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500":{
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/tasks/{id}/results/approve": {
       "post": {
         "operationId": "approve_results",
@@ -2340,6 +2432,10 @@
             },
             "required": ["dataset_id"]
           },
+          "schedule": {
+            "type": "string",
+            "example": "0 12 * * *"
+          },
           "outputs": {
             "type": "object",
             "description": "An object where the key is a human readable name and the value is the path to which a volume will be mounted on at run time to fetch the results. The key value, in the example folder1, will be used as folder name in the results archive as well.",
@@ -2414,12 +2510,10 @@
             "example": "aabf657d-e912-43ab-8df7-924731b0f74f"
           },
           "status": {
-            "type": "object",
-            "properties": {
-              "running": {"type": "object"},
-              "terminated": {"type": "object"},
-              "waiting": {"type": "object"}
-            }
+            "anyOf": [
+              { "$ref": "#/components/schemas/TaskStatus" },
+              { "$ref": "#/components/schemas/CronStatus" }
+            ]
           },
           "title": {
             "type": "string",
@@ -2429,6 +2523,22 @@
             "type": "string",
             "example": "Mon, 19 Feb 2024 11:41:54 GMT"
           }
+        }
+      },
+      "TaskStatus": {
+        "type": "object",
+        "properties": {
+          "running": {"type": "object"},
+          "terminated": {"type": "object"},
+          "waiting": {"type": "object"}
+        }
+      },
+      "CronStatus": {
+        "type": "object",
+        "properties": {
+          "failed": {"type": "integer"},
+          "ready": {"type": "integer"},
+          "succeeded": {"type": "integer"}
         }
       },
       "UserEntry": {

@@ -11,11 +11,10 @@ from kubernetes.client import (
     V1PersistentVolumeClaimSpec, V1VolumeResourceRequirements,
     V1CSIPersistentVolumeSource
 )
-from app.helpers.const import ALPINE_IMAGE, RESULTS_PATH, STORAGE_CLASS, TASK_NAMESPACE
+from app.helpers.const import ALPINE_IMAGE, IMAGE_TAG, RESULTS_PATH, STORAGE_CLASS, TASK_NAMESPACE
 from app.helpers.kubernetes import KubernetesClient
 from app.models.dataset import Dataset
 
-IMAGE_TAG = os.getenv("IMAGE_TAG")
 
 
 class TaskPod:

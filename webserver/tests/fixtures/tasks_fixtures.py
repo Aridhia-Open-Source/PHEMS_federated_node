@@ -159,3 +159,6 @@ def set_task_review_env(mocker):
 @fixture
 def set_task_controller_env(mocker):
     mocker.patch('app.models.task.TASK_CONTROLLER', return_value="enabled")
+@fixture
+def set_task_auto_delivery_env(mocker):
+    mocker.patch('app.models.task.AUTO_DELIVERY_RESULTS', return_value="enabled")

@@ -38,8 +38,11 @@ db:
   #   name:
   #   key:
 
-# How many days the results and k8s resources are kept for
-cleanupTime: 3
+# Automatic scheduled cleanup of pods/pv/pvc/jobs related to tasks
+cleanupResults:
+  enabled: true
+  # How many days the results and k8s resources are kept for
+  cleanupTime: 3
 
 taskReview: false
 
