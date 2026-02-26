@@ -24,7 +24,5 @@ k8s/federated-node/charts
 k8s/federated-node/.debug
 debug.yaml
 
-docker_models/julia/project/data/**
-
 # Ignore example values files while developing (remove later)
 !example.values.yaml
