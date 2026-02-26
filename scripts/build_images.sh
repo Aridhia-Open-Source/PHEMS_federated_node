@@ -7,13 +7,4 @@ cd dagster
 ./build.sh
 cd ../
 
-echo "Building model images..."
-cd docker_models
-./build.sh julia
-cd ../
-
-cd docker_models
-./build.sh python
-cd ../
-
 echo "Image builds successful!"
