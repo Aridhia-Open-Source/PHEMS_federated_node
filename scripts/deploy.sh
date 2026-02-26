@@ -107,9 +107,6 @@ kubectl create secret generic local-db \
   --from-literal=password="$DB_SECRET_KEY" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-# kubectl create secret generic h \
-#   --from-literal=postgresql-password="$DB_SECRET_KEY" \
-#   --dry-run=client -o yaml | kubectl apply -f -
 
 ###############################################################################
 echo "=== [7/8] Building Docker Images(s) ========================================"
@@ -119,13 +116,6 @@ cd dagster
 ./build.sh
 cd ../
 
-cd docker_models
-./build.sh julia
-cd ../
-
-cd docker_models
-./build.sh python
-cd ../
 
 echo "Image builds successful!"
 

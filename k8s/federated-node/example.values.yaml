@@ -8,6 +8,7 @@ local_development: true
 smoketests: false
 taskReview: true
 cleanupTime: 3
+host: &host phems-federatednode.net
 
 backend:
   tag: 1.9.0
@@ -34,7 +35,7 @@ storage:
     artifacts: /data/dagster/artifacts
 
 global:
-  host:
+  host: *host
   delivery_url: federated-node.uksouth.analytixagility.aridhiadev.net
   postgresqlSecretName: dagster-postgresql-secret
 
@@ -46,7 +47,6 @@ integrations:
     - http://localhost:8088
     - https://phems-federatednode.net
 
-host: &host phems-federatednode.net
 whitelist:
   enabled: false
 blacklist:
