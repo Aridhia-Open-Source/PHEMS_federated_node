@@ -619,6 +619,7 @@ class TestPostTask:
             client,
             registry_client,
             set_task_controller_env,
+            set_task_auto_delivery_env,
             k8s_client,
             task_body,
             v1_crd_mock
