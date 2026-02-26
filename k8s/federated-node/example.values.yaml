@@ -8,7 +8,6 @@ local_development: true
 smoketests: false
 taskReview: true
 cleanupTime: 3
-copySecrets: false
 
 backend:
   tag: 1.9.0
