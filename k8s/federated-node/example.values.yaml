@@ -8,9 +8,12 @@ local_development: true
 smoketests: false
 taskReview: true
 cleanupTime: 3
+<<<<<<< HEAD
 host: &host phems-federatednode.net
 copySecrets: false
 default_image_tag: 1.9.0
+=======
+>>>>>>> 89e1f8e (removing unused components)
 
 backend:
   image: localhost:5001/webserver-fn
