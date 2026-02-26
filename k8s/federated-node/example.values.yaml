@@ -1,169 +1,104 @@
-# Default values for federated-node.
+# Default values for federated_node.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-
-backend:
-  replicas: 1
-  tag:
-
-keycloak:
-  replicas: 1
-  tag:
-
-autoscaling:
-  enabled: false
-
-namespaces: &namespaces
-  keycloak: keycloak
-  tasks: tasks
-  controller: fn-controller
-
-global:
-  namespaces: *namespaces
-
-token:
-  life: 2592000
-
-# Local Development-related options
-local_development: false
-create_db_deployment: false
-
-db:
-  enforceSSL: false
-  name: fndb
-  port: 5432
-  # If a secret with password exists, use that
-  # secret:
-  #   name:
-  #   key:
-
-# How many days the results and k8s resources are kept for
+pullPolicy: Always
+create_db_deployment: true
+local_development: true
+smoketests: false
+taskReview: true
 cleanupTime: 3
 
-taskReview: false
-
-# firstUserSecret:
-  # name:
-  # passKey:
-  # firstName:
-  # lastName:
-  # email:
-
-federatedNode:
-  allow_delivery_api: false
-  enable_registry_sync: false
-  port: 5000
+backend:
+  tag: 1.9.0
   volumes:
-    results_path: /mnt/results
-    task_pod_results_path: /mnt/data
+    results_path: /data/flask/results
+
+keycloak:
+  tag: 1.9.0
+
+db:
+  user: &userDB admin
+  host: db.fn.svc
+  port: &portDB 5432
+  secret:
+    name: local-db
+    key: password
+    value: local-db-secret
 
 storage:
-  capacity: 10Gi
-  # azure:
-    # secretName:
-    # shareName:
-  # aws:
-    # fileSystemId:
-    # accessPointId:
-  # nfs:
-    # provisioner:
-    # url:
-    # path:
-  # local: {}
-    # Local storage that will be shared with the backend
-    # path: /data/results
-    # Local storage that will be shared with the db
-    # dbpath: /data/db
+  capacity: 1Gi
+  local:
+    path: /data/flask
+    dbpath: /data/db
+    artifacts: /data/dagster/artifacts
 
-
-pullPolicy: Always
-
-# If using a reverse proxy, or ssl certificates, this will set the hostname
-host: &host
-tls:
-  secretName: &tls tls
-
-# Running on azure?
-on_aks: false
-# Running on AWS?
-on_eks: false
-
-# Set the domains that are allowed to send requests
-# to the federated node, in case there is a web UI that tries to
-# ping the FN
-integrations:
-  domains:
-    - self
+global:
+  host:
+  delivery_url: federated-node.uksouth.analytixagility.aridhiadev.net
+  postgresqlSecretName: dagster-postgresql-secret
 
 certs:
-  rotationPolicy: Never
-  azure:
-    # secretName:
-    # configmap:
-  aws: ""
+  frequency: 65
 
-# Enables full smoketests when running `helm test`.
-# This will actively try to add new database and keycloak entries
-# and then remove them as part of the cleanup process. Basic tests will be carried anyway.
-# If not comfortable with these smoketests, do no overwrite this value.
-smoketests: false
+integrations:
+  domains:
+    - http://localhost:8088
+    - https://phems-federatednode.net
 
-outboundMode: false
+host: &host phems-federatednode.net
+whitelist:
+  enabled: false
+blacklist:
+  enabled: false
+tls:
+  secretName: &tls my-tls-secret
 
-##SUBCHARTS
-### Task controller
-fn-task-controller:
-  controller: {}
-    # tag:
-
-  storage: {}
-    # size:
-    # local:
-    #   path:
-
-  idp: {}
-    # github:
-    #   secret_name:
-    #   secret_key:
-    #   clientid_key:
-  delivery:
-    github: {}
-      # repository:
-    other: {}
-      # url
-      # auth_type
-
-### Cert manager
 cert-manager:
   enabled: false
-  namespace: fn-certmanager
-  installCRDs: true
 
-### Ingress
+ingress-nginx:
+  enabled: false
+  controller:
+    extraArgs:
+      default-ssl-certificate: qcfederatednode/my-tls-secret
+
+outboundMode: true
+
+## Sub Charts
+
+### Gateway API
+gatewayApi:
+  installCRD: false
+
+### Traefik
 traefik:
-  gateway:
-    enabled: false
-    name: traefik-fn-gateway
-  gatewayClass:
-    name: traefik-fn-gateway-class
   providers:
-    kubernetesCRD:
-      enabled: true
-    kubernetesGateway:
-      enabled: true
     kubernetesIngress:
       enabled: false
   enabled: false
-  api:
-    dashboard: false
-  # service:
-  #   spec:
-  ## in case you want to preserve the previous external ips
-  #     externalIPs:
-  #       -
-  ## For AKS only
-  #     externalTrafficPolicy: Local
+
+### FN Task Controller
+fn-task-controller:
+  controller:
+    tag:
+  storage:
+    size: 100Mi
+    local:
+      path: /data/controller
+
+  # idp:
+  #   github:
+  #     secret_name: github-app
+  #     secret_key: GH_SECRET
+  #     clientid_key: GH_CLIENT_ID
+  #     orgAndRepo: Aridhia-Open-Source/Federated-Node-Example-App
+  delivery:
+    # github:
+    #   repository: Aridhia-Open-Source/Federated-Node-Example-App
+    other:
+      url: federated-node.uksouth.analytixagility.aridhiadev.net
+      auth_type: AzCopy
 
 
 ### Dagster

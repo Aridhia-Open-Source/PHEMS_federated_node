@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dagster-env-config
+  namespace: {{ .Release.Namespace }}
+data:
+  DAGSTER_DEPLOYMENT_NAMESPACE: {{ .Release.Namespace }}
+  DAGSTER_USER_SERVICE_ACCOUNT_NAME: {{ .Release.Name }}-dagster-user-deployments-user-deployments
+  DAGSTER_HOME: /opt/dagster/home
+  DAGSTER_ARTIFACT_MOUNT_PATH: /mnt/dagster/artifacts
+  DAGSTER_ARTIFACTS_PVC_NAME: artifacts-pvc
