@@ -1,11 +1,15 @@
 # Releases Changelog
 
+## 1.11.0
+- Added a flag for conditional automatic results returns for tasks triggered by the API, `federatedNode.allow_delivery_api`. Defaults to `false`.
+
 ## 1.10.0
 - Improved API error handling involving k8s library errors
 
 ### Bugfixes
 - Fixed the containers add query check, which was incorrectly referring to the same field
 - Added validation for task name missing or empty string
+- Fixed an error within the registry endpoint due to an un-initialized variable
 
 ## 1.9.0
 - Added a dataset link to a repo, so that on outbound connection mode, the CRD applied from a repository, will be associated with the dataset
