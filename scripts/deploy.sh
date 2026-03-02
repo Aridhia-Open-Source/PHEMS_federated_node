@@ -21,7 +21,7 @@ DOCKER_TAG="v30"
 CLUSTER_NAME="fn"
 NAMESPACE="fn"
 RELEASE_NAME="fn-dev"
-VALUES_FILE="example.values.yaml"
+VALUES_FILE="dev.values.yaml"
 KIND_CONFIG_FILE=".kind/kind-config.yaml"
 DB_SECRET_KEY="local-db-secret"
 

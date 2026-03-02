@@ -54,6 +54,9 @@ integrations:
     - http://localhost:8088
     - https://phems-federatednode.net
 
+github:
+  token: ""
+
 whitelist:
   enabled: false
 blacklist:
