@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 @dg.op(
     config_schema={
         "docker_image": str,
+        "env": dict,
     }
 )
 def k8s_pipes_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> dg.Output:
@@ -36,9 +37,7 @@ class K8sPipeOP:
     @property
     def env(self) -> dict:
         return {
-            "RUN_ID": self.run_id,
             "ARTIFACT_PATH": self.artifact_path,
-            "IMAGE": self.image,
         }
 
     @property
@@ -65,8 +64,7 @@ class K8sPipeOP:
         )
 
     def log(self, message: str):
-        self.context.log.info(f"[PARENT][{self.run_id}] - {message}")
-        logger.info(f"[PARENT][{self.run_id}] - {message}")
+        self.context.log.info(f"[{self.run_id}] - {message}")
 
     def _load_base_pod_spec(self):
         return {
