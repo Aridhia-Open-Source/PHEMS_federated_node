@@ -6,6 +6,8 @@ import json
 
 from datetime import datetime as dt
 from datetime import timezone as tz
+from datetime import timedelta as td
+
 
 import requests
 from dotenv import load_dotenv
@@ -23,7 +25,7 @@ MNT_BASE_PATH = os.environ['MNT_BASE_PATH']
 
 
 def utc_now():
-    return dt.now(tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return (dt.now(tz.utc) - td(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class FileCursor:
