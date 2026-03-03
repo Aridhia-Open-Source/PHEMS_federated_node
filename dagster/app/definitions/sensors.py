@@ -1,6 +1,5 @@
 import os
 import json
-import logging
 from datetime import datetime as dt
 from datetime import timezone as tz
 from datetime import timedelta as td
@@ -23,30 +22,26 @@ GH_RESULTS_DIR = os.environ['GH_RESULTS_DIR']
 GH_BASE_BRANCH = os.environ['GH_BASE_BRANCH']
 GH_WATCH_DIR = os.environ['GH_WATCH_DIR']
 
-logger = logging.getLogger(__name__)
+# =============================================================================
+# TODO: PRODUCTION HARDENING
+# =============================================================================
+#
+# - Add PR comments on Dagster run START / SUCCESS / FAILURE
+# - Implement failure run_status_sensor to notify originating PR
+# - Add explicit idempotency guard (cursor tuple or results manifest)
+# - Verify prevention of duplicate results branches / pushes
+# - Add concurrency limits for user-triggered jobs
+# - Add structured Dagster run tags for governance (e.g. type=user/internal)
+# - Document full event flow (PR → sensor → job → transfer → results)
+# - Add README section explaining key design tradeoffs
+# - Document operational assumptions (cursor semantics, retry behavior, artifact model)
+#
+# =============================================================================
 
 
 # FIXME: Temp dev hack to set initial cursor to 24hrs ago to pick up recent PRs
 def utc_now():
-    return (dt.now(tz.utc) - td(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-# @dg.op(
-#     config_schema={
-#         "run_id": str,
-#     }
-# )
-# def transfer_op(context: dg.OpExecutionContext):
-#     source_run_id = context.op_config["run_id"]
-#     source_path = f"{ARTIFACT_MOUNT_BASE_PATH}/{source_run_id}"
-#     source_files = os.listdir(source_path)
-#     context.log.info(f"Files in source path: {source_files}")
-#     return source_files
-
-
-# @dg.job
-# def transfer_job():
-#     transfer_op()
+    return (dt.now(tz.utc) - td(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @dg.op(
@@ -66,7 +61,7 @@ def github_transfer_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> 
         "PARENT_RUN_ID": context.op_config["parent_run_id"],
         "PR_NUMBER": context.op_config["pr_number"],
     }
-    pipe = K8sPipe(client=k8s_pipes_client, context=context, env=env)
+    pipe = K8sPipe(client=k8s_pipes_client, context=context, ext_env=env)
     return pipe().output
 
 
@@ -80,12 +75,21 @@ def github_transfer_job():
     default_status=dg.DefaultSensorStatus.RUNNING,
     monitored_jobs=[k8s_pipes_job],
     request_job=github_transfer_job,
+    minimum_interval_seconds=5,
 )
 def github_run_success_transfer_sensor(context: dg.RunStatusSensorContext):
     run = context.dagster_run
+    context.log.info("github_run_success_transfer_sensor...")
+    context.log.info(f"Run tags: {run.tags}")
+
     if not run.tags.get('trigger') == 'github':
-        logger.info("Skipping run - not triggered by GitHub sensor")
-        yield dg.SkipReason("Run not triggered by GitHub sensor")
+        context.log.info("Skipping - Run not triggered by GitHub")
+        yield dg.SkipReason("Run not triggered by GitHub")
+        return
+
+    if not run.tags.get('pr_number'):
+        yield dg.SkipReason("Missing pr_number tag")
+        context.log.info("Skipping - missing pr_number tag")
         return
 
     config = {
@@ -94,9 +98,8 @@ def github_run_success_transfer_sensor(context: dg.RunStatusSensorContext):
         'parent_run_id': run.run_id,
     }
 
-    logger.info(f"Triggering GitHub transfer - {config}")
-
-    return dg.RunRequest(
+    context.log.info(f"Triggering GitHub transfer - {config}")
+    yield dg.RunRequest(
         run_key=run.run_id,
         run_config={
             "ops": {
@@ -137,12 +140,13 @@ def github_pull_request_polling_sensor(context):
         return
 
     newest_merged_at = max(pr["merged_at"] for pr in pullreqs)
+    # FIXME: Edge Race condition: multiple PRs merged at same second (use PR:TS?)
     context.update_cursor(newest_merged_at)
 
     for pr in pullreqs:
         if len(pr["watched_files"]) != 1:
             # TODO: Handle multiple watched files per PR
-            logger.error("Multiple request files in single PR not supported")
+            context.log.error("Multiple request files in single PR not supported")
             continue
 
         filename = pr['watched_files'][0]

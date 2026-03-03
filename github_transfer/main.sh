@@ -18,40 +18,62 @@ for var in "${required_vars[@]}"; do
   fi
 done
 
-EPOCH_SECONDS=$(date +%s)
 CLONE_TARGET_DIR="/tmp/repo"
 BRANCH="${PR_NUMBER}-${PARENT_RUN_ID}-results"
 GH_REPO_URI_PATH="${GH_OWNER}/${GH_REPO}"
 GH_REPO_OUTPUT_PATH="${GH_RESULTS_DIR}/${PR_NUMBER}/${PARENT_RUN_ID}"
 PARENT_ARTIFACT_PATH="${MNT_BASE_PATH}/${PARENT_RUN_ID}"
-echo "Cloning repo $GH_REPO_URI_PATH"
 
-rm -rf $CLONE_TARGET_DIR
+echo "Cloning repo ${GH_REPO_URI_PATH}"
+
+rm -rf "${CLONE_TARGET_DIR}"
+
 gh repo clone "${GH_REPO_URI_PATH}" "${CLONE_TARGET_DIR}" -- --depth=1
+
 (
-    cd "${CLONE_TARGET_DIR}"
-    git remote remove origin
-    git remote add origin "https://$GH_TOKEN@github.com/${GH_REPO_URI_PATH}".git
-    git fetch
+  cd "${CLONE_TARGET_DIR}"
 
-    echo "Pulling or creating the results branch"
-    if git checkout "${BRANCH}"; then
-        git branch --set-upstream-to=origin/"${BRANCH}" "${BRANCH}"
-        git pull
-    else
-        git checkout -b "${BRANCH}"
-    fi
+  # Configure commit identity locally
+  git config user.name "phems-bot"
+  git config user.email "phem-federated-node@users.noreply.github.com"
 
-    mkdir -p $GH_REPO_OUTPUT_PATH
-    zip -r "$GH_REPO_OUTPUT_PATH/archive.zip" $PARENT_ARTIFACT_PATH
+  # Replace origin with token-auth remote
+  git remote remove origin
+  git remote add origin "https://${GH_TOKEN}@github.com/${GH_REPO_URI_PATH}.git"
+  git fetch origin
 
-    git add .
-    git commit -am "PR${PR_NUMBER} - ${PARENT_RUN_ID} - results"
+  echo "Checking if results branch already exists on remote"
 
-    git push --set-upstream origin "${BRANCH}" || git push
-    echo "Changes pushed"
-    rm -rf $CLONE_TARGET_DIR
+  if git ls-remote --exit-code --heads origin "${BRANCH}" > /dev/null 2>&1; then
+    echo "ERROR: Results branch ${BRANCH} already exists on remote."
+    exit 1
+  fi
+
+  git checkout -b "${BRANCH}"
+
+  mkdir -p "${GH_REPO_OUTPUT_PATH}"
+
+  echo "Creating archive from ${PARENT_ARTIFACT_PATH}"
+
+  (
+    cd "${PARENT_ARTIFACT_PATH}"
+    zip -r "${CLONE_TARGET_DIR}/${GH_REPO_OUTPUT_PATH}/archive.zip" .
+  )
+
+  git add .
+
+  # FIXME: does not work due to new run_id (need to decide desired behaviour)
+  # if git diff --cached --quiet; then
+  #   echo "ERROR: No changes detected to commit."
+  #   exit 1
+  # fi
+
+  git commit -m "PR${PR_NUMBER} - ${PARENT_RUN_ID} - results"
+  git push --set-upstream origin "${BRANCH}"
+
+  echo "Results branch pushed successfully"
 )
 
+rm -rf "${CLONE_TARGET_DIR}"
 
 echo "Completed"

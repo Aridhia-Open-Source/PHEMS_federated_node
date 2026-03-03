@@ -5,11 +5,8 @@ RUN apk add --no-cache \
     git \
     zip \
     curl \
-    ca-certificates
-
-RUN curl -fsSL https://github.com/cli/cli/releases/latest/download/gh_$(uname -m).apk -o gh.apk \
-    && apk add --allow-untrusted gh.apk \
-    && rm gh.apk
+    ca-certificates \
+    github-cli
 
 WORKDIR /app
 

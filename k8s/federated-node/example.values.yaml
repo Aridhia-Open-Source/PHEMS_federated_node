@@ -14,7 +14,7 @@ default_image_tag: 1.9.0
 
 backend:
   image: localhost:5001/webserver-fn
-  tag: v30
+  tag: "v30"
   volumes:
     results_path: /data/flask/results
 
