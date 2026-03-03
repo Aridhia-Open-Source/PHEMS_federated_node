@@ -41,7 +41,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: db-volclaim
-  namespace: {{ .Release.namespace }}
+  namespace: {{ .Release.Namespace }}
 spec:
   storageClassName: {{ .Release.Name }}-db-storage
   # This should be changed to some more reliable destination
