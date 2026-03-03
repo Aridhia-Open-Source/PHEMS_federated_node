@@ -6,64 +6,102 @@ from datetime import timezone as tz
 from datetime import timedelta as td
 
 import dagster as dg
+from dagster_k8s import PipesK8sClient
+from dagster import OpExecutionContext as OpExecCtx
+
 
 from app.definitions.jobs import k8s_pipes_job
+from app.definitions.pipes import K8sPipe
 from app.github import GithubClient
 
 ARTIFACT_MOUNT_BASE_PATH = os.environ["DAGSTER_ARTIFACT_MOUNT_PATH"]
-GH_TOKEN = os.environ["GH_TOKEN"]
+GH_TRANSFER_DOCKER_IMAGE = os.environ['GH_TRANSFER_DOCKER_IMAGE']
 GH_OWNER = os.environ['GH_OWNER']
 GH_REPO = os.environ['GH_REPO']
+GH_TOKEN = os.environ["GH_TOKEN"]
+GH_RESULTS_DIR = os.environ['GH_RESULTS_DIR']
 GH_BASE_BRANCH = os.environ['GH_BASE_BRANCH']
 GH_WATCH_DIR = os.environ['GH_WATCH_DIR']
-MNT_BASE_PATH = os.environ['MNT_BASE_PATH']
-
 
 logger = logging.getLogger(__name__)
 
-
-# def utc_now():
-#     return dt.now(tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 # FIXME: Temp dev hack to set initial cursor to 24hrs ago to pick up recent PRs
 def utc_now():
     return (dt.now(tz.utc) - td(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+
+# @dg.op(
+#     config_schema={
+#         "run_id": str,
+#     }
+# )
+# def transfer_op(context: dg.OpExecutionContext):
+#     source_run_id = context.op_config["run_id"]
+#     source_path = f"{ARTIFACT_MOUNT_BASE_PATH}/{source_run_id}"
+#     source_files = os.listdir(source_path)
+#     context.log.info(f"Files in source path: {source_files}")
+#     return source_files
+
+
+# @dg.job
+# def transfer_job():
+#     transfer_op()
+
+
 @dg.op(
     config_schema={
-        "run_id": str,
+        "docker_image": dg.Field(str),
+        "parent_run_id": dg.Field(str),
+        "pr_number": dg.Field(str),
     }
 )
-def transfer_op(context: dg.OpExecutionContext):
-    source_run_id = context.op_config["run_id"]
-    source_path = f"{ARTIFACT_MOUNT_BASE_PATH}/{source_run_id}"
-    source_files = os.listdir(source_path)
-    context.log.info(f"Files in source path: {source_files}")
-    return source_files
+def github_transfer_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> dg.Output:
+    env = {
+        "GH_OWNER": GH_OWNER,
+        "GH_REPO": GH_REPO,
+        "GH_TOKEN": GH_TOKEN,
+        "GH_RESULTS_DIR": GH_RESULTS_DIR,
+        "MNT_BASE_PATH": ARTIFACT_MOUNT_BASE_PATH,
+        "PARENT_RUN_ID": context.op_config["parent_run_id"],
+        "PR_NUMBER": context.op_config["pr_number"],
+    }
+    pipe = K8sPipe(client=k8s_pipes_client, context=context, env=env)
+    return pipe().output
 
 
 @dg.job
-def transfer_job():
-    transfer_op()
+def github_transfer_job():
+    github_transfer_op()
 
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.SUCCESS,
     default_status=dg.DefaultSensorStatus.RUNNING,
     monitored_jobs=[k8s_pipes_job],
-    request_job=transfer_job,
+    request_job=github_transfer_job,
 )
-def k8s_pipes_sensor(context: dg.RunStatusSensorContext):
+def github_run_success_transfer_sensor(context: dg.RunStatusSensorContext):
     run = context.dagster_run
+    if not run.tags.get('trigger') == 'github':
+        logger.info("Skipping run - not triggered by GitHub sensor")
+        yield dg.SkipReason("Run not triggered by GitHub sensor")
+        return
+
+    config = {
+        'docker_image': GH_TRANSFER_DOCKER_IMAGE,
+        'pr_number': run.tags["pr_number"],
+        'parent_run_id': run.run_id,
+    }
+
+    logger.info(f"Triggering GitHub transfer - {config}")
 
     return dg.RunRequest(
         run_key=run.run_id,
         run_config={
             "ops": {
-                "transfer_op": {
-                    "config": {
-                        "run_id": run.run_id,
-                    }
+                "github_transfer_op": {
+                    "config": config
                 }
             }
         },
@@ -110,15 +148,24 @@ def github_pull_request_polling_sensor(context):
         filename = pr['watched_files'][0]
         content = client.get_file_contents(filename, ref=pr['merge_commit_sha'])
         data = json.loads(content)
-        docker_image = data['spec']['docker_image']
+
+        spec = data['spec']
+        docker_image = spec['docker_image']
+        env = spec.get('env', {})
 
         yield dg.RunRequest(
             run_key=f"{pr['number']}-{pr['merged_at']}",
+            tags={
+                "type": "user",
+                "trigger": "github",
+                "pr_number": str(pr["number"]),
+            },
             run_config={
                 "ops": {
                     "k8s_pipes_op": {
                         "config": {
                             "docker_image": docker_image,
+                            "env": env
                         }
                     }
                 }
@@ -127,6 +174,6 @@ def github_pull_request_polling_sensor(context):
 
 
 sensors = [
-    k8s_pipes_sensor,
     github_pull_request_polling_sensor,
+    github_run_success_transfer_sensor,
 ]

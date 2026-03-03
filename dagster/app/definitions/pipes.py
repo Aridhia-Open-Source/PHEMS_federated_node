@@ -12,16 +12,16 @@ logger = logging.getLogger(__name__)
 
 @dg.op(
     config_schema={
-        "docker_image": str,
-        "env": dict,
+        "docker_image": dg.Field(str),
+        "env": dg.Field(dict, default_value={}, is_required=False),
     }
 )
 def k8s_pipes_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> dg.Output:
-    pipe = K8sPipeOP(client=k8s_pipes_client, context=context)
+    pipe = K8sPipe(client=k8s_pipes_client, context=context)
     return pipe().output
 
 
-class K8sPipeOP:
+class K8sPipe:
     service_account_name = os.environ["DAGSTER_USER_SERVICE_ACCOUNT_NAME"]
     namespace = os.environ["DAGSTER_DEPLOYMENT_NAMESPACE"]
     pvc_name = os.environ["DAGSTER_ARTIFACTS_PVC_NAME"]
@@ -33,16 +33,14 @@ class K8sPipeOP:
         self.run_id = context.run_id
         self.config = context.op_config
         self.image = self.config['docker_image']
+        self.artifact_path = f"{self.mnt_base_path}/{self.run_id}"
+        self.env = self._setup_env()
 
-    @property
-    def env(self) -> dict:
+    def _setup_env(self):
         return {
-            "ARTIFACT_PATH": self.artifact_path,
+            **self.config.get('env', {}),
+            'ARTIFACT_PATH': self.artifact_path,
         }
-
-    @property
-    def artifact_path(self) -> str:
-        return f"{self.mnt_base_path}/{self.run_id}"
 
     def __call__(self):
         self.log(f"Pipes op starting - {self.image}")
