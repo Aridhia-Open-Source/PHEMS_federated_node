@@ -27,18 +27,19 @@ class K8sPipe:
     pvc_name = os.environ["DAGSTER_ARTIFACTS_PVC_NAME"]
     mnt_base_path = os.environ["DAGSTER_ARTIFACT_MOUNT_PATH"]
 
-    def __init__(self, client: PipesK8sClient, context: OpExecCtx):
+    def __init__(self, client: PipesK8sClient, context: OpExecCtx, ext_env=None):
         self.client = client
         self.context = context
         self.run_id = context.run_id
         self.config = context.op_config
         self.image = self.config['docker_image']
         self.artifact_path = f"{self.mnt_base_path}/{self.run_id}"
-        self.env = self._setup_env()
+        self.env = self._setup_env(ext_env)
 
-    def _setup_env(self):
+    def _setup_env(self, ext_env=None):
         return {
-            **self.config.get('env', {}),
+            **(self.config.get('env') or {}),
+            **(ext_env or {}),
             'ARTIFACT_PATH': self.artifact_path,
         }
 

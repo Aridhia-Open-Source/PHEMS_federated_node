@@ -4,6 +4,9 @@
 
 default_image_tag: 1.9.0
 
+github:
+  token: ""
+
 backend:
   image: ghcr.io/aridhia-open-source/federated_node_run
   replicas: 1
