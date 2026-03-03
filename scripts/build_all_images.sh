@@ -4,9 +4,8 @@ set -euo pipefail
 DOCKER_DIRS=(
   "dagster"
   "webserver"
-  "docker_models/julia"
+  "github_transfer"
 )
-
 
 DOCKER_TAG=$1
 
