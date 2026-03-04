@@ -1,8 +1,22 @@
+#!/usr/bin/env python3
+
 import base64
+import os
+from dotenv import load_dotenv
 
 import requests
 
+load_dotenv('.dev.env')
+
+
 GH_API_BASE_URI = "https://api.github.com"
+GH_TOKEN = os.environ["GH_TOKEN"]
+GH_OWNER = os.environ['GH_OWNER']
+GH_REPO = os.environ['GH_REPO']
+GH_BASE_BRANCH = os.environ['GH_BASE_BRANCH']
+GH_WATCH_DIR = os.environ['GH_WATCH_DIR']
+GH_MERGED_CURSOR_FILE = os.environ['GH_MERGED_CURSOR_FILE']
+MNT_BASE_PATH = os.environ['MNT_BASE_PATH']
 
 
 class GithubClient:
@@ -73,7 +87,7 @@ class GithubClient:
         data = response.json()
         return base64.b64decode(data["content"]).decode("utf-8")
 
-    def add_pull_request_comment(self, pr_number, body):
+    def add_pull_request_comment(self, pr_number: int, body: str):
         response = self.request(
             "POST",
             f"/issues/{pr_number}/comments",
@@ -111,3 +125,17 @@ class GithubClient:
             and f["status"] == "added"
             and f["filename"].endswith(".json")
         ]
+
+
+if __name__ == "__main__":
+    client = GithubClient(
+        owner=GH_OWNER,
+        repo=GH_REPO,
+        token=GH_TOKEN,
+        base_branch=GH_BASE_BRANCH,
+    )
+
+    pr_number = 13
+    body = "Hello from the other side!"
+    data = client.add_pull_request_comment(pr_number, body)
+    print(f"added comment - {body}")
