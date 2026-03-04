@@ -9,3 +9,11 @@ data:
   DAGSTER_HOME: /opt/dagster/home
   DAGSTER_ARTIFACT_MOUNT_PATH: /mnt/dagster/artifacts
   DAGSTER_ARTIFACTS_PVC_NAME: artifacts-pvc
+  GH_TRANSFER_DOCKER_IMAGE: "localhost:5001/github_transfer-fn:v30"
+  GH_TOKEN: {{ .Values.github.token }}
+  GH_OWNER: "Aridhia-Open-Source"
+  GH_REPO: "phems-sandbox"
+  GH_BASE_BRANCH: "main"
+  GH_WATCH_DIR: "mgmt/requests"
+  GH_RESULTS_DIR: "mgmt/results"
+  MNT_BASE_PATH: ".data"

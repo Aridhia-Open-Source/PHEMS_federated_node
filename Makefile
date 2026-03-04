@@ -31,8 +31,11 @@ build_alpine:
 build_kc_init:
 	docker build build/kc-init -t ghcr.io/aridhia-open-source/keycloak_initializer:${TAG}
 
-build_images:
-	./scripts/build_images.sh
+compile:
+	./scripts/compile.sh $(filter-out $@,$(MAKECMDGOALS))
+
+build_image:
+	./scripts/build_image.sh $(word 2,$(MAKECMDGOALS)) $(word 3,$(MAKECMDGOALS))
 
 deploy:
 	./scripts/deploy.sh
@@ -45,3 +48,6 @@ upgrade:
 
 run_job:
 	./scripts/run_job.sh
+
+%:
+	@:

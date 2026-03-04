@@ -1,4 +1,4 @@
-from http.client import HTTPException
+from werkzeug.exceptions import HTTPException
 from werkzeug.sansio.response import Response
 import json
 import re
@@ -15,6 +15,7 @@ class LogAndException(HTTPException):
         if code:
             self.code = code
         super().__init__(self.description, response)
+
 
 class InvalidDBEntry(LogAndException):
     code = 400
