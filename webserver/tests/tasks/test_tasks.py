@@ -233,6 +233,26 @@ class TestPostTask:
         assert len(pod_body.spec.init_containers) == 2
         assert [pod.name for pod in pod_body.spec.init_containers] == [f"init-{response.json["task_id"]}", "fetch-data"]
 
+    def test_create_task_no_tag_fails(
+            self,
+            post_json_admin_header,
+            client,
+            task_body,
+            container
+        ):
+        """
+        Tests task creation returns an error when the image does not have a tag or sha
+        """
+        tagless_image = "".join(container.full_image_name().split(':')[:-1])
+        task_body["executors"][0]["image"] = tagless_image
+        response = client.post(
+            '/tasks/',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert response.json["error"] == f"{tagless_image} does not have a tag. Please provide one in the format <image>:<tag> or <image>@sha256.."
+
     def test_create_task_no_name_fails(
             self,
             post_json_admin_header,
