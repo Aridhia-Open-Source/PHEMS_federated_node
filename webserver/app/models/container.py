@@ -52,7 +52,7 @@ class Container(db.Model, BaseModel):
 
     @classmethod
     def validate_image_format(cls, img_with_tag, img_with_sha):
-        if not (re.match(r'^[\w\.\-/]+:[\w\.\-]+$', img_with_tag) or re.match(r'^[\w\.\-/]+@sha256:[a-fA-F0-9]{64}$', img_with_sha)):
+        if not (re.match(r'^\w[\w\.\-/]+:[\w\.\-]+$', img_with_tag) or re.match(r'^\w[\w\.\-/]+@sha256:[a-fA-F0-9]{64}$', img_with_sha)):
             raise InvalidRequest(
                 f"{img_with_tag} does not have a tag. Please provide one in the format <image>:<tag> or <image>@sha256.."
             )
