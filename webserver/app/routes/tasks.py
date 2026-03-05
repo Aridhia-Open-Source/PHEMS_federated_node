@@ -21,7 +21,7 @@ from sqlalchemy import update
 from app.helpers.const import CLEANUP_AFTER_DAYS, PUBLIC_URL, TASK_REVIEW
 from app.helpers.exceptions import (
     DBRecordNotFoundError, FeatureNotAvailableException,
-    UnauthorizedError, InvalidRequest
+    UnauthorizedError, InvalidRequest, DBRecordNotFoundError
 )
 from app.helpers.keycloak import Keycloak
 from app.helpers.wrappers import Auth, audit
@@ -94,12 +94,14 @@ async def cancel_tasks(task_id:int, request: Request):
     POST /tasks/id/cancel endpoint. Cancels a task either scheduled or running one
     """
     task = Task.get_by_id(task_id)
+    if not task:
+        raise DBRecordNotFoundError("Task not found")
 
     await does_user_own_task(task)
 
     # Should remove pod/stop ML pipeline
     task.terminate_pod()
-    return TaskRead.model_validate(task).model_dump(), HTTPStatus.CREATED
+    return TaskRead.model_validate(task).model_dump()
 
 
 @router.post(
@@ -114,7 +116,7 @@ async def post_tasks(
     request: Request
 ):
     """
-    POST /tasks/ endpoint. Creates a new task
+    POST /tasks endpoint. Creates a new task
     """
     with get_db() as session:
         try:
@@ -137,9 +139,6 @@ async def post_tasks_validate(
     POST /tasks/validate endpoint.
         Allows task definition validation and the DB query that will be used
     """
-    req_body = request.json
-    req_body["project_name"] = request.headers.get("project-name")
-    TaskCreate(**req_body)
     return "Ok"
 
 

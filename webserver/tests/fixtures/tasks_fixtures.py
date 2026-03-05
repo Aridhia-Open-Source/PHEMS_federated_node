@@ -101,7 +101,7 @@ def results_job_mock(mocker, task_body, reg_k8s_client):
     return pod_mock
 
 @fixture
-def task_mock(dataset, user_uuid, container):
+def task_mock(dataset, user_uuid, container, db_session):
     task = Task(
         name="Test Task",
         executors=[],
@@ -111,7 +111,7 @@ def task_mock(dataset, user_uuid, container):
         dataset_id=dataset.id,
         created_at=datetime.now()
     )
-    task.add()
+    task.add(db_session)
     return task
 
 @fixture

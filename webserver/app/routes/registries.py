@@ -10,7 +10,6 @@ from http import HTTPStatus
 from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query, Request
 from requests import Session
-from sqlalchemy import select
 
 from app.helpers.base_model import get_db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
@@ -27,10 +26,11 @@ from app.services.registries import RegistryService
 router = APIRouter(tags=["registries"], prefix="/registries")
 
 
-@router.get('/', dependencies=[Depends(Auth("can_admin_dataset"))])
+@router.get('', dependencies=[Depends(Auth("can_admin_dataset"))])
 @audit
 async def list_registries(
     params: Annotated[RegistryFilters, Query()],
+    request: Request,
     db: Session = Depends(get_db)
 ) -> dict[str, Any]:
     """
@@ -67,7 +67,8 @@ async def delete_registry_by_id(registry_id:int, request: Request) -> None:
     if registry is None:
         raise DBRecordNotFoundError("Registry not found")
 
-    registry.delete(commit=True)
+    with get_db() as session:
+        registry.delete(session, commit=True)
 
 
 @router.post('', status_code=HTTPStatus.CREATED, dependencies=[Depends(Auth("can_admin_dataset"))])
@@ -85,7 +86,7 @@ async def add_registry(
 
 @router.patch('/{registry_id}', status_code=HTTPStatus.NO_CONTENT, dependencies=[Depends(Auth("can_admin_dataset"))])
 @audit
-async def patch_registry(registry_id:int, body: RegistryUpdate) -> None:
+async def patch_registry(registry_id:int, body: RegistryUpdate, request:Request) -> None:
     """
     PATCH /registries/<registry_id> endpoint.
     """

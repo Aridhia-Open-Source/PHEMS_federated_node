@@ -2,6 +2,9 @@ from copy import deepcopy
 import pytest
 from unittest.mock import Mock
 
+from sqlalchemy import select, update
+
+from app.helpers.base_model import get_db
 from app.helpers.exceptions import InvalidRequest
 from app.models.container import Container
 from app.schemas.containers import ContainerCreate
@@ -83,7 +86,7 @@ class TestGetContainers(ContainersMixin):
         """
         resp = client.get("/containers", headers=post_json_admin_header)
 
-        assert resp.json["items"] == [self.get_container_as_response(container)]
+        assert resp.json()["items"] == [self.get_container_as_response(container)]
 
     def test_get_container_by_id(
         self,
@@ -101,7 +104,7 @@ class TestGetContainers(ContainersMixin):
         )
 
         assert resp.status_code == 200
-        assert resp.json == self.get_container_as_response(container)
+        assert resp.json() == self.get_container_as_response(container)
 
     def test_get_container_by_id_404(
         self,
@@ -119,7 +122,7 @@ class TestGetContainers(ContainersMixin):
         )
 
         assert resp.status_code == 404
-        assert resp.json["error"] == f'Container with id {container.id + 1} does not exist'
+        assert resp.json()["error"] == f'Container with id {container.id + 1} does not exist'
 
     def test_get_container_by_id_non_auth(
         self,
@@ -161,9 +164,10 @@ class TestPostContainers(ContainersMixin):
             headers=post_json_admin_header
         )
         assert resp.status_code == 201
-        assert Container.query.filter_by(
-            name="testimage", tag="1.0.25"
-        ).one_or_none() is not None
+        with get_db() as session:
+            assert session.execute(select(Container).where(
+                Container.name=="testimage", Container.tag=="1.0.25"
+            )).one_or_none() is not None
 
     def test_add_new_container_by_sha(
         self,
@@ -184,9 +188,10 @@ class TestPostContainers(ContainersMixin):
             headers=post_json_admin_header
         )
         assert resp.status_code == 201
-        assert Container.query.filter_by(
-            name="testimage", sha="sha256:123123123"
-        ).one_or_none() is not None
+        with get_db() as session:
+            assert session.execute(select(Container).where(
+                Container.name=="testimage", Container.sha=="sha256:123123123"
+            )).one_or_none() is not None
 
     def test_add_duplicate_container(
         self,
@@ -207,7 +212,7 @@ class TestPostContainers(ContainersMixin):
             headers=post_json_admin_header
         )
         assert resp.status_code == 409
-        assert resp.json["error"] == f'Image {container.name}:{container.tag} already exists in the registry'
+        assert resp.json()["error"] == f'Image {container.name} with {container.tag} already exists in the registry'
 
     def test_add_new_container_missing_field(
         self,
@@ -228,7 +233,7 @@ class TestPostContainers(ContainersMixin):
             headers=post_json_admin_header
         )
         assert resp.status_code == 400
-        assert resp.json["error"] == 'Make sure `tag` or `sha` are provided'
+        assert resp.json()["error"] == 'Make sure `tag` or `sha` are provided'
 
     def test_add_new_container_invalid_registry(
         self,
@@ -249,7 +254,7 @@ class TestPostContainers(ContainersMixin):
             headers=post_json_admin_header
         )
         assert resp.status_code == 500
-        assert resp.json["error"] == 'Registry notreal could not be found'
+        assert resp.json()["error"] == 'Registry notreal could not be found'
 
     def test_container_name_invalid_format(
         self,
@@ -272,7 +277,7 @@ class TestPostContainers(ContainersMixin):
             headers=post_json_admin_header
         )
         assert resp.status_code == 400
-        assert resp.json["error"] == '/testimage:0.1.1 does not have a tag. Please provide one in the format <image>:<tag> or <image>@sha256..'
+        assert resp.json()["error"] == '/testimage:0.1.1 does not have a tag. Please provide one in the format <image>:<tag> or <image>@sha256..'
 
 
 class TestPatchContainers:
@@ -291,7 +296,7 @@ class TestPatchContainers:
             headers=post_json_admin_header
         )
         assert resp.status_code == 201
-        assert Container.query.filter_by(id=container.id).one_or_none().ml == True
+        assert Container.get_by_id(container.id).ml == True
 
     def test_patch_container_wrong_body(
         self,
@@ -308,7 +313,7 @@ class TestPatchContainers:
             headers=post_json_admin_header
         )
         assert resp.status_code == 400
-        assert resp.json["error"] == "No valid changes detected"
+        assert resp.json()["error"] == "No valid changes detected"
 
     def test_patch_container_non_existing_container(
         self,
@@ -325,24 +330,24 @@ class TestPatchContainers:
             headers=post_json_admin_header
         )
         assert resp.status_code == 404
-        assert resp.json["error"] == f"Container with id {container.id + 1} does not exist"
+        assert resp.json()["error"] == f"Container with id {container.id + 1} does not exist"
 
     def test_patch_container_non_json(
         self,
         client,
         container,
-        login_admin
+        simple_admin_header
     ):
         """
-        Basic PATCH request test
+        Basic PATCH request test in invalid format
         """
         resp = client.patch(
             f"/containers/{container.id}",
             data={"ml": True},
-            headers={"Authorization": f"Bearer {login_admin}"}
+            headers=simple_admin_header
         )
         assert resp.status_code == 400
-        assert resp.json["error"] == "RequestModel body must be a valid json, or set the Content-Type to application/json"
+        assert 'Input should be a valid dictionary or object to extract fields from' == resp.json()["error"][0]["message"]
 
 
 class TestSync:
@@ -376,7 +381,7 @@ class TestSync:
             'acr.azurecr.io/example@sha256:c1e51a68c68a448a'
         ]
         assert resp.status_code == 201
-        assert sorted(resp.json["images"]) == sorted(expected_resp)
+        assert sorted(resp.json()["images"]) == sorted(expected_resp)
 
     def test_sync_failure(
         self,
@@ -404,7 +409,7 @@ class TestSync:
             )
 
         assert resp.status_code == 400
-        assert resp.json["error"] == "Could not authenticate against the registry"
+        assert resp.json()["error"] == "Could not authenticate against the registry"
 
     def test_sync_no_action(
         self,
@@ -450,8 +455,8 @@ class TestSync:
             headers=post_json_admin_header
         )
 
-        assert resp.status_code == 201, resp.json
-        assert resp.json["images"] == []
+        assert resp.status_code == 201, resp.json()
+        assert resp.json()["images"] == []
 
     def test_sync_no_action_inactive_registry(
         self,
@@ -463,12 +468,14 @@ class TestSync:
         Basic test that makes sure that if a registry is inactive
         nothing is done.
         """
-        registry.active = False
-        resp = client.post(
-            "/containers/sync",
-            headers=post_json_admin_header
-        )
+        with get_db() as session:
+            session.execute(update(Registry).where(Registry.id == registry.id).values({"active": False}))
 
-        assert resp.status_code == 201
-        assert resp.json["images"] == []
-        assert Container.query.all() == []
+            resp = client.post(
+                "/containers/sync",
+                headers=post_json_admin_header
+            )
+
+            assert resp.status_code == 201
+            assert resp.json()["images"] == []
+            assert session.execute(select(Container)).all() == []

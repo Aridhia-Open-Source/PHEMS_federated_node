@@ -22,7 +22,7 @@ class TestLogin:
             }
         )
         assert login_request.status_code == 200
-        assert list(login_request.json.keys()) == ["token"]
+        assert list(login_request.json().keys()) == ["token"]
 
     def test_login_unsuccessful(self, client, mock_kc_client):
         """
@@ -56,14 +56,14 @@ class TestHealthCheck:
             hc_resp = client.get("/health_check")
         assert hc_resp.status_code == 200
 
-    @mock.patch('app.main.requests.get', side_effect=ConnectionError("Some failure"))
+    @mock.patch('app.routes.general.requests.get', side_effect=ConnectionError("Some failure"))
     def test_health_check_fails(self, mock_req, client):
         """
         Check that the HC returns 500 with keycloak connection issues
         """
         hc_resp = client.get("/health_check")
         assert hc_resp.status_code == 502
-        assert hc_resp.json == {'keycloak': False, 'status': 'non operational'}
+        assert hc_resp.json() == {'keycloak': False, 'status': 'non operational'}
 
 
 class TestTokenRefresh:
@@ -81,7 +81,7 @@ class TestTokenRefresh:
             headers={"Authorization": f"Bearer {valid_token}"}
         )
         assert resp.status_code == 200
-        assert "token" in resp.json
+        assert "token" in resp.json()
 
     def test_refresh_token_401(self, client, mock_kc_client):
         """

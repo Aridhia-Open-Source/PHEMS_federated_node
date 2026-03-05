@@ -25,7 +25,7 @@ class TestCatalogues(MixinTestDataset):
             headers=simple_admin_header
         )
         assert response.status_code == 200
-        assert response.json.items() >= data_body["catalogue"].items()
+        assert response.json().items() >= data_body["catalogue"].items()
 
     def test_admin_get_catalogue_dataset_name(
             self,
@@ -45,8 +45,8 @@ class TestCatalogues(MixinTestDataset):
             f"/datasets/{data_body['name']}/catalogue",
             headers=simple_admin_header
         )
-        assert response.status_code == 200
-        assert response.json.items() >= data_body["catalogue"].items()
+        assert response.status_code == 200, response.json()
+        assert response.json().items() >= data_body["catalogue"].items()
 
     def test_edit_existing_catalogue(
             self,

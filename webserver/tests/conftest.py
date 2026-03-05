@@ -121,6 +121,8 @@ def test_engine():
 
 @fixture(scope="function")
 def db_session(test_engine):
+    BaseModel.metadata.drop_all(bind=test_engine)
+    BaseModel.metadata.create_all(bind=test_engine)
     connection = test_engine.connect()
     transaction = connection.begin()
 
@@ -299,39 +301,39 @@ def dataset_post_body():
 @fixture
 def dataset(db_session, client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
     dataset = Dataset(name="testds", host="example.com")
-    with db_session:
-        dataset.add()
+    with db_session as session:
+        dataset.add(session)
     return dataset
 
 @fixture
 def dataset_with_repo(db_session, client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
     dataset = Dataset(name="testdsrepo", host="example.com", repository="organisation/repository")
-    with db_session:
-        dataset.add()
+    with db_session as session:
+        dataset.add(session)
     return dataset
 
 @fixture
 def dataset_oracle(db_session, mocker, client, user_uuid, k8s_client)  -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
     dataset = Dataset(name="anotherds", host="example.com", password='pass', username='user', type="oracle")
-    with db_session:
-        dataset.add()
+    with db_session as session:
+        dataset.add(session)
     return dataset
 
 @fixture
 def catalogue(dataset, db_session) -> Catalogue:
     cat = Catalogue(dataset=dataset, title="new catalogue", description="shiny fresh data")
-    with db_session:
-        cat.add()
+    with db_session as session:
+        cat.add(session)
     return cat
 
 @fixture
-def dictionary(db_session, ataset) -> List[Dictionary]:
+def dictionary(db_session, dataset) -> List[Dictionary]:
     cat1 = Dictionary(dataset=dataset, description="Patient id", table_name="patients", field_name="id", label="p_id")
     cat2 = Dictionary(dataset=dataset, description="Patient info", table_name="patients", field_name="name", label="p_name")
-    with db_session:
-        cat1.add()
-        cat2.add()
+    with db_session as session:
+        cat1.add(session)
+        cat2.add(session)
     return [cat1, cat2]
 
 @fixture
@@ -345,10 +347,11 @@ def task(db_session, user_uuid, dataset, container) -> Task:
                 "image": container.full_image_name()
             }
         ],
+        description="test task",
         requested_by=user_uuid
     )
-    with db_session:
-        task.add()
+    with db_session as session:
+        task.add(session)
     return task
 
 @fixture
@@ -365,8 +368,8 @@ def access_request(db_session, dataset, user_uuid, k8s_client):
         proj_start=dt.now().date().strftime("%Y-%m-%d"),
         proj_end=(dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")
     )
-    with db_session:
-        request.add()
+    with db_session as session:
+        request.add(session)
     return request
 
 # Conditional url side_effects
@@ -399,7 +402,7 @@ def side_effect(dict_mock:dict):
     return _url_side_effects
 
 @fixture
-def request_base_body(dataset):
+def request_base_body(dataset: Dataset):
     return {
         "title": "TestRequest",
         "dataset_id": dataset.id,
@@ -411,7 +414,7 @@ def request_base_body(dataset):
     }
 
 @fixture
-def request_base_body_name(dataset):
+def request_base_body_name(dataset: Dataset)-> dict[str, Any]:
     return {
         "title": "Test Task",
         "dataset_name": dataset.name,
@@ -472,7 +475,7 @@ def mock_keycloak_class(mocker, decode_token_return, basic_user):
     )
 
 @fixture(autouse=True)
-def mock_kc_client(mocker, basic_user, decode_token_return, mock_keycloak_class):
+def mock_kc_client(mocker, basic_user, decode_token_return, mock_keycloak_class, user_uuid):
     create_user_return = deepcopy(basic_user)
     create_user_return["password"] = "tempPassword!"
     kc_mock = {
@@ -485,15 +488,15 @@ def mock_kc_client(mocker, basic_user, decode_token_return, mock_keycloak_class)
             get_user_by_email=Mock(return_value=basic_user),
             get_user_by_username=Mock(return_value=basic_user)
         )),
-        # "datasets_route_kc": mocker.patch('app.routes.datasets.Keycloak', return_value=Mock(
-        #     get_token=Mock(return_value={"access_token": "token"}),
-        #     get_admin_token=Mock(return_value={"access_token": "admin_token"}),
-        #     decode_token=Mock(return_value=decode_token_return),
-        #     get_user_by_email=Mock(return_value=basic_user),
-        #     list_users=Mock(return_value=[basic_user]),
-        #     create_user=Mock(return_value=create_user_return),
-        #     get_user_role=Mock(return_value="Users"),
-        # )),
+        "datasets_route_kc": mocker.patch('app.routes.datasets.Keycloak', return_value=Mock(
+            get_token=Mock(return_value={"access_token": "token"}),
+            get_admin_token=Mock(return_value={"access_token": "admin_token"}),
+            decode_token=Mock(return_value=decode_token_return),
+            get_user_by_email=Mock(return_value=basic_user),
+            list_users=Mock(return_value=[basic_user]),
+            create_user=Mock(return_value=create_user_return),
+            get_user_role=Mock(return_value="Users"),
+        )),
         "users_kc": mocker.patch('app.routes.users.Keycloak', return_value=Mock(
             get_token=Mock(return_value={"access_token": "token"}),
             get_admin_token=Mock(return_value={"access_token": "admin_token"}),
@@ -532,6 +535,9 @@ def mock_kc_client(mocker, basic_user, decode_token_return, mock_keycloak_class)
             list_users=Mock(return_value=[basic_user]),
             create_user=Mock(return_value=create_user_return),
             get_user_role=Mock(return_value="Users"),
+        )),
+        "request_schema_kc": mocker.patch('app.schemas.requests.Keycloak', return_value=Mock(
+            get_user_by_email=Mock(return_value={"id": user_uuid})
         ))
     }
     return kc_mock

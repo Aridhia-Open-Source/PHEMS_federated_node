@@ -35,45 +35,13 @@ class RequestModel(BaseModel):
         'denied': 'denied'
     }
 
-    def __init__(self,
-                 title:str,
-                 project_name:str,
-                 dataset:Dataset,
-                 requested_by:str,
-                 proj_start:datetime,
-                 proj_end:datetime,
-                 description:str='',
-                 **kwargs
-        ):
-        self.title = title
-        self.description = description
-        self.project_name = project_name
-        # Not sure how to track the dataset yet, as DAR provider will have different IDs from the internal ones
-        self.dataset = dataset
-        self.requested_by = requested_by
-        self.proj_start = proj_start
-        self.proj_end = proj_end
+    def __init__(self, **kwargs):
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
+        super().__init__(**kwargs)
 
     def _get_client_name(self, user_id:str):
         return f"RequestModel {user_id} - {self.project_name}"
-
-    @classmethod
-    def validate(cls, data:dict):
-        validated = super().validate(data)
-        q = select(cls).where(
-            cls.project_name == data["project_name"],
-            cls.proj_end >= func.now(),
-            cls.requested_by == data["requested_by"]
-        )
-        with get_db() as session:
-            overlaps = session.execute(q).scalars().one_or_none()
-
-        if overlaps:
-            raise InvalidRequest(f"User already belongs to the active project {data["project_name"]}")
-
-        return validated
 
     def approve(self):
         """

@@ -7,10 +7,10 @@ class TestPagination:
             client,
             mocker,
             k8s_client,
-            user_uuid,
             dataset,
             dataset_oracle,
-            simple_admin_header
+            simple_admin_header,
+            db_session
         ):
         """
         Test that an endpoint that supports pagination
@@ -22,12 +22,12 @@ class TestPagination:
             host="host.url",
             username="user",
             password="pass"
-        ).add()
-        resp = client.get('/datasets', query_string={"page": "2", "per_page": '2'}, headers=simple_admin_header)
+        ).add(db_session)
+        resp = client.get('/datasets', params={"page": "2", "per_page": '2'}, headers=simple_admin_header)
 
         assert resp.status_code == 200
-        assert len(resp.json["items"]) == 1
-        assert resp.json["total"] == 3
+        assert len(resp.json()["items"]) == 1
+        assert resp.json()["total"] == 3
 
     def test_pagination_page_does_not_exist(
             self,
@@ -36,11 +36,12 @@ class TestPagination:
         ):
         """
         Test that an endpoint that supports pagination
-        returns a 404 when the page of results exceeds the ones available
+        returns an empty list
         """
-        resp = client.get('/datasets', query_string={"page": "5", "per_page": '2'}, headers=simple_admin_header)
+        resp = client.get('/datasets', params={"page": "5", "per_page": '2'}, headers=simple_admin_header)
 
-        assert resp.status_code == 404
+        assert resp.status_code == 200
+        assert resp.json() == {"items": [], "page": 5, "per_page": 2, "pages": 0, "total": 0}
 
     def test_pagination_invalid_value_page(
             self,
@@ -51,8 +52,8 @@ class TestPagination:
         Test that an endpoint that supports pagination
         returns a 400 when the page is not in a supported format
         """
-        resp = client.get('/datasets', query_string={"page": "asdf", "per_page": '2'}, headers=simple_admin_header)
+        resp = client.get('/datasets', params={"page": "asdf", "per_page": '2'}, headers=simple_admin_header)
 
         assert resp.status_code == 400
-        assert "Input should be a valid integer, unable to parse string as an integer" in resp.json["error"][0]["msg"]
-        assert resp.json["error"][0]["loc"] == ["page"]
+        assert "Input should be a valid integer, unable to parse string as an integer" in resp.json()["error"][0]["message"]
+        assert "page" in resp.json()["error"][0]["field"]

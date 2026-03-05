@@ -11,10 +11,10 @@ from http import HTTPStatus
 from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query, Request
 from requests import Session
-from sqlalchemy import select, update
+from sqlalchemy import select
 
 from app.helpers.base_model import get_db
-from app.helpers.exceptions import InvalidRequest
+from app.helpers.exceptions import InvalidRequest, DBRecordNotFoundError
 from app.helpers.query_filters import apply_filters
 from app.helpers.wrappers import Auth, audit
 
@@ -46,10 +46,6 @@ async def get_all_containers(
     return PageResponse[ContainerRead].model_validate(pagination).model_dump()
 
 
-@router.post('/',
-             dependencies=[Depends(Auth("can_do_admin"))],
-             status_code=HTTPStatus.CREATED
-             )
 @router.post('',
              dependencies=[Depends(Auth("can_do_admin"))],
              status_code=HTTPStatus.CREATED
@@ -69,41 +65,44 @@ async def add_image(request: Request, body: ContainerCreate):
     with get_db() as session:
         existing_image = session.execute(q).scalars().one_or_none()
 
-    if existing_image:
-        raise InvalidRequest(
-            f"Image {body["name"]}:{body["tag"]} already exists in the registry",
-            409
-        )
+        if existing_image:
+            raise InvalidRequest(
+                f"Image {body.name} with {body.tag or body.sha} already exists in the registry",
+                409
+            )
 
-    image = Container(**body)
-    image.add()
-    return {"id": image.id}
+        image = Container(**body.model_dump(exclude_unset=True))
+        image.add(session)
+    return ContainerRead.model_validate(image).model_dump()
 
 
-@router.get('/containers/{image_id}', dependencies=[Depends(Auth("can_do_admin"))])
+@router.get('/{image_id}', dependencies=[Depends(Auth("can_do_admin"))])
 @audit
-async def get_image_by_id(image_id:int) -> dict[str, Any]:
+async def get_image_by_id(request:Request, image_id:int) -> dict[str, Any]:
     """
     GET /containers/<image_id>
     """
     image: Container = Container.get_by_id(image_id)
+    if not image:
+        raise DBRecordNotFoundError(f"Container with id {image_id} does not exist")
 
-    return ContainerRead.model_validate(image).model_dump(), HTTPStatus.OK
+    return ContainerRead.model_validate(image).model_dump()
 
 
-@router.patch('/containers/{image_id}',
+@router.patch('/{image_id}',
               dependencies=[Depends(Auth("can_do_admin"))],
-                status_code=HTTPStatus.CREATED
-              )
+              status_code=HTTPStatus.CREATED
+            )
 @audit
-async def patch_datasets_by_id_or_name(image_id:int, body: ContainerCreate):
+async def patch_datasets_by_id_or_name(request:Request, image_id:int, body: ContainerUpdate):
     """
     PATCH /containers/id endpoint. Edits an existing container image with a given id
     """
     Container.get_by_id(image_id)
-    changes = ContainerUpdate(**body).model_dump(exclude_unset=True)
+    changes = body.model_dump(exclude_unset=True)
     if not changes:
         raise InvalidRequest("No valid changes detected")
+
     Container.update(image_id, changes)
     return {}
 
@@ -113,7 +112,7 @@ async def patch_datasets_by_id_or_name(image_id:int, body: ContainerCreate):
              status_code=HTTPStatus.CREATED
              )
 @audit
-async def sync() -> dict[str, Any]:
+async def sync(request:Request) -> dict[str, Any]:
     """
     POST /containers/sync
         syncs up the list of available containers from the
@@ -125,7 +124,7 @@ async def sync() -> dict[str, Any]:
     """
     synched = []
     with get_db() as session:
-        for registry in session.execute(select(Registry)).scalars().all():
+        for registry in session.execute(select(Registry).where(Registry.active == True)).scalars().all():
             for image in registry.fetch_image_list():
                 for key in ["tag", "sha"]:
                     for tag_or_sha in image[key]:
@@ -155,4 +154,4 @@ async def sync() -> dict[str, Any]:
             "info": "The sync considers only the latest 100 tag per image. If an older one is needed,"
                     " add it manually via the POST /images endpoint",
             "images": synched
-            }
+        }

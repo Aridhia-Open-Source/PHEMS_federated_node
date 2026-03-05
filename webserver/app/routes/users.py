@@ -16,7 +16,7 @@ from app.schemas.users import ResetPassword, UserPost
 router = APIRouter(tags=["users"], prefix="/users")
 
 
-@router.post('', dependencies=[Depends(Auth("can_do_admin"))])
+@router.post('', status_code=HTTPStatus.CREATED, dependencies=[Depends(Auth("can_do_admin"))])
 @audit
 async def create_user(request: Request, body: UserPost):
     """
@@ -38,13 +38,12 @@ async def create_user(request: Request, body: UserPost):
         "tempPassword": user_info["password"],
         "info": "The user should change the temp password at " \
             f"https://{PUBLIC_URL}/users/reset-password"
-    }, HTTPStatus.CREATED
+    }
 
 
 @router.put(
     '/reset-password',
-    status_code=HTTPStatus.NO_CONTENT,
-    dependencies=[Depends(Auth("can_do_admin"))]
+    status_code=HTTPStatus.NO_CONTENT
 )
 async def reset_password(request: Request, body: ResetPassword):
     """
@@ -53,11 +52,11 @@ async def reset_password(request: Request, body: ResetPassword):
         there are no pending action to undertake
     """
     kc = Keycloak()
-    user = kc.get_user_by_email(email=body.get("email"))
+    user = kc.get_user_by_email(email=body.email)
     kc.reset_user_pass(
         user_id=user["id"], username=user["username"],
-        old_pass=body.get("tempPassword"),
-        new_pass=body.get("newPassword")
+        old_pass=body.temp_password,
+        new_pass=body.new_password
     )
 
 

@@ -15,5 +15,5 @@ class Audit(BaseModel):
     requested_by: MappedColumn[str] = mapped_column(String(256), nullable=False)
     status_code: MappedColumn[int] = mapped_column(Integer)
     api_function: MappedColumn[str] = mapped_column(String(256))
-    details: MappedColumn[str] = mapped_column(String(4096))
+    details: MappedColumn[str] = mapped_column(String(4096), nullable=True)
     event_time: MappedColumn[datetime] = mapped_column(DateTime(timezone=False), server_default=func.now())

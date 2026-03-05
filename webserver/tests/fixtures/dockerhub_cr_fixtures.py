@@ -59,7 +59,7 @@ def cr_class(client, cr_name, dockerhub_login_request):
         return DockerRegistry(cr_name, creds={"user": "", "token": ""})
 
 @pytest.fixture
-def registry(client, mocker, reg_k8s_client, dockerhub_login_request, cr_name) -> Registry:
+def registry(client, mocker, reg_k8s_client, dockerhub_login_request, cr_name, db_session) -> Registry:
     with dockerhub_login_request:
         dockerhub_login_request.add(
             responses.GET,
@@ -68,12 +68,12 @@ def registry(client, mocker, reg_k8s_client, dockerhub_login_request, cr_name) -
             status=200
         )
         reg = Registry(url=cr_name, username='', password='')
-        reg.add()
+        reg.add(db_session)
         return reg
 
 @pytest.fixture
-def container(client, k8s_client, registry, image_name) -> Container:
+def container(client, k8s_client, registry, image_name, db_session) -> Container:
     img, tag = image_name.split(':')
     cont = Container(name=img, registry=registry, tag=tag, dashboard=True)
-    cont.add()
+    cont.add(db_session)
     return cont

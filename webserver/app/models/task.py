@@ -2,10 +2,10 @@ import logging
 import json
 import re
 from datetime import datetime, timedelta
-from typing import Self
+from typing import Self, Tuple
 from kubernetes.client import V1CustomResourceDefinition
 from kubernetes.client.exceptions import ApiException
-from sqlalchemy import Integer, DateTime, String, ForeignKey, Boolean, select
+from sqlalchemy import Integer, DateTime, Select, String, ForeignKey, Boolean, select
 from sqlalchemy.orm import Mapped, joinedload, relationship, mapped_column
 from sqlalchemy.sql import func
 from uuid import uuid4
@@ -46,8 +46,8 @@ class Task(BaseModel):
     docker_image: Mapped[str] = mapped_column(String(256), nullable=False)
     description: Mapped[str] = mapped_column(String(4096))
     status: Mapped[str] = mapped_column(String(256), default='scheduled')
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False, insert_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=True, onupdate=func.now())
     requested_by: Mapped[str] = mapped_column(String(256), nullable=False)
     review_status: Mapped[bool] = mapped_column(Boolean, nullable=True)
 
@@ -61,6 +61,8 @@ class Task(BaseModel):
         self.is_from_controller = kwargs.pop("from_controller", False)
         self.db_query = kwargs.pop("db_query", {})
         self.resources = kwargs.pop("resources", {})
+        self.created_at = datetime.now()
+        self.updated_at = datetime.now()
         super().__init__(**kwargs)
         with get_db() as session:
             self.dataset = session.execute(select(Dataset).where(Dataset.id == self.dataset_id)).scalar_one_or_none()
@@ -174,14 +176,14 @@ class Task(BaseModel):
         else:
             image_name, tag = image.split(':')
 
-        q = select(Container).options(
+        q: Select[Tuple[Container]] = select(Container).options(
             joinedload(Container.registry)
         ).where(
             Container.name==image_name,
             Registry.url == registry,
         ).where(
             (((Container.tag==tag) & (Container.tag != None)) | ((Container.sha==sha) & (Container.sha != None)))
-        )
+        ).join(Registry)
         with get_db() as session:
             image = session.execute(q).scalars().one_or_none()
 

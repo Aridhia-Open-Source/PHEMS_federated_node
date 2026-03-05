@@ -1,10 +1,10 @@
 from contextlib import contextmanager
 from datetime import datetime
 from flask import request
-from typing import Self
+from typing import Any, Generator, Self
 from flask_sqlalchemy.pagination import QueryPagination
 from sqlalchemy import create_engine, Column, select, update
-from sqlalchemy.orm import DeclarativeBase, Relationship, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Relationship, Session, sessionmaker
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidDBEntry, InvalidRequest
 from app.helpers.const import build_sql_uri
 
@@ -13,8 +13,8 @@ engine = create_engine(build_sql_uri())
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 @contextmanager
-def get_db():
-    db = SessionLocal()
+def get_db() -> Generator[Session, Any, None]:
+    db: Session = SessionLocal()
     try:
         yield db
     finally:
@@ -52,37 +52,27 @@ class BaseModel(DeclarativeBase):
                     jsonized[field] = str(val)
         return jsonized
 
-    def add(self, commit=True):
-        with get_db() as db:
-            db.add(self)
-            db.flush()
-            if commit:
-                db.commit()
+    def add(self, session: Session, commit:bool=True):
+        session.add(self)
+        if commit:
+            session.commit()
 
     @classmethod
-    def update(cls, id:int, data: dict):
+    def update(cls, id:int, data: dict) -> None:
         with get_db() as session:
             session.execute(
                 update(cls).where(cls.id == id).values(data)
             )
 
-    def delete(self, commit=True):
-        with get_db() as db:
-            db.delete(self)
-            db.flush()
-            if commit:
-                db.commit()
+    def delete(self, session:Session, commit=True) -> None:
+        session.delete(self)
+        if commit:
+            session.commit()
 
     @classmethod
     def get_all(cls) -> list[dict]:
         with get_db() as session:
             return session.execute(select(cls)).scalars().all()
-
-    @classmethod
-    def get_by_id(cls, id: int) -> Self:
-        q = select(cls).where(cls.id == id)
-        with get_db() as session:
-            return session.execute(q).scalars().one_or_none()
 
     @classmethod
     def _get_fields(cls) -> list[Column]:
@@ -129,7 +119,7 @@ class BaseModel(DeclarativeBase):
         return valid
 
     @classmethod
-    def get_by_id(cls, obj_id:int) -> Self:
+    def get_by_id(cls, obj_id:int, raise_if_not_found:bool = True) -> Self:
         """
         Common wrapper to get by id, and raise an
         exception if not found
@@ -137,6 +127,6 @@ class BaseModel(DeclarativeBase):
         q = select(cls).where(cls.id == obj_id)
         with get_db() as session:
             obj = session.execute(q).scalars().one_or_none()
-        if obj is None:
+        if obj is None and raise_if_not_found:
             raise DBRecordNotFoundError(f"{cls.__name__.capitalize()} with id {obj_id} does not exist")
         return obj

@@ -17,7 +17,7 @@ class UserMixin:
         )
 
         assert resp.status_code == 201
-        return resp.json
+        return resp.json()
 
 class TestGetUsers(UserMixin):
     def test_get_all_users(
@@ -31,14 +31,14 @@ class TestGetUsers(UserMixin):
         Tests that admins can get a list of all users, but
         the one used by the backend
         """
-        mock_kc_client["routes.users_kc"].return_value.list_users.return_value[0]["email"] = new_user_email
+        mock_kc_client["users_kc"].return_value.list_users.return_value[0]["email"] = new_user_email
         resp = client.get(
             "/users",
             headers=simple_admin_header
         )
         assert resp.status_code == 200
-        assert len(resp.json) == 1
-        assert resp.json[0]['email'] == new_user_email
+        assert len(resp.json()) == 1
+        assert resp.json()[0]['email'] == new_user_email
 
     def test_user_needs_pass_reset_flag_true(
         self,
@@ -56,7 +56,7 @@ class TestGetUsers(UserMixin):
             headers=simple_admin_header
         )
         assert resp.status_code == 200
-        for us in resp.json:
+        for us in resp.json():
             if us["email"] == new_user_email:
                 assert us["needs_to_reset_password"] == True
             if basic_user["email"] == new_user_email:
@@ -72,7 +72,7 @@ class TestGetUsers(UserMixin):
         Tests that if something goes wrong during the keycloak
         request, we do return a 500
         """
-        mock_kc_client["routes.users_kc"].return_value.list_users.side_effect = KeycloakError()
+        mock_kc_client["users_kc"].return_value.list_users.side_effect = KeycloakError()
 
         resp = client.get(
             "/users",
@@ -109,7 +109,7 @@ class TestCreateUser(UserMixin):
         Basic test to ensure we get a 201 and a temp password
         as response.
         """
-        mock_kc_client["routes.users_kc"].return_value.get_user_by_email.return_value = []
+        mock_kc_client["users_kc"].return_value.get_user_by_email.return_value = []
         resp = client.post(
             "/users",
             headers=post_json_admin_header,
@@ -117,7 +117,7 @@ class TestCreateUser(UserMixin):
         )
 
         assert resp.status_code == 201
-        assert "tempPassword" in resp.json
+        assert "tempPassword" in resp.json()
 
     def test_create_successfully_with_special_char(
         self,
@@ -129,7 +129,7 @@ class TestCreateUser(UserMixin):
         Basic test to ensure we get a 201 and a temp password
         as response. This tests that email with + are processed fine
         """
-        mock_kc_client["routes.users_kc"].return_value.get_user_by_email.return_value = []
+        mock_kc_client["users_kc"].return_value.get_user_by_email.return_value = []
         resp = client.post(
             "/users",
             headers=post_json_admin_header,
@@ -137,7 +137,7 @@ class TestCreateUser(UserMixin):
         )
 
         assert resp.status_code == 201
-        assert "tempPassword" in resp.json
+        assert "tempPassword" in resp.json()
 
     def test_create_missing_fields(
         self,
@@ -159,7 +159,8 @@ class TestCreateUser(UserMixin):
         )
 
         assert resp.status_code == 400
-        assert resp.json == {"error": "An email should be provided"}
+        assert resp.json()["error"][0]["message"] == "Field required"
+        assert "email" in resp.json()["error"][0]["field"]
 
     @mock.patch('app.routes.users.Keycloak.create_user', return_value=mock.Mock())
     def test_create_user_with_same_email(
@@ -182,7 +183,7 @@ class TestCreateUser(UserMixin):
 
         mock_kc_create.assert_not_called()
         assert resp.status_code == 400
-        assert resp.json["error"] == "User already exists"
+        assert resp.json()["error"] == "User already exists"
 
     def test_create_keycloak_error(
         self,
@@ -195,8 +196,8 @@ class TestCreateUser(UserMixin):
         Basic test to ensure we get 500 in case
         the keycloak API returns an error
         """
-        mock_kc_client["routes.users_kc"].return_value.get_user_by_email.return_value = []
-        mock_kc_client["routes.users_kc"].return_value.create_user.side_effect = KeycloakError('Failed to create the user')
+        mock_kc_client["users_kc"].return_value.get_user_by_email.return_value = []
+        mock_kc_client["users_kc"].return_value.create_user.side_effect = KeycloakError('Failed to create the user')
 
         resp = client.post(
             "/users",
@@ -205,7 +206,7 @@ class TestCreateUser(UserMixin):
         )
 
         assert resp.status_code == 500
-        assert resp.json == {"error": "Failed to create the user"}
+        assert resp.json() == {"error": "Failed to create the user"}
 
     def test_create_admin_successfully(
         self,
@@ -218,7 +219,7 @@ class TestCreateUser(UserMixin):
         Basic test to ensure we get a 201 and a temp password
         as response for an admin user
         """
-        mock_kc_client["routes.users_kc"].return_value.get_user_by_email.return_value = []
+        mock_kc_client["users_kc"].return_value.get_user_by_email.return_value = []
 
         resp = client.post(
             "/users",
@@ -230,7 +231,7 @@ class TestCreateUser(UserMixin):
         )
 
         assert resp.status_code == 201
-        assert "tempPassword" in resp.json
+        assert "tempPassword" in resp.json()
 
     def test_create_user_non_existing_role(
         self,
@@ -244,8 +245,8 @@ class TestCreateUser(UserMixin):
         Basic test to ensure we get a 4xx for creating
         a user with a non-existing role
         """
-        mock_kc_client["routes.users_kc"].return_value.get_user_by_email.return_value = []
-        mock_kc_client["routes.users_kc"].return_value.create_user.side_effect = KeycloakError('Role President does not exist', 400)
+        mock_kc_client["users_kc"].return_value.get_user_by_email.return_value = []
+        mock_kc_client["users_kc"].return_value.create_user.side_effect = KeycloakError('Role President does not exist', 400)
 
         resp = client.post(
             "/users",
@@ -257,14 +258,14 @@ class TestCreateUser(UserMixin):
         )
 
         assert resp.status_code == 400
-        assert resp.json["error"] == "Role President does not exist"
+        assert resp.json()["error"] == "Role President does not exist"
 
         # check the user doesn't exist in keycloak
         resp = client.get(
             "/users",
             headers=simple_admin_header
         )
-        assert new_user_email not in [user["email"] for user in resp.json]
+        assert new_user_email not in [user["email"] for user in resp.json()]
 
     def test_new_user_login_with_temp_pass(
         self,
@@ -277,7 +278,7 @@ class TestCreateUser(UserMixin):
         After a user has been created, make sure it can't
         login with a temporary password
         """
-        mock_kc_client["routes.users_kc"].return_value.get_user_by_email.return_value = []
+        mock_kc_client["users_kc"].return_value.get_user_by_email.return_value = []
 
         resp = client.post(
             "/users",
@@ -296,14 +297,14 @@ class TestCreateUser(UserMixin):
             '/login',
             data={
                 "username": new_user_email,
-                "password": resp.json["tempPassword"]
+                "password": resp.json()["tempPassword"]
             },
             headers={
                 'Content-Type': 'application/x-www-form-urlencoded'
             }
         )
         assert login_resp.status_code == 401
-        assert login_resp.json == {"error": "Temporary password must be changed before logging in"}
+        assert login_resp.json() == {"error": "Temporary password must be changed before logging in"}
 
 
 class TestPassChange(UserMixin):
@@ -352,7 +353,7 @@ class TestPassChange(UserMixin):
         another temp password won't allow a change.
         Double check by logging in with the supposed new pass
         """
-        mock_kc_client["routes.users_kc"].return_value.reset_user_pass.side_effect=AuthenticationError("Incorrect credentials")
+        mock_kc_client["users_kc"].return_value.reset_user_pass.side_effect=AuthenticationError("Incorrect credentials")
 
         # Change temp pass
         psw_resp = client.put(
@@ -364,7 +365,7 @@ class TestPassChange(UserMixin):
             }
         )
         assert psw_resp.status_code == 401
-        assert psw_resp.json["error"] == "Incorrect credentials"
+        assert psw_resp.json()["error"] == "Incorrect credentials"
 
         mock_kc_client["main_kc"].return_value.get_token.side_effect = AuthenticationError("Failed to login")
 
@@ -397,11 +398,11 @@ class TestPassChange(UserMixin):
         new_user["email"] = "second@user.com"
         new_user["username"] = "second@user.com"
 
-        mock_kc_client["routes.users_kc"].return_value.get_user_by_email.return_value = []
+        mock_kc_client["users_kc"].return_value.get_user_by_email.return_value = []
         resp = self.create_user(client, "second@user.com", post_json_admin_header)
 
-        mock_kc_client["routes.users_kc"].return_value.get_user_by_email.return_value = new_user
-        mock_kc_client["routes.users_kc"].return_value.reset_user_pass.side_effect = AuthenticationError("Incorrect credentials")
+        mock_kc_client["users_kc"].return_value.get_user_by_email.return_value = new_user
+        mock_kc_client["users_kc"].return_value.reset_user_pass.side_effect = AuthenticationError("Incorrect credentials")
         # Change temp pass
         psw_resp = client.put(
             '/users/reset-password',
@@ -412,7 +413,7 @@ class TestPassChange(UserMixin):
             }
         )
         assert psw_resp.status_code == 401
-        assert psw_resp.json["error"] == "Incorrect credentials"
+        assert psw_resp.json()["error"] == "Incorrect credentials"
 
         mock_kc_client["main_kc"].return_value.get_token.side_effect=AuthenticationError("Failed to login")
 

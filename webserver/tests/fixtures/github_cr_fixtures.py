@@ -44,14 +44,14 @@ def cr_client_404(mocker):
     )
 
 @pytest.fixture
-def registry(client, reg_k8s_client, cr_name) -> Registry:
+def registry(client, reg_k8s_client, cr_name, db_session) -> Registry:
     reg = Registry(url=cr_name, username='', password='')
-    reg.add()
+    reg.add(db_session)
     return reg
 
 @pytest.fixture
-def container(client, k8s_client, registry, image_name) -> Container:
+def container(client, k8s_client, registry, image_name, db_session) -> Container:
     img, tag = image_name.split(':')
     cont = Container(name=img, registry=registry, tag=tag, dashboard=True)
-    cont.add()
+    cont.add(db_session)
     return cont

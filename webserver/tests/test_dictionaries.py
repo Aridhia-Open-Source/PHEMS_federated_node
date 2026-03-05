@@ -1,5 +1,8 @@
+from sqlalchemy import func, select
+
 from app.models.dictionary import Dictionary
 from tests.test_datasets import MixinTestDataset
+from app.helpers.base_model import get_db
 
 
 class TestDictionaries(MixinTestDataset):
@@ -26,7 +29,7 @@ class TestDictionaries(MixinTestDataset):
         )
         assert response.status_code == 200
         for i in range(0, len(data_body["dictionaries"])):
-            assert response.json[i].items() >= data_body["dictionaries"][i].items()
+            assert response.json()[i].items() >= data_body["dictionaries"][i].items()
 
     def test_add_invalid_dict_format_fails(
             self,
@@ -46,7 +49,8 @@ class TestDictionaries(MixinTestDataset):
         resp_ds = self.post_dataset(client, post_json_admin_header, data_body, 400)
 
         assert resp_ds["error"][0]["message"] == "Input should be a valid list"
-        assert Dictionary.query.count() == 0
+        with get_db() as session:
+            assert session.execute(select(func.count(Dictionary.id))).scalar_one() == 0
 
     def test_admin_get_dictionaries_dataset_name(
             self,
@@ -68,7 +72,7 @@ class TestDictionaries(MixinTestDataset):
         )
         assert response.status_code == 200
         for i in range(0, len(data_body["dictionaries"])):
-            assert response.json[i].items() >= data_body["dictionaries"][i].items()
+            assert response.json()[i].items() >= data_body["dictionaries"][i].items()
 
     def test_edit_existing_dictionary(
             self,
@@ -93,7 +97,9 @@ class TestDictionaries(MixinTestDataset):
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        dictionaries = Dictionary.query.filter(Dictionary.dataset_id == resp_ds["id"]).all()
+        with get_db() as session:
+            dictionaries = session.execute(select(Dictionary).filter_by(dataset_id=resp_ds["id"], description="shiny new table")).scalars().all()
+
         for dictionary in dictionaries:
             for k, v in data_body["dictionaries"][0].items():
                 assert getattr(dictionary, k) == v
@@ -126,7 +132,8 @@ class TestDictionaries(MixinTestDataset):
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        assert Dictionary.query.filter(Dictionary.dataset_id == resp_ds["id"]).count() == 2
+        with get_db() as session:
+            assert session.execute(select(func.count(Dictionary.id)).where(Dictionary.dataset_id == resp_ds["id"])).scalar_one() == 2
 
     def test_patch_dictionary_fails_if_exists(
             self,
@@ -152,7 +159,8 @@ class TestDictionaries(MixinTestDataset):
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        assert Dictionary.query.filter(Dictionary.dataset_id == resp_ds["id"]).count() == 1
+        with get_db() as session:
+            assert session.execute(select(func.count(Dictionary.id)).filter_by(dataset_id=resp_ds["id"])).scalar_one() == 1
 
     def test_patch_dictionary_fails_if_mandatory_field_missing(
             self,
@@ -180,8 +188,8 @@ class TestDictionaries(MixinTestDataset):
             headers=post_json_admin_header
         )
         assert response.status_code == 400
-        assert response.json["error"][0]["message"] == "Field required"
-        assert "field_name" in response.json["error"][0]["field"]
+        assert response.json()["error"][0]["message"] == "Field required"
+        assert "field_name" in response.json()["error"][0]["field"]
 
     def test_get_dictionaries_not_allowed_user(
             self,

@@ -1,9 +1,10 @@
 import json
 import logging
 import re
+from typing import Self
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import Column, Integer, String, Boolean, select, update
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, sessionmaker
 
 from app.helpers.const import TASK_NAMESPACE
 from app.helpers.container_registries import AzureRegistry, BaseRegistry, DockerRegistry, GitHubRegistry
@@ -115,26 +116,27 @@ class Registry(BaseModel):
         _class = self.get_registry_class()
         return _class.list_repos()
 
-    def delete(self, commit:bool=False):
-        with get_db() as session:
-            super().delete(commit)
-            v1 = KubernetesClient()
-            try:
-                v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=self.slugify_name())
-            except ApiException as kae:
-                session.rollback()
-                logger.error("%s:\n\tDetails: %s", kae.reason, kae.body)
-                raise ContainerRegistryException("Error while deleting entity")
+    def delete(self, session: sessionmaker, commit:bool=False):
+        super().delete(session, commit)
+        v1 = KubernetesClient()
+        try:
+            v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=self.slugify_name())
+        except ApiException as kae:
+            session.rollback()
+            logger.error("%s:\n\tDetails: %s", kae.reason, kae.body)
+            raise ContainerRegistryException("Error while deleting entity")
 
-    def update(self, **kwargs) -> None:
+    @classmethod
+    def update(cls, id:int, data: dict):
         """
         Updates the instance with new values. These should be
         already validated.
         """
-        if kwargs.get("active") is not None:
-            Registry.update(self.id, {"active": kwargs.get("active")})
+        self: Self = cls.get_by_id(id)
+        if data.get("active") is not None:
+            super().update(cls.id, {"active": data.get("active")})
 
-        if not(kwargs.get("username") or kwargs.get("password")):
+        if not(data.get("username") or data.get("password")):
             return
 
         # Get the credentials from the pull docker secret
@@ -148,11 +150,11 @@ class Registry(BaseModel):
             self.username = dockerjson['auths'][key]["username"]
             self.password = dockerjson['auths'][key]["password"]
 
-            if kwargs.get("username"):
-                self.username = kwargs.get("username")
+            if data.get("username"):
+                self.username = data.get("username")
 
-            if kwargs.get("password"):
-                self.password = kwargs.get("password")
+            if data.get("password"):
+                self.password = data.get("password")
 
             self.update_regcred()
         except ApiException as apie:

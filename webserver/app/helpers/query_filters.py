@@ -48,17 +48,16 @@ def apply_filters(
             column = func.date(column)
         query = query.where(operators[op_name](column, value))
 
-    offset = (filter_dto.page - 1) * filter_dto.per_page
-    stmt = query.offset(offset).limit(filter_dto.per_page)
-    items = db.execute(stmt).scalars().all()
-    total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+    items = db.execute(query).scalars().all()
+    total = len(items)
 
     if as_pagination:
+        start_idx = filter_dto.per_page * (filter_dto.page - 1)
         return {
-            "items": items,
+            "items": items[start_idx: start_idx + filter_dto.per_page],
             "total": total,
             "page": filter_dto.page,
             "per_page": filter_dto.per_page,
             "pages": (total + filter_dto.per_page - 1) // filter_dto.per_page
         }
-    return stmt
+    return query

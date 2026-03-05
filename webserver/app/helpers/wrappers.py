@@ -12,6 +12,7 @@ from app.helpers.keycloak import Keycloak
 from app.models.audit import Audit
 from app.models.dataset import Dataset
 from app.models.request import RequestModel
+from app.helpers.base_model import get_db
 
 
 logger = logging.getLogger('wrappers')
@@ -24,11 +25,14 @@ class Auth:
         self.check_dataset = check_dataset
 
     async def __call__(self,
-                       Authorization: Annotated[str, Header()],
                        dataset_id: int|None = None,
                        dataset_name: str|None = None,
+                       Authorization: Annotated[str | None, Header()] = None,
                        project_name: Annotated[str | None, Header()] = None
             ) -> dict:
+        if not Authorization:
+            raise AuthenticationError()
+
         token = Authorization.replace("Bearer ", "")
         if self.scope and not token:
             raise AuthenticationError("Token not provided")
@@ -69,7 +73,6 @@ class Auth:
             return user
         else:
             raise UnauthorizedError("Token is not valid, or the user has not enough permissions.")
-
 
 
 def audit(func):
@@ -123,12 +126,14 @@ def audit(func):
         audit_body["endpoint"] = request.scope["path"]
         audit_body["api_function"] = func.__name__
         to_save = Audit(**audit_body)
-        to_save.add()
+        with get_db() as session:
+            to_save.add(session)
         if raised_exception:
             raise raised_exception
 
         return response_object
     return _audit
+
 
 def find_and_redact_key(obj: dict|str, key: str):
     """

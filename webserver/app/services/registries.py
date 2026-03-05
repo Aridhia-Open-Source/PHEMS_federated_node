@@ -1,6 +1,7 @@
 from app.schemas.registries import RegistryCreate
 from app.models.registry import Registry
 from app.helpers.container_registries import BaseRegistry
+from app.helpers.base_model import get_db
 
 
 class RegistryService:
@@ -11,5 +12,6 @@ class RegistryService:
         _class: BaseRegistry = reg.get_registry_class()
         _class.login()
         reg.update_regcred()
-        reg.add()
+        with get_db() as session:
+            reg.add(session)
         return reg

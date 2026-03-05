@@ -19,7 +19,7 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from app.helpers.base_model import Base
+from app.helpers.base_model import BaseModel
 import app.models.audit
 import app.models.catalogue
 import app.models.container
@@ -29,7 +29,7 @@ import app.models.registry
 import app.models.request
 import app.models.task
 # target_metadata = mymodel.Base.metadata
-target_metadata = Base.metadata
+target_metadata = BaseModel.metadata
 
 
 def run_migrations_offline() -> None:

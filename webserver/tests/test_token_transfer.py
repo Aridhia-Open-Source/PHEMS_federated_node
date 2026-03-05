@@ -1,19 +1,14 @@
 import copy
-import pytest
+from pytest import fixture
 from datetime import datetime, timedelta
-import json
-from unittest import mock
+
+from sqlalchemy import func, select
 from app.models.request import RequestModel
 from app.helpers.exceptions import KeycloakError
+from app.helpers.base_model import get_db
 
-@pytest.fixture
-def kc_user_mock(mocker, user_uuid):
-    return mocker.patch(
-        'app.routes.datasets.Keycloak.get_user_by_email',
-        return_value={"id": user_uuid}
-    )
 
-@pytest.fixture
+@fixture
 def request_model_body(request_base_body, dataset, user_uuid):
     req_model = copy.deepcopy(request_base_body)
     req_model.pop("dataset_id")
@@ -22,12 +17,13 @@ def request_model_body(request_base_body, dataset, user_uuid):
 
     return req_model
 
+
 class TestTransfers:
     def test_token_transfer_admin(
             self,
             approve_request,
             client,
-            kc_user_mock,
+            mock_kc_client,
             request_base_body,
             post_json_admin_header
     ):
@@ -36,29 +32,30 @@ class TestTransfers:
         """
         response = client.post(
             "/datasets/token_transfer",
-            data=json.dumps(request_base_body),
+            json=request_base_body,
             headers=post_json_admin_header
         )
-        assert response.status_code == 201
-        assert list(response.json.keys()) == ["token"]
+        assert response.status_code == 201, response.json()
+        assert list(response.json().keys()) == ["token"]
 
     def test_token_transfer_admin_dataset_name(
             self,
             approve_request,
             client,
             request_base_body_name,
-            post_json_admin_header
+            post_json_admin_header,
+            mock_kc_client
     ):
         """
         Test token transfer is accessible by admin users
         """
         response = client.post(
             "/datasets/token_transfer",
-            data=json.dumps(request_base_body_name),
+            json=request_base_body_name,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
-        assert list(response.json.keys()) == ["token"]
+        assert list(response.json().keys()) == ["token"]
 
     def test_token_transfer_admin_missing_requester_email_fails(
             self,
@@ -72,7 +69,7 @@ class TestTransfers:
         request_base_body["requested_by"].pop("email")
         response = client.post(
             "/datasets/token_transfer",
-            data=json.dumps(request_base_body),
+            json=request_base_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -81,7 +78,8 @@ class TestTransfers:
             self,
             client,
             request_base_body,
-            post_json_admin_header
+            post_json_admin_header,
+            mock_kc_client
     ):
         """
         Test token transfer fails on an non-existing dataset
@@ -89,17 +87,18 @@ class TestTransfers:
         request_base_body["dataset_id"] = 5012
         response = client.post(
             "/datasets/token_transfer",
-            data=json.dumps(request_base_body),
+            json=request_base_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 404
-        assert response.json == {"error": "Dataset 5012 does not exist"}
+        assert response.json() == {"error": "Dataset 5012 does not exist"}
 
     def test_token_transfer_admin_dataset_by_name_not_found(
             self,
             client,
             request_base_body_name,
-            post_json_admin_header
+            post_json_admin_header,
+            mock_kc_client
     ):
         """
         Test token transfer fails on an non-existing dataset
@@ -107,11 +106,11 @@ class TestTransfers:
         request_base_body_name["dataset_name"] = "fake_dataset"
         response = client.post(
             "/datasets/token_transfer",
-            data=json.dumps(request_base_body_name),
+            json=request_base_body_name,
             headers=post_json_admin_header
         )
         assert response.status_code == 404
-        assert response.json == {"error": "Dataset fake_dataset does not exist"}
+        assert response.json() == {"error": "Dataset fake_dataset does not exist"}
 
     def test_token_transfer_standard_user(
             self,
@@ -126,7 +125,7 @@ class TestTransfers:
         mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
         response = client.post(
             "/datasets/token_transfer",
-            data=json.dumps(request_base_body),
+            json=request_base_body,
             headers=post_json_user_header
         )
         assert response.status_code == 403
@@ -136,41 +135,43 @@ class TestTransfers:
             client,
             post_json_admin_header,
             access_request,
-            kc_user_mock,
+            mock_kc_client,
             approve_request,
             request_model_body,
             request_base_body,
-            dataset
+            dataset,
+            db_session
         ):
         """
         Tests that a duplicate request is not accepted.
         """
-        RequestModel(**request_model_body).add()
+        RequestModel(**request_model_body).add(db_session)
 
         response = client.post(
             "/datasets/token_transfer",
             headers=post_json_admin_header,
-            data=json.dumps(request_base_body)
+            json=request_base_body
         )
         assert response.status_code == 400
-        assert response.json["error"] == 'User already belongs to the active project project1'
+        assert response.json()["error"] == 'User already belongs to the active project project1'
 
     def test_transfer_does_not_override_existing(
             self,
             client,
             post_json_admin_header,
             access_request,
-            kc_user_mock,
+            mock_kc_client,
             approve_request,
             request_model_body,
             request_base_body,
-            dataset
+            dataset,
+            db_session
         ):
         """
         Tests that a duplicate, or a time-overlapping request
         is not accepted.
         """
-        RequestModel(**request_model_body).add()
+        RequestModel(**request_model_body).add(db_session)
         request_base_body["proj_end"] = (
             datetime.strptime(request_base_body["proj_end"], "%Y-%m-%d") + timedelta(days=20)
         ).strftime("%Y-%m-%d")
@@ -178,7 +179,7 @@ class TestTransfers:
         response = client.post(
             "/datasets/token_transfer",
             headers=post_json_admin_header,
-            data=json.dumps(request_base_body)
+            json=request_base_body
         )
         assert response.status_code == 400
 
@@ -188,17 +189,18 @@ class TestTransfers:
             post_json_admin_header,
             access_request,
             approve_request,
-            kc_user_mock,
+            mock_kc_client,
             request_model_body,
             request_base_body,
-            dataset
+            dataset,
+            db_session
         ):
         """
         Tests that a duplicate, not time-overlapping request
         is accepted with same ds and project name.
         """
         request_model_body["proj_end"] = datetime.now().date().strftime("%Y-%m-%d")
-        RequestModel(**request_model_body).add()
+        RequestModel(**request_model_body).add(db_session)
         request_base_body["proj_start"] = (
             datetime.strptime(request_base_body["proj_end"], "%Y-%m-%d") + timedelta(days=1)
         ).strftime("%Y-%m-%d")
@@ -206,7 +208,7 @@ class TestTransfers:
         response = client.post(
             "/datasets/token_transfer",
             headers=post_json_admin_header,
-            data=json.dumps(request_base_body)
+            json=request_base_body
         )
         assert response.status_code == 201
 
@@ -215,23 +217,24 @@ class TestTransfers:
             client,
             post_json_admin_header,
             access_request,
-            kc_user_mock,
+            mock_kc_client,
             approve_request,
             request_model_body,
             request_base_body,
             dataset,
-            dataset_oracle
+            dataset_oracle,
+            db_session
         ):
         """
         Tests that only one dataset per active project is allowed.
         """
-        RequestModel(**request_model_body).add()
+        RequestModel(**request_model_body).add(db_session)
         request_base_body["dataset_id"] = dataset_oracle.id
 
         response = client.post(
             "/datasets/token_transfer",
             headers=post_json_admin_header,
-            data=json.dumps(request_base_body)
+            json=request_base_body
         )
         assert response.status_code == 400
 
@@ -244,7 +247,7 @@ class TestTransfers:
             request_model_body,
             request_base_body,
             dataset,
-            dataset_oracle,
+            dataset_oracle
         ):
         """
         Tests that the entry is deleted when creating the permission
@@ -252,15 +255,16 @@ class TestTransfers:
         """
         request_base_body["dataset_id"] = dataset_oracle.id
 
-        mock_kc_client["routes.datasets_kc"].return_value.get_user_by_email.side_effect = KeycloakError("error")
+        mock_kc_client["request_schema_kc"].return_value.get_user_by_email.side_effect = KeycloakError("error")
 
         response = client.post(
             "/datasets/token_transfer",
             headers=post_json_admin_header,
-            data=json.dumps(request_base_body)
+            json=request_base_body
         )
         assert response.status_code == 500
-        assert RequestModel.query.filter(
-            RequestModel.title == request_base_body["title"],
-            RequestModel.project_name == request_base_body["project_name"],
-        ).count() == 0
+        with get_db() as session:
+            assert session.execute(select(func.count(RequestModel.id)).where(
+                RequestModel.title == request_base_body["title"],
+                RequestModel.project_name == request_base_body["project_name"],
+            )).scalar_one() == 0

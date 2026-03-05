@@ -70,7 +70,8 @@ class TestUpdateDeliverySecret:
         )
 
         assert resp.status_code == 400
-        assert resp.json["error"] == "auth field is mandatory"
+        assert resp.json()["error"][0]["message"] == "Field required"
+        assert "auth" in resp.json()["error"][0]["field"]
         k8s_client["patch_namespaced_secret_mock"].assert_not_called()
 
     def test_other_delivery_secret_body_not_json(
@@ -92,7 +93,7 @@ class TestUpdateDeliverySecret:
         )
 
         assert resp.status_code == 400
-        assert resp.json["error"] == "Set a json body"
+        assert 'Input should be a valid dictionary or object to extract fields from' == resp.json()["error"][0]["message"]
         k8s_client["patch_namespaced_secret_mock"].assert_not_called()
 
     def test_other_delivery_secret_not_found(
@@ -139,7 +140,7 @@ class TestUpdateDeliverySecret:
         )
 
         assert resp.status_code == 500
-        assert resp.json["error"] == "Could not update the secret. Check the logs for more details"
+        assert resp.json()["error"] == "Could not update the secret. Check the logs for more details"
 
     def test_github_delivery_secret(
         self,
@@ -159,7 +160,7 @@ class TestUpdateDeliverySecret:
         )
 
         assert resp.status_code == 400
-        assert resp.json["error"] == "Unable to update GitHub delivery details for security reasons. Please contact the system administrator"
+        assert resp.json()["error"] == "Unable to update GitHub delivery details for security reasons. Please contact the system administrator"
         k8s_client["patch_namespaced_secret_mock"].assert_not_called()
 
     def test_delivery_secret_feature_non_available(
@@ -179,5 +180,5 @@ class TestUpdateDeliverySecret:
         )
 
         assert resp.status_code == 400
-        assert resp.json["error"] == "The Task Controller feature is not available on this Federated Node"
+        assert resp.json()["error"] == "The Task Controller feature is not available on this Federated Node"
         k8s_client["patch_namespaced_secret_mock"].assert_not_called()

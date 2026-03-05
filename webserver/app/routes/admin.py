@@ -24,7 +24,7 @@ from app.schemas.pagination import PageResponse
 from app.schemas.delivery_secrets import DeliverySecretPost
 
 
-router = APIRouter(tags=["admin"], prefix="/admin")
+router = APIRouter(tags=["admin"])
 
 
 @router.get('/audit', dependencies=[Depends(Auth("can_do_admin"))])
