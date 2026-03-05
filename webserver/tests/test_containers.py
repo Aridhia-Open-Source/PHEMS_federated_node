@@ -262,17 +262,18 @@ class TestPostContainers(ContainersMixin):
         Most of the model validations are done in a previous test
         here we verifying the API returns the correct message
         """
-        resp = client.post(
-            "/containers",
-            json={
-                "name": "/testimage",
-                "registry": registry.url,
-                "tag": "0.1.1"
-            },
-            headers=post_json_admin_header
-        )
-        assert resp.status_code == 400
-        assert resp.json["error"] == '/testimage:0.1.1 does not have a tag. Please provide one in the format <image>:<tag> or <image>@sha256..'
+        for inv_name in ["/testimage", "a/", "i"]:
+            resp = client.post(
+                "/containers",
+                json={
+                    "name": inv_name,
+                    "registry": registry.url,
+                    "tag": "0.1.1"
+                },
+                headers=post_json_admin_header
+            )
+            assert resp.status_code == 400
+            assert f'{inv_name}:0.1.1 does not have a tag or is malformed' in resp.json["error"]
 
 
 class TestPatchContainers:

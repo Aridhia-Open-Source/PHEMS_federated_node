@@ -251,7 +251,7 @@ class TestPostTask:
             headers=post_json_admin_header
         )
         assert response.status_code == 400
-        assert response.json["error"] == f"{tagless_image} does not have a tag. Please provide one in the format <image>:<tag> or <image>@sha256.."
+        assert response.json["error"] == f"{tagless_image} does not have a tag or is malformed. Please provide one in the format <registry>/<image>:<tag> or <registry>/<image>@sha256.."
 
     def test_create_task_no_name_fails(
             self,
