@@ -51,7 +51,7 @@ async def post_requests(request: Request, body: TransferTokenBody):
 
             req_attributes = RequestModel.validate(body)
             req = RequestModel(**req_attributes)
-            req.add()
+            req.add(session)
             return {"request_id": req.id}
         except KeyError as kexc:
             session.rollback()
