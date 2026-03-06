@@ -10,6 +10,7 @@ from http import HTTPStatus
 from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query, Request
 from requests import Session
+from sqlalchemy.orm import Session as DBSession
 
 from app.helpers.base_model import get_db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
@@ -45,12 +46,13 @@ async def list_registries(
 @audit
 async def registry_by_id(
     registry_id:int,
-    request: Request
+    request: Request,
+    session: DBSession = Depends(get_db)
 ) -> dict[str, Any]:
     """
     GET /registries endpoint.
     """
-    registry = Registry.get_by_id(registry_id)
+    registry = Registry.get_by_id(session, registry_id)
     if registry is None:
         raise DBRecordNotFoundError("Registry not found")
 
@@ -59,38 +61,38 @@ async def registry_by_id(
 
 @router.delete('/{registry_id}', status_code=HTTPStatus.NO_CONTENT, dependencies=[Depends(Auth("can_admin_dataset"))])
 @audit
-async def delete_registry_by_id(registry_id:int, request: Request) -> None:
+async def delete_registry_by_id(registry_id:int, request: Request, session: DBSession = Depends(get_db)) -> None:
     """
     GET /registries endpoint.
     """
-    registry = Registry.get_by_id(registry_id)
+    registry = Registry.get_by_id(session, registry_id)
     if registry is None:
         raise DBRecordNotFoundError("Registry not found")
 
-    with get_db() as session:
-        registry.delete(session, commit=True)
+    registry.delete(session, commit=True)
 
 
 @router.post('', status_code=HTTPStatus.CREATED, dependencies=[Depends(Auth("can_admin_dataset"))])
 @audit
 async def add_registry(
     request: Request,
-    body: RegistryCreate
+    body: RegistryCreate,
+    session: DBSession = Depends(get_db)
 ):
     """
     POST /registries endpoint.
     """
-    registry = RegistryService.add(body)
+    registry = RegistryService.add(session, body)
     return RegistryRead.model_validate(registry).model_dump()
 
 
 @router.patch('/{registry_id}', status_code=HTTPStatus.NO_CONTENT, dependencies=[Depends(Auth("can_admin_dataset"))])
 @audit
-async def patch_registry(registry_id:int, body: RegistryUpdate, request:Request) -> None:
+async def patch_registry(registry_id:int, body: RegistryUpdate, request:Request, session: DBSession = Depends(get_db)) -> None:
     """
     PATCH /registries/<registry_id> endpoint.
     """
-    registry = Registry.get_by_id(registry_id)
+    registry = Registry.get_by_id(session, registry_id)
     if registry is None:
         raise InvalidRequest(f"Registry {registry_id} not found")
 
@@ -98,4 +100,4 @@ async def patch_registry(registry_id:int, body: RegistryUpdate, request:Request)
     if not changes:
         raise InvalidRequest("No valid changes detected")
 
-    Registry.update(registry_id, changes)
+    registry.update(session, changes)

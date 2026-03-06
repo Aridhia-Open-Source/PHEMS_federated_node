@@ -4,9 +4,10 @@ from sqlalchemy import select, text
 
 from app.helpers.base_model import get_db
 from app.models.audit import Audit
+from tests.base_test_class import BaseTest
 
 
-class TestAudits:
+class TestAudits(BaseTest):
     def test_get_audit_events(
             self,
             simple_admin_header,
@@ -21,8 +22,7 @@ class TestAudits:
 
         r = client.get("/datasets", headers=simple_admin_header)
         assert r.status_code == 200, r.text
-        with get_db() as session:
-            list_audit = session.execute(select(Audit)).all()
+        list_audit = self.db_session.execute(select(Audit)).all()
         assert len(list_audit) > 0
         response = client.get("/audit", headers=simple_admin_header)
 
@@ -64,8 +64,7 @@ class TestAudits:
         """
         response = client.get("/datasets", headers=post_json_admin_header)
         assert response.status_code == 200
-        with get_db() as session:
-            log = session.execute(select(Audit).where(Audit.endpoint == '/datasets')).scalars().one_or_none()
+        log = self.db_session.execute(select(Audit).where(Audit.endpoint == '/datasets')).scalars().one_or_none()
         assert log.details == "No body"
 
     def test_get_filtered_audit_events(
@@ -101,8 +100,7 @@ class TestAudits:
 
         # RequestModel will fail as secret is not recognized as dictionaries field
         assert resp.status_code == 201, resp.json()
-        with get_db() as session:
-            audit_list = session.execute(select(Audit).filter_by(endpoint="/datasets").order_by(text("event_time DESC"))).scalars().all()[0]
+        audit_list = self.db_session.execute(select(Audit).filter_by(endpoint="/datasets").order_by(text("event_time DESC"))).scalars().all()[0]
         details = json.loads(audit_list.details.replace("'", "\"").replace("None", "null"))
 
         assert details["password"] == '*****'

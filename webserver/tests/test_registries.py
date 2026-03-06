@@ -5,10 +5,10 @@ from sqlalchemy import func, select
 
 from app.helpers.const import TASK_NAMESPACE
 from tests.fixtures.azure_cr_fixtures import *
-from app.helpers.base_model import get_db
+from tests.base_test_class import BaseTest
 
 
-class TestGetRegistriesApi:
+class TestGetRegistriesApi(BaseTest):
     def test_list_200(
         self,
         registry,
@@ -122,7 +122,7 @@ class TestGetRegistriesApi:
         assert resp.status_code == 403
 
 
-class TestPostRegistriesApi:
+class TestPostRegistriesApi(BaseTest):
     def test_create_registry_201(
         self,
         client,
@@ -261,10 +261,10 @@ class TestPostRegistriesApi:
             )
         assert resp.status_code == 400
         assert resp.json()["error"] == f"Registry {registry.url} already exist"
-        with get_db() as session:
-            assert session.execute(select(func.count(Registry.id)).where(Registry.url==registry.url)).scalar_one() == 1
+        assert self.run_query(select(func.count(Registry.id)).where(Registry.url==registry.url), "one") == 1
 
-class TestDeleteRegistries:
+
+class TestDeleteRegistries(BaseTest):
     def test_delete_registry(
             self,
             client,
@@ -324,7 +324,7 @@ class TestDeleteRegistries:
             headers=simple_admin_header
         )
         assert response.status_code == 500
-        assert Registry.get_by_id(reg_id, raise_if_not_found=False) is None
+        assert Registry.get_by_id(self.db_session, reg_id, raise_if_not_found=False) is None
 
     def test_delete_cascade_containers(
             self,
@@ -355,13 +355,13 @@ class TestDeleteRegistries:
             headers=simple_admin_header
         )
         assert response.status_code == 204
-        assert Registry.get_by_id(reg_id, raise_if_not_found=False) is None
-        with get_db() as session:
-            assert session.execute(select(func.count(Container.id)).where(
-                Container.name=="newimage", Container.registry_id==reg_id
-                )).scalar_one() == 0
+        assert Registry.get_by_id(self.db_session, reg_id, raise_if_not_found=False) is None
+        assert self.run_query(select(func.count(Container.id)).where(
+            Container.name=="newimage", Container.registry_id==reg_id
+            ), "one") == 0
 
-class TestPatchRegistriesApi:
+
+class TestPatchRegistriesApi(BaseTest):
     def test_patch_registry(
         self,
         client,
@@ -381,10 +381,9 @@ class TestPatchRegistriesApi:
             headers=post_json_admin_header
         )
         assert resp.status_code == 204
-        with get_db() as session:
-            assert session.execute(
-                select(func.count(Registry.id)).where(Registry.id==registry.id, Registry.active == data["active"])
-            ).scalar_one() == 1
+        assert self.run_query(
+            select(func.count(Registry.id)).where(Registry.id==registry.id, Registry.active == data["active"])
+        , "one") == 1
         # it patches the regcreds-like secret at registry creation
         k8s_client["patch_namespaced_secret_mock"].call_count == 1
 

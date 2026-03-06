@@ -12,34 +12,33 @@ from app.models.task import Task
 
 @fixture(scope='function')
 def task_body(db_session, dataset, container):
-    with db_session:
-        return deepcopy({
-            "name": "Test Task",
-            "requested_by": "das9908-as098080c-9a80s9",
-            "executors": [
-                {
-                    "image": container.full_image_name(),
-                    "command": ["R", "-e", "df <- as.data.frame(installed.packages())[,c('Package', 'Version')];write.csv(df, file='/mnt/data/packages.csv', row.names=FALSE);Sys.sleep(10000)\""],
-                    "env": {
-                        "VARIABLE_UNIQUE": 123,
-                        "USERNAME": "test"
-                    }
+    return deepcopy({
+        "name": "Test Task",
+        "requested_by": "das9908-as098080c-9a80s9",
+        "executors": [
+            {
+                "image": container.full_image_name(),
+                "command": ["R", "-e", "df <- as.data.frame(installed.packages())[,c('Package', 'Version')];write.csv(df, file='/mnt/data/packages.csv', row.names=FALSE);Sys.sleep(10000)\""],
+                "env": {
+                    "VARIABLE_UNIQUE": 123,
+                    "USERNAME": "test"
                 }
-            ],
-            "db_query": {
-                "query": "SELECT * FROM table",
-                "dialect": "postgres"
-            },
-            "description": "First task ever!",
-            "tags": {
-                "dataset_id": dataset.id,
-                "test_tag": "some content"
-            },
-            "inputs": {},
-            "outputs": {},
-            "resources": {},
-            "volumes": {}
-        })
+            }
+        ],
+        "db_query": {
+            "query": "SELECT * FROM table",
+            "dialect": "postgres"
+        },
+        "description": "First task ever!",
+        "tags": {
+            "dataset_id": dataset.id,
+            "test_tag": "some content"
+        },
+        "inputs": {},
+        "outputs": {},
+        "resources": {},
+        "volumes": {}
+    })
 
 @fixture
 def running_state():

@@ -41,17 +41,6 @@ class DatasetCreate(DatasetBase):
             raise ValueError(f"DB type {v} is not supported.")
         return v
 
-    @field_validator('repository')
-    @classmethod
-    def validate_repo(cls, v: str) -> str:
-        q = select(Dataset).where(Dataset.repository == v)
-        with get_db() as session:
-            if session.execute(q).one_or_none():
-                raise ValueError(
-                    "Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
-                )
-        return v
-
 
 class DatasetUpdate(DatasetCreate):
     # Host not allowed to be updated

@@ -2,7 +2,7 @@ from http.client import HTTPException
 import logging
 from functools import wraps
 from typing import Annotated
-from fastapi import Header, Request, Response
+from fastapi import Depends, Header, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -27,6 +27,7 @@ class Auth:
     async def __call__(self,
                        dataset_id: int|None = None,
                        dataset_name: str|None = None,
+                       session: Session = Depends(get_db),
                        Authorization: Annotated[str | None, Header()] = None,
                        project_name: Annotated[str | None, Header()] = None
             ) -> dict:
@@ -46,9 +47,9 @@ class Auth:
         user = kc_client.get_user_by_username(token_info['username'])
 
         if project_name and not kc_client.is_user_admin(token):
-            dar: RequestModel = RequestModel.get_active_project(project_name, user["id"])
+            dar: RequestModel = RequestModel.get_active_project(session, project_name, user["id"])
             if dar.dataset_id:
-                ds = Dataset.get_dataset_by_name_or_id(id=dar.dataset_id)
+                ds = Dataset.get_dataset_by_name_or_id(session, id=dar.dataset_id)
                 resource = f"{ds.id}-{ds.name}"
 
         elif self.check_dataset:
@@ -58,7 +59,7 @@ class Auth:
                 dataset_name = flat_json.get("dataset_name", "")
 
             if dataset_id or dataset_name:
-                ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
+                ds = Dataset.get_dataset_by_name_or_id(session, name=dataset_name, id=dataset_id)
                 resource = f"{ds.id}-{ds.name}"
 
         # If the user is an admin or system, ignore the project
@@ -79,6 +80,7 @@ def audit(func):
     @wraps(func)
     async def _audit(*args, **kwargs):
         request: Request = kwargs.get("request")
+        session: Request = kwargs.get("session")
         body: Session = kwargs.get("body", "No body")
         if isinstance(body, BaseModel):
             body = body.model_dump()
@@ -126,7 +128,10 @@ def audit(func):
         audit_body["endpoint"] = request.scope["path"]
         audit_body["api_function"] = func.__name__
         to_save = Audit(**audit_body)
-        with get_db() as session:
+        if not session:
+            with get_db() as session:
+                to_save.add(session)
+        else:
             to_save.add(session)
         if raised_exception:
             raise raised_exception

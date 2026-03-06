@@ -9,6 +9,7 @@ from app.helpers.exceptions import InvalidRequest
 from app.models.container import Container
 from app.schemas.containers import ContainerCreate
 from tests.fixtures.azure_cr_fixtures import *
+from tests.base_test_class import BaseTest
 
 
 @pytest.fixture(scope='function')
@@ -21,7 +22,7 @@ def container_body(registry):
     })
 
 
-class ContainersMixin:
+class ContainersMixin(BaseTest):
     def get_container_as_response(self, container: Container):
         return {
             "dashboard": container.dashboard,
@@ -163,11 +164,10 @@ class TestPostContainers(ContainersMixin):
             },
             headers=post_json_admin_header
         )
-        assert resp.status_code == 201
-        with get_db() as session:
-            assert session.execute(select(Container).where(
-                Container.name=="testimage", Container.tag=="1.0.25"
-            )).one_or_none() is not None
+        assert resp.status_code == 201, resp.json()
+        assert self.db_session.execute(select(Container).where(
+            Container.name=="testimage", Container.tag=="1.0.25"
+        )).one_or_none() is not None
 
     def test_add_new_container_by_sha(
         self,
@@ -188,10 +188,9 @@ class TestPostContainers(ContainersMixin):
             headers=post_json_admin_header
         )
         assert resp.status_code == 201
-        with get_db() as session:
-            assert session.execute(select(Container).where(
-                Container.name=="testimage", Container.sha=="sha256:123123123"
-            )).one_or_none() is not None
+        assert self.db_session.execute(select(Container).where(
+            Container.name=="testimage", Container.sha=="sha256:123123123"
+        )).one_or_none() is not None
 
     def test_add_duplicate_container(
         self,
@@ -280,7 +279,7 @@ class TestPostContainers(ContainersMixin):
         assert resp.json()["error"] == '/testimage:0.1.1 does not have a tag. Please provide one in the format <image>:<tag> or <image>@sha256..'
 
 
-class TestPatchContainers:
+class TestPatchContainers(BaseTest):
     def test_patch_container(
         self,
         client,
@@ -296,7 +295,7 @@ class TestPatchContainers:
             headers=post_json_admin_header
         )
         assert resp.status_code == 201
-        assert Container.get_by_id(container.id).ml == True
+        assert Container.get_by_id(self.db_session, container.id).ml == True
 
     def test_patch_container_wrong_body(
         self,
@@ -350,7 +349,7 @@ class TestPatchContainers:
         assert 'Input should be a valid dictionary or object to extract fields from' == resp.json()["error"][0]["message"]
 
 
-class TestSync:
+class TestSync(BaseTest):
     def test_sync_200(
         self,
         client,
@@ -468,14 +467,13 @@ class TestSync:
         Basic test that makes sure that if a registry is inactive
         nothing is done.
         """
-        with get_db() as session:
-            session.execute(update(Registry).where(Registry.id == registry.id).values({"active": False}))
+        self.db_session.execute(update(Registry).where(Registry.id == registry.id).values({"active": False}))
 
-            resp = client.post(
-                "/containers/sync",
-                headers=post_json_admin_header
-            )
+        resp = client.post(
+            "/containers/sync",
+            headers=post_json_admin_header
+        )
 
-            assert resp.status_code == 201
-            assert resp.json()["images"] == []
-            assert session.execute(select(Container)).all() == []
+        assert resp.status_code == 201
+        assert resp.json()["images"] == []
+        assert self.db_session.execute(select(Container)).all() == []

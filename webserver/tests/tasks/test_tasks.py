@@ -9,9 +9,10 @@ from app.helpers.base_model import get_db
 from app.models.task import Task
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
+from tests.base_test_class import BaseTest
 
 
-class TestGetTasks:
+class TestGetTasks(BaseTest):
     def test_get_list_tasks(
             self,
             client,
@@ -89,7 +90,9 @@ class TestGetTasks:
         decode_return = {"sub": basic_user["id"]}
         decode_return.update(basic_user)
         mock_kc_client["tasks_api_kc"].return_value.decode_token.return_value = decode_return
-        task.requested_by = basic_user["id"]
+
+        t = Task.get_by_id(self.db_session, task.id)
+        t.requested_by = basic_user["id"]
         resp = client.get(
             f'/tasks/{task.id}',
             headers=simple_user_header
@@ -106,8 +109,7 @@ class TestGetTasks:
         """
         If a user wants to check a specific task they should not be allowed if they did not request it
         """
-        with get_db() as db:
-            task_obj = db.get(Task, task.id)
+        task_obj = self.db_session.get(Task, task.id)
         task_obj.requested_by = "some random uuid"
         mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
 
@@ -202,7 +204,7 @@ class TestGetTasks:
         assert response_id.json()["status"] == expected_status
 
 
-class TestPostTask:
+class TestPostTask(BaseTest):
     def test_create_task(
             self,
             cr_client,
@@ -217,7 +219,7 @@ class TestPostTask:
         Tests task creation returns 201
         """
         response = client.post(
-            '/tasks/',
+            '/tasks',
             json=task_body,
             headers=post_json_admin_header
         )
@@ -434,8 +436,8 @@ class TestPostTask:
             post_json_admin_header,
             client,
             dataset,
-            task_body,
-
+            registry_client,
+            task_body
         ):
         """
         Tests task creation with a dataset name that does not exists
@@ -446,7 +448,7 @@ class TestPostTask:
 
         response = client.post(
             '/tasks/',
-            data=json.dumps(data),
+            json=data,
             headers=post_json_admin_header
         )
         assert response.status_code == 404
@@ -481,7 +483,7 @@ class TestPostTask:
             client,
             dataset,
             task_body,
-
+            registry_client
         ):
         """
         Tests task creation returns 404 when the
@@ -908,19 +910,17 @@ class TestPostTask:
 
     def test_task_connection_string_oracle(
             self,
-            task,
+            task_oracle,
             cr_client,
             reg_k8s_client,
-            registry_client,
-            dataset_oracle
+            registry_client
     ):
         """
         Simple test to make sure the generated connection string
         follows the specific format for OracleDB
         """
-        task.db_query = None
-        task.dataset = dataset_oracle
-        task.run()
+        task_oracle.db_query = None
+        task_oracle.run()
         reg_k8s_client["create_namespaced_pod_mock"].assert_called()
         pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
         env = [env.value for env in pod_body.spec.containers[0].env if env.name == "CONNECTION_STRING"][0]
@@ -985,8 +985,7 @@ class TestValidateTask:
             task_body,
             cr_client,
             registry_client,
-            post_json_admin_header,
-
+            post_json_admin_header
         ):
         """
         Test the validation endpoint can be used by admins returns

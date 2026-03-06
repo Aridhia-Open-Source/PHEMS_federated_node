@@ -21,11 +21,3 @@ class Dictionary(BaseModel):
 
     dataset_id = mapped_column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
     dataset = relationship("Dataset")
-
-    def update(self, **data):
-        for k, v in data.items():
-            if not hasattr(self, k):
-                raise InvalidRequest(f"Field {k} is not a valid one")
-            else:
-                setattr(self, k, v)
-        Dictionary.update(self.id, data)

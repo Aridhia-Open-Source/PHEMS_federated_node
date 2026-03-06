@@ -1,3 +1,5 @@
+from sqlalchemy import func, select
+
 from app.models.catalogue import Catalogue
 from tests.test_datasets import MixinTestDataset
 
@@ -71,7 +73,7 @@ class TestCatalogues(MixinTestDataset):
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        catalogue = Catalogue.query.filter(Catalogue.dataset_id == resp_ds["id"]).all()
+        catalogue = self.run_query(select(Catalogue).where(Catalogue.dataset_id == resp_ds["id"]), "all")
         assert len(catalogue) == 1
         assert catalogue[0].description == "shiny new table"
 
@@ -91,7 +93,7 @@ class TestCatalogues(MixinTestDataset):
         data_body['name'] = 'TestDs78'
         resp_ds = self.post_dataset(client, post_json_admin_header, data_body)
 
-        assert Catalogue.query.filter(Catalogue.dataset_id == resp_ds["id"]).count() == 0
+        assert self.run_query(select(func.count(Catalogue.id)).where(Catalogue.dataset_id == resp_ds["id"]), "one") == 0
 
         data_body = {
             "catalogue": {
@@ -106,7 +108,7 @@ class TestCatalogues(MixinTestDataset):
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        assert Catalogue.query.filter(Catalogue.dataset_id == resp_ds["id"]).count() == 1
+        assert self.run_query(select(func.count(Catalogue.id)).where(Catalogue.dataset_id == resp_ds["id"]), "one") == 1
 
     def test_patch_catalogue_doesnt_add_new_one_if_exists(
             self,
@@ -132,7 +134,7 @@ class TestCatalogues(MixinTestDataset):
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        assert Catalogue.query.filter(Catalogue.dataset_id == resp_ds["id"]).count() == 1
+        assert self.run_query(select(func.count(Catalogue.id)).where(Catalogue.dataset_id == resp_ds["id"]), "one") == 1
 
     def test_get_catalogue_not_allowed_user(
             self,

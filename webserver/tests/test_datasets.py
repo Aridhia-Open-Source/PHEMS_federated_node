@@ -2,14 +2,12 @@ import os
 import json
 import os
 from kubernetes.client.exceptions import ApiException
-from sqlalchemy import ScalarResult, func, select
+from sqlalchemy import func, select
 from unittest import mock
-from pytest import fixture
 from sqlalchemy.exc import ProgrammingError, OperationalError
 from unittest import mock
 from unittest.mock import Mock
 
-from app.helpers.base_model import SessionLocal, get_db
 from app.helpers.exceptions import KeycloakError
 from app.models.dataset import Dataset
 from app.models.catalogue import Catalogue
@@ -17,25 +15,14 @@ from app.models.dictionary import Dictionary
 from app.models.request import RequestModel
 from tests.conftest import sample_ds_body
 from app.helpers.exceptions import KeycloakError
+from tests.base_test_class import BaseTest
 
 missing_dict_cata_message = {"error": "Missing field. Make sure \"catalogue\" and \"dictionaries\" entries are there"}
 
 
-class MixinTestDataset:
+class MixinTestDataset(BaseTest):
     expected_namespaces = [os.getenv("DEFAULT_NAMESPACE"), os.getenv("TASK_NAMESPACE")]
     hostname = os.getenv("PUBLIC_URL")
-
-    @fixture(autouse=True)
-    def setup_session(self, db_session):
-        self.session = db_session
-
-    def run_query(self, query, render:str = "all") -> ScalarResult:
-        """
-        Helper to run query through the ORM
-        """
-        self.session.flush()
-        self.session.expire_all()
-        return getattr(self.session.execute(query).scalars(), render)()
 
     def assert_datasets_by_name(self, dataset_name:str, count:int = 1):
         """
@@ -317,7 +304,7 @@ class TestPostDataset(MixinTestDataset):
         """
         data_body = dataset_post_body.copy()
         data_body['name'] = data_body['name'].upper()
-        self.post_dataset(client, post_json_admin_header, data_body, 500)
+        self.post_dataset(client, post_json_admin_header, data_body, 400)
 
         self.assert_datasets_by_name(data_body['name'])
 
@@ -412,7 +399,7 @@ class TestPostDataset(MixinTestDataset):
         data_body['name'] = 'TestDs78'
         data_body['repository'] = dataset_with_repo.repository
         resp = self.post_dataset(client, post_json_admin_header, data_body, 400)
-        assert resp["error"][0]["message"] == "Value error, Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
+        assert resp["error"] == "Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
 
         assert self.run_query(
             select(func.count(Dataset.id)).filter_by(repository=dataset_with_repo.repository)
@@ -846,7 +833,7 @@ class TestPatchDataset(MixinTestDataset):
             json=data_body,
             headers=post_json_admin_header
         )
-        assert response.status_code == 500, response.data
+        assert response.status_code == 500
         ds = self.run_query(select(Dataset).filter(Dataset.id == dataset.id), "one_or_none")
         assert ds.name == ds_old_name
 
@@ -1034,7 +1021,7 @@ class TestDeleteDataset(MixinTestDataset):
             headers=post_json_admin_header
         )
         assert response.status_code == 400
-        assert self.run_query(select(Dataset).where(Dataset.id==ds_id), "one_or_none") is not None
+        assert Dataset.get_by_id(self.db_session, ds_id, raise_if_not_found=False) is not None
 
     def test_delete_dataset_with_secrets_not_found_error(
             self,
@@ -1057,7 +1044,7 @@ class TestDeleteDataset(MixinTestDataset):
             headers=post_json_admin_header
         )
         assert response.status_code == 204
-        assert self.run_query(select(Dataset).where(Dataset.id==ds_id), "one_or_none") is not None
+        assert Dataset.get_by_id(self.db_session, ds_id, raise_if_not_found=False) is not None
 
     def test_delete_dataset_with_catalougues(
             self,
@@ -1077,9 +1064,9 @@ class TestDeleteDataset(MixinTestDataset):
         )
         assert response.status_code == 204
         assert self.run_query(
-                select(func.count(Catalogue.id)).where(Catalogue.dataset_id==ds_id), "scalar_one") == 0
+                select(func.count(Catalogue.id)).where(Catalogue.dataset_id==ds_id), "one") == 0
         assert self.run_query(
-                select(func.count(Dictionary.id)).where(Dictionary.dataset_id==ds_id), "scalar_one") == 0
+                select(func.count(Dictionary.id)).where(Dictionary.dataset_id==ds_id), "one") == 0
 
     def test_delete_dataset_unauthorized(
             self,

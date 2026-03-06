@@ -7,6 +7,7 @@ from sqlalchemy import update
 from app.helpers.base_model import get_db
 from app.models.request import RequestModel
 from app.helpers.keycloak import Keycloak
+from tests.base_test_class import BaseTest
 
 @pytest.fixture
 def request_base_body():
@@ -20,7 +21,7 @@ def request_base_body():
     }
 
 @pytest.mark.skip("The requests/ endpoints are deactivated for the time being")
-class TestRequests:
+class TestRequests(BaseTest):
     def create_request(self, client, body:dict, header:dict, status_code=201):
         """
         Common function to handle a request and check for a status_code
@@ -179,9 +180,8 @@ class TestRequests:
         query = update(RequestModel).\
             where(RequestModel.id == access_request.id).\
             values(status=RequestModel.STATUSES["denied"])
-        with get_db() as db:
-            db.execute(query)
-            db.commit()
+        self.db_session.execute(query)
+        self.db_session.commit()
         response_approval = self.approve_request(client, access_request.id, simple_admin_header, 500)
         assert response_approval == {"error": "RequestModel was denied already"}
 

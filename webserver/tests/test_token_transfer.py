@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from app.models.request import RequestModel
 from app.helpers.exceptions import KeycloakError
 from app.helpers.base_model import get_db
+from tests.base_test_class import BaseTest
 
 
 @fixture
@@ -18,7 +19,7 @@ def request_model_body(request_base_body, dataset, user_uuid):
     return req_model
 
 
-class TestTransfers:
+class TestTransfers(BaseTest):
     def test_token_transfer_admin(
             self,
             approve_request,
@@ -263,8 +264,7 @@ class TestTransfers:
             json=request_base_body
         )
         assert response.status_code == 500
-        with get_db() as session:
-            assert session.execute(select(func.count(RequestModel.id)).where(
-                RequestModel.title == request_base_body["title"],
-                RequestModel.project_name == request_base_body["project_name"],
-            )).scalar_one() == 0
+        assert self.db_session.execute(select(func.count(RequestModel.id)).where(
+            RequestModel.title == request_base_body["title"],
+            RequestModel.project_name == request_base_body["project_name"],
+        )).scalar_one() == 0

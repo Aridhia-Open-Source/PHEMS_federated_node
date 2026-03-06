@@ -6,7 +6,7 @@ from typing import Self, Tuple
 from kubernetes.client import V1CustomResourceDefinition
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import Integer, DateTime, Select, String, ForeignKey, Boolean, select
-from sqlalchemy.orm import Mapped, joinedload, relationship, mapped_column
+from sqlalchemy.orm import Mapped, Session, joinedload, relationship, mapped_column
 from sqlalchemy.sql import func
 from uuid import uuid4
 
@@ -61,17 +61,15 @@ class Task(BaseModel):
         self.is_from_controller = kwargs.pop("from_controller", False)
         self.db_query = kwargs.pop("db_query", {})
         self.resources = kwargs.pop("resources", {})
+        self.regcred_secret = kwargs.pop("regcred_secret", "")
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
         super().__init__(**kwargs)
-        with get_db() as session:
-            self.dataset = session.execute(select(Dataset).where(Dataset.id == self.dataset_id)).scalar_one_or_none()
 
     @classmethod
-    def get_by_id(cls, id: int) -> Self:
+    def get_by_id(cls, session:Session, id: int) -> Self:
         q = select(cls).options(joinedload(cls.dataset)).where(cls.id == id)
-        with get_db() as session:
-            return session.execute(q).scalars().one_or_none()
+        return session.execute(q).scalars().one_or_none()
 
     @classmethod
     def validate_cpu_resources(cls, limit_value:str, request_value:str):
@@ -146,7 +144,7 @@ class Task(BaseModel):
         return int(base) * MEMORY_UNITS[unit]
 
     @classmethod
-    def split_registry_from_image(cls, docker_image:str) -> tuple[str, str]:
+    def split_registry_from_image(cls, session:Session, docker_image:str) -> tuple[str, str]:
         """
         Find the registry
         """
@@ -155,19 +153,18 @@ class Task(BaseModel):
 
             q = select(func.count(Registry.id)).where(Registry.url == registry)
 
-            with get_db() as session:
-                if session.execute(q).scalar_one() == 1:
-                    return registry, "/".join(docker_image.split('/')[i:])
+            if session.execute(q).scalar_one() == 1:
+                return registry, "/".join(docker_image.split('/')[i:])
 
         raise InvalidRequest("Could not find the image in the mapped registries. Check the image has the full name")
 
     @classmethod
-    def get_image_with_repo(cls, docker_image:str, string_only:bool=True) -> str | Container:
+    def get_image_with_repo(cls, session:Session, docker_image:str, string_only:bool=True) -> str | Container:
         """
         Looks through the CRs for the image and if exists,
         returns the full image name with the repo prefixing the image.
         """
-        registry, image = cls.split_registry_from_image(docker_image)
+        registry, image = cls.split_registry_from_image(session, docker_image)
 
         tag = None
         sha = None
@@ -184,8 +181,7 @@ class Task(BaseModel):
         ).where(
             (((Container.tag==tag) & (Container.tag != None)) | ((Container.sha==sha) & (Container.sha != None)))
         ).join(Registry)
-        with get_db() as session:
-            image = session.execute(q).scalars().one_or_none()
+        image = session.execute(q).scalars().one_or_none()
 
         if image is None:
             raise TaskExecutionException(f"Image {docker_image} could not be found")
@@ -236,8 +232,6 @@ class Task(BaseModel):
         if len(self.executors):
             command= self.executors[0].get("command", '')
 
-        image: Container = self.get_image_with_repo(self.docker_image, False)
-
         body = TaskPod(**{
             "name": self.pod_name(),
             "image": self.docker_image,
@@ -256,7 +250,7 @@ class Task(BaseModel):
             "input_path": self.inputs,
             "resources": self.resources,
             "env_from": v1.create_from_env_object(secret_name),
-            "regcred_secret": image.registry.slugify_name()
+            "regcred_secret": self.regcred_secret
         }).create_pod_spec()
         try:
             current_pod = self.get_current_pod()

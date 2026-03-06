@@ -4,7 +4,7 @@ import re
 from typing import Self
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import Column, Integer, String, Boolean, select, update
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.orm import Session, relationship, sessionmaker
 
 from app.helpers.const import TASK_NAMESPACE
 from app.helpers.container_registries import AzureRegistry, BaseRegistry, DockerRegistry, GitHubRegistry
@@ -126,15 +126,13 @@ class Registry(BaseModel):
             logger.error("%s:\n\tDetails: %s", kae.reason, kae.body)
             raise ContainerRegistryException("Error while deleting entity")
 
-    @classmethod
-    def update(cls, id:int, data: dict):
+    def update(self, session:Session, data: dict):
         """
         Updates the instance with new values. These should be
         already validated.
         """
-        self: Self = cls.get_by_id(id)
         if data.get("active") is not None:
-            super().update(cls.id, {"active": data.get("active")})
+            super().update(session, {"active": data.get("active")})
 
         if not(data.get("username") or data.get("password")):
             return

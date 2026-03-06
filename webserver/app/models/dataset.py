@@ -1,7 +1,7 @@
 import logging
 import re
 from sqlalchemy import Integer, String, select
-from sqlalchemy.orm import mapped_column, relationship
+from sqlalchemy.orm import Session, mapped_column, relationship
 from app.helpers.base_model import BaseModel, get_db
 from app.helpers.const import DEFAULT_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError
@@ -89,7 +89,7 @@ class Dataset(BaseModel):
         return user, password
 
     @classmethod
-    def get_dataset_by_name_or_id(cls, id:int=None, name:str="") -> "Dataset":
+    def get_dataset_by_name_or_id(cls, session: Session, id:int=None, name:str="", raise_if_not_found:bool = True) -> "Dataset":
         """
         Common function to get a dataset by name or id.
         If both arguments are provided, then tries to find as an AND condition
@@ -109,10 +109,9 @@ class Dataset(BaseModel):
             error_msg = f"Dataset {name if name else id} does not exist"
             q = select(cls).where((cls.name.ilike(name or "") | (Dataset.id == id)))
 
-        with get_db() as session:
-            dataset = session.execute(q).scalars().one_or_none()
+        dataset = session.execute(q).scalars().one_or_none()
 
-        if not dataset:
+        if not dataset and raise_if_not_found:
             raise DBRecordNotFoundError(error_msg)
 
         return dataset

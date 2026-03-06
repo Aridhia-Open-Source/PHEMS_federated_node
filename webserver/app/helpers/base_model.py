@@ -3,7 +3,7 @@ from datetime import datetime
 from flask import request
 from typing import Any, Generator, Self
 from flask_sqlalchemy.pagination import QueryPagination
-from sqlalchemy import create_engine, Column, select, update
+from sqlalchemy import create_engine, Column, select
 from sqlalchemy.orm import DeclarativeBase, Relationship, Session, sessionmaker
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidDBEntry, InvalidRequest
 from app.helpers.const import build_sql_uri
@@ -54,25 +54,31 @@ class BaseModel(DeclarativeBase):
 
     def add(self, session: Session, commit:bool=True):
         session.add(self)
-        if commit:
-            session.commit()
+        session.commit()
+        session.refresh(self, attribute_names=["id"])
 
-    @classmethod
-    def update(cls, id:int, data: dict) -> None:
-        with get_db() as session:
-            session.execute(
-                update(cls).where(cls.id == id).values(data)
-            )
+    def update(self, session:Session, data: dict) -> None:
+        """
+        Should help in managing instances created in other sessions
+        """
+        persistent_self = session.merge(self)
+        for key, value in data.items():
+            setattr(persistent_self, key, value)
+
+        session.flush()
+        session.refresh(persistent_self)
+        for key in data:
+            setattr(self, key, getattr(persistent_self, key))
 
     def delete(self, session:Session, commit=True) -> None:
-        session.delete(self)
-        if commit:
-            session.commit()
+        persistent_self = session.merge(self)
+
+        session.delete(persistent_self)
+        session.commit()
 
     @classmethod
-    def get_all(cls) -> list[dict]:
-        with get_db() as session:
-            return session.execute(select(cls)).scalars().all()
+    def get_all(cls, session) -> list[dict]:
+        return session.execute(select(cls)).scalars().all()
 
     @classmethod
     def _get_fields(cls) -> list[Column]:
@@ -119,14 +125,13 @@ class BaseModel(DeclarativeBase):
         return valid
 
     @classmethod
-    def get_by_id(cls, obj_id:int, raise_if_not_found:bool = True) -> Self:
+    def get_by_id(cls, session: Session, obj_id:int, raise_if_not_found:bool = True) -> Self:
         """
         Common wrapper to get by id, and raise an
         exception if not found
         """
         q = select(cls).where(cls.id == obj_id)
-        with get_db() as session:
-            obj = session.execute(q).scalars().one_or_none()
+        obj = session.execute(q).scalars().one_or_none()
         if obj is None and raise_if_not_found:
             raise DBRecordNotFoundError(f"{cls.__name__.capitalize()} with id {obj_id} does not exist")
         return obj

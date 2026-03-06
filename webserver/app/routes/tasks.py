@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from requests import Session
 from sqlalchemy import update
+from sqlalchemy.orm import Session as DBSession
 
 from app.helpers.const import CLEANUP_AFTER_DAYS, PUBLIC_URL, TASK_REVIEW
 from app.helpers.exceptions import (
@@ -66,7 +67,11 @@ async def get_service_info(request: Request) -> dict[str, str]:
 
 @router.get('', dependencies=[Depends(Auth("can_admin_task"))])
 @audit
-async def get_tasks(request: Request, params: Annotated[TaskFilters, Query()], db: Session = Depends(get_db)) -> dict[str, Any]:
+async def get_tasks(
+    request: Request,
+    params: Annotated[TaskFilters, Query()],
+    db: Session = Depends(get_db)
+) -> dict[str, Any]:
     """
     GET /tasks endpoint. Gets the list of tasks
     """
@@ -76,11 +81,15 @@ async def get_tasks(request: Request, params: Annotated[TaskFilters, Query()], d
 
 @router.get('/{task_id}', dependencies=[Depends(Auth("can_admin_task"))])
 @audit
-async def get_task_id(task_id: int, request:Request):
+async def get_task_id(
+    task_id: int,
+    request:Request,
+    session: DBSession = Depends(get_db)
+) -> dict[str, Any]:
     """
     GET /tasks/id endpoint. Gets a single task
     """
-    task = Task.get_by_id(task_id)
+    task = Task.get_by_id(session, task_id)
 
     await does_user_own_task(task)
 
@@ -89,11 +98,15 @@ async def get_task_id(task_id: int, request:Request):
 
 @router.post('/{task_id}/cancel', dependencies=[Depends(Auth("can_admin_task"))])
 @audit
-async def cancel_tasks(task_id:int, request: Request):
+async def cancel_tasks(
+    task_id:int,
+    request: Request,
+    session: DBSession = Depends(get_db)
+) -> dict[str, Any]:
     """
     POST /tasks/id/cancel endpoint. Cancels a task either scheduled or running one
     """
-    task = Task.get_by_id(task_id)
+    task = Task.get_by_id(session, task_id)
     if not task:
         raise DBRecordNotFoundError("Task not found")
 
@@ -113,32 +126,34 @@ async def cancel_tasks(task_id:int, request: Request):
 @audit
 async def post_tasks(
     body: TaskCreate,
-    request: Request
-):
+    request: Request,
+    session: DBSession = Depends(get_db)
+) -> dict[str, Any]:
     """
     POST /tasks endpoint. Creates a new task
     """
-    with get_db() as session:
-        try:
-            task = TaskService.add(data=body)
-            # Create pod/start ML pipeline
-            task.run()
-            return TaskRead.model_validate(task).model_dump()
-        except:
-            session.rollback()
-            raise
+    try:
+        task = TaskService.add(session, data=body)
+        # Create pod/start ML pipeline
+        task.run()
+        return TaskRead.model_validate(task).model_dump()
+    except:
+        session.rollback()
+        raise
 
 
 @router.post('/validate', dependencies=[Depends(Auth("can_exec_task"))])
 @audit
 async def post_tasks_validate(
     body: TaskCreate,
-    request: Request
+    request: Request,
+    session: DBSession = Depends(get_db)
 ) -> Literal['Ok']:
     """
     POST /tasks/validate endpoint.
         Allows task definition validation and the DB query that will be used
     """
+    TaskService.add(session, data=body, dry_run=True)
     return "Ok"
 
 
@@ -146,14 +161,15 @@ async def post_tasks_validate(
 @audit
 async def get_task_results(
     task_id:int,
-    request: Request
-):
+    request: Request,
+    session: DBSession = Depends(get_db)
+) -> FileResponse:
     """
     GET /tasks/id/results endpoint.
         Allows to get tasks results if approved to be released
         or, if an admin is trying to view them
     """
-    task: Task = Task.get_by_id(task_id)
+    task: Task = Task.get_by_id(session, task_id)
     if task is None:
         raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
 
@@ -182,12 +198,13 @@ async def get_task_results(
 @audit
 async def get_tasks_logs(
     task_id:int,
-    request: Request
-):
+    request: Request,
+    session: DBSession = Depends(get_db)
+) -> dict[str, Any | str]:
     """
     From a given task, return its pods logs
     """
-    task: Task = Task.get_by_id(task_id)
+    task: Task = Task.get_by_id(session, task_id)
     if task is None:
         raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
 
@@ -204,7 +221,8 @@ async def get_tasks_logs(
 @audit
 async def approve_results(
     task_id:int,
-    request: Request
+    request: Request,
+    session: DBSession = Depends(get_db)
 ) -> dict[str, str]:
     """
     POST /tasks/id/results/approve endpoint.
@@ -214,7 +232,7 @@ async def approve_results(
     if not TASK_REVIEW:
         raise FeatureNotAvailableException("Task Review")
 
-    task: Task = Task.get_by_id(task_id)
+    task: Task = Task.get_by_id(session, task_id)
     if task.review_status is not None:
         raise InvalidRequest("Task has been already reviewed")
 
@@ -222,9 +240,7 @@ async def approve_results(
     if task.get_task_crd():
         task.update_task_crd(True)
 
-    with get_db() as session:
-        session.execute(update(Task).where(Task.id == task_id).values({"review_status": True}))
-        session.commit()
+    task.update(session, {"review_status": True})
 
     return {"status": task.get_review_status()}
 
@@ -237,7 +253,8 @@ async def approve_results(
 @audit
 async def block_results(
     task_id:int,
-    request: Request
+    request: Request,
+    session: DBSession = Depends(get_db)
 ) -> dict[str, str]:
     """
     POST /tasks/id/results/block endpoint.
@@ -247,7 +264,7 @@ async def block_results(
     if not TASK_REVIEW:
         raise FeatureNotAvailableException("Task Review")
 
-    task = Task.get_by_id(task_id)
+    task: Task = Task.get_by_id(session, task_id)
     if task.review_status is not None:
         raise InvalidRequest("Task has been already reviewed")
 
@@ -255,10 +272,6 @@ async def block_results(
     if task.get_task_crd():
         task.update_task_crd(False)
 
-    with get_db() as session:
-        session.execute(update(Task).where(Task.id == task_id).values({"review_status": False}))
-        session.commit()
+    task.update(session, {"review_status": False})
 
-    return {
-        "status": task.get_review_status()
-    }
+    return {"status": task.get_review_status()}

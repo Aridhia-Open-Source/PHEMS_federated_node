@@ -12,6 +12,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query, Request
 from requests import Session
 from sqlalchemy import select
+from sqlalchemy.orm import Session as DBSession
 
 from app.helpers.base_model import get_db
 from app.helpers.exceptions import InvalidRequest, DBRecordNotFoundError
@@ -23,6 +24,7 @@ from app.models.registry import Registry
 
 from app.schemas.containers import ContainerCreate, ContainerRead, ContainerFilters, ContainerUpdate
 from app.schemas.pagination import PageResponse
+from app.services.containers import ContainerService
 
 
 logger = logging.getLogger('containers_api')
@@ -51,38 +53,30 @@ async def get_all_containers(
              status_code=HTTPStatus.CREATED
              )
 @audit
-async def add_image(request: Request, body: ContainerCreate):
+async def add_image(
+    request: Request,
+    body: ContainerCreate,
+    session: DBSession = Depends(get_db)
+) -> dict[str, Any]:
     """
     POST /containers endpoint.
     """
     # Make sure it doesn't exist already
-    q = select(Container).where(
-        Container.name == body.name,
-        Registry.id==body.registry_id
-    ).filter(
-        (Container.tag==body.tag) & (Container.sha==body.sha)
-    ).join(Registry)
-    with get_db() as session:
-        existing_image = session.execute(q).scalars().one_or_none()
-
-        if existing_image:
-            raise InvalidRequest(
-                f"Image {body.name} with {body.tag or body.sha} already exists in the registry",
-                409
-            )
-
-        image = Container(**body.model_dump(exclude_unset=True))
-        image.add(session)
+    image: Container = ContainerService.add(session, data=body)
     return ContainerRead.model_validate(image).model_dump()
 
 
 @router.get('/{image_id}', dependencies=[Depends(Auth("can_do_admin"))])
 @audit
-async def get_image_by_id(request:Request, image_id:int) -> dict[str, Any]:
+async def get_image_by_id(
+    request:Request,
+    image_id:int,
+    session: DBSession = Depends(get_db)
+) -> dict[str, Any]:
     """
     GET /containers/<image_id>
     """
-    image: Container = Container.get_by_id(image_id)
+    image: Container = Container.get_by_id(session, image_id)
     if not image:
         raise DBRecordNotFoundError(f"Container with id {image_id} does not exist")
 
@@ -94,17 +88,21 @@ async def get_image_by_id(request:Request, image_id:int) -> dict[str, Any]:
               status_code=HTTPStatus.CREATED
             )
 @audit
-async def patch_datasets_by_id_or_name(request:Request, image_id:int, body: ContainerUpdate):
+async def patch_containers_by_id_or_name(
+    request:Request,
+    image_id:int,
+    body: ContainerUpdate,
+    session: DBSession = Depends(get_db)
+):
     """
     PATCH /containers/id endpoint. Edits an existing container image with a given id
     """
-    Container.get_by_id(image_id)
+    container = Container.get_by_id(session, image_id)
     changes = body.model_dump(exclude_unset=True)
     if not changes:
         raise InvalidRequest("No valid changes detected")
 
-    Container.update(image_id, changes)
-    return {}
+    container.update(session, changes)
 
 
 @router.post('/sync',
@@ -112,7 +110,7 @@ async def patch_datasets_by_id_or_name(request:Request, image_id:int, body: Cont
              status_code=HTTPStatus.CREATED
              )
 @audit
-async def sync(request:Request) -> dict[str, Any]:
+async def sync(request:Request, session: DBSession = Depends(get_db)) -> dict[str, Any]:
     """
     POST /containers/sync
         syncs up the list of available containers from the
@@ -122,36 +120,36 @@ async def sync(request:Request) -> dict[str, Any]:
         flags has to set to true. This is done to avoid undesirable
         or unintended containers to be used on a node.
     """
-    synched = []
-    with get_db() as session:
-        for registry in session.execute(select(Registry).where(Registry.active == True)).scalars().all():
-            for image in registry.fetch_image_list():
-                for key in ["tag", "sha"]:
-                    for tag_or_sha in image[key]:
-                        if session.execute(select(Container).where(
-                            Container.name==image["name"],
-                            getattr(Container, key)==tag_or_sha,
-                            Container.registry_id==registry.id
-                        )).scalars().one_or_none():
-                            logger.info("Image %s already synched", image["name"])
-                            continue
+    synched: list[Container] = []
+    for registry in session.execute(select(Registry).where(Registry.active == True)).scalars().all():
+        for image in registry.fetch_image_list():
+            for key in ["tag", "sha"]:
+                for tag_or_sha in image[key]:
+                    if session.execute(select(Container).where(
+                        Container.name==image["name"],
+                        getattr(Container, key)==tag_or_sha,
+                        Container.registry_id==registry.id
+                    )).scalars().one_or_none():
+                        logger.info("Image %s already synched", image["name"])
+                        continue
 
-                        container_data = {
-                            "name": image["name"],
-                            "registry": registry.url
-                        }
-                        if key == "tag":
-                            container_data["tag"] = tag_or_sha
-                        else:
-                            container_data["sha"] = tag_or_sha
+                    container_data = {
+                        "name": image["name"],
+                        "registry": registry.url
+                    }
+                    if key == "tag":
+                        container_data["tag"] = tag_or_sha
+                    else:
+                        container_data["sha"] = tag_or_sha
 
-                        data = ContainerCreate(**container_data)
-                        cont = Container(**data.model_dump())
-                        cont.add(commit=False)
-                        synched.append(cont.full_image_name())
-        session.commit()
-        return {
-            "info": "The sync considers only the latest 100 tag per image. If an older one is needed,"
-                    " add it manually via the POST /images endpoint",
-            "images": synched
-        }
+                    cont: Container = ContainerService.add(session, ContainerCreate(**container_data), dry_run=True)
+
+                    synched.append(cont)
+
+    session.add_all(synched)
+    session.commit()
+    return {
+        "info": "The sync considers only the latest 100 tag per image. If an older one is needed,"
+                " add it manually via the POST /images endpoint",
+        "images": [syn.full_image_name() for syn in synched]
+    }

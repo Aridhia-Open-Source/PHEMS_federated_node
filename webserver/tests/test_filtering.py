@@ -6,6 +6,7 @@ from app.helpers.base_model import get_db
 def test_filter_by_date(
         client,
         simple_admin_header,
+        db_session
 ):
     """
     Testing the efficacy of filtering by date fields
@@ -26,10 +27,9 @@ def test_filter_by_date(
         "status_code": "200",
         "details": "",
     }
-    with get_db() as session:
-        for idx in range(3):
-            base_audit["event_time"] = dt.now() - td(days=idx)
-            Audit(**base_audit).add(session)
+    for idx in range(3):
+        base_audit["event_time"] = dt.now() - td(days=idx)
+        Audit(**base_audit).add(db_session)
 
     filters = {
         '': 1,

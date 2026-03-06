@@ -20,14 +20,13 @@ class TaskBase(BaseModel):
     docker_image: Optional[str] = None
     description: Optional[str] = None
     requested_by: Optional[str] = None
-    dataset_id: int
 
-    # internal vars, not validated
-    _executors: dict = PrivateAttr()
-    _inputs: dict = PrivateAttr()
-    _outputs: dict = PrivateAttr()
-    _resources: dict = PrivateAttr()
-    _db_query: dict = PrivateAttr()
+    # internal vars, not passed to the model
+    executors: list[dict] = Field(default=[{}], exclude=True)
+    inputs: dict = Field(default={}, exclude=True)
+    outputs: dict = Field(default={}, exclude=True)
+    resources: dict = Field(default={}, exclude=True)
+    db_query: dict = Field(default={}, exclude=True)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -40,46 +39,18 @@ class TaskCreate(TaskBase):
     resources: Optional[dict] = {}
     from_controller: Optional[bool] = False
 
+    # internal vars, not passed to the model
+    repository: Optional[str] = Field(default=None, exclude=True)
+    tags: Optional[dict] = Field(default={}, exclude=True)
+
     @model_validator(mode='before')
     @classmethod
     def extract_fields(cls, data: dict):
         executors = data["executors"][0]
         data["docker_image"] = executors["image"]
-        repository = data.pop("repository", None)
-        kc_client = Keycloak()
-        user_token = Keycloak.get_token_from_headers()
-
-        decoded_token = kc_client.decode_token(user_token)
-        data["requested_by"] = kc_client.get_user_by_email(decoded_token["email"])["id"]
-        user = kc_client.get_user_by_id(data["requested_by"])
-
-        # Dataset validation
-        if repository:
-            with get_db() as session:
-                ds = session.execute(
-                    select(Dataset).where(Dataset.repository.ilike(repository))
-                ).scalars().one_or_none()
-            if ds is None:
-                raise InvalidRequest(f"No datasets linked with the repository {repository}")
-
-            data["dataset_id"] = ds.id
-
-        elif kc_client.is_user_admin(user_token):
-            ds_id = data.get("tags", {}).get("dataset_id")
-            ds_name = data.get("tags", {}).get("dataset_name")
-            if ds_name or ds_id:
-                data["dataset_id"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id).id
-            else:
-                raise InvalidRequest("Administrators need to provide `tags.dataset_id` or `tags.dataset_name`")
-        else:
-            data["dataset_id"] = RequestModel.get_active_project(
-                data["project_name"],
-                user["id"]
-            ).dataset.id
 
         # Docker image validation
         Container.validate_image_format(data["docker_image"], data["docker_image"])
-        data["docker_image"] = Task.get_image_with_repo(data["docker_image"])
 
         data["executors"] = data["executors"]
         data["from_controller"] = data.pop("task_controller", False)
@@ -104,20 +75,10 @@ class TaskCreate(TaskBase):
                 data["resources"].get("limits", {}).get("memory"),
                 data["resources"].get("requests", {}).get("memory")
             )
-            data["_resources"] = data["resources"]
         if data.get("db_query") is not None and "query" not in data["db_query"]:
             raise InvalidRequest("`db_query` field must include a `query`")
 
-        data["db_query"] = data.pop("db_query", {})
         return data
-
-    @field_validator('dataset_id')
-    @classmethod
-    def validate_dataset_id(cls, v: int) -> int:
-        if not Dataset.get_by_id(v):
-            raise InvalidRequest(f"Dataset {v} does not exist")
-
-        return v
 
     @field_validator('name')
     @classmethod
@@ -134,6 +95,7 @@ class TaskRead(TaskBase):
     dataset_id: int
     status: str|dict = "scheduled"
     review_status: bool|None = Field(exclude=True)
+    dataset_id: int
     created_at: Optional[dt] = None
     updated_at: Optional[dt] = None
 

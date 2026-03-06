@@ -20,11 +20,3 @@ class Catalogue(BaseModel):
 
     dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
     dataset = relationship("Dataset")
-
-    def update(self, **data):
-        for k, v in data.items():
-            if not hasattr(self, k):
-                raise InvalidRequest(f"Field {k} is not a valid one")
-            else:
-                setattr(self, k, v)
-        Catalogue.update(self.id, data)

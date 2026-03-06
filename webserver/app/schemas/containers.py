@@ -1,11 +1,9 @@
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, model_validator
-from sqlalchemy import select
 
-from app.helpers.exceptions import ContainerRegistryException, InvalidRequest
-from app.models.registry import Registry
+from app.helpers.exceptions import InvalidRequest
 from app.models.container import Container
-from app.helpers.base_model import get_db
+from app.models.task import Task
 
 
 class ContainerBase(BaseModel):
@@ -14,24 +12,18 @@ class ContainerBase(BaseModel):
     sha: Optional[str] = None
     ml: bool = False
     dashboard: bool = False
-    registry_id: int
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class ContainerCreate(ContainerBase):
+    registry: str
+
     @model_validator(mode='before')
     @classmethod
     def extract_fields(cls, data: dict):
         if not (data.get("tag") or data.get("sha")):
             raise InvalidRequest("Make sure `tag` or `sha` are provided")
-
-        q = select(Registry).where(Registry.url == data["registry"])
-        with get_db() as session:
-            reg = session.execute(q).scalars().one_or_none()
-
-        if reg is None:
-            raise ContainerRegistryException(f"Registry {data["registry"]} could not be found")
-        data["registry_id"] = reg.id
 
         img_with_tag = f"{data["name"]}:{data.get("tag")}"
         img_with_sha = f"{data["name"]}@{data.get("sha")}"
@@ -47,6 +39,7 @@ class ContainerUpdate(BaseModel):
 
 class ContainerRead(ContainerBase):
     id: int
+    registry_id: int
 
 
 class ContainerFilters(BaseModel):

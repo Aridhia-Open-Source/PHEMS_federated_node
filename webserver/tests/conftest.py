@@ -129,9 +129,7 @@ def db_session(test_engine):
     Session = sessionmaker(bind=connection, expire_on_commit=False)
     session = Session()
 
-    with patch("app.helpers.base_model.SessionLocal") as mocked_get_db:
-        mocked_get_db.return_value = session
-        yield session
+    yield session
 
     session.close()
     transaction.rollback() # Wipes the data for the next test
@@ -350,8 +348,24 @@ def task(db_session, user_uuid, dataset, container) -> Task:
         description="test task",
         requested_by=user_uuid
     )
-    with db_session as session:
-        task.add(session)
+    task.add(db_session)
+    return task
+
+@fixture
+def task_oracle(db_session, user_uuid, dataset_oracle, container) -> Task:
+    task = Task(
+        dataset_id=dataset_oracle.id,
+        docker_image=container.full_image_name(),
+        name="testTask",
+        executors=[
+            {
+                "image": container.full_image_name()
+            }
+        ],
+        description="test task",
+        requested_by=user_uuid
+    )
+    task.add(db_session)
     return task
 
 @fixture
@@ -516,7 +530,7 @@ def mock_kc_client(mocker, basic_user, decode_token_return, mock_keycloak_class,
             create_user=Mock(return_value=create_user_return),
             get_user_role=Mock(return_value="Users"),
         )),
-        "tasks_schema_kc": mocker.patch('app.schemas.tasks.Keycloak', return_value=Mock(
+        "tasks_service_kc": mocker.patch('app.services.tasks.Keycloak', return_value=Mock(
             get_token=Mock(return_value={"access_token": "token"}),
             get_admin_token=Mock(return_value={"access_token": "admin_token"}),
             decode_token=Mock(return_value=decode_token_return),

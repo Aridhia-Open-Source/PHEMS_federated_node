@@ -49,8 +49,7 @@ class TestDictionaries(MixinTestDataset):
         resp_ds = self.post_dataset(client, post_json_admin_header, data_body, 400)
 
         assert resp_ds["error"][0]["message"] == "Input should be a valid list"
-        with get_db() as session:
-            assert session.execute(select(func.count(Dictionary.id))).scalar_one() == 0
+        assert self.db_session.execute(select(func.count(Dictionary.id))).scalar_one() == 0
 
     def test_admin_get_dictionaries_dataset_name(
             self,
@@ -97,8 +96,7 @@ class TestDictionaries(MixinTestDataset):
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        with get_db() as session:
-            dictionaries = session.execute(select(Dictionary).filter_by(dataset_id=resp_ds["id"], description="shiny new table")).scalars().all()
+        dictionaries = self.db_session.execute(select(Dictionary).filter_by(dataset_id=resp_ds["id"], description="shiny new table")).scalars().all()
 
         for dictionary in dictionaries:
             for k, v in data_body["dictionaries"][0].items():
@@ -132,8 +130,7 @@ class TestDictionaries(MixinTestDataset):
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        with get_db() as session:
-            assert session.execute(select(func.count(Dictionary.id)).where(Dictionary.dataset_id == resp_ds["id"])).scalar_one() == 2
+        assert self.db_session.execute(select(func.count(Dictionary.id)).where(Dictionary.dataset_id == resp_ds["id"])).scalar_one() == 2
 
     def test_patch_dictionary_fails_if_exists(
             self,
@@ -159,8 +156,7 @@ class TestDictionaries(MixinTestDataset):
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        with get_db() as session:
-            assert session.execute(select(func.count(Dictionary.id)).filter_by(dataset_id=resp_ds["id"])).scalar_one() == 1
+        assert self.db_session.execute(select(func.count(Dictionary.id)).filter_by(dataset_id=resp_ds["id"])).scalar_one() == 1
 
     def test_patch_dictionary_fails_if_mandatory_field_missing(
             self,

@@ -19,15 +19,6 @@ class RegistryCreate(RegistryBase):
     username: str
     password: str
 
-    @field_validator('url')
-    @classmethod
-    def validate_name(cls, v: str):
-        q = select(Registry).where(Registry.url == v)
-        with get_db() as session:
-            if session.execute(q).one_or_none():
-                raise InvalidRequest(f"Registry {v} already exist")
-        return v
-
 
 class RegistryUpdate(RegistryCreate):
     # url won't be allowed, by setting it to None,
