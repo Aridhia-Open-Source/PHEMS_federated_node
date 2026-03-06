@@ -4,9 +4,9 @@ from sqlalchemy import Integer, String, select
 from sqlalchemy.orm import Session, mapped_column, relationship
 from app.helpers.base_model import BaseModel, get_db
 from app.helpers.const import DEFAULT_NAMESPACE, PUBLIC_URL
-from app.helpers.exceptions import DBRecordNotFoundError
+from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
-from kubernetes.client import V1Secret
+from kubernetes.client import ApiException, V1Secret
 
 from app.helpers.connection_string import Mssql, Postgres, Mysql, Oracle, MariaDB
 
@@ -42,6 +42,18 @@ class Dataset(BaseModel):
         self.username = kwargs.pop("username", None)
         self.password = kwargs.pop("password", None)
         super().__init__(**kwargs)
+
+    def delete(self, session: Session) -> None:
+        nested = session.begin_nested()
+        super().delete(session, False)
+        v1 = KubernetesClient()
+        try:
+            v1.delete_namespaced_secret(self.get_creds_secret_name(), DEFAULT_NAMESPACE)
+        except ApiException as apie:
+            if apie.status != 404:
+                nested.rollback()
+                logger.error(apie)
+                raise InvalidRequest("Could not clear the secrets properly") from apie
 
     @property
     def slug(self):

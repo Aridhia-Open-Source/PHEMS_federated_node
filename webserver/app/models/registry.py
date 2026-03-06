@@ -116,14 +116,15 @@ class Registry(BaseModel):
         _class = self.get_registry_class()
         return _class.list_repos()
 
-    def delete(self, session: sessionmaker, commit:bool=False):
-        super().delete(session, commit)
+    def delete(self, session: Session):
+        nested = session.begin_nested()
+        super().delete(session, False)
         v1 = KubernetesClient()
         try:
             v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=self.slugify_name())
-        except ApiException as kae:
-            session.rollback()
-            logger.error("%s:\n\tDetails: %s", kae.reason, kae.body)
+        except ApiException as apie:
+            nested.rollback()
+            logger.error("%s:\n\tDetails: %s", apie.reason, apie.body)
             raise ContainerRegistryException("Error while deleting entity")
 
     def update(self, session:Session, data: dict):

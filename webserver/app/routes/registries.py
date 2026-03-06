@@ -69,7 +69,7 @@ async def delete_registry_by_id(registry_id:int, request: Request, session: DBSe
     if registry is None:
         raise DBRecordNotFoundError("Registry not found")
 
-    registry.delete(session, commit=True)
+    registry.delete(session)
 
 
 @router.post('', status_code=HTTPStatus.CREATED, dependencies=[Depends(Auth("can_admin_dataset"))])

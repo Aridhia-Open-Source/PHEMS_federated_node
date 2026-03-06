@@ -1044,7 +1044,8 @@ class TestDeleteDataset(MixinTestDataset):
             headers=post_json_admin_header
         )
         assert response.status_code == 204
-        assert Dataset.get_by_id(self.db_session, ds_id, raise_if_not_found=False) is not None
+        self.db_session.expire_all()
+        assert Dataset.get_by_id(self.db_session, ds_id, raise_if_not_found=False) is None
 
     def test_delete_dataset_with_catalougues(
             self,

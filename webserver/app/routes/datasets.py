@@ -115,22 +115,8 @@ async def delete_datasets_by_id_or_name(
     else:
         filters["name"] = dataset_identifier
     ds: Dataset = Dataset.get_dataset_by_name_or_id(session, **filters)
-    secret_name = ds.get_creds_secret_name()
 
-    try:
-        ds.delete(session)
-        v1 = KubernetesClient()
-        v1.delete_namespaced_secret(secret_name, DEFAULT_NAMESPACE)
-    except ApiException as apie:
-        if apie.status != 404:
-            logger.error(apie)
-            session.rollback()
-            raise InvalidRequest("Could not clear the secrets properly") from apie
-    except Exception as exc:
-        session.rollback()
-        raise InvalidRequest("Error while deleting the record") from exc
-
-    session.commit()
+    ds.delete(session)
 
 
 @router.patch('/{dataset_identifier}', status_code=HTTPStatus.ACCEPTED, dependencies=[Depends(Auth("can_admin_dataset"))])
@@ -157,29 +143,25 @@ async def patch_datasets_by_id_or_name(
     if not changes:
         raise InvalidRequest("No valid changes detected")
 
-    try:
-        ds = DatasetService.update(session, ds, changes)
-        # Also make sure all the request clients are updated with this
-        if changes.get("name", None) is not None and changes.get("name", None) != old_ds_name:
-            q = select(RequestModel.requested_by, RequestModel.project_name)\
-                .where(
-                    RequestModel.dataset_id == ds.id,
-                    RequestModel.proj_end > func.now()
-                ).group_by(RequestModel.requested_by, RequestModel.project_name)
-            dars = session.execute(q).all()
-            for dar in dars:
-                update_args = {
-                    "name": f"{ds.id}-{ds.name}",
-                    "displayName": f"{ds.id} - {ds.name}"
-                }
+    ds: Dataset = DatasetService.update(session, ds, changes)
+    # Also make sure all the request clients are updated with this
+    if changes.get("name", None) is not None and changes.get("name", None) != old_ds_name:
+        q = select(RequestModel.requested_by, RequestModel.project_name)\
+            .where(
+                RequestModel.dataset_id == ds.id,
+                RequestModel.proj_end > func.now()
+            ).group_by(RequestModel.requested_by, RequestModel.project_name)
+        dars = session.execute(q).all()
+        for dar in dars:
+            update_args = {
+                "name": f"{ds.id}-{ds.name}",
+                "displayName": f"{ds.id} - {ds.name}"
+            }
 
-                user = Keycloak().get_user_by_id(dar[0])
-                req_by = user["email"]
-                kc_client = Keycloak(client=f"RequestModel {req_by} - {dar[1]}")
-                kc_client.patch_resource(f"{ds.id}-{old_ds_name}", **update_args)
-    except:
-        session.rollback()
-        raise
+            user = Keycloak().get_user_by_id(dar[0])
+            req_by = user["email"]
+            kc_client = Keycloak(client=f"RequestModel {req_by} - {dar[1]}")
+            kc_client.patch_resource(f"{ds.id}-{old_ds_name}", **update_args)
 
     session.commit()
     return DatasetRead.model_validate(ds).model_dump()

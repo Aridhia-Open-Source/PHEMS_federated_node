@@ -52,7 +52,7 @@ class BaseModel(DeclarativeBase):
                     jsonized[field] = str(val)
         return jsonized
 
-    def add(self, session: Session, commit:bool=True):
+    def add(self, session: Session, commit:bool=True) -> None:
         session.add(self)
         session.commit()
         session.refresh(self, attribute_names=["id"])
@@ -71,10 +71,9 @@ class BaseModel(DeclarativeBase):
             setattr(self, key, getattr(persistent_self, key))
 
     def delete(self, session:Session, commit=True) -> None:
-        persistent_self = session.merge(self)
-
-        session.delete(persistent_self)
-        session.commit()
+        session.delete(self)
+        if commit:
+            session.commit()
 
     @classmethod
     def get_all(cls, session) -> list[dict]:

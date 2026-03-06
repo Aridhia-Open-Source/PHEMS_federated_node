@@ -324,7 +324,7 @@ class TestDeleteRegistries(BaseTest):
             headers=simple_admin_header
         )
         assert response.status_code == 500
-        assert Registry.get_by_id(self.db_session, reg_id, raise_if_not_found=False) is None
+        assert Registry.get_by_id(self.db_session, reg_id, raise_if_not_found=False) is not None
 
     def test_delete_cascade_containers(
             self,
