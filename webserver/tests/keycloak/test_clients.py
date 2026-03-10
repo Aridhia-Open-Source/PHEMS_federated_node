@@ -1,4 +1,4 @@
-import pytest
+from pytest import mark, raises
 import responses
 from responses import matchers
 from app.helpers.exceptions import KeycloakError
@@ -9,7 +9,8 @@ from tests.keycloak.test_keycloak_helper import TestKeycloakMixin
 class TestKeycloakClients(TestKeycloakMixin):
     """
     """
-    def test_create_client(
+    @mark.asyncio
+    async def test_create_client(
             self, keycloak_login_request_mock
     ):
         """
@@ -28,11 +29,12 @@ class TestKeycloakClients(TestKeycloakMixin):
             json=self.common_error_response,
             status=500
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.create_client('some_client', 60)
         assert exc.value.description == 'Failed to create a project'
 
-    def test_create_client_update(
+    @mark.asyncio
+    async def test_create_client_update(
             self, keycloak_login_request_mock
     ):
         """
@@ -64,11 +66,12 @@ class TestKeycloakClients(TestKeycloakMixin):
             json=self.common_error_response,
             status=500
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.create_client('some_client', 60)
         assert exc.value.description == 'Failed to create a project'
 
-    def test_get_client_id(self):
+    @mark.asyncio
+    async def test_get_client_id(self):
         """
         Test that the proper exception is raised when the
         keycloak API returns != 200 on fetching a client id.
@@ -91,11 +94,12 @@ class TestKeycloakClients(TestKeycloakMixin):
                 json=self.common_error_response,
                 status=500
             )
-            with pytest.raises(KeycloakError) as exc:
+            with raises(KeycloakError) as exc:
                 Keycloak()
             assert exc.value.description == 'Could not find client'
 
-    def test_get_client_id_fails(self):
+    @mark.asyncio
+    async def test_get_client_id_fails(self):
         """
         Test that the proper exception is raised when the
         keycloak API is successful, but no entries are returned
@@ -117,11 +121,12 @@ class TestKeycloakClients(TestKeycloakMixin):
                 match=[matchers.query_string_matcher("clientId=global")],
                 json=[]
             )
-            with pytest.raises(KeycloakError) as exc:
+            with raises(KeycloakError) as exc:
                 Keycloak()
             assert exc.value.description == 'Could not find project'
 
-    def test_enable_token_exchange(self, keycloak_login_request_mock):
+    @mark.asyncio
+    async def test_enable_token_exchange(self, keycloak_login_request_mock):
         """
         enable_token_exchange returns nothing, just chains few keycloak
         API calls. If any fails with status code != 409, should raise
@@ -174,7 +179,8 @@ class TestKeycloakClients(TestKeycloakMixin):
         )
         kc_client.enable_token_exchange()
 
-    def test_enable_token_exchange_policy_exchange_exists(self, keycloak_login_request_mock):
+    @mark.asyncio
+    async def test_enable_token_exchange_policy_exchange_exists(self, keycloak_login_request_mock):
         """
         enable_token_exchange returns nothing, just chains few keycloak
         API calls. If any fails with status code != 409, should raise
@@ -235,7 +241,8 @@ class TestKeycloakClients(TestKeycloakMixin):
         )
         kc_client.enable_token_exchange()
 
-    def test_enable_token_exchange_policy_exchange_fails(self, keycloak_login_request_mock):
+    @mark.asyncio
+    async def test_enable_token_exchange_policy_exchange_fails(self, keycloak_login_request_mock):
         """
         enable_token_exchange returns nothing, just chains few keycloak
         API calls. If any fails with status code != 409, should raise
@@ -275,11 +282,12 @@ class TestKeycloakClients(TestKeycloakMixin):
             json=self.common_error_response,
             status=500
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.enable_token_exchange()
         assert exc.value.description == 'Something went wrong in creating the set of permissions on Keycloak'
 
-    def test_enable_token_exchange_policy_exchange_patch_fails(self, keycloak_login_request_mock):
+    @mark.asyncio
+    async def test_enable_token_exchange_policy_exchange_patch_fails(self, keycloak_login_request_mock):
         """
         enable_token_exchange returns nothing, just chains few keycloak
         API calls. If any fails with status code != 409, should raise
@@ -340,6 +348,6 @@ class TestKeycloakClients(TestKeycloakMixin):
             status=500,
             json=self.common_error_response,
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.enable_token_exchange()
         assert exc.value.description == 'Failed to update the exchange permission'

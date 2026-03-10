@@ -30,13 +30,13 @@ router = APIRouter(tags=["admin"])
 @router.get('/audit', dependencies=[Depends(Auth("can_do_admin"))])
 async def get_audit_logs(
     params: Annotated[AuditFilters, Query()],
-    db: Session = Depends(get_db)
+    session: Session = Depends(get_db)
 ) -> dict[str, Any]:
     """
     GET /audit endpoint.
         Returns a list of audit entries
     """
-    pagination = apply_filters(db, Audit, params)
+    pagination = await apply_filters(session, Audit, params)
     return PageResponse[AuditBase].model_validate(pagination).model_dump()
 
 
@@ -46,7 +46,11 @@ async def get_audit_logs(
     dependencies=[Depends(Auth("can_do_admin"))]
 )
 @audit
-async def update_delivery_secret(request: Request, body: DeliverySecretPost) -> None:
+async def update_delivery_secret(
+    request: Request,
+    body: DeliverySecretPost,
+    session: Session = Depends(get_db)
+) -> None:
     """
     PATCH /delivery-secret
         if the Controller is deployed with the FN

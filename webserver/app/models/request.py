@@ -43,7 +43,7 @@ class RequestModel(BaseModel):
     def _get_client_name(self, user_id:str):
         return f"RequestModel {user_id} - {self.project_name}"
 
-    def approve(self, session: Session):
+    async def approve(self, session: Session):
         """
         Method to orchestrate the Keycloak objects creation
         """
@@ -74,7 +74,7 @@ class RequestModel(BaseModel):
                 created_scopes.append(kc_client.create_scope(scope))
 
             q = select(Dataset).where(Dataset.id == self.dataset_id)
-            ds = session.execute(q).scalars().one_or_none()
+            ds = (await session.execute(q)).scalars().one_or_none()
 
             logger.info("%s - Creating resource", new_client_name)
             resource = kc_client.create_resource({
@@ -147,31 +147,33 @@ class RequestModel(BaseModel):
             ret_response = {"token": kc_client.get_impersonation_token(user["id"])}
 
             logger.info("Updating DB")
-            self.update(
+            await self.update(
                 session, dict(status=self.STATUSES["approved"], requested_by=user["id"])
             )
-            session.commit()
+            await session.commit()
         except IntegrityError as exc:
-            session.rollback()
+            await session.rollback()
             raise DBError(f"Failed to approve request {self.id}") from exc
         except LogAndException as exc:
-            self.delete(commit=True)
+            await self.delete(commit=True)
             raise exc
 
         return ret_response
 
     @classmethod
-    def get_active_project(cls, session:Session, proj_name:str, user_id:str):
+    async def get_active_project(cls, session:Session, proj_name:str, user_id:str):
         """
         Get the active project by namme and user
         """
-        q = select(cls).where(
-            cls.project_name == proj_name,
-            cls.requested_by == user_id,
-            cls.proj_start <= func.now(),
-            cls.proj_end > func.now()
+        q = await session.execute(
+            select(cls).where(
+                cls.project_name == proj_name,
+                cls.requested_by == user_id,
+                cls.proj_start <= func.now(),
+                cls.proj_end > func.now()
+            )
         )
-        dar = session.execute(q).scalars().one_or_none()
+        dar = q.scalars().one_or_none()
         if dar is None:
             raise DBError("User does not belong to a valid project")
         return dar

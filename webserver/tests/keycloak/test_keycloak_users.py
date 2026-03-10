@@ -1,4 +1,4 @@
-import pytest
+from pytest import mark, raises
 import responses
 from responses import matchers
 import urllib.parse
@@ -20,7 +20,8 @@ class TestKeycloakUsers(TestKeycloakMixin):
     def get_new_user_api_resp(self) -> list[dict[str, str]]:
         return [{"username": self.email, "id": self.user_id}]
 
-    def test_list_users(
+    @mark.asyncio
+    async def test_list_users(
         self, keycloak_login_request_mock
     ):
         """
@@ -37,7 +38,8 @@ class TestKeycloakUsers(TestKeycloakMixin):
         user_info = kc_client.list_users()
         assert expected_out == user_info
 
-    def test_list_users_fails(
+    @mark.asyncio
+    async def test_list_users_fails(
         self, keycloak_login_request_mock
     ):
         """
@@ -51,12 +53,13 @@ class TestKeycloakUsers(TestKeycloakMixin):
             json=expected_out,
             status=500
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.list_users()
 
         assert exc.value.description == "Failed to fetch the users"
 
-    def test_get_user(
+    @mark.asyncio
+    async def test_get_user(
         self, keycloak_login_request_mock
     ):
         """
@@ -74,7 +77,8 @@ class TestKeycloakUsers(TestKeycloakMixin):
         user_info = kc_client.get_user(self.email)
         assert expected_out == user_info
 
-    def test_get_user_with_email(
+    @mark.asyncio
+    async def test_get_user_with_email(
         self, keycloak_login_request_mock
     ):
         """
@@ -99,7 +103,8 @@ class TestKeycloakUsers(TestKeycloakMixin):
         user_info = kc_client.get_user(self.email)
         assert expected_out == user_info
 
-    def test_get_user_fails(
+    @mark.asyncio
+    async def test_get_user_fails(
         self, keycloak_login_request_mock
     ):
         """
@@ -114,11 +119,12 @@ class TestKeycloakUsers(TestKeycloakMixin):
             match=[matchers.query_string_matcher(f"username={self.email_url}&exact=True")],
             status=500
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.get_user(self.email)
         assert exc.value.description == 'Failed to fetch the user'
 
-    def test_create_user(
+    @mark.asyncio
+    async def test_create_user(
             self, keycloak_login_request_mock
     ):
         """
@@ -155,7 +161,8 @@ class TestKeycloakUsers(TestKeycloakMixin):
         user_info = kc_client.create_user(**{'email': self.email})
         assert "password" in user_info
 
-    def test_create_user_fails(
+    @mark.asyncio
+    async def test_create_user_fails(
             self, keycloak_login_request_mock
     ):
         """
@@ -175,11 +182,12 @@ class TestKeycloakUsers(TestKeycloakMixin):
             json=self.common_error_response,
             status=500
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.create_user(**{'email': self.email})
         assert exc.value.description == 'Failed to create the user'
 
-    def test_get_user_role(
+    @mark.asyncio
+    async def test_get_user_role(
             self, keycloak_login_request_mock
     ):
         """
@@ -197,7 +205,8 @@ class TestKeycloakUsers(TestKeycloakMixin):
         assert isinstance(res, list)
         assert ["Users"] == res
 
-    def test_get_user_role_fails(
+    @mark.asyncio
+    async def test_get_user_role_fails(
             self, keycloak_login_request_mock
     ):
         """
@@ -211,11 +220,12 @@ class TestKeycloakUsers(TestKeycloakMixin):
             json=self.common_error_response,
             status=500
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.get_user_role(self.user_id)
         assert exc.value.description == 'Failed to get the user\'s role'
 
-    def test_assign_role_to_user(
+    @mark.asyncio
+    async def test_assign_role_to_user(
             self, keycloak_login_request_mock
     ):
         """
@@ -237,7 +247,8 @@ class TestKeycloakUsers(TestKeycloakMixin):
         )
         kc_client.assign_role_to_user(self.user_id, "Users")
 
-    def test_assign_role_to_user_fails(
+    @mark.asyncio
+    async def test_assign_role_to_user_fails(
             self, keycloak_login_request_mock
     ):
         """
@@ -256,11 +267,12 @@ class TestKeycloakUsers(TestKeycloakMixin):
             URLS["user_role"] % self.user_id,
             status=400
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.assign_role_to_user(self.user_id, "Users")
         assert exc.value.description == 'Failed to create the user'
 
-    def test_reset_user_pass(
+    @mark.asyncio
+    async def test_reset_user_pass(
             self, keycloak_login_request_mock
     ):
         """
@@ -292,7 +304,8 @@ class TestKeycloakUsers(TestKeycloakMixin):
         )
         kc_client.reset_user_pass(self.user_id, self.email, "pass", "new_pas")
 
-    def test_reset_user_pass_incorrect_temp_pass(
+    @mark.asyncio
+    async def test_reset_user_pass_incorrect_temp_pass(
             self, keycloak_login_request_mock
     ):
         """
@@ -317,11 +330,12 @@ class TestKeycloakUsers(TestKeycloakMixin):
             ],
             status=401
         )
-        with pytest.raises(AuthenticationError) as exc:
+        with raises(AuthenticationError) as exc:
             kc_client.reset_user_pass(self.user_id, self.email, "pass", "new_pas")
         assert exc.value.description == 'Incorrect credentials'
 
-    def test_reset_user_pass_fails(
+    @mark.asyncio
+    async def test_reset_user_pass_fails(
             self, keycloak_login_request_mock
     ):
         """
@@ -352,11 +366,12 @@ class TestKeycloakUsers(TestKeycloakMixin):
             json=self.common_error_response,
             status=500
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.reset_user_pass(self.user_id, self.email, "pass", "new_pas")
         assert exc.value.description == 'Could not update the password.'
 
-    def test_is_user_admin(self, keycloak_login_request_mock):
+    @mark.asyncio
+    async def test_is_user_admin(self, keycloak_login_request_mock):
         """
         Simplistic is_user_admin test to verify if all API requests succeeds
         no exception is raised
@@ -378,7 +393,8 @@ class TestKeycloakUsers(TestKeycloakMixin):
         )
         assert Keycloak().is_user_admin("token")
 
-    def test_is_user_admin_normal_user(self, keycloak_login_request_mock):
+    @mark.asyncio
+    async def test_is_user_admin_normal_user(self, keycloak_login_request_mock):
         """
         Simplistic is_user_admin test to verify if all API requests succeeds
         no exception is raised
@@ -400,7 +416,8 @@ class TestKeycloakUsers(TestKeycloakMixin):
         )
         assert not Keycloak().is_user_admin("token")
 
-    def test_is_user_admin_token_expired(self, keycloak_login_request_mock):
+    @mark.asyncio
+    async def test_is_user_admin_token_expired(self, keycloak_login_request_mock):
         """
         Simplistic is_user_admin test to verify if all API requests fails
         the Authentication exception is raised
@@ -421,7 +438,7 @@ class TestKeycloakUsers(TestKeycloakMixin):
             ],
             status=401
         )
-        with pytest.raises(AuthenticationError) as exc:
+        with raises(AuthenticationError) as exc:
             Keycloak().is_user_admin("token")
         assert exc.value.description == 'Failed to login'
 

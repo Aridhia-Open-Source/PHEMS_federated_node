@@ -1,3 +1,4 @@
+from pytest import mark
 from sqlalchemy import func, select
 
 from app.models.catalogue import Catalogue
@@ -8,7 +9,8 @@ class TestCatalogues(MixinTestDataset):
     """
     Collection of tests for catalogues requests
     """
-    def test_admin_get_catalogue(
+    @mark.asyncio
+    async def test_admin_get_catalogue(
             self,
             client,
             dataset,
@@ -21,15 +23,16 @@ class TestCatalogues(MixinTestDataset):
         """
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
-        resp_ds = self.post_dataset(client, post_json_admin_header, data_body)
-        response = client.get(
+        resp_ds = await self.post_dataset(client, post_json_admin_header, data_body)
+        response = await client.get(
             f"/datasets/{resp_ds["id"]}/catalogue",
             headers=simple_admin_header
         )
         assert response.status_code == 200
         assert response.json().items() >= data_body["catalogue"].items()
 
-    def test_admin_get_catalogue_dataset_name(
+    @mark.asyncio
+    async def test_admin_get_catalogue_dataset_name(
             self,
             client,
             dataset,
@@ -42,15 +45,16 @@ class TestCatalogues(MixinTestDataset):
         """
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
-        self.post_dataset(client, post_json_admin_header, data_body)
-        response = client.get(
+        await self.post_dataset(client, post_json_admin_header, data_body)
+        response = await client.get(
             f"/datasets/{data_body['name']}/catalogue",
             headers=simple_admin_header
         )
         assert response.status_code == 200, response.json()
         assert response.json().items() >= data_body["catalogue"].items()
 
-    def test_edit_existing_catalogue(
+    @mark.asyncio
+    async def test_edit_existing_catalogue(
             self,
             client,
             dataset_post_body,
@@ -62,22 +66,23 @@ class TestCatalogues(MixinTestDataset):
         """
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
-        resp_ds = self.post_dataset(client, post_json_admin_header, data_body)
+        resp_ds = await self.post_dataset(client, post_json_admin_header, data_body)
 
         data_body = {"catalogue": dataset_post_body["catalogue"]}
         data_body["catalogue"]["description"] = "shiny new table"
 
-        response = client.patch(
+        response = await client.patch(
             f"/datasets/{resp_ds["id"]}",
             json=data_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        catalogue = self.run_query(select(Catalogue).where(Catalogue.dataset_id == resp_ds["id"]), "all")
+        catalogue = await self.run_query(select(Catalogue).where(Catalogue.dataset_id == resp_ds["id"]), "all")
         assert len(catalogue) == 1
         assert catalogue[0].description == "shiny new table"
 
-    def test_add_catalogue_to_existing_dataset(
+    @mark.asyncio
+    async def test_add_catalogue_to_existing_dataset(
             self,
             client,
             dataset_post_body,
@@ -91,9 +96,9 @@ class TestCatalogues(MixinTestDataset):
         data_body = dataset_post_body.copy()
         data_body.pop("catalogue")
         data_body['name'] = 'TestDs78'
-        resp_ds = self.post_dataset(client, post_json_admin_header, data_body)
+        resp_ds = await self.post_dataset(client, post_json_admin_header, data_body)
 
-        assert self.run_query(select(func.count(Catalogue.id)).where(Catalogue.dataset_id == resp_ds["id"]), "one") == 0
+        assert await self.run_query(select(func.count(Catalogue.id)).where(Catalogue.dataset_id == resp_ds["id"]), "one") == 0
 
         data_body = {
             "catalogue": {
@@ -102,15 +107,16 @@ class TestCatalogues(MixinTestDataset):
                 "description": "data dummy"
             }
         }
-        response = client.patch(
+        response = await client.patch(
             f"/datasets/{resp_ds["id"]}",
             json=data_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        assert self.run_query(select(func.count(Catalogue.id)).where(Catalogue.dataset_id == resp_ds["id"]), "one") == 1
+        assert await self.run_query(select(func.count(Catalogue.id)).where(Catalogue.dataset_id == resp_ds["id"]), "one") == 1
 
-    def test_patch_catalogue_doesnt_add_new_one_if_exists(
+    @mark.asyncio
+    async def test_patch_catalogue_doesnt_add_new_one_if_exists(
             self,
             client,
             dataset_post_body,
@@ -123,20 +129,21 @@ class TestCatalogues(MixinTestDataset):
         """
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
-        resp_ds = self.post_dataset(client, post_json_admin_header, data_body)
+        resp_ds = await self.post_dataset(client, post_json_admin_header, data_body)
 
         data_body = {
             "catalogue": data_body["catalogue"]
         }
-        response = client.patch(
+        response = await client.patch(
             f"/datasets/{resp_ds["id"]}",
             json=data_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        assert self.run_query(select(func.count(Catalogue.id)).where(Catalogue.dataset_id == resp_ds["id"]), "one") == 1
+        assert await self.run_query(select(func.count(Catalogue.id)).where(Catalogue.dataset_id == resp_ds["id"]), "one") == 1
 
-    def test_get_catalogue_not_allowed_user(
+    @mark.asyncio
+    async def test_get_catalogue_not_allowed_user(
             self,
             client,
             dataset,
@@ -152,11 +159,11 @@ class TestCatalogues(MixinTestDataset):
         """
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
-        resp_ds = self.post_dataset(client, post_json_admin_header, data_body)
+        resp_ds = await self.post_dataset(client, post_json_admin_header, data_body)
 
         mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
 
-        response = client.get(
+        response = await client.get(
             f"/datasets/{resp_ds["id"]}/catalogue",
             headers=simple_user_header
         )

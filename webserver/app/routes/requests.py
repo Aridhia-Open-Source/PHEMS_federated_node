@@ -28,7 +28,7 @@ async def get_requests(request: Request, session: DBSession = Depends(get_db)) -
     """
     GET /requests endpoint. Gets a list of Data Access RequestModel
     """
-    res = RequestModel.get_all(session)
+    res = await RequestModel.get_all(session)
     if res:
         res = [r[0].sanitized_dict() for r in res]
     return res
@@ -54,19 +54,19 @@ async def post_requests(
         body["requested_by"] = json.dumps(body["requested_by"])
         ds_id = getattr(body, "dataset_id", None)
         ds_name = getattr(body,"dataset_name", None)
-        body.dataset = Dataset.get_dataset_by_name_or_id(ds_id, ds_name)
+        body.dataset = await Dataset.get_dataset_by_name_or_id(ds_id, ds_name)
 
         req_attributes = RequestModel.validate(body)
         req = RequestModel(**req_attributes)
-        req.add(session)
+        await req.add(session)
         return {"request_id": req.id}
     except KeyError as kexc:
-        session.rollback()
+        await session.rollback()
         raise InvalidRequest(
             "Missing field. Make sure \"catalogue\" and \"dictionary\" entries are there"
         ) from kexc
     except:
-        session.rollback()
+        await session.rollback()
         raise
 
 # Disabled for the time being, also disable the pylint rule for duplicated code
@@ -82,7 +82,7 @@ async def post_approve_requests(code: int, request: Request) -> dict[str, str]:
     """
     POST /requests/code/approve endpoint. Approves a pending Data Access RequestModel
     """
-    dar = RequestModel.get_by_id(id=code)
+    dar = await RequestModel.get_by_id(id=code)
     if dar is None:
         raise DBRecordNotFoundError(f"Data Access RequestModel {code} not found")
 

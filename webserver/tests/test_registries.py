@@ -1,3 +1,4 @@
+from pytest import mark
 import base64
 import json
 from kubernetes.client import ApiException
@@ -9,7 +10,8 @@ from tests.base_test_class import BaseTest
 
 
 class TestGetRegistriesApi(BaseTest):
-    def test_list_200(
+    @mark.asyncio
+    async def test_list_200(
         self,
         registry,
         client,
@@ -19,7 +21,7 @@ class TestGetRegistriesApi(BaseTest):
         Basic test for the GET /registries endpoint
         ensuring the expected response body
         """
-        resp = client.get(
+        resp = await client.get(
             "/registries",
             headers=simple_admin_header
         )
@@ -31,7 +33,8 @@ class TestGetRegistriesApi(BaseTest):
             'url': registry.url
         }]
 
-    def test_list_non_admin_403(
+    @mark.asyncio
+    async def test_list_non_admin_403(
         self,
         registry,
         client,
@@ -44,13 +47,14 @@ class TestGetRegistriesApi(BaseTest):
         ensuring only admins can get information
         """
         mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
-        resp = client.get(
+        resp = await client.get(
             "/registries",
             headers=simple_user_header
         )
         assert resp.status_code == 403
 
-    def test_list_no_auth_401(
+    @mark.asyncio
+    async def test_list_no_auth_401(
         self,
         registry,
         client,
@@ -60,10 +64,11 @@ class TestGetRegistriesApi(BaseTest):
         Basic test for the GET /registries endpoint
         ensuring only admins can get information
         """
-        resp = client.get("/registries")
+        resp = await client.get("/registries")
         assert resp.status_code == 401
 
-    def test_get_registry_by_id(
+    @mark.asyncio
+    async def test_get_registry_by_id(
         self,
         registry,
         client,
@@ -73,7 +78,7 @@ class TestGetRegistriesApi(BaseTest):
         Basic test to check that the registry
         output is correct with appropriate permissions
         """
-        resp = client.get(
+        resp = await client.get(
             f"registries/{registry.id}",
             headers=simple_admin_header
         )
@@ -86,7 +91,8 @@ class TestGetRegistriesApi(BaseTest):
         }
 
 
-    def test_get_registry_by_id_not_found(
+    @mark.asyncio
+    async def test_get_registry_by_id_not_found(
         self,
         registry,
         client,
@@ -96,14 +102,15 @@ class TestGetRegistriesApi(BaseTest):
         Basic test that a 404 is return with an
         appropriate message
         """
-        resp = client.get(
+        resp = await client.get(
             f"registries/{registry.id + 1}",
             headers=simple_admin_header
         )
         assert resp.status_code == 404
         assert resp.json()["error"] == f"Registry with id {registry.id + 1} does not exist"
 
-    def test_get_registry_by_id_non_admin_403(
+    @mark.asyncio
+    async def test_get_registry_by_id_non_admin_403(
         self,
         registry,
         client,
@@ -115,7 +122,7 @@ class TestGetRegistriesApi(BaseTest):
         by registry id
         """
         mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
-        resp = client.get(
+        resp = await client.get(
             f"registries/{registry.id}",
             headers=simple_user_header
         )
@@ -123,7 +130,8 @@ class TestGetRegistriesApi(BaseTest):
 
 
 class TestPostRegistriesApi(BaseTest):
-    def test_create_registry_201(
+    @mark.asyncio
+    async def test_create_registry_201(
         self,
         client,
         post_json_admin_header,
@@ -142,7 +150,7 @@ class TestPostRegistriesApi(BaseTest):
                 json={"access_token": "12jio12buds89"},
                 status=200
             )
-            resp = client.post(
+            resp = await client.post(
                 "/registries",
                 json={
                     "url": new_registry,
@@ -153,7 +161,8 @@ class TestPostRegistriesApi(BaseTest):
             )
         assert resp.status_code == 201
 
-    def test_create_registry_incorrect_creds(
+    @mark.asyncio
+    async def test_create_registry_incorrect_creds(
         self,
         client,
         post_json_admin_header
@@ -170,7 +179,7 @@ class TestPostRegistriesApi(BaseTest):
                 json={"error": "Invalid credentials"},
                 status=401
             )
-            resp = client.post(
+            resp = await client.post(
                 "/registries",
                 json={
                     "url": new_registry,
@@ -182,7 +191,43 @@ class TestPostRegistriesApi(BaseTest):
         assert resp.status_code == 400
         assert resp.json()["error"] == "Could not authenticate against the registry"
 
-    def test_create_registry_missing_secret(
+    @mark.asyncio
+    async def test_create_registry_k8s_error(
+        self,
+        client,
+        k8s_client,
+        post_json_admin_header
+    ):
+        """
+        Basic POST request when the docker secret does not exist, so it get correctly
+        created
+        """
+        new_registry = "shiny.azurecr.io"
+        k8s_client["read_namespaced_secret_mock"].side_effect = [
+            ApiException(status=500, reason="Failed")
+        ]
+        with responses.RequestsMock() as rsps:
+            rsps.add_passthru(KEYCLOAK_URL)
+            rsps.add(
+                responses.GET,
+                f"https://{new_registry}/oauth2/token?service={new_registry}&scope=registry:catalog:*",
+                json={"access_token": "12jio12buds89"},
+                status=200
+            )
+            resp = await client.post(
+                "/registries",
+                json={
+                    "url": new_registry,
+                    "username": "blabla",
+                    "password": "secret"
+                },
+                headers=post_json_admin_header
+            )
+        assert resp.status_code == 400
+        assert await self.run_query(select(Registry).where(Registry.url == new_registry), "one_or_none") is None
+
+    @mark.asyncio
+    async def test_create_registry_missing_secret(
         self,
         client,
         k8s_client,
@@ -207,7 +252,7 @@ class TestPostRegistriesApi(BaseTest):
                 json={"access_token": "12jio12buds89"},
                 status=200
             )
-            resp = client.post(
+            resp = await client.post(
                 "/registries",
                 json={
                     "url": new_registry,
@@ -218,7 +263,8 @@ class TestPostRegistriesApi(BaseTest):
             )
         assert resp.status_code == 201
 
-    def test_create_missing_field(
+    @mark.asyncio
+    async def test_create_missing_field(
         self,
         client,
         post_json_admin_header
@@ -227,7 +273,7 @@ class TestPostRegistriesApi(BaseTest):
         Checks that required fields missing return
         an error message
         """
-        resp = client.post(
+        resp = await client.post(
             "/registries",
             json={
                 "username": "blabla",
@@ -238,7 +284,8 @@ class TestPostRegistriesApi(BaseTest):
         assert resp.status_code == 400
         assert resp.json()["error"][0] == {'field': ['body', 'url'], 'message': 'Field required', 'type': 'missing'}
 
-    def test_create_duplicate(
+    @mark.asyncio
+    async def test_create_duplicate(
         self,
         client,
         registry,
@@ -250,7 +297,7 @@ class TestPostRegistriesApi(BaseTest):
         """
         with responses.RequestsMock() as rsps:
             rsps.add_passthru(KEYCLOAK_URL)
-            resp = client.post(
+            resp = await client.post(
                 "/registries",
                 json={
                     "url": registry.url,
@@ -261,11 +308,12 @@ class TestPostRegistriesApi(BaseTest):
             )
         assert resp.status_code == 400
         assert resp.json()["error"] == f"Registry {registry.url} already exist"
-        assert self.run_query(select(func.count(Registry.id)).where(Registry.url==registry.url), "one") == 1
+        assert await self.run_query(select(func.count(Registry.id)).where(Registry.url==registry.url), "one") == 1
 
 
 class TestDeleteRegistries(BaseTest):
-    def test_delete_registry(
+    @mark.asyncio
+    async def test_delete_registry(
             self,
             client,
             registry,
@@ -277,7 +325,7 @@ class TestDeleteRegistries(BaseTest):
         DB and its k8s secrets
         """
         secret_name = registry.slugify_name()
-        response = client.delete(
+        response = await client.delete(
             f"/registries/{registry.id}",
             headers=simple_admin_header
         )
@@ -286,7 +334,8 @@ class TestDeleteRegistries(BaseTest):
             **{"name": secret_name, "namespace": TASK_NAMESPACE}
         )
 
-    def test_delete_registry_not_found(
+    @mark.asyncio
+    async def test_delete_registry_not_found(
             self,
             client,
             registry,
@@ -296,13 +345,14 @@ class TestDeleteRegistries(BaseTest):
         """
         Return a 404 response if a registry cannot be found
         """
-        response = client.delete(
+        response = await client.delete(
             f"/registries/{registry.id + 1}",
             headers=simple_admin_header
         )
         assert response.status_code == 404
 
-    def test_delete_registry_k8s_error(
+    @mark.asyncio
+    async def test_delete_registry_k8s_error(
             self,
             client,
             registry,
@@ -319,14 +369,15 @@ class TestDeleteRegistries(BaseTest):
             http_resp=Mock(status=500, reason="Error", data="Invalid value in data")
         )
         reg_id = registry.id
-        response = client.delete(
+        response = await client.delete(
             f"/registries/{reg_id}",
             headers=simple_admin_header
         )
         assert response.status_code == 500
-        assert Registry.get_by_id(self.db_session, reg_id, raise_if_not_found=False) is not None
+        assert await Registry.get_by_id(self.db_session, reg_id, raise_if_not_found=False) is not None
 
-    def test_delete_cascade_containers(
+    @mark.asyncio
+    async def test_delete_cascade_containers(
             self,
             client,
             registry,
@@ -339,30 +390,31 @@ class TestDeleteRegistries(BaseTest):
         containers are deleted as well
         """
         reg_id = registry.id
-        Container(
+        await Container(
             registry=registry,
             name="newimage",
             tag="1.0.0"
         ).add(db_session)
-        Container(
+        await Container(
             registry=registry,
             name="newimage",
             tag="1.3.0"
         ).add(db_session)
 
-        response = client.delete(
+        response = await client.delete(
             f"/registries/{reg_id}",
             headers=simple_admin_header
         )
         assert response.status_code == 204
-        assert Registry.get_by_id(self.db_session, reg_id, raise_if_not_found=False) is None
-        assert self.run_query(select(func.count(Container.id)).where(
+        assert await Registry.get_by_id(self.db_session, reg_id, raise_if_not_found=False) is None
+        assert await self.run_query(select(func.count(Container.id)).where(
             Container.name=="newimage", Container.registry_id==reg_id
             ), "one") == 0
 
 
 class TestPatchRegistriesApi(BaseTest):
-    def test_patch_registry(
+    @mark.asyncio
+    async def test_patch_registry(
         self,
         client,
         registry,
@@ -375,19 +427,20 @@ class TestPatchRegistriesApi(BaseTest):
         data = {
             "active": not registry.active
         }
-        resp = client.patch(
+        resp = await client.patch(
             f"registries/{registry.id}",
             json=data,
             headers=post_json_admin_header
         )
         assert resp.status_code == 204
-        assert self.run_query(
+        assert await self.run_query(
             select(func.count(Registry.id)).where(Registry.id==registry.id, Registry.active == data["active"])
         , "one") == 1
         # it patches the regcreds-like secret at registry creation
         k8s_client["patch_namespaced_secret_mock"].call_count == 1
 
-    def test_patch_registry_credentials(
+    @mark.asyncio
+    async def test_patch_registry_credentials(
         self,
         client,
         registry,
@@ -405,7 +458,7 @@ class TestPatchRegistriesApi(BaseTest):
         }
         k8s_client["read_namespaced_secret_mock"].return_value.data = dockerconfigjson_mock
 
-        resp = client.patch(
+        resp = await client.patch(
             f"registries/{registry.id}",
             json=data,
             headers=post_json_admin_header
@@ -421,7 +474,8 @@ class TestPatchRegistriesApi(BaseTest):
         assert json.loads(dockerconfig)["auths"][registry.url]["username"] == data["username"]
         assert reg_secret["name"] == "acr-azurecr-io"
 
-    def test_patch_registry_empty_body(
+    @mark.asyncio
+    async def test_patch_registry_empty_body(
         self,
         client,
         registry,
@@ -433,7 +487,7 @@ class TestPatchRegistriesApi(BaseTest):
         are updated
         """
         data = {}
-        resp = client.patch(
+        resp = await client.patch(
             f"registries/{registry.id}",
             json=data,
             headers=post_json_admin_header
@@ -443,7 +497,8 @@ class TestPatchRegistriesApi(BaseTest):
         # it patches the regcreds-like secret at registry creation
         k8s_client["patch_namespaced_secret_mock"].call_count == 1
 
-    def test_patch_registry_non_existent(
+    @mark.asyncio
+    async def test_patch_registry_non_existent(
         self,
         client,
         registry,
@@ -456,7 +511,7 @@ class TestPatchRegistriesApi(BaseTest):
         data = {
             "active": not registry.active
         }
-        resp = client.patch(
+        resp = await client.patch(
             f"registries/{registry.id + 1}",
             json=data,
             headers=post_json_admin_header
@@ -464,7 +519,8 @@ class TestPatchRegistriesApi(BaseTest):
         assert resp.status_code == 404
         assert resp.json()["error"] == f"Registry with id {registry.id + 1} does not exist"
 
-    def test_patch_registry_url_change_not_allowed(
+    @mark.asyncio
+    async def test_patch_registry_url_change_not_allowed(
         self,
         client,
         registry,
@@ -477,7 +533,7 @@ class TestPatchRegistriesApi(BaseTest):
         data = {
             "host": "fancy.acr.io"
         }
-        resp = client.patch(
+        resp = await client.patch(
             f"registries/{registry.id}",
             json=data,
             headers=post_json_admin_header
@@ -485,7 +541,8 @@ class TestPatchRegistriesApi(BaseTest):
         assert resp.status_code == 400
         assert resp.json()["error"] == "No valid changes detected"
 
-    def test_patch_registry_k8s_fail(
+    @mark.asyncio
+    async def test_patch_registry_k8s_fail(
         self,
         client,
         registry,
@@ -502,7 +559,7 @@ class TestPatchRegistriesApi(BaseTest):
             http_resp=Mock(status=500, body="details", reason="Failed")
         )
 
-        resp = client.patch(
+        resp = await client.patch(
             f"registries/{registry.id}",
             json=data,
             headers=post_json_admin_header

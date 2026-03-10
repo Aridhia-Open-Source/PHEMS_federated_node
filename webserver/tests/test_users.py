@@ -1,14 +1,15 @@
+from pytest import mark
 from unittest import mock
 
 from app.helpers.exceptions import AuthenticationError, KeycloakError
 
 
 class UserMixin:
-    def create_user(self, client, email, headers):
+    async def create_user(self, client, email, headers):
         """
         Common helper to send the create user request
         """
-        resp = client.post(
+        resp = await client.post(
             "/users",
             headers=headers,
             json={
@@ -20,7 +21,8 @@ class UserMixin:
         return resp.json()
 
 class TestGetUsers(UserMixin):
-    def test_get_all_users(
+    @mark.asyncio
+    async def test_get_all_users(
         self,
         client,
         simple_admin_header,
@@ -32,7 +34,7 @@ class TestGetUsers(UserMixin):
         the one used by the backend
         """
         mock_kc_client["users_kc"].return_value.list_users.return_value[0]["email"] = new_user_email
-        resp = client.get(
+        resp = await client.get(
             "/users",
             headers=simple_admin_header
         )
@@ -40,7 +42,8 @@ class TestGetUsers(UserMixin):
         assert len(resp.json()) == 1
         assert resp.json()[0]['email'] == new_user_email
 
-    def test_user_needs_pass_reset_flag_true(
+    @mark.asyncio
+    async def test_user_needs_pass_reset_flag_true(
         self,
         client,
         simple_admin_header,
@@ -51,7 +54,7 @@ class TestGetUsers(UserMixin):
         Test that the needs_to_reset_password is set properly
         for a new user and for existing ones
         """
-        resp = client.get(
+        resp = await client.get(
             "/users",
             headers=simple_admin_header
         )
@@ -62,7 +65,8 @@ class TestGetUsers(UserMixin):
             if basic_user["email"] == new_user_email:
                 assert us["needs_to_reset_password"] == False
 
-    def test_get_all_users_fails(
+    @mark.asyncio
+    async def test_get_all_users_fails(
         self,
         client,
         simple_admin_header,
@@ -74,13 +78,14 @@ class TestGetUsers(UserMixin):
         """
         mock_kc_client["users_kc"].return_value.list_users.side_effect = KeycloakError()
 
-        resp = client.get(
+        resp = await client.get(
             "/users",
             headers=simple_admin_header
         )
         assert resp.status_code == 500
 
-    def test_get_all_users_non_admin(
+    @mark.asyncio
+    async def test_get_all_users_non_admin(
         self,
         client,
         simple_user_header,
@@ -90,7 +95,7 @@ class TestGetUsers(UserMixin):
         Tests that non-admins cannot get the list of users
         """
         mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
-        resp = client.get(
+        resp = await client.get(
             "/users",
             headers=simple_user_header
         )
@@ -98,7 +103,8 @@ class TestGetUsers(UserMixin):
 
 
 class TestCreateUser(UserMixin):
-    def test_create_successfully(
+    @mark.asyncio
+    async def test_create_successfully(
         self,
         client,
         post_json_admin_header,
@@ -110,7 +116,7 @@ class TestCreateUser(UserMixin):
         as response.
         """
         mock_kc_client["users_kc"].return_value.get_user_by_email.return_value = []
-        resp = client.post(
+        resp = await client.post(
             "/users",
             headers=post_json_admin_header,
             json={"email": new_user_email}
@@ -119,7 +125,8 @@ class TestCreateUser(UserMixin):
         assert resp.status_code == 201
         assert "tempPassword" in resp.json()
 
-    def test_create_successfully_with_special_char(
+    @mark.asyncio
+    async def test_create_successfully_with_special_char(
         self,
         client,
         post_json_admin_header,
@@ -130,7 +137,7 @@ class TestCreateUser(UserMixin):
         as response. This tests that email with + are processed fine
         """
         mock_kc_client["users_kc"].return_value.get_user_by_email.return_value = []
-        resp = client.post(
+        resp = await client.post(
             "/users",
             headers=post_json_admin_header,
             json={"email": "someemail+test@email.com"}
@@ -139,7 +146,8 @@ class TestCreateUser(UserMixin):
         assert resp.status_code == 201
         assert "tempPassword" in resp.json()
 
-    def test_create_missing_fields(
+    @mark.asyncio
+    async def test_create_missing_fields(
         self,
         client,
         post_json_admin_header,
@@ -149,7 +157,7 @@ class TestCreateUser(UserMixin):
         Basic test to ensure we get 400 in case
         an email or username are not provided
         """
-        resp = client.post(
+        resp = await client.post(
             "/users",
             headers=post_json_admin_header,
             json={
@@ -162,8 +170,9 @@ class TestCreateUser(UserMixin):
         assert resp.json()["error"][0]["message"] == "Field required"
         assert "email" in resp.json()["error"][0]["field"]
 
+    @mark.asyncio
     @mock.patch('app.routes.users.Keycloak.create_user', return_value=mock.Mock())
-    def test_create_user_with_same_email(
+    async def test_create_user_with_same_email(
         self,
         mock_kc_create,
         client,
@@ -175,7 +184,7 @@ class TestCreateUser(UserMixin):
         Create a user with the email of an existing user.
         It is expected that no actions are taken, and 4xx is returned
         """
-        resp = client.post(
+        resp = await client.post(
             "/users",
             headers=post_json_admin_header,
             json={"email": new_user_email}
@@ -185,7 +194,8 @@ class TestCreateUser(UserMixin):
         assert resp.status_code == 400
         assert resp.json()["error"] == "User already exists"
 
-    def test_create_keycloak_error(
+    @mark.asyncio
+    async def test_create_keycloak_error(
         self,
         client,
         post_json_admin_header,
@@ -199,7 +209,7 @@ class TestCreateUser(UserMixin):
         mock_kc_client["users_kc"].return_value.get_user_by_email.return_value = []
         mock_kc_client["users_kc"].return_value.create_user.side_effect = KeycloakError('Failed to create the user')
 
-        resp = client.post(
+        resp = await client.post(
             "/users",
             headers=post_json_admin_header,
             json={"email": new_user_email}
@@ -208,7 +218,8 @@ class TestCreateUser(UserMixin):
         assert resp.status_code == 500
         assert resp.json() == {"error": "Failed to create the user"}
 
-    def test_create_admin_successfully(
+    @mark.asyncio
+    async def test_create_admin_successfully(
         self,
         client,
         post_json_admin_header,
@@ -221,7 +232,7 @@ class TestCreateUser(UserMixin):
         """
         mock_kc_client["users_kc"].return_value.get_user_by_email.return_value = []
 
-        resp = client.post(
+        resp = await client.post(
             "/users",
             headers=post_json_admin_header,
             json={
@@ -233,7 +244,8 @@ class TestCreateUser(UserMixin):
         assert resp.status_code == 201
         assert "tempPassword" in resp.json()
 
-    def test_create_user_non_existing_role(
+    @mark.asyncio
+    async def test_create_user_non_existing_role(
         self,
         client,
         post_json_admin_header,
@@ -248,7 +260,7 @@ class TestCreateUser(UserMixin):
         mock_kc_client["users_kc"].return_value.get_user_by_email.return_value = []
         mock_kc_client["users_kc"].return_value.create_user.side_effect = KeycloakError('Role President does not exist', 400)
 
-        resp = client.post(
+        resp = await client.post(
             "/users",
             headers=post_json_admin_header,
             json={
@@ -261,13 +273,14 @@ class TestCreateUser(UserMixin):
         assert resp.json()["error"] == "Role President does not exist"
 
         # check the user doesn't exist in keycloak
-        resp = client.get(
+        resp = await client.get(
             "/users",
             headers=simple_admin_header
         )
         assert new_user_email not in [user["email"] for user in resp.json()]
 
-    def test_new_user_login_with_temp_pass(
+    @mark.asyncio
+    async def test_new_user_login_with_temp_pass(
         self,
         client,
         post_json_admin_header,
@@ -280,7 +293,7 @@ class TestCreateUser(UserMixin):
         """
         mock_kc_client["users_kc"].return_value.get_user_by_email.return_value = []
 
-        resp = client.post(
+        resp = await client.post(
             "/users",
             headers=post_json_admin_header,
             json={
@@ -293,7 +306,7 @@ class TestCreateUser(UserMixin):
         mock_kc_client["main_kc"].return_value.get_token.side_effect=AuthenticationError("Temporary password must be changed before logging in")
 
         # Try to login
-        login_resp = client.post(
+        login_resp = await client.post(
             '/login',
             data={
                 "username": new_user_email,
@@ -308,7 +321,8 @@ class TestCreateUser(UserMixin):
 
 
 class TestPassChange(UserMixin):
-    def test_new_user_can_change_pass(
+    @mark.asyncio
+    async def test_new_user_can_change_pass(
         self,
         client,
         new_user_email,
@@ -319,7 +333,7 @@ class TestPassChange(UserMixin):
         password can be changed
         """
         # Change temp pass
-        psw_resp = client.put(
+        psw_resp = await client.put(
             '/users/reset-password',
             json={
                 "email": new_user_email,
@@ -330,7 +344,7 @@ class TestPassChange(UserMixin):
         assert psw_resp.status_code == 204
 
         # Try to login
-        login_resp = client.post(
+        login_resp = await client.post(
             '/login',
             data={
                 "username": new_user_email,
@@ -342,7 +356,8 @@ class TestPassChange(UserMixin):
         )
         assert login_resp.status_code == 200
 
-    def test_new_user_cant_change_wrong_pass(
+    @mark.asyncio
+    async def test_new_user_cant_change_wrong_pass(
         self,
         client,
         new_user,
@@ -356,7 +371,7 @@ class TestPassChange(UserMixin):
         mock_kc_client["users_kc"].return_value.reset_user_pass.side_effect=AuthenticationError("Incorrect credentials")
 
         # Change temp pass
-        psw_resp = client.put(
+        psw_resp = await client.put(
             '/users/reset-password',
             json={
                 "email": new_user["email"],
@@ -370,7 +385,7 @@ class TestPassChange(UserMixin):
         mock_kc_client["main_kc"].return_value.get_token.side_effect = AuthenticationError("Failed to login")
 
         # Try to login
-        login_resp = client.post(
+        login_resp = await client.post(
             '/login',
             data={
                 "username": new_user["email"],
@@ -382,7 +397,8 @@ class TestPassChange(UserMixin):
         )
         assert login_resp.status_code == 401
 
-    def test_new_user_cant_change_for_another_user(
+    @mark.asyncio
+    async def test_new_user_cant_change_for_another_user(
         self,
         client,
         post_json_admin_header,
@@ -399,12 +415,12 @@ class TestPassChange(UserMixin):
         new_user["username"] = "second@user.com"
 
         mock_kc_client["users_kc"].return_value.get_user_by_email.return_value = []
-        resp = self.create_user(client, "second@user.com", post_json_admin_header)
+        resp = await self.create_user(client, "second@user.com", post_json_admin_header)
 
         mock_kc_client["users_kc"].return_value.get_user_by_email.return_value = new_user
         mock_kc_client["users_kc"].return_value.reset_user_pass.side_effect = AuthenticationError("Incorrect credentials")
         # Change temp pass
-        psw_resp = client.put(
+        psw_resp = await client.put(
             '/users/reset-password',
             json={
                 "email": new_user["email"],
@@ -418,7 +434,7 @@ class TestPassChange(UserMixin):
         mock_kc_client["main_kc"].return_value.get_token.side_effect=AuthenticationError("Failed to login")
 
         # Try to login
-        login_resp = client.post(
+        login_resp = await client.post(
             '/login',
             data={
                 "username": new_user["email"],

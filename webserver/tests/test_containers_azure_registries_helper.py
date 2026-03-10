@@ -1,3 +1,4 @@
+from pytest import mark, raises
 import responses
 import requests
 from tests.fixtures.azure_cr_fixtures import *
@@ -9,7 +10,8 @@ class TestAzureRegistry:
     Different registry classes make different requests.
         This addressed the Azure case
     """
-    def test_cr_login_failed(
+    @mark.asyncio
+    async def test_cr_login_failed(
             self,
             container,
             cr_class,
@@ -25,11 +27,12 @@ class TestAzureRegistry:
                 f"https://{cr_name}/oauth2/token?service={registry.url}&scope=repository:{container.name}:*",
                 status=401
             )
-            with pytest.raises(ContainerRegistryException) as cre:
+            with raises(ContainerRegistryException) as cre:
                 cr_class.login(container.name)
             assert cre.value.description == "Could not authenticate against the registry"
 
-    def test_cr_metadata_empty(
+    @mark.asyncio
+    async def test_cr_metadata_empty(
             self,
             container,
             cr_class,
@@ -54,7 +57,8 @@ class TestAzureRegistry:
             )
             assert cr_class.get_image_tags(container.name) == {'tag': [], 'sha': []}
 
-    def test_cr_metadata_tag_not_in_api_response(
+    @mark.asyncio
+    async def test_cr_metadata_tag_not_in_api_response(
             self,
             container,
             cr_class,
@@ -87,7 +91,8 @@ class TestAzureRegistry:
                 )
             assert not cr_class.has_image_tag_or_sha(container.name, "latest")
 
-    def test_cr_login_connection_error(
+    @mark.asyncio
+    async def test_cr_login_connection_error(
         self,
         registry,
         cr_class
@@ -104,11 +109,12 @@ class TestAzureRegistry:
                 f"https://{registry.url}/oauth2/token?service={registry.url}&scope=registry:catalog:*",
                 body=requests.ConnectionError("error")
             )
-            with pytest.raises(ContainerRegistryException) as cre:
+            with raises(ContainerRegistryException) as cre:
                 cr_class.login()
         assert cre.value.description == "Failed to connect with the Registry. Make sure it's spelled correctly or it does not have firewall restrictions."
 
-    def test_cr_tags_connection_error(
+    @mark.asyncio
+    async def test_cr_tags_connection_error(
         self,
         registry,
         cr_name,
@@ -133,11 +139,12 @@ class TestAzureRegistry:
                 json={"access_token": "12345asdf"},
                 status=200
             )
-            with pytest.raises(ContainerRegistryException) as cre:
+            with raises(ContainerRegistryException) as cre:
                 cr_class.get_image_tags(container.name)
             assert cre.value.description == f"Failed to fetch the list of tags from {registry.url}/{container.name}"
 
-    def test_cr_tags_request_fails(
+    @mark.asyncio
+    async def test_cr_tags_request_fails(
         self,
         registry,
         cr_name,
@@ -163,11 +170,12 @@ class TestAzureRegistry:
                 json={"access_token": "12345asdf"},
                 status=200
             )
-            with pytest.raises(ContainerRegistryException) as cre:
+            with raises(ContainerRegistryException) as cre:
                 cr_class.get_image_tags(container.name)
             assert cre.value.description == f"Failed to fetch the list of tags for {container.name}"
 
-    def test_cr_list_repo_connection_error(
+    @mark.asyncio
+    async def test_cr_list_repo_connection_error(
         self,
         registry,
         cr_name,
@@ -185,11 +193,12 @@ class TestAzureRegistry:
                 f"https://{cr_name}/v2/_catalog",
                 body=requests.ConnectionError("error")
             )
-            with pytest.raises(ContainerRegistryException) as cre:
+            with raises(ContainerRegistryException) as cre:
                 cr_class.list_repos()
             assert cre.value.description == f"Failed to fetch the list of available containers from {registry.url}"
 
-    def test_cr_list_repo_request_fails(
+    @mark.asyncio
+    async def test_cr_list_repo_request_fails(
         self,
         registry,
         cr_name,
@@ -208,6 +217,6 @@ class TestAzureRegistry:
                 json={"error": "Something went wrong"},
                 status=400
             )
-            with pytest.raises(ContainerRegistryException) as cre:
+            with raises(ContainerRegistryException) as cre:
                 cr_class.list_repos()
             assert cre.value.description == "Could not fetch the list of images"

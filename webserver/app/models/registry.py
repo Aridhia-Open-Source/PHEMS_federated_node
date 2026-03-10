@@ -1,14 +1,15 @@
 import json
 import logging
 import re
-from typing import Self
+from typing import NoReturn
 from kubernetes.client.exceptions import ApiException
-from sqlalchemy import Column, Integer, String, Boolean, select, update
-from sqlalchemy.orm import Session, relationship, sessionmaker
+from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy.orm import Session, relationship
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.helpers.const import TASK_NAMESPACE
 from app.helpers.container_registries import AzureRegistry, BaseRegistry, DockerRegistry, GitHubRegistry
-from app.helpers.base_model import BaseModel, get_db
+from app.helpers.base_model import BaseModel
 from app.helpers.exceptions import ContainerRegistryException, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
 
@@ -116,24 +117,24 @@ class Registry(BaseModel):
         _class = self.get_registry_class()
         return _class.list_repos()
 
-    def delete(self, session: Session):
-        nested = session.begin_nested()
-        super().delete(session, False)
-        v1 = KubernetesClient()
-        try:
-            v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=self.slugify_name())
-        except ApiException as apie:
-            nested.rollback()
-            logger.error("%s:\n\tDetails: %s", apie.reason, apie.body)
-            raise ContainerRegistryException("Error while deleting entity")
+    async def delete(self, session: AsyncSession) -> NoReturn:
+        async with session.begin_nested() as nested:
+            await super().delete(session, False)
+            v1 = KubernetesClient()
+            try:
+                v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=self.slugify_name())
+            except ApiException as apie:
+                await nested.rollback()
+                logger.error("%s:\n\tDetails: %s", apie.reason, apie.body)
+                raise ContainerRegistryException("Error while deleting entity")
 
-    def update(self, session:Session, data: dict):
+    async def update(self, session:Session, data: dict):
         """
         Updates the instance with new values. These should be
         already validated.
         """
         if data.get("active") is not None:
-            super().update(session, {"active": data.get("active")})
+            await super().update(session, {"active": data.get("active")})
 
         if not(data.get("username") or data.get("password")):
             return

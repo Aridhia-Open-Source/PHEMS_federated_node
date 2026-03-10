@@ -22,7 +22,7 @@ class AuditFilters(BaseModel):
     ip_address: Optional[str] = None
     endpoint: Optional[str] = None
     api_function: Optional[str] = None
-    event_time: Optional[str] = None
+    event_time: Optional[dt] = None
     event_time__lte: Optional[str] = None
     event_time__gte: Optional[str] = None
     event_time__ne: Optional[str] = None

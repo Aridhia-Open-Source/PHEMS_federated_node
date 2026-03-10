@@ -67,9 +67,10 @@ class Task(BaseModel):
         super().__init__(**kwargs)
 
     @classmethod
-    def get_by_id(cls, session:Session, id: int) -> Self:
+    async def get_by_id(cls, session:Session, id: int) -> Self:
         q = select(cls).options(joinedload(cls.dataset)).where(cls.id == id)
-        return session.execute(q).scalars().one_or_none()
+        task_query_results = await session.execute(q)
+        return task_query_results.scalars().one_or_none()
 
     @classmethod
     def validate_cpu_resources(cls, limit_value:str, request_value:str):
@@ -144,7 +145,7 @@ class Task(BaseModel):
         return int(base) * MEMORY_UNITS[unit]
 
     @classmethod
-    def split_registry_from_image(cls, session:Session, docker_image:str) -> tuple[str, str]:
+    async def split_registry_from_image(cls, session:Session, docker_image:str) -> tuple[str, str]:
         """
         Find the registry
         """
@@ -153,18 +154,18 @@ class Task(BaseModel):
 
             q = select(func.count(Registry.id)).where(Registry.url == registry)
 
-            if session.execute(q).scalar_one() == 1:
+            if (await session.execute(q)).scalar_one() == 1:
                 return registry, "/".join(docker_image.split('/')[i:])
 
         raise InvalidRequest("Could not find the image in the mapped registries. Check the image has the full name")
 
     @classmethod
-    def get_image_with_repo(cls, session:Session, docker_image:str, string_only:bool=True) -> str | Container:
+    async def get_image_with_repo(cls, session:Session, docker_image:str, string_only:bool=True) -> str | Container:
         """
         Looks through the CRs for the image and if exists,
         returns the full image name with the repo prefixing the image.
         """
-        registry, image = cls.split_registry_from_image(session, docker_image)
+        registry, image = await cls.split_registry_from_image(session, docker_image)
 
         tag = None
         sha = None
@@ -181,7 +182,7 @@ class Task(BaseModel):
         ).where(
             (((Container.tag==tag) & (Container.tag != None)) | ((Container.sha==sha) & (Container.sha != None)))
         ).join(Registry)
-        image = session.execute(q).scalars().one_or_none()
+        image = (await session.execute(q)).scalars().one_or_none()
 
         if image is None:
             raise TaskExecutionException(f"Image {docker_image} could not be found")

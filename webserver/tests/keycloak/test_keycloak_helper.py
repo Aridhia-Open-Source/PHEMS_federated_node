@@ -1,5 +1,5 @@
-import pytest
-from pytest import fixture
+from pytest_asyncio import fixture
+from pytest import mark, raises
 import responses
 from responses import matchers
 from app.helpers.exceptions import KeycloakError
@@ -164,7 +164,8 @@ class TestKeycloakMixin:
 
 
 class TestKeycloakResponseFailures(TestKeycloakMixin):
-    def test_exchange_global_token_access_token(
+    @mark.asyncio
+    async def test_exchange_global_token_access_token(
             self, keycloak_login_request_mock
     ):
         """
@@ -179,11 +180,12 @@ class TestKeycloakResponseFailures(TestKeycloakMixin):
             json={"error": "Invalid credentials"},
             status=500
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.exchange_global_token('not a token')
         assert exc.value.description == 'Cannot get an access token'
 
-    def test_exchange_global_token(
+    @mark.asyncio
+    async def test_exchange_global_token(
             self, keycloak_login_request_mock
     ):
         """
@@ -207,11 +209,12 @@ class TestKeycloakResponseFailures(TestKeycloakMixin):
             content_type='application/x-www-form-urlencoded',
             status=500
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.exchange_global_token('not a token')
         assert exc.value.description == 'Cannot exchange token'
 
-    def test_impersonation_token(
+    @mark.asyncio
+    async def test_impersonation_token(
             self, keycloak_login_request_mock
     ):
         """
@@ -234,11 +237,12 @@ class TestKeycloakResponseFailures(TestKeycloakMixin):
             content_type='application/x-www-form-urlencoded',
             status=500
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.get_impersonation_token('some user id')
         assert exc.value.description == 'Cannot exchange impersonation token'
 
-    def test_get_client_secret(self, keycloak_login_request_mock):
+    @mark.asyncio
+    async def test_get_client_secret(self, keycloak_login_request_mock):
         """
         Test that the proper exception is raised when the
         keycloak API returns != 200 on fetching the client secret
@@ -251,11 +255,12 @@ class TestKeycloakResponseFailures(TestKeycloakMixin):
             json=self.common_error_response,
             status=500
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client._get_client_secret()
         assert exc.value.description == f'Failed to fetch {kc_client.client_id}\'s secret'
 
-    def test_get_role(
+    @mark.asyncio
+    async def test_get_role(
             self, keycloak_login_request_mock
     ):
         """
@@ -269,11 +274,12 @@ class TestKeycloakResponseFailures(TestKeycloakMixin):
             json=self.common_error_response,
             status=500
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.get_role('some_role')
         assert exc.value.description == 'Failed to fetch roles'
 
-    def test_get_resource(
+    @mark.asyncio
+    async def test_get_resource(
             self, keycloak_login_request_mock
     ):
         """
@@ -288,7 +294,8 @@ class TestKeycloakResponseFailures(TestKeycloakMixin):
         )
         kc_client.get_resource('some_resource')
 
-    def test_get_resource_empty_list_fails(
+    @mark.asyncio
+    async def test_get_resource_empty_list_fails(
             self, keycloak_login_request_mock
     ):
         """
@@ -302,11 +309,12 @@ class TestKeycloakResponseFailures(TestKeycloakMixin):
             (URLS["resource"] % kc_client.client_id) + "?name=some_resource",
             json=[]
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.get_resource('some_resource')
         assert exc.value.description == 'Failed to fetch the resource'
 
-    def test_get_resource_fails(
+    @mark.asyncio
+    async def test_get_resource_fails(
             self, keycloak_login_request_mock
     ):
         """
@@ -320,11 +328,12 @@ class TestKeycloakResponseFailures(TestKeycloakMixin):
             json=self.common_error_response,
             status=500
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.get_resource('some_resource')
         assert exc.value.description == 'Failed to fetch the resource'
 
-    def test_create_resource(
+    @mark.asyncio
+    async def test_create_resource(
             self, keycloak_login_request_mock
     ):
         """
@@ -338,11 +347,12 @@ class TestKeycloakResponseFailures(TestKeycloakMixin):
             json=self.common_error_response,
             status=500
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.create_resource({'name': 'some_resource'})
         assert exc.value.description == 'Failed to create a project\'s resource'
 
-    def test_patch_resource(self, keycloak_login_request_mock):
+    @mark.asyncio
+    async def test_patch_resource(self, keycloak_login_request_mock):
         """
         patch_resource does not return an object, only ensures
         the keycloak API call is successful.
@@ -360,7 +370,8 @@ class TestKeycloakResponseFailures(TestKeycloakMixin):
         )
         kc_client.patch_resource("some_resource", **{"name": "new_name"})
 
-    def test_patch_resource_fails(self, keycloak_login_request_mock):
+    @mark.asyncio
+    async def test_patch_resource_fails(self, keycloak_login_request_mock):
         """
         patch_resource does not return an object, only ensures
         a custom exception is raised if the keycloak API call fails
@@ -376,6 +387,6 @@ class TestKeycloakResponseFailures(TestKeycloakMixin):
             (URLS["resource"] % kc_client.client_id) + "/resource_id",
             status=400
         )
-        with pytest.raises(KeycloakError) as exc:
+        with raises(KeycloakError) as exc:
             kc_client.patch_resource("some_resource", **{"name": "new_name"})
         assert exc.value.description == 'Failed to patch the resource'

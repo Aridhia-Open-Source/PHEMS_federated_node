@@ -13,7 +13,7 @@ from sqlalchemy import exc
 from werkzeug.exceptions import HTTPException
 
 from app.helpers.exceptions import LogAndException
-from app.helpers.base_model import get_db
+from app.helpers.base_model import SessionLocal
 
 from fastapi import FastAPI
 
@@ -38,8 +38,8 @@ for excp in [LogAndException, HTTPException]:
 @app.exception_handler(exc.IntegrityError)
 async def handle_db_exceptions(request, excp:exc.IntegrityError) -> JSONResponse:
     logging.error(excp)
-    with get_db() as db:
-        db.rollback()
+    async with SessionLocal() as db:
+        await db.rollback()
     return JSONResponse({"error": "Record already exists"}, status_code=500)
 
 @app.exception_handler(RequestValidationError)
@@ -58,8 +58,8 @@ async def pydandic_validation_handler(request, e:RequestValidationError) -> JSON
 # Special case, just so we won't return stacktraces
 async def unknown_exception_handler(request, e:Exception) -> JSONResponse:
     logger.error("\n".join(traceback.format_exception(e)))
-    with get_db() as db:
-        db.rollback()
+    async with SessionLocal() as db:
+        await db.rollback()
     return JSONResponse({"error": "Internal Error"}, status_code=500)
 
 from app.routes import (

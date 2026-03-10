@@ -1,6 +1,8 @@
 import base64
 import json
 import responses
+from pytest import mark, raises
+
 from tests.fixtures.dockerhub_cr_fixtures import *
 from app.helpers.exceptions import ContainerRegistryException
 
@@ -13,7 +15,8 @@ class TestDockerRegistry:
     login_url = "https://hub.docker.com/v2/users/login/"
     tags_url = "https://hub.docker.com/v2/namespaces/%s/repositories/%s/tags"
 
-    def test_cr_login_failed(
+    @mark.asyncio
+    async def test_cr_login_failed(
             self,
             k8s_client,
             reg_k8s_client,
@@ -38,11 +41,12 @@ class TestDockerRegistry:
                 self.login_url,
                 status=401
             )
-            with pytest.raises(ContainerRegistryException) as cre:
+            with raises(ContainerRegistryException) as cre:
                 DockerRegistry("registry", {"user": "", "token": ""}).login(image_name)
             assert cre.value.description == "Could not authenticate against the registry"
 
-    def test_cr_metadata_empty(
+    @mark.asyncio
+    async def test_cr_metadata_empty(
             self,
             cr_class,
             registry,
@@ -67,7 +71,8 @@ class TestDockerRegistry:
             )
             assert {"name": container.name, "tag": [], "sha": []} == cr_class.get_image_tags(container.name)
 
-    def test_cr_metadata_tag_not_in_api_response(
+    @mark.asyncio
+    async def test_cr_metadata_tag_not_in_api_response(
             self,
             cr_class,
             registry,

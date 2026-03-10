@@ -37,7 +37,7 @@ from app.services.tasks import TaskService
 router = APIRouter(tags=["tasks"], prefix="/tasks")
 
 
-async def does_user_own_task(task:Task):
+async def does_user_own_task(request: Request, task:Task):
     """
     Simple wrapper to check if the user is the one who
     triggered the task, or is admin.
@@ -45,7 +45,7 @@ async def does_user_own_task(task:Task):
     If they don't, an exception is raised with 403 status code
     """
     kc_client = Keycloak()
-    token = kc_client.get_token_from_headers()
+    token = kc_client.get_token_from_headers(request)
     dec_token = kc_client.decode_token(token)
     user_id = kc_client.get_user_by_email(dec_token["email"])["id"]
 
@@ -70,12 +70,12 @@ async def get_service_info(request: Request) -> dict[str, str]:
 async def get_tasks(
     request: Request,
     params: Annotated[TaskFilters, Query()],
-    db: Session = Depends(get_db)
+    session: Session = Depends(get_db)
 ) -> dict[str, Any]:
     """
     GET /tasks endpoint. Gets the list of tasks
     """
-    pagination = apply_filters(db, Task, params)
+    pagination = await apply_filters(session, Task, params)
     return PageResponse[TaskRead].model_validate(pagination).model_dump()
 
 
@@ -89,9 +89,11 @@ async def get_task_id(
     """
     GET /tasks/id endpoint. Gets a single task
     """
-    task = Task.get_by_id(session, task_id)
+    task = await Task.get_by_id(session, task_id)
+    if not task:
+        raise DBRecordNotFoundError(f"Task {task_id} not found")
 
-    await does_user_own_task(task)
+    await does_user_own_task(request, task)
 
     return TaskRead.model_validate(task).model_dump()
 
@@ -106,11 +108,11 @@ async def cancel_tasks(
     """
     POST /tasks/id/cancel endpoint. Cancels a task either scheduled or running one
     """
-    task = Task.get_by_id(session, task_id)
+    task = await Task.get_by_id(session, task_id)
     if not task:
         raise DBRecordNotFoundError("Task not found")
 
-    await does_user_own_task(task)
+    await does_user_own_task(request, task)
 
     # Should remove pod/stop ML pipeline
     task.terminate_pod()
@@ -133,12 +135,12 @@ async def post_tasks(
     POST /tasks endpoint. Creates a new task
     """
     try:
-        task = TaskService.add(session, data=body)
+        task = await TaskService.add(session, data=body)
         # Create pod/start ML pipeline
         task.run()
         return TaskRead.model_validate(task).model_dump()
     except:
-        session.rollback()
+        await session.rollback()
         raise
 
 
@@ -153,7 +155,7 @@ async def post_tasks_validate(
     POST /tasks/validate endpoint.
         Allows task definition validation and the DB query that will be used
     """
-    TaskService.add(session, data=body, dry_run=True)
+    await TaskService.add(session, data=body, dry_run=True)
     return "Ok"
 
 
@@ -169,11 +171,11 @@ async def get_task_results(
         Allows to get tasks results if approved to be released
         or, if an admin is trying to view them
     """
-    task: Task = Task.get_by_id(session, task_id)
+    task: Task = await Task.get_by_id(session, task_id)
     if task is None:
         raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
 
-    await does_user_own_task(task)
+    await does_user_own_task(request, task)
 
     kc_client = Keycloak()
     token = kc_client.get_token_from_headers()
@@ -204,11 +206,11 @@ async def get_tasks_logs(
     """
     From a given task, return its pods logs
     """
-    task: Task = Task.get_by_id(session, task_id)
+    task: Task = await Task.get_by_id(session, task_id)
     if task is None:
         raise DBRecordNotFoundError(f"Task with id {task_id} does not exist")
 
-    await does_user_own_task(task)
+    await does_user_own_task(request, task)
 
     return {"logs": task.get_logs()}
 
@@ -232,7 +234,7 @@ async def approve_results(
     if not TASK_REVIEW:
         raise FeatureNotAvailableException("Task Review")
 
-    task: Task = Task.get_by_id(session, task_id)
+    task: Task = await Task.get_by_id(session, task_id)
     if task.review_status is not None:
         raise InvalidRequest("Task has been already reviewed")
 
@@ -240,7 +242,7 @@ async def approve_results(
     if task.get_task_crd():
         task.update_task_crd(True)
 
-    task.update(session, {"review_status": True})
+    await task.update(session, {"review_status": True})
 
     return {"status": task.get_review_status()}
 
@@ -264,7 +266,7 @@ async def block_results(
     if not TASK_REVIEW:
         raise FeatureNotAvailableException("Task Review")
 
-    task: Task = Task.get_by_id(session, task_id)
+    task: Task = await Task.get_by_id(session, task_id)
     if task.review_status is not None:
         raise InvalidRequest("Task has been already reviewed")
 
@@ -272,6 +274,6 @@ async def block_results(
     if task.get_task_crd():
         task.update_task_crd(False)
 
-    task.update(session, {"review_status": False})
+    await task.update(session, {"review_status": False})
 
     return {"status": task.get_review_status()}

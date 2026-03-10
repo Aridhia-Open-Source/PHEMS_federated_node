@@ -1,8 +1,10 @@
 import logging
 import re
+from typing import NoReturn, Self
 from sqlalchemy import Integer, String, select
-from sqlalchemy.orm import Session, mapped_column, relationship
-from app.helpers.base_model import BaseModel, get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.helpers.base_model import BaseModel
 from app.helpers.const import DEFAULT_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
@@ -25,35 +27,46 @@ SUPPORTED_ENGINES = {
 class Dataset(BaseModel):
     __tablename__ = 'datasets'
 
-    id = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name = mapped_column(String(256), unique=True, nullable=False)
-    host = mapped_column(String(256), nullable=False)
-    port = mapped_column(Integer, default=5432)
-    schema_read = mapped_column(String(256), nullable=True)
-    schema_write = mapped_column(String(256), nullable=True)
-    type = mapped_column(String(256), server_default="postgres", nullable=False)
-    extra_connection_args = mapped_column(String(4096), nullable=True)
-    repository = mapped_column(String(4096), nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(256), unique=True, nullable=False)
+    host: Mapped[str] = mapped_column(String(256), nullable=False)
+    port: Mapped[int] = mapped_column(Integer, default=5432)
+    schema_read: Mapped[str] = mapped_column(String(256), nullable=True)
+    schema_write: Mapped[str] = mapped_column(String(256), nullable=True)
+    type: Mapped[str] = mapped_column(String(256), server_default="postgres", nullable=False)
+    extra_connection_args: Mapped[str] = mapped_column(String(4096), nullable=True)
+    repository: Mapped[str] = mapped_column(String(4096), nullable=True)
 
-    catalogue = relationship("Catalogue", back_populates="dataset", uselist=False, cascade="all, delete-orphan")
-    dictionaries = relationship("Dictionary", back_populates="dataset", cascade="all, delete-orphan")
+    catalogue = relationship(
+        "Catalogue",
+        back_populates="dataset",
+        uselist=False,
+        cascade="all, delete-orphan",
+        lazy='selectin'
+    )
+    dictionaries = relationship(
+        "Dictionary",
+        back_populates="dataset",
+        cascade="all, delete-orphan",
+        lazy='selectin'
+    )
 
     def __init__(self, **kwargs):
         self.username = kwargs.pop("username", None)
         self.password = kwargs.pop("password", None)
         super().__init__(**kwargs)
 
-    def delete(self, session: Session) -> None:
-        nested = session.begin_nested()
-        super().delete(session, False)
-        v1 = KubernetesClient()
-        try:
-            v1.delete_namespaced_secret(self.get_creds_secret_name(), DEFAULT_NAMESPACE)
-        except ApiException as apie:
-            if apie.status != 404:
-                nested.rollback()
-                logger.error(apie)
-                raise InvalidRequest("Could not clear the secrets properly") from apie
+    async def delete(self, session: AsyncSession) -> NoReturn:
+        async with session.begin_nested() as nested:
+            await super().delete(session, False)
+            v1 = KubernetesClient()
+            try:
+                v1.delete_namespaced_secret(self.get_creds_secret_name(), DEFAULT_NAMESPACE)
+            except ApiException as apie:
+                if apie.status != 404:
+                    await nested.rollback()
+                    logger.error(apie)
+                    raise InvalidRequest("Could not clear the secrets properly") from apie
 
     @property
     def slug(self):
@@ -101,7 +114,7 @@ class Dataset(BaseModel):
         return user, password
 
     @classmethod
-    def get_dataset_by_name_or_id(cls, session: Session, id:int=None, name:str="", raise_if_not_found:bool = True) -> "Dataset":
+    async def get_dataset_by_name_or_id(cls, session: AsyncSession, id:int=None, name:str="", raise_if_not_found:bool = True) -> Self:
         """
         Common function to get a dataset by name or id.
         If both arguments are provided, then tries to find as an AND condition
@@ -121,7 +134,8 @@ class Dataset(BaseModel):
             error_msg = f"Dataset {name if name else id} does not exist"
             q = select(cls).where((cls.name.ilike(name or "") | (Dataset.id == id)))
 
-        dataset = session.execute(q).scalars().one_or_none()
+        q_res = await session.execute(q)
+        dataset: Self | None = q_res.scalars().one_or_none()
 
         if not dataset and raise_if_not_found:
             raise DBRecordNotFoundError(error_msg)

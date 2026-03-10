@@ -35,11 +35,13 @@ dependencies = [
     "uvicorn>=0.41.0",
     "python-multipart>=0.0.22",
     "httpx>=0.28.1",
+    "asyncpg>=0.31.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pylint>=3.0.3",
+    "pytest-asyncio>=1.2.0",
     "pytest",
     "pytest-mock",
     "python-dotenv",

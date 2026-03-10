@@ -11,7 +11,9 @@ We want to test the creation, deletion and list operations.
 
 import errno
 import json
-import pytest
+from pytest import mark, raises
+from pytest_asyncio import fixture
+
 from kubernetes import client
 from kubernetes.client.exceptions import ApiException
 from tarfile import ReadError
@@ -24,7 +26,7 @@ from tests.conftest import side_effect
 from app.helpers.task_pod import TaskPod
 
 
-@pytest.fixture
+@fixture
 def pod_dict(dataset):
     return {
         "name": "pod_name",
@@ -47,7 +49,7 @@ def pod_dict(dataset):
         "regcred_secret": "acrsecret"
     }
 
-@pytest.fixture
+@fixture
 def job_dict():
     return {
         "name": "job_name",
@@ -57,7 +59,8 @@ def job_dict():
 
 class TestKubernetesHelper:
     @mock.patch('urllib3.PoolManager')
-    def test_create_pod(
+    @mark.asyncio
+    async def test_create_pod(
         self,
         url_mock,
         pod_dict,
@@ -78,7 +81,8 @@ class TestKubernetesHelper:
         k8s.create_namespaced_pod(namespace=namespace, body=TaskPod(**pod_dict).create_pod_spec())
 
     @mock.patch('urllib3.PoolManager')
-    def test_create_pod_failures(
+    @mark.asyncio
+    async def test_create_pod_failures(
         self,
         url_mock,
         k8s_config,
@@ -99,16 +103,17 @@ class TestKubernetesHelper:
         }
         url_mock.return_value.request.side_effect = side_effect(side_effect_args)
 
-        with pytest.raises(ApiException):
+        with raises(ApiException):
             k8s.create_namespaced_pod(namespace=namespace, body=TaskPod(**pod_dict).create_pod_spec())
 
         side_effect_args['status'] = 500
         url_mock.return_value.request.side_effect = side_effect(side_effect_args)
-        with pytest.raises(ApiException):
+        with raises(ApiException):
             k8s.create_namespaced_pod(namespace=namespace, body=TaskPod(**pod_dict).create_pod_spec())
 
     @mock.patch('urllib3.PoolManager')
-    def test_create_job(
+    @mark.asyncio
+    async def test_create_job(
         self,
         url_mock,
         k8s_config,
@@ -127,7 +132,8 @@ class TestKubernetesHelper:
         k8s.create_namespaced_job(namespace=namespace, body=k8s.create_job_spec(job_dict))
 
     @mock.patch('urllib3.PoolManager')
-    def test_list_pods(
+    @mark.asyncio
+    async def test_list_pods(
         self,
         url_mock,
         k8s_config
@@ -146,7 +152,8 @@ class TestKubernetesHelper:
         assert k8s.list_namespaced_pod(namespace).items == []
 
     @mock.patch('urllib3.PoolManager')
-    def test_delete_pods(
+    @mark.asyncio
+    async def test_delete_pods(
         self,
         url_mock,
         k8s_config
@@ -163,7 +170,8 @@ class TestKubernetesHelper:
         k8s.delete_pod('pod', namespace)
 
     @mock.patch('urllib3.PoolManager')
-    def test_delete_pods_failures(
+    @mark.asyncio
+    async def test_delete_pods_failures(
         self,
         url_mock,
         k8s_config
@@ -186,11 +194,12 @@ class TestKubernetesHelper:
             "method": "DELETE",
             "status": 500
         })
-        with pytest.raises(InvalidRequest):
+        with raises(InvalidRequest):
             k8s.delete_pod('pod', namespace)
 
     @mock.patch('kubernetes.stream.ws_client.WSClient')
-    def test_cp_from_pod(
+    @mark.asyncio
+    async def test_cp_from_pod(
         self,
         ws_mock,
         mocker,
@@ -213,7 +222,8 @@ class TestKubernetesHelper:
         assert k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/tmp/data/host-id-results.zip'
 
     @mock.patch('kubernetes.stream.ws_client.WSClient')
-    def test_cp_from_pod_fails_temp_files_read(
+    @mark.asyncio
+    async def test_cp_from_pod_fails_temp_files_read(
         self,
         ws_mock,
         mocker,
@@ -232,11 +242,12 @@ class TestKubernetesHelper:
         mocker.patch('app.helpers.kubernetes.TemporaryFile').__enter__.return_value = Mock()
 
         k8s = KubernetesClient()
-        with pytest.raises(KubernetesException):
+        with raises(KubernetesException):
             k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/mnt/host-id-results.tar.gz'
 
     @mock.patch('kubernetes.stream.ws_client.WSClient')
-    def test_cp_from_pod_fails_zip_creation(
+    @mark.asyncio
+    async def test_cp_from_pod_fails_zip_creation(
         self,
         ws_mock,
         mocker,
@@ -255,11 +266,12 @@ class TestKubernetesHelper:
         mocker.patch('app.helpers.kubernetes.TemporaryFile').__enter__.return_value = Mock()
 
         k8s = KubernetesClient()
-        with pytest.raises(KubernetesException):
+        with raises(KubernetesException):
             k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/mnt/host-id-results.zip'
 
     @mock.patch('kubernetes.stream.ws_client.WSClient')
-    def test_cp_from_pod_fails_zip_creation_other_exception(
+    @mark.asyncio
+    async def test_cp_from_pod_fails_zip_creation_other_exception(
         self,
         ws_mock,
         mocker,
@@ -278,5 +290,5 @@ class TestKubernetesHelper:
         mocker.patch('app.helpers.kubernetes.TemporaryFile').__enter__.return_value = Mock()
 
         k8s = KubernetesClient()
-        with pytest.raises(KubernetesException):
+        with raises(KubernetesException):
             k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/mnt/host-id-results.zip'

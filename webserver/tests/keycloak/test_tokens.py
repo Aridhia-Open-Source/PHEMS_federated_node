@@ -1,4 +1,4 @@
-import pytest
+from pytest import mark, raises
 import responses
 from responses import matchers
 
@@ -10,7 +10,8 @@ from tests.keycloak.test_keycloak_helper import TestKeycloakMixin
 class TestKeycloakTokens(TestKeycloakMixin):
     """
     """
-    def test_check_permissions(self, keycloak_login_request_mock, mocker):
+    @mark.asyncio
+    async def test_check_permissions(self, keycloak_login_request_mock, mocker):
         mocker.patch.object(Keycloak, "get_resource", return_value={"_id": "resource"})
         keycloak_login_request_mock.add(
             responses.POST,
@@ -29,7 +30,8 @@ class TestKeycloakTokens(TestKeycloakMixin):
         )
         Keycloak().check_permissions("token", "can_admin_dataset", "resource", is_access_token=True)
 
-    def test_check_permissions_fails(self, keycloak_login_request_mock, mocker):
+    @mark.asyncio
+    async def test_check_permissions_fails(self, keycloak_login_request_mock, mocker):
         mocker.patch.object(Keycloak, "get_resource", return_value={"_id": "resource"})
         keycloak_login_request_mock.add(
             responses.POST,
@@ -47,11 +49,12 @@ class TestKeycloakTokens(TestKeycloakMixin):
             ],
             status=401
         )
-        with pytest.raises(UnauthorizedError) as exc:
+        with raises(UnauthorizedError) as exc:
             Keycloak().check_permissions("token", "can_admin_dataset", "resource", is_access_token=True)
         assert exc.value.description == 'User is not authorized'
 
-    def test_is_token_valid(self, keycloak_login_request_mock, mocker):
+    @mark.asyncio
+    async def test_is_token_valid(self, keycloak_login_request_mock, mocker):
         mocker.patch.object(Keycloak, "check_permissions", return_value=True)
         keycloak_login_request_mock.add(
             responses.POST,
@@ -70,7 +73,8 @@ class TestKeycloakTokens(TestKeycloakMixin):
         )
         assert Keycloak().is_token_valid("token", "can_admin_dataset", "resource")
 
-    def test_is_token_valid_without_permission_check(self, keycloak_login_request_mock, mocker):
+    @mark.asyncio
+    async def test_is_token_valid_without_permission_check(self, keycloak_login_request_mock, mocker):
         keycloak_login_request_mock.add(
             responses.POST,
             URLS["get_token"],
@@ -88,7 +92,8 @@ class TestKeycloakTokens(TestKeycloakMixin):
         )
         assert Keycloak().is_token_valid("token", "can_admin_dataset", "resource", with_permissions=False)
 
-    def test_is_token_valid_without_permission_check_fails(self, keycloak_login_request_mock, mocker):
+    @mark.asyncio
+    async def test_is_token_valid_without_permission_check_fails(self, keycloak_login_request_mock, mocker):
         keycloak_login_request_mock.add(
             responses.POST,
             URLS["get_token"],
@@ -107,7 +112,8 @@ class TestKeycloakTokens(TestKeycloakMixin):
         )
         assert not Keycloak().is_token_valid("token", "can_admin_dataset", "resource", with_permissions=False)
 
-    def test_is_token_valid_fails(self, keycloak_login_request_mock, mocker):
+    @mark.asyncio
+    async def test_is_token_valid_fails(self, keycloak_login_request_mock, mocker):
         mocker.patch.object(Keycloak, "check_permissions", return_value=True)
         keycloak_login_request_mock.add(
             responses.POST,
@@ -127,7 +133,8 @@ class TestKeycloakTokens(TestKeycloakMixin):
         )
         assert not Keycloak().is_token_valid("token", "can_admin_dataset", "resource")
 
-    def test_is_token_valid_with_access(self, keycloak_login_request_mock, mocker):
+    @mark.asyncio
+    async def test_is_token_valid_with_access(self, keycloak_login_request_mock, mocker):
         mocker.patch.object(Keycloak, "check_permissions", return_value=True)
         keycloak_login_request_mock.add(
             responses.POST,

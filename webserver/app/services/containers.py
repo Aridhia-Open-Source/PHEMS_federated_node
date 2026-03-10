@@ -11,11 +11,11 @@ from app.helpers.exceptions import ContainerRegistryException, InvalidRequest
 
 class ContainerService:
     @staticmethod
-    def add(session: Session, data: ContainerCreate, dry_run:bool=False) -> Container:
+    async def add(session: Session, data: ContainerCreate, dry_run:bool=False) -> Container:
         container_definition: dict[str, Any] = data.model_dump()
 
         q = select(Registry).where(Registry.url == data.registry)
-        reg: Registry | None = session.execute(q).scalars().one_or_none()
+        reg: Registry | None = (await session.execute(q)).scalars().one_or_none()
         if reg is None:
             raise ContainerRegistryException(f"Registry {data.registry} could not be found")
 
@@ -25,7 +25,7 @@ class ContainerService:
         ).filter(
             (Container.tag==data.tag) & (Container.sha==data.sha)
         ).join(Registry)
-        existing_image = session.execute(q).scalars().one_or_none()
+        existing_image = (await session.execute(q)).scalars().one_or_none()
 
         if existing_image:
             raise InvalidRequest(
@@ -36,5 +36,5 @@ class ContainerService:
         container_definition["registry"] = reg
         container = Container(**container_definition)
         if not dry_run:
-          container.add(session)
+          await container.add(session)
         return container

@@ -1,14 +1,17 @@
+from pytest import mark
 from datetime import timedelta
 from kubernetes.client.exceptions import ApiException
-from sqlalchemy import update
+from sqlalchemy import select, update
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
 from app.helpers.keycloak import Keycloak
 from app.helpers.const import CLEANUP_AFTER_DAYS, CRD_DOMAIN
+from tests.base_test_class import BaseTest
 
 
-class TestTaskResults:
-    def test_get_results(
+class TestTaskResults(BaseTest):
+    @mark.asyncio
+    async def test_get_results(
         self,
         cr_client,
         registry_client,
@@ -21,14 +24,15 @@ class TestTaskResults:
         A simple test with mocked PVs to test a successful result
         fetch
         """
-        response = client.get(
+        response = await client.get(
             f'/tasks/{task_mock.id}/results',
             headers=simple_admin_header
         )
         assert response.status_code == 200
         assert response.headers["content-type"] == "application/zip"
 
-    def test_get_results_job_creation_failure(
+    @mark.asyncio
+    async def test_get_results_job_creation_failure(
         self,
         cr_client,
         registry_client,
@@ -45,16 +49,16 @@ class TestTaskResults:
         # Get results - creating a job fails
         reg_k8s_client["create_namespaced_job_mock"].side_effect = ApiException(status=500, reason="Something went wrong")
 
-        response = client.get(
+        response = await client.get(
             f'/tasks/{task_mock.id}/results',
             headers=simple_admin_header
         )
         assert response.status_code == 400
         assert response.json()["error"] == 'Failed to run pod: Something went wrong'
 
-    def test_results_not_found_with_expired_date(
+    @mark.asyncio
+    async def test_results_not_found_with_expired_date(
         self,
-        db_session,
         simple_admin_header,
         client,
         task_mock
@@ -63,10 +67,13 @@ class TestTaskResults:
         A task result are being deleted after a declared number of days.
         This test makes sure an error is returned as expected
         """
-        with db_session:
-            db_session.execute(update(Task).where(Task.id == task_mock.id).values({"created_at": task_mock.created_at - timedelta(days=CLEANUP_AFTER_DAYS)}))
+        await self.db_session.execute(
+            update(Task).
+            where(Task.id == task_mock.id).
+            values({"created_at": task_mock.created_at - timedelta(days=CLEANUP_AFTER_DAYS)})
+        )
 
-        response = client.get(
+        response = await client.get(
             f'/tasks/{task_mock.id}/results',
             headers=simple_admin_header
         )
@@ -75,7 +82,8 @@ class TestTaskResults:
 
 
 class TestResultsReview:
-    def test_default_review_status(
+    @mark.asyncio
+    async def test_default_review_status(
         self,
         simple_admin_header,
         client,
@@ -86,14 +94,15 @@ class TestResultsReview:
         Test to make sure the default value is None,
         and the correct task description is correct
         """
-        response = client.get(
+        response = await client.get(
             f'/tasks/{task_mock.id}',
             headers=simple_admin_header
         )
         assert response.status_code == 200
         assert response.json()["review"] == "Pending Review"
 
-    def test_review_approved(
+    @mark.asyncio
+    async def test_review_approved(
         self,
         simple_admin_header,
         simple_user_header,
@@ -113,20 +122,21 @@ class TestResultsReview:
             "app.models.task.Task.get_task_crd",
             return_value=None
         )
-        response = client.post(
+        response = await client.post(
             f'/tasks/{task_mock.id}/results/approve',
             headers=simple_admin_header
         )
         assert response.status_code == 201
         v1_crd_mock.return_value.patch_cluster_custom_object.assert_not_called()
 
-        response = client.get(
+        response = await client.get(
             f'/tasks/{task_mock.id}/results',
             headers=simple_user_header
         )
         assert response.status_code == 200
 
-    def test_task_from_controller_review_approved(
+    @mark.asyncio
+    async def test_task_from_controller_review_approved(
         self,
         simple_admin_header,
         client,
@@ -144,14 +154,15 @@ class TestResultsReview:
             "app.models.task.Task.get_task_crd",
             return_value={"metadata": {"annotations": {}}}
         )
-        response = client.post(
+        response = await client.post(
             f'/tasks/{task_mock.id}/results/approve',
             headers=simple_admin_header
         )
         assert response.status_code == 201
         v1_crd_mock.return_value.patch_cluster_custom_object.assert_called()
 
-    def test_admin_review_pending(
+    @mark.asyncio
+    async def test_admin_review_pending(
         self,
         simple_admin_header,
         client,
@@ -163,14 +174,15 @@ class TestResultsReview:
         Test to make sure the admin can fetch their results
         before the review took place
         """
-        response = client.get(
+        response = await client.get(
             f'/tasks/{task_mock.id}/results',
             headers=simple_admin_header
         )
         assert response.status_code == 200
         assert response.headers["content-type"] == "application/zip"
 
-    def test_default_review_pending(
+    @mark.asyncio
+    async def test_default_review_pending(
         self,
         simple_user_header,
         client,
@@ -185,14 +197,15 @@ class TestResultsReview:
         """
         mock_kc_client["tasks_api_kc"].return_value.is_user_admin.return_value = False
         k8s_client["list_namespaced_pod_mock"].return_value.items[0].metadata.name = task_mock.name
-        response = client.get(
+        response = await client.get(
             f'/tasks/{task_mock.id}/results',
             headers=simple_user_header
         )
         assert response.status_code == 400
         assert response.json()["status"] == "Pending Review"
 
-    def test_review_blocked(
+    @mark.asyncio
+    async def test_review_blocked(
         self,
         simple_admin_header,
         simple_user_header,
@@ -221,7 +234,7 @@ class TestResultsReview:
                 }
             }
         )
-        response = client.post(
+        response = await client.post(
             f'/tasks/{task_mock.id}/results/block',
             headers=simple_admin_header
         )
@@ -229,14 +242,15 @@ class TestResultsReview:
 
         mock_kc_client["tasks_api_kc"].return_value.is_user_admin.return_value = False
 
-        response = client.get(
+        response = await client.get(
             f'/tasks/{task_mock.id}/results',
             headers=simple_user_header
         )
         assert response.status_code == 400
         assert response.json()["status"] == "Blocked Release"
 
-    def test_review_task_not_found(
+    @mark.asyncio
+    async def test_review_task_not_found(
         self,
         simple_user_header,
         client,
@@ -246,14 +260,15 @@ class TestResultsReview:
         """
         Trying to review an non-existing task should return 404
         """
-        response = client.get(
+        response = await client.get(
             f'/tasks/{task_mock.id + 1}/results',
             headers=simple_user_header
         )
         assert response.status_code == 404
         assert response.json()["error"] == f"Task with id {task_mock.id + 1} does not exist"
 
-    def test_review_twice(
+    @mark.asyncio
+    async def test_review_twice(
         self,
         simple_admin_header,
         client,
@@ -277,19 +292,20 @@ class TestResultsReview:
                 }
             }
         )
-        response = client.post(
+        response = await client.post(
             f'/tasks/{task_mock.id}/results/block',
             headers=simple_admin_header
         )
         assert response.status_code == 201
-        response = client.post(
+        response = await client.post(
             f'/tasks/{task_mock.id}/results/approve',
             headers=simple_admin_header
         )
         assert response.status_code == 400
         assert response.json()['error'] == "Task has been already reviewed"
 
-    def test_review_crd_patch_error(
+    @mark.asyncio
+    async def test_review_crd_patch_error(
         self,
         simple_admin_header,
         client,
@@ -308,7 +324,7 @@ class TestResultsReview:
         )
         v1_crd_mock.return_value.patch_cluster_custom_object.side_effect = k8s_crd_500
 
-        response = client.post(
+        response = await client.post(
             f'/tasks/{task_mock.id}/results/approve',
             headers=simple_admin_header
         )
@@ -317,7 +333,8 @@ class TestResultsReview:
 
         assert response.json()['error'] == "Could not activate automatic delivery"
 
-    def test_review_crd_not_found(
+    @mark.asyncio
+    async def test_review_crd_not_found(
         self,
         simple_admin_header,
         client,
@@ -332,14 +349,15 @@ class TestResultsReview:
         """
         v1_crd_mock.return_value.get_cluster_custom_object.side_effect = k8s_crd_404
 
-        response = client.post(
+        response = await client.post(
             f'/tasks/{task_mock.id}/results/block',
             headers=simple_admin_header
         )
         assert response.status_code == 201
         v1_crd_mock.return_value.patch_cluster_custom_object.assert_not_called()
 
-    def test_review_disabled(
+    @mark.asyncio
+    async def test_review_disabled(
         self,
         simple_admin_header,
         client,
@@ -350,7 +368,7 @@ class TestResultsReview:
         TASK_REVIEW is not set (set_task_review_env fixture does that)
         """
         for review in ["block", "approve"]:
-            response = client.post(
+            response = await client.post(
                 f'/tasks/{task_mock.id}/results/{review}',
                 headers=simple_admin_header
             )

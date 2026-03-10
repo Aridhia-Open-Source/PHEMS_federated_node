@@ -6,19 +6,26 @@ user-related endpoints:
 """
 from http import HTTPStatus
 from fastapi import APIRouter, Depends, Request
+from typing import Any
+from sqlalchemy.orm import Session as DBSession
 
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.keycloak import KEYCLOAK_ADMIN, Keycloak
 from app.helpers.const import PUBLIC_URL
 from app.helpers.wrappers import Auth, audit
 from app.schemas.users import ResetPassword, UserPost
+from app.helpers.base_model import get_db
 
 router = APIRouter(tags=["users"], prefix="/users")
 
 
 @router.post('', status_code=HTTPStatus.CREATED, dependencies=[Depends(Auth("can_do_admin"))])
 @audit
-async def create_user(request: Request, body: UserPost):
+async def create_user(
+    request: Request,
+    body: UserPost,
+    session: DBSession = Depends(get_db)
+) -> dict[str, Any]:
     """
     POST /users endpoint. Creates a KC user, and sets a temp
         password for them.
@@ -45,7 +52,11 @@ async def create_user(request: Request, body: UserPost):
     '/reset-password',
     status_code=HTTPStatus.NO_CONTENT
 )
-async def reset_password(request: Request, body: ResetPassword):
+async def reset_password(
+    request: Request,
+    body: ResetPassword,
+    session: DBSession = Depends(get_db)
+) -> None:
     """
     POST /users/reset-password endpoint. Interface to keycloak
         API, so we can change the credentials and make sure
@@ -66,7 +77,10 @@ async def reset_password(request: Request, body: ResetPassword):
     dependencies=[Depends(Auth("can_do_admin"))]
 )
 @audit
-async def get_users_list(request: Request):
+async def get_users_list(
+    request: Request,
+    session: DBSession = Depends(get_db)
+) -> list[dict[str, Any]]:
     """
     GET /users/ endpoint. This is a simplified version
     of what keycloak returns as a user list.

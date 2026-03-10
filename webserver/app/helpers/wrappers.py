@@ -47,7 +47,7 @@ class Auth:
         user = kc_client.get_user_by_username(token_info['username'])
 
         if project_name and not kc_client.is_user_admin(token):
-            dar: RequestModel = RequestModel.get_active_project(session, project_name, user["id"])
+            dar: RequestModel = await RequestModel.get_active_project(session, project_name, user["id"])
             if dar.dataset_id:
                 ds = Dataset.get_dataset_by_name_or_id(session, id=dar.dataset_id)
                 resource = f"{ds.id}-{ds.name}"
@@ -128,11 +128,11 @@ def audit(func):
         audit_body["endpoint"] = request.scope["path"]
         audit_body["api_function"] = func.__name__
         to_save = Audit(**audit_body)
+
         if not session:
-            with get_db() as session:
-                to_save.add(session)
-        else:
-            to_save.add(session)
+            session = get_db()
+
+        await to_save.add(session)
         if raised_exception:
             raise raised_exception
 

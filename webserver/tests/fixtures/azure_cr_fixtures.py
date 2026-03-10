@@ -1,4 +1,4 @@
-import pytest
+from  pytest_asyncio import fixture
 import responses
 from unittest.mock import Mock
 
@@ -8,33 +8,33 @@ from app.models.container import Container
 from app.models.registry import Registry
 
 
-@pytest.fixture
+@fixture
 def cr_name():
     return "acr.azurecr.io"
 
-@pytest.fixture
+@fixture
 def expected_image_names(container):
     return ["testimage", container.name]
 
-@pytest.fixture
+@fixture
 def expected_tags_list():
     return ["1.2.3", "dev", "latest"]
 
-@pytest.fixture
+@fixture
 def expected_digest_list():
     """
     ACR only returns one sha per tag
     """
     return "sha256:c1e51a68c68a448a"
 
-@pytest.fixture
+@fixture
 def registry_client(mocker):
     mocker.patch(
         'app.models.registry.AzureRegistry',
         return_value=Mock()
     )
 
-@pytest.fixture
+@fixture
 def azure_login_request(cr_name):
     with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
         rsps.add_passthru(KEYCLOAK_URL)
@@ -46,7 +46,7 @@ def azure_login_request(cr_name):
         )
         yield rsps
 
-@pytest.fixture
+@fixture
 def tags_request(azure_login_request, expected_tags_list, expected_digest_list, expected_image_names, cr_name):
     for image in expected_image_names:
         azure_login_request.add(
@@ -76,7 +76,7 @@ def tags_request(azure_login_request, expected_tags_list, expected_digest_list, 
     )
     yield azure_login_request
 
-@pytest.fixture
+@fixture
 def cr_client(mocker, reg_k8s_client):
     return mocker.patch(
         'app.helpers.container_registries.AzureRegistry',
@@ -86,7 +86,7 @@ def cr_client(mocker, reg_k8s_client):
         )
     )
 
-@pytest.fixture
+@fixture
 def cr_client_404(mocker):
     mocker.patch(
         'app.models.registry.AzureRegistry',
@@ -96,7 +96,7 @@ def cr_client_404(mocker):
         )
     )
 
-@pytest.fixture
+@fixture
 def cr_class(mocker, cr_name):
     with responses.RequestsMock() as rsps:
         rsps.add(
@@ -107,22 +107,22 @@ def cr_class(mocker, cr_name):
         )
         return AzureRegistry(cr_name, creds={"user": "", "token": ""})
 
-@pytest.fixture
-def registry(client, reg_k8s_client, k8s_client, cr_name, azure_login_request, db_session) -> Registry:
+@fixture
+async def registry(client, reg_k8s_client, k8s_client, cr_name, azure_login_request, db_session) -> Registry:
     reg = Registry(url=cr_name, username='', password='')
-    reg.add(db_session)
+    await reg.add(db_session)
     return reg
 
-@pytest.fixture
-def container(k8s_client, registry, image_name, db_session) -> Container:
+@fixture
+async def container(k8s_client, registry, image_name, db_session) -> Container:
     img, tag = image_name.split(':')
     cont = Container(name=img, registry=registry, tag=tag, dashboard=True)
-    cont.add(db_session)
+    await cont.add(db_session)
     return cont
 
-@pytest.fixture
-def container_with_sha(k8s_client, registry, image_name, expected_digest_list, db_session) -> Container:
+@fixture
+async def container_with_sha(k8s_client, registry, image_name, expected_digest_list, db_session) -> Container:
     img, _ = image_name.split(':')
     cont = Container(name=img, registry=registry, sha=expected_digest_list, dashboard=True)
-    cont.add(db_session)
+    await cont.add(db_session)
     return cont

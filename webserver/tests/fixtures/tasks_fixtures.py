@@ -3,7 +3,7 @@ from kubernetes.client.exceptions import ApiException
 
 import json
 from datetime import datetime
-from pytest import fixture
+from pytest_asyncio import fixture
 from copy import deepcopy
 from unittest.mock import Mock
 
@@ -100,7 +100,7 @@ def results_job_mock(mocker, task_body, reg_k8s_client):
     return pod_mock
 
 @fixture
-def task_mock(dataset, user_uuid, container, db_session):
+async def task_mock(dataset, user_uuid, container, db_session):
     task = Task(
         name="Test Task",
         executors=[],
@@ -110,7 +110,7 @@ def task_mock(dataset, user_uuid, container, db_session):
         dataset_id=dataset.id,
         created_at=datetime.now()
     )
-    task.add(db_session)
+    await task.add(db_session)
     return task
 
 @fixture

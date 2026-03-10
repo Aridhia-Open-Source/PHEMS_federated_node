@@ -1,17 +1,17 @@
 import copy
-from pytest import fixture
+from pytest_asyncio import fixture
+from pytest import mark
 from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
 from app.models.request import RequestModel
 from app.helpers.exceptions import KeycloakError
-from app.helpers.base_model import get_db
 from tests.base_test_class import BaseTest
 
 
 @fixture
-def request_model_body(request_base_body, dataset, user_uuid):
-    req_model = copy.deepcopy(request_base_body)
+def request_model_body(request_object_init, dataset, user_uuid):
+    req_model = copy.deepcopy(request_object_init)
     req_model.pop("dataset_id")
     req_model["dataset"] = dataset
     req_model["requested_by"] = user_uuid
@@ -20,7 +20,8 @@ def request_model_body(request_base_body, dataset, user_uuid):
 
 
 class TestTransfers(BaseTest):
-    def test_token_transfer_admin(
+    @mark.asyncio
+    async def test_token_transfer_admin(
             self,
             approve_request,
             client,
@@ -31,7 +32,7 @@ class TestTransfers(BaseTest):
         """
         Test token transfer is accessible by admin users
         """
-        response = client.post(
+        response = await client.post(
             "/datasets/token_transfer",
             json=request_base_body,
             headers=post_json_admin_header
@@ -39,7 +40,8 @@ class TestTransfers(BaseTest):
         assert response.status_code == 201, response.json()
         assert list(response.json().keys()) == ["token"]
 
-    def test_token_transfer_admin_dataset_name(
+    @mark.asyncio
+    async def test_token_transfer_admin_dataset_name(
             self,
             approve_request,
             client,
@@ -50,7 +52,7 @@ class TestTransfers(BaseTest):
         """
         Test token transfer is accessible by admin users
         """
-        response = client.post(
+        response = await client.post(
             "/datasets/token_transfer",
             json=request_base_body_name,
             headers=post_json_admin_header
@@ -58,7 +60,8 @@ class TestTransfers(BaseTest):
         assert response.status_code == 201
         assert list(response.json().keys()) == ["token"]
 
-    def test_token_transfer_admin_missing_requester_email_fails(
+    @mark.asyncio
+    async def test_token_transfer_admin_missing_requester_email_fails(
             self,
             client,
             request_base_body,
@@ -68,14 +71,15 @@ class TestTransfers(BaseTest):
         Test token transfer fails if the requester's email is not provided
         """
         request_base_body["requested_by"].pop("email")
-        response = client.post(
+        response = await client.post(
             "/datasets/token_transfer",
             json=request_base_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
 
-    def test_token_transfer_admin_dataset_not_found(
+    @mark.asyncio
+    async def test_token_transfer_admin_dataset_not_found(
             self,
             client,
             request_base_body,
@@ -86,7 +90,7 @@ class TestTransfers(BaseTest):
         Test token transfer fails on an non-existing dataset
         """
         request_base_body["dataset_id"] = 5012
-        response = client.post(
+        response = await client.post(
             "/datasets/token_transfer",
             json=request_base_body,
             headers=post_json_admin_header
@@ -94,7 +98,8 @@ class TestTransfers(BaseTest):
         assert response.status_code == 404
         assert response.json() == {"error": "Dataset 5012 does not exist"}
 
-    def test_token_transfer_admin_dataset_by_name_not_found(
+    @mark.asyncio
+    async def test_token_transfer_admin_dataset_by_name_not_found(
             self,
             client,
             request_base_body_name,
@@ -105,7 +110,7 @@ class TestTransfers(BaseTest):
         Test token transfer fails on an non-existing dataset
         """
         request_base_body_name["dataset_name"] = "fake_dataset"
-        response = client.post(
+        response = await client.post(
             "/datasets/token_transfer",
             json=request_base_body_name,
             headers=post_json_admin_header
@@ -113,7 +118,8 @@ class TestTransfers(BaseTest):
         assert response.status_code == 404
         assert response.json() == {"error": "Dataset fake_dataset does not exist"}
 
-    def test_token_transfer_standard_user(
+    @mark.asyncio
+    async def test_token_transfer_standard_user(
             self,
             client,
             request_base_body,
@@ -124,14 +130,15 @@ class TestTransfers(BaseTest):
         Test token transfer is accessible by admin users
         """
         mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
-        response = client.post(
+        response = await client.post(
             "/datasets/token_transfer",
             json=request_base_body,
             headers=post_json_user_header
         )
         assert response.status_code == 403
 
-    def test_transfer_does_nothing_same_request(
+    @mark.asyncio
+    async def test_transfer_does_nothing_same_request(
             self,
             client,
             post_json_admin_header,
@@ -146,9 +153,9 @@ class TestTransfers(BaseTest):
         """
         Tests that a duplicate request is not accepted.
         """
-        RequestModel(**request_model_body).add(db_session)
+        await RequestModel(**request_model_body).add(db_session)
 
-        response = client.post(
+        response = await client.post(
             "/datasets/token_transfer",
             headers=post_json_admin_header,
             json=request_base_body
@@ -156,7 +163,8 @@ class TestTransfers(BaseTest):
         assert response.status_code == 400
         assert response.json()["error"] == 'User already belongs to the active project project1'
 
-    def test_transfer_does_not_override_existing(
+    @mark.asyncio
+    async def test_transfer_does_not_override_existing(
             self,
             client,
             post_json_admin_header,
@@ -172,19 +180,20 @@ class TestTransfers(BaseTest):
         Tests that a duplicate, or a time-overlapping request
         is not accepted.
         """
-        RequestModel(**request_model_body).add(db_session)
+        await RequestModel(**request_model_body).add(db_session)
         request_base_body["proj_end"] = (
             datetime.strptime(request_base_body["proj_end"], "%Y-%m-%d") + timedelta(days=20)
         ).strftime("%Y-%m-%d")
 
-        response = client.post(
+        response = await client.post(
             "/datasets/token_transfer",
             headers=post_json_admin_header,
             json=request_base_body
         )
         assert response.status_code == 400
 
-    def test_transfer_successful_same_name_ds_different_time(
+    @mark.asyncio
+    async def test_transfer_successful_same_name_ds_different_time(
             self,
             client,
             post_json_admin_header,
@@ -200,20 +209,21 @@ class TestTransfers(BaseTest):
         Tests that a duplicate, not time-overlapping request
         is accepted with same ds and project name.
         """
-        request_model_body["proj_end"] = datetime.now().date().strftime("%Y-%m-%d")
-        RequestModel(**request_model_body).add(db_session)
+        request_model_body["proj_end"] = datetime.now().date()
+        await RequestModel(**request_model_body).add(db_session)
         request_base_body["proj_start"] = (
             datetime.strptime(request_base_body["proj_end"], "%Y-%m-%d") + timedelta(days=1)
         ).strftime("%Y-%m-%d")
 
-        response = client.post(
+        response = await client.post(
             "/datasets/token_transfer",
             headers=post_json_admin_header,
             json=request_base_body
         )
         assert response.status_code == 201
 
-    def test_transfer_only_one_ds_per_project(
+    @mark.asyncio
+    async def test_transfer_only_one_ds_per_project(
             self,
             client,
             post_json_admin_header,
@@ -229,17 +239,18 @@ class TestTransfers(BaseTest):
         """
         Tests that only one dataset per active project is allowed.
         """
-        RequestModel(**request_model_body).add(db_session)
+        await RequestModel(**request_model_body).add(db_session)
         request_base_body["dataset_id"] = dataset_oracle.id
 
-        response = client.post(
+        response = await client.post(
             "/datasets/token_transfer",
             headers=post_json_admin_header,
             json=request_base_body
         )
         assert response.status_code == 400
 
-    def test_transfer_deleted_if_exception_raised(
+    @mark.asyncio
+    async def test_transfer_deleted_if_exception_raised(
             self,
             client,
             post_json_admin_header,
@@ -258,13 +269,13 @@ class TestTransfers(BaseTest):
 
         mock_kc_client["request_schema_kc"].return_value.get_user_by_email.side_effect = KeycloakError("error")
 
-        response = client.post(
+        response = await client.post(
             "/datasets/token_transfer",
             headers=post_json_admin_header,
             json=request_base_body
         )
         assert response.status_code == 500
-        assert self.db_session.execute(select(func.count(RequestModel.id)).where(
+        assert await self.run_query(select(func.count(RequestModel.id)).where(
             RequestModel.title == request_base_body["title"],
             RequestModel.project_name == request_base_body["project_name"],
-        )).scalar_one() == 0
+        ), "one") == 0

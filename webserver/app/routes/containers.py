@@ -38,13 +38,13 @@ router = APIRouter(tags=["containers"], prefix="/containers")
 async def get_all_containers(
     request: Request,
     params: Annotated[ContainerFilters, Query()],
-    db: Session = Depends(get_db)
+    session: Session = Depends(get_db)
 ) -> dict[str, Any]:
     """
     GET /containers endpoint.
         Returns the list of allowed containers
     """
-    pagination = apply_filters(db, Container, params)
+    pagination = await apply_filters(session, Container, params)
     return PageResponse[ContainerRead].model_validate(pagination).model_dump()
 
 
@@ -62,7 +62,7 @@ async def add_image(
     POST /containers endpoint.
     """
     # Make sure it doesn't exist already
-    image: Container = ContainerService.add(session, data=body)
+    image: Container = await ContainerService.add(session, data=body)
     return ContainerRead.model_validate(image).model_dump()
 
 
@@ -76,7 +76,7 @@ async def get_image_by_id(
     """
     GET /containers/<image_id>
     """
-    image: Container = Container.get_by_id(session, image_id)
+    image: Container = await Container.get_by_id(session, image_id)
     if not image:
         raise DBRecordNotFoundError(f"Container with id {image_id} does not exist")
 
@@ -97,12 +97,12 @@ async def patch_containers_by_id_or_name(
     """
     PATCH /containers/id endpoint. Edits an existing container image with a given id
     """
-    container = Container.get_by_id(session, image_id)
+    container = await Container.get_by_id(session, image_id)
     changes = body.model_dump(exclude_unset=True)
     if not changes:
         raise InvalidRequest("No valid changes detected")
 
-    container.update(session, changes)
+    await container.update(session, changes)
 
 
 @router.post('/sync',
@@ -121,15 +121,17 @@ async def sync(request:Request, session: DBSession = Depends(get_db)) -> dict[st
         or unintended containers to be used on a node.
     """
     synched: list[Container] = []
-    for registry in session.execute(select(Registry).where(Registry.active == True)).scalars().all():
+    registry_query = await session.execute(select(Registry).where(Registry.active == True))
+    for registry in registry_query.scalars().all():
         for image in registry.fetch_image_list():
             for key in ["tag", "sha"]:
                 for tag_or_sha in image[key]:
-                    if session.execute(select(Container).where(
+                    images_query = await session.execute(select(Container).where(
                         Container.name==image["name"],
                         getattr(Container, key)==tag_or_sha,
                         Container.registry_id==registry.id
-                    )).scalars().one_or_none():
+                    ))
+                    if images_query.scalars().one_or_none():
                         logger.info("Image %s already synched", image["name"])
                         continue
 
@@ -142,12 +144,12 @@ async def sync(request:Request, session: DBSession = Depends(get_db)) -> dict[st
                     else:
                         container_data["sha"] = tag_or_sha
 
-                    cont: Container = ContainerService.add(session, ContainerCreate(**container_data), dry_run=True)
+                    cont: Container = await ContainerService.add(session, ContainerCreate(**container_data), dry_run=True)
 
                     synched.append(cont)
 
     session.add_all(synched)
-    session.commit()
+    await session.commit()
     return {
         "info": "The sync considers only the latest 100 tag per image. If an older one is needed,"
                 " add it manually via the POST /images endpoint",

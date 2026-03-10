@@ -1,7 +1,7 @@
 from typing import List
 from kubernetes.client import V1Secret
 from kubernetes.client.exceptions import ApiException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
 from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE
@@ -16,14 +16,14 @@ from app.helpers.exceptions import InvalidRequest, KubernetesException
 
 class DatasetService:
     @staticmethod
-    def add(session: Session, data: DatasetCreate) -> Dataset:
-        if Dataset.get_dataset_by_name_or_id(session=session, name=data.name, raise_if_not_found=False):
+    async def add(session: AsyncSession, data: DatasetCreate) -> Dataset:
+        if await Dataset.get_dataset_by_name_or_id(session=session, name=data.name, raise_if_not_found=False):
             raise InvalidRequest("Dataset already exist with that name")
 
         if data.repository:
-            existing_link = session.execute(
+            existing_link = (await session.execute(
                 select(Dataset).filter(Dataset.repository == data.repository)
-            ).one_or_none()
+            )).one_or_none()
             if existing_link:
                 raise InvalidRequest(
                     "Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
@@ -45,7 +45,7 @@ class DatasetService:
             ]
 
         try:
-            dataset.add(session)
+            await dataset.add(session, False)
             v1 = KubernetesClient()
             v1.create_secret(
                 name=dataset.get_creds_secret_name(),
@@ -92,16 +92,16 @@ class DatasetService:
                 "resources": [resource_ds["_id"]],
                 "scopes": [scope["id"] for scope in admin_ds_scope]
             })
-            session.commit()
+            await session.commit()
             return dataset
         except Exception as e:
             # If the DB commit failed, we haven't touched K8s yet.
             # If K8s fails, we might want to rollback the DB or log a critical error.
-            session.rollback()
+            await session.rollback()
             raise e
 
     @staticmethod
-    def update(session: Session, ds:Dataset, data: DatasetUpdate) -> Dataset:
+    async def update(session: AsyncSession, ds:Dataset, data: DatasetUpdate) -> Dataset:
         """
         Updates the instance with new values. These should be
         already validated.
@@ -116,7 +116,7 @@ class DatasetService:
         session.add(ds)
         if cata:
             if ds.catalogue and ds.catalogue.title == cata["title"]:
-                session.execute(
+                await session.execute(
                     update(Catalogue).where(Catalogue.title == cata["title"]).values(cata)
                 )
             else:
@@ -127,15 +127,15 @@ class DatasetService:
             # Needs to validate existing dictionaries and update them if
             # necessary or add them
             for d in dicts:
-                if not session.execute(
+                if not (await session.execute(
                     select(Dictionary).where(Dictionary.dataset_id == ds.id).filter_by(**d)
-                ).all():
+                )).all():
                     q = select(Dictionary).filter_by(
                         dataset_id=ds.id,
                         field_name=d["field_name"],
                         table_name=d["table_name"]
                     )
-                    if session.execute(q).all():
+                    if (await session.execute(q)).all():
                         update(Dictionary).filter_by(
                             dataset_id=ds.id,
                             field_name=d["field_name"],
@@ -191,7 +191,7 @@ class DatasetService:
 
         if data.get("repository"):
             data["repository"] = data.get("repository").lower()
-            existing_link = session.execute(
+            existing_link = await session.execute(
                 select(Dataset).filter(Dataset.repository == data["repository"], Dataset.id != ds.id)
             ).one_or_none()
             if existing_link:
@@ -200,6 +200,6 @@ class DatasetService:
                 )
         # Update table
         if data:
-            ds.update(session, data)
+            await ds.update(session, data)
 
         return ds

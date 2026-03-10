@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.helpers.base_model import BaseModel as DBBaseModel
 
 
-def apply_filters(
+async def apply_filters(
         db: Session,
         model: DBBaseModel,
         filter_dto: BaseModel,
@@ -26,7 +26,7 @@ def apply_filters(
     """
     query = select(model)
     # filter_dto.model_dump(exclude_none=True) gives us only what the user sent
-    filters = filter_dto.model_dump(exclude={"page", "per_page"}, exclude_none=True)
+    filters: dict[str, Any] = filter_dto.model_dump(exclude={"page", "per_page"}, exclude_none=True)
 
     operators = {
         "lte": lambda col, val: col <= val,
@@ -46,9 +46,11 @@ def apply_filters(
         column = getattr(model, field_name)
         if column.type.__class__ == DateTime:
             column = func.date(column)
+            value = func.date(value)
         query = query.where(operators[op_name](column, value))
 
-    items = db.execute(query).scalars().all()
+    results = await db.execute(query)
+    items = results.scalars().all()
     total = len(items)
 
     if as_pagination:

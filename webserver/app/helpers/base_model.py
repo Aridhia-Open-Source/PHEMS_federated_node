@@ -1,24 +1,28 @@
-from contextlib import contextmanager
+from sqlalchemy.ext.asyncio import (
+    create_async_engine,
+    AsyncSession,
+    async_sessionmaker
+)
 from datetime import datetime
 from flask import request
-from typing import Any, Generator, Self
+from typing import AsyncGenerator, Self
 from flask_sqlalchemy.pagination import QueryPagination
-from sqlalchemy import create_engine, Column, select
-from sqlalchemy.orm import DeclarativeBase, Relationship, Session, sessionmaker
+from sqlalchemy import Column, select
+from sqlalchemy.ext.asyncio.engine import AsyncEngine
+from sqlalchemy.orm import DeclarativeBase, Relationship
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidDBEntry, InvalidRequest
 from app.helpers.const import build_sql_uri
 
 
-engine = create_engine(build_sql_uri())
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+engine: AsyncEngine = create_async_engine(build_sql_uri(with_async=True))
+SessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-@contextmanager
-def get_db() -> Generator[Session, Any, None]:
-    db: Session = SessionLocal()
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    session = SessionLocal()
     try:
-        yield db
+        yield session
     finally:
-        db.close()
+        await session.close()
 
 
 # Another helper class for common methods
@@ -52,32 +56,35 @@ class BaseModel(DeclarativeBase):
                     jsonized[field] = str(val)
         return jsonized
 
-    def add(self, session: Session, commit:bool=True) -> None:
+    async def add(self, session: AsyncSession, commit:bool=True) -> None:
         session.add(self)
-        session.commit()
-        session.refresh(self, attribute_names=["id"])
+        if commit:
+            await session.commit()
+        await session.flush([self])
+        await session.refresh(self, attribute_names=["id"])
 
-    def update(self, session:Session, data: dict) -> None:
+    async def update(self, session:AsyncSession, data: dict) -> None:
         """
         Should help in managing instances created in other sessions
         """
-        persistent_self = session.merge(self)
+        persistent_self = await session.merge(self)
         for key, value in data.items():
             setattr(persistent_self, key, value)
 
-        session.flush()
-        session.refresh(persistent_self)
+        await session.flush()
+        await session.refresh(persistent_self)
         for key in data:
             setattr(self, key, getattr(persistent_self, key))
 
-    def delete(self, session:Session, commit=True) -> None:
-        session.delete(self)
+    async def delete(self, session:AsyncSession, commit=True) -> None:
+        await session.delete(self)
         if commit:
-            session.commit()
+            await session.commit()
 
     @classmethod
-    def get_all(cls, session) -> list[dict]:
-        return session.execute(select(cls)).scalars().all()
+    async def get_all(cls, session) -> list[dict]:
+        query = await session.execute(select(cls))
+        return query.scalars().all()
 
     @classmethod
     def _get_fields(cls) -> list[Column]:
@@ -124,13 +131,13 @@ class BaseModel(DeclarativeBase):
         return valid
 
     @classmethod
-    def get_by_id(cls, session: Session, obj_id:int, raise_if_not_found:bool = True) -> Self:
+    async def get_by_id(cls, session: AsyncSession, obj_id:int, raise_if_not_found:bool = True) -> Self:
         """
         Common wrapper to get by id, and raise an
         exception if not found
         """
         q = select(cls).where(cls.id == obj_id)
-        obj = session.execute(q).scalars().one_or_none()
+        obj = (await session.execute(q)).scalars().one_or_none()
         if obj is None and raise_if_not_found:
             raise DBRecordNotFoundError(f"{cls.__name__.capitalize()} with id {obj_id} does not exist")
         return obj

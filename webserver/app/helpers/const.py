@@ -7,9 +7,13 @@ def build_sql_uri(
         password=os.getenv('PGPASSWORD'),
         host=os.getenv('PGHOST'),
         port=os.getenv('PGPORT'),
-        database=os.getenv('PGDATABASE')
+        database=os.getenv('PGDATABASE'),
+        with_async:bool=False
         ):
-    return f"postgresql://{username}:{quote_plus(password)}@{host}:{port}/{database}{os.getenv("DB_SSL", "")}"
+    driver = "postgresql"
+    if with_async:
+        driver += "+asyncpg"
+    return f"{driver}://{username}:{quote_plus(password)}@{host}:{port}/{database}{os.getenv("DB_SSL", "")}"
 
 PASS_GENERATOR_SET = string.ascii_letters + string.digits + "!$@#.-_"
 PUBLIC_URL = os.getenv("PUBLIC_URL")

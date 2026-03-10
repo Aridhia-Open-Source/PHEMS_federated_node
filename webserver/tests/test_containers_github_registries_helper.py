@@ -1,4 +1,6 @@
 import responses
+from pytest import mark, raises
+
 from app.helpers.exceptions import ContainerRegistryException
 from tests.fixtures.github_cr_fixtures import *
 
@@ -9,18 +11,20 @@ class TestGitHubRegistry:
         This addressed the github case, where login is not
         strictly a separate action
     """
-    def test_create_registry_with_no_org_fails(self):
+    @mark.asyncio
+    async def test_create_registry_with_no_org_fails(self):
         """
         GitHub Registry format is ghcr.io/organization
         without organization we shouldn't progress with init
         """
         invalid_names = ["ghcr.io", "ghcr.io/", "/ghcr.io"]
         for name in invalid_names:
-            with pytest.raises(ContainerRegistryException) as cre:
+            with raises(ContainerRegistryException) as cre:
                 GitHubRegistry(registry=name)
             assert cre.value.description == "For GitHub registry, provide the org name. i.e. ghcr.io/orgname"
 
-    def test_cr_metadata_empty(
+    @mark.asyncio
+    async def test_cr_metadata_empty(
             self,
             container,
             cr_class
@@ -38,7 +42,8 @@ class TestGitHubRegistry:
             )
             assert cr_class.get_image_tags(container.name) == {'tag': [], 'sha': []}
 
-    def test_cr_metadata_tag_not_in_api_response(
+    @mark.asyncio
+    async def test_cr_metadata_tag_not_in_api_response(
             self,
             container,
             cr_class
@@ -63,7 +68,8 @@ class TestGitHubRegistry:
             )
             assert not cr_class.has_image_tag_or_sha(container.name, "latest")
 
-    def test_list_repos(
+    @mark.asyncio
+    async def test_list_repos(
         self,
         registry,
         cr_class,

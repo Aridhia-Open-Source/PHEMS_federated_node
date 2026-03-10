@@ -1,11 +1,11 @@
 import json
-from kubernetes.client.exceptions import ApiException
 import re
+from pytest import mark
+from kubernetes.client.exceptions import ApiException
 from unittest import mock
 from unittest.mock import Mock
 
 from app.helpers.const import TASK_POD_RESULTS_PATH
-from app.helpers.base_model import get_db
 from app.models.task import Task
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
@@ -13,7 +13,8 @@ from tests.base_test_class import BaseTest
 
 
 class TestGetTasks(BaseTest):
-    def test_get_list_tasks(
+    @mark.asyncio
+    async def test_get_list_tasks(
             self,
             client,
             simple_admin_header,
@@ -22,13 +23,14 @@ class TestGetTasks(BaseTest):
         """
         Tests that admin users can see the list of tasks
         """
-        response = client.get(
-            '/tasks/',
+        response = await client.get(
+            '/tasks',
             headers=simple_admin_header
         )
         assert response.status_code == 200
 
-    def test_get_list_tasks_base_user(
+    @mark.asyncio
+    async def test_get_list_tasks_base_user(
             self,
             client,
             mocker,
@@ -40,13 +42,14 @@ class TestGetTasks(BaseTest):
         """
         mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
 
-        response = client.get(
-            '/tasks/',
+        response = await client.get(
+            '/tasks',
             headers=simple_user_header
         )
         assert response.status_code == 403
 
-    def test_get_task_by_id_admin(
+    @mark.asyncio
+    async def test_get_task_by_id_admin(
             self,
             mock_kc_client,
             cr_client,
@@ -62,21 +65,22 @@ class TestGetTasks(BaseTest):
         of who requested it
         """
         mock_kc_client["tasks_api_kc"].return_value.get_user_by_id.return_value = {"username": "user"}
-        resp = client.post(
-            '/tasks/',
+        resp = await client.post(
+            '/tasks',
             json=task_body,
             headers=post_json_user_header
         )
         assert resp.status_code == 201
         task_id = resp.json()["id"]
 
-        resp = client.get(
+        resp = await client.get(
             f'/tasks/{task_id}',
             headers=simple_admin_header
         )
         assert resp.status_code == 200
 
-    def test_get_task_by_id_non_admin_owner(
+    @mark.asyncio
+    async def test_get_task_by_id_non_admin_owner(
             self,
             simple_user_header,
             client,
@@ -91,15 +95,16 @@ class TestGetTasks(BaseTest):
         decode_return.update(basic_user)
         mock_kc_client["tasks_api_kc"].return_value.decode_token.return_value = decode_return
 
-        t = Task.get_by_id(self.db_session, task.id)
+        t = await Task.get_by_id(self.db_session, task.id)
         t.requested_by = basic_user["id"]
-        resp = client.get(
+        resp = await client.get(
             f'/tasks/{task.id}',
             headers=simple_user_header
         )
         assert resp.status_code == 200
 
-    def test_get_task_by_id_non_admin_non_owner(
+    @mark.asyncio
+    async def test_get_task_by_id_non_admin_non_owner(
             self,
             simple_user_header,
             client,
@@ -109,17 +114,18 @@ class TestGetTasks(BaseTest):
         """
         If a user wants to check a specific task they should not be allowed if they did not request it
         """
-        task_obj = self.db_session.get(Task, task.id)
+        task_obj = await self.db_session.get(Task, task.id)
         task_obj.requested_by = "some random uuid"
         mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
 
-        resp = client.get(
+        resp = await client.get(
             f'/tasks/{task.id}',
             headers=simple_user_header
         )
         assert resp.status_code == 403
 
-    def test_get_task_status_running_and_waiting(
+    @mark.asyncio
+    async def test_get_task_status_running_and_waiting(
             self,
             cr_client,
             registry_client,
@@ -144,7 +150,7 @@ class TestGetTasks(BaseTest):
             )
         )
 
-        response_id = client.get(
+        response_id = await client.get(
             f'/tasks/{task.id}',
             headers=simple_admin_header
         )
@@ -160,14 +166,15 @@ class TestGetTasks(BaseTest):
             )
         )
 
-        response_id = client.get(
+        response_id = await client.get(
             f'/tasks/{task.id}',
             headers=simple_admin_header
         )
         assert response_id.status_code == 200, response_id.json()
         assert response_id.json()["status"] == {'waiting': {'started_at': '1/1/2024'}}
 
-    def test_get_task_status_terminated(
+    @mark.asyncio
+    async def test_get_task_status_terminated(
             self,
             terminated_state,
             post_json_admin_header,
@@ -188,7 +195,7 @@ class TestGetTasks(BaseTest):
             )
         )
 
-        response_id = client.get(
+        response_id = await client.get(
             f'/tasks/{task.id}',
             headers=post_json_admin_header
         )
@@ -205,7 +212,8 @@ class TestGetTasks(BaseTest):
 
 
 class TestPostTask(BaseTest):
-    def test_create_task(
+    @mark.asyncio
+    async def test_create_task(
             self,
             cr_client,
             post_json_admin_header,
@@ -218,7 +226,7 @@ class TestPostTask(BaseTest):
         """
         Tests task creation returns 201
         """
-        response = client.post(
+        response = await client.post(
             '/tasks',
             json=task_body,
             headers=post_json_admin_header
@@ -231,7 +239,8 @@ class TestPostTask(BaseTest):
         assert len(pod_body.spec.init_containers) == 2
         assert [pod.name for pod in pod_body.spec.init_containers] == [f"init-{response.json()["id"]}", "fetch-data"]
 
-    def test_create_task_no_name_fails(
+    @mark.asyncio
+    async def test_create_task_no_name_fails(
             self,
             post_json_admin_header,
             client,
@@ -246,15 +255,16 @@ class TestPostTask(BaseTest):
         """
         for value in ["", " ", " " * 10]:
             task_body["name"] = value
-            response = client.post(
-                '/tasks/',
+            response = await client.post(
+                '/tasks',
                 json=task_body,
                 headers=post_json_admin_header
             )
             assert response.status_code == 400
             assert response.json()["error"] == "name is a mandatory field"
 
-    def test_create_task_space_name_fails(
+    @mark.asyncio
+    async def test_create_task_space_name_fails(
             self,
             post_json_admin_header,
             client,
@@ -269,8 +279,8 @@ class TestPostTask(BaseTest):
         or one or more spaces
         """
         task_body["name"] = None
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             json=task_body,
             headers=post_json_admin_header
         )
@@ -279,7 +289,8 @@ class TestPostTask(BaseTest):
         assert "name" in json_resp["error"][0]["field"]
         assert json_resp["error"][0]["message"] == "Input should be a valid string"
 
-    def test_create_task_no_db_query(
+    @mark.asyncio
+    async def test_create_task_no_db_query(
             self,
             cr_client,
             post_json_admin_header,
@@ -297,8 +308,8 @@ class TestPostTask(BaseTest):
         folder creation in the PV
         """
         task_body.pop("db_query")
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
@@ -312,7 +323,8 @@ class TestPostTask(BaseTest):
         assert "CONNECTION_STRING" in envs
         assert set(envs).intersection({"QUERY", "FROM_DIALECT", "TO_DIALECT"}) == set()
 
-    def test_create_task_incomplete_db_query(
+    @mark.asyncio
+    async def test_create_task_incomplete_db_query(
             self,
             post_json_admin_header,
             client,
@@ -326,8 +338,8 @@ class TestPostTask(BaseTest):
         missing the mandatory field "query".
         """
         task_body["db_query"] = {}
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             json=task_body,
             headers=post_json_admin_header
         )
@@ -335,7 +347,8 @@ class TestPostTask(BaseTest):
         assert response.json()["error"] == "`db_query` field must include a `query`"
         reg_k8s_client["create_namespaced_pod_mock"].assert_not_called()
 
-    def test_create_task_invalid_output_field(
+    @mark.asyncio
+    async def test_create_task_invalid_output_field(
             self,
             cr_client,
             post_json_admin_header,
@@ -349,15 +362,16 @@ class TestPostTask(BaseTest):
         is not a dictionary
         """
         task_body["outputs"] = []
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
         assert response.status_code == 400
         assert response.json() == {"error": "\"outputs\" filed muct be a json object or dictionary"}
 
-    def test_create_task_no_output_field_reverts_to_default(
+    @mark.asyncio
+    async def test_create_task_no_output_field_reverts_to_default(
             self,
             cr_client,
             reg_k8s_client,
@@ -372,8 +386,8 @@ class TestPostTask(BaseTest):
         is the default one
         """
         task_body.pop("outputs")
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
@@ -383,7 +397,8 @@ class TestPostTask(BaseTest):
         assert len(pod_body.spec.containers[0].volume_mounts) == 1
         assert pod_body.spec.containers[0].volume_mounts[0].mount_path == TASK_POD_RESULTS_PATH
 
-    def test_create_task_with_ds_name(
+    @mark.asyncio
+    async def test_create_task_with_ds_name(
             self,
             cr_client,
             post_json_admin_header,
@@ -400,14 +415,15 @@ class TestPostTask(BaseTest):
         data["tags"].pop("dataset_id")
         data["tags"]["dataset_name"] = dataset.name
 
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(data),
             headers=post_json_admin_header
         )
         assert response.status_code == 201
 
-    def test_create_task_with_ds_name_and_id(
+    @mark.asyncio
+    async def test_create_task_with_ds_name_and_id(
             self,
             cr_client,
             post_json_admin_header,
@@ -423,14 +439,15 @@ class TestPostTask(BaseTest):
         data = task_body
         data["tags"]["dataset_name"] = dataset.name
 
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(data),
             headers=post_json_admin_header
         )
         assert response.status_code == 201
 
-    def test_create_task_with_conflicting_ds_name_and_id(
+    @mark.asyncio
+    async def test_create_task_with_conflicting_ds_name_and_id(
             self,
             cr_client,
             post_json_admin_header,
@@ -443,18 +460,20 @@ class TestPostTask(BaseTest):
         Tests task creation with a dataset name that does not exists
         and a valid id returns 201
         """
+        expected_msg = f"Dataset \"something else\" with id {dataset.id} does not exist"
         data = task_body
         data["tags"]["dataset_name"] = "something else"
 
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             json=data,
             headers=post_json_admin_header
         )
         assert response.status_code == 404
-        assert response.json()["error"] == f"Dataset \"something else\" with id {dataset.id} does not exist"
+        assert response.json()["error"] == expected_msg
 
-    def test_create_task_with_non_existing_dataset(
+    @mark.asyncio
+    async def test_create_task_with_non_existing_dataset(
             self,
             cr_client,
             post_json_admin_header,
@@ -468,15 +487,16 @@ class TestPostTask(BaseTest):
         data = task_body
         data["tags"]["dataset_id"] += 1
 
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             json=data,
             headers=post_json_admin_header
         )
         assert response.status_code == 404
         assert response.json() == {"error": f"Dataset {data["tags"]["dataset_id"]} does not exist"}
 
-    def test_create_task_with_non_existing_dataset_name(
+    @mark.asyncio
+    async def test_create_task_with_non_existing_dataset_name(
             self,
             cr_client,
             post_json_admin_header,
@@ -493,8 +513,8 @@ class TestPostTask(BaseTest):
         data["tags"].pop("dataset_id")
         data["tags"]["dataset_name"] = "something else"
 
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(data),
             headers=post_json_admin_header
         )
@@ -502,7 +522,8 @@ class TestPostTask(BaseTest):
         assert response.json() == {"error": "Dataset something else does not exist"}
 
     @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
-    def test_create_unauthorized_task(
+    @mark.asyncio
+    async def test_create_unauthorized_task(
             self,
             kc_valid_mock,
             cr_client,
@@ -521,14 +542,15 @@ class TestPostTask(BaseTest):
 
         mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
 
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(data),
             headers=post_json_user_header
         )
         assert response.status_code == 403
 
-    def test_create_task_image_with_digest(
+    @mark.asyncio
+    async def test_create_task_image_with_digest(
             self,
             cr_client,
             post_json_admin_header,
@@ -544,8 +566,8 @@ class TestPostTask(BaseTest):
         an image tag
         """
         task_body["executors"][0]["image"] = container_with_sha.full_image_name()
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             json=task_body,
             headers=post_json_admin_header
         )
@@ -553,7 +575,8 @@ class TestPostTask(BaseTest):
         reg_k8s_client["create_namespaced_pod_mock"].assert_called()
         v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
 
-    def test_create_task_image_same_name_different_registry(
+    @mark.asyncio
+    async def test_create_task_image_same_name_different_registry(
             self,
             cr_client,
             reg_k8s_client,
@@ -569,16 +592,17 @@ class TestPostTask(BaseTest):
         same name, but different registry
         """
         registry = Registry(url="another.azurecr.io", username="user", password="pass")
-        registry.add(db_session)
-        Container(registry=registry, name=container.name, tag=container.tag).add(db_session)
-        response = client.post(
+        await registry.add(db_session)
+        await Container(registry=registry, name=container.name, tag=container.tag).add(db_session)
+        response = await client.post(
             '/tasks',
             json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
 
-    def test_create_task_image_not_found(
+    @mark.asyncio
+    async def test_create_task_image_not_found(
             self,
             cr_client_404,
             post_json_admin_header,
@@ -589,15 +613,16 @@ class TestPostTask(BaseTest):
         """
         Tests task creation returns 500 with a requested docker image is not found
         """
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
         assert response.status_code == 500
         assert response.json() == {"error": f"Image {task_body["executors"][0]["image"]} not found on our repository"}
 
-    def test_create_task_inputs_not_default(
+    @mark.asyncio
+    async def test_create_task_inputs_not_default(
             self,
             cr_client,
             post_json_admin_header,
@@ -612,8 +637,8 @@ class TestPostTask(BaseTest):
         custom location for inputs, this is set as volumeMount
         """
         task_body["inputs"] = {"file.csv": "/data/in"}
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
@@ -627,7 +652,8 @@ class TestPostTask(BaseTest):
         # Check if the INPUT_PATH variable is set
         assert ["/data/in/file.csv"] == [ev.value for ev in pod_body.spec.containers[0].env if ev.name == "INPUT_PATH"]
 
-    def test_create_task_input_path_env_var_override(
+    @mark.asyncio
+    async def test_create_task_input_path_env_var_override(
             self,
             cr_client,
             post_json_admin_header,
@@ -642,8 +668,8 @@ class TestPostTask(BaseTest):
         INPUT_PATH as a env var, use theirs
         """
         task_body["executors"][0]["env"] = {"INPUT_PATH": "/data/in/file.csv"}
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
@@ -654,7 +680,8 @@ class TestPostTask(BaseTest):
         # Check if the INPUT_PATH variable is set
         assert ["/data/in/file.csv"] == [ev.value for ev in pod_body.spec.containers[0].env if ev.name == "INPUT_PATH"]
 
-    def test_create_task_invalid_output_field(
+    @mark.asyncio
+    async def test_create_task_invalid_output_field(
             self,
             cr_client,
             post_json_admin_header,
@@ -668,15 +695,16 @@ class TestPostTask(BaseTest):
         is not a dictionary
         """
         task_body["outputs"] = []
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
         assert response.status_code == 400
         assert response.json() == {"error": "\"outputs\" field must be a json object or dictionary"}
 
-    def test_create_task_invalid_inputs_field(
+    @mark.asyncio
+    async def test_create_task_invalid_inputs_field(
             self,
             cr_client,
             post_json_admin_header,
@@ -690,15 +718,16 @@ class TestPostTask(BaseTest):
         is not a dictionary
         """
         task_body["inputs"] = []
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
         assert response.status_code == 400
         assert response.json() == {"error": "\"inputs\" field must be a json object or dictionary"}
 
-    def test_create_task_no_output_field_reverts_to_default(
+    @mark.asyncio
+    async def test_create_task_no_output_field_reverts_to_default(
             self,
             cr_client,
             reg_k8s_client,
@@ -713,8 +742,8 @@ class TestPostTask(BaseTest):
         is the default one
         """
         task_body.pop("outputs")
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
@@ -724,7 +753,8 @@ class TestPostTask(BaseTest):
         assert len(pod_body.spec.containers[0].volume_mounts) == 2
         assert TASK_POD_RESULTS_PATH in [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts]
 
-    def test_create_task_no_inputs_field_reverts_to_default(
+    @mark.asyncio
+    async def test_create_task_no_inputs_field_reverts_to_default(
             self,
             cr_client,
             reg_k8s_client,
@@ -739,8 +769,8 @@ class TestPostTask(BaseTest):
         is the default one for the inputs
         """
         task_body.pop("inputs")
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
@@ -750,7 +780,8 @@ class TestPostTask(BaseTest):
         assert len(pod_body.spec.containers[0].volume_mounts) == 2
         assert [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts] == ["/mnt/inputs", TASK_POD_RESULTS_PATH]
 
-    def test_create_task_controller_not_deployed_no_crd(
+    @mark.asyncio
+    async def test_create_task_controller_not_deployed_no_crd(
             self,
             cr_client,
             post_json_admin_header,
@@ -765,15 +796,16 @@ class TestPostTask(BaseTest):
         Tests task creation returns 201. It should not try to
         create a CRD if the task controller is not deployed
         """
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
         assert response.status_code == 201
         v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
 
-    def test_create_task_controller_deployed_create_crd(
+    @mark.asyncio
+    async def test_create_task_controller_deployed_create_crd(
             self,
             cr_client,
             post_json_admin_header,
@@ -789,15 +821,16 @@ class TestPostTask(BaseTest):
         Tests task creation returns 201. It should try to
         create a CRD if the task controller is deployed
         """
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
         assert response.status_code == 201
         v1_crd_mock.return_value.create_cluster_custom_object.assert_called()
 
-    def test_create_task_from_controller(
+    @mark.asyncio
+    async def test_create_task_from_controller(
             self,
             cr_client,
             post_json_admin_header,
@@ -812,15 +845,16 @@ class TestPostTask(BaseTest):
         with or without the task_controller flag
         """
         task_body["task_controller"] = True
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
         assert response.status_code == 201
         v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
 
-    def test_task_dataset_with_repo(
+    @mark.asyncio
+    async def test_task_dataset_with_repo(
             self,
             cr_client,
             post_json_admin_header,
@@ -837,15 +871,16 @@ class TestPostTask(BaseTest):
         task_body["task_controller"] = True
         task_body["tags"] = {}
         task_body["repository"] = "organisation/repository"
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
         assert response.status_code == 201
         v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
 
-    def test_task_dataset_with_repo_unlinked(
+    @mark.asyncio
+    async def test_task_dataset_with_repo_unlinked(
             self,
             cr_client,
             post_json_admin_header,
@@ -863,8 +898,8 @@ class TestPostTask(BaseTest):
         task_body["task_controller"] = True
         task_body["tags"] = {}
         task_body["repository"] = "organisation/repository2"
-        response = client.post(
-            '/tasks/',
+        response = await client.post(
+            '/tasks',
             data=json.dumps(task_body),
             headers=post_json_admin_header
         )
@@ -872,7 +907,8 @@ class TestPostTask(BaseTest):
         assert response.json()["error"] == "No datasets linked with the repository organisation/repository2"
         v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
 
-    def test_task_schema_env_variables(
+    @mark.asyncio
+    async def test_task_schema_env_variables(
             self,
             task,
             cr_client,
@@ -890,7 +926,8 @@ class TestPostTask(BaseTest):
         env = [env.name for env in pod_body.spec.containers[0].env if re.match(".+_SCHEMA", env.name)]
         assert len(set(env).intersection({"CDM_SCHEMA", "WRITE_SCHEMA"})) == 2
 
-    def test_task_connection_string_postgres(
+    @mark.asyncio
+    async def test_task_connection_string_postgres(
             self,
             task,
             cr_client,
@@ -908,7 +945,8 @@ class TestPostTask(BaseTest):
         env = [env.value for env in pod_body.spec.containers[0].env if env.name == "CONNECTION_STRING"][0]
         assert re.match(r'driver={PostgreSQL ANSI};Uid=.*;Pwd=.*;Server=.*;Database=.*;$', env) is not None
 
-    def test_task_connection_string_oracle(
+    @mark.asyncio
+    async def test_task_connection_string_oracle(
             self,
             task_oracle,
             cr_client,
@@ -928,7 +966,8 @@ class TestPostTask(BaseTest):
 
 
 class TestCancelTask:
-    def test_cancel_task(
+    @mark.asyncio
+    async def test_cancel_task(
             self,
             client,
             simple_admin_header,
@@ -937,14 +976,15 @@ class TestCancelTask:
         """
         Test that an admin can cancel an existing task
         """
-        response = client.post(
+        response = await client.post(
             f'/tasks/{task.id}/cancel',
             headers=simple_admin_header
         )
         assert response.status_code == 200
         assert "terminated" in response.json()["status"]
 
-    def test_cancel_404_task(
+    @mark.asyncio
+    async def test_cancel_404_task(
             self,
             client,
             simple_admin_header
@@ -952,7 +992,7 @@ class TestCancelTask:
         """
         Test that an admin can cancel a non-existing task returns a 404
         """
-        response = client.post(
+        response = await client.post(
             '/tasks/123456/cancel',
             headers=simple_admin_header
         )
@@ -960,7 +1000,8 @@ class TestCancelTask:
 
 
 class TestValidateTask:
-    def test_validate_task(
+    @mark.asyncio
+    async def test_validate_task(
             self,
             client,
             task_body,
@@ -972,14 +1013,15 @@ class TestValidateTask:
         """
         Test the validation endpoint can be used by admins returns 201
         """
-        response = client.post(
+        response = await client.post(
             '/tasks/validate',
             json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 200
 
-    def test_validate_task_admin_missing_dataset(
+    @mark.asyncio
+    async def test_validate_task_admin_missing_dataset(
             self,
             client,
             task_body,
@@ -992,7 +1034,7 @@ class TestValidateTask:
         an error message if the dataset info is not provided
         """
         task_body["tags"].pop("dataset_id")
-        response = client.post(
+        response = await client.post(
             '/tasks/validate',
             json=task_body,
             headers=post_json_admin_header
@@ -1000,7 +1042,8 @@ class TestValidateTask:
         assert response.status_code == 400
         assert response.json()["error"] == "Administrators need to provide `tags.dataset_id` or `tags.dataset_name`"
 
-    def test_validate_task_basic_user(
+    @mark.asyncio
+    async def test_validate_task_basic_user(
             self,
             client,
             task_body,
@@ -1017,7 +1060,7 @@ class TestValidateTask:
         mock_kc_client["wrappers_kc"].return_value.get_user_by_username.return_value = {"id": user_uuid}
 
         post_json_user_header["project-name"] = access_request.project_name
-        response = client.post(
+        response = await client.post(
             '/tasks/validate',
             json=task_body,
             headers=post_json_user_header
@@ -1026,7 +1069,8 @@ class TestValidateTask:
 
 
 class TestTasksLogs:
-    def test_task_get_logs(
+    @mark.asyncio
+    async def test_task_get_logs(
             self,
             post_json_admin_header,
             client,
@@ -1047,7 +1091,7 @@ class TestTasksLogs:
                 )
             )
         )
-        response_logs = client.get(
+        response_logs = await client.get(
             f'/tasks/{task.id}/logs',
             headers=post_json_admin_header
         )
@@ -1057,7 +1101,8 @@ class TestTasksLogs:
             'another line'
         ]
 
-    def test_task_logs_non_existent(
+    @mark.asyncio
+    async def test_task_logs_non_existent(
             self,
             post_json_admin_header,
             client,
@@ -1068,14 +1113,15 @@ class TestTasksLogs:
         Basic test that will check the appropriate error
         is returned when the task id does not exist
         """
-        response_logs = client.get(
+        response_logs = await client.get(
             f'/tasks/{task.id + 1}/logs',
             headers=post_json_admin_header
         )
         assert response_logs.status_code == 404
         assert response_logs.json()["error"] == f"Task with id {task.id + 1} does not exist"
 
-    def test_task_waiting_get_logs(
+    @mark.asyncio
+    async def test_task_waiting_get_logs(
             self,
             post_json_admin_header,
             client,
@@ -1096,14 +1142,15 @@ class TestTasksLogs:
                 )
             )
         )
-        response_logs = client.get(
+        response_logs = await client.get(
             f'/tasks/{task.id}/logs',
             headers=post_json_admin_header
         )
         assert response_logs.status_code == 200
         assert response_logs.json()["logs"] == 'Task queued'
 
-    def test_task_not_found_get_logs(
+    @mark.asyncio
+    async def test_task_not_found_get_logs(
             self,
             post_json_admin_header,
             client,
@@ -1119,14 +1166,15 @@ class TestTasksLogs:
             'app.models.task.Task.get_current_pod',
             return_value=None
         )
-        response_logs = client.get(
+        response_logs = await client.get(
             f'/tasks/{task.id}/logs',
             headers=post_json_admin_header
         )
         assert response_logs.status_code == 400
         assert response_logs.json()["error"] == f'Task pod {task.id} not found'
 
-    def test_task_get_logs_fails(
+    @mark.asyncio
+    async def test_task_get_logs_fails(
             self,
             post_json_admin_header,
             client,
@@ -1149,7 +1197,7 @@ class TestTasksLogs:
             )
         )
         k8s_client["read_namespaced_pod_log"].side_effect = ApiException()
-        response_logs = client.get(
+        response_logs = await client.get(
             f'/tasks/{task.id}/logs',
             headers=post_json_admin_header
         )

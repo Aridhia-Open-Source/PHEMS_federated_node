@@ -1,10 +1,10 @@
 from copy import deepcopy
-import pytest
+from pytest import mark, raises
+from pytest_asyncio import fixture
 from unittest.mock import Mock
 
 from sqlalchemy import select, update
 
-from app.helpers.base_model import get_db
 from app.helpers.exceptions import InvalidRequest
 from app.models.container import Container
 from app.schemas.containers import ContainerCreate
@@ -12,7 +12,7 @@ from tests.fixtures.azure_cr_fixtures import *
 from tests.base_test_class import BaseTest
 
 
-@pytest.fixture(scope='function')
+@fixture(scope='function')
 def container_body(registry):
     return deepcopy({
         "name": "",
@@ -36,7 +36,8 @@ class ContainersMixin(BaseTest):
 
 
 class TestGetContainers(ContainersMixin):
-    def test_docker_image_regex(
+    @mark.asyncio
+    async def test_docker_image_regex(
         self,
         container_body,
         cr_client,
@@ -72,10 +73,11 @@ class TestGetContainers(ContainersMixin):
 
         for im_format in invalid_image_formats:
             container_body["name"] = im_format
-            with pytest.raises(InvalidRequest):
+            with raises(InvalidRequest):
                 ContainerCreate(**container_body)
 
-    def test_get_all_images(
+    @mark.asyncio
+    async def test_get_all_images(
         self,
         client,
         container,
@@ -85,11 +87,12 @@ class TestGetContainers(ContainersMixin):
         Basic test for returning a correct response body
         on /GET /containers
         """
-        resp = client.get("/containers", headers=post_json_admin_header)
+        resp = await client.get("/containers", headers=post_json_admin_header)
 
         assert resp.json()["items"] == [self.get_container_as_response(container)]
 
-    def test_get_container_by_id(
+    @mark.asyncio
+    async def test_get_container_by_id(
         self,
         client,
         container,
@@ -99,7 +102,7 @@ class TestGetContainers(ContainersMixin):
         Basic test to make sure the response body has
         the expected format
         """
-        resp = client.get(
+        resp = await client.get(
             f"/containers/{container.id}",
             headers=simple_admin_header
         )
@@ -107,7 +110,8 @@ class TestGetContainers(ContainersMixin):
         assert resp.status_code == 200
         assert resp.json() == self.get_container_as_response(container)
 
-    def test_get_container_by_id_404(
+    @mark.asyncio
+    async def test_get_container_by_id_404(
         self,
         client,
         container,
@@ -117,7 +121,7 @@ class TestGetContainers(ContainersMixin):
         Basic test to make sure the response body has
         the expected format
         """
-        resp = client.get(
+        resp = await client.get(
             f"/containers/{container.id + 1}",
             headers=simple_admin_header
         )
@@ -125,7 +129,8 @@ class TestGetContainers(ContainersMixin):
         assert resp.status_code == 404
         assert resp.json()["error"] == f'Container with id {container.id + 1} does not exist'
 
-    def test_get_container_by_id_non_auth(
+    @mark.asyncio
+    async def test_get_container_by_id_non_auth(
         self,
         client,
         container,
@@ -137,7 +142,7 @@ class TestGetContainers(ContainersMixin):
         use the endpoint
         """
         mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
-        resp = client.get(
+        resp = await client.get(
             f"/containers/{container.id}",
             headers=simple_user_header
         )
@@ -146,7 +151,8 @@ class TestGetContainers(ContainersMixin):
 
 
 class TestPostContainers(ContainersMixin):
-    def test_add_new_container(
+    @mark.asyncio
+    async def test_add_new_container(
         self,
         client,
         registry,
@@ -155,7 +161,7 @@ class TestPostContainers(ContainersMixin):
         """
         Checks the POST body is what we expect
         """
-        resp = client.post(
+        resp = await client.post(
             "/containers",
             json={
                 "name": "testimage",
@@ -165,11 +171,12 @@ class TestPostContainers(ContainersMixin):
             headers=post_json_admin_header
         )
         assert resp.status_code == 201, resp.json()
-        assert self.db_session.execute(select(Container).where(
+        assert await self.run_query(select(Container).where(
             Container.name=="testimage", Container.tag=="1.0.25"
-        )).one_or_none() is not None
+        ), "one_or_none") is not None
 
-    def test_add_new_container_by_sha(
+    @mark.asyncio
+    async def test_add_new_container_by_sha(
         self,
         client,
         registry,
@@ -178,7 +185,7 @@ class TestPostContainers(ContainersMixin):
         """
         Checks the POST body is what we expect
         """
-        resp = client.post(
+        resp = await client.post(
             "/containers",
             json={
                 "name": "testimage",
@@ -188,11 +195,12 @@ class TestPostContainers(ContainersMixin):
             headers=post_json_admin_header
         )
         assert resp.status_code == 201
-        assert self.db_session.execute(select(Container).where(
+        assert await self.run_query(select(Container).where(
             Container.name=="testimage", Container.sha=="sha256:123123123"
-        )).one_or_none() is not None
+        ), "one_or_none") is not None
 
-    def test_add_duplicate_container(
+    @mark.asyncio
+    async def test_add_duplicate_container(
         self,
         client,
         registry,
@@ -205,7 +213,7 @@ class TestPostContainers(ContainersMixin):
         """
         data = self.get_container_as_response(container)
         data["registry"] = registry.url
-        resp = client.post(
+        resp = await client.post(
             "/containers",
             json=data,
             headers=post_json_admin_header
@@ -213,7 +221,8 @@ class TestPostContainers(ContainersMixin):
         assert resp.status_code == 409
         assert resp.json()["error"] == f'Image {container.name} with {container.tag} already exists in the registry'
 
-    def test_add_new_container_missing_field(
+    @mark.asyncio
+    async def test_add_new_container_missing_field(
         self,
         client,
         registry,
@@ -223,7 +232,7 @@ class TestPostContainers(ContainersMixin):
         Checks the POST body is processed and returns
         an error if a required field is missing
         """
-        resp = client.post(
+        resp = await client.post(
             "/containers",
             json={
                 "name": "testimage",
@@ -234,7 +243,8 @@ class TestPostContainers(ContainersMixin):
         assert resp.status_code == 400
         assert resp.json()["error"] == 'Make sure `tag` or `sha` are provided'
 
-    def test_add_new_container_invalid_registry(
+    @mark.asyncio
+    async def test_add_new_container_invalid_registry(
         self,
         client,
         post_json_admin_header
@@ -243,7 +253,7 @@ class TestPostContainers(ContainersMixin):
         Checks the POST request fails if the registry needed
         is not on record
         """
-        resp = client.post(
+        resp = await client.post(
             "/containers",
             json={
                 "name": "testimage",
@@ -255,7 +265,8 @@ class TestPostContainers(ContainersMixin):
         assert resp.status_code == 500
         assert resp.json()["error"] == 'Registry notreal could not be found'
 
-    def test_container_name_invalid_format(
+    @mark.asyncio
+    async def test_container_name_invalid_format(
         self,
         client,
         registry,
@@ -266,7 +277,7 @@ class TestPostContainers(ContainersMixin):
         Most of the model validations are done in a previous test
         here we verifying the API returns the correct message
         """
-        resp = client.post(
+        resp = await client.post(
             "/containers",
             json={
                 "name": "/testimage",
@@ -280,7 +291,8 @@ class TestPostContainers(ContainersMixin):
 
 
 class TestPatchContainers(BaseTest):
-    def test_patch_container(
+    @mark.asyncio
+    async def test_patch_container(
         self,
         client,
         container,
@@ -289,15 +301,17 @@ class TestPatchContainers(BaseTest):
         """
         Basic PATCH request test
         """
-        resp = client.patch(
+        resp = await client.patch(
             f"/containers/{container.id}",
             json={"ml": True},
             headers=post_json_admin_header
         )
         assert resp.status_code == 201
-        assert Container.get_by_id(self.db_session, container.id).ml == True
+        cont_db_obj: Container = await Container.get_by_id(self.db_session, container.id)
+        assert cont_db_obj.ml == True
 
-    def test_patch_container_wrong_body(
+    @mark.asyncio
+    async def test_patch_container_wrong_body(
         self,
         client,
         container,
@@ -306,7 +320,7 @@ class TestPatchContainers(BaseTest):
         """
         Basic PATCH request test
         """
-        resp = client.patch(
+        resp = await client.patch(
             f"/containers/{container.id}",
             json={"name": "new_name"},
             headers=post_json_admin_header
@@ -314,7 +328,8 @@ class TestPatchContainers(BaseTest):
         assert resp.status_code == 400
         assert resp.json()["error"] == "No valid changes detected"
 
-    def test_patch_container_non_existing_container(
+    @mark.asyncio
+    async def test_patch_container_non_existing_container(
         self,
         client,
         container,
@@ -323,7 +338,7 @@ class TestPatchContainers(BaseTest):
         """
         Basic PATCH request test
         """
-        resp = client.patch(
+        resp = await client.patch(
             f"/containers/{container.id + 1}",
             json={"ml": True},
             headers=post_json_admin_header
@@ -331,7 +346,8 @@ class TestPatchContainers(BaseTest):
         assert resp.status_code == 404
         assert resp.json()["error"] == f"Container with id {container.id + 1} does not exist"
 
-    def test_patch_container_non_json(
+    @mark.asyncio
+    async def test_patch_container_non_json(
         self,
         client,
         container,
@@ -340,7 +356,7 @@ class TestPatchContainers(BaseTest):
         """
         Basic PATCH request test in invalid format
         """
-        resp = client.patch(
+        resp = await client.patch(
             f"/containers/{container.id}",
             data={"ml": True},
             headers=simple_admin_header
@@ -350,7 +366,8 @@ class TestPatchContainers(BaseTest):
 
 
 class TestSync(BaseTest):
-    def test_sync_200(
+    @mark.asyncio
+    async def test_sync_200(
         self,
         client,
         post_json_admin_header,
@@ -365,7 +382,7 @@ class TestSync(BaseTest):
         Basic test that adds couple of missing images
         from the tracked registry
         """
-        resp = client.post(
+        resp = await client.post(
             "/containers/sync",
             headers=post_json_admin_header
         )
@@ -382,7 +399,8 @@ class TestSync(BaseTest):
         assert resp.status_code == 201
         assert sorted(resp.json()["images"]) == sorted(expected_resp)
 
-    def test_sync_failure(
+    @mark.asyncio
+    async def test_sync_failure(
         self,
         client,
         post_json_admin_header,
@@ -402,7 +420,7 @@ class TestSync(BaseTest):
                 json={"error": "Credentials not valid"},
                 status=401
             )
-            resp = client.post(
+            resp = await client.post(
                 "/containers/sync",
                 headers=post_json_admin_header
             )
@@ -410,7 +428,8 @@ class TestSync(BaseTest):
         assert resp.status_code == 400
         assert resp.json()["error"] == "Could not authenticate against the registry"
 
-    def test_sync_no_action(
+    @mark.asyncio
+    async def test_sync_no_action(
         self,
         client,
         post_json_admin_header,
@@ -449,7 +468,7 @@ class TestSync(BaseTest):
             json={"repositories": [container.name]},
             status=200
         )
-        resp = client.post(
+        resp = await client.post(
             "/containers/sync",
             headers=post_json_admin_header
         )
@@ -457,7 +476,8 @@ class TestSync(BaseTest):
         assert resp.status_code == 201, resp.json()
         assert resp.json()["images"] == []
 
-    def test_sync_no_action_inactive_registry(
+    @mark.asyncio
+    async def test_sync_no_action_inactive_registry(
         self,
         client,
         post_json_admin_header,
@@ -467,13 +487,13 @@ class TestSync(BaseTest):
         Basic test that makes sure that if a registry is inactive
         nothing is done.
         """
-        self.db_session.execute(update(Registry).where(Registry.id == registry.id).values({"active": False}))
+        await self.db_session.execute(update(Registry).where(Registry.id == registry.id).values({"active": False}))
 
-        resp = client.post(
+        resp = await client.post(
             "/containers/sync",
             headers=post_json_admin_header
         )
 
         assert resp.status_code == 201
         assert resp.json()["images"] == []
-        assert self.db_session.execute(select(Container)).all() == []
+        assert await self.run_query(select(Container)) == []

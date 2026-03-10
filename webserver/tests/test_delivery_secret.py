@@ -1,9 +1,12 @@
+from pytest import mark
+
 from unittest.mock import Mock
 from kubernetes.client.exceptions import ApiException
 
 
 class TestUpdateDeliverySecret:
-    def test_other_delivery_secret(
+    @mark.asyncio
+    async def test_other_delivery_secret(
         self,
         client,
         set_task_other_delivery_env,
@@ -15,7 +18,7 @@ class TestUpdateDeliverySecret:
         at deployment time, the secret is correctly
         updated
         """
-        resp = client.patch(
+        resp = await client.patch(
             "/delivery-secret",
             json={"auth": "test"},
             headers=post_json_admin_header
@@ -29,7 +32,8 @@ class TestUpdateDeliverySecret:
         # Check that the provided secret is base64 encoded
         assert k8s_client["patch_namespaced_secret_mock"].call_args[0][-1].data["auth"] == "dGVzdA=="
 
-    def test_other_delivery_secret_403_non_admin(
+    @mark.asyncio
+    async def test_other_delivery_secret_403_non_admin(
         self,
         client,
         set_task_other_delivery_env,
@@ -42,7 +46,7 @@ class TestUpdateDeliverySecret:
         at deployment time, 403 is returned for non-admins
         """
         mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
-        resp = client.patch(
+        resp = await client.patch(
             "/delivery-secret",
             json={"auth": "test"},
             headers=post_json_user_header
@@ -51,7 +55,8 @@ class TestUpdateDeliverySecret:
         assert resp.status_code == 403
         k8s_client["patch_namespaced_secret_mock"].assert_not_called()
 
-    def test_other_delivery_secret_missing_mandatory_field(
+    @mark.asyncio
+    async def test_other_delivery_secret_missing_mandatory_field(
         self,
         client,
         set_task_other_delivery_env,
@@ -63,7 +68,7 @@ class TestUpdateDeliverySecret:
         at deployment time, an error is returned if
         the mandatory "auth" field is missing
         """
-        resp = client.patch(
+        resp = await client.patch(
             "/delivery-secret",
             json={"new": "test"},
             headers=post_json_admin_header
@@ -74,7 +79,8 @@ class TestUpdateDeliverySecret:
         assert "auth" in resp.json()["error"][0]["field"]
         k8s_client["patch_namespaced_secret_mock"].assert_not_called()
 
-    def test_other_delivery_secret_body_not_json(
+    @mark.asyncio
+    async def test_other_delivery_secret_body_not_json(
         self,
         client,
         set_task_other_delivery_env,
@@ -86,7 +92,7 @@ class TestUpdateDeliverySecret:
         at deployment time, an error is returned if
         the request body is not json
         """
-        resp = client.patch(
+        resp = await client.patch(
             "/delivery-secret",
             data="{\"auth\": \"test\"}",
             headers=post_form_admin_header
@@ -96,7 +102,8 @@ class TestUpdateDeliverySecret:
         assert 'Input should be a valid dictionary or object to extract fields from' == resp.json()["error"][0]["message"]
         k8s_client["patch_namespaced_secret_mock"].assert_not_called()
 
-    def test_other_delivery_secret_not_found(
+    @mark.asyncio
+    async def test_other_delivery_secret_not_found(
         self,
         client,
         set_task_other_delivery_env,
@@ -109,7 +116,7 @@ class TestUpdateDeliverySecret:
         nothing is updated
         """
         k8s_client["list_namespaced_secret_mock"].return_value.items = []
-        resp = client.patch(
+        resp = await client.patch(
             "/delivery-secret",
             json={"auth": "test"},
             headers=post_json_admin_header
@@ -118,7 +125,8 @@ class TestUpdateDeliverySecret:
         assert resp.status_code == 400
         k8s_client["patch_namespaced_secret_mock"].assert_not_called()
 
-    def test_other_delivery_secret_error_patching(
+    @mark.asyncio
+    async def test_other_delivery_secret_error_patching(
         self,
         client,
         set_task_other_delivery_env,
@@ -133,7 +141,7 @@ class TestUpdateDeliverySecret:
         k8s_client["patch_namespaced_secret_mock"].side_effect = ApiException(
             http_resp=Mock(status=500, reason="Error", data="Something went wrong")
         )
-        resp = client.patch(
+        resp = await client.patch(
             "/delivery-secret",
             json={"auth": "test"},
             headers=post_json_admin_header
@@ -142,7 +150,8 @@ class TestUpdateDeliverySecret:
         assert resp.status_code == 500
         assert resp.json()["error"] == "Could not update the secret. Check the logs for more details"
 
-    def test_github_delivery_secret(
+    @mark.asyncio
+    async def test_github_delivery_secret(
         self,
         client,
         set_task_github_delivery_env,
@@ -153,7 +162,7 @@ class TestUpdateDeliverySecret:
         Test that when the github delivery is chosen
         at deployment time, an error is always returned
         """
-        resp = client.patch(
+        resp = await client.patch(
             "/delivery-secret",
             json={"auth": "test"},
             headers=post_json_admin_header
@@ -163,7 +172,8 @@ class TestUpdateDeliverySecret:
         assert resp.json()["error"] == "Unable to update GitHub delivery details for security reasons. Please contact the system administrator"
         k8s_client["patch_namespaced_secret_mock"].assert_not_called()
 
-    def test_delivery_secret_feature_non_available(
+    @mark.asyncio
+    async def test_delivery_secret_feature_non_available(
         self,
         client,
         post_json_admin_header,
@@ -173,7 +183,7 @@ class TestUpdateDeliverySecret:
         Test that when the task controller is not deployed
         the feature not available error is returned
         """
-        resp = client.patch(
+        resp = await client.patch(
             "/delivery-secret",
             json={"auth": "test"},
             headers=post_json_admin_header

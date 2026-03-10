@@ -1,23 +1,27 @@
+import asyncio
 import base64
 import json
 from copy import deepcopy
 from typing import Any, List
-from pytest import fixture
 from datetime import datetime as dt, timedelta
 from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 from kubernetes.client import V1Pod, V1Secret
-from sqlalchemy import create_engine
-from sqlalchemy.orm.session import sessionmaker
-from sqlalchemy_utils import database_exists, create_database
-from unittest.mock import Mock, patch
+from pytest_asyncio import fixture
+from sqlalchemy.ext.asyncio import (
+    AsyncConnection,
+    create_async_engine,
+    AsyncSession,
+    async_sessionmaker
+)
+from sqlalchemy import event
+from unittest.mock import Mock
 
 from app.main import app
 from app.helpers.const import build_sql_uri
 from app.helpers.base_model import BaseModel, get_db
 from app.models.dataset import Dataset
 from app.models.catalogue import Catalogue
-from app.models.container import Container
-from app.models.registry import Registry
 from app.models.dictionary import Dictionary
 from app.models.request import RequestModel
 from app.models.task import Task
@@ -109,42 +113,52 @@ def post_form_admin_header(login_admin):
     }
 
 @fixture(scope="session")
-def test_engine():
-    db_host = build_sql_uri()
-    if not database_exists(db_host):
-        create_database(db_host)
-
-    engine = create_engine(db_host)
-    # Register all tables
-    BaseModel.metadata.create_all(bind=engine)
-    yield engine
+def event_loop():
+    """Overrides pytest-asyncio's default function-scoped event loop."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
 
 @fixture(scope="function")
-def db_session(test_engine):
-    BaseModel.metadata.drop_all(bind=test_engine)
-    BaseModel.metadata.create_all(bind=test_engine)
-    connection = test_engine.connect()
-    transaction = connection.begin()
+async def db_session():
+    """The expectation with async_sessions is that the
+    transactions be called on the connection object instead of the
+    session object.
+    Detailed explanation of async transactional tests
+    <https://github.com/sqlalchemy/sqlalchemy/issues/5811>
+    """
+    db_host = build_sql_uri(with_async=True)
+    engine = create_async_engine(db_host)
+    connection = await engine.connect()
+    trans = await connection.begin()
+    async_session = async_sessionmaker(
+        bind=connection, expire_on_commit=False,
+    )()
+    nested = await connection.begin_nested()
 
-    Session = sessionmaker(bind=connection, expire_on_commit=False)
-    session = Session()
+    @event.listens_for(async_session.sync_session, "after_transaction_end")
+    def end_savepoint(session, transaction):
+        nonlocal nested
 
-    yield session
+        if not nested.is_active:
+            nested = connection.sync_connection.begin_nested()
 
-    session.close()
-    transaction.rollback() # Wipes the data for the next test
-    connection.close()
+    yield async_session
 
-# Flask client to perform requests
+    await trans.rollback()
+    await async_session.close()
+    await connection.close()
+    await engine.dispose()
+
+# FastAPI client to perform requests
 @fixture(scope="function")
-def client(db_session):
-    def override_get_db():
+async def client(db_session):
+    async def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as c:
-        yield c
-
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
     app.dependency_overrides.clear()
 
 # K8s
@@ -292,50 +306,45 @@ def reg_k8s_client(k8s_client, dockerconfigjson_mock):
     return k8s_client
 
 # Dataset Mocking
-@fixture()
+@fixture
 def dataset_post_body():
     return deepcopy(sample_ds_body)
 
 @fixture
-def dataset(db_session, client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
+async def dataset(db_session, client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
     dataset = Dataset(name="testds", host="example.com")
-    with db_session as session:
-        dataset.add(session)
+    await dataset.add(db_session)
     return dataset
 
 @fixture
-def dataset_with_repo(db_session, client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
+async def dataset_with_repo(db_session, client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
     dataset = Dataset(name="testdsrepo", host="example.com", repository="organisation/repository")
-    with db_session as session:
-        dataset.add(session)
+    await dataset.add(db_session)
     return dataset
 
 @fixture
-def dataset_oracle(db_session, mocker, client, user_uuid, k8s_client)  -> Dataset:
+async def dataset_oracle(db_session, mocker, client, user_uuid, k8s_client)  -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
     dataset = Dataset(name="anotherds", host="example.com", password='pass', username='user', type="oracle")
-    with db_session as session:
-        dataset.add(session)
+    await dataset.add(db_session)
     return dataset
 
 @fixture
-def catalogue(dataset, db_session) -> Catalogue:
+async def catalogue(dataset, db_session) -> Catalogue:
     cat = Catalogue(dataset=dataset, title="new catalogue", description="shiny fresh data")
-    with db_session as session:
-        cat.add(session)
+    await cat.add(db_session)
     return cat
 
 @fixture
-def dictionary(db_session, dataset) -> List[Dictionary]:
+async def dictionary(db_session, dataset) -> List[Dictionary]:
     cat1 = Dictionary(dataset=dataset, description="Patient id", table_name="patients", field_name="id", label="p_id")
     cat2 = Dictionary(dataset=dataset, description="Patient info", table_name="patients", field_name="name", label="p_name")
-    with db_session as session:
-        cat1.add(session)
-        cat2.add(session)
+    await cat1.add(db_session)
+    await cat2.add(db_session)
     return [cat1, cat2]
 
 @fixture
-def task(db_session, user_uuid, dataset, container) -> Task:
+async def task(db_session, user_uuid, dataset, container) -> Task:
     task = Task(
         dataset_id=dataset.id,
         docker_image=container.full_image_name(),
@@ -348,11 +357,11 @@ def task(db_session, user_uuid, dataset, container) -> Task:
         description="test task",
         requested_by=user_uuid
     )
-    task.add(db_session)
+    await task.add(db_session)
     return task
 
 @fixture
-def task_oracle(db_session, user_uuid, dataset_oracle, container) -> Task:
+async def task_oracle(db_session, user_uuid, dataset_oracle, container) -> Task:
     task = Task(
         dataset_id=dataset_oracle.id,
         docker_image=container.full_image_name(),
@@ -365,7 +374,7 @@ def task_oracle(db_session, user_uuid, dataset_oracle, container) -> Task:
         description="test task",
         requested_by=user_uuid
     )
-    task.add(db_session)
+    await task.add(db_session)
     return task
 
 @fixture
@@ -373,17 +382,16 @@ def dar_user():
     return "some@test.com"
 
 @fixture
-def access_request(db_session, dataset, user_uuid, k8s_client):
+async def access_request(db_session, dataset, user_uuid, k8s_client):
     request = RequestModel(
         title="TestRequest",
         project_name="example.com",
         requested_by=user_uuid,
         dataset=dataset,
-        proj_start=dt.now().date().strftime("%Y-%m-%d"),
-        proj_end=(dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")
+        proj_start=dt.now().date(),
+        proj_end=(dt.now().date() + timedelta(days=10))
     )
-    with db_session as session:
-        request.add(session)
+    await request.add(db_session)
     return request
 
 # Conditional url side_effects
@@ -416,28 +424,30 @@ def side_effect(dict_mock:dict):
     return _url_side_effects
 
 @fixture
-def request_base_body(dataset: Dataset):
+def request_object_init(dataset: Dataset)-> dict[str, Any]:
     return {
         "title": "TestRequest",
         "dataset_id": dataset.id,
         "project_name": "project1",
         "requested_by": { "email": "test@test.com" },
         "description": "First task ever!",
-        "proj_start": dt.now().date().strftime("%Y-%m-%d"),
-        "proj_end": (dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")
+        "proj_start": dt.now().date(),
+        "proj_end": (dt.now().date() + timedelta(days=10))
     }
 
 @fixture
-def request_base_body_name(dataset: Dataset)-> dict[str, Any]:
-    return {
-        "title": "Test Task",
-        "dataset_name": dataset.name,
-        "project_name": "project1",
-        "requested_by": { "email": "test@test.com" },
-        "description": "First task ever!",
-        "proj_start": dt.now().date().strftime("%Y-%m-%d"),
-        "proj_end": (dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")
-    }
+def request_base_body(request_object_init):
+    json_body = deepcopy(request_object_init)
+    json_body["proj_start"] = json_body["proj_start"].strftime("%Y-%m-%d")
+    json_body["proj_end"] = json_body["proj_end"].strftime("%Y-%m-%d")
+    return json_body
+
+@fixture
+def request_base_body_name(request_base_body, dataset:Dataset)-> dict[str, Any]:
+    json_body = deepcopy(request_base_body)
+    json_body.pop("dataset_id")
+    json_body["dataset_name"] = dataset.name
+    return json_body
 
 @fixture
 def approve_request(mocker):

@@ -1,5 +1,5 @@
 from typing import Any, Generator
-import pytest
+from pytest_asyncio import fixture
 import responses
 from unittest.mock import Mock
 
@@ -11,18 +11,18 @@ from app.helpers.keycloak import KEYCLOAK_URL
 
 DOCKER_CLASS = 'app.models.registry.DockerRegistry'
 
-@pytest.fixture
+@fixture
 def cr_name():
     return "dockerhubcr.io"
 
-@pytest.fixture
+@fixture
 def registry_client(mocker):
     mocker.patch(
         DOCKER_CLASS,
         return_value=Mock()
     )
 
-@pytest.fixture
+@fixture
 def cr_client(mocker, reg_k8s_client):
     return mocker.patch(
         'app.helpers.container_registries.DockerRegistry',
@@ -31,7 +31,7 @@ def cr_client(mocker, reg_k8s_client):
         )
     )
 
-@pytest.fixture
+@fixture
 def cr_client_404(mocker):
     mocker.patch(
         DOCKER_CLASS,
@@ -41,7 +41,7 @@ def cr_client_404(mocker):
         )
     )
 
-@pytest.fixture
+@fixture
 def dockerhub_login_request() -> Generator[responses.RequestsMock, Any, None]:
     with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
         rsps.add_passthru(KEYCLOAK_URL)
@@ -53,13 +53,13 @@ def dockerhub_login_request() -> Generator[responses.RequestsMock, Any, None]:
         )
         yield rsps
 
-@pytest.fixture
+@fixture
 def cr_class(client, cr_name, dockerhub_login_request):
     with dockerhub_login_request:
         return DockerRegistry(cr_name, creds={"user": "", "token": ""})
 
-@pytest.fixture
-def registry(client, mocker, reg_k8s_client, dockerhub_login_request, cr_name, db_session) -> Registry:
+@fixture
+async def registry(client, mocker, reg_k8s_client, dockerhub_login_request, cr_name, db_session) -> Registry:
     with dockerhub_login_request:
         dockerhub_login_request.add(
             responses.GET,
@@ -68,12 +68,12 @@ def registry(client, mocker, reg_k8s_client, dockerhub_login_request, cr_name, d
             status=200
         )
         reg = Registry(url=cr_name, username='', password='')
-        reg.add(db_session)
+        await reg.add(db_session)
         return reg
 
-@pytest.fixture
-def container(client, k8s_client, registry, image_name, db_session) -> Container:
+@fixture
+async def container(client, k8s_client, registry, image_name, db_session) -> Container:
     img, tag = image_name.split(':')
     cont = Container(name=img, registry=registry, tag=tag, dashboard=True)
-    cont.add(db_session)
+    await cont.add(db_session)
     return cont
