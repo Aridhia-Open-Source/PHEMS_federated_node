@@ -18,7 +18,6 @@ dependencies = [
     "sqlalchemy",
     "psycopg2",
     "alembic",
-    "kubernetes",
     "flask-sqlalchemy",
     "joserfc>=1.3.5",
     "pyjwt>=2.10.1",
