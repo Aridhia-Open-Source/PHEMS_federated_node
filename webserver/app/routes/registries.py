@@ -9,8 +9,7 @@ containers endpoints:
 from http import HTTPStatus
 from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query, Request
-from requests import Session
-from sqlalchemy.orm import Session as DBSession
+from sqlalchemy.ext.asyncio import AsyncSession as DBSession
 
 from app.helpers.base_model import get_db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
@@ -32,7 +31,7 @@ router = APIRouter(tags=["registries"], prefix="/registries")
 async def list_registries(
     params: Annotated[RegistryFilters, Query()],
     request: Request,
-    session: Session = Depends(get_db)
+    session: DBSession = Depends(get_db)
 ) -> dict[str, Any]:
     """
     GET /registries endpoint.

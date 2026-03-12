@@ -55,7 +55,7 @@ class TestAzureRegistry:
                 json=[],
                 status=200
             )
-            assert cr_class.get_image_tags(container.name) == {'tag': [], 'sha': []}
+            assert await cr_class.get_image_tags(container.name) == {'tag': [], 'sha': []}
 
     @mark.asyncio
     async def test_cr_metadata_tag_not_in_api_response(
@@ -89,7 +89,7 @@ class TestAzureRegistry:
                     json={"config": {"digest": "sha256:123123123"}},
                     status=200
                 )
-            assert not cr_class.has_image_tag_or_sha(container.name, "latest")
+            assert not await cr_class.has_image_tag_or_sha(container.name, "latest")
 
     @mark.asyncio
     async def test_cr_login_connection_error(
@@ -140,7 +140,7 @@ class TestAzureRegistry:
                 status=200
             )
             with raises(ContainerRegistryException) as cre:
-                cr_class.get_image_tags(container.name)
+                await cr_class.get_image_tags(container.name)
             assert cre.value.description == f"Failed to fetch the list of tags from {registry.url}/{container.name}"
 
     @mark.asyncio
@@ -171,7 +171,7 @@ class TestAzureRegistry:
                 status=200
             )
             with raises(ContainerRegistryException) as cre:
-                cr_class.get_image_tags(container.name)
+                await cr_class.get_image_tags(container.name)
             assert cre.value.description == f"Failed to fetch the list of tags for {container.name}"
 
     @mark.asyncio
@@ -194,7 +194,7 @@ class TestAzureRegistry:
                 body=requests.ConnectionError("error")
             )
             with raises(ContainerRegistryException) as cre:
-                cr_class.list_repos()
+                await cr_class.list_repos()
             assert cre.value.description == f"Failed to fetch the list of available containers from {registry.url}"
 
     @mark.asyncio
@@ -218,5 +218,5 @@ class TestAzureRegistry:
                 status=400
             )
             with raises(ContainerRegistryException) as cre:
-                cr_class.list_repos()
+                await cr_class.list_repos()
             assert cre.value.description == "Could not fetch the list of images"

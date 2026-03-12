@@ -23,6 +23,7 @@ TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
 CONTROLLER_NAMESPACE= os.getenv("CONTROLLER_NAMESPACE")
 
 TASK_PULL_SECRET_NAME = "taskspull"
+
 # Pod resource validation constants
 CPU_RESOURCE_REGEX = r'^\d*(m|\.\d+){0,1}$'
 MEMORY_RESOURCE_REGEX = r'^\d*(e\d|(E|P|T|G|M|K)(i*)|k|m)*$'
@@ -53,3 +54,8 @@ STORAGE_CLASS = os.getenv("STORAGE_CLASS")
 GITHUB_DELIVERY = os.getenv("GITHUB_DELIVERY")
 OTHER_DELIVERY = os.getenv("OTHER_DELIVERY")
 ALPINE_IMAGE = os.getenv("ALPINE_IMAGE")
+REVIEW_STATUS = {
+    True: "Approved Release",
+    False: "Blocked Release",
+    None: "Pending Review" if TASK_REVIEW else "Reviews not active"
+}

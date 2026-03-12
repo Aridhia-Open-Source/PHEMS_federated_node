@@ -1,7 +1,7 @@
 from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.container import Container
 from app.schemas.containers import ContainerCreate
@@ -11,7 +11,7 @@ from app.helpers.exceptions import ContainerRegistryException, InvalidRequest
 
 class ContainerService:
     @staticmethod
-    async def add(session: Session, data: ContainerCreate, dry_run:bool=False) -> Container:
+    async def add(session: AsyncSession, data: ContainerCreate, dry_run:bool=False) -> Container:
         container_definition: dict[str, Any] = data.model_dump()
 
         q = select(Registry).where(Registry.url == data.registry)

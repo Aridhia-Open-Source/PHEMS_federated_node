@@ -1,5 +1,6 @@
 from datetime import datetime
-from kubernetes.client.exceptions import ApiException
+from kubernetes_asyncio.client.exceptions import ApiException
+from kubernetes_asyncio.client import V1Job
 
 import json
 from datetime import datetime
@@ -8,6 +9,8 @@ from copy import deepcopy
 from unittest.mock import Mock
 
 from app.models.task import Task
+
+from .common_registry_fixtures import *
 
 
 @fixture(scope='function')
@@ -39,6 +42,22 @@ def task_body(db_session, dataset, container):
         "resources": {},
         "volumes": {}
     })
+
+
+@fixture
+def v1_batch_tasks_mock(mocker, mock_args_batch_k8s):
+    return mocker.patch(
+        'app.models.task.KubernetesBatchClient.create',
+        return_value=mock_args_batch_k8s
+    )
+
+@fixture(autouse=True)
+def v1_task_mock(mocker, mock_args_k8s, v1_ds_mock):
+    return mocker.patch(
+        'app.models.task.KubernetesClient.create',
+        name="v1_task_mock",
+        return_value=mock_args_k8s
+    )
 
 @fixture
 def running_state():
@@ -83,20 +102,20 @@ def terminated_state():
     )
 
 @fixture
-def results_job_mock(mocker, task_body, reg_k8s_client):
+def results_job_mock(mocker, task_body, mock_args_batch_k8s):
     mocker.patch(
         'app.models.task.Task.status',
         return_value={"running": {}}
     )
     mocker.patch('app.models.task.uuid4', return_value="1dc6c6d1-417f-409a-8f85-cb9d20f7c741")
 
-    pod_mock = Mock()
+    pod_mock = Mock(spec=V1Job)
     pod_mock.metadata.labels = {"job-name": "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"}
     pod_mock.metadata.name = "result-job-1dc6c6d1-417f-409a-8f85-cb9d20f7c741"
     pod_mock.spec.containers = [Mock(image=task_body["executors"][0]["image"])]
     pod_mock.status.container_statuses = [Mock(ready=True)]
 
-    reg_k8s_client["list_namespaced_pod_mock"].return_value.items = [pod_mock]
+    mock_args_batch_k8s.api_client.list_namespaced_pod.return_value.items = [pod_mock]
     return pod_mock
 
 @fixture
@@ -152,6 +171,17 @@ def k8s_crd_404():
 @fixture
 def set_task_review_env(mocker):
     mocker.patch('app.routes.tasks.TASK_REVIEW', return_value="enabled")
+    mocker.patch('app.helpers.const.TASK_REVIEW', return_value="enabled")
+    mocker.patch('app.models.task.REVIEW_STATUS', {
+        True: "Approved Release",
+        False: "Blocked Release",
+        None: "Pending Review"
+    })
+    mocker.patch('app.schemas.tasks.REVIEW_STATUS', {
+        True: "Approved Release",
+        False: "Blocked Release",
+        None: "Pending Review"
+    })
 
 @fixture
 def set_task_controller_env(mocker):

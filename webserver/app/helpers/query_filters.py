@@ -2,12 +2,12 @@ from typing import Any
 
 from sqlalchemy import func, DateTime, select
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.helpers.base_model import BaseModel as DBBaseModel
 
 
 async def apply_filters(
-        db: Session,
+        db: AsyncSession,
         model: DBBaseModel,
         filter_dto: BaseModel,
         as_pagination:bool = True

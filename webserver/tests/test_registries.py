@@ -1,11 +1,12 @@
 from pytest import mark
 import base64
 import json
-from kubernetes.client import ApiException
+from kubernetes_asyncio.client import ApiException
 from sqlalchemy import func, select
 
 from app.helpers.const import TASK_NAMESPACE
 from tests.fixtures.azure_cr_fixtures import *
+from tests.fixtures.common_registry_fixtures import *
 from tests.base_test_class import BaseTest
 
 
@@ -39,7 +40,7 @@ class TestGetRegistriesApi(BaseTest):
         registry,
         client,
         simple_user_header,
-        reg_k8s_client,
+        v1_registry_mock,
         mock_kc_client
     ):
         """
@@ -135,11 +136,14 @@ class TestPostRegistriesApi(BaseTest):
         self,
         client,
         post_json_admin_header,
-        reg_k8s_client
+        v1_registry_mock,
+        dockerconfigjson_mock,
+        v1_ds_mock
     ):
         """
         Basic POST request
         """
+        v1_registry_mock.api_client.read_namespaced_secret.return_value = Mock(data=dockerconfigjson_mock)
         new_registry = "shiny.azurecr.io"
 
         with responses.RequestsMock() as rsps:
@@ -195,7 +199,8 @@ class TestPostRegistriesApi(BaseTest):
     async def test_create_registry_k8s_error(
         self,
         client,
-        k8s_client,
+        v1_registry_mock,
+        mock_args_k8s,
         post_json_admin_header
     ):
         """
@@ -203,7 +208,7 @@ class TestPostRegistriesApi(BaseTest):
         created
         """
         new_registry = "shiny.azurecr.io"
-        k8s_client["read_namespaced_secret_mock"].side_effect = [
+        mock_args_k8s.api_client.read_namespaced_secret.side_effect = [
             ApiException(status=500, reason="Failed")
         ]
         with responses.RequestsMock() as rsps:
@@ -230,7 +235,8 @@ class TestPostRegistriesApi(BaseTest):
     async def test_create_registry_missing_secret(
         self,
         client,
-        k8s_client,
+        v1_registry_mock,
+        mock_args_k8s,
         post_json_admin_header
     ):
         """
@@ -238,7 +244,7 @@ class TestPostRegistriesApi(BaseTest):
         created
         """
         new_registry = "shiny.azurecr.io"
-        k8s_client["read_namespaced_secret_mock"].side_effect = [
+        mock_args_k8s.api_client.read_namespaced_secret.side_effect = [
             ApiException(status=404, reason="Not Found"),
             Mock(data={
                 ".dockerconfigjson": base64.b64encode("{\"auths\": {}}".encode()).decode()
@@ -317,7 +323,8 @@ class TestDeleteRegistries(BaseTest):
             self,
             client,
             registry,
-            reg_k8s_client,
+            v1_registry_mock,
+            mock_args_k8s,
             simple_admin_header
     ):
         """
@@ -330,7 +337,7 @@ class TestDeleteRegistries(BaseTest):
             headers=simple_admin_header
         )
         assert response.status_code == 204
-        reg_k8s_client["delete_namespaced_secret_mock"].assert_called_with(
+        mock_args_k8s.api_client.delete_namespaced_secret.assert_called_with(
             **{"name": secret_name, "namespace": TASK_NAMESPACE}
         )
 
@@ -339,7 +346,7 @@ class TestDeleteRegistries(BaseTest):
             self,
             client,
             registry,
-            reg_k8s_client,
+            v1_registry_mock,
             simple_admin_header
     ):
         """
@@ -356,7 +363,8 @@ class TestDeleteRegistries(BaseTest):
             self,
             client,
             registry,
-            reg_k8s_client,
+            v1_registry_mock,
+            mock_args_k8s,
             simple_admin_header
     ):
         """
@@ -365,7 +373,7 @@ class TestDeleteRegistries(BaseTest):
             behaviour as the sync and container check are based
             on the db entry. Secrets can stay if k8s fails.
         """
-        reg_k8s_client["delete_namespaced_secret_mock"].side_effect = ApiException(
+        mock_args_k8s.api_client.delete_namespaced_secret.side_effect = ApiException(
             http_resp=Mock(status=500, reason="Error", data="Invalid value in data")
         )
         reg_id = registry.id
@@ -381,7 +389,7 @@ class TestDeleteRegistries(BaseTest):
             self,
             client,
             registry,
-            reg_k8s_client,
+            v1_registry_mock,
             simple_admin_header,
             db_session
     ):
@@ -419,7 +427,8 @@ class TestPatchRegistriesApi(BaseTest):
         client,
         registry,
         post_json_admin_header,
-        k8s_client
+        v1_registry_mock,
+        mock_args_k8s
     ):
         """
         Simple PATCH request test to check the db record is updated
@@ -437,7 +446,7 @@ class TestPatchRegistriesApi(BaseTest):
             select(func.count(Registry.id)).where(Registry.id==registry.id, Registry.active == data["active"])
         , "one") == 1
         # it patches the regcreds-like secret at registry creation
-        k8s_client["patch_namespaced_secret_mock"].call_count == 1
+        mock_args_k8s.api_client.patch_namespaced_secret.call_count == 1
 
     @mark.asyncio
     async def test_patch_registry_credentials(
@@ -445,7 +454,8 @@ class TestPatchRegistriesApi(BaseTest):
         client,
         registry,
         post_json_admin_header,
-        k8s_client,
+        v1_registry_mock,
+        mock_args_k8s,
         dockerconfigjson_mock
     ):
         """
@@ -456,7 +466,7 @@ class TestPatchRegistriesApi(BaseTest):
             "password": "new password token",
             "username": "shiny"
         }
-        k8s_client["read_namespaced_secret_mock"].return_value.data = dockerconfigjson_mock
+        # mock_args_k8s.api_client.read_namespaced_secret.return_value.data = dockerconfigjson_mock
 
         resp = await client.patch(
             f"registries/{registry.id}",
@@ -464,10 +474,10 @@ class TestPatchRegistriesApi(BaseTest):
             headers=post_json_admin_header
         )
         assert resp.status_code == 204
-        k8s_client["patch_namespaced_secret_mock"].assert_called()
+        mock_args_k8s.api_client.patch_namespaced_secret.assert_called()
 
         # Only look after the first invocation as the first comes from the registry creation
-        reg_secret = k8s_client["patch_namespaced_secret_mock"].call_args_list[0][1]
+        reg_secret = mock_args_k8s.api_client.patch_namespaced_secret.call_args_list[0][1]
 
         dockerconfig = base64.b64decode(reg_secret['body'].data['.dockerconfigjson']).decode()
         assert json.loads(dockerconfig)["auths"][registry.url]["password"] == data["password"]
@@ -480,7 +490,8 @@ class TestPatchRegistriesApi(BaseTest):
         client,
         registry,
         post_json_admin_header,
-        k8s_client
+        v1_registry_mock,
+        mock_args_k8s
     ):
         """
         Simple PATCH request test to check the registry credentials
@@ -495,7 +506,7 @@ class TestPatchRegistriesApi(BaseTest):
         assert resp.status_code == 400
         assert resp.json()["error"] == "No valid changes detected"
         # it patches the regcreds-like secret at registry creation
-        k8s_client["patch_namespaced_secret_mock"].call_count == 1
+        mock_args_k8s.api_client.patch_namespaced_secret.call_count == 1
 
     @mark.asyncio
     async def test_patch_registry_non_existent(
@@ -547,7 +558,8 @@ class TestPatchRegistriesApi(BaseTest):
         client,
         registry,
         post_json_admin_header,
-        k8s_client
+        v1_registry_mock,
+        mock_args_k8s
     ):
         """
         Simple PATCH request test to check the db record is updated
@@ -555,7 +567,7 @@ class TestPatchRegistriesApi(BaseTest):
         data = {
             "password": "pass"
         }
-        k8s_client["patch_namespaced_secret_mock"].side_effect = ApiException(
+        mock_args_k8s.api_client.patch_namespaced_secret.side_effect = ApiException(
             http_resp=Mock(status=500, body="details", reason="Failed")
         )
 

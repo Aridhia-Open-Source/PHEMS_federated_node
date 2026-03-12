@@ -2,9 +2,10 @@ import json
 import logging
 import re
 from typing import NoReturn
-from kubernetes.client.exceptions import ApiException
+from kubernetes_asyncio.client.exceptions import ApiException
+from kubernetes_asyncio.client.models.v1_secret import V1Secret
 from sqlalchemy import Column, Integer, String, Boolean
-from sqlalchemy.orm import Session, relationship
+from sqlalchemy.orm import relationship
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.helpers.const import TASK_NAMESPACE
@@ -35,21 +36,21 @@ class Registry(BaseModel):
     def _get_name(self):
         return re.sub('^http(s{,1})://', '', self.url)
 
-    def update_regcred(self):
+    async def update_regcred(self):
         """
         Every time a new registry is added, a new docker config secret
         is created.
         """
-        v1 = KubernetesClient()
+        v1: KubernetesClient = await KubernetesClient.create()
         secret_name:str = self.slugify_name()
         dockerjson = {}
 
         key = self.url
-        if isinstance(self.get_registry_class(), DockerRegistry):
+        if isinstance(await self.get_registry_class(), DockerRegistry):
             key = "https://index.docker.io/v1/"
 
         try:
-            secret = v1.read_namespaced_secret(secret_name, TASK_NAMESPACE)
+            secret: V1Secret = await v1.api_client.read_namespaced_secret(secret_name, TASK_NAMESPACE)
         except ApiException as apie:
             if apie.status == 404:
                 v1.create_secret(
@@ -58,7 +59,7 @@ class Registry(BaseModel):
                     namespaces=[TASK_NAMESPACE],
                     type='kubernetes.io/dockerconfigjson'
                 )
-                secret = v1.read_namespaced_secret(secret_name, TASK_NAMESPACE)
+                secret = await v1.api_client.read_namespaced_secret(secret_name, TASK_NAMESPACE)
             else:
                 raise InvalidRequest("Something went wrong when creating registry secrets")
 
@@ -72,11 +73,21 @@ class Registry(BaseModel):
             }
         }
         secret.data['.dockerconfigjson'] = v1.encode_secret_value(json.dumps(dockerjson))
-        v1.patch_namespaced_secret(namespace=TASK_NAMESPACE, name=secret_name, body=secret)
+        await v1.api_client.patch_namespaced_secret(namespace=TASK_NAMESPACE, name=secret_name, body=secret)
 
-    def _get_creds(self):
+    async def _get_creds(self):
         if hasattr(self, "username") and hasattr(self, "password"):
             return {"user": self.username, "token": self.password}
+
+        v1: KubernetesClient = await KubernetesClient.create()
+        regcred = await v1.api_client.read_namespaced_secret(self.slugify_name(), TASK_NAMESPACE, pretty='pretty')
+
+        dockerjson = json.loads(v1.decode_secret_value(regcred.data['.dockerconfigjson']))
+        key = list(dockerjson["auths"].keys())[0]
+        return {
+            "user": dockerjson['auths'][key]["username"],
+            "token": dockerjson['auths'][key]["password"]
+        }
 
     def slugify_name(self) -> str:
         """
@@ -85,7 +96,7 @@ class Registry(BaseModel):
         """
         return re.sub(r'[\W_]+', '-', self._get_name())
 
-    def get_registry_class(self) -> BaseRegistry:
+    async def get_registry_class(self) -> BaseRegistry:
         """
         We have interface classes with dedicated login, and
         image tag parsers. Based on the registry name
@@ -93,10 +104,8 @@ class Registry(BaseModel):
         """
         args = {
             "registry": self._get_name(),
-            "creds": self._get_creds()
+            "creds": await self._get_creds()
         }
-        if self.id:
-            args["secret_name"]= self.slugify_name()
         matches = re.search(r'azurecr\.io|ghcr\.io', self.url)
 
         matches = '' if matches is None else matches.group()
@@ -109,26 +118,26 @@ class Registry(BaseModel):
             case _:
                 return DockerRegistry(**args)
 
-    def fetch_image_list(self) -> list[str]:
+    async def fetch_image_list(self) -> list[str]:
         """
         Simply returns a list of strings of all available
             images (or repos) with their tags
         """
-        _class = self.get_registry_class()
-        return _class.list_repos()
+        _class = await self.get_registry_class()
+        return await _class.list_repos()
 
     async def delete(self, session: AsyncSession) -> NoReturn:
         async with session.begin_nested() as nested:
             await super().delete(session, False)
-            v1 = KubernetesClient()
+            v1: KubernetesClient = await KubernetesClient.create()
             try:
-                v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=self.slugify_name())
+                await v1.api_client.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=self.slugify_name())
             except ApiException as apie:
                 await nested.rollback()
                 logger.error("%s:\n\tDetails: %s", apie.reason, apie.body)
                 raise ContainerRegistryException("Error while deleting entity")
 
-    async def update(self, session:Session, data: dict):
+    async def update(self, session:AsyncSession, data: dict):
         """
         Updates the instance with new values. These should be
         already validated.
@@ -140,12 +149,12 @@ class Registry(BaseModel):
             return
 
         # Get the credentials from the pull docker secret
-        v1 = KubernetesClient()
+        v1: KubernetesClient = await KubernetesClient.create()
         key = self.url
-        if isinstance(self.get_registry_class(), DockerRegistry):
+        if isinstance(await self.get_registry_class(), DockerRegistry):
             key = "https://index.docker.io/v1/"
         try:
-            regcred = v1.read_namespaced_secret(self.slugify_name(), namespace=TASK_NAMESPACE)
+            regcred = await v1.api_client.read_namespaced_secret(self.slugify_name(), namespace=TASK_NAMESPACE)
             dockerjson = json.loads(v1.decode_secret_value(regcred.data['.dockerconfigjson']))
             self.username = dockerjson['auths'][key]["username"]
             self.password = dockerjson['auths'][key]["password"]
@@ -156,7 +165,7 @@ class Registry(BaseModel):
             if data.get("password"):
                 self.password = data.get("password")
 
-            self.update_regcred()
+            await self.update_regcred()
         except ApiException as apie:
             logger.error("Reason: %s\nDetails: %s", apie.reason, apie.body)
             raise InvalidRequest("Could not update credentials") from apie

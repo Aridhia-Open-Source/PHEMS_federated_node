@@ -17,14 +17,15 @@ class RegistryService:
         reg_data = data.model_dump()
 
         reg = Registry(**reg_data)
-        _class: BaseRegistry = reg.get_registry_class()
+        _class: BaseRegistry = await reg.get_registry_class()
         _class.login()
         try:
-            reg.update_regcred()
+            await reg.update_regcred()
             await reg.add(session, False)
-            session.commit()
+            await session.commit()
         except:
-            session.rollback()
+            await session.rollback()
             raise
 
+        await session.refresh(reg)
         return reg

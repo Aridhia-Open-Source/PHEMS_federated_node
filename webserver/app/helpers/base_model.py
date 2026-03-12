@@ -61,7 +61,7 @@ class BaseModel(DeclarativeBase):
         if commit:
             await session.commit()
         await session.flush([self])
-        await session.refresh(self, attribute_names=["id"])
+        await session.refresh(self)
 
     async def update(self, session:AsyncSession, data: dict) -> None:
         """

@@ -4,6 +4,7 @@ import responses
 from pytest import mark, raises
 
 from tests.fixtures.dockerhub_cr_fixtures import *
+from tests.fixtures.common_registry_fixtures import *
 from app.helpers.exceptions import ContainerRegistryException
 
 
@@ -18,8 +19,8 @@ class TestDockerRegistry:
     @mark.asyncio
     async def test_cr_login_failed(
             self,
-            k8s_client,
-            reg_k8s_client,
+            registry_secret_mock,
+            v1_registry_mock,
             registry,
             image_name
     ):
@@ -32,7 +33,7 @@ class TestDockerRegistry:
                 "password": "test",
             }}
         })
-        reg_k8s_client["read_namespaced_secret_mock"].return_value.data.update({
+        registry_secret_mock.data.update({
             ".dockerconfigjson": base64.b64encode(auths.encode()).decode()
         })
         with responses.RequestsMock() as rsps:
@@ -69,7 +70,7 @@ class TestDockerRegistry:
                 json={"results": []},
                 status=200
             )
-            assert {"name": container.name, "tag": [], "sha": []} == cr_class.get_image_tags(container.name)
+            assert {"name": container.name, "tag": [], "sha": []} == await cr_class.get_image_tags(container.name)
 
     @mark.asyncio
     async def test_cr_metadata_tag_not_in_api_response(
@@ -95,5 +96,5 @@ class TestDockerRegistry:
                 json={"results": [{"name": ["1.2.3", "dev"], "digest": "sha256:123ae123df"}]},
                 status=200
             )
-            assert not cr_class.has_image_tag_or_sha(container.name, "latest")
+            assert not await cr_class.has_image_tag_or_sha(container.name, "latest")
 

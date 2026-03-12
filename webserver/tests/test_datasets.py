@@ -2,7 +2,7 @@ import os
 import json
 import os
 from pytest import mark
-from kubernetes.client.exceptions import ApiException
+from kubernetes_asyncio.client.exceptions import ApiException
 from sqlalchemy import func, select
 from unittest import mock
 from sqlalchemy.exc import ProgrammingError, OperationalError
@@ -288,6 +288,7 @@ class TestPostDataset(MixinTestDataset):
             post_json_admin_header,
             client,
             dataset,
+            v1_ds_mock,
             dataset_post_body
         ):
         """
@@ -312,6 +313,7 @@ class TestPostDataset(MixinTestDataset):
             post_json_admin_header,
             client,
             dataset,
+            v1_ds_mock,
             dataset_post_body
         ):
         """
@@ -329,6 +331,7 @@ class TestPostDataset(MixinTestDataset):
             post_json_admin_header,
             client,
             dataset,
+            v1_ds_mock,
             dataset_post_body,
             simple_admin_header
         ):
@@ -364,6 +367,7 @@ class TestPostDataset(MixinTestDataset):
             post_json_admin_header,
             client,
             dataset,
+            v1_ds_mock,
             dataset_post_body
         ):
         """
@@ -384,6 +388,7 @@ class TestPostDataset(MixinTestDataset):
             post_json_admin_header,
             client,
             dataset,
+            v1_ds_mock,
             dataset_post_body
         ):
         """
@@ -407,6 +412,7 @@ class TestPostDataset(MixinTestDataset):
             self,
             post_json_admin_header,
             client,
+            v1_ds_mock,
             dataset_with_repo,
             dataset_post_body
         ):
@@ -430,6 +436,7 @@ class TestPostDataset(MixinTestDataset):
             post_json_admin_header,
             client,
             dataset,
+            v1_ds_mock,
             dataset_post_body
         ):
         """
@@ -450,20 +457,16 @@ class TestPostDataset(MixinTestDataset):
             self,
             post_json_admin_header,
             client,
-            k8s_config,
             dataset_post_body,
+            v1_ds_service_mock,
+            mock_args_k8s,
             mocker
         ):
         """
         /datasets POST fails if the k8s secrets cannot be created successfully
         """
-        mocker.patch(
-            'app.services.datasets.KubernetesClient.create_namespaced_secret',
-            Mock(
-                side_effect=ApiException(
-                    http_resp=Mock(status=500, reason="Error", data="Failed")
-                )
-            )
+        mock_args_k8s.api_client.create_namespaced_secret.side_effect = ApiException(
+            http_resp=Mock(status=500, reason="Error", data="Failed")
         )
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
@@ -478,21 +481,18 @@ class TestPostDataset(MixinTestDataset):
             self,
             post_json_admin_header,
             client,
-            k8s_config,
+            v1_ds_service_mock,
+            mock_args_k8s,
             dataset_post_body,
             mocker
         ):
         """
         /datasets POST is successful if the k8s secrets already exists
         """
-        mocker.patch(
-            'app.services.datasets.KubernetesClient',
-            return_value=Mock(
-                create_namespaced_secret=Mock(
-                    side_effect=ApiException(status=409, reason="Conflict")
-                )
-            )
+        mock_args_k8s.api_client.create_namespaced_secret.side_effect = ApiException(
+            http_resp=Mock(status=409, reason="Conflict", data="Failed")
         )
+
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
         await self.post_dataset(client, post_json_admin_header, data_body)
@@ -557,6 +557,7 @@ class TestPostDataset(MixinTestDataset):
             post_json_admin_header,
             client,
             dataset,
+            v1_ds_service_mock,
             dataset_post_body
         ):
         """
@@ -610,6 +611,7 @@ class TestPostDataset(MixinTestDataset):
             post_json_admin_header,
             client,
             dataset,
+            v1_ds_service_mock,
             dataset_post_body
         ):
         """
@@ -648,6 +650,7 @@ class TestPostDataset(MixinTestDataset):
             self,
             post_json_admin_header,
             dataset,
+            v1_ds_service_mock,
             client,
             dataset_post_body
         ):
@@ -671,6 +674,7 @@ class TestPostDataset(MixinTestDataset):
             self,
             post_json_admin_header,
             dataset,
+            v1_ds_service_mock,
             client,
             dataset_post_body
         ):
@@ -699,7 +703,8 @@ class TestPatchDataset(MixinTestDataset):
             dataset,
             post_json_admin_header,
             client,
-            k8s_client,
+            v1_ds_service_mock,
+            mock_args_k8s,
             mock_kc_client
     ):
         """
@@ -720,14 +725,14 @@ class TestPatchDataset(MixinTestDataset):
         ds: Dataset = await self.run_query(select(Dataset).filter(Dataset.id == dataset.id), "one_or_none")
         assert ds.name == "new_name"
 
-        expected_body = k8s_client["read_namespaced_secret_mock"].return_value
+        expected_body = mock_args_k8s.api_client.read_namespaced_secret.return_value
         expected_secret_name = f'{dataset.host}-{ds_old_name.lower()}-creds'
 
         for ns in self.expected_namespaces:
-            k8s_client["create_namespaced_secret_mock"].assert_any_call(
+            mock_args_k8s.api_client.create_namespaced_secret.assert_any_call(
                 ns, **{'body': expected_body, 'pretty': 'true'}
             )
-            k8s_client["delete_namespaced_secret_mock"].assert_any_call(
+            mock_args_k8s.api_client.delete_namespaced_secret.assert_any_call(
                 **{'namespace':ns, 'name':expected_secret_name}
             )
 
@@ -745,7 +750,8 @@ class TestPatchDataset(MixinTestDataset):
             access_request,
             dar_user,
             user_uuid,
-            k8s_client,
+            v1_ds_service_mock,
+            mock_args_k8s,
             mock_kc_client
     ):
         """
@@ -786,7 +792,9 @@ class TestPatchDataset(MixinTestDataset):
             dataset,
             post_json_admin_header,
             client,
-            k8s_client
+            v1_ds_service_mock,
+            mock_args_k8s,
+            k8s_client,
     ):
         """
         Tests that the PATCH request works as intended
@@ -806,13 +814,13 @@ class TestPatchDataset(MixinTestDataset):
         )
         assert response.status_code == 202
 
-        expected_body = k8s_client["read_namespaced_secret_mock"].return_value
+        expected_body = mock_args_k8s.api_client.read_namespaced_secret.return_value
         for ns in self.expected_namespaces:
-            k8s_client["read_namespaced_secret_mock"].assert_any_call(
+            mock_args_k8s.api_client.read_namespaced_secret.assert_any_call(
                 expected_secret_name,
                 ns, pretty='pretty'
             )
-            k8s_client["patch_namespaced_secret_mock"].assert_any_call(
+            mock_args_k8s.api_client.patch_namespaced_secret.assert_any_call(
                 **{'name':expected_secret_name, 'namespace':ns, 'body': expected_body}
             )
 
@@ -822,7 +830,8 @@ class TestPatchDataset(MixinTestDataset):
             dataset,
             post_json_admin_header,
             client,
-            k8s_client
+            v1_ds_service_mock,
+            mock_args_k8s,
     ):
         """
         Tests that the PATCH request returns a 400 in case
@@ -831,7 +840,7 @@ class TestPatchDataset(MixinTestDataset):
         data_body = {"name": "new_name"}
         ds_old_name = dataset.name
 
-        k8s_client["create_namespaced_secret_mock"].side_effect = ApiException(
+        mock_args_k8s.api_client.create_namespaced_secret.side_effect = ApiException(
             http_resp=Mock(status=500, reason="Error", data="Error occurred")
         )
 
@@ -850,6 +859,8 @@ class TestPatchDataset(MixinTestDataset):
             dataset,
             post_json_admin_header,
             client,
+            v1_ds_service_mock,
+            mock_args_k8s,
             mock_kc_client
     ):
         """
@@ -918,6 +929,8 @@ class TestBeacon:
             client,
             post_json_admin_header,
             mocker,
+            v1_ds_mock,
+            mock_args_k8s,
             dataset
     ):
         """
@@ -944,6 +957,8 @@ class TestBeacon:
             client,
             post_json_admin_header,
             mocker,
+            v1_ds_mock,
+            mock_args_k8s,
             dataset
     ):
         """
@@ -971,6 +986,8 @@ class TestBeacon:
             client,
             post_json_admin_header,
             mocker,
+            v1_ds_mock,
+            mock_args_k8s,
             dataset
     ):
         """
@@ -1005,7 +1022,8 @@ class TestDeleteDataset(MixinTestDataset):
             client,
             dataset,
             post_json_admin_header,
-            k8s_client
+            v1_ds_mock,
+            mock_args_k8s,
     ):
         """
         Test to make sure the db entry and k8s secret are deleted
@@ -1017,7 +1035,7 @@ class TestDeleteDataset(MixinTestDataset):
             headers=post_json_admin_header
         )
         assert response.status_code == 204
-        k8s_client["delete_namespaced_secret_mock"].assert_called_with(
+        mock_args_k8s.api_client.delete_namespaced_secret.assert_called_with(
             secret_name, 'default'
         )
 
@@ -1027,7 +1045,8 @@ class TestDeleteDataset(MixinTestDataset):
             client,
             dataset,
             post_json_admin_header,
-            k8s_client
+            v1_ds_mock,
+            mock_args_k8s,
     ):
         """
         Deleting a non existing dataset, returns a 404
@@ -1038,7 +1057,7 @@ class TestDeleteDataset(MixinTestDataset):
             headers=post_json_admin_header
         )
         assert response.status_code == 404
-        k8s_client["delete_namespaced_secret_mock"].assert_not_called()
+        mock_args_k8s.api_client.delete_namespaced_secret.assert_not_called()
 
     @mark.asyncio
     async def test_delete_dataset_with_secrets_error(
@@ -1046,14 +1065,15 @@ class TestDeleteDataset(MixinTestDataset):
             client,
             dataset,
             post_json_admin_header,
-            k8s_client
+            v1_ds_mock,
+            mock_args_k8s,
     ):
         """
         Test to make sure the db entry and k8s secret are
         not deleted if an exception is raised
         """
         ds_id = dataset.id
-        k8s_client["delete_namespaced_secret_mock"].side_effect = ApiException(
+        mock_args_k8s.api_client.delete_namespaced_secret.side_effect = ApiException(
             status=500, reason="failed"
         )
 
@@ -1070,14 +1090,15 @@ class TestDeleteDataset(MixinTestDataset):
             client,
             dataset,
             post_json_admin_header,
-            k8s_client
+            v1_ds_mock,
+            mock_args_k8s,
     ):
         """
         Test to make sure the db entry is deleted if the secret does
         not exist
         """
         ds_id = dataset.id
-        k8s_client["delete_namespaced_secret_mock"].side_effect = ApiException(
+        mock_args_k8s.api_client.delete_namespaced_secret.side_effect = ApiException(
             status=404, reason="failed"
         )
 
@@ -1095,6 +1116,7 @@ class TestDeleteDataset(MixinTestDataset):
             client,
             dataset,
             post_json_admin_header,
+            v1_ds_mock,
             catalogue,
             dictionary
     ):

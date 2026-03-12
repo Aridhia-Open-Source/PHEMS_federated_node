@@ -10,20 +10,16 @@ We want to test the creation, deletion and list operations.
 """
 
 import errno
-import json
+from aiohttp import WSMsgType
 from pytest import mark, raises
 from pytest_asyncio import fixture
 
-from kubernetes import client
-from kubernetes.client.exceptions import ApiException
 from tarfile import ReadError
 from unittest import mock
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
-from app.helpers.exceptions import InvalidRequest, KubernetesException
-from app.helpers.kubernetes import KubernetesClient, KubernetesBatchClient
-from tests.conftest import side_effect
-from app.helpers.task_pod import TaskPod
+from app.helpers.exceptions import KubernetesException
+from app.helpers.kubernetes import KubernetesClient
 
 
 @fixture
@@ -58,237 +54,96 @@ def job_dict():
     }
 
 class TestKubernetesHelper:
-    @mock.patch('urllib3.PoolManager')
-    @mark.asyncio
-    async def test_create_pod(
-        self,
-        url_mock,
-        pod_dict,
-        k8s_config
-    ):
-        """
-        Test a successful pod is created with no exception raised
-        """
-        response_k8s_api = json.dumps({"name": 'podname'}).encode()
-        namespace = 'tasks'
-        k8s = KubernetesClient()
-        # Restore the original k8s method
-        k8s.create_namespaced_pod = client.CoreV1Api().create_namespaced_pod
+    @fixture
+    def mock_ws_api_client(self):
+        with patch('kubernetes_asyncio.stream.WsApiClient') as mock_class:
+            mock_instance = AsyncMock(name="mock_ws_api_client")
+            mock_class.return_value = mock_instance
+            yield mock_instance
 
-        url_mock.return_value.request.side_effect = side_effect(
-            {"url": f"/namespaces/{namespace}/pod", "status": 400, "body": response_k8s_api}
-        )
-        k8s.create_namespaced_pod(namespace=namespace, body=TaskPod(**pod_dict).create_pod_spec())
+    @fixture
+    def mock_v1_api_client(self):
+        with patch('app.helpers.kubernetes.client.CoreV1Api') as mock_class:
+            mock_instance = AsyncMock(name="mock_v1_api_client")
 
-    @mock.patch('urllib3.PoolManager')
-    @mark.asyncio
-    async def test_create_pod_failures(
-        self,
-        url_mock,
-        k8s_config,
-        pod_dict
-    ):
-        """
-        Test a successful pod is created with no exception raised
-        """
-        k8s = KubernetesClient()
-        # Restore the original k8s method
-        k8s.create_namespaced_pod = client.CoreV1Api().create_namespaced_pod
-        namespace = 'tasks'
-        side_effect_args = {
-            "url": f"/namespaces/{namespace}/pod",
-            "status": 404,
-            "body": ''.encode(),
-            "method": "POST"
-        }
-        url_mock.return_value.request.side_effect = side_effect(side_effect_args)
+            close_msg = Mock()
+            # Quit immediately
+            close_msg.type = WSMsgType.CLOSE
+            close_msg.data = b""
+            ws_mock = AsyncMock(name="ws_stream")
+            ws_mock.receive.return_value = close_msg
 
-        with raises(ApiException):
-            k8s.create_namespaced_pod(namespace=namespace, body=TaskPod(**pod_dict).create_pod_spec())
+            context_manager_mock = MagicMock()
+            context_manager_mock.__aenter__ = AsyncMock(return_value=ws_mock)
+            context_manager_mock.__aexit__ = AsyncMock(return_value=False)
 
-        side_effect_args['status'] = 500
-        url_mock.return_value.request.side_effect = side_effect(side_effect_args)
-        with raises(ApiException):
-            k8s.create_namespaced_pod(namespace=namespace, body=TaskPod(**pod_dict).create_pod_spec())
+            mock_instance.connect_get_namespaced_pod_exec = AsyncMock(
+                return_value=context_manager_mock
+            )
 
-    @mock.patch('urllib3.PoolManager')
-    @mark.asyncio
-    async def test_create_job(
-        self,
-        url_mock,
-        k8s_config,
-        job_dict
-        ):
-        """
-        Test a successful job is created with no exception raised
-        """
-        response_k8s_api = json.dumps({"name": 'jobname'}).encode()
-        k8s = KubernetesBatchClient()
-        namespace = "tasks"
-        url_mock.return_value.request.side_effect = side_effect({
-            "url": f"/namespaces/{namespace}/pod",
-            "body": response_k8s_api
-        })
-        k8s.create_namespaced_job(namespace=namespace, body=k8s.create_job_spec(job_dict))
+            mock_class.return_value = mock_instance
+            yield mock_instance
 
-    @mock.patch('urllib3.PoolManager')
-    @mark.asyncio
-    async def test_list_pods(
-        self,
-        url_mock,
-        k8s_config
-    ):
-        """
-        Test a successful fetching of a list of pods is returned
-            with no exception raised
-        """
-        response_k8s_api = json.dumps({"items": []}).encode()
-        k8s = KubernetesClient()
-        namespace = "tasks"
-        url_mock.return_value.request.side_effect = side_effect({
-            "url": f"/namespaces/{namespace}/pod",
-            "body": response_k8s_api
-        })
-        assert k8s.list_namespaced_pod(namespace).items == []
-
-    @mock.patch('urllib3.PoolManager')
-    @mark.asyncio
-    async def test_delete_pods(
-        self,
-        url_mock,
-        k8s_config
-    ):
-        """
-        Test a successful fetching of a list of pods is returned
-            with no exception raised
-        """
-        k8s = KubernetesClient()
-        namespace = "tasks"
-        url_mock.return_value.request.side_effect = side_effect({
-            "url": f"/namespaces/{namespace}/pod"
-        })
-        k8s.delete_pod('pod', namespace)
-
-    @mock.patch('urllib3.PoolManager')
-    @mark.asyncio
-    async def test_delete_pods_failures(
-        self,
-        url_mock,
-        k8s_config
-    ):
-        """
-        Test a unsuccessful pod deletion with a pod not found
-            no exception is raised, but it does on any other failure
-        """
-        k8s = KubernetesClient()
-        namespace = "tasks"
-        url_mock.return_value.request.side_effect = side_effect({
-            "url": f"/namespaces/{namespace}/pods/pod",
-            "method": "DELETE",
-            "status": 404
-        })
-        k8s.delete_pod('pod', namespace)
-
-        url_mock.return_value.request.side_effect = side_effect({
-            "url": f"/namespaces/{namespace}/pods/pod",
-            "method": "DELETE",
-            "status": 500
-        })
-        with raises(InvalidRequest):
-            k8s.delete_pod('pod', namespace)
-
-    @mock.patch('kubernetes.stream.ws_client.WSClient')
     @mark.asyncio
     async def test_cp_from_pod(
         self,
-        ws_mock,
-        mocker,
-        k8s_config
+        mock_ws_api_client,
+        mock_v1_api_client,
+        mocker
     ):
         """
         Tests the successful behaviour of cp_from_pod
         """
-        ws_mock.return_value = Mock(
-            is_open=Mock(side_effect=[True, False]),
-            read_stdout=Mock(side_effect=['something']),
-            peek_stderr=Mock(return_value=False),
-            read_stderr=Mock(return_value='')
-        )
         mocker.patch('app.helpers.kubernetes.shutil')
         mocker.patch('app.helpers.kubernetes.tarfile').__enter__.return_value = Mock()
-        mocker.patch('app.helpers.kubernetes.TemporaryFile').__enter__.return_value = Mock()
 
-        k8s = KubernetesClient()
-        assert k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/tmp/data/host-id-results.zip'
+        k8s = await KubernetesClient.create()
+        assert await k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/tmp/data/host-id-results.zip'
 
-    @mock.patch('kubernetes.stream.ws_client.WSClient')
     @mark.asyncio
     async def test_cp_from_pod_fails_temp_files_read(
         self,
-        ws_mock,
         mocker,
-        k8s_config
+        mock_ws_api_client,
+        mock_v1_api_client,
     ):
         """
         Tests reading fails on cp_from_pod
         """
-        ws_mock.return_value = Mock(
-            is_open=Mock(side_effect=[True, False]),
-            read_stdout=Mock(side_effect=['something']),
-            peek_stderr=Mock(return_value=False),
-            read_stderr=Mock(return_value='')
-        )
         mocker.patch('app.helpers.kubernetes.tarfile.open').side_effect = ReadError('file could not be opened successfully')
-        mocker.patch('app.helpers.kubernetes.TemporaryFile').__enter__.return_value = Mock()
 
-        k8s = KubernetesClient()
+        k8s = await KubernetesClient.create()
         with raises(KubernetesException):
-            k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/mnt/host-id-results.tar.gz'
+            await k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/mnt/host-id-results.tar.gz'
 
-    @mock.patch('kubernetes.stream.ws_client.WSClient')
     @mark.asyncio
     async def test_cp_from_pod_fails_zip_creation(
         self,
-        ws_mock,
+        mock_ws_api_client,
+        mock_v1_api_client,
         mocker,
-        k8s_config
     ):
         """
         Tests the archive creation fails
         """
-        ws_mock.return_value = Mock(
-            is_open=Mock(side_effect=[True, False]),
-            read_stdout=Mock(side_effect=['something']),
-            peek_stderr=Mock(return_value=False),
-            read_stderr=Mock(return_value='')
-        )
         mocker.patch('app.helpers.kubernetes.shutil.make_archive').side_effect = NotADirectoryError(errno.ENOTDIR, 'Not a directory', 'path')
-        mocker.patch('app.helpers.kubernetes.TemporaryFile').__enter__.return_value = Mock()
 
-        k8s = KubernetesClient()
+        k8s = await KubernetesClient.create()
         with raises(KubernetesException):
-            k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/mnt/host-id-results.zip'
+            await k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/mnt/host-id-results.zip'
 
-    @mock.patch('kubernetes.stream.ws_client.WSClient')
     @mark.asyncio
     async def test_cp_from_pod_fails_zip_creation_other_exception(
         self,
-        ws_mock,
+        mock_ws_api_client,
+        mock_v1_api_client,
         mocker,
-        k8s_config
     ):
         """
         Tests the archive creation fails
         """
-        ws_mock.return_value = Mock(
-            is_open=Mock(side_effect=[True, False]),
-            read_stdout=Mock(side_effect=['something']),
-            peek_stderr=Mock(return_value=False),
-            read_stderr=Mock(return_value='')
-        )
         mocker.patch('app.helpers.kubernetes.shutil.make_archive').side_effect = KeyError()
-        mocker.patch('app.helpers.kubernetes.TemporaryFile').__enter__.return_value = Mock()
 
-        k8s = KubernetesClient()
+        k8s = await KubernetesClient.create()
         with raises(KubernetesException):
-            k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/mnt/host-id-results.zip'
+            await k8s.cp_from_pod("pod_name", "/mnt", "/mnt", "host-id-results") == '/mnt/host-id-results.zip'

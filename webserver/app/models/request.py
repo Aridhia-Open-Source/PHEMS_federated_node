@@ -1,13 +1,14 @@
 from datetime import datetime
 import logging
-from sqlalchemy import  Integer, DateTime, String, ForeignKey, select, update
-from sqlalchemy.orm import relationship, mapped_column, Session
+from sqlalchemy import  Integer, DateTime, String, ForeignKey, select
+from sqlalchemy.orm import relationship, mapped_column
 from sqlalchemy.sql import func
 from sqlalchemy.exc import IntegrityError
-from app.helpers.base_model import BaseModel, get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.helpers.base_model import BaseModel
 from app.models.dataset import Dataset
 from app.helpers.keycloak import Keycloak
-from app.helpers.exceptions import DBError, InvalidRequest, LogAndException
+from app.helpers.exceptions import DBError, LogAndException
 
 
 logger = logging.getLogger('request_model')
@@ -43,7 +44,7 @@ class RequestModel(BaseModel):
     def _get_client_name(self, user_id:str):
         return f"RequestModel {user_id} - {self.project_name}"
 
-    async def approve(self, session: Session):
+    async def approve(self, session: AsyncSession):
         """
         Method to orchestrate the Keycloak objects creation
         """
@@ -161,7 +162,7 @@ class RequestModel(BaseModel):
         return ret_response
 
     @classmethod
-    async def get_active_project(cls, session:Session, proj_name:str, user_id:str):
+    async def get_active_project(cls, session:AsyncSession, proj_name:str, user_id:str):
         """
         Get the active project by namme and user
         """

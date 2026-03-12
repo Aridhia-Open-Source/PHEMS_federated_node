@@ -14,6 +14,7 @@ class TestCatalogues(MixinTestDataset):
             self,
             client,
             dataset,
+            v1_ds_mock,
             dataset_post_body,
             post_json_admin_header,
             simple_admin_header
@@ -36,6 +37,7 @@ class TestCatalogues(MixinTestDataset):
             self,
             client,
             dataset,
+            v1_ds_mock,
             dataset_post_body,
             post_json_admin_header,
             simple_admin_header,
@@ -59,7 +61,8 @@ class TestCatalogues(MixinTestDataset):
             client,
             dataset_post_body,
             post_json_admin_header,
-            dataset
+            dataset,
+            v1_ds_mock,
         ):
         """
         Tests that sending PUT /dataset updates the dictionaries
@@ -88,6 +91,7 @@ class TestCatalogues(MixinTestDataset):
             dataset_post_body,
             post_json_admin_header,
             dataset,
+            v1_ds_mock,
         ):
         """
         Tests that sending PUT /dataset creates a new Catalogue
@@ -122,6 +126,7 @@ class TestCatalogues(MixinTestDataset):
             dataset_post_body,
             post_json_admin_header,
             dataset,
+            v1_ds_mock,
         ):
         """
         Tests that sending PUT /dataset does not create a new
@@ -147,6 +152,7 @@ class TestCatalogues(MixinTestDataset):
             self,
             client,
             dataset,
+            v1_ds_mock,
             dataset_post_body,
             post_json_admin_header,
             simple_user_header,

@@ -6,8 +6,9 @@ admin endpoints:
 from http import HTTPStatus
 from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query, Request
-from kubernetes.client.exceptions import ApiException
-from requests import Session
+from kubernetes_asyncio.client.exceptions import ApiException
+from kubernetes_asyncio.client.models.v1_secret_list import V1SecretList
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.helpers.base_model import get_db
 from app.helpers.const import (
@@ -30,7 +31,7 @@ router = APIRouter(tags=["admin"])
 @router.get('/audit', dependencies=[Depends(Auth("can_do_admin"))])
 async def get_audit_logs(
     params: Annotated[AuditFilters, Query()],
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ) -> dict[str, Any]:
     """
     GET /audit endpoint.
@@ -49,7 +50,7 @@ async def get_audit_logs(
 async def update_delivery_secret(
     request: Request,
     body: DeliverySecretPost,
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ) -> None:
     """
     PATCH /delivery-secret
@@ -60,7 +61,7 @@ async def update_delivery_secret(
     if not TASK_CONTROLLER:
         raise FeatureNotAvailableException("Task Controller")
 
-    v1_client = KubernetesClient()
+    v1_client: KubernetesClient = await KubernetesClient.create()
 
     # Which delivery?
     if GITHUB_DELIVERY:
@@ -73,9 +74,10 @@ async def update_delivery_secret(
         if OTHER_DELIVERY:
             label=f"url={OTHER_DELIVERY}"
             secret = None
-            for secret in v1_client.list_namespaced_secret(
-                    CONTROLLER_NAMESPACE, label_selector=label
-                ).items:
+            sec_list: V1SecretList = await v1_client.api_client.list_namespaced_secret(
+                CONTROLLER_NAMESPACE, label_selector=label
+            )
+            for secret in sec_list.items:
                 break
 
             if secret is None:
@@ -83,7 +85,7 @@ async def update_delivery_secret(
 
         # Update secret
         secret.data["auth"] = KubernetesClient.encode_secret_value(body.auth)
-        v1_client.patch_namespaced_secret(
+        await v1_client.api_client.patch_namespaced_secret(
             secret.metadata.name, CONTROLLER_NAMESPACE, secret
         )
     except ApiException as apie:

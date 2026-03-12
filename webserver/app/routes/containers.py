@@ -10,9 +10,9 @@ import logging
 from http import HTTPStatus
 from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query, Request
-from requests import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlalchemy.orm import Session as DBSession
+from sqlalchemy.ext.asyncio import AsyncSession as DBSession
 
 from app.helpers.base_model import get_db
 from app.helpers.exceptions import InvalidRequest, DBRecordNotFoundError
@@ -38,7 +38,7 @@ router = APIRouter(tags=["containers"], prefix="/containers")
 async def get_all_containers(
     request: Request,
     params: Annotated[ContainerFilters, Query()],
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ) -> dict[str, Any]:
     """
     GET /containers endpoint.
@@ -123,7 +123,8 @@ async def sync(request:Request, session: DBSession = Depends(get_db)) -> dict[st
     synched: list[Container] = []
     registry_query = await session.execute(select(Registry).where(Registry.active == True))
     for registry in registry_query.scalars().all():
-        for image in registry.fetch_image_list():
+        available_images = await registry.fetch_image_list()
+        for image in available_images:
             for key in ["tag", "sha"]:
                 for tag_or_sha in image[key]:
                     images_query = await session.execute(select(Container).where(

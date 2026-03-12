@@ -1,7 +1,7 @@
 from pytest import mark
 from datetime import timedelta
-from kubernetes.client.exceptions import ApiException
-from sqlalchemy import select, update
+from kubernetes_asyncio.client.exceptions import ApiException
+from sqlalchemy import update
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
 from app.helpers.keycloak import Keycloak
@@ -15,6 +15,7 @@ class TestTaskResults(BaseTest):
         self,
         cr_client,
         registry_client,
+        v1_batch_tasks_mock,
         simple_admin_header,
         client,
         results_job_mock,
@@ -38,8 +39,9 @@ class TestTaskResults(BaseTest):
         registry_client,
         simple_admin_header,
         client,
-        reg_k8s_client,
+        v1_batch_tasks_mock,
         results_job_mock,
+        mock_args_batch_k8s,
         task_mock
     ):
         """
@@ -47,7 +49,7 @@ class TestTaskResults(BaseTest):
         error code
         """
         # Get results - creating a job fails
-        reg_k8s_client["create_namespaced_job_mock"].side_effect = ApiException(status=500, reason="Something went wrong")
+        mock_args_batch_k8s.api_client.create_namespaced_job.side_effect = ApiException(status=500, reason="Something went wrong")
 
         response = await client.get(
             f'/tasks/{task_mock.id}/results',
@@ -109,7 +111,7 @@ class TestResultsReview:
         client,
         task_mock,
         results_job_mock,
-        k8s_client,
+        v1_batch_tasks_mock,
         set_task_review_env,
         v1_crd_mock,
         mocker
@@ -127,7 +129,7 @@ class TestResultsReview:
             headers=simple_admin_header
         )
         assert response.status_code == 201
-        v1_crd_mock.return_value.patch_cluster_custom_object.assert_not_called()
+        v1_crd_mock.api_client.patch_cluster_custom_object.assert_not_called()
 
         response = await client.get(
             f'/tasks/{task_mock.id}/results',
@@ -143,23 +145,19 @@ class TestResultsReview:
         task_mock,
         set_task_review_env,
         set_task_controller_env,
-        v1_crd_mock,
-        mocker
+        mock_args_crd,
+        v1_crd_mock
     ):
         """
         Test to make sure the approval allows the task controller CRD
         to be updated, and the results to be delivered
         """
-        mocker.patch(
-            "app.models.task.Task.get_task_crd",
-            return_value={"metadata": {"annotations": {}}}
-        )
         response = await client.post(
             f'/tasks/{task_mock.id}/results/approve',
             headers=simple_admin_header
         )
         assert response.status_code == 201
-        v1_crd_mock.return_value.patch_cluster_custom_object.assert_called()
+        mock_args_crd.api_client.patch_cluster_custom_object.assert_called()
 
     @mark.asyncio
     async def test_admin_review_pending(
@@ -188,7 +186,9 @@ class TestResultsReview:
         client,
         task_mock,
         set_task_review_env,
-        k8s_client,
+        v1_crd_mock,
+        mock_args_k8s,
+        v1_task_mock,
         mock_kc_client
     ):
         """
@@ -196,7 +196,7 @@ class TestResultsReview:
         before the review took place
         """
         mock_kc_client["tasks_api_kc"].return_value.is_user_admin.return_value = False
-        k8s_client["list_namespaced_pod_mock"].return_value.items[0].metadata.name = task_mock.name
+        mock_args_k8s.api_client.list_namespaced_pod.return_value.items[0].metadata.name = task_mock.name
         response = await client.get(
             f'/tasks/{task_mock.id}/results',
             headers=simple_user_header
@@ -312,24 +312,20 @@ class TestResultsReview:
         task_mock,
         k8s_crd_500,
         set_task_review_env,
-        v1_crd_mock,
-        mocker
+        mock_args_crd,
+        v1_crd_mock
     ):
         """
         Tests that review fails when the CRD is not found
         """
-        mocker.patch(
-            "app.models.task.Task.get_task_crd",
-            return_value={"metadata": {"annotations": {}}}
-        )
-        v1_crd_mock.return_value.patch_cluster_custom_object.side_effect = k8s_crd_500
+        mock_args_crd.api_client.patch_cluster_custom_object.side_effect = k8s_crd_500
 
         response = await client.post(
             f'/tasks/{task_mock.id}/results/approve',
             headers=simple_admin_header
         )
         assert response.status_code == 500
-        v1_crd_mock.return_value.patch_cluster_custom_object.assert_called()
+        mock_args_crd.api_client.patch_cluster_custom_object.assert_called()
 
         assert response.json()['error'] == "Could not activate automatic delivery"
 

@@ -1,12 +1,14 @@
 from typing import Any, Generator
 from pytest_asyncio import fixture
 import responses
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 from app.helpers.container_registries import DockerRegistry
 from app.models.container import Container
 from app.models.registry import Registry
 from app.helpers.keycloak import KEYCLOAK_URL
+
+from .common_registry_fixtures import *
 
 
 DOCKER_CLASS = 'app.models.registry.DockerRegistry'
@@ -23,7 +25,7 @@ def registry_client(mocker):
     )
 
 @fixture
-def cr_client(mocker, reg_k8s_client):
+def cr_client(mocker, registry_secret_mock):
     return mocker.patch(
         'app.helpers.container_registries.DockerRegistry',
         return_value=Mock(
@@ -37,7 +39,7 @@ def cr_client_404(mocker):
         DOCKER_CLASS,
         return_value=Mock(
             login=Mock(return_value="access_token"),
-            has_image_tag_or_sha=Mock(return_value=False)
+            has_image_tag_or_sha=AsyncMock(return_value=False)
         )
     )
 
@@ -59,7 +61,7 @@ def cr_class(client, cr_name, dockerhub_login_request):
         return DockerRegistry(cr_name, creds={"user": "", "token": ""})
 
 @fixture
-async def registry(client, mocker, reg_k8s_client, dockerhub_login_request, cr_name, db_session) -> Registry:
+async def registry(client, mocker, registry_secret_mock, dockerhub_login_request, cr_name, db_session) -> Registry:
     with dockerhub_login_request:
         dockerhub_login_request.add(
             responses.GET,

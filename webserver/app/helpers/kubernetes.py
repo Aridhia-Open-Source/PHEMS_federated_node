@@ -1,29 +1,38 @@
 import base64
-import os
+import io
 import logging
+import os
 import shutil
 import tarfile
-from tempfile import TemporaryFile
-from kubernetes import client, config
-from kubernetes.stream import stream
-from kubernetes.client.exceptions import ApiException
-from kubernetes.watch import Watch
+from typing import Generic, Self, Type, TypeVar, get_args
+from aiohttp import WSMessage, WSMsgType
+from kubernetes_asyncio import client, stream
+from kubernetes_asyncio.client.exceptions import ApiException
+from kubernetes_asyncio.watch import Watch
 from app.helpers.exceptions import InvalidRequest, KubernetesException
 from app.helpers.const import ALPINE_IMAGE, TASK_NAMESPACE
+from app.helpers.kubernetes_manager import KubernetesBase, get_k8s_base
+
 
 logger = logging.getLogger('kubernetes_helper')
 logger.setLevel(logging.INFO)
 
+T = TypeVar("T", client.CustomObjectsApi, client.BatchV1Api, client.CoreV1Api)
 
-class KubernetesBase:
-    def __init__(self) -> None:
-        if os.getenv('KUBERNETES_SERVICE_HOST'):
-            # Get configuration for an in-cluster setup
-            config.load_incluster_config()
-        else:
-            # Get config from outside the cluster. Mostly DEV
-            config.load_kube_config()
-        super().__init__()
+
+class BaseClient(Generic[T]):
+    api_client: T = None
+
+    def __init__(self, api_client: T) -> None:
+        self.api_client = api_client
+
+    @classmethod
+    async def create(cls: Type[Self]) -> Self:
+        """This replaces the async __init__"""
+        generic_parent = cls.__orig_bases__[0]
+        actual_type = get_args(generic_parent)[0]
+        base: KubernetesBase = await get_k8s_base(actual_type)
+        return cls(base.api_client)
 
     @classmethod
     def encode_secret_value(cls, value:str) -> str:
@@ -47,7 +56,7 @@ class KubernetesBase:
         """
         return [client.V1EnvFromSource(secret_ref=client.V1SecretEnvSource(name=secret_name))]
 
-    def create_job_spec(self, pod_spec:dict):
+    def create_job_spec(self, pod_spec:dict) -> client.V1Job:
         """
         Given a dictionary with a job config deconstruct it
         and assemble it with the different sdk objects
@@ -101,127 +110,54 @@ class KubernetesBase:
             spec=specs
         )
 
-    def delete_pod(self, name:str, namespace=TASK_NAMESPACE):
-        """
-        Given a pod name, delete it. If it doesn't exist
-        ignores the exception and logs a message.
-        """
-        try:
-            self.delete_namespaced_pod(
-                namespace=namespace,
-                name=name
-            )
-        except ApiException as e:
-            if e.status != 404:
-                raise InvalidRequest(f"Failed to delete pod {name}: {e.reason}") from e
 
-    def delete_job(self, name:str, namespace=TASK_NAMESPACE):
-        """
-        Given a pod name, delete it. If it doesn't exist
-        ignores the exception and logs a message.
-        """
-        try:
-            self.delete_namespaced_job(
-                namespace=namespace,
-                name=name
-            )
-        except ApiException as e:
-            if e.status != 404:
-                raise InvalidRequest(f"Failed to delete pod {name}: {e.reason}") from e
-
-    def create_persistent_storage(self, task_pv:client.V1PersistentVolume, task_pvc:client.V1PersistentVolumeClaim):
+class KubernetesClient(BaseClient[client.CoreV1Api]):
+    async def create_persistent_storage(
+            self,
+            task_pv:client.V1PersistentVolume,
+            task_pvc:client.V1PersistentVolumeClaim
+        ) -> None:
         """
         Function to dynamically create (if doesn't already exist)
         a PV and its PVC
         :param name: is the PV name and PVC prefix
         """
         try:
-            self.create_persistent_volume(body=task_pv)
+            await self.api_client.create_persistent_volume(body=task_pv)
         except ApiException as kexc:
             if kexc.status != 409:
                 raise KubernetesException(kexc.body) from kexc
         try:
-            self.create_namespaced_persistent_volume_claim(namespace=TASK_NAMESPACE, body=task_pvc)
+            await self.api_client.create_namespaced_persistent_volume_claim(namespace=TASK_NAMESPACE, body=task_pvc)
         except ApiException as kexc:
             if kexc.status != 409:
                 raise KubernetesException(kexc.body) from kexc
 
-    def cp_from_pod(self, pod_name:str, source_path:str, dest_path:str, out_name:str, namespace=TASK_NAMESPACE):
-        """
-        Method that emulates the `kubectl cp` command
-        """
-        # cmd to archive the content of source_path to stdout
-        exec_command = ['tar', 'cf', '-', source_path]
-        # Make sure the tmp/data folder exists so that the zip files is not in the same folder
-        # as the actual results
-        os.makedirs("/tmp/data", exist_ok=True)
-        try:
-            with TemporaryFile() as tar_buffer:
-                resp = stream(
-                    self.connect_get_namespaced_pod_exec,
-                    pod_name, namespace,
-                    command=exec_command,
-                    stderr=True, stdin=True,
-                    stdout=True, tty=False,
-                    _preload_content=False
-                )
-                # Read the stdout from the pod aka the source_path contents
-                while resp.is_open():
-                    resp.update(timeout=1)
-                    if resp.peek_stdout():
-                        out = resp.read_stdout()
-                        tar_buffer.write(out.encode('utf-8'))
-                    if resp.peek_stderr():
-                        logger.error("STDERR: %s" % resp.read_stderr())
-                resp.close()
-
-                tar_buffer.flush()
-                tar_buffer.seek(0)
-                try:
-                    os.makedirs(dest_path, exist_ok=True)
-                except FileExistsError:
-                    # folder exists, skip
-                    pass
-                # Loop through the contents of the pod's folder
-                with tarfile.open(fileobj=tar_buffer, mode='r:') as tar:
-                    for member in tar.getmembers():
-                        fname = member.name.replace(source_path[1:], "")
-                        if fname:
-                            if member.isdir():
-                                tar.makedir(member, dest_path + '/' + fname[1:])
-                            else:
-                                tar.makefile(member, dest_path + '/' + fname[1:])
-
-            # Create an archive on the Flask's pod PVC
-            results_file_archive = f'/tmp/data/{out_name}'
-            shutil.make_archive(results_file_archive, 'zip', dest_path)
-        except NotADirectoryError as nde:
-            logger.error("%s %s %s", nde.filename, nde.filename, nde.strerror)
-            raise KubernetesException("Error creating the zip file") from nde
-        except Exception as e:
-            raise KubernetesException(getattr(e, "strerror", "")) from e
-
-        return f"{results_file_archive}.zip"
-
-class KubernetesClient(KubernetesBase, client.CoreV1Api):
-    def is_pod_ready(self, label):
+    async def is_pod_ready(self, label) -> None:
         """
         By getting a label, checks if the pod is in ready state.
         Once this happens the method will return
         """
         watcher = Watch()
-        for event in watcher.stream(
-            func=self.list_namespaced_pod,
+        async for event in watcher.stream(
+            func=self.api_client.list_namespaced_pod,
             namespace=TASK_NAMESPACE,
             label_selector=label,
             timeout_seconds=60
         ):
             if event["object"].status.phase == "Running":
                 watcher.stop()
-                return
+                break
             logger.info(f"Pod is in state {event["object"].status.phase}")
 
-    def create_secret(self, name:str, values:dict[str, str], namespaces:list, type:str='Opaque', labels:dict={}) -> client.V1Secret:
+    async def create_secret(
+            self,
+            name:str,
+            values:dict[str, str],
+            namespaces:list,
+            type:str='Opaque',
+            labels:dict={}
+        ) -> client.V1Secret:
         """
         From a dict of values, encodes them,
             and creates a secret in a given list of namespace
@@ -230,7 +166,7 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
         body = client.V1Secret()
         body.api_version = 'v1'
         for key in values.keys():
-            values[key] = KubernetesClient.encode_secret_value(values[key])
+            values[key] = self.encode_secret_value(values[key])
 
         body.data = values
         body.kind = 'Secret'
@@ -241,15 +177,115 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
         body.type = type
         for ns in namespaces:
             try:
-                self.create_namespaced_secret(ns, body=body, pretty='true')
+                await self.api_client.create_namespaced_secret(ns, body=body, pretty='true')
             except ApiException as e:
                 if e.status != 409:
                     raise KubernetesException(e.body)
         return body
 
+    async def delete_pod(self, name:str, namespace=TASK_NAMESPACE) -> None:
+        """
+        Given a pod name, delete it. If it doesn't exist
+        ignores the exception and logs a message.
+        """
+        try:
+            await self.api_client.delete_namespaced_pod(
+                namespace=namespace,
+                name=name
+            )
+        except ApiException as e:
+            if e.status != 404:
+                raise InvalidRequest(f"Failed to delete pod {name}: {e.reason}") from e
 
-class KubernetesBatchClient(KubernetesBase, client.BatchV1Api):
-    pass
+    async def cp_from_pod(self, pod_name:str, source_path:str, dest_path:str, out_name:str, namespace=TASK_NAMESPACE) -> str:
+        """
+        Method that emulates the `kubectl cp` command
+        """
+        # Make sure the tmp/data folder exists so that the zip files is not in the same folder
+        # as the actual results
+        os.makedirs("/tmp/data", exist_ok=True)
+        try:
+            ws_client = stream.WsApiClient()
+            api = client.CoreV1Api(ws_client)
 
-class KubernetesCRDClient(KubernetesBase, client.CustomObjectsApi):
+            # cmd to archive the content of source_path to stdout
+            command = [
+                "tar",
+                "cf",
+                "-",
+                source_path
+            ]
+
+            resp = await api.connect_get_namespaced_pod_exec(
+                name=pod_name,
+                namespace=namespace,
+                command=command,
+                stdin=False,
+                stdout=True,
+                stderr=True,
+                tty=False,
+                _preload_content=False
+            )
+
+            tar_buffer = io.BytesIO()
+
+            async with resp as ws:
+                # Read the stdout from the pod aka the source_path contents
+                while True:
+                    message:WSMessage = await ws.receive()
+                    if message.type in (WSMsgType.CLOSE, WSMsgType.ERROR):
+                        break
+
+                    if len(message.data) > 1:
+                        tar_buffer.write(message.data[1:])
+
+            tar_buffer.flush()
+            tar_buffer.seek(0)
+            results_file_archive = f'/tmp/data/{out_name}'
+
+            try:
+                os.makedirs(dest_path, exist_ok=True)
+                os.remove(results_file_archive)
+            except (FileExistsError, FileNotFoundError):
+                # folder exists, skip
+                pass
+
+            with tarfile.open(fileobj=tar_buffer, mode='r:') as tar:
+                # Loop through the contents of the pod's folder
+                for member in tar.getmembers():
+                    fname = member.name.replace(source_path[1:], "")
+                    if fname:
+                        if member.isdir():
+                            tar.makedir(member, dest_path + '/' + fname[1:])
+                        else:
+                            tar.makefile(member, dest_path + '/' + fname[1:])
+
+            # Create an archive on the Flask's pod PVC
+            shutil.make_archive(results_file_archive, 'zip', dest_path)
+        except NotADirectoryError as nde:
+            logger.error("%s %s %s", nde.filename, nde.filename, nde.strerror)
+            raise KubernetesException("Error creating the zip file") from nde
+        except Exception as e:
+            raise KubernetesException(getattr(e, "strerror", "")) from e
+
+        return f"{results_file_archive}.zip"
+
+class KubernetesBatchClient(BaseClient[client.BatchV1Api]):
+
+    async def delete_job(self, name:str, namespace=TASK_NAMESPACE) -> None:
+        """
+        Given a pod name, delete it. If it doesn't exist
+        ignores the exception and logs a message.
+        """
+        try:
+            await self.api_client.delete_namespaced_job(
+                namespace=namespace,
+                name=name
+            )
+        except ApiException as e:
+            if e.status != 404:
+                raise InvalidRequest(f"Failed to delete pod {name}: {e.reason}") from e
+
+
+class KubernetesCRDClient(BaseClient[client.CustomObjectsApi]):
     pass

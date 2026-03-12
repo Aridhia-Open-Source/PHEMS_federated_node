@@ -1,7 +1,7 @@
 import json
 import re
 from pytest import mark
-from kubernetes.client.exceptions import ApiException
+from kubernetes_asyncio.client.exceptions import ApiException
 from unittest import mock
 from unittest.mock import Mock
 
@@ -9,6 +9,7 @@ from app.helpers.const import TASK_POD_RESULTS_PATH
 from app.models.task import Task
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
+from tests.fixtures.common_registry_fixtures import *
 from tests.base_test_class import BaseTest
 
 
@@ -18,7 +19,6 @@ class TestGetTasks(BaseTest):
             self,
             client,
             simple_admin_header,
-
         ):
         """
         Tests that admin users can see the list of tasks
@@ -33,7 +33,6 @@ class TestGetTasks(BaseTest):
     async def test_get_list_tasks_base_user(
             self,
             client,
-            mocker,
             simple_user_header,
             mock_kc_client
         ):
@@ -57,7 +56,7 @@ class TestGetTasks(BaseTest):
             simple_admin_header,
             client,
             registry_client,
-            k8s_client,
+            v1_task_mock,
             task_body
         ):
         """
@@ -218,7 +217,8 @@ class TestPostTask(BaseTest):
             cr_client,
             post_json_admin_header,
             client,
-            reg_k8s_client,
+            v1_task_mock,
+            mock_args_k8s,
             registry_client,
             task_body,
             v1_crd_mock
@@ -232,9 +232,9 @@ class TestPostTask(BaseTest):
             headers=post_json_admin_header
         )
         assert response.status_code == 201
-        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        mock_args_k8s.api_client.create_namespaced_pod.assert_called()
         v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
-        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        pod_body = mock_args_k8s.api_client.create_namespaced_pod.call_args.kwargs["body"]
         # Make sure the two init containers are created
         assert len(pod_body.spec.init_containers) == 2
         assert [pod.name for pod in pod_body.spec.init_containers] == [f"init-{response.json()["id"]}", "fetch-data"]
@@ -295,10 +295,10 @@ class TestPostTask(BaseTest):
             cr_client,
             post_json_admin_header,
             client,
-            reg_k8s_client,
+            v1_task_mock,
+            mock_args_k8s,
             registry_client,
-            task_body,
-
+            task_body
         ):
         """
         Tests task creation returns 201, if the db_query field
@@ -314,8 +314,8 @@ class TestPostTask(BaseTest):
             headers=post_json_admin_header
         )
         assert response.status_code == 201
-        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
-        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        mock_args_k8s.api_client.create_namespaced_pod.assert_called()
+        pod_body = mock_args_k8s.api_client.create_namespaced_pod.call_args.kwargs["body"]
         # The fetch_data init container should not be created
         assert len(pod_body.spec.init_containers) == 1
         assert pod_body.spec.init_containers[0].name == f"init-{response.json()["id"]}"
@@ -328,10 +328,10 @@ class TestPostTask(BaseTest):
             self,
             post_json_admin_header,
             client,
-            reg_k8s_client,
+            v1_task_mock,
             registry_client,
             task_body,
-
+            mock_args_k8s
         ):
         """
         Tests task creation returns an error if the db_query is
@@ -345,7 +345,7 @@ class TestPostTask(BaseTest):
         )
         assert response.status_code == 400
         assert response.json()["error"] == "`db_query` field must include a `query`"
-        reg_k8s_client["create_namespaced_pod_mock"].assert_not_called()
+        mock_args_k8s.api_client.create_namespaced_pod.assert_not_called()
 
     @mark.asyncio
     async def test_create_task_invalid_output_field(
@@ -374,12 +374,12 @@ class TestPostTask(BaseTest):
     async def test_create_task_no_output_field_reverts_to_default(
             self,
             cr_client,
-            reg_k8s_client,
+            v1_task_mock,
             post_json_admin_header,
             client,
             registry_client,
             task_body,
-
+            mock_args_k8s
         ):
         """
         Tests task creation returns 201 but the volume mounted
@@ -392,8 +392,8 @@ class TestPostTask(BaseTest):
             headers=post_json_admin_header
         )
         assert response.status_code == 201
-        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
-        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        mock_args_k8s.api_client.create_namespaced_pod.assert_called()
+        pod_body = mock_args_k8s.api_client.create_namespaced_pod.call_args.kwargs["body"]
         assert len(pod_body.spec.containers[0].volume_mounts) == 1
         assert pod_body.spec.containers[0].volume_mounts[0].mount_path == TASK_POD_RESULTS_PATH
 
@@ -555,8 +555,9 @@ class TestPostTask(BaseTest):
             cr_client,
             post_json_admin_header,
             client,
-            reg_k8s_client,
+            v1_task_mock,
             registry_client,
+            mock_args_k8s,
             container_with_sha,
             task_body,
             v1_crd_mock
@@ -572,14 +573,14 @@ class TestPostTask(BaseTest):
             headers=post_json_admin_header
         )
         assert response.status_code == 201
-        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
+        mock_args_k8s.api_client.create_namespaced_pod.assert_called()
         v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
 
     @mark.asyncio
     async def test_create_task_image_same_name_different_registry(
             self,
             cr_client,
-            reg_k8s_client,
+            v1_task_mock,
             registry_client,
             post_json_admin_header,
             client,
@@ -628,9 +629,9 @@ class TestPostTask(BaseTest):
             post_json_admin_header,
             client,
             registry_client,
-            reg_k8s_client,
+            v1_task_mock,
             task_body,
-
+            mock_args_k8s
         ):
         """
         Tests task creation returns 201 and if users provide
@@ -643,8 +644,8 @@ class TestPostTask(BaseTest):
             headers=post_json_admin_header
         )
         assert response.status_code == 201
-        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
-        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        mock_args_k8s.api_client.create_namespaced_pod.assert_called()
+        pod_body = mock_args_k8s.api_client.create_namespaced_pod.call_args.kwargs["body"]
 
         assert len(pod_body.spec.containers[0].volume_mounts) == 2
         # Check if the mount volume is on the correct path
@@ -659,9 +660,9 @@ class TestPostTask(BaseTest):
             post_json_admin_header,
             client,
             registry_client,
-            reg_k8s_client,
+            v1_task_mock,
             task_body,
-
+            mock_args_k8s
         ):
         """
         Tests task creation returns 201 and if users provide
@@ -674,8 +675,8 @@ class TestPostTask(BaseTest):
             headers=post_json_admin_header
         )
         assert response.status_code == 201
-        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
-        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        mock_args_k8s.api_client.create_namespaced_pod.assert_called()
+        pod_body = mock_args_k8s.api_client.create_namespaced_pod.call_args.kwargs["body"]
 
         # Check if the INPUT_PATH variable is set
         assert ["/data/in/file.csv"] == [ev.value for ev in pod_body.spec.containers[0].env if ev.name == "INPUT_PATH"]
@@ -711,7 +712,6 @@ class TestPostTask(BaseTest):
             client,
             registry_client,
             task_body,
-
         ):
         """
         Tests task creation returns 4xx request when inputs
@@ -730,12 +730,12 @@ class TestPostTask(BaseTest):
     async def test_create_task_no_output_field_reverts_to_default(
             self,
             cr_client,
-            reg_k8s_client,
+            v1_task_mock,
             post_json_admin_header,
             client,
             registry_client,
             task_body,
-
+            mock_args_k8s
         ):
         """
         Tests task creation returns 201 but the resutls volume mounted
@@ -748,8 +748,8 @@ class TestPostTask(BaseTest):
             headers=post_json_admin_header
         )
         assert response.status_code == 201
-        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
-        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        mock_args_k8s.api_client.create_namespaced_pod.assert_called()
+        pod_body = mock_args_k8s.api_client.create_namespaced_pod.call_args.kwargs["body"]
         assert len(pod_body.spec.containers[0].volume_mounts) == 2
         assert TASK_POD_RESULTS_PATH in [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts]
 
@@ -757,12 +757,12 @@ class TestPostTask(BaseTest):
     async def test_create_task_no_inputs_field_reverts_to_default(
             self,
             cr_client,
-            reg_k8s_client,
+            v1_task_mock,
             post_json_admin_header,
             client,
             registry_client,
             task_body,
-
+            mock_args_k8s
         ):
         """
         Tests task creation returns 201 but the volume mounted
@@ -775,8 +775,8 @@ class TestPostTask(BaseTest):
             headers=post_json_admin_header
         )
         assert response.status_code == 201
-        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
-        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        mock_args_k8s.api_client.create_namespaced_pod.assert_called()
+        pod_body = mock_args_k8s.api_client.create_namespaced_pod.call_args.kwargs["body"]
         assert len(pod_body.spec.containers[0].volume_mounts) == 2
         assert [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts] == ["/mnt/inputs", TASK_POD_RESULTS_PATH]
 
@@ -815,7 +815,7 @@ class TestPostTask(BaseTest):
             k8s_client,
             task_body,
             v1_crd_mock,
-
+            mock_args_crd
         ):
         """
         Tests task creation returns 201. It should try to
@@ -827,7 +827,7 @@ class TestPostTask(BaseTest):
             headers=post_json_admin_header
         )
         assert response.status_code == 201
-        v1_crd_mock.return_value.create_cluster_custom_object.assert_called()
+        mock_args_crd.api_client.create_cluster_custom_object.assert_called()
 
     @mark.asyncio
     async def test_create_task_from_controller(
@@ -912,17 +912,18 @@ class TestPostTask(BaseTest):
             self,
             task,
             cr_client,
-            reg_k8s_client,
-            registry_client
+            v1_task_mock,
+            registry_client,
+            mock_args_k8s
     ):
         """
         Simple test to make sure the environment passed to the pod includes
         the two schemas, regardless of their value
         """
         task.db_query = None
-        task.run()
-        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
-        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        await task.run()
+        mock_args_k8s.api_client.create_namespaced_pod.assert_called()
+        pod_body = mock_args_k8s.api_client.create_namespaced_pod.call_args.kwargs["body"]
         env = [env.name for env in pod_body.spec.containers[0].env if re.match(".+_SCHEMA", env.name)]
         assert len(set(env).intersection({"CDM_SCHEMA", "WRITE_SCHEMA"})) == 2
 
@@ -931,17 +932,18 @@ class TestPostTask(BaseTest):
             self,
             task,
             cr_client,
-            reg_k8s_client,
-            registry_client
+            v1_task_mock,
+            registry_client,
+            mock_args_k8s
     ):
         """
         Simple test to make sure the generated connection string
         follows the global format
         """
         task.db_query = None
-        task.run()
-        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
-        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        await task.run()
+        mock_args_k8s.api_client.create_namespaced_pod.assert_called()
+        pod_body = mock_args_k8s.api_client.create_namespaced_pod.call_args.kwargs["body"]
         env = [env.value for env in pod_body.spec.containers[0].env if env.name == "CONNECTION_STRING"][0]
         assert re.match(r'driver={PostgreSQL ANSI};Uid=.*;Pwd=.*;Server=.*;Database=.*;$', env) is not None
 
@@ -950,17 +952,18 @@ class TestPostTask(BaseTest):
             self,
             task_oracle,
             cr_client,
-            reg_k8s_client,
-            registry_client
+            v1_task_mock,
+            registry_client,
+            mock_args_k8s
     ):
         """
         Simple test to make sure the generated connection string
         follows the specific format for OracleDB
         """
         task_oracle.db_query = None
-        task_oracle.run()
-        reg_k8s_client["create_namespaced_pod_mock"].assert_called()
-        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        await task_oracle.run()
+        mock_args_k8s.api_client.create_namespaced_pod.assert_called()
+        pod_body = mock_args_k8s.api_client.create_namespaced_pod.call_args.kwargs["body"]
         env = [env.value for env in pod_body.spec.containers[0].env if env.name == "CONNECTION_STRING"][0]
         assert re.match(r'driver={Oracle ODBC Driver};Uid=.*;PSW=.*;DBQ=.*;$', env) is not None
 
@@ -971,7 +974,8 @@ class TestCancelTask:
             self,
             client,
             simple_admin_header,
-            task
+            task,
+            v1_task_mock
         ):
         """
         Test that an admin can cancel an existing task
@@ -981,7 +985,7 @@ class TestCancelTask:
             headers=simple_admin_header
         )
         assert response.status_code == 200
-        assert "terminated" in response.json()["status"]
+        assert "cancelled" in response.json()["status"]
 
     @mark.asyncio
     async def test_cancel_404_task(
@@ -1008,7 +1012,6 @@ class TestValidateTask:
             cr_client,
             registry_client,
             post_json_admin_header,
-
         ):
         """
         Test the validation endpoint can be used by admins returns 201
@@ -1077,7 +1080,7 @@ class TestTasksLogs:
             mocker,
             terminated_state,
             task,
-
+            v1_task_mock
         ):
         """
         Basic test that will allow us to return
@@ -1107,7 +1110,7 @@ class TestTasksLogs:
             post_json_admin_header,
             client,
             task,
-
+            v1_task_mock
         ):
         """
         Basic test that will check the appropriate error
@@ -1128,20 +1131,15 @@ class TestTasksLogs:
             mocker,
             waiting_state,
             task,
-
+            v1_task_mock,
+            pod_listed,
+            mock_args_k8s
         ):
         """
         Basic test that will try to get logs for a pod
         in an init state.
         """
-        mocker.patch(
-            'app.models.task.Task.get_current_pod',
-            return_value=Mock(
-                status=Mock(
-                    container_statuses=[waiting_state]
-                )
-            )
-        )
+        pod_listed.status.container_statuses = [waiting_state]
         response_logs = await client.get(
             f'/tasks/{task.id}/logs',
             headers=post_json_admin_header
@@ -1156,7 +1154,7 @@ class TestTasksLogs:
             client,
             mocker,
             task,
-
+            v1_task_mock
         ):
         """
         Basic test that will try to get the logs from a missing
@@ -1182,7 +1180,8 @@ class TestTasksLogs:
             mocker,
             task,
             terminated_state,
-
+            v1_task_mock,
+            mock_args_k8s
         ):
         """
         Basic test that will try to get the logs, but k8s
@@ -1196,7 +1195,7 @@ class TestTasksLogs:
                 )
             )
         )
-        k8s_client["read_namespaced_pod_log"].side_effect = ApiException()
+        mock_args_k8s.api_client.read_namespaced_pod_log.side_effect = ApiException()
         response_logs = await client.get(
             f'/tasks/{task.id}/logs',
             headers=post_json_admin_header

@@ -40,7 +40,7 @@ class TestGitHubRegistry:
                 json=[],
                 status=200
             )
-            assert cr_class.get_image_tags(container.name) == {'tag': [], 'sha': []}
+            assert await cr_class.get_image_tags(container.name) == {'tag': [], 'sha': []}
 
     @mark.asyncio
     async def test_cr_metadata_tag_not_in_api_response(
@@ -66,7 +66,7 @@ class TestGitHubRegistry:
                 }],
                 status=200
             )
-            assert not cr_class.has_image_tag_or_sha(container.name, "latest")
+            assert not await cr_class.has_image_tag_or_sha(container.name, "latest")
 
     @mark.asyncio
     async def test_list_repos(
@@ -107,4 +107,4 @@ class TestGitHubRegistry:
                 "sha": ["sha256:123aed5143c5a15"]
             }]
 
-            assert expected_list == cr_class.list_repos()
+            assert expected_list == await cr_class.list_repos()

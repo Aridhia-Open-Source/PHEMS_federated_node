@@ -1,6 +1,8 @@
 from typing import List
-from kubernetes.client import V1Secret
-from kubernetes.client.exceptions import ApiException
+from fastapi import Request
+from kubernetes_asyncio.client import V1Secret
+from kubernetes_asyncio.client.exceptions import ApiException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
@@ -11,12 +13,12 @@ from app.schemas.datasets import DatasetCreate, DatasetUpdate
 from app.helpers.keycloak import Keycloak
 from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
-from app.helpers.exceptions import InvalidRequest, KubernetesException
+from app.helpers.exceptions import InvalidRequest, KubernetesException, LogAndException, DBError
 
 
 class DatasetService:
     @staticmethod
-    async def add(session: AsyncSession, data: DatasetCreate) -> Dataset:
+    async def add(session: AsyncSession, request:Request, data: DatasetCreate) -> Dataset:
         if await Dataset.get_dataset_by_name_or_id(session=session, name=data.name, raise_if_not_found=False):
             raise InvalidRequest("Dataset already exist with that name")
 
@@ -30,7 +32,7 @@ class DatasetService:
                 )
 
         kc_client = Keycloak()
-        token_info = kc_client.decode_token(kc_client.get_token_from_headers())
+        token_info = kc_client.decode_token(kc_client.get_token_from_headers(request))
         user_id = kc_client.get_user_by_email(token_info["email"])["id"]
 
         dataset_data = data.model_dump(exclude={'catalogue', 'dictionaries'})
@@ -46,8 +48,8 @@ class DatasetService:
 
         try:
             await dataset.add(session, False)
-            v1 = KubernetesClient()
-            v1.create_secret(
+            v1: KubernetesClient = await KubernetesClient.create()
+            await v1.create_secret(
                 name=dataset.get_creds_secret_name(),
                 values={
                     "PGPASSWORD": dataset.password,
@@ -93,12 +95,19 @@ class DatasetService:
                 "scopes": [scope["id"] for scope in admin_ds_scope]
             })
             await session.commit()
+            await session.refresh(dataset)
             return dataset
+        except LogAndException as lae:
+            await session.rollback()
+            raise lae
+        except IntegrityError as ie:
+            await session.rollback()
+            raise ie
         except Exception as e:
             # If the DB commit failed, we haven't touched K8s yet.
             # If K8s fails, we might want to rollback the DB or log a critical error.
             await session.rollback()
-            raise e
+            raise InvalidRequest("An error occurred during the dataset creation") from e
 
     @staticmethod
     async def update(session: AsyncSession, ds:Dataset, data: DatasetUpdate) -> Dataset:
@@ -107,7 +116,7 @@ class DatasetService:
         already validated.
         """
         kc_client = Keycloak()
-        v1 = KubernetesClient()
+        v1: KubernetesClient = await KubernetesClient.create()
 
         new_name: dict = data.get("name")
         secret_name: str = ds.get_creds_secret_name()
@@ -145,8 +154,8 @@ class DatasetService:
                         ds.dictionaries.append(Dictionary(**d))
 
         # Get existing secret
-        secret: V1Secret = v1.read_namespaced_secret(secret_name, DEFAULT_NAMESPACE, pretty='pretty')
-        secret_task: V1Secret = v1.read_namespaced_secret(secret_name, TASK_NAMESPACE, pretty='pretty')
+        secret: V1Secret = await v1.api_client.read_namespaced_secret(secret_name, DEFAULT_NAMESPACE, pretty='pretty')
+        secret_task: V1Secret = await v1.api_client.read_namespaced_secret(secret_name, TASK_NAMESPACE, pretty='pretty')
 
         # Update secret if credentials are provided
         new_username = data.pop("username", None)
@@ -169,13 +178,13 @@ class DatasetService:
                 secret.metadata.name = ds.get_creds_secret_name(new_host, new_name)
                 secret_task.metadata = secret.metadata
                 secret.metadata.resource_version = None
-                v1.create_namespaced_secret(DEFAULT_NAMESPACE, body=secret, pretty='true')
-                v1.create_namespaced_secret(TASK_NAMESPACE, body=secret_task, pretty='true')
-                v1.delete_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=secret_name)
-                v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=secret_name)
+                await v1.api_client.create_namespaced_secret(DEFAULT_NAMESPACE, body=secret, pretty='true')
+                await v1.api_client.create_namespaced_secret(TASK_NAMESPACE, body=secret_task, pretty='true')
+                await v1.api_client.delete_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=secret_name)
+                await v1.api_client.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=secret_name)
             else:
-                v1.patch_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=secret_name, body=secret)
-                v1.patch_namespaced_secret(namespace=TASK_NAMESPACE, name=secret_name, body=secret_task)
+                await v1.api_client.patch_namespaced_secret(namespace=TASK_NAMESPACE, name=secret_name, body=secret_task)
+                await v1.api_client.patch_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=secret_name, body=secret)
         except ApiException as e:
             # Host and name are unique so there shouldn't be duplicates. If so
             # let the exception to be re-raised with the internal one

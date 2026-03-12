@@ -4,18 +4,15 @@ import json
 from copy import deepcopy
 from typing import Any, List
 from datetime import datetime as dt, timedelta
-from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
-from kubernetes.client import V1Pod, V1Secret
+from kubernetes_asyncio.client import CoreV1Api, CustomObjectsApi, V1CustomResourceDefinition, V1Job, V1Pod, V1Secret
 from pytest_asyncio import fixture
 from sqlalchemy.ext.asyncio import (
-    AsyncConnection,
     create_async_engine,
-    AsyncSession,
     async_sessionmaker
 )
 from sqlalchemy import event
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 from app.main import app
 from app.helpers.const import build_sql_uri
@@ -27,6 +24,7 @@ from app.models.request import RequestModel
 from app.models.task import Task
 from app.helpers.exceptions import KeycloakError
 from app.helpers.const import CRD_DOMAIN
+from app.helpers.kubernetes import BaseClient, KubernetesClient
 
 
 sample_ds_body = {
@@ -131,6 +129,7 @@ async def db_session():
     engine = create_async_engine(db_host)
     connection = await engine.connect()
     trans = await connection.begin()
+    await connection.run_sync(BaseModel.metadata.create_all)
     async_session = async_sessionmaker(
         bind=connection, expire_on_commit=False,
     )()
@@ -161,94 +160,29 @@ async def client(db_session):
         yield ac
     app.dependency_overrides.clear()
 
-# K8s
 @fixture
-def k8s_config(mocker):
-    mocker.patch('kubernetes.config.load_kube_config', return_value=Mock())
-    mocker.patch('app.helpers.kubernetes.config.load_kube_config', Mock())
-
-@fixture
-def v1_mock(mocker) -> dict[str, Any]:
-    return {
-        "create_namespaced_pod_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.create_namespaced_pod'
-        ),
-        "create_persistent_volume_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.create_persistent_volume'
-        ),
-        "create_namespaced_persistent_volume_claim_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.create_namespaced_persistent_volume_claim'
-        ),
-        "read_namespaced_secret_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.read_namespaced_secret'
-        ),
-        "list_namespaced_secret_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.list_namespaced_secret'
-        ),
-        "patch_namespaced_secret_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.patch_namespaced_secret'
-        ),
-        "delete_namespaced_secret_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.delete_namespaced_secret'
-        ),
-        "create_namespaced_secret_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.create_namespaced_secret'
-        ),
-        "list_namespaced_pod_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.list_namespaced_pod'
-        ),
-        "delete_namespaced_pod_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.delete_namespaced_pod'
-        ),
-        "is_pod_ready_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.is_pod_ready'
-        ),
-        "read_namespaced_pod_log": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.read_namespaced_pod_log',
-            return_value="Example logs\nanother line"
-        ),
-        "cp_from_pod_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.cp_from_pod',
-            return_value="tests/files/results.zip"
-        )
+def db_secret_mock(dataset: Dataset):
+    secret_return = Mock(spec=V1Secret)
+    secret_return.metadata.name = dataset.get_creds_secret_name()
+    secret_return.data = {
+        "PGUSER": "YWJjMTIz",
+        "PGPASSWORD": "YWJjMTIz",
+        "USER": "YWJjMTIz",
+        "TOKEN": "YWJjMTIz"
     }
+    return secret_return
 
 @fixture
-def v1_batch_mock(mocker) -> dict[str, Any]:
-    return {
-        "create_namespaced_job_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesBatchClient.create_namespaced_job'
-        ),
-        "delete_job_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesBatchClient.delete_job'
-        )
-    }
-
-@fixture
-def v1_crd_mock(mocker, task):
-    return mocker.patch(
-        "app.models.task.KubernetesCRDClient",
-        return_value=Mock(
-            list_cluster_custom_object=Mock(
-                return_value={"items": [{
-                    "metadata": {
-                        "name": "crd_name",
-                        "annotations": {
-                            f"{CRD_DOMAIN}/task_id": str(task.id)
-                        }
-                    }
-                }]
-            },
-            patch_cluster_custom_object=Mock(),
-            create_cluster_custom_object=Mock(),
-            get_cluster_custom_object=Mock()
-            )
-        )
-    )
+def delivery_secret_mock():
+    secret_return = Mock(spec=V1Secret)
+    secret_return.metadata.name = "url.delivery.com"
+    secret_return.data = {"auth": ""}
+    return secret_return
 
 @fixture
 def pod_listed(image_name) -> Mock:
     pod = Mock(name="default_pod", spec=V1Pod)
+    pod.metadata.name = "task-running"
     pod.spec.containers = [Mock(image=f"acr.azurecr.io/{image_name}")]
     pod.status.container_statuses = [Mock(
         name="default_status",
@@ -263,29 +197,139 @@ def pod_listed(image_name) -> Mock:
             )
         )
     )]
-    return Mock(items=[pod])
+    return pod
+
+# K8s
+@fixture
+def mock_args_k8s(db_secret_mock, pod_listed) -> AsyncMock:
+    list_secret_return = Mock()
+    list_secret_return.items = [db_secret_mock]
+
+    list_pod_return = Mock()
+    list_pod_return.items = [pod_listed]
+
+    api_client_mock = AsyncMock(name="api_client")
+    api_client_mock.create_namespaced_pod = AsyncMock()
+    api_client_mock.list_namespaced_pod = AsyncMock(return_value=list_pod_return)
+    api_client_mock.delete_namespaced_pod = AsyncMock()
+    api_client_mock.read_namespaced_pod_log = AsyncMock(return_value="Example logs\nanother line")
+    api_client_mock.create_persistent_volume = AsyncMock()
+    api_client_mock.create_namespaced_persistent_volume_claim = AsyncMock()
+    api_client_mock.create_namespaced_secret = AsyncMock()
+    api_client_mock.read_namespaced_secret = AsyncMock(return_value=db_secret_mock)
+    api_client_mock.list_namespaced_secret = AsyncMock(return_value=list_secret_return)
+    api_client_mock.patch_namespaced_secret = AsyncMock()
+    api_client_mock.delete_namespaced_secret = AsyncMock()
+
+    orig_obj = KubernetesClient(AsyncMock())
+    orig_obj.api_client = api_client_mock
+
+    # v1_instance = AsyncMock(name="main_instance_v1", wraps=orig_obj)
+    v1_instance = AsyncMock(name="main_instance_v1")
+    v1_instance.api_client = api_client_mock
+    v1_instance.create_secret.side_effect = orig_obj.create_secret
+    v1_instance.encode_secret_value = orig_obj.encode_secret_value
+    v1_instance.decode_secret_value = orig_obj.decode_secret_value
+    v1_instance.is_pod_ready = AsyncMock()
+    v1_instance.cp_from_pod = AsyncMock(return_value="tests/files/results.zip")
+
+    return v1_instance
 
 @fixture
-def secret_listed() -> Mock:
-    secret = Mock(spec=V1Secret)
-    secret.metadata.name = "url.delivery.com"
-    secret.metadata.labels = {"url": "url.delivery.com"}
-    secret.data = {"auth": "originalSecret"}
-    return Mock(items=[secret])
+def v1_ds_mock(mocker, mock_args_k8s):
+    return mocker.patch(
+        'app.models.dataset.KubernetesClient.create',
+        name="v1_ds_mock",
+        return_value=mock_args_k8s
+    )
 
 @fixture
-def k8s_client(secret_listed, pod_listed, v1_mock, v1_batch_mock, k8s_config) -> dict:
+def v1_ds_service_mock(mocker, mock_args_k8s):
+    return mocker.patch(
+        'app.services.datasets.KubernetesClient.create',
+        name="v1_ds_service_mock",
+        return_value=mock_args_k8s
+    )
+
+@fixture
+def v1_task_mock(mocker, mock_args_k8s, v1_ds_mock):
+    return mocker.patch(
+        'app.helpers.task_pod.KubernetesClient.create',
+        name="v1_task_mock",
+        return_value=mock_args_k8s
+    )
+
+@fixture
+def v1_registry_mock(mocker, mock_args_k8s, registry_secret_mock):
+    mock_args_k8s.api_client.read_namespaced_secret = AsyncMock(return_value=registry_secret_mock)
+    return mocker.patch(
+        'app.models.registry.KubernetesClient.create',
+        name="v1_registry_mock",
+        return_value=mock_args_k8s
+    )
+
+@fixture
+def v1_mock(mocker, mock_args_k8s):
+    return mocker.patch(
+        'app.helpers.kubernetes.KubernetesClient',
+        name="v1_mock",
+        return_value=mock_args_k8s
+    )
+
+@fixture
+def mock_args_batch_k8s(pod_listed) -> AsyncMock:
+    api_client_mock = AsyncMock(name="api_client")
+    api_client_mock.create_namespaced_pod = AsyncMock()
+
+    v1_batch_instance = AsyncMock(name="main_instance_v1")
+    v1_batch_instance.api_client = api_client_mock
+    v1_batch_instance.create_job_spec = Mock(spec=V1Job)
+    return v1_batch_instance
+
+@fixture
+def v1_batch_mock(mocker, mock_args_batch_k8s) -> dict[str, Any]:
+    return mocker.patch(
+        'app.helpers.kubernetes.KubernetesBatchClient.create',
+        return_value=mock_args_batch_k8s
+    )
+
+@fixture
+def mock_args_crd(task):
+    crd_api_client_mock = AsyncMock(name="crd_api_client")
+    crd_api_client_mock.list_cluster_custom_object = AsyncMock(return_value={
+        "items": [{
+            "metadata": {
+                "name": "crd_name",
+                "annotations": {
+                    f"{CRD_DOMAIN}/task_id": str(task.id)
+                }
+            }
+        }]
+    })
+    v1_instance = AsyncMock(name="main_instance_v1")
+    v1_instance.api_client = crd_api_client_mock
+    v1_instance.api_client.patch_cluster_custom_object=AsyncMock()
+    v1_instance.api_client.create_cluster_custom_object=AsyncMock()
+    v1_instance.api_client.get_cluster_custom_object=AsyncMock(return_value={
+        "metadata": {
+            "annotations": {}
+        }
+    })
+    return v1_instance
+
+@fixture
+def v1_crd_mock(mocker, mock_args_crd):
+    return mocker.patch(
+        "app.models.task.KubernetesCRDClient.create",
+        return_value=mock_args_crd
+    )
+
+
+@fixture
+def k8s_client(v1_mock, v1_batch_mock) -> dict:
     all_clients = {}
-    all_clients.update(v1_mock)
-    all_clients.update(v1_batch_mock)
-    all_clients["read_namespaced_secret_mock"].return_value.data = {
-        "PGUSER": "YWJjMTIz",
-        "PGPASSWORD": "YWJjMTIz",
-        "USER": "YWJjMTIz",
-        "TOKEN": "YWJjMTIz"
-    }
-    all_clients["list_namespaced_pod_mock"].return_value = pod_listed
-    all_clients["list_namespaced_secret_mock"].return_value = secret_listed
+    all_clients.update({"v1": v1_mock})
+    all_clients.update({"v1_batch": v1_batch_mock})
     return all_clients
 
 @fixture
@@ -300,30 +344,25 @@ def dockerconfigjson_mock() -> dict[str, str]:
         ".dockerconfigjson": base64.b64encode(json.dumps(contents).encode()).decode()
     }
 
-@fixture
-def reg_k8s_client(k8s_client, dockerconfigjson_mock):
-    k8s_client["read_namespaced_secret_mock"].return_value.data.update(dockerconfigjson_mock)
-    return k8s_client
-
 # Dataset Mocking
 @fixture
 def dataset_post_body():
     return deepcopy(sample_ds_body)
 
 @fixture
-async def dataset(db_session, client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
+async def dataset(db_session) -> Dataset:
     dataset = Dataset(name="testds", host="example.com")
     await dataset.add(db_session)
     return dataset
 
 @fixture
-async def dataset_with_repo(db_session, client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
+async def dataset_with_repo(db_session) -> Dataset:
     dataset = Dataset(name="testdsrepo", host="example.com", repository="organisation/repository")
     await dataset.add(db_session)
     return dataset
 
 @fixture
-async def dataset_oracle(db_session, mocker, client, user_uuid, k8s_client)  -> Dataset:
+async def dataset_oracle(db_session, mocker)  -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
     dataset = Dataset(name="anotherds", host="example.com", password='pass', username='user', type="oracle")
     await dataset.add(db_session)

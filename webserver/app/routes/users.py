@@ -7,7 +7,7 @@ user-related endpoints:
 from http import HTTPStatus
 from fastapi import APIRouter, Depends, Request
 from typing import Any
-from sqlalchemy.orm import Session as DBSession
+from sqlalchemy.ext.asyncio import AsyncSession as DBSession
 
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.keycloak import KEYCLOAK_ADMIN, Keycloak

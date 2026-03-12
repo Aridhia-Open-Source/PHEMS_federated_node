@@ -1,7 +1,8 @@
 from typing import Any
 
+from fastapi import Request
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.container import Container
 from app.models.task import Task
@@ -14,11 +15,12 @@ from app.models.request import RequestModel
 
 class TaskService:
     @staticmethod
-    async def add(session: Session, data: TaskCreate, dry_run:bool = False) -> Task:
+    async def add(session: AsyncSession, request:Request, data: TaskCreate, dry_run:bool = False) -> Task:
         kc_client = Keycloak()
-        user_token = Keycloak.get_token_from_headers()
+        user_token = Keycloak.get_token_from_headers(request)
+        decoded_token = kc_client.decode_token(user_token)
 
-        user = kc_client.get_user_by_id(data.requested_by)
+        user = kc_client.get_user_by_email(decoded_token["email"])
         task_definition: dict[str, Any] = data.model_dump()
         if data.repository:
             ds: Dataset | None = (await session.execute(
@@ -46,6 +48,7 @@ class TaskService:
         image: str | Container = await Task.get_image_with_repo(session, data.docker_image, string_only=False)
         task_definition["docker_image"] = image.full_image_name()
         task_definition["regcred_secret"] = image.registry.slugify_name()
+        task_definition["requested_by"] = user["id"]
         task = Task(**task_definition)
         if not dry_run:
             await task.add(session)

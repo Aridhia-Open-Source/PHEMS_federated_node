@@ -14,6 +14,7 @@ class TestDictionaries(MixinTestDataset):
             self,
             client,
             dataset,
+            v1_ds_mock,
             dataset_post_body,
             post_json_admin_header,
             simple_admin_header
@@ -38,6 +39,7 @@ class TestDictionaries(MixinTestDataset):
             client,
             dataset_post_body,
             post_json_admin_header,
+            v1_ds_mock,
             dataset
         ):
         """
@@ -60,6 +62,7 @@ class TestDictionaries(MixinTestDataset):
             self,
             client,
             dataset,
+            v1_ds_mock,
             dataset_post_body,
             post_json_admin_header,
             simple_admin_header
@@ -84,7 +87,8 @@ class TestDictionaries(MixinTestDataset):
             client,
             dataset_post_body,
             post_json_admin_header,
-            dataset
+            dataset,
+            v1_ds_mock,
         ):
         """
         Tests that sending PUT /dataset updates the dictionaries
@@ -116,6 +120,7 @@ class TestDictionaries(MixinTestDataset):
             client,
             dataset_post_body,
             post_json_admin_header,
+            v1_ds_mock,
             dataset
         ):
         """
@@ -149,6 +154,7 @@ class TestDictionaries(MixinTestDataset):
             client,
             dataset_post_body,
             post_json_admin_header,
+            v1_ds_mock,
             dataset
         ):
         """
@@ -178,6 +184,7 @@ class TestDictionaries(MixinTestDataset):
             client,
             dataset_post_body,
             post_json_admin_header,
+            v1_ds_mock,
             dataset
         ):
         """
@@ -207,6 +214,7 @@ class TestDictionaries(MixinTestDataset):
             self,
             client,
             dataset,
+            v1_ds_mock,
             dataset_post_body,
             post_json_admin_header,
             simple_user_header,
@@ -237,6 +245,7 @@ class TestDictionaryTable(MixinTestDataset):
             self,
             client,
             dataset,
+            v1_ds_mock,
             dataset_post_body,
             post_json_admin_header,
             simple_admin_header
@@ -259,6 +268,7 @@ class TestDictionaryTable(MixinTestDataset):
             self,
             client,
             dataset,
+            v1_ds_mock,
             simple_admin_header,
             post_json_admin_header,
             dataset_post_body
@@ -281,6 +291,7 @@ class TestDictionaryTable(MixinTestDataset):
             self,
             client,
             dataset,
+            v1_ds_mock,
             simple_admin_header
     ):
         """
@@ -298,6 +309,7 @@ class TestDictionaryTable(MixinTestDataset):
             self,
             client,
             dataset,
+            v1_ds_mock,
             dataset_post_body,
             post_json_admin_header,
             simple_user_header,

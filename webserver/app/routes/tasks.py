@@ -15,9 +15,7 @@ from http import HTTPStatus
 from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
-from requests import Session
-from sqlalchemy import update
-from sqlalchemy.orm import Session as DBSession
+from sqlalchemy.ext.asyncio import AsyncSession as DBSession
 
 from app.helpers.const import CLEANUP_AFTER_DAYS, PUBLIC_URL, TASK_REVIEW
 from app.helpers.exceptions import (
@@ -70,7 +68,7 @@ async def get_service_info(request: Request) -> dict[str, str]:
 async def get_tasks(
     request: Request,
     params: Annotated[TaskFilters, Query()],
-    session: Session = Depends(get_db)
+    session: DBSession = Depends(get_db)
 ) -> dict[str, Any]:
     """
     GET /tasks endpoint. Gets the list of tasks
@@ -89,7 +87,7 @@ async def get_task_id(
     """
     GET /tasks/id endpoint. Gets a single task
     """
-    task = await Task.get_by_id(session, task_id)
+    task: Task = await Task.get_by_id(session, task_id, for_api=True)
     if not task:
         raise DBRecordNotFoundError(f"Task {task_id} not found")
 
@@ -108,23 +106,22 @@ async def cancel_tasks(
     """
     POST /tasks/id/cancel endpoint. Cancels a task either scheduled or running one
     """
-    task = await Task.get_by_id(session, task_id)
+    task: Task = await Task.get_by_id(session, task_id)
     if not task:
         raise DBRecordNotFoundError("Task not found")
 
     await does_user_own_task(request, task)
 
     # Should remove pod/stop ML pipeline
-    task.terminate_pod()
+    await task.terminate_pod(session)
     return TaskRead.model_validate(task).model_dump()
 
 
 @router.post(
         '',
         status_code=HTTPStatus.CREATED,
-        dependencies=[Depends(Auth("can_exec_admin"))],
+        dependencies=[Depends(Auth("can_exec_task"))],
     )
-
 @audit
 async def post_tasks(
     body: TaskCreate,
@@ -135,9 +132,9 @@ async def post_tasks(
     POST /tasks endpoint. Creates a new task
     """
     try:
-        task = await TaskService.add(session, data=body)
+        task: Task = await TaskService.add(session, request, data=body)
         # Create pod/start ML pipeline
-        task.run()
+        await task.run()
         return TaskRead.model_validate(task).model_dump()
     except:
         await session.rollback()
@@ -155,11 +152,11 @@ async def post_tasks_validate(
     POST /tasks/validate endpoint.
         Allows task definition validation and the DB query that will be used
     """
-    await TaskService.add(session, data=body, dry_run=True)
+    await TaskService.add(session, request, data=body, dry_run=True)
     return "Ok"
 
 
-@router.get('/{task_id}/results', dependencies=[Depends(Auth("can_exectask"))])
+@router.get('/{task_id}/results', dependencies=[Depends(Auth("can_exec_task"))])
 @audit
 async def get_task_results(
     task_id:int,
@@ -178,7 +175,7 @@ async def get_task_results(
     await does_user_own_task(request, task)
 
     kc_client = Keycloak()
-    token = kc_client.get_token_from_headers()
+    token = kc_client.get_token_from_headers(request)
     # admin should be able to fetch them regardless
     if TASK_REVIEW and not task.review_status and not kc_client.is_user_admin(token):
         return JSONResponse(
@@ -192,7 +189,7 @@ async def get_task_results(
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR
         )
 
-    results_file = task.get_results()
+    results_file: str = await task.get_results()
     return FileResponse(results_file, filename=f"{PUBLIC_URL}-{task_id}-results.zip", status_code=HTTPStatus.OK)
 
 
@@ -212,7 +209,7 @@ async def get_tasks_logs(
 
     await does_user_own_task(request, task)
 
-    return {"logs": task.get_logs()}
+    return {"logs": await task.get_logs()}
 
 
 @router.post(
@@ -239,8 +236,8 @@ async def approve_results(
         raise InvalidRequest("Task has been already reviewed")
 
     # Also update the CRD if needed
-    if task.get_task_crd():
-        task.update_task_crd(True)
+    if await task.get_task_crd():
+        await task.update_task_crd(True)
 
     await task.update(session, {"review_status": True})
 
@@ -271,8 +268,8 @@ async def block_results(
         raise InvalidRequest("Task has been already reviewed")
 
     # Also update the CRD if needed
-    if task.get_task_crd():
-        task.update_task_crd(False)
+    if await task.get_task_crd():
+        await task.update_task_crd(False)
 
     await task.update(session, {"review_status": False})
 

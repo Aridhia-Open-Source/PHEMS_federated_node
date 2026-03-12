@@ -1,5 +1,5 @@
 import os
-from kubernetes.client import (
+from kubernetes_asyncio.client import (
     V1Pod, V1PersistentVolumeClaimVolumeSource,
     V1VolumeMount, V1Container,
     V1LocalObjectReference, V1PodSpec,
@@ -183,14 +183,15 @@ class TaskPod:
             init_containers.append(data_init)
         return init_containers
 
-    def create_pod_spec(self):
+    async def create_pod_spec(self) -> V1Pod:
         """
         Given a dictionary with a pod config deconstruct it
         and assemble it with the different sdk objects
         """
         # Create a dedicated VPC for each task so that we can keep results indefinitely
         self.create_storage_specs()
-        KubernetesClient().create_persistent_storage(self.pv, self.pvc)
+        v1: KubernetesClient = await KubernetesClient.create()
+        await v1.create_persistent_storage(self.pv, self.pvc)
         pvc_name = f"{self.name}-volclaim"
         pvc = V1PersistentVolumeClaimVolumeSource(claim_name=pvc_name)
 
@@ -222,7 +223,7 @@ class TaskPod:
             self.env_init.append(V1EnvVar(name="FROM_DIALECT", value=self.db_query["dialect"]))
             self.env_init.append(V1EnvVar(name="TO_DIALECT", value=self.dataset.type))
 
-        self.env.append(V1EnvVar(name="CONNECTION_STRING", value=self.dataset.get_connection_string()))
+        self.env.append(V1EnvVar(name="CONNECTION_STRING", value=await self.dataset.get_connection_string()))
         self.env.append(V1EnvVar(name="CDM_SCHEMA", value=self.dataset.schema_read))
         self.env.append(V1EnvVar(name="WRITE_SCHEMA", value=self.dataset.schema_write))
         self.env.append(V1EnvVar(name="ORACLE_SID", value=self.dataset.name))
@@ -238,7 +239,7 @@ class TaskPod:
         if self.command:
             container.command = self.command
 
-        secrets = [V1LocalObjectReference(name=self.regcred_secret)]
+        secrets: list[V1LocalObjectReference] = [V1LocalObjectReference(name=self.regcred_secret)]
 
         specs = V1PodSpec(
             termination_grace_period_seconds=300,

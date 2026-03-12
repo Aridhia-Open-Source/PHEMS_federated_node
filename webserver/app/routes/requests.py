@@ -8,7 +8,7 @@ from http import HTTPStatus
 import json
 from typing import Any
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy.orm import Session as DBSession
+from sqlalchemy.ext.asyncio import AsyncSession as DBSession
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.wrappers import Auth, audit
 from app.helpers.base_model import get_db

@@ -15,7 +15,7 @@ from http import HTTPStatus
 from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session as DBSession
+from sqlalchemy.ext.asyncio import AsyncSession as DBSession
 from sqlalchemy import func, select
 
 from app.schemas.selection import BeaconPost
@@ -75,7 +75,7 @@ async def post_datasets(
     """
     POST /datasets endpoint. Creates a new dataset
     """
-    dataset: Dataset = await DatasetService.add(session, body)
+    dataset: Dataset = await DatasetService.add(session, request, body)
     return DatasetRead.model_validate(dataset).model_dump()
 
 
@@ -287,7 +287,7 @@ async def select_beacon(body: BeaconPost, request: Request, session: DBSession =
     """
     dataset: Dataset = await Dataset.get_by_id(session, body.dataset_id)
 
-    if validate(body.query, dataset):
+    if await validate(body.query, dataset):
         return JSONResponse({
             "query": body.query,
             "result": "Ok"

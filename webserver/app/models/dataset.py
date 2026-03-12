@@ -8,7 +8,7 @@ from app.helpers.base_model import BaseModel
 from app.helpers.const import DEFAULT_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
-from kubernetes.client import ApiException, V1Secret
+from kubernetes_asyncio.client import ApiException, V1Secret
 
 from app.helpers.connection_string import Mssql, Postgres, Mysql, Oracle, MariaDB
 
@@ -59,9 +59,9 @@ class Dataset(BaseModel):
     async def delete(self, session: AsyncSession) -> NoReturn:
         async with session.begin_nested() as nested:
             await super().delete(session, False)
-            v1 = KubernetesClient()
+            v1: KubernetesClient = await KubernetesClient.create()
             try:
-                v1.delete_namespaced_secret(self.get_creds_secret_name(), DEFAULT_NAMESPACE)
+                await v1.api_client.delete_namespaced_secret(self.get_creds_secret_name(), DEFAULT_NAMESPACE)
             except ApiException as apie:
                 if apie.status != 404:
                     await nested.rollback()
@@ -83,11 +83,11 @@ class Dataset(BaseModel):
         cleaned_up_host = re.sub('http(s)*://', '', host)
         return f"{cleaned_up_host}-{re.sub('\\s|_|#', '-', name.lower())}-creds"
 
-    def get_connection_string(self):
+    async def get_connection_string(self):
         """
         From the helper classes, return the correct connection string
         """
-        un, passw = self.get_credentials()
+        un, passw = await self.get_credentials()
         return SUPPORTED_ENGINES[self.type](
             user=un,
             passw=passw,
@@ -97,13 +97,13 @@ class Dataset(BaseModel):
             args=self.extra_connection_args
         ).connection_str
 
-    def get_credentials(self) -> tuple:
+    async def get_credentials(self) -> tuple:
         """
         Mostly used to create a direct connection to the DB, i.e. /beacon endpoint
         This is not involved in the Task Execution Service
         """
-        v1 = KubernetesClient()
-        secret:V1Secret = v1.read_namespaced_secret(
+        v1: KubernetesClient = await KubernetesClient.create()
+        secret:V1Secret = await v1.api_client.read_namespaced_secret(
             self.get_creds_secret_name(), DEFAULT_NAMESPACE, pretty='pretty'
         )
         # Doesn't matter which key it's being picked up, the value it's the same

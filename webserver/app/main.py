@@ -7,6 +7,7 @@ All general configs are taken care in here:
 """
 import logging
 import traceback
+from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import exc
@@ -15,13 +16,10 @@ from werkzeug.exceptions import HTTPException
 from app.helpers.exceptions import LogAndException
 from app.helpers.base_model import SessionLocal
 
-from fastapi import FastAPI
-
 
 logging.basicConfig(level=logging.WARN)
-logger = logging.getLogger('main')
+logger: logging.Logger = logging.getLogger('main')
 logger.setLevel(logging.INFO)
-
 
 app = FastAPI()
 

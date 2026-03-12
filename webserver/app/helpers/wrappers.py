@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import Depends, Header, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError
 from app.helpers.keycloak import Keycloak
@@ -27,7 +27,7 @@ class Auth:
     async def __call__(self,
                        dataset_id: int|None = None,
                        dataset_name: str|None = None,
-                       session: Session = Depends(get_db),
+                       session: AsyncSession = Depends(get_db),
                        Authorization: Annotated[str | None, Header()] = None,
                        project_name: Annotated[str | None, Header()] = None
             ) -> dict:
@@ -80,8 +80,8 @@ def audit(func):
     @wraps(func)
     async def _audit(*args, **kwargs):
         request: Request = kwargs.get("request")
-        session: Request = kwargs.get("session")
-        body: Session = kwargs.get("body", "No body")
+        session: AsyncSession = kwargs.get("session")
+        body: dict = kwargs.get("body", "No body")
         if isinstance(body, BaseModel):
             body = body.model_dump()
 

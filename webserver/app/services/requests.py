@@ -1,5 +1,5 @@
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.requests import TransferTokenBody
 from app.models.request import RequestModel
@@ -9,7 +9,7 @@ from app.helpers.exceptions import InvalidRequest
 
 class RequestService:
     @staticmethod
-    async def add(session: Session, data: TransferTokenBody) -> RequestModel:
+    async def add(session: AsyncSession, data: TransferTokenBody) -> RequestModel:
         request_content = data.model_dump(exclude_unset=True, exclude_none=True)
 
         request_content["dataset"] = await Dataset.get_dataset_by_name_or_id(

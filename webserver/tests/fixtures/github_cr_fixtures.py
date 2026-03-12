@@ -1,9 +1,11 @@
 from pytest_asyncio import fixture
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 from app.helpers.container_registries import GitHubRegistry
 from app.models.container import Container
 from app.models.registry import Registry
+
+from .common_registry_fixtures import *
 
 
 GH_CLASS = 'app.models.registry.GitHubClient'
@@ -21,7 +23,7 @@ def registry_client(mocker):
     )
 
 @fixture
-def cr_client(mocker, reg_k8s_client):
+def cr_client(mocker, registry_secret_mock):
     return mocker.patch(
         'app.helpers.container_registries.GitHubClient',
         return_value=Mock(
@@ -39,12 +41,12 @@ def cr_client_404(mocker):
         GH_CLASS,
         return_value=Mock(
             login=Mock(return_value="access_token"),
-            has_image_tag_or_sha=Mock(return_value=False)
+            has_image_tag_or_sha=AsyncMock(return_value=False)
         )
     )
 
 @fixture
-async def registry(client, reg_k8s_client, cr_name, db_session) -> Registry:
+async def registry(client, registry_secret_mock, cr_name, db_session) -> Registry:
     reg = Registry(url=cr_name, username='', password='')
     await reg.add(db_session)
     return reg

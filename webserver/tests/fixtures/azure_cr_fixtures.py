@@ -1,11 +1,13 @@
 from  pytest_asyncio import fixture
 import responses
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 from app.helpers.keycloak import KEYCLOAK_URL
 from app.helpers.container_registries import AzureRegistry
 from app.models.container import Container
 from app.models.registry import Registry
+
+from .common_registry_fixtures import *
 
 
 @fixture
@@ -31,7 +33,7 @@ def expected_digest_list():
 def registry_client(mocker):
     mocker.patch(
         'app.models.registry.AzureRegistry',
-        return_value=Mock()
+        return_value=AsyncMock()
     )
 
 @fixture
@@ -77,7 +79,7 @@ def tags_request(azure_login_request, expected_tags_list, expected_digest_list, 
     yield azure_login_request
 
 @fixture
-def cr_client(mocker, reg_k8s_client):
+def cr_client(mocker, registry_secret_mock):
     return mocker.patch(
         'app.helpers.container_registries.AzureRegistry',
         return_value=Mock(
@@ -92,7 +94,7 @@ def cr_client_404(mocker):
         'app.models.registry.AzureRegistry',
         return_value=Mock(
             login=Mock(return_value="access_token"),
-            has_image_tag_or_sha=Mock(return_value=False)
+            has_image_tag_or_sha=AsyncMock(return_value=False)
         )
     )
 
@@ -108,7 +110,7 @@ def cr_class(mocker, cr_name):
         return AzureRegistry(cr_name, creds={"user": "", "token": ""})
 
 @fixture
-async def registry(client, reg_k8s_client, k8s_client, cr_name, azure_login_request, db_session) -> Registry:
+async def registry(client, registry_secret_mock, k8s_client, cr_name, azure_login_request, db_session) -> Registry:
     reg = Registry(url=cr_name, username='', password='')
     await reg.add(db_session)
     return reg
