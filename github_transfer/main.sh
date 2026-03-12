@@ -5,6 +5,7 @@ required_vars=(
   GH_OWNER
   GH_REPO
   GH_TOKEN
+  GH_BASE_BRANCH
   GH_RESULTS_DIR
   MNT_BASE_PATH
   PARENT_RUN_ID
@@ -62,16 +63,19 @@ gh repo clone "${GH_REPO_URI_PATH}" "${CLONE_TARGET_DIR}" -- --depth=1
 
   git add .
 
-  # FIXME: does not work due to new run_id (need to decide desired behaviour)
-  # if git diff --cached --quiet; then
-  #   echo "ERROR: No changes detected to commit."
-  #   exit 1
-  # fi
-
   git commit -m "PR${PR_NUMBER} - ${PARENT_RUN_ID} - results"
   git push --set-upstream origin "${BRANCH}"
 
   echo "Results branch pushed successfully"
+
+  echo "Creating pull request"
+
+  gh pr create \
+    --repo "${GH_REPO_URI_PATH}" \
+    --head "${BRANCH}" \
+    --base "${GH_BASE_BRANCH}" \
+    --title "PR${PR_NUMBER} - ${PARENT_RUN_ID} - results" \
+    --body "Automated results for PR #${PR_NUMBER}, run ${PARENT_RUN_ID}"
 )
 
 rm -rf "${CLONE_TARGET_DIR}"
