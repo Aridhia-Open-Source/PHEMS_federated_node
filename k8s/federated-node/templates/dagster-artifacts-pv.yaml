@@ -8,6 +8,7 @@ spec:
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
+  {{ if .Values.storage.local }}
   local:
     path: {{ .Values.storage.local.artifacts }}
   nodeAffinity:
@@ -18,6 +19,23 @@ spec:
           operator: In
           values:
           - fn-control-plane
+  {{ else if .Values.storage.azure }}
+  azureFile:
+    shareName: {{ .Values.storage.azure.shareName }}
+    readOnly: false
+    secretName: {{ .Values.storage.azure.secretName | default "azure-storage-secret" }}
+  {{ else if .Values.storage.aws }}
+  csi:
+    driver: efs.csi.aws.com
+    volumeHandle: {{ include "awsStorageAccount" . }}
+  {{ else if .Values.storage.nfs }}
+  nfs:
+    server: {{ .Values.storage.nfs.url }}
+    path: {{ .Values.storage.nfs.path }}
+    readOnly: false
+  {{ end }}
+
+
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
