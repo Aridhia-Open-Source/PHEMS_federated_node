@@ -18,7 +18,7 @@ class RegistryService:
 
         reg = Registry(**reg_data)
         _class: BaseRegistry = await reg.get_registry_class()
-        _class.login()
+        await _class.login()
         try:
             await reg.update_regcred()
             await reg.add(session, False)

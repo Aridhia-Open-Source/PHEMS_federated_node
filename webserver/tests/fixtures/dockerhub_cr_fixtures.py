@@ -24,15 +24,6 @@ def registry_client(mocker):
     )
 
 @fixture
-def cr_client(mocker, registry_secret_mock):
-    return mocker.patch(
-        'app.helpers.container_registries.DockerRegistry',
-        return_value=Mock(
-            login=Mock(return_value="access_token")
-        )
-    )
-
-@fixture
 def cr_client_404(mocker):
     mocker.patch(
         DOCKER_CLASS,
@@ -55,7 +46,7 @@ async def dockerhub_login_request(respx_mock):
 
 @fixture
 async def cr_class(client, cr_name, dockerhub_login_request) -> DockerRegistry:
-    return DockerRegistry(cr_name, creds={"user": "", "token": ""})
+    return await DockerRegistry.create(cr_name, creds={"user": "", "token": ""})
 
 @fixture
 async def registry(client, respx_mock, registry_secret_mock, dockerhub_login_request, cr_name, db_session) -> Registry:

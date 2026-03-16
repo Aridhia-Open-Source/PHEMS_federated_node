@@ -1,12 +1,10 @@
 from base64 import b64encode
 import httpx
-from typing import List
-import requests
+from typing import List, Self
 import logging
 from requests.exceptions import ConnectionError
 
 from app.helpers.exceptions import ContainerRegistryException
-from app.helpers.const import TASK_NAMESPACE
 
 
 logger = logging.getLogger('registries_handler')
@@ -27,6 +25,12 @@ class BaseRegistry:
     def __init__(self, registry:str, creds:dict={}):
         self.registry = registry
         self.creds = creds
+
+    @classmethod
+    async def create(cls, registry:str, creds:dict={}) -> Self:
+        instance: Self = cls(registry, creds)
+        await instance.login()
+        return instance
 
     async def list_repos(self) -> list[str]:
         """
@@ -50,7 +54,7 @@ class BaseRegistry:
             ) from ce
         return list_resp.json()
 
-    def login(self, image:str=None) -> str:
+    async def login(self, image:str=None) -> str:
         """
         Check that credentials are valid (if image is None)
             else, exchanges credentials for a token with the image or repo scope
@@ -58,8 +62,8 @@ class BaseRegistry:
         url = self.repo_login_url if image else  self.login_url
         try:
             # TODO: Find a way to make it async since we use it in a constructor
-            with httpx.Client() as requests:
-                response_auth: httpx.Response = requests.get(
+            async with httpx.AsyncClient() as requests:
+                response_auth: httpx.Response = await requests.get(
                     url % self.get_url_string_params(image_name=image),
                     **self.request_args
                 )
@@ -68,7 +72,7 @@ class BaseRegistry:
                 logger.info(response_auth.text)
                 raise ContainerRegistryException("Could not authenticate against the registry", 400)
 
-            return response_auth.json()[self.token_field]
+            self._token = response_auth.json()[self.token_field]
         except ConnectionError as ce:
             raise ContainerRegistryException(
                 "Failed to connect with the Registry. Make sure it's spelled correctly"
@@ -90,14 +94,12 @@ class BaseRegistry:
         return True.
         This should work on any docker Registry v2 as it's a standard
         """
-        token = self.login(image)
-
         try:
             async with httpx.AsyncClient() as requests:
                 response_metadata: httpx.Response = await requests.get(
                     self.tags_url % self.get_url_string_params(image_name=image),
                     params=self.list_req_params,
-                    headers={"Authorization": f"Bearer {token}"}
+                    headers={"Authorization": f"Bearer {self._token}"}
                 )
             if response_metadata.is_error:
                 logger.info(response_metadata.text)
@@ -131,22 +133,20 @@ class AzureRegistry(BaseRegistry):
     token_field = "access_token"
     list_req_params = {"n": 100}
 
-    def __init__(self, registry:str, creds:dict={}):
-        super().__init__(registry, creds)
-
-        self.auth = b64encode(f"{self.creds['user']}:{self.creds['token']}".encode()).decode()
-        self.request_args["headers"] = {"Authorization": f"Basic {self.auth}"}
-        self._token = self.login()
+    @classmethod
+    async def create(cls, registry:str, creds:dict={}) -> Self:
+        instance = await super().create(registry, creds)
+        instance.auth = b64encode(f"{creds['user']}:{creds['token']}".encode()).decode()
+        instance.request_args["headers"] = {"Authorization": f"Basic {instance.auth}"}
+        return instance
 
     async def get_image_digest(self, image:str, tag:str) -> dict[str, str]:
-        token = self.login(image)
-
         try:
             async with httpx.AsyncClient() as requests:
                 response_metadata = await requests.get(
                     self.digest_url % self.get_url_string_params(image_name=image) + tag,
                     headers={
-                        "Authorization": f"Bearer {token}",
+                        "Authorization": f"Bearer {self._token}",
                         "Accept": "application/vnd.docker.distribution.manifest.v2+json"
                     }
                 )
@@ -192,13 +192,18 @@ class DockerRegistry(BaseRegistry):
     list_repo_url = "https://hub.docker.com/v2/repositories/%(organization)s"
     token_field = "token"
 
-    def __init__(self, registry:str, creds:dict={}):
-        super().__init__(registry, creds)
+    @classmethod
+    async def create(cls, registry:str, creds:dict={}) -> Self:
+        instance = await super().create(registry, creds)
+        instance.auth = b64encode(f"{creds['user']}:{creds['token']}".encode()).decode()
+        instance.request_args["headers"] = {"Authorization": f"Basic {instance.auth}"}
 
-        self.organization = registry
-        self.request_args["auth"] = (self.creds['user'], self.creds['token'])
-        self.request_args["headers"] = {"Content-Type": "application/json"}
-        self._token = self.login()
+
+        instance.organization = registry
+        instance.request_args["auth"] = (creds['user'], creds['token'])
+        instance.request_args["headers"] = {"Content-Type": "application/json"}
+        await instance.login()
+        return instance
 
     async def get_image_tags(self, image:str) -> dict[str, str|List[str]]:
         tags_list = await super().get_image_tags(image)
@@ -222,7 +227,8 @@ class GitHubRegistry(BaseRegistry):
     list_repo_url = "https://api.github.com/orgs/%(organization)s/packages?package_type=container"
     list_req_params = {"page": 1, "per_page": 100}
 
-    def __init__(self, registry:str, creds:dict={}):
+    @classmethod
+    async def create(cls, registry:str, creds:dict={}) -> Self:
         destruct_reg = registry.split('/', maxsplit=1)
 
         # Remove empty strings
@@ -232,22 +238,22 @@ class GitHubRegistry(BaseRegistry):
         if len(destruct_reg) <= 1:
             raise ContainerRegistryException("For GitHub registry, provide the org name. i.e. ghcr.io/orgname")
 
-        super().__init__(registry, creds)
+        instance = await super().create(registry, creds)
 
-        self.request_args["headers"] = {}
-        self.organization = registry.split('/')[1]
-        self._token = self.login()
+        instance.request_args["headers"] = {}
+        instance.organization = registry.split('/')[1]
+        await instance.login()
+        return instance
 
-    def login(self, image:str=None) -> str:
+    async def login(self, image:str=None) -> str:
         logging.info("Auth on github skipped, an organization name is needed")
-        return self.creds['token']
+        self._token = self.creds['token']
 
     async def get_image_tags(self, image:str) -> dict[str, str|List[str]]:
         """
         Works as a list of available tags/sha. Limiting to only 100 tags per
         image
         """
-        token = self.login(image)
         tags_list = []
 
         try:
@@ -255,7 +261,7 @@ class GitHubRegistry(BaseRegistry):
                 response_metadata: httpx.Response = await requests.get(
                     self.tags_url % self.get_url_string_params(image_name=image),
                     params=self.list_req_params,
-                    headers={"Authorization": f"Bearer {token}"}
+                    headers={"Authorization": f"Bearer {self._token}"}
                 )
             if response_metadata.is_error:
                 logger.info(response_metadata.text)

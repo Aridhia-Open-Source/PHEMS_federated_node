@@ -11,7 +11,6 @@ class TestResourceValidators:
     async def test_valid_values(
             self,
             registry_client,
-            cr_client,
             task_body
         ):
         """
@@ -33,7 +32,6 @@ class TestResourceValidators:
     async def test_valid_values_exp(
             self,
             registry_client,
-            cr_client,
             task_body
         ):
         """
@@ -54,7 +52,6 @@ class TestResourceValidators:
     @mark.asyncio
     async def test_invalid_memory_values(
             self,
-            cr_client,
             registry_client,
             task_body
         ):
@@ -80,7 +77,6 @@ class TestResourceValidators:
     @mark.asyncio
     async def test_invalid_cpu_values(
             self,
-            cr_client,
             registry_client,
             task_body
         ):
@@ -107,7 +103,6 @@ class TestResourceValidators:
     @mark.asyncio
     async def test_mem_limit_lower_than_request_fails(
             self,
-            cr_client,
             registry_client,
             task_body
         ):
@@ -131,7 +126,6 @@ class TestResourceValidators:
     @mark.asyncio
     async def test_cpu_limit_lower_than_request_fails(
             self,
-            cr_client,
             registry_client,
             task_body
         ):

@@ -15,7 +15,10 @@ from werkzeug.exceptions import HTTPException
 
 from app.helpers.exceptions import LogAndException
 from app.helpers.base_model import SessionLocal
-
+from app.routes import (
+    general, admin, users, datasets, containers,
+    tasks, registries
+)
 
 logging.basicConfig(level=logging.WARN)
 logger: logging.Logger = logging.getLogger('main')
@@ -25,7 +28,7 @@ app = FastAPI()
 
 for excp in [LogAndException, HTTPException]:
     @app.exception_handler(excp)
-    async def exception_handler(request, e:LogAndException) -> JSONResponse:
+    async def exception_handler(_, e:LogAndException) -> JSONResponse:
         error_response = {"error": e.description}
         if getattr(e, "extra_fields", None):
             error_response["details"] = e.extra_fields
@@ -34,7 +37,7 @@ for excp in [LogAndException, HTTPException]:
 # Need to register the exception handler this way as we need access
 # to the db session
 @app.exception_handler(exc.IntegrityError)
-async def handle_db_exceptions(request, excp:exc.IntegrityError) -> JSONResponse:
+async def handle_db_exceptions(_, excp:exc.IntegrityError) -> JSONResponse:
     logging.error(excp)
     async with SessionLocal() as db:
         await db.rollback()
@@ -42,7 +45,7 @@ async def handle_db_exceptions(request, excp:exc.IntegrityError) -> JSONResponse
 
 @app.exception_handler(RequestValidationError)
 # Special case, just so we won't return stacktraces
-async def pydandic_validation_handler(request, e:RequestValidationError) -> JSONResponse:
+async def pydandic_validation_handler(_, e:RequestValidationError) -> JSONResponse:
     list_of_messages = []
     for err in e.errors():
         list_of_messages.append({
@@ -54,15 +57,12 @@ async def pydandic_validation_handler(request, e:RequestValidationError) -> JSON
 
 @app.exception_handler(Exception)
 # Special case, just so we won't return stacktraces
-async def unknown_exception_handler(request, e:Exception) -> JSONResponse:
+async def unknown_exception_handler(_, e:Exception) -> JSONResponse:
     logger.error("\n".join(traceback.format_exception(e)))
     async with SessionLocal() as db:
         await db.rollback()
     return JSONResponse({"error": "Internal Error"}, status_code=500)
 
-from app.routes import (
-    general, admin, users, datasets, containers, tasks, registries
-)
 app.include_router(admin.router)
 app.include_router(containers.router)
 app.include_router(datasets.router)

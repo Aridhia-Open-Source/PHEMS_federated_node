@@ -35,7 +35,7 @@ class TestAzureRegistry:
             )
         )
         with raises(ContainerRegistryException) as cre:
-            cr_class.login(container.name)
+            await cr_class.login(container.name)
         assert cre.value.description == "Could not authenticate against the registry"
 
     @mark.asyncio
@@ -141,7 +141,7 @@ class TestAzureRegistry:
             ]
         )
         with raises(ContainerRegistryException) as cre:
-            cr_class.login()
+            await cr_class.login()
         assert cre.value.description == "Failed to connect with the Registry. Make sure it's spelled correctly or it does not have firewall restrictions."
 
     @mark.asyncio

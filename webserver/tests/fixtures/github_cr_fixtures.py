@@ -23,17 +23,8 @@ def registry_client(mocker):
     )
 
 @fixture
-def cr_client(mocker, registry_secret_mock):
-    return mocker.patch(
-        'app.helpers.container_registries.GitHubClient',
-        return_value=Mock(
-            login=Mock(return_value="access_token"),
-        )
-    )
-
-@fixture
-def cr_class(cr_name) -> GitHubRegistry:
-    return GitHubRegistry(cr_name, creds={"user": "", "token": "sometoken"})
+async def cr_class(cr_name) -> GitHubRegistry:
+    return await GitHubRegistry.create(cr_name, creds={"user": "", "token": "sometoken"})
 
 @fixture
 def cr_client_404(mocker):

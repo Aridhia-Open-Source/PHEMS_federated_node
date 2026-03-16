@@ -1,6 +1,5 @@
 import base64
 import json
-import responses
 from pytest import mark, raises
 
 from tests.fixtures.dockerhub_cr_fixtures import *
@@ -45,7 +44,8 @@ class TestDockerRegistry:
             )
         )
         with raises(ContainerRegistryException) as cre:
-            DockerRegistry("registry", {"user": "", "token": ""}).login(image_name)
+            await DockerRegistry.create("registry", {"user": "", "token": ""})
+
         assert cre.value.description == "Could not authenticate against the registry"
 
     @mark.asyncio

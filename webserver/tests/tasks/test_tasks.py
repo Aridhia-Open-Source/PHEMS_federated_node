@@ -52,7 +52,6 @@ class TestGetTasks(BaseTest):
     @mark.asyncio
     async def test_get_task_by_id_admin(
             self,
-            cr_client,
             post_json_user_header,
             simple_admin_header,
             client,
@@ -131,7 +130,6 @@ class TestGetTasks(BaseTest):
     @mark.asyncio
     async def test_get_task_status_running_and_waiting(
             self,
-            cr_client,
             registry_client,
             running_state,
             waiting_state,
@@ -221,7 +219,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             v1_task_mock,
@@ -302,7 +299,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_no_db_query(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             v1_task_mock,
@@ -362,7 +358,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_invalid_output_field(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             registry_client,
@@ -385,7 +380,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_no_output_field_reverts_to_default(
             self,
-            cr_client,
             v1_task_mock,
             post_json_admin_header,
             client,
@@ -413,7 +407,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_with_ds_name(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             registry_client,
@@ -438,7 +431,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_with_ds_name_and_id(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             registry_client,
@@ -462,7 +454,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_with_conflicting_ds_name_and_id(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             dataset,
@@ -489,7 +480,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_with_non_existing_dataset(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             task_body,
@@ -513,7 +503,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_with_non_existing_dataset_name(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             dataset,
@@ -542,7 +531,6 @@ class TestPostTask(BaseTest):
     async def test_create_unauthorized_task(
             self,
             kc_valid_mock,
-            cr_client,
             post_json_user_header,
             dataset,
             client,
@@ -569,7 +557,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_image_with_digest(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             v1_task_mock,
@@ -597,7 +584,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_image_same_name_different_registry(
             self,
-            cr_client,
             v1_task_mock,
             registry_client,
             post_json_admin_header,
@@ -644,7 +630,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_inputs_not_default(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             registry_client,
@@ -676,7 +661,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_input_path_env_var_override(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             registry_client,
@@ -705,7 +689,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_invalid_output_field(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             registry_client,
@@ -728,7 +711,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_invalid_inputs_field(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             registry_client,
@@ -751,7 +733,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_no_output_field_reverts_to_default(
             self,
-            cr_client,
             v1_task_mock,
             post_json_admin_header,
             client,
@@ -779,7 +760,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_no_inputs_field_reverts_to_default(
             self,
-            cr_client,
             v1_task_mock,
             post_json_admin_header,
             client,
@@ -807,7 +787,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_controller_not_deployed_no_crd(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             registry_client,
@@ -831,7 +810,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_controller_deployed_create_crd(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             registry_client,
@@ -857,7 +835,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_create_task_from_controller(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             registry_client,
@@ -882,7 +859,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_task_dataset_with_repo(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             registry_client,
@@ -909,7 +885,6 @@ class TestPostTask(BaseTest):
     @mark.asyncio
     async def test_task_dataset_with_repo_unlinked(
             self,
-            cr_client,
             post_json_admin_header,
             client,
             registry_client,
@@ -939,7 +914,6 @@ class TestPostTask(BaseTest):
     async def test_task_schema_env_variables(
             self,
             task,
-            cr_client,
             v1_task_mock,
             registry_client,
             mock_args_k8s,
@@ -960,7 +934,6 @@ class TestPostTask(BaseTest):
     async def test_task_connection_string_postgres(
             self,
             task,
-            cr_client,
             v1_task_mock,
             registry_client,
             mock_args_k8s,
@@ -981,7 +954,6 @@ class TestPostTask(BaseTest):
     async def test_task_connection_string_oracle(
             self,
             task_oracle,
-            cr_client,
             v1_task_mock,
             registry_client,
             mock_args_k8s,
@@ -1042,7 +1014,6 @@ class TestValidateTask:
             self,
             client,
             task_body,
-            cr_client,
             registry_client,
             post_json_admin_header,
             mock_kc_client_task_service
@@ -1062,7 +1033,6 @@ class TestValidateTask:
             self,
             client,
             task_body,
-            cr_client,
             registry_client,
             post_json_admin_header,
             mock_kc_client_task_service
@@ -1085,7 +1055,6 @@ class TestValidateTask:
             self,
             client,
             task_body,
-            cr_client,
             registry_client,
             post_json_user_header: dict[str, str],
             access_request,

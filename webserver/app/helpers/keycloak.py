@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 import random
@@ -6,7 +5,6 @@ import re
 from typing import Self
 import httpx
 from fastapi import Request
-import requests
 from base64 import b64encode
 
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError

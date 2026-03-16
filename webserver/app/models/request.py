@@ -149,7 +149,7 @@ class RequestModel(BaseModel):
 
             logger.info("Updating DB")
             await self.update(
-                session, dict(status=self.STATUSES["approved"], requested_by=user["id"])
+                session, {"status":self.STATUSES["approved"], "requested_by": user["id"]}
             )
             await session.commit()
         except IntegrityError as exc:

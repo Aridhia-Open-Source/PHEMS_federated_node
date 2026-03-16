@@ -21,7 +21,7 @@ class TestGitHubRegistry:
         invalid_names = ["ghcr.io", "ghcr.io/", "/ghcr.io"]
         for name in invalid_names:
             with raises(ContainerRegistryException) as cre:
-                GitHubRegistry(registry=name)
+                await GitHubRegistry.create(registry=name)
             assert cre.value.description == "For GitHub registry, provide the org name. i.e. ghcr.io/orgname"
 
     @mark.asyncio

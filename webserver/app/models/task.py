@@ -2,7 +2,6 @@ import logging
 import json
 from datetime import datetime, timedelta
 from typing import Any, Literal, Self, Tuple
-from kubernetes_asyncio.client import V1CustomResourceDefinition
 from kubernetes_asyncio.client.exceptions import ApiException
 from kubernetes_asyncio.client.models.v1_container_state_terminated import V1ContainerStateTerminated
 from kubernetes_asyncio.client.models.v1_container_status import V1ContainerStatus
@@ -112,7 +111,7 @@ class Task(BaseModel):
             Container.name==image_name,
             Registry.url == registry,
         ).where(
-            (((Container.tag==tag) & (Container.tag != None)) | ((Container.sha==sha) & (Container.sha != None)))
+            (((Container.tag==tag) & (Container.tag is not None)) | ((Container.sha==sha) & (Container.sha is not None)))
         ).join(Registry)
         image:Container = (await session.execute(q)).scalars().one_or_none()
 
@@ -383,7 +382,6 @@ class Task(BaseModel):
         except ApiException as apie:
             if apie.status != 409:
                 raise TaskCRDExecutionException(apie.body, apie.status) from apie
-            pass
 
     def get_review_status(self) -> str:
         """

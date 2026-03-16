@@ -13,7 +13,6 @@ class TestTaskResults(BaseTest):
     @mark.asyncio
     async def test_get_results(
         self,
-        cr_client,
         registry_client,
         v1_batch_tasks_mock,
         simple_admin_header,
@@ -36,7 +35,6 @@ class TestTaskResults(BaseTest):
     @mark.asyncio
     async def test_get_results_job_creation_failure(
         self,
-        cr_client,
         registry_client,
         simple_admin_header,
         client,

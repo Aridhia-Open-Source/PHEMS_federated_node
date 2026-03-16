@@ -31,9 +31,9 @@ def expected_digest_list():
     return "sha256:c1e51a68c68a448a"
 
 @fixture
-def registry_client(mocker):
+async def registry_client(mocker):
     mocker.patch(
-        'app.models.registry.AzureRegistry',
+        'app.models.registry.AzureRegistry.create',
         return_value=AsyncMock()
     )
 
@@ -94,27 +94,17 @@ def tags_request(respx_mock, azure_login_request, expected_tags_list, expected_d
         )
 
 @fixture
-def cr_client(mocker, registry_secret_mock):
-    return mocker.patch(
-        'app.helpers.container_registries.AzureRegistry',
-        return_value=Mock(
-            login=Mock(return_value="access_token"),
-            get_image_tags=Mock(return_value=["0.1.2", "1.0.0"])
-        )
-    )
-
-@fixture
 def cr_client_404(mocker):
     mocker.patch(
-        'app.models.registry.AzureRegistry',
-        return_value=Mock(
-            login=Mock(return_value="access_token"),
+        'app.models.registry.AzureRegistry.create',
+        return_value=AsyncMock(
+            login=AsyncMock(return_value="access_token"),
             has_image_tag_or_sha=AsyncMock(return_value=False)
         )
     )
 
 @fixture
-async def cr_class(respx_mock, cr_name):
+async def cr_class(respx_mock, cr_name) -> AzureRegistry:
     respx_mock.get(
         f"https://{cr_name}/oauth2/token",
         params={
@@ -127,7 +117,7 @@ async def cr_class(respx_mock, cr_name):
             status_code=200
         )
     )
-    return AzureRegistry(cr_name, creds={"user": "", "token": ""})
+    return await AzureRegistry.create(cr_name, creds={"user": "", "token": ""})
 
 @fixture
 async def registry(client, registry_secret_mock, k8s_client, cr_name, azure_login_request, db_session) -> Registry:

@@ -40,7 +40,6 @@ class TestGetContainers(ContainersMixin):
     async def test_docker_image_regex(
         self,
         container_body,
-        cr_client,
         registry_client,
         mocker,
         client
@@ -385,7 +384,6 @@ class TestSync(BaseTest):
         self,
         client,
         post_json_admin_header,
-        cr_client,
         tags_request,
         registry,
         expected_image_names,
