@@ -34,10 +34,10 @@ async def create_user(
     if body.username is None:
         body.username = body.email
 
-    kc = Keycloak()
-    if kc.get_user_by_email(email=body.email):
+    kc: Keycloak = await Keycloak.create()
+    if await kc.get_user_by_email(email=body.email):
         raise InvalidRequest("User already exists")
-    user_info = kc.create_user(set_temp_pass=True, **body.model_dump())
+    user_info = await kc.create_user(set_temp_pass=True, **body.model_dump())
 
     return {
         "email": body.email,
@@ -62,9 +62,9 @@ async def reset_password(
         API, so we can change the credentials and make sure
         there are no pending action to undertake
     """
-    kc = Keycloak()
-    user = kc.get_user_by_email(email=body.email)
-    kc.reset_user_pass(
+    kc: Keycloak = await Keycloak.create()
+    user = await kc.get_user_by_email(email=body.email)
+    await kc.reset_user_pass(
         user_id=user["id"], username=user["username"],
         old_pass=body.temp_password,
         new_pass=body.new_password
@@ -85,14 +85,14 @@ async def get_users_list(
     GET /users/ endpoint. This is a simplified version
     of what keycloak returns as a user list.
     """
-    kc = Keycloak()
-    ls_users = kc.list_users()
+    kc = await Keycloak.create()
+    ls_users = await kc.list_users()
     normalised_list = [{
             "username": user["username"],
             "email": user["email"],
             "firstName": user.get("firstName", ''),
             "lastName": user.get("lastName", ''),
-            "role": kc.get_user_role(user["id"]),
+            "role": await kc.get_user_role(user["id"]),
             "needs_to_reset_password": user.get("requiredActions", []) != []
         } for user in ls_users if user["username"] != KEYCLOAK_ADMIN
     ]

@@ -8,7 +8,8 @@ from app.models.audit import Audit
 async def test_filter_by_date(
         client,
         simple_admin_header,
-        db_session
+        db_session,
+        mock_kc_client_general_route
 ):
     """
     Testing the efficacy of filtering by date fields

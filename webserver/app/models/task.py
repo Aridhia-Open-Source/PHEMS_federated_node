@@ -350,6 +350,7 @@ class Task(BaseModel):
         if not TASK_CONTROLLER:
             return
 
+        kc_client: Keycloak = await Keycloak.create()
         crd_client: KubernetesCRDClient = await KubernetesCRDClient.create()
         try:
             await crd_client.api_client.create_cluster_custom_object(
@@ -374,7 +375,7 @@ class Task(BaseModel):
                         },
                         "user": {
                             "idpId": "",
-                            "username": Keycloak().get_user_by_id(self.requested_by)["username"]
+                            "username": (await kc_client.get_user_by_id(self.requested_by))["username"]
                         }
                     }
                 }

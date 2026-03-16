@@ -16,7 +16,8 @@ class TestGetRegistriesApi(BaseTest):
         self,
         registry,
         client,
-        simple_admin_header
+        simple_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Basic test for the GET /registries endpoint
@@ -41,13 +42,14 @@ class TestGetRegistriesApi(BaseTest):
         client,
         simple_user_header,
         v1_registry_mock,
-        mock_kc_client
+        mock_kc_client_wrapper,
+        base_kc_mock_args
     ):
         """
         Basic test for the GET /registries endpoint
         ensuring only admins can get information
         """
-        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
+        base_kc_mock_args.is_token_valid.return_value = False
         resp = await client.get(
             "/registries",
             headers=simple_user_header
@@ -59,7 +61,7 @@ class TestGetRegistriesApi(BaseTest):
         self,
         registry,
         client,
-        mock_kc_client
+        mock_kc_client_wrapper
     ):
         """
         Basic test for the GET /registries endpoint
@@ -73,7 +75,8 @@ class TestGetRegistriesApi(BaseTest):
         self,
         registry,
         client,
-        simple_admin_header
+        simple_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Basic test to check that the registry
@@ -97,7 +100,8 @@ class TestGetRegistriesApi(BaseTest):
         self,
         registry,
         client,
-        simple_admin_header
+        simple_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Basic test that a 404 is return with an
@@ -116,13 +120,14 @@ class TestGetRegistriesApi(BaseTest):
         registry,
         client,
         simple_user_header,
-        mock_kc_client
+        mock_kc_client_wrapper,
+        base_kc_mock_args
     ):
         """
         Basic test to ensure only admins can browse
         by registry id
         """
-        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
+        base_kc_mock_args.is_token_valid.return_value = False
         resp = await client.get(
             f"registries/{registry.id}",
             headers=simple_user_header
@@ -138,7 +143,9 @@ class TestPostRegistriesApi(BaseTest):
         post_json_admin_header,
         v1_registry_mock,
         dockerconfigjson_mock,
-        v1_ds_mock
+        v1_ds_mock,
+        respx_mock,
+        mock_kc_client_wrapper
     ):
         """
         Basic POST request
@@ -146,52 +153,61 @@ class TestPostRegistriesApi(BaseTest):
         v1_registry_mock.api_client.read_namespaced_secret.return_value = Mock(data=dockerconfigjson_mock)
         new_registry = "shiny.azurecr.io"
 
-        with responses.RequestsMock() as rsps:
-            rsps.add_passthru(KEYCLOAK_URL)
-            rsps.add(
-                responses.GET,
-                f"https://{new_registry}/oauth2/token?service={new_registry}&scope=registry:catalog:*",
+        respx_mock.get(
+            f"https://{new_registry}/oauth2/token",
+            params={
+                "service": new_registry,
+                "scope": "registry:catalog:*"
+            }
+        ).mock(
+            return_value=httpx.Response(
                 json={"access_token": "12jio12buds89"},
-                status=200
+                status_code=200
             )
-            resp = await client.post(
-                "/registries",
-                json={
-                    "url": new_registry,
-                    "username": "blabla",
-                    "password": "secret"
-                },
-                headers=post_json_admin_header
-            )
+        )
+        resp = await client.post(
+            "/registries",
+            json={
+                "url": new_registry,
+                "username": "blabla",
+                "password": "secret"
+            },
+            headers=post_json_admin_header
+        )
         assert resp.status_code == 201
 
     @mark.asyncio
     async def test_create_registry_incorrect_creds(
         self,
         client,
-        post_json_admin_header
+        post_json_admin_header,
+        respx_mock,
+        mock_kc_client_wrapper
     ):
         """
         Basic POST request with incorrect credentials
         """
         new_registry = "shiny.azurecr.io"
-        with responses.RequestsMock() as rsps:
-            rsps.add_passthru(KEYCLOAK_URL)
-            rsps.add(
-                responses.GET,
-                f"https://{new_registry}/oauth2/token?service={new_registry}&scope=registry:catalog:*",
-                json={"error": "Invalid credentials"},
-                status=401
+        respx_mock.get(
+            f"https://{new_registry}/oauth2/token",
+            params={
+                "service": new_registry,
+                "scope": "registry:catalog:*"
+            }
+        ).mock(
+            return_value=httpx.Response(
+                status_code=401
             )
-            resp = await client.post(
-                "/registries",
-                json={
-                    "url": new_registry,
-                    "username": "blabla",
-                    "password": "secret"
-                },
-                headers=post_json_admin_header
-            )
+        )
+        resp = await client.post(
+            "/registries",
+            json={
+                "url": new_registry,
+                "username": "blabla",
+                "password": "secret"
+            },
+            headers=post_json_admin_header
+        )
         assert resp.status_code == 400
         assert resp.json()["error"] == "Could not authenticate against the registry"
 
@@ -201,7 +217,9 @@ class TestPostRegistriesApi(BaseTest):
         client,
         v1_registry_mock,
         mock_args_k8s,
-        post_json_admin_header
+        post_json_admin_header,
+        respx_mock,
+        mock_kc_client_wrapper
     ):
         """
         Basic POST request when the docker secret does not exist, so it get correctly
@@ -211,23 +229,28 @@ class TestPostRegistriesApi(BaseTest):
         mock_args_k8s.api_client.read_namespaced_secret.side_effect = [
             ApiException(status=500, reason="Failed")
         ]
-        with responses.RequestsMock() as rsps:
-            rsps.add_passthru(KEYCLOAK_URL)
-            rsps.add(
-                responses.GET,
-                f"https://{new_registry}/oauth2/token?service={new_registry}&scope=registry:catalog:*",
+
+        respx_mock.get(
+            f"https://{new_registry}/oauth2/token",
+            params={
+                "service": new_registry,
+                "scope": "registry:catalog:*"
+            }
+        ).mock(
+            return_value=httpx.Response(
                 json={"access_token": "12jio12buds89"},
-                status=200
+                status_code=200
             )
-            resp = await client.post(
-                "/registries",
-                json={
-                    "url": new_registry,
-                    "username": "blabla",
-                    "password": "secret"
-                },
-                headers=post_json_admin_header
-            )
+        )
+        resp = await client.post(
+            "/registries",
+            json={
+                "url": new_registry,
+                "username": "blabla",
+                "password": "secret"
+            },
+            headers=post_json_admin_header
+        )
         assert resp.status_code == 400
         assert await self.run_query(select(Registry).where(Registry.url == new_registry), "one_or_none") is None
 
@@ -237,7 +260,9 @@ class TestPostRegistriesApi(BaseTest):
         client,
         v1_registry_mock,
         mock_args_k8s,
-        post_json_admin_header
+        post_json_admin_header,
+        respx_mock,
+        mock_kc_client_wrapper
     ):
         """
         Basic POST request when the docker secret does not exist, so it get correctly
@@ -250,30 +275,35 @@ class TestPostRegistriesApi(BaseTest):
                 ".dockerconfigjson": base64.b64encode("{\"auths\": {}}".encode()).decode()
             })
         ]
-        with responses.RequestsMock() as rsps:
-            rsps.add_passthru(KEYCLOAK_URL)
-            rsps.add(
-                responses.GET,
-                f"https://{new_registry}/oauth2/token?service={new_registry}&scope=registry:catalog:*",
+        respx_mock.get(
+            f"https://{new_registry}/oauth2/token",
+            params={
+                "service": new_registry,
+                "scope": "registry:catalog:*"
+            }
+        ).mock(
+            return_value=httpx.Response(
                 json={"access_token": "12jio12buds89"},
-                status=200
+                status_code=200
             )
-            resp = await client.post(
-                "/registries",
-                json={
-                    "url": new_registry,
-                    "username": "blabla",
-                    "password": "secret"
-                },
-                headers=post_json_admin_header
-            )
+        )
+        resp = await client.post(
+            "/registries",
+            json={
+                "url": new_registry,
+                "username": "blabla",
+                "password": "secret"
+            },
+            headers=post_json_admin_header
+        )
         assert resp.status_code == 201
 
     @mark.asyncio
     async def test_create_missing_field(
         self,
         client,
-        post_json_admin_header
+        post_json_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Checks that required fields missing return
@@ -295,23 +325,22 @@ class TestPostRegistriesApi(BaseTest):
         self,
         client,
         registry,
-        post_json_admin_header
+        post_json_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Checks that creating a registry with the same
         url as an existing one, fails
         """
-        with responses.RequestsMock() as rsps:
-            rsps.add_passthru(KEYCLOAK_URL)
-            resp = await client.post(
-                "/registries",
-                json={
-                    "url": registry.url,
-                    "username": "blabla",
-                    "password": "secret"
-                },
-                headers=post_json_admin_header
-            )
+        resp = await client.post(
+            "/registries",
+            json={
+                "url": registry.url,
+                "username": "blabla",
+                "password": "secret"
+            },
+            headers=post_json_admin_header
+        )
         assert resp.status_code == 400
         assert resp.json()["error"] == f"Registry {registry.url} already exist"
         assert await self.run_query(select(func.count(Registry.id)).where(Registry.url==registry.url), "one") == 1
@@ -325,7 +354,8 @@ class TestDeleteRegistries(BaseTest):
             registry,
             v1_registry_mock,
             mock_args_k8s,
-            simple_admin_header
+            simple_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Simple test to check a successful deletion from the
@@ -347,7 +377,8 @@ class TestDeleteRegistries(BaseTest):
             client,
             registry,
             v1_registry_mock,
-            simple_admin_header
+            simple_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Return a 404 response if a registry cannot be found
@@ -365,7 +396,8 @@ class TestDeleteRegistries(BaseTest):
             registry,
             v1_registry_mock,
             mock_args_k8s,
-            simple_admin_header
+            simple_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Return a 500 stauts code when a k8s exception is raised
@@ -391,7 +423,8 @@ class TestDeleteRegistries(BaseTest):
             registry,
             v1_registry_mock,
             simple_admin_header,
-            db_session
+            db_session,
+        mock_kc_client_wrapper
     ):
         """
         Tests that by simply deleting a registry all of its
@@ -428,7 +461,8 @@ class TestPatchRegistriesApi(BaseTest):
         registry,
         post_json_admin_header,
         v1_registry_mock,
-        mock_args_k8s
+        mock_args_k8s,
+        mock_kc_client_wrapper
     ):
         """
         Simple PATCH request test to check the db record is updated
@@ -456,7 +490,8 @@ class TestPatchRegistriesApi(BaseTest):
         post_json_admin_header,
         v1_registry_mock,
         mock_args_k8s,
-        dockerconfigjson_mock
+        dockerconfigjson_mock,
+        mock_kc_client_wrapper
     ):
         """
         Simple PATCH request test to check the registry credentials
@@ -491,7 +526,8 @@ class TestPatchRegistriesApi(BaseTest):
         registry,
         post_json_admin_header,
         v1_registry_mock,
-        mock_args_k8s
+        mock_args_k8s,
+        mock_kc_client_wrapper
     ):
         """
         Simple PATCH request test to check the registry credentials
@@ -513,7 +549,8 @@ class TestPatchRegistriesApi(BaseTest):
         self,
         client,
         registry,
-        post_json_admin_header
+        post_json_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Simple PATCH request test to ensure that trying to patch
@@ -535,7 +572,8 @@ class TestPatchRegistriesApi(BaseTest):
         self,
         client,
         registry,
-        post_json_admin_header
+        post_json_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Simple PATCH request test to ensure that trying to change a url
@@ -559,7 +597,8 @@ class TestPatchRegistriesApi(BaseTest):
         registry,
         post_json_admin_header,
         v1_registry_mock,
-        mock_args_k8s
+        mock_args_k8s,
+        mock_kc_client_wrapper
     ):
         """
         Simple PATCH request test to check the db record is updated

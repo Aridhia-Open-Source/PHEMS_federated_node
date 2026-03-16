@@ -1,3 +1,4 @@
+import httpx
 from pytest import mark, raises
 import responses
 from responses import matchers
@@ -18,69 +19,85 @@ class TestKeycloakPolicies(TestKeycloakMixin):
     }
 
     @mark.asyncio
-    @mark.asyncio
-    async def test_get_policy_fails(self, keycloak_login_request_mock):
+    async def test_get_policy_fails(self, keycloak_login_request_mock, respx_mock):
         """
         Simply tests that exceptions are raised with an unsuccessful response
         """
-        keycloak_login_request_mock.add(
-            responses.GET,
+        respx_mock.get(
             URLS["policies"] % "clientid",
-            match=[matchers.query_string_matcher(f"permission=False&name={self.payload["name"]}")],
-            status=400
+            params={
+                "permission": False,
+                "name": self.payload["name"]
+            }
+        ).mock(
+            return_value=httpx.Response(
+                status_code=400
+            )
         )
+        kc_client: Keycloak = await Keycloak.create()
         with raises(KeycloakError) as exc:
-            Keycloak().get_policy(self.payload["name"])
+            await kc_client.get_policy(self.payload["name"])
         assert exc.value.description == "Error when fetching the policies from Keycloak"
 
     @mark.asyncio
-    @mark.asyncio
-    async def test_create_policy(self, keycloak_login_request_mock):
+    async def test_create_policy(self, keycloak_login_request_mock, respx_mock):
         """
         Simply tests that no exceptions are raised with a successful response
         """
-        keycloak_login_request_mock.add(
-            responses.POST,
+        respx_mock.post(
             (URLS["policies"] % "clientid") + "/user",
-            json={"id": "policy_id"}
+        ).mock(
+            return_value=httpx.Response(
+                json={"id": "policy_id"},
+                status_code=201
+            )
         )
-        Keycloak().create_policy(self.payload, "/user")
+        kc_client: Keycloak = await Keycloak.create()
+        await kc_client.create_policy(self.payload, "/user")
 
     @mark.asyncio
-    @mark.asyncio
-    async def test_create_policy_409_accepted(self, keycloak_login_request_mock):
+    async def test_create_policy_409_accepted(self, keycloak_login_request_mock, respx_mock):
         """
         Simply tests that no exceptions are raised with a 409 response. It also
         checks that the existing policy is fetched
         """
-        keycloak_login_request_mock.add(
-            responses.POST,
+        respx_mock.post(
             (URLS["policies"] % "clientid") + "/user",
-            json={"id": "policy_id"},
-            status=409
+        ).mock(
+            return_value=httpx.Response(
+                status_code=409
+            )
         )
-        keycloak_login_request_mock.add(
-            responses.GET,
+        respx_mock.get(
             URLS["policies"] % "clientid",
-            json=[{"id": "policy_id"}],
-            match=[matchers.query_string_matcher(f"permission=False&name={self.payload["name"]}")],
-            status=200
+            params={
+                "permission": False,
+                "name": self.payload["name"]
+            }
+        ).mock(
+            return_value=httpx.Response(
+                json=[{"id": "policy_id"}],
+                status_code=200
+            )
         )
-        Keycloak().create_policy(self.payload, "/user")
+        kc_client: Keycloak = await Keycloak.create()
+        await kc_client.create_policy(self.payload, "/user")
 
     @mark.asyncio
-    @mark.asyncio
-    async def test_create_policy_failed_request(self, keycloak_login_request_mock):
+    async def test_create_policy_failed_request(self, keycloak_login_request_mock, respx_mock):
         """
         Simply tests that exceptions are raised with an unsuccessful response
         """
-        keycloak_login_request_mock.add(
-            responses.POST,
+        respx_mock.post(
             (URLS["policies"] % "clientid") + "/user",
-            status=400
+        ).mock(
+            return_value=httpx.Response(
+                status_code=400
+            )
         )
+        kc_client: Keycloak = await Keycloak.create()
         with raises(KeycloakError) as exc:
-            Keycloak().create_policy(self.payload, "/user")
+            await kc_client.create_policy(self.payload, "/user")
         assert exc.value.description == "Failed to create a project's policy"
 
 
@@ -88,64 +105,80 @@ class TestKeycloakScopes(TestKeycloakMixin):
     """
     """
     @mark.asyncio
-    async def test_get_scope_fails(self, keycloak_login_request_mock):
+    async def test_get_scope_fails(self, keycloak_login_request_mock, respx_mock):
         """
         Simply tests that exceptions are raised with an unsuccessful response
         """
-        keycloak_login_request_mock.add(
-        responses.GET,
+        respx_mock.get(
             URLS["scopes"] % "clientid",
-            json=[{"id": "scope_id"}],
-            match=[matchers.query_string_matcher(f"permission=False&name=can_admin_dataset")],
-            status=400
+            params={
+                "permission": False,
+                "name": "can_admin_dataset"
+            }
+        ).mock(
+            return_value=httpx.Response(
+                status_code=400
+            )
         )
+        kc_client: Keycloak = await Keycloak.create()
         with raises(KeycloakError) as exc:
-            Keycloak().get_scope("can_admin_dataset")
+            await kc_client.get_scope("can_admin_dataset")
         assert exc.value.description == "Error when fetching the scopes from Keycloak"
 
     @mark.asyncio
-    async def test_create_scope(self, keycloak_login_request_mock):
+    async def test_create_scope(self, keycloak_login_request_mock, respx_mock):
         """
         Simply tests that no exceptions are raised with a successful response
         """
-        keycloak_login_request_mock.add(
-            responses.POST,
-            URLS["scopes"] % "clientid",
-            json={"id": "permission_id"}
+        respx_mock.post(
+            URLS["scopes"] % "clientid"
+        ).mock(
+            return_value=httpx.Response(
+                json={"id": "permission_id"},
+                status_code=200
+            )
         )
-        Keycloak().create_scope("can_admin_dataset")
+        kc_client: Keycloak = await Keycloak.create()
+        await kc_client.create_scope("can_admin_dataset")
 
     @mark.asyncio
-    async def test_create_scope_409_accepted(self, keycloak_login_request_mock):
+    async def test_create_scope_409_accepted(self, keycloak_login_request_mock, respx_mock):
         """
         Simply tests that no exceptions are raised with a 409 response
         """
-        keycloak_login_request_mock.add(
-            responses.POST,
-            URLS["scopes"] % "clientid",
-            json={"id": "permission_id"},
-            status=409
+        respx_mock.post(
+            URLS["scopes"] % "clientid"
+        ).mock(
+            return_value=httpx.Response(
+                status_code=409
+            )
         )
-        keycloak_login_request_mock.add(
-            responses.GET,
-            URLS["scopes"] % "clientid",
-            json=[{"id": "scope_id"}],
-            status=200
+        respx_mock.get(
+            URLS["scopes"] % "clientid"
+        ).mock(
+            return_value=httpx.Response(
+                json=[{"id": "scope_id"}],
+                status_code=200
+            )
         )
-        Keycloak().create_scope("can_admin_dataset")
+        kc_client: Keycloak = await Keycloak.create()
+        await kc_client.create_scope("can_admin_dataset")
 
     @mark.asyncio
-    async def test_create_scope_failed_request(self, keycloak_login_request_mock):
+    async def test_create_scope_failed_request(self, keycloak_login_request_mock, respx_mock):
         """
         Simply tests that exceptions are raised with an unsuccessful response
         """
-        keycloak_login_request_mock.add(
-            responses.POST,
-            URLS["scopes"] % "clientid",
-            status=400
+        respx_mock.post(
+            URLS["scopes"] % "clientid"
+        ).mock(
+            return_value=httpx.Response(
+                status_code=400
+            )
         )
+        kc_client: Keycloak = await Keycloak.create()
         with raises(KeycloakError) as exc:
-            Keycloak().create_scope("can_admin_dataset")
+            await kc_client.create_scope("can_admin_dataset")
         assert exc.value.description == "Failed to create a project's scope"
 
 
@@ -164,42 +197,52 @@ class TestKeycloakPermissions(TestKeycloakMixin):
     }
 
     @mark.asyncio
-    async def test_create_permission(self, keycloak_login_request_mock):
+    async def test_create_permission(self, keycloak_login_request_mock, respx_mock):
         """
         Simply tests that no exceptions are raised with a successful response
         """
-        keycloak_login_request_mock.add(
-            responses.POST,
+        respx_mock.post(
             URLS["permission"] % "clientid",
-            json={"id": "permission_id"}
+        ).mock(
+            return_value=httpx.Response(
+                json={"id": "permission_id"},
+                status_code=201
+            )
         )
-        Keycloak().create_permission(self.payload)
+        kc_client: Keycloak = await Keycloak.create()
+        await kc_client.create_permission(self.payload)
 
     @mark.asyncio
-    async def test_create_permission_409_accepted(self, keycloak_login_request_mock):
+    async def test_create_permission_409_accepted(self, keycloak_login_request_mock, respx_mock):
         """
         Simply tests that no exceptions are raised with a 409 response
         """
-        keycloak_login_request_mock.add(
-            responses.POST,
+        respx_mock.post(
             URLS["permission"] % "clientid",
-            json={"id": "permission_id"},
-            status=409
+        ).mock(
+            return_value=httpx.Response(
+                json={"id": "permission_id"},
+                status_code=409
+            )
         )
-        Keycloak().create_permission(self.payload)
+        kc_client: Keycloak = await Keycloak.create()
+        await kc_client.create_permission(self.payload)
 
     @mark.asyncio
-    async def test_create_permission_failed_request(self, keycloak_login_request_mock):
+    async def test_create_permission_failed_request(self, keycloak_login_request_mock, respx_mock):
         """
         Simply tests that exceptions are raised with an unsuccessful response
         """
-        keycloak_login_request_mock.add(
-            responses.POST,
+        respx_mock.post(
             URLS["permission"] % "clientid",
-            status=400
+        ).mock(
+            return_value=httpx.Response(
+                status_code=400
+            )
         )
+        kc_client: Keycloak = await Keycloak.create()
         with raises(KeycloakError) as exc:
-            Keycloak().create_permission(self.payload)
+            await kc_client.create_permission(self.payload)
         assert exc.value.description == "Failed to create a project's permission"
 
 
@@ -218,60 +261,87 @@ class TestKeycloakTimePolicy(TestKeycloakMixin):
     }
 
     @mark.asyncio
-    async def test_create_or_update_time_policy(self, keycloak_login_request_mock):
+    async def test_create_or_update_time_policy(self, keycloak_login_request_mock, respx_mock):
         """
         - policy doesn't exist => create a new one
         """
-        keycloak_login_request_mock.add(
-            responses.POST,
+        respx_mock.post(
             (URLS["policies"] % "clientid") + "/time",
-            json={"id": "policy_id"}
+        ).mock(
+            return_value=httpx.Response(
+                json={"id": "policy_id"},
+                status_code=201
+            )
         )
-        Keycloak().create_or_update_time_policy(self.payload, "/time")
+        kc_client: Keycloak = await Keycloak.create()
+        await kc_client.create_or_update_time_policy(self.payload, "/time")
 
     @mark.asyncio
-    async def test_create_or_update_time_policy_exists(self, keycloak_login_request_mock):
+    async def test_create_or_update_time_policy_exists(self, keycloak_login_request_mock, respx_mock):
         """
         - policy already exists => fetch it and update the time constraints
         """
-        keycloak_login_request_mock.add(
-            responses.POST,
+        respx_mock.post(
             (URLS["policies"] % "clientid") + "/time",
-            status=409
+        ).mock(
+            return_value=httpx.Response(
+                status_code=409
+            )
         )
-        keycloak_login_request_mock.add(
-            responses.GET,
+        respx_mock.get(
             URLS["policies"] % "clientid",
-            match=[matchers.query_string_matcher(f"permission=False&name={self.payload["name"]}")],
-            json=[{"id": "policy_id", "config": {"noa": "01/01/2025", "nbf": "02-01-2025"}}]
+            params={
+                "permission": False,
+                "name": self.payload["name"]
+            }
+        ).mock(
+            return_value=httpx.Response(
+                json=[{"id": "policy_id", "config": {"noa": "01/01/2025", "nbf": "02-01-2025"}}],
+                status_code=200
+            )
         )
-        keycloak_login_request_mock.add(
-            responses.PUT,
+        respx_mock.put(
             (URLS["policies"] % "clientid") + "/policy_id"
+        ).mock(
+            return_value=httpx.Response(
+                status_code=201
+            )
         )
-        Keycloak().create_or_update_time_policy(self.payload, "/time")
+        kc_client: Keycloak = await Keycloak.create()
+        await kc_client.create_or_update_time_policy(self.payload, "/time")
 
     @mark.asyncio
-    async def test_create_or_update_time_policy_fails(self, keycloak_login_request_mock):
+    async def test_create_or_update_time_policy_fails(self, keycloak_login_request_mock, respx_mock):
         """
         policy patching fails
         """
-        keycloak_login_request_mock.add(
-            responses.POST,
+        respx_mock.post(
             (URLS["policies"] % "clientid") + "/time",
-            status=409
+        ).mock(
+            return_value=httpx.Response(
+                status_code=409
+            )
         )
-        keycloak_login_request_mock.add(
-            responses.GET,
+        respx_mock.get(
             URLS["policies"] % "clientid",
-            match=[matchers.query_string_matcher(f"permission=False&name={self.payload["name"]}")],
-            json=[{"id": "policy_id", "config": {"noa": "01/01/2025", "nbf": "02-01-2025"}}]
+            params={
+                "permission": False,
+                "name": self.payload["name"]
+            }
+        ).mock(
+            return_value=httpx.Response(
+                json=[{"id": "policy_id", "config": {"noa": "01/01/2025", "nbf": "02-01-2025"}}],
+                status_code=200
+            )
         )
-        keycloak_login_request_mock.add(
-            responses.PUT,
-            (URLS["policies"] % "clientid") + "/policy_id",
-            status=400
+        respx_mock.put(
+            (URLS["policies"] % "clientid") + "/policy_id"
+        ).mock(
+            return_value=httpx.Response(
+                status_code=400
+            )
         )
+        kc_client: Keycloak = await Keycloak.create()
         with raises(KeycloakError) as exc:
-            Keycloak().create_or_update_time_policy(self.payload, "/time")
+            await kc_client.create_or_update_time_policy(self.payload, "/time")
         assert exc.value.description == "Failed to create a project's policy"

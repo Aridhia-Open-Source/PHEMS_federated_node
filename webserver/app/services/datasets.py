@@ -31,9 +31,10 @@ class DatasetService:
                     "Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
                 )
 
-        kc_client = Keycloak()
-        token_info = kc_client.decode_token(kc_client.get_token_from_headers(request))
-        user_id = kc_client.get_user_by_email(token_info["email"])["id"]
+        kc_client: Keycloak = await Keycloak.create()
+        token_info = await kc_client.decode_token(await kc_client.get_token_from_headers(request))
+        user_info = await kc_client.get_user_by_email(token_info["email"])
+        user_id = user_info["id"]
 
         dataset_data = data.model_dump(exclude={'catalogue', 'dictionaries'})
         dataset = Dataset(**dataset_data)
@@ -60,31 +61,31 @@ class DatasetService:
                 namespaces=[DEFAULT_NAMESPACE, TASK_NAMESPACE]
             )
             # Add to keycloak
-            kc_client = Keycloak()
-            admin_policy = kc_client.get_policy('admin-policy')
-            sys_policy = kc_client.get_policy('system-policy')
+            kc_client = await Keycloak.create()
+            admin_policy = await kc_client.get_policy('admin-policy')
+            sys_policy = await kc_client.get_policy('system-policy')
 
             admin_ds_scope = []
-            admin_ds_scope.append(kc_client.get_scope('can_admin_dataset'))
-            admin_ds_scope.append(kc_client.get_scope('can_access_dataset'))
-            admin_ds_scope.append(kc_client.get_scope('can_exec_task'))
-            admin_ds_scope.append(kc_client.get_scope('can_admin_task'))
-            admin_ds_scope.append(kc_client.get_scope('can_send_request'))
-            admin_ds_scope.append(kc_client.get_scope('can_admin_request'))
-            policy = kc_client.create_policy({
+            admin_ds_scope.append(await kc_client.get_scope('can_admin_dataset'))
+            admin_ds_scope.append(await kc_client.get_scope('can_access_dataset'))
+            admin_ds_scope.append(await kc_client.get_scope('can_exec_task'))
+            admin_ds_scope.append(await kc_client.get_scope('can_admin_task'))
+            admin_ds_scope.append(await kc_client.get_scope('can_send_request'))
+            admin_ds_scope.append(await kc_client.get_scope('can_admin_request'))
+            policy = await kc_client.create_policy({
                 "name": f"{dataset.id} - {dataset.name} Admin Policy",
                 "description": f"List of users allowed to administrate the {data.name} dataset",
                 "logic": "POSITIVE",
                 "users": [user_id]
             }, "/user")
 
-            resource_ds = kc_client.create_resource({
+            resource_ds = await kc_client.create_resource({
                 "name": f"{dataset.id}-{dataset.name}",
                 "displayName": f"{dataset.id} - {dataset.name}",
                 "scopes": admin_ds_scope,
                 "uris": []
             })
-            kc_client.create_permission({
+            await kc_client.create_permission({
                 "name": f"{dataset.id}-{dataset.name} Admin Permission",
                 "description": "List of policies that will allow certain users or roles to administrate the dataset",
                 "type": "resource",
@@ -115,7 +116,7 @@ class DatasetService:
         Updates the instance with new values. These should be
         already validated.
         """
-        kc_client = Keycloak()
+        kc_client = await Keycloak.create()
         v1: KubernetesClient = await KubernetesClient.create()
 
         new_name: dict = data.get("name")
@@ -196,7 +197,7 @@ class DatasetService:
                 "name": f"{ds.id}-{data["name"]}",
                 "displayName": f"{ds.id} - {data["name"]}"
             }
-            kc_client.patch_resource(f"{ds.id}-{ds.name}", **update_args)
+            await kc_client.patch_resource(f"{ds.id}-{ds.name}", **update_args)
 
         if data.get("repository"):
             data["repository"] = data.get("repository").lower()

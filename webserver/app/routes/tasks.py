@@ -42,12 +42,12 @@ async def does_user_own_task(request: Request, task:Task):
 
     If they don't, an exception is raised with 403 status code
     """
-    kc_client = Keycloak()
-    token = kc_client.get_token_from_headers(request)
-    dec_token = kc_client.decode_token(token)
-    user_id = kc_client.get_user_by_email(dec_token["email"])["id"]
+    kc_client = await Keycloak.create()
+    token = await kc_client.get_token_from_headers(request)
+    dec_token = await kc_client.decode_token(token)
+    user_id = (await kc_client.get_user_by_email(dec_token["email"]))["id"]
 
-    if task.requested_by != user_id and not kc_client.is_user_admin(token):
+    if task.requested_by != user_id and not await kc_client.is_user_admin(token):
         raise UnauthorizedError("User does not have enough permissions")
 
 
@@ -174,10 +174,10 @@ async def get_task_results(
 
     await does_user_own_task(request, task)
 
-    kc_client = Keycloak()
-    token = kc_client.get_token_from_headers(request)
+    kc_client = await Keycloak.create()
+    token = await kc_client.get_token_from_headers(request)
     # admin should be able to fetch them regardless
-    if TASK_REVIEW and not task.review_status and not kc_client.is_user_admin(token):
+    if TASK_REVIEW and not task.review_status and not await kc_client.is_user_admin(token):
         return JSONResponse(
             {"status": task.get_review_status()},
             status_code=HTTPStatus.BAD_REQUEST

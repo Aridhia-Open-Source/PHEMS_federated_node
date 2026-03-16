@@ -17,7 +17,8 @@ class TestDictionaries(MixinTestDataset):
             v1_ds_mock,
             dataset_post_body,
             post_json_admin_header,
-            simple_admin_header
+            simple_admin_header,
+            mock_kc_client_dataset_route
     ):
         """
         Check that admin can see the dictionaries for a given dataset
@@ -40,7 +41,8 @@ class TestDictionaries(MixinTestDataset):
             dataset_post_body,
             post_json_admin_header,
             v1_ds_mock,
-            dataset
+            dataset,
+            mock_kc_client_dataset_route
         ):
         """
         Tests that sending a POST /dataset fails if the dictionary is not
@@ -65,7 +67,8 @@ class TestDictionaries(MixinTestDataset):
             v1_ds_mock,
             dataset_post_body,
             post_json_admin_header,
-            simple_admin_header
+            simple_admin_header,
+            mock_kc_client_dataset_route
     ):
         """
         Check that admin can see the dictionaries for a given dataset
@@ -89,6 +92,7 @@ class TestDictionaries(MixinTestDataset):
             post_json_admin_header,
             dataset,
             v1_ds_mock,
+            mock_kc_client_dataset_route
         ):
         """
         Tests that sending PUT /dataset updates the dictionaries
@@ -121,7 +125,8 @@ class TestDictionaries(MixinTestDataset):
             dataset_post_body,
             post_json_admin_header,
             v1_ds_mock,
-            dataset
+            dataset,
+            mock_kc_client_dataset_route
         ):
         """
         Tests that sending PUT /dataset creates a new dictionary
@@ -155,7 +160,8 @@ class TestDictionaries(MixinTestDataset):
             dataset_post_body,
             post_json_admin_header,
             v1_ds_mock,
-            dataset
+            dataset,
+            mock_kc_client_dataset_route
         ):
         """
         Tests that sending PUT /dataset does not create a new
@@ -185,7 +191,8 @@ class TestDictionaries(MixinTestDataset):
             dataset_post_body,
             post_json_admin_header,
             v1_ds_mock,
-            dataset
+            dataset,
+            mock_kc_client_dataset_route
         ):
         """
         Tests that sending PUT /dataset does not create a new
@@ -218,7 +225,8 @@ class TestDictionaries(MixinTestDataset):
             dataset_post_body,
             post_json_admin_header,
             simple_user_header,
-            mock_kc_client
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Check that non-admin or non DAR approved users
@@ -228,7 +236,7 @@ class TestDictionaries(MixinTestDataset):
         data_body['name'] = 'TestDs78'
         resp_ds = await self.post_dataset(client, post_json_admin_header, data_body)
 
-        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
+        base_kc_mock_args.is_token_valid.return_value = False
         response = await client.get(
             f"/datasets/{resp_ds["id"]}/dictionaries",
             headers=simple_user_header
@@ -248,7 +256,8 @@ class TestDictionaryTable(MixinTestDataset):
             v1_ds_mock,
             dataset_post_body,
             post_json_admin_header,
-            simple_admin_header
+            simple_admin_header,
+            mock_kc_client_dataset_route
     ):
         """
         Check that non-admin or non DAR approved users
@@ -271,7 +280,8 @@ class TestDictionaryTable(MixinTestDataset):
             v1_ds_mock,
             simple_admin_header,
             post_json_admin_header,
-            dataset_post_body
+            dataset_post_body,
+            mock_kc_client_dataset_route
     ):
         """
         Check that non-admin or non DAR approved users
@@ -292,7 +302,8 @@ class TestDictionaryTable(MixinTestDataset):
             client,
             dataset,
             v1_ds_mock,
-            simple_admin_header
+            simple_admin_header,
+            mock_kc_client_dataset_route
     ):
         """
         Check that non-admin or non DAR approved users
@@ -313,7 +324,8 @@ class TestDictionaryTable(MixinTestDataset):
             dataset_post_body,
             post_json_admin_header,
             simple_user_header,
-            mock_kc_client
+            base_kc_mock_args,
+            mock_kc_client_dataset_route
     ):
         """
         Check that non-admin or non DAR approved users
@@ -323,7 +335,7 @@ class TestDictionaryTable(MixinTestDataset):
         data_body['name'] = 'TestDs78'
         resp_ds = await self.post_dataset(client, post_json_admin_header, data_body)
 
-        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
+        base_kc_mock_args.is_token_valid.return_value = False
         response = await client.get(
             f"/datasets/{resp_ds["id"]}/dictionaries/test",
             headers=simple_user_header

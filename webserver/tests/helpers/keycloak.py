@@ -9,7 +9,7 @@ def clean_kc():
     """
     Removes all users but admin
     """
-    token = Keycloak().get_admin_token_global()
+    token = await Keycloak.create().get_admin_token_global()
     response = requests.get(
         URLS["user"],
         headers={"Authorization": f"Bearer {token}"}

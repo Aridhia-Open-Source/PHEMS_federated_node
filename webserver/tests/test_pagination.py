@@ -11,13 +11,14 @@ class TestPagination:
             dataset,
             dataset_oracle,
             simple_admin_header,
-            db_session
+            db_session,
+            mock_kc_client_wrapper,
+            base_kc_mock_args
         ):
         """
         Test that an endpoint that supports pagination
         effectively returns reliable results
         """
-        mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
         await Dataset(
             name="testnew",
             host="host.url",
@@ -34,7 +35,8 @@ class TestPagination:
     async def test_pagination_page_does_not_exist(
             self,
             client,
-            simple_admin_header
+            simple_admin_header,
+            mock_kc_client_wrapper
         ):
         """
         Test that an endpoint that supports pagination
@@ -49,7 +51,8 @@ class TestPagination:
     async def test_pagination_invalid_value_page(
             self,
             client,
-            simple_admin_header
+            simple_admin_header,
+            mock_kc_client_wrapper
         ):
         """
         Test that an endpoint that supports pagination

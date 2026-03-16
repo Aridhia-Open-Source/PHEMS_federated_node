@@ -1,4 +1,5 @@
 import os
+import httpx
 import responses
 from pytest import mark
 from unittest import mock
@@ -10,7 +11,7 @@ from app.helpers.exceptions import AuthenticationError
 
 class TestLogin:
     @mark.asyncio
-    async def test_login_successful(self, client):
+    async def test_login_successful(self, client, mock_kc_client_general_route):
         """
         Simple test to make sure /login returns a token
         """
@@ -28,11 +29,11 @@ class TestLogin:
         assert list(login_request.json().keys()) == ["token"]
 
     @mark.asyncio
-    async def test_login_unsuccessful(self, client, mock_kc_client):
+    async def test_login_unsuccessful(self, client, mock_kc_client_general_route, base_kc_mock_args):
         """
         Simple test to make sure /login returns 401 with incorrect credentials
         """
-        mock_kc_client["main_kc"].return_value.get_token.side_effect = AuthenticationError("Failed to login")
+        base_kc_mock_args.get_token.side_effect = AuthenticationError("Failed to login")
         login_request = await client.post(
             "/login",
             data={
@@ -48,17 +49,18 @@ class TestLogin:
 
 class TestHealthCheck:
     @mark.asyncio
-    async def test_health_check(self, client):
+    async def test_health_check(self, client, respx_mock):
         """
         Check that the HC returns 200 in optimal conditions
         """
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.GET,
-                URLS["health_check"],
-                status=200
+        respx_mock.get(
+            URLS["health_check"]
+        ).mock(
+            return_value=httpx.Response(
+                status_code=200
             )
-            hc_resp = await client.get("/health_check")
+        )
+        hc_resp = await client.get("/health_check")
         assert hc_resp.status_code == 200
 
     @mock.patch('app.routes.general.requests.get', side_effect=ConnectionError("Some failure"))
@@ -74,14 +76,14 @@ class TestHealthCheck:
 
 class TestTokenRefresh:
     @mark.asyncio
-    async def test_refresh_token_200(self, client, mock_kc_client):
+    async def test_refresh_token_200(self, client, mock_kc_client_general_route, base_kc_mock_args):
         """
         Simmple test to make sure a refresh token is returned
         when a valid token is used in the request header
         """
         # Mocking the requests for the specific token
         valid_token = "eydjn2onoin"
-        mock_kc_client["main_kc"].return_value.exchange_global_token.return_value = "exch_token"
+        base_kc_mock_args.exchange_global_token.return_value = "exch_token"
 
         resp = await client.post(
             "/refresh_token",
@@ -91,12 +93,12 @@ class TestTokenRefresh:
         assert "token" in resp.json()
 
     @mark.asyncio
-    async def test_refresh_token_401(self, client, mock_kc_client):
+    async def test_refresh_token_401(self, client, base_kc_mock_args, mock_kc_client_general_route):
         """
         Simmple test to make sure an error is returned
         when an invalid/expired token is used in the request header
         """
-        mock_kc_client["main_kc"].return_value.is_token_valid.return_value = False
+        base_kc_mock_args.is_token_valid.return_value = False
         invalid_token = "not a token"
         resp = await client.post(
             "/refresh_token",

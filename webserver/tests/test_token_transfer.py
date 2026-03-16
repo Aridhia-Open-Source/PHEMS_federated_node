@@ -25,7 +25,7 @@ class TestTransfers(BaseTest):
             self,
             approve_request,
             client,
-            mock_kc_client,
+            mock_kc_client_wrapper,
             request_base_body,
             post_json_admin_header
     ):
@@ -47,7 +47,7 @@ class TestTransfers(BaseTest):
             client,
             request_base_body_name,
             post_json_admin_header,
-            mock_kc_client
+            mock_kc_client_wrapper
     ):
         """
         Test token transfer is accessible by admin users
@@ -65,7 +65,8 @@ class TestTransfers(BaseTest):
             self,
             client,
             request_base_body,
-            post_json_admin_header
+            post_json_admin_header,
+            mock_kc_client_wrapper
     ):
         """
         Test token transfer fails if the requester's email is not provided
@@ -84,7 +85,7 @@ class TestTransfers(BaseTest):
             client,
             request_base_body,
             post_json_admin_header,
-            mock_kc_client
+            mock_kc_client_wrapper
     ):
         """
         Test token transfer fails on an non-existing dataset
@@ -104,7 +105,7 @@ class TestTransfers(BaseTest):
             client,
             request_base_body_name,
             post_json_admin_header,
-            mock_kc_client
+            mock_kc_client_wrapper
     ):
         """
         Test token transfer fails on an non-existing dataset
@@ -124,12 +125,13 @@ class TestTransfers(BaseTest):
             client,
             request_base_body,
             post_json_user_header,
-            mock_kc_client
+            mock_kc_client_wrapper,
+            base_kc_mock_args
     ):
         """
         Test token transfer is accessible by admin users
         """
-        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
+        base_kc_mock_args.is_token_valid.return_value = False
         response = await client.post(
             "/datasets/token_transfer",
             json=request_base_body,
@@ -143,7 +145,7 @@ class TestTransfers(BaseTest):
             client,
             post_json_admin_header,
             access_request,
-            mock_kc_client,
+            mock_kc_client_wrapper,
             approve_request,
             request_model_body,
             request_base_body,
@@ -169,7 +171,7 @@ class TestTransfers(BaseTest):
             client,
             post_json_admin_header,
             access_request,
-            mock_kc_client,
+            mock_kc_client_wrapper,
             approve_request,
             request_model_body,
             request_base_body,
@@ -199,7 +201,7 @@ class TestTransfers(BaseTest):
             post_json_admin_header,
             access_request,
             approve_request,
-            mock_kc_client,
+            mock_kc_client_wrapper,
             request_model_body,
             request_base_body,
             dataset,
@@ -228,7 +230,7 @@ class TestTransfers(BaseTest):
             client,
             post_json_admin_header,
             access_request,
-            mock_kc_client,
+            mock_kc_client_wrapper,
             approve_request,
             request_model_body,
             request_base_body,
@@ -255,10 +257,11 @@ class TestTransfers(BaseTest):
             client,
             post_json_admin_header,
             access_request,
-            mock_kc_client,
+            mock_kc_client_wrapper,
             request_model_body,
             request_base_body,
             dataset,
+            base_kc_mock_args,
             dataset_oracle
         ):
         """
@@ -267,7 +270,7 @@ class TestTransfers(BaseTest):
         """
         request_base_body["dataset_id"] = dataset_oracle.id
 
-        mock_kc_client["request_schema_kc"].return_value.get_user_by_email.side_effect = KeycloakError("error")
+        base_kc_mock_args.get_user_by_email.side_effect = KeycloakError("error")
 
         response = await client.post(
             "/datasets/token_transfer",

@@ -73,7 +73,9 @@ class TestDatasets(MixinTestDataset):
             self,
             simple_admin_header,
             client,
-            dataset
+            dataset,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         Get all dataset is possible only for admin users
@@ -88,7 +90,9 @@ class TestDatasets(MixinTestDataset):
             self,
             simple_admin_header,
             client,
-            dataset
+            dataset,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         Checks that GET the url field from the Datasets works
@@ -100,7 +104,9 @@ class TestDatasets(MixinTestDataset):
     @mark.asyncio
     async def test_get_all_datasets_no_token(
             self,
-            client
+            client,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         Get all dataset fails if no token is provided
@@ -113,7 +119,9 @@ class TestDatasets(MixinTestDataset):
             self,
             simple_user_header,
             client,
-            dataset
+            dataset,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         Get all dataset is possible for non-admin users
@@ -126,7 +134,9 @@ class TestDatasets(MixinTestDataset):
             self,
             simple_admin_header,
             client,
-            dataset
+            dataset,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets/{id} GET returns a valid dictionary representation for admin users
@@ -141,12 +151,13 @@ class TestDatasets(MixinTestDataset):
             simple_user_header,
             client,
             dataset,
-            mock_kc_client
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets/{id} GET returns 403 for non-approved users
         """
-        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
+        base_kc_mock_args.is_token_valid.return_value = False
         response = await client.get(f"/datasets/{dataset.id}", headers=simple_user_header)
         assert response.status_code == 403, response.json()
 
@@ -156,13 +167,14 @@ class TestDatasets(MixinTestDataset):
             simple_user_header,
             client,
             dataset,
-            mock_kc_client
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets/{id} GET returns 400 for non-existing project
         """
-        mock_kc_client["wrappers_kc"].return_value.has_user_roles.return_value = False
-        mock_kc_client["wrappers_kc"].return_value.exchange_global_token.side_effect = KeycloakError("Could not find project", 400)
+        base_kc_mock_args.has_user_roles.return_value = False
+        base_kc_mock_args.exchange_global_token.side_effect = KeycloakError("Could not find project", 400)
         header = simple_user_header.copy()
         header["project-name"] = "test project"
         response = await client.get(f"/datasets/{dataset.id}", headers=header)
@@ -174,7 +186,8 @@ class TestDatasets(MixinTestDataset):
     async def test_get_dataset_by_id_project_approved(
             self,
             req_approve_mock,
-            mock_kc_client,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args,
             post_json_admin_header,
             request_base_body,
             client,
@@ -196,7 +209,7 @@ class TestDatasets(MixinTestDataset):
         req = await self.run_query(select(RequestModel).where(
             RequestModel.project_name == request_base_body["project_name"]
         ), "one")
-        mock_kc_client["wrappers_kc"].return_value.get_user_by_username.return_value = {"id": user_uuid}
+        base_kc_mock_args.get_user_by_username.return_value = {"id": user_uuid}
         req.requested_by = user_uuid
 
         response = await client.get(f"/datasets/{dataset.id}", headers={
@@ -211,26 +224,27 @@ class TestDatasets(MixinTestDataset):
     async def test_get_dataset_by_id_project_non_approved(
             self,
             req_mock,
-            project_not_found,
             post_json_admin_header,
             request_base_body,
             client,
             dataset,
-            mock_kc_client
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets/{id} GET returns 401 for non-approved users
         """
         response = await client.post(
             "/datasets/token_transfer",
-            data=json.dumps(request_base_body),
+            json=request_base_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
         assert list(response.json().keys()) == ["token"]
 
         token = response.json()["token"]
-        mock_kc_client["wrappers_kc"].return_value.is_user_admin.return_value = False
+        base_kc_mock_args.is_user_admin.return_value = False
+        base_kc_mock_args.exchange_global_token.side_effect = KeycloakError("Could not find project", 400)
         response = await client.get(f"/datasets/{dataset.id}", headers={
             "Authorization": f"Bearer {token}",
             "project-name": "test project"
@@ -243,7 +257,9 @@ class TestDatasets(MixinTestDataset):
             self,
             simple_admin_header,
             client,
-            dataset
+            dataset,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets/{id} GET returns 404 for a non-existent dataset
@@ -257,7 +273,9 @@ class TestDatasets(MixinTestDataset):
             self,
             simple_admin_header,
             dataset,
-            client
+            client,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets/{name} GET returns a valid list
@@ -271,7 +289,9 @@ class TestDatasets(MixinTestDataset):
             self,
             simple_admin_header,
             dataset,
-            client
+            client,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets/{name} GET returns a valid list
@@ -289,7 +309,9 @@ class TestPostDataset(MixinTestDataset):
             client,
             dataset,
             v1_ds_mock,
-            dataset_post_body
+            dataset_post_body,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets POST is successful
@@ -314,7 +336,9 @@ class TestPostDataset(MixinTestDataset):
             client,
             dataset,
             v1_ds_mock,
-            dataset_post_body
+            dataset_post_body,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets POST fails if the ds name is the same with case-sensitive
@@ -333,7 +357,9 @@ class TestPostDataset(MixinTestDataset):
             dataset,
             v1_ds_mock,
             dataset_post_body,
-            simple_admin_header
+            simple_admin_header,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets POST fails if the ds name is the same with case-sensitive
@@ -368,7 +394,9 @@ class TestPostDataset(MixinTestDataset):
             client,
             dataset,
             v1_ds_mock,
-            dataset_post_body
+            dataset_post_body,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets POST is successful with the type set
@@ -389,7 +417,9 @@ class TestPostDataset(MixinTestDataset):
             client,
             dataset,
             v1_ds_mock,
-            dataset_post_body
+            dataset_post_body,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets POST is successful with the extra_connection_args set
@@ -414,7 +444,9 @@ class TestPostDataset(MixinTestDataset):
             client,
             v1_ds_mock,
             dataset_with_repo,
-            dataset_post_body
+            dataset_post_body,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets POST fails if the new dataset uses a repository that
@@ -437,7 +469,9 @@ class TestPostDataset(MixinTestDataset):
             client,
             dataset,
             v1_ds_mock,
-            dataset_post_body
+            dataset_post_body,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets POST is successful with the type set
@@ -460,7 +494,8 @@ class TestPostDataset(MixinTestDataset):
             dataset_post_body,
             v1_ds_service_mock,
             mock_args_k8s,
-            mocker
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets POST fails if the k8s secrets cannot be created successfully
@@ -484,7 +519,8 @@ class TestPostDataset(MixinTestDataset):
             v1_ds_service_mock,
             mock_args_k8s,
             dataset_post_body,
-            mocker
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets POST is successful if the k8s secrets already exists
@@ -506,12 +542,13 @@ class TestPostDataset(MixinTestDataset):
             client,
             dataset,
             dataset_post_body,
-            mock_kc_client
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets POST is not successful for non-admin users
         """
-        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
+        base_kc_mock_args.is_token_valid.return_value = False
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
         await self.post_dataset(client, post_json_user_header, data_body, 403)
@@ -534,7 +571,8 @@ class TestPostDataset(MixinTestDataset):
             client,
             dataset,
             dataset_post_body,
-            mock_kc_client
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets POST is not successful
@@ -558,7 +596,9 @@ class TestPostDataset(MixinTestDataset):
             client,
             dataset,
             v1_ds_service_mock,
-            dataset_post_body
+            dataset_post_body,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets POST is successful with dictionaries = []
@@ -581,7 +621,9 @@ class TestPostDataset(MixinTestDataset):
             post_json_admin_header,
             client,
             dataset,
-            dataset_post_body
+            dataset_post_body,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets POST is not successful
@@ -612,7 +654,9 @@ class TestPostDataset(MixinTestDataset):
             client,
             dataset,
             v1_ds_service_mock,
-            dataset_post_body
+            dataset_post_body,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets POST is successful with same catalogues and dictionaries
@@ -652,7 +696,9 @@ class TestPostDataset(MixinTestDataset):
             dataset,
             v1_ds_service_mock,
             client,
-            dataset_post_body
+            dataset_post_body,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets POST with catalogue but no dictionary is successful
@@ -676,7 +722,9 @@ class TestPostDataset(MixinTestDataset):
             dataset,
             v1_ds_service_mock,
             client,
-            dataset_post_body
+            dataset_post_body,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
         ):
         """
         /datasets POST with dictionary but no catalogue is successful
@@ -705,7 +753,8 @@ class TestPatchDataset(MixinTestDataset):
             client,
             v1_ds_service_mock,
             mock_args_k8s,
-            mock_kc_client
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Tests that the PATCH request works as intended
@@ -736,7 +785,7 @@ class TestPatchDataset(MixinTestDataset):
                 **{'namespace':ns, 'name':expected_secret_name}
             )
 
-        mock_kc_client["dataset_kc"].return_value.patch_resource.assert_called_with(
+        base_kc_mock_args.patch_resource.assert_called_with(
             f'{dataset.id}-{ds_old_name}',
             **{'displayName': f'{dataset.id} - new_name','name': f'{dataset.id}-new_name'}
         )
@@ -752,7 +801,8 @@ class TestPatchDataset(MixinTestDataset):
             user_uuid,
             v1_ds_service_mock,
             mock_args_k8s,
-            mock_kc_client
+            mock_kc_client_dataset_service,
+            base_kc_mock_args
     ):
         """
         Tests that the PATCH request works as intended
@@ -764,8 +814,8 @@ class TestPatchDataset(MixinTestDataset):
         data_body = {"name": "new_name"}
         expected_client = f'RequestModel {dar_user} - {dataset.host}'
 
-        mock_kc_client["datasets_route_kc"].return_value.patch_resource.return_value = Mock()
-        mock_kc_client["datasets_route_kc"].return_value.get_user_by_id.return_value = {"email": dar_user}
+        base_kc_mock_args.patch_resource.return_value = Mock()
+        base_kc_mock_args.get_user_by_id.return_value = {"email": dar_user}
 
         response = await client.patch(
             f"/datasets/{dataset.id}",
@@ -776,12 +826,12 @@ class TestPatchDataset(MixinTestDataset):
         ds = await self.run_query(select(Dataset).filter(Dataset.id == dataset.id), "one_or_none")
         assert ds.name == "new_name"
 
-        mock_kc_client["dataset_kc"].return_value.patch_resource.assert_called_with(
+        base_kc_mock_args.patch_resource.assert_called_with(
             f'{dataset.id}-{ds_old_name}',
             **{'displayName': f'{dataset.id} - new_name','name': f'{dataset.id}-new_name'}
         )
-        mock_kc_client["datasets_route_kc"].assert_any_call(**{'client':expected_client})
-        mock_kc_client["datasets_route_kc"].return_value.patch_resource.assert_called_with(
+        mock_kc_client_dataset_service.assert_any_call(**{'client':expected_client})
+        base_kc_mock_args.patch_resource.assert_called_with(
             f'{dataset.id}-{ds_old_name}',
             **{'displayName': f'{dataset.id} - new_name','name': f'{dataset.id}-new_name'}
         )
@@ -794,7 +844,8 @@ class TestPatchDataset(MixinTestDataset):
             client,
             v1_ds_service_mock,
             mock_args_k8s,
-            k8s_client,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Tests that the PATCH request works as intended
@@ -832,6 +883,8 @@ class TestPatchDataset(MixinTestDataset):
             client,
             v1_ds_service_mock,
             mock_args_k8s,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Tests that the PATCH request returns a 400 in case
@@ -861,13 +914,14 @@ class TestPatchDataset(MixinTestDataset):
             client,
             v1_ds_service_mock,
             mock_args_k8s,
-            mock_kc_client
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Tests that the PATCH request returns a 400 in case
         keycloak resource update goes wrong
         """
-        mock_kc_client["dataset_kc"].return_value.patch_resource.side_effect=KeycloakError("Failed to patch the resource")
+        base_kc_mock_args.patch_resource.side_effect=KeycloakError("Failed to patch the resource")
         data_body = {
             "name": "new_name"
         }
@@ -881,14 +935,16 @@ class TestPatchDataset(MixinTestDataset):
         ds = await self.run_query(select(Dataset).filter(Dataset.id == dataset.id), "one_or_none")
         assert ds.name == ds_old_name
 
-    @mock.patch('app.services.datasets.Keycloak.patch_resource', side_effect=KeycloakError("Failed to patch the resource"))
+    @mock.patch('app.services.datasets.Keycloak.create.patch_resource', side_effect=KeycloakError("Failed to patch the resource"))
     @mark.asyncio
     async def test_patch_dataset_not_found(
             self,
             mock_kc_patch,
             dataset,
             post_json_admin_header,
-            client
+            client,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Tests that the PATCH request returns a 400 in case
@@ -909,7 +965,9 @@ class TestPatchDataset(MixinTestDataset):
             self,
             client,
             dataset,
-            simple_admin_header
+            simple_admin_header,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Check that non-admin or non DAR approved users
@@ -931,7 +989,9 @@ class TestBeacon:
             mocker,
             v1_ds_mock,
             mock_args_k8s,
-            dataset
+            dataset,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Test that the beacon endpoint is accessible to admin users
@@ -959,7 +1019,9 @@ class TestBeacon:
             mocker,
             v1_ds_mock,
             mock_args_k8s,
-            dataset
+            dataset,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Test that the beacon endpoint is accessible to admin users
@@ -988,7 +1050,9 @@ class TestBeacon:
             mocker,
             v1_ds_mock,
             mock_args_k8s,
-            dataset
+            dataset,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Test that the beacon endpoint is accessible to admin users
@@ -1024,6 +1088,8 @@ class TestDeleteDataset(MixinTestDataset):
             post_json_admin_header,
             v1_ds_mock,
             mock_args_k8s,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Test to make sure the db entry and k8s secret are deleted
@@ -1047,6 +1113,8 @@ class TestDeleteDataset(MixinTestDataset):
             post_json_admin_header,
             v1_ds_mock,
             mock_args_k8s,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Deleting a non existing dataset, returns a 404
@@ -1067,6 +1135,8 @@ class TestDeleteDataset(MixinTestDataset):
             post_json_admin_header,
             v1_ds_mock,
             mock_args_k8s,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Test to make sure the db entry and k8s secret are
@@ -1092,6 +1162,8 @@ class TestDeleteDataset(MixinTestDataset):
             post_json_admin_header,
             v1_ds_mock,
             mock_args_k8s,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Test to make sure the db entry is deleted if the secret does
@@ -1118,7 +1190,9 @@ class TestDeleteDataset(MixinTestDataset):
             post_json_admin_header,
             v1_ds_mock,
             catalogue,
-            dictionary
+            dictionary,
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Test to make sure the cascade deletion happens
@@ -1140,12 +1214,13 @@ class TestDeleteDataset(MixinTestDataset):
             client,
             dataset,
             post_json_user_header,
-            mock_kc_client
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Tests that a non admin cannot delete a dataset
         """
-        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
+        base_kc_mock_args.is_token_valid.return_value = False
         ds_id = dataset.id
         response = await client.delete(
             f"/datasets/{ds_id}",

@@ -17,7 +17,8 @@ class TestCatalogues(MixinTestDataset):
             v1_ds_mock,
             dataset_post_body,
             post_json_admin_header,
-            simple_admin_header
+            simple_admin_header,
+            mock_kc_client_dataset_route
     ):
         """
         Check that admin can see the catalogue for a given dataset
@@ -41,6 +42,7 @@ class TestCatalogues(MixinTestDataset):
             dataset_post_body,
             post_json_admin_header,
             simple_admin_header,
+            mock_kc_client_dataset_route
     ):
         """
         Check that admin can see the catalogue for a given dataset
@@ -63,6 +65,7 @@ class TestCatalogues(MixinTestDataset):
             post_json_admin_header,
             dataset,
             v1_ds_mock,
+            mock_kc_client_dataset_route
         ):
         """
         Tests that sending PUT /dataset updates the dictionaries
@@ -92,6 +95,7 @@ class TestCatalogues(MixinTestDataset):
             post_json_admin_header,
             dataset,
             v1_ds_mock,
+            mock_kc_client_dataset_route
         ):
         """
         Tests that sending PUT /dataset creates a new Catalogue
@@ -127,6 +131,7 @@ class TestCatalogues(MixinTestDataset):
             post_json_admin_header,
             dataset,
             v1_ds_mock,
+            mock_kc_client_dataset_route
         ):
         """
         Tests that sending PUT /dataset does not create a new
@@ -156,8 +161,8 @@ class TestCatalogues(MixinTestDataset):
             dataset_post_body,
             post_json_admin_header,
             simple_user_header,
-            mocker,
-            mock_kc_client
+            mock_kc_client_dataset_route,
+            base_kc_mock_args
     ):
         """
         Check that non-admin or non DAR approved users
@@ -167,7 +172,7 @@ class TestCatalogues(MixinTestDataset):
         data_body['name'] = 'TestDs78'
         resp_ds = await self.post_dataset(client, post_json_admin_header, data_body)
 
-        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
+        base_kc_mock_args.is_token_valid.return_value = False
 
         response = await client.get(
             f"/datasets/{resp_ds["id"]}/catalogue",

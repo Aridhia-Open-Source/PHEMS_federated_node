@@ -157,11 +157,12 @@ async def patch_datasets_by_id_or_name(
                 "name": f"{ds.id}-{ds.name}",
                 "displayName": f"{ds.id} - {ds.name}"
             }
+            kc_client = await Keycloak.create()
 
-            user = Keycloak().get_user_by_id(dar[0])
+            user = await kc_client.get_user_by_id(dar[0])
             req_by = user["email"]
-            kc_client = Keycloak(client=f"RequestModel {req_by} - {dar[1]}")
-            kc_client.patch_resource(f"{ds.id}-{old_ds_name}", **update_args)
+            kc_client = await Keycloak.create(client=f"RequestModel {req_by} - {dar[1]}")
+            await kc_client.patch_resource(f"{ds.id}-{old_ds_name}", **update_args)
 
     await session.commit()
     return DatasetRead.model_validate(ds).model_dump()

@@ -19,7 +19,8 @@ class TestTaskResults(BaseTest):
         simple_admin_header,
         client,
         results_job_mock,
-        task_mock
+        task_mock,
+        mock_kc_client_task_model
     ):
         """
         A simple test with mocked PVs to test a successful result
@@ -42,7 +43,8 @@ class TestTaskResults(BaseTest):
         v1_batch_tasks_mock,
         results_job_mock,
         mock_args_batch_k8s,
-        task_mock
+        task_mock,
+        mock_kc_client_task_model
     ):
         """
         Tests that the job creation to fetch results from a PV returns a 500
@@ -63,7 +65,8 @@ class TestTaskResults(BaseTest):
         self,
         simple_admin_header,
         client,
-        task_mock
+        task_mock,
+        mock_kc_client_task_model
     ):
         """
         A task result are being deleted after a declared number of days.
@@ -90,7 +93,8 @@ class TestResultsReview:
         simple_admin_header,
         client,
         task_mock,
-        set_task_review_env
+        set_task_review_env,
+        mock_kc_client_task_model
     ):
         """
         Test to make sure the default value is None,
@@ -114,7 +118,8 @@ class TestResultsReview:
         v1_batch_tasks_mock,
         set_task_review_env,
         v1_crd_mock,
-        mocker
+        mocker,
+        mock_kc_client_task_model
     ):
         """
         Test to make sure the approval allows the user
@@ -146,7 +151,8 @@ class TestResultsReview:
         set_task_review_env,
         set_task_controller_env,
         mock_args_crd,
-        v1_crd_mock
+        v1_crd_mock,
+        mock_kc_client_task_model
     ):
         """
         Test to make sure the approval allows the task controller CRD
@@ -166,7 +172,8 @@ class TestResultsReview:
         client,
         results_job_mock,
         task_mock,
-        set_task_review_env
+        set_task_review_env,
+        mock_kc_client_task_model
     ):
         """
         Test to make sure the admin can fetch their results
@@ -189,13 +196,14 @@ class TestResultsReview:
         v1_crd_mock,
         mock_args_k8s,
         v1_task_mock,
-        mock_kc_client
+        base_kc_mock_args,
+        mock_kc_client_task_model
     ):
         """
         Test to make sure the user can't fetch their results
         before the review took place
         """
-        mock_kc_client["tasks_api_kc"].return_value.is_user_admin.return_value = False
+        base_kc_mock_args.is_user_admin.return_value = False
         mock_args_k8s.api_client.list_namespaced_pod.return_value.items[0].metadata.name = task_mock.name
         response = await client.get(
             f'/tasks/{task_mock.id}/results',
@@ -215,8 +223,9 @@ class TestResultsReview:
         k8s_client,
         set_task_review_env,
         v1_crd_mock,
-        mock_kc_client,
-        mocker
+        base_kc_mock_args,
+        mocker,
+        mock_kc_client_task_model
     ):
         """
         Test to make sure the user can't fetch their results
@@ -240,7 +249,7 @@ class TestResultsReview:
         )
         assert response.status_code == 201
 
-        mock_kc_client["tasks_api_kc"].return_value.is_user_admin.return_value = False
+        base_kc_mock_args.is_user_admin.return_value = False
 
         response = await client.get(
             f'/tasks/{task_mock.id}/results',
@@ -255,7 +264,8 @@ class TestResultsReview:
         simple_user_header,
         client,
         task_mock,
-        set_task_review_env
+        set_task_review_env,
+        mock_kc_client_task_model
     ):
         """
         Trying to review an non-existing task should return 404
@@ -276,7 +286,8 @@ class TestResultsReview:
         k8s_client,
         set_task_review_env,
         v1_crd_mock,
-        mocker
+        mocker,
+        mock_kc_client_task_model
     ):
         """
         Tests that review can only happen once
@@ -313,7 +324,8 @@ class TestResultsReview:
         k8s_crd_500,
         set_task_review_env,
         mock_args_crd,
-        v1_crd_mock
+        v1_crd_mock,
+        mock_kc_client_task_model
     ):
         """
         Tests that review fails when the CRD is not found
@@ -337,7 +349,8 @@ class TestResultsReview:
         task_mock,
         k8s_crd_404,
         set_task_review_env,
-        v1_crd_mock
+        v1_crd_mock,
+        mock_kc_client_task_model
     ):
         """
         Tests that if a task without a CRD will go through
@@ -357,7 +370,8 @@ class TestResultsReview:
         self,
         simple_admin_header,
         client,
-        task_mock
+        task_mock,
+        mock_kc_client_task_model
     ):
         """
         Tests that review cannot be used when the env var

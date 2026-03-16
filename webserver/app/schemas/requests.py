@@ -40,8 +40,4 @@ class TransferTokenBody(BaseModel):
         if 'email' not in v:
             raise InvalidRequest("Missing email from requested_by field")
 
-        user: dict = Keycloak().get_user_by_email(v["email"])
-        if not user:
-            user = Keycloak().create_user(**v)
-
-        return user["id"]
+        return v

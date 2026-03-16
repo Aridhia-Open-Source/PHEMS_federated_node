@@ -64,8 +64,8 @@ class TestGetContainers(ContainersMixin):
             {"name": "not_valid/"}
         ]
         mocker.patch(
-            'app.models.task.Keycloak',
-            return_value=Mock()
+            'app.models.task.Keycloak.create',
+            return_value=AsyncMock()
         )
         for im_format in valid_image_formats:
             container_body.update(im_format)
@@ -81,7 +81,8 @@ class TestGetContainers(ContainersMixin):
         self,
         client,
         container,
-        post_json_admin_header
+        post_json_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Basic test for returning a correct response body
@@ -96,7 +97,8 @@ class TestGetContainers(ContainersMixin):
         self,
         client,
         container,
-        simple_admin_header
+        simple_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Basic test to make sure the response body has
@@ -115,7 +117,8 @@ class TestGetContainers(ContainersMixin):
         self,
         client,
         container,
-        simple_admin_header
+        simple_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Basic test to make sure the response body has
@@ -135,13 +138,14 @@ class TestGetContainers(ContainersMixin):
         client,
         container,
         simple_user_header,
-        mock_kc_client
+        mock_kc_client_wrapper,
+        base_kc_mock_args
     ):
         """
         Basic test to make sure only admin users can
         use the endpoint
         """
-        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
+        base_kc_mock_args.is_token_valid.return_value = False
         resp = await client.get(
             f"/containers/{container.id}",
             headers=simple_user_header
@@ -156,7 +160,8 @@ class TestPostContainers(ContainersMixin):
         self,
         client,
         registry,
-        post_json_admin_header
+        post_json_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Checks the POST body is what we expect
@@ -180,7 +185,8 @@ class TestPostContainers(ContainersMixin):
         self,
         client,
         registry,
-        post_json_admin_header
+        post_json_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Checks the POST body is what we expect
@@ -205,7 +211,8 @@ class TestPostContainers(ContainersMixin):
         client,
         registry,
         container,
-        post_json_admin_header
+        post_json_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Checks the POST request returns a 409 with a duplicate
@@ -226,7 +233,8 @@ class TestPostContainers(ContainersMixin):
         self,
         client,
         registry,
-        post_json_admin_header
+        post_json_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Checks the POST body is processed and returns
@@ -247,7 +255,8 @@ class TestPostContainers(ContainersMixin):
     async def test_add_new_container_invalid_registry(
         self,
         client,
-        post_json_admin_header
+        post_json_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Checks the POST request fails if the registry needed
@@ -270,7 +279,8 @@ class TestPostContainers(ContainersMixin):
         self,
         client,
         registry,
-        post_json_admin_header
+        post_json_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         If a tag is in an non supported format, return an error
@@ -296,7 +306,8 @@ class TestPatchContainers(BaseTest):
         self,
         client,
         container,
-        post_json_admin_header
+        post_json_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Basic PATCH request test
@@ -315,7 +326,8 @@ class TestPatchContainers(BaseTest):
         self,
         client,
         container,
-        post_json_admin_header
+        post_json_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Basic PATCH request test
@@ -333,7 +345,8 @@ class TestPatchContainers(BaseTest):
         self,
         client,
         container,
-        post_json_admin_header
+        post_json_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Basic PATCH request test
@@ -351,7 +364,8 @@ class TestPatchContainers(BaseTest):
         self,
         client,
         container,
-        simple_admin_header
+        simple_admin_header,
+        mock_kc_client_wrapper
     ):
         """
         Basic PATCH request test in invalid format
@@ -376,7 +390,8 @@ class TestSync(BaseTest):
         registry,
         expected_image_names,
         expected_tags_list,
-        expected_digest_list
+        expected_digest_list,
+        mock_kc_client_wrapper
     ):
         """
         Basic test that adds couple of missing images
@@ -405,25 +420,31 @@ class TestSync(BaseTest):
         client,
         post_json_admin_header,
         cr_name,
-        registry
+        respx_mock,
+        registry,
+        mock_kc_client_wrapper
     ):
         """
         Basic test that adds couple of missing images
         from the tracked registry. Check that upon failure
         during the process no images are synched up
         """
-        with responses.RequestsMock() as rsps:
-            rsps.add_passthru(KEYCLOAK_URL)
-            rsps.add(
-                responses.GET,
-                f"https://{cr_name}/oauth2/token?service={cr_name}&scope=registry:catalog:*",
+        respx_mock.get(
+            f"https://{cr_name}/oauth2/token",
+            params={
+                "service": cr_name,
+                "scope": "registry:catalog:*"
+            }
+        ).mock(
+            return_value=httpx.Response(
                 json={"error": "Credentials not valid"},
-                status=401
+                status_code=401
             )
-            resp = await client.post(
-                "/containers/sync",
-                headers=post_json_admin_header
-            )
+        )
+        resp = await client.post(
+            "/containers/sync",
+            headers=post_json_admin_header
+        )
 
         assert resp.status_code == 400
         assert resp.json()["error"] == "Could not authenticate against the registry"
@@ -437,36 +458,50 @@ class TestSync(BaseTest):
         container,
         container_with_sha,
         azure_login_request,
-        cr_name
+        cr_name,
+        mock_kc_client_wrapper,
+        respx_mock
     ):
         """
         Basic test that adds couple of missing images
         from the tracked registry. Check that no duplicate
         is added.
         """
-        azure_login_request.add(
-            responses.GET,
-            f"https://{cr_name}/v2/{container.name}/tags/list",
-            json={"tags": [container.tag]},
-            status=200
+        respx_mock.get(
+            f"https://{cr_name}/oauth2/token",
+            params={
+                "service": cr_name,
+                "scope": f"repository:{container.name}:*"
+            }
+        ).mock(
+            return_value=httpx.Response(
+                json={"access_token": "12345asdf"},
+                status_code=200
+            )
         )
-        azure_login_request.add(
-            responses.GET,
-            f"https://{cr_name}/oauth2/token?service={cr_name}&scope=repository:{container.name}:*",
-            json={"access_token": "12345asdf"},
-            status=200
+        respx_mock.get(
+            f"https://{cr_name}/v2/{container.name}/tags/list"
+        ).mock(
+            return_value=httpx.Response(
+                json={"tags": [container.tag]},
+                status_code=200
+            )
         )
-        azure_login_request.add(
-            responses.GET,
+        respx_mock.get(
             f"https://{cr_name}/v2/{container.name}/manifests/{container.tag}",
-            json={"config": {"digest": container_with_sha.sha}},
-            status=200
+        ).mock(
+            return_value=httpx.Response(
+                json={"config": {"digest": container_with_sha.sha}},
+                status_code=200
+            )
         )
-        azure_login_request.add(
-            responses.GET,
-            f"https://{cr_name}/v2/_catalog",
-            json={"repositories": [container.name]},
-            status=200
+        respx_mock.get(
+            f"https://{cr_name}/v2/_catalog"
+        ).mock(
+            return_value=httpx.Response(
+                json={"repositories": [container.name]},
+                status_code=200
+            )
         )
         resp = await client.post(
             "/containers/sync",
@@ -481,7 +516,8 @@ class TestSync(BaseTest):
         self,
         client,
         post_json_admin_header,
-        registry
+        registry,
+        mock_kc_client_wrapper
     ):
         """
         Basic test that makes sure that if a registry is inactive

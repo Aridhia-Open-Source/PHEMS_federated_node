@@ -1,3 +1,4 @@
+import httpx
 from pytest import mark, raises
 import responses
 import requests
@@ -16,86 +17,111 @@ class TestAzureRegistry:
             container,
             cr_class,
             cr_name,
-            registry
+            registry,
+            respx_mock
     ):
         """
         Test that the Container registry helper behaves as expected when the login fails.
         """
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.GET,
-                f"https://{cr_name}/oauth2/token?service={registry.url}&scope=repository:{container.name}:*",
-                status=401
+        respx_mock.get(
+            f"https://{cr_name}/oauth2/token",
+            params={
+                "service": registry.url,
+                "scope": f"repository:{container.name}:*"
+            }
+        ).mock(
+            return_value=httpx.Response(
+                status_code=401
             )
-            with raises(ContainerRegistryException) as cre:
-                cr_class.login(container.name)
-            assert cre.value.description == "Could not authenticate against the registry"
+        )
+        with raises(ContainerRegistryException) as cre:
+            cr_class.login(container.name)
+        assert cre.value.description == "Could not authenticate against the registry"
 
     @mark.asyncio
     async def test_cr_metadata_empty(
             self,
             container,
             cr_class,
-            cr_name
+            cr_name,
+            respx_mock
     ):
         """
         Test that the Container registry helper behaves as expected when the
             metadata response is empty. Which is a `False`
         """
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.GET,
-                f"https://{cr_name}/oauth2/token?service={cr_name}&scope=repository:{container.name}:*",
+        respx_mock.get(
+            f"https://{cr_name}/oauth2/token",
+            params={
+                "service": cr_name,
+                "scope": f"repository:{container.name}:*"
+            }
+        ).mock(
+            return_value=httpx.Response(
                 json={"access_token": "12345asdf"},
-                status=200
+                status_code=200
             )
-            rsps.add(
-                responses.GET,
-                f"https://{cr_name}/v2/{container.name}/tags/list",
+        )
+        respx_mock.get(
+            f"https://{cr_name}/v2/{container.name}/tags/list"
+        ).mock(
+            return_value=httpx.Response(
                 json=[],
-                status=200
+                status_code=200
             )
-            assert await cr_class.get_image_tags(container.name) == {'tag': [], 'sha': []}
+        )
+        assert await cr_class.get_image_tags(container.name) == {'tag': [], 'sha': []}
 
     @mark.asyncio
     async def test_cr_metadata_tag_not_in_api_response(
             self,
             container,
             cr_class,
-            cr_name
+            cr_name,
+            respx_mock
     ):
         """
         Test that the Container registry helper behaves as expected when the
             tag is not in the list of the metadata info. Which is a `False`
         """
         expected_tags = ["1.2.3", "dev"]
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.GET,
-                f"https://{cr_name}/oauth2/token?service={cr_name}&scope=repository:{container.name}:*",
+        respx_mock.get(
+            f"https://{cr_name}/oauth2/token",
+            params={
+                "service": cr_name,
+                "scope": f"repository:{container.name}:*"
+            }
+        ).mock(
+            return_value=httpx.Response(
                 json={"access_token": "12345asdf"},
-                status=200
+                status_code=200
             )
-            rsps.add(
-                responses.GET,
-                f"https://{cr_name}/v2/{container.name}/tags/list",
+        )
+        respx_mock.get(
+            f"https://{cr_name}/v2/{container.name}/tags/list"
+        ).mock(
+            return_value=httpx.Response(
                 json={"tags": expected_tags},
-                status=200
+                status_code=200
             )
-            for t in expected_tags:
-                rsps.add(
-                    responses.GET,
-                    f"https://{cr_name}/v2/{container.name}/manifests/{t}",
+        )
+        for t in expected_tags:
+            respx_mock.get(
+                f"https://{cr_name}/v2/{container.name}/manifests/{t}"
+            ).mock(
+                return_value=httpx.Response(
                     json={"config": {"digest": "sha256:123123123"}},
-                    status=200
+                    status_code=200
                 )
-            assert not await cr_class.has_image_tag_or_sha(container.name, "latest")
+            )
+        assert not await cr_class.has_image_tag_or_sha(container.name, "latest")
 
     @mark.asyncio
     async def test_cr_login_connection_error(
         self,
         registry,
-        cr_class
+        cr_class,
+        respx_mock
     ):
         """
         Checks that we handle a ConnectionError
@@ -103,14 +129,19 @@ class TestAzureRegistry:
         should be the same regardless of the cr class
         Github's, Azure's or Docker's.
         """
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.GET,
-                f"https://{registry.url}/oauth2/token?service={registry.url}&scope=registry:catalog:*",
-                body=requests.ConnectionError("error")
-            )
-            with raises(ContainerRegistryException) as cre:
-                cr_class.login()
+        respx_mock.get(
+            f"https://{registry.url}/oauth2/token",
+            params={
+                "service": registry.url,
+                "scope": "registry:catalog:*"
+            }
+        ).mock(
+            side_effect=[
+                requests.ConnectionError("error")
+            ]
+        )
+        with raises(ContainerRegistryException) as cre:
+            cr_class.login()
         assert cre.value.description == "Failed to connect with the Registry. Make sure it's spelled correctly or it does not have firewall restrictions."
 
     @mark.asyncio
@@ -119,7 +150,8 @@ class TestAzureRegistry:
         registry,
         cr_name,
         container,
-        cr_class
+        cr_class,
+        respx_mock
     ):
         """
         Checks that we handle a ConnectionError
@@ -127,21 +159,26 @@ class TestAzureRegistry:
         The exception should be re-raised as a custom one, so that
         flask can return a formatted error
         """
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.GET,
-                f"https://{cr_name}/v2/{container.name}/tags/list",
-                body=requests.ConnectionError("error")
-            )
-            rsps.add(
-                responses.GET,
-                f"https://{cr_name}/oauth2/token?service={cr_name}&scope=repository:{container.name}:*",
+        respx_mock.get(
+            f"https://{cr_name}/v2/{container.name}/tags/list"
+        ).mock(
+            side_effect=[requests.ConnectionError("error")]
+        )
+        respx_mock.get(
+            f"https://{cr_name}/oauth2/token",
+            params={
+                "service": cr_name,
+                "scope": f"repository:{container.name}:*"
+            }
+        ).mock(
+            return_value=httpx.Response(
                 json={"access_token": "12345asdf"},
-                status=200
+                status_code=200
             )
-            with raises(ContainerRegistryException) as cre:
-                await cr_class.get_image_tags(container.name)
-            assert cre.value.description == f"Failed to fetch the list of tags from {registry.url}/{container.name}"
+        )
+        with raises(ContainerRegistryException) as cre:
+            await cr_class.get_image_tags(container.name)
+        assert cre.value.description == f"Failed to fetch the list of tags from {registry.url}/{container.name}"
 
     @mark.asyncio
     async def test_cr_tags_request_fails(
@@ -149,7 +186,8 @@ class TestAzureRegistry:
         registry,
         cr_name,
         container,
-        cr_class
+        cr_class,
+        respx_mock
     ):
         """
         Checks that we handle a ConnectionError
@@ -157,29 +195,37 @@ class TestAzureRegistry:
         The exception should be re-raised as a custom one, so that
         flask can return a formatted error
         """
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.GET,
-                f"https://{cr_name}/v2/{container.name}/tags/list",
+        respx_mock.get(
+            f"https://{cr_name}/v2/{container.name}/tags/list"
+        ).mock(
+            return_value=httpx.Response(
                 json={"error": "Something went wrong"},
-                status=400
+                status_code=400
             )
-            rsps.add(
-                responses.GET,
-                f"https://{cr_name}/oauth2/token?service={cr_name}&scope=repository:{container.name}:*",
+        )
+        respx_mock.get(
+            f"https://{cr_name}/oauth2/token",
+            params={
+                "service": cr_name,
+                "scope": f"repository:{container.name}:*"
+            }
+        ).mock(
+            return_value=httpx.Response(
                 json={"access_token": "12345asdf"},
-                status=200
+                status_code=200
             )
-            with raises(ContainerRegistryException) as cre:
-                await cr_class.get_image_tags(container.name)
-            assert cre.value.description == f"Failed to fetch the list of tags for {container.name}"
+        )
+        with raises(ContainerRegistryException) as cre:
+            await cr_class.get_image_tags(container.name)
+        assert cre.value.description == f"Failed to fetch the list of tags for {container.name}"
 
     @mark.asyncio
     async def test_cr_list_repo_connection_error(
         self,
         registry,
         cr_name,
-        cr_class
+        cr_class,
+        respx_mock
     ):
         """
         Checks that we handle a ConnectionError
@@ -187,22 +233,22 @@ class TestAzureRegistry:
         The exception should be re-raised as a custom one, so that
         flask can return a formatted error
         """
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.GET,
-                f"https://{cr_name}/v2/_catalog",
-                body=requests.ConnectionError("error")
-            )
-            with raises(ContainerRegistryException) as cre:
-                await cr_class.list_repos()
-            assert cre.value.description == f"Failed to fetch the list of available containers from {registry.url}"
+        respx_mock.get(
+            f"https://{cr_name}/v2/_catalog"
+        ).mock(
+            side_effect=[requests.ConnectionError("error")]
+        )
+        with raises(ContainerRegistryException) as cre:
+            await cr_class.list_repos()
+        assert cre.value.description == f"Failed to fetch the list of available containers from {registry.url}"
 
     @mark.asyncio
     async def test_cr_list_repo_request_fails(
         self,
         registry,
         cr_name,
-        cr_class
+        cr_class,
+        respx_mock
     ):
         """
         Checks that we handle a ConnectionError
@@ -210,13 +256,14 @@ class TestAzureRegistry:
         The exception should be re-raised as a custom one, so that
         flask can return a formatted error
         """
-        with responses.RequestsMock() as rsps:
-            rsps.add(
-                responses.GET,
-                f"https://{cr_name}/v2/_catalog",
+        respx_mock.get(
+            f"https://{cr_name}/v2/_catalog"
+        ).mock(
+            return_value=httpx.Response(
                 json={"error": "Something went wrong"},
-                status=400
+                status_code=400
             )
-            with raises(ContainerRegistryException) as cre:
-                await cr_class.list_repos()
-            assert cre.value.description == "Could not fetch the list of images"
+        )
+        with raises(ContainerRegistryException) as cre:
+            await cr_class.list_repos()
+        assert cre.value.description == "Could not fetch the list of images"

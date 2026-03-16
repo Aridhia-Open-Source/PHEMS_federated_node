@@ -23,7 +23,8 @@ class TestUpdateDeliverySecret:
         set_task_other_delivery_env,
         post_json_admin_header,
         mock_args_k8s,
-        v1_delivery_mock
+        v1_delivery_mock,
+        mock_kc_client_general_route
     ):
         """
         Test that when the other delivery is chosen
@@ -50,15 +51,16 @@ class TestUpdateDeliverySecret:
         client,
         set_task_other_delivery_env,
         post_json_user_header,
-        mock_kc_client,
         mock_args_k8s,
-        v1_delivery_mock
+        v1_delivery_mock,
+        mock_kc_client_general_route,
+        base_kc_mock_args
     ):
         """
         Test that when the other delivery is chosen
         at deployment time, 403 is returned for non-admins
         """
-        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
+        base_kc_mock_args.is_token_valid.return_value = False
         resp = await client.patch(
             "/delivery-secret",
             json={"auth": "test"},
@@ -75,7 +77,8 @@ class TestUpdateDeliverySecret:
         set_task_other_delivery_env,
         post_json_admin_header,
         mock_args_k8s,
-        v1_delivery_mock
+        v1_delivery_mock,
+        mock_kc_client_general_route
     ):
         """
         Test that when the other delivery is chosen
@@ -100,7 +103,8 @@ class TestUpdateDeliverySecret:
         set_task_other_delivery_env,
         post_form_admin_header,
         mock_args_k8s,
-        v1_delivery_mock
+        v1_delivery_mock,
+        mock_kc_client_general_route
     ):
         """
         Test that when the other delivery is chosen
@@ -124,7 +128,8 @@ class TestUpdateDeliverySecret:
         set_task_other_delivery_env,
         post_json_admin_header,
         mock_args_k8s,
-        v1_delivery_mock
+        v1_delivery_mock,
+        mock_kc_client_general_route
     ):
         """
         Test that when the other delivery is chosen
@@ -148,7 +153,8 @@ class TestUpdateDeliverySecret:
         set_task_other_delivery_env,
         post_json_admin_header,
         mock_args_k8s,
-        v1_delivery_mock
+        v1_delivery_mock,
+        mock_kc_client_general_route
     ):
         """
         Test that when the other delivery is chosen
@@ -174,7 +180,8 @@ class TestUpdateDeliverySecret:
         set_task_github_delivery_env,
         post_json_admin_header,
         mock_args_k8s,
-        v1_delivery_mock
+        v1_delivery_mock,
+        mock_kc_client_general_route
     ):
         """
         Test that when the github delivery is chosen
@@ -196,7 +203,8 @@ class TestUpdateDeliverySecret:
         client,
         post_json_admin_header,
         mock_args_k8s,
-        v1_delivery_mock
+        v1_delivery_mock,
+        mock_kc_client_general_route
     ):
         """
         Test that when the task controller is not deployed

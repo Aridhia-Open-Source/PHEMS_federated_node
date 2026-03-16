@@ -42,14 +42,14 @@ class Auth:
         client = 'global'
         token_type = 'refresh_token'
 
-        kc_client = Keycloak()
-        token_info = kc_client.decode_token(token)
-        user = kc_client.get_user_by_username(token_info['username'])
+        kc_client = await Keycloak.create()
+        token_info = await kc_client.decode_token(token)
+        user = await kc_client.get_user_by_username(token_info['username'])
 
-        if project_name and not kc_client.is_user_admin(token):
+        if project_name and not await kc_client.is_user_admin(token):
             dar: RequestModel = await RequestModel.get_active_project(session, project_name, user["id"])
             if dar.dataset_id:
-                ds = Dataset.get_dataset_by_name_or_id(session, id=dar.dataset_id)
+                ds = await Dataset.get_dataset_by_name_or_id(session, id=dar.dataset_id)
                 resource = f"{ds.id}-{ds.name}"
 
         elif self.check_dataset:
@@ -59,18 +59,18 @@ class Auth:
                 dataset_name = flat_json.get("dataset_name", "")
 
             if dataset_id or dataset_name:
-                ds = Dataset.get_dataset_by_name_or_id(session, name=dataset_name, id=dataset_id)
+                ds = await Dataset.get_dataset_by_name_or_id(session, name=dataset_name, id=dataset_id)
                 resource = f"{ds.id}-{ds.name}"
 
         # If the user is an admin or system, ignore the project
-        if not kc_client.has_user_roles(user["id"], {"Super Administrator", "Administrator", "System"}):
+        if not await kc_client.has_user_roles(user["id"], {"Super Administrator", "Administrator", "System"}):
             if project_name:
                 client = f"RequestModel {token_info['username']} - {project_name}"
-                kc_client = Keycloak(client)
-                token = kc_client.exchange_global_token(token)
+                kc_client = await Keycloak.create(client)
+                token = await kc_client.exchange_global_token(token)
                 token_type = 'access_token'
 
-        if kc_client.is_token_valid(token, self.scope, resource, token_type):
+        if await kc_client.is_token_valid(token, self.scope, resource, token_type):
             return user
         else:
             raise UnauthorizedError("Token is not valid, or the user has not enough permissions.")
@@ -120,9 +120,10 @@ def audit(func):
 
         audit_body["requested_by"] = "No auth"
         if "Authorization" in request.headers:
-            kc_client = Keycloak()
-            token = kc_client.decode_token(Keycloak.get_token_from_headers(request))
-            audit_body["requested_by"] = kc_client.get_user_by_email(token["email"])["id"]
+            kc_client = await Keycloak.create()
+            token = await kc_client.decode_token(await Keycloak.get_token_from_headers(request))
+            user_info = await kc_client.get_user_by_email(token["email"])
+            audit_body["requested_by"] = user_info["id"]
 
         audit_body["http_method"] = request.method
         audit_body["endpoint"] = request.scope["path"]

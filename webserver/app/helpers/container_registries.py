@@ -1,11 +1,10 @@
 from base64 import b64encode
-import json
+import httpx
 from typing import List
 import requests
 import logging
 from requests.exceptions import ConnectionError
 
-from app.helpers.kubernetes import KubernetesClient
 from app.helpers.exceptions import ContainerRegistryException
 from app.helpers.const import TASK_NAMESPACE
 
@@ -36,11 +35,12 @@ class BaseRegistry:
             available images
         """
         try:
-            list_resp = requests.get(
-                self.list_repo_url % {"service": self.registry, "organization": self.organization},
-                headers={"Authorization": f"Bearer {self._token}"}
-            )
-            if not list_resp.ok:
+            async with httpx.AsyncClient() as requests:
+                list_resp: httpx.Response = await requests.get(
+                    self.list_repo_url % {"service": self.registry, "organization": self.organization},
+                    headers={"Authorization": f"Bearer {self._token}"}
+                )
+            if list_resp.is_error:
                 logger.error(list_resp.text)
                 raise ContainerRegistryException("Could not fetch the list of images", 500)
         except ConnectionError as ce:
@@ -57,12 +57,14 @@ class BaseRegistry:
         """
         url = self.repo_login_url if image else  self.login_url
         try:
-            response_auth = requests.get(
-                url % self.get_url_string_params(image_name=image),
-                **self.request_args
-            )
+            # TODO: Find a way to make it async since we use it in a constructor
+            with httpx.Client() as requests:
+                response_auth: httpx.Response = requests.get(
+                    url % self.get_url_string_params(image_name=image),
+                    **self.request_args
+                )
 
-            if not response_auth.ok:
+            if response_auth.is_error:
                 logger.info(response_auth.text)
                 raise ContainerRegistryException("Could not authenticate against the registry", 400)
 
@@ -91,12 +93,13 @@ class BaseRegistry:
         token = self.login(image)
 
         try:
-            response_metadata = requests.get(
-                self.tags_url % self.get_url_string_params(image_name=image),
-                params=self.list_req_params,
-                headers={"Authorization": f"Bearer {token}"}
-            )
-            if not response_metadata.ok:
+            async with httpx.AsyncClient() as requests:
+                response_metadata: httpx.Response = await requests.get(
+                    self.tags_url % self.get_url_string_params(image_name=image),
+                    params=self.list_req_params,
+                    headers={"Authorization": f"Bearer {token}"}
+                )
+            if response_metadata.is_error:
                 logger.info(response_metadata.text)
                 raise ContainerRegistryException(f"Failed to fetch the list of tags for {image}")
 
@@ -135,19 +138,20 @@ class AzureRegistry(BaseRegistry):
         self.request_args["headers"] = {"Authorization": f"Basic {self.auth}"}
         self._token = self.login()
 
-    def get_image_digest(self, image:str, tag:str) -> dict[str, str]:
+    async def get_image_digest(self, image:str, tag:str) -> dict[str, str]:
         token = self.login(image)
 
         try:
-            response_metadata = requests.get(
-                self.digest_url % self.get_url_string_params(image_name=image) + tag,
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Accept": "application/vnd.docker.distribution.manifest.v2+json"
+            async with httpx.AsyncClient() as requests:
+                response_metadata = await requests.get(
+                    self.digest_url % self.get_url_string_params(image_name=image) + tag,
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/vnd.docker.distribution.manifest.v2+json"
                     }
-            )
+                )
 
-            if not response_metadata.ok:
+            if response_metadata.is_error:
                 logger.info(response_metadata.text)
                 raise ContainerRegistryException(f"Failed to fetch the list of digest for {image}")
 
@@ -166,7 +170,7 @@ class AzureRegistry(BaseRegistry):
             full_tags["tag"] = [t for t in tags_list.get("tags", [])]
 
             for t in full_tags["tag"]:
-                full_tags["sha"] = [self.get_image_digest(image, t)]
+                full_tags["sha"] = [await self.get_image_digest(image, t)]
 
         return full_tags
 
@@ -192,7 +196,7 @@ class DockerRegistry(BaseRegistry):
         super().__init__(registry, creds)
 
         self.organization = registry
-        self.request_args["json"] = {"username": self.creds['user'], "password": self.creds['token']}
+        self.request_args["auth"] = (self.creds['user'], self.creds['token'])
         self.request_args["headers"] = {"Content-Type": "application/json"}
         self._token = self.login()
 
@@ -247,12 +251,13 @@ class GitHubRegistry(BaseRegistry):
         tags_list = []
 
         try:
-            response_metadata = requests.get(
-                self.tags_url % self.get_url_string_params(image_name=image),
-                params=self.list_req_params,
-                headers={"Authorization": f"Bearer {token}"}
-            )
-            if not response_metadata.ok:
+            async with httpx.AsyncClient() as requests:
+                response_metadata: httpx.Response = await requests.get(
+                    self.tags_url % self.get_url_string_params(image_name=image),
+                    params=self.list_req_params,
+                    headers={"Authorization": f"Bearer {token}"}
+                )
+            if response_metadata.is_error:
                 logger.info(response_metadata.text)
                 raise ContainerRegistryException(f"Failed to fetch the list of tags for {image}")
 
