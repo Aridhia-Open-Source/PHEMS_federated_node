@@ -5,7 +5,9 @@ from kubernetes_asyncio.client.exceptions import ApiException
 from unittest import mock
 from unittest.mock import Mock
 
-from app.helpers.const import TASK_POD_RESULTS_PATH
+from unittest.mock import Mock, patch
+
+from app.helpers.settings import settings
 from app.models.task import Task
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
@@ -221,6 +223,7 @@ class TestPostTask(BaseTest):
             mock_args_k8s,
             registry_client,
             task_body,
+            mock_args_crd,
             v1_crd_mock
         ):
         """
@@ -233,7 +236,7 @@ class TestPostTask(BaseTest):
         )
         assert response.status_code == 201
         mock_args_k8s.api_client.create_namespaced_pod.assert_called()
-        v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
+        mock_args_crd.api_client.create_cluster_custom_object.assert_not_called()
         pod_body = mock_args_k8s.api_client.create_namespaced_pod.call_args.kwargs["body"]
         # Make sure the two init containers are created
         assert len(pod_body.spec.init_containers) == 2
@@ -262,6 +265,27 @@ class TestPostTask(BaseTest):
             )
             assert response.status_code == 400
             assert response.json()["error"] == "name is a mandatory field"
+
+    @mark.asyncio
+    async def test_create_task_no_tag_fails(
+            self,
+            post_json_admin_header,
+            client,
+            task_body,
+            container
+        ):
+        """
+        Tests task creation returns an error when the image does not have a tag or sha
+        """
+        tagless_image = "".join(container.full_image_name().split(':')[:-1])
+        task_body["executors"][0]["image"] = tagless_image
+        response = await client.post(
+            '/tasks',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert response.json()["error"] == f"{tagless_image} does not have a tag. Please provide one in the format <image>:<tag> or <image>@sha256.."
 
     @mark.asyncio
     async def test_create_task_space_name_fails(
@@ -310,7 +334,7 @@ class TestPostTask(BaseTest):
         task_body.pop("db_query")
         response = await client.post(
             '/tasks',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -322,6 +346,67 @@ class TestPostTask(BaseTest):
         envs = [env.name for env in pod_body.spec.containers[0].env]
         assert "CONNECTION_STRING" in envs
         assert set(envs).intersection({"QUERY", "FROM_DIALECT", "TO_DIALECT"}) == set()
+
+    @mark.asyncio
+    async def test_automatic_delivery_via_crd(
+        self,
+        cr_client,
+        registry_client,
+        post_json_admin_header,
+        set_task_other_delivery_allowed_env,
+        client,
+        v1_crd_mock,
+        task_body,
+        mock_args_crd
+    ):
+        """
+        Tests that with the right conditions (from env variables)
+        the auto delivery is performed
+        """
+        response = await client.post(
+            '/tasks',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        mock_args_crd.api_client.create_cluster_custom_object.assert_called()
+
+    @mark.asyncio
+    async def test_automatic_delivery_via_crd_is_not_performed(
+        self,
+        cr_client,
+        registry_client,
+        post_json_admin_header,
+        client,
+        v1_crd_mock,
+        task_body,
+        mocker,
+        mock_args_crd
+    ):
+        """
+        Tests that with the missing conditions (from env variables)
+        the auto delivery is not performed
+        """
+        mocker.patch(f'app.models.task.settings.task_controller', "enabled")
+
+        response = await client.post(
+            '/tasks',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        mock_args_crd.api_client.create_cluster_custom_object.assert_not_called()
+
+        mocker.patch(f'app.models.task.settings.task_controller', None)
+        mocker.patch(f'app.models.task.settings.auto_delivery_results', "enabled")
+
+        response = await client.post(
+            '/tasks',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        mock_args_crd.api_client.create_cluster_custom_object.assert_not_called()
 
     @mark.asyncio
     async def test_create_task_incomplete_db_query(
@@ -364,7 +449,7 @@ class TestPostTask(BaseTest):
         task_body["outputs"] = []
         response = await client.post(
             '/tasks',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -388,14 +473,14 @@ class TestPostTask(BaseTest):
         task_body.pop("outputs")
         response = await client.post(
             '/tasks',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
         mock_args_k8s.api_client.create_namespaced_pod.assert_called()
         pod_body = mock_args_k8s.api_client.create_namespaced_pod.call_args.kwargs["body"]
         assert len(pod_body.spec.containers[0].volume_mounts) == 1
-        assert pod_body.spec.containers[0].volume_mounts[0].mount_path == TASK_POD_RESULTS_PATH
+        assert pod_body.spec.containers[0].volume_mounts[0].mount_path == settings.task_pod_results_path
 
     @mark.asyncio
     async def test_create_task_with_ds_name(
@@ -521,7 +606,7 @@ class TestPostTask(BaseTest):
         assert response.status_code == 404
         assert response.json() == {"error": "Dataset something else does not exist"}
 
-    @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
+    @patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
     @mark.asyncio
     async def test_create_unauthorized_task(
             self,
@@ -558,6 +643,7 @@ class TestPostTask(BaseTest):
             v1_task_mock,
             registry_client,
             mock_args_k8s,
+            mock_args_crd,
             container_with_sha,
             task_body,
             v1_crd_mock
@@ -574,7 +660,7 @@ class TestPostTask(BaseTest):
         )
         assert response.status_code == 201
         mock_args_k8s.api_client.create_namespaced_pod.assert_called()
-        v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
+        mock_args_crd.api_client.create_cluster_custom_object.assert_not_called()
 
     @mark.asyncio
     async def test_create_task_image_same_name_different_registry(
@@ -616,7 +702,7 @@ class TestPostTask(BaseTest):
         """
         response = await client.post(
             '/tasks',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 500
@@ -640,7 +726,7 @@ class TestPostTask(BaseTest):
         task_body["inputs"] = {"file.csv": "/data/in"}
         response = await client.post(
             '/tasks',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -671,7 +757,7 @@ class TestPostTask(BaseTest):
         task_body["executors"][0]["env"] = {"INPUT_PATH": "/data/in/file.csv"}
         response = await client.post(
             '/tasks',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -698,7 +784,7 @@ class TestPostTask(BaseTest):
         task_body["outputs"] = []
         response = await client.post(
             '/tasks',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -720,7 +806,7 @@ class TestPostTask(BaseTest):
         task_body["inputs"] = []
         response = await client.post(
             '/tasks',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -744,14 +830,14 @@ class TestPostTask(BaseTest):
         task_body.pop("outputs")
         response = await client.post(
             '/tasks',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
         mock_args_k8s.api_client.create_namespaced_pod.assert_called()
         pod_body = mock_args_k8s.api_client.create_namespaced_pod.call_args.kwargs["body"]
         assert len(pod_body.spec.containers[0].volume_mounts) == 2
-        assert TASK_POD_RESULTS_PATH in [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts]
+        assert settings.task_pod_results_path in [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts]
 
     @mark.asyncio
     async def test_create_task_no_inputs_field_reverts_to_default(
@@ -771,14 +857,14 @@ class TestPostTask(BaseTest):
         task_body.pop("inputs")
         response = await client.post(
             '/tasks',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
         mock_args_k8s.api_client.create_namespaced_pod.assert_called()
         pod_body = mock_args_k8s.api_client.create_namespaced_pod.call_args.kwargs["body"]
         assert len(pod_body.spec.containers[0].volume_mounts) == 2
-        assert [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts] == ["/mnt/inputs", TASK_POD_RESULTS_PATH]
+        assert [vm.mount_path for vm in pod_body.spec.containers[0].volume_mounts] == ["/mnt/inputs", settings.task_pod_results_path]
 
     @mark.asyncio
     async def test_create_task_controller_not_deployed_no_crd(
@@ -790,7 +876,7 @@ class TestPostTask(BaseTest):
             k8s_client,
             task_body,
             v1_crd_mock,
-
+            mock_args_crd
         ):
         """
         Tests task creation returns 201. It should not try to
@@ -798,36 +884,11 @@ class TestPostTask(BaseTest):
         """
         response = await client.post(
             '/tasks',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
-        v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
-
-    @mark.asyncio
-    async def test_create_task_controller_deployed_create_crd(
-            self,
-            cr_client,
-            post_json_admin_header,
-            client,
-            registry_client,
-            set_task_controller_env,
-            k8s_client,
-            task_body,
-            v1_crd_mock,
-            mock_args_crd
-        ):
-        """
-        Tests task creation returns 201. It should try to
-        create a CRD if the task controller is deployed
-        """
-        response = await client.post(
-            '/tasks',
-            data=json.dumps(task_body),
-            headers=post_json_admin_header
-        )
-        assert response.status_code == 201
-        mock_args_crd.api_client.create_cluster_custom_object.assert_called()
+        mock_args_crd.api_client.create_cluster_custom_object.assert_not_called()
 
     @mark.asyncio
     async def test_create_task_from_controller(
@@ -838,7 +899,8 @@ class TestPostTask(BaseTest):
             registry_client,
             k8s_client,
             v1_crd_mock,
-            task_body
+            task_body,
+            mock_args_crd
         ):
         """
         Tests task creation returns 201. Should be consistent
@@ -847,11 +909,11 @@ class TestPostTask(BaseTest):
         task_body["task_controller"] = True
         response = await client.post(
             '/tasks',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
-        v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
+        mock_args_crd.api_client.create_cluster_custom_object.assert_not_called()
 
     @mark.asyncio
     async def test_task_dataset_with_repo(
@@ -863,7 +925,8 @@ class TestPostTask(BaseTest):
             k8s_client,
             v1_crd_mock,
             task_body,
-            dataset_with_repo
+            dataset_with_repo,
+            mock_args_crd
         ):
         """
         Simple test to make sure the task triggers with a specific dataset repo
@@ -873,11 +936,11 @@ class TestPostTask(BaseTest):
         task_body["repository"] = "organisation/repository"
         response = await client.post(
             '/tasks',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 201
-        v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
+        mock_args_crd.api_client.create_cluster_custom_object.assert_not_called()
 
     @mark.asyncio
     async def test_task_dataset_with_repo_unlinked(
@@ -889,7 +952,8 @@ class TestPostTask(BaseTest):
             k8s_client,
             v1_crd_mock,
             task_body,
-            dataset_with_repo
+            dataset_with_repo,
+            mock_args_crd
         ):
         """
         Simple test to make sure the task is not created if the repository provided
@@ -900,12 +964,12 @@ class TestPostTask(BaseTest):
         task_body["repository"] = "organisation/repository2"
         response = await client.post(
             '/tasks',
-            data=json.dumps(task_body),
+            json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
         assert response.json()["error"] == "No datasets linked with the repository organisation/repository2"
-        v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
+        mock_args_crd.api_client.create_cluster_custom_object.assert_not_called()
 
     @mark.asyncio
     async def test_task_schema_env_variables(

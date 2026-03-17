@@ -1,16 +1,20 @@
 import logging
 import re
-from typing import NoReturn, Self
+from typing import TYPE_CHECKING, List, NoReturn, Self
 from sqlalchemy import Integer, String, select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.helpers.base_model import BaseModel
-from app.helpers.const import DEFAULT_NAMESPACE, PUBLIC_URL
+from app.helpers.connection_string import Mssql, Postgres, Mysql, Oracle, MariaDB
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
 from kubernetes_asyncio.client import ApiException, V1Secret
+from app.helpers.settings import settings
 
-from app.helpers.connection_string import Mssql, Postgres, Mysql, Oracle, MariaDB
+if TYPE_CHECKING:
+    from .catalogue import Catalogue
+    from .dictionary import Dictionary
 
 logger = logging.getLogger("dataset_model")
 logger.setLevel(logging.INFO)
@@ -37,14 +41,14 @@ class Dataset(BaseModel):
     extra_connection_args: Mapped[str] = mapped_column(String(4096), nullable=True)
     repository: Mapped[str] = mapped_column(String(4096), nullable=True)
 
-    catalogue = relationship(
+    catalogue:Mapped["Catalogue"] = relationship(
         "Catalogue",
         back_populates="dataset",
         uselist=False,
         cascade="all, delete-orphan",
         lazy='selectin'
     )
-    dictionaries = relationship(
+    dictionaries: Mapped[List["Dictionary"]] = relationship(
         "Dictionary",
         back_populates="dataset",
         cascade="all, delete-orphan",
@@ -61,7 +65,7 @@ class Dataset(BaseModel):
             await super().delete(session, False)
             v1: KubernetesClient = await KubernetesClient.create()
             try:
-                await v1.api_client.delete_namespaced_secret(self.get_creds_secret_name(), DEFAULT_NAMESPACE)
+                await v1.api_client.delete_namespaced_secret(self.get_creds_secret_name(), settings.default_namespace)
             except ApiException as apie:
                 if apie.status != 404:
                     await nested.rollback()
@@ -74,7 +78,7 @@ class Dataset(BaseModel):
 
     @property
     def url(self) -> str:
-        return f"https://{PUBLIC_URL}/datasets/{self.slug}"
+        return f"https://{settings.public_url}/datasets/{self.slug}"
 
     def get_creds_secret_name(self, host=None, name=None):
         host = host or self.host
@@ -104,7 +108,7 @@ class Dataset(BaseModel):
         """
         v1: KubernetesClient = await KubernetesClient.create()
         secret:V1Secret = await v1.api_client.read_namespaced_secret(
-            self.get_creds_secret_name(), DEFAULT_NAMESPACE, pretty='pretty'
+            self.get_creds_secret_name(), settings.default_namespace, pretty='pretty'
         )
         # Doesn't matter which key it's being picked up, the value it's the same
         # in terms of *USER or *PASSWORD
@@ -114,7 +118,9 @@ class Dataset(BaseModel):
         return user, password
 
     @classmethod
-    async def get_dataset_by_name_or_id(cls, session: AsyncSession, id:int=None, name:str="", raise_if_not_found:bool = True) -> Self:
+    async def get_dataset_by_name_or_id(
+        cls, session: AsyncSession, id:int=None, name:str="", raise_if_not_found:bool = True
+    ) -> Self:
         """
         Common function to get a dataset by name or id.
         If both arguments are provided, then tries to find as an AND condition

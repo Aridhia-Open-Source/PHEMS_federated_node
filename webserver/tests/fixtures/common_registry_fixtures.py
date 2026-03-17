@@ -3,8 +3,6 @@ from  pytest_asyncio import fixture
 from unittest.mock import Mock
 from kubernetes_asyncio.client import V1Secret
 
-from app.models.registry import Registry
-
 
 @fixture
 def registry_secret_mock(dockerconfigjson_mock, cr_name):

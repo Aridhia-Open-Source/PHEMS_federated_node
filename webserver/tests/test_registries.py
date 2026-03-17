@@ -4,10 +4,10 @@ import json
 from kubernetes_asyncio.client import ApiException
 from sqlalchemy import func, select
 
-from app.helpers.const import TASK_NAMESPACE
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.common_registry_fixtures import *
 from tests.base_test_class import BaseTest
+from app.helpers.settings import settings, kc_settings
 
 
 class TestGetRegistriesApi(BaseTest):
@@ -147,7 +147,7 @@ class TestPostRegistriesApi(BaseTest):
         new_registry = "shiny.azurecr.io"
 
         with responses.RequestsMock() as rsps:
-            rsps.add_passthru(KEYCLOAK_URL)
+            rsps.add_passthru(kc_settings.keycloak_url)
             rsps.add(
                 responses.GET,
                 f"https://{new_registry}/oauth2/token?service={new_registry}&scope=registry:catalog:*",
@@ -176,7 +176,7 @@ class TestPostRegistriesApi(BaseTest):
         """
         new_registry = "shiny.azurecr.io"
         with responses.RequestsMock() as rsps:
-            rsps.add_passthru(KEYCLOAK_URL)
+            rsps.add_passthru(kc_settings.keycloak_url)
             rsps.add(
                 responses.GET,
                 f"https://{new_registry}/oauth2/token?service={new_registry}&scope=registry:catalog:*",
@@ -212,7 +212,7 @@ class TestPostRegistriesApi(BaseTest):
             ApiException(status=500, reason="Failed")
         ]
         with responses.RequestsMock() as rsps:
-            rsps.add_passthru(KEYCLOAK_URL)
+            rsps.add_passthru(kc_settings.keycloak_url)
             rsps.add(
                 responses.GET,
                 f"https://{new_registry}/oauth2/token?service={new_registry}&scope=registry:catalog:*",
@@ -251,7 +251,7 @@ class TestPostRegistriesApi(BaseTest):
             })
         ]
         with responses.RequestsMock() as rsps:
-            rsps.add_passthru(KEYCLOAK_URL)
+            rsps.add_passthru(kc_settings.keycloak_url)
             rsps.add(
                 responses.GET,
                 f"https://{new_registry}/oauth2/token?service={new_registry}&scope=registry:catalog:*",
@@ -302,7 +302,7 @@ class TestPostRegistriesApi(BaseTest):
         url as an existing one, fails
         """
         with responses.RequestsMock() as rsps:
-            rsps.add_passthru(KEYCLOAK_URL)
+            rsps.add_passthru(kc_settings.keycloak_url)
             resp = await client.post(
                 "/registries",
                 json={
@@ -338,7 +338,7 @@ class TestDeleteRegistries(BaseTest):
         )
         assert response.status_code == 204
         mock_args_k8s.api_client.delete_namespaced_secret.assert_called_with(
-            **{"name": secret_name, "namespace": TASK_NAMESPACE}
+            **{"name": secret_name, "namespace": settings.task_namespace}
         )
 
     @mark.asyncio
@@ -466,7 +466,6 @@ class TestPatchRegistriesApi(BaseTest):
             "password": "new password token",
             "username": "shiny"
         }
-        # mock_args_k8s.api_client.read_namespaced_secret.return_value.data = dockerconfigjson_mock
 
         resp = await client.patch(
             f"registries/{registry.id}",
@@ -559,7 +558,7 @@ class TestPatchRegistriesApi(BaseTest):
         registry,
         post_json_admin_header,
         v1_registry_mock,
-        mock_args_k8s
+        mock_args_k8s,
     ):
         """
         Simple PATCH request test to check the db record is updated

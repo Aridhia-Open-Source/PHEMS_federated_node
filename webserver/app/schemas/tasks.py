@@ -5,9 +5,10 @@ from datetime import datetime as dt
 
 
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.const import CPU_RESOURCE_REGEX, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, TASK_POD_RESULTS_PATH, TASK_POD_INPUTS_PATH, REVIEW_STATUS
+from app.helpers.const import CPU_RESOURCE_REGEX, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, TASK_POD_INPUTS_PATH, REVIEW_STATUS
 from app.helpers.exceptions import InvalidRequest
-from app.models.container import Container
+from app.helpers.settings import settings
+from app.schemas.containers import ContainerCreate
 
 
 class TaskBase(BaseModel):
@@ -116,7 +117,7 @@ class TaskCreate(TaskBase):
         data["docker_image"] = executors["image"]
 
         # Docker image validation
-        Container.validate_image_format(data["docker_image"], data["docker_image"])
+        ContainerCreate.validate_image_format(data["docker_image"], data["docker_image"])
 
         data["executors"] = data["executors"]
         data["from_controller"] = data.pop("task_controller", False)
@@ -125,7 +126,7 @@ class TaskCreate(TaskBase):
         if not isinstance(data.get("outputs", {}), dict):
             raise InvalidRequest("\"outputs\" field must be a json object or dictionary")
         if not data.get("outputs", {}):
-            data["outputs"] = {"results": TASK_POD_RESULTS_PATH}
+            data["outputs"] = {"results": settings.task_pod_results_path}
         if not isinstance(data.get("inputs", {}), dict):
             raise InvalidRequest("\"inputs\" field must be a json object or dictionary")
         if not data.get("inputs", {}):

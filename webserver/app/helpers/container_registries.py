@@ -7,7 +7,7 @@ from requests.exceptions import ConnectionError
 
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.exceptions import ContainerRegistryException
-from app.helpers.const import TASK_NAMESPACE
+from app.helpers.settings import settings
 
 
 logger = logging.getLogger('registries_handler')

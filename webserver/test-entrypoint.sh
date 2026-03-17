@@ -1,3 +1,3 @@
 #!/bin/bash
 
-pytest -v .
+pytest -v .  -c pytest.ini

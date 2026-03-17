@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import datetime as dt
 import logging
 from sqlalchemy import  Integer, DateTime, String, ForeignKey, select
-from sqlalchemy.orm import relationship, mapped_column
+from sqlalchemy.orm import Mapped, MappedColumn, relationship, mapped_column
 from sqlalchemy.sql import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,28 +17,29 @@ logger.setLevel(logging.INFO)
 
 class RequestModel(BaseModel):
     __tablename__ = 'requests'
-    id = mapped_column(Integer, primary_key=True, autoincrement=True)
-    title = mapped_column(String(256), nullable=False)
-    description = mapped_column(String(4096))
-    requested_by = mapped_column(String(256), nullable=False)
-    project_name = mapped_column(String(256), nullable=False)
-    status = mapped_column(String(256), default='pending')
-    proj_start = mapped_column(DateTime(timezone=False), nullable=False)
-    proj_end = mapped_column(DateTime(timezone=False), nullable=False)
-    created_at = mapped_column(DateTime(timezone=False), server_default=func.now())
-    updated_at = mapped_column(DateTime(timezone=False), onupdate=func.now())
+    id: MappedColumn[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: MappedColumn[str] = mapped_column(String(256), nullable=False)
+    description: MappedColumn[str] = mapped_column(String(4096), nullable=True)
+    requested_by: MappedColumn[str] = mapped_column(String(256), nullable=False)
+    project_name: MappedColumn[str] = mapped_column(String(256), nullable=False)
+    status: MappedColumn[str] = mapped_column(String(256), default='pending')
+    proj_start: MappedColumn[dt] = mapped_column(DateTime(timezone=False), nullable=False)
+    proj_end: MappedColumn[dt] = mapped_column(DateTime(timezone=False), nullable=False)
+    created_at: MappedColumn[dt] = mapped_column(DateTime(timezone=False), server_default=func.now())
+    updated_at: MappedColumn[dt] = mapped_column(DateTime(timezone=False), onupdate=func.now())
 
-    dataset_id = mapped_column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
-    dataset = relationship("Dataset")
-    STATUSES = {
+    dataset_id: MappedColumn[int] = mapped_column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
+    dataset:Mapped["Dataset"] = relationship("Dataset")
+
+    STATUSES: dict[str, str] = {
         'approved': 'approved',
         'pending': 'pending',
         'denied': 'denied'
     }
 
     def __init__(self, **kwargs):
-        self.created_at = datetime.now()
-        self.updated_at = datetime.now()
+        self.created_at = dt.now()
+        self.updated_at = dt.now()
         super().__init__(**kwargs)
 
     def _get_client_name(self, user_id:str):
@@ -57,7 +58,7 @@ class RequestModel(BaseModel):
             system_global_policy = global_kc_client.get_role('System')
 
             new_client_name = self._get_client_name(user["email"])
-            token_lifetime = (self.proj_end - datetime.now()).seconds
+            token_lifetime = (self.proj_end - dt.now()).seconds
 
             logger.info("Creating client %s", new_client_name)
             global_kc_client.create_client(new_client_name, token_lifetime)

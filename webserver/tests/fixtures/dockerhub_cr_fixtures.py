@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock
 from app.helpers.container_registries import DockerRegistry
 from app.models.container import Container
 from app.models.registry import Registry
-from app.helpers.keycloak import KEYCLOAK_URL
+from app.helpers.settings import kc_settings
 
 from .common_registry_fixtures import *
 
@@ -46,7 +46,7 @@ def cr_client_404(mocker):
 @fixture
 def dockerhub_login_request() -> Generator[responses.RequestsMock, Any, None]:
     with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
-        rsps.add_passthru(KEYCLOAK_URL)
+        rsps.add_passthru(kc_settings.keycloak_url)
         rsps.add(
             responses.GET,
             "https://hub.docker.com/v2/users/login/",

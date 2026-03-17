@@ -170,8 +170,8 @@ def k8s_crd_404():
 
 @fixture
 def set_task_review_env(mocker):
-    mocker.patch('app.routes.tasks.TASK_REVIEW', return_value="enabled")
-    mocker.patch('app.helpers.const.TASK_REVIEW', return_value="enabled")
+    mocker.patch('app.routes.tasks.settings.task_review', return_value="enabled")
+    mocker.patch('app.helpers.const.settings.task_review', return_value="enabled")
     mocker.patch('app.models.task.REVIEW_STATUS', {
         True: "Approved Release",
         False: "Blocked Release",
@@ -185,4 +185,4 @@ def set_task_review_env(mocker):
 
 @fixture
 def set_task_controller_env(mocker):
-    mocker.patch('app.models.task.TASK_CONTROLLER', return_value="enabled")
+    mocker.patch('app.models.task.settings.task_controller', "enabled")
