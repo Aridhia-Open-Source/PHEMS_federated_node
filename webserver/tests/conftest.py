@@ -16,7 +16,7 @@ from app.models.dictionary import Dictionary
 from app.models.request import Request
 from app.models.task import Task
 from app.helpers.exceptions import KeycloakError
-from app.helpers.const import CRD_DOMAIN
+from app.helpers.settings import settings
 
 
 sample_ds_body = {
@@ -192,7 +192,7 @@ def v1_crd_mock(mocker, task):
                     "metadata": {
                         "name": "crd_name",
                         "annotations": {
-                            f"{CRD_DOMAIN}/task_id": str(task.id)
+                            f"{settings.crd_domain}/task_id": str(task.id)
                         }
                     }
                 }]
@@ -403,18 +403,18 @@ def new_user(new_user_email):
 
 @fixture
 def set_task_other_delivery_env(mocker):
-    mocker.patch('app.admin_api.TASK_CONTROLLER', "enabled")
-    mocker.patch('app.admin_api.OTHER_DELIVERY', "url.delivery.com")
+    mocker.patch('app.admin_api.settings.task_controller', "enabled")
+    mocker.patch('app.admin_api.settings.other_delivery', "url.delivery.com")
 
 @fixture
 def set_task_other_delivery_allowed_env(mocker, set_task_other_delivery_env):
-    mocker.patch('app.models.task.TASK_CONTROLLER', "enabled")
-    mocker.patch('app.models.task.AUTO_DELIVERY_RESULTS', "enabled")
+    mocker.patch('app.models.task.settings.task_controller', "enabled")
+    mocker.patch('app.models.task.settings.auto_delivery_results', "enabled")
 
 @fixture
 def set_task_github_delivery_env(mocker):
-    mocker.patch('app.admin_api.TASK_CONTROLLER', "enabled")
-    mocker.patch('app.admin_api.GITHUB_DELIVERY', "org/repository")
+    mocker.patch('app.admin_api.settings.task_controller', "enabled")
+    mocker.patch('app.admin_api.settings.github_delivery', "org/repository")
 
 @fixture
 def decode_token_return(basic_user, user_uuid):

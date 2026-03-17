@@ -21,7 +21,7 @@ from .helpers.query_filters import apply_filters
 from .services.datasets import DatasetService
 
 from .helpers.base_model import db
-from .helpers.const import DEFAULT_NAMESPACE
+from .helpers.settings import settings
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from .helpers.keycloak import Keycloak
 from .helpers.kubernetes import KubernetesClient
@@ -106,7 +106,7 @@ def delete_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
 
     v1 = KubernetesClient()
     try:
-        v1.delete_namespaced_secret(secret_name, DEFAULT_NAMESPACE)
+        v1.delete_namespaced_secret(secret_name, settings.default_namespace)
     except ApiException as apie:
         if apie.status != 404:
             logger.error(apie)

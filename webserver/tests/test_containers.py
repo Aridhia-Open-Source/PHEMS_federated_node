@@ -6,6 +6,7 @@ from app.helpers.exceptions import InvalidRequest
 from app.models.container import Container
 from app.schemas.containers import ContainerCreate
 from tests.fixtures.azure_cr_fixtures import *
+from app.helpers.settings import kc_settings
 
 
 @pytest.fixture(scope='function')
@@ -391,7 +392,7 @@ class TestSync:
         during the process no images are synched up
         """
         with responses.RequestsMock() as rsps:
-            rsps.add_passthru(KEYCLOAK_URL)
+            rsps.add_passthru(kc_settings.keycloak_url)
             rsps.add(
                 responses.GET,
                 f"https://{cr_name}/oauth2/token?service={cr_name}&scope=registry:catalog:*",

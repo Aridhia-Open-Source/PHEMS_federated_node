@@ -7,6 +7,8 @@ from sqlalchemy import update
 from app.helpers.base_model import db
 from app.models.request import Request
 from app.helpers.keycloak import Keycloak
+from app.helpers.settings import kc_settings
+
 
 @pytest.fixture
 def request_base_body():
@@ -137,7 +139,7 @@ class TestRequests:
 
         # Cleanup
         requests.delete(
-            f'{os.getenv("KEYCLOAK_URL")}/admin/realms/FederatedNode/clients/{kc_client.client_id}',
+            f'{os.getenv("kc_settings.keycloak_url")}/admin/realms/FederatedNode/clients/{kc_client.client_id}',
             headers={"Authorization": f"Bearer {kc_client.admin_token}"}
         )
 
@@ -221,7 +223,7 @@ class TestRequests:
         # Cleanup
         for cl_id in [kc_client, kc_client2]:
             requests.delete(
-                f'{os.getenv("KEYCLOAK_URL")}/admin/realms/FederatedNode/clients/{cl_id.client_id}',
+                f'{os.getenv("kc_settings.keycloak_url")}/admin/realms/FederatedNode/clients/{cl_id.client_id}',
                 headers={"Authorization": f"Bearer {cl_id.admin_token}"}
             )
 
@@ -262,7 +264,7 @@ class TestRequests:
         assert response_ds.status_code == 401
         # Cleanup
         requests.delete(
-            f'{os.getenv("KEYCLOAK_URL")}/admin/realms/FederatedNode/clients/{kc_client.client_id}',
+            f'{os.getenv("kc_settings.keycloak_url")}/admin/realms/FederatedNode/clients/{kc_client.client_id}',
             headers={"Authorization": f"Bearer {kc_client.admin_token}"}
         )
 
@@ -303,7 +305,7 @@ class TestRequests:
         assert response_ds.status_code == 401
         # Cleanup
         requests.delete(
-            f'{os.getenv("KEYCLOAK_URL")}/admin/realms/FederatedNode/clients/{kc_client.client_id}',
+            f'{os.getenv("kc_settings.keycloak_url")}/admin/realms/FederatedNode/clients/{kc_client.client_id}',
             headers={"Authorization": f"Bearer {kc_client.admin_token}"}
         )
 

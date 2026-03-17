@@ -4,7 +4,8 @@ from datetime import datetime as dt
 
 from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.const import TASK_POD_RESULTS_PATH, TASK_POD_INPUTS_PATH
+from app.helpers.const import TASK_POD_INPUTS_PATH
+from app.helpers.settings import settings
 from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import InvalidRequest
 from app.models.dataset import Dataset
@@ -84,7 +85,7 @@ class TaskCreate(TaskBase):
         if not isinstance(data.get("outputs", {}), dict):
             raise InvalidRequest("\"outputs\" field must be a json object or dictionary")
         if not data.get("outputs", {}):
-            data["outputs"] = {"results": TASK_POD_RESULTS_PATH}
+            data["outputs"] = {"results": settings.task_pod_results_path}
         if not isinstance(data.get("inputs", {}), dict):
             raise InvalidRequest("\"inputs\" field must be a json object or dictionary")
         if not data.get("inputs", {}):

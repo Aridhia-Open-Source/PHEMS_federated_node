@@ -3,7 +3,7 @@ from kubernetes.client.exceptions import ApiException
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
 from app.helpers.keycloak import Keycloak
-from app.helpers.const import CLEANUP_AFTER_DAYS, CRD_DOMAIN
+from app.helpers.settings import settings
 
 
 class TestTaskResults:
@@ -61,7 +61,7 @@ class TestTaskResults:
         A task result are being deleted after a declared number of days.
         This test makes sure an error is returned as expected
         """
-        task_mock.created_at -= timedelta(days=CLEANUP_AFTER_DAYS)
+        task_mock.created_at -= timedelta(days=settings.cleanup_after_days)
         response = client.get(
             f'/tasks/{task_mock.id}/results',
             headers=simple_admin_header
@@ -212,7 +212,7 @@ class TestResultsReview:
                 "metadata": {
                     "name": "crd_name",
                     "annotations": {
-                        f"{CRD_DOMAIN}/task_id": str(task_mock.id)
+                        f"{settings.crd_domain}/task_id": str(task_mock.id)
                     }
                 }
             }
@@ -268,7 +268,7 @@ class TestResultsReview:
                 "metadata": {
                     "name": "crd_name",
                     "annotations": {
-                        f"{CRD_DOMAIN}/task_id": str(task_mock.id)
+                        f"{settings.crd_domain}/task_id": str(task_mock.id)
                     }
                 }
             }

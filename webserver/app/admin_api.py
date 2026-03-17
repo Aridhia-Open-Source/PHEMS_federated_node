@@ -10,12 +10,9 @@ from pydantic import ValidationError
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from .helpers.base_model import engine
-from .helpers.const import (
-    TASK_CONTROLLER, CONTROLLER_NAMESPACE,
-    GITHUB_DELIVERY, OTHER_DELIVERY
-)
 from .helpers.exceptions import FeatureNotAvailableException, InvalidRequest
 from .helpers.kubernetes import KubernetesClient
+from .helpers.settings import settings
 from .helpers.query_filters import apply_filters
 from .helpers.wrappers import audit, auth
 from .models.audit import Audit
@@ -54,7 +51,7 @@ def update_delivery_secret():
         allows updating the results delivery
         secret
     """
-    if not TASK_CONTROLLER:
+    if not settings.task_controller:
         raise FeatureNotAvailableException("Task Controller")
 
     if not request.is_json:
@@ -66,18 +63,18 @@ def update_delivery_secret():
     v1_client = KubernetesClient()
 
     # Which delivery?
-    if GITHUB_DELIVERY:
+    if settings.github_delivery:
         raise InvalidRequest(
             "Unable to update GitHub delivery details for " \
             "security reasons. Please contact the system administrator"
         )
 
     try:
-        if OTHER_DELIVERY:
-            label=f"url={OTHER_DELIVERY}"
+        if settings.other_delivery:
+            label=f"url={settings.other_delivery}"
             secret = None
             for secret in v1_client.list_namespaced_secret(
-                    CONTROLLER_NAMESPACE, label_selector=label
+                    settings.controller_namespace, label_selector=label
                 ).items:
                 break
 
@@ -87,7 +84,7 @@ def update_delivery_secret():
         # Update secret
         secret.data["auth"] = KubernetesClient.encode_secret_value(request.json.get("auth"))
         v1_client.patch_namespaced_secret(
-            secret.metadata.name, CONTROLLER_NAMESPACE, secret
+            secret.metadata.name, settings.controller_namespace, secret
         )
     except ApiException as apie:
         raise InvalidRequest(

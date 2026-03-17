@@ -31,12 +31,14 @@ dependencies = [
     "cryptography>=46.0.5",
     "urllib3>=2.6.3",
     "pydantic>=2.12.5",
+    "pydantic-settings>=2.13.1",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pylint>=3.0.3",
     "pytest",
+    "pytest-env",
     "pytest-mock",
     "python-dotenv",
     "pytest-cov",

@@ -2,7 +2,7 @@ import logging
 import re
 from sqlalchemy import Column, Integer, String
 from app.helpers.base_model import BaseModel, db
-from app.helpers.const import DEFAULT_NAMESPACE, PUBLIC_URL
+from app.helpers.settings import settings
 from app.helpers.exceptions import DBRecordNotFoundError
 from app.helpers.kubernetes import KubernetesClient
 from kubernetes.client import V1Secret
@@ -48,7 +48,7 @@ class Dataset(db.Model, BaseModel):
 
     @property
     def url(self) -> str:
-        return f"https://{PUBLIC_URL}/datasets/{self.slug}"
+        return f"https://{settings.public_url}/datasets/{self.slug}"
 
     def get_creds_secret_name(self, host=None, name=None):
         host = host or self.host
@@ -78,7 +78,7 @@ class Dataset(db.Model, BaseModel):
         """
         v1 = KubernetesClient()
         secret:V1Secret = v1.read_namespaced_secret(
-            self.get_creds_secret_name(), DEFAULT_NAMESPACE, pretty='pretty'
+            self.get_creds_secret_name(), settings.default_namespace, pretty='pretty'
         )
         # Doesn't matter which key it's being picked up, the value it's the same
         # in terms of *USER or *PASSWORD
