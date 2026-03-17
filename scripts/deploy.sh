@@ -10,14 +10,14 @@ set -euo pipefail
 #   3. Recreate cluster with required mounts
 #   4. Apply local registry discovery metadata
 #   5. Create namespace + secrets
-#   6. Build code locations
-#   7. Deploy Helm release
+#   6. Build docker images
+#   7. Deploy helm release
 #
 # Disposable cluster
 ###############################################################################
 
 ### Config ####################################################################
-DOCKER_TAG="v30"
+DOCKER_TAG="v32"
 CLUSTER_NAME="fn"
 NAMESPACE="fn"
 RELEASE_NAME="fn-dev"

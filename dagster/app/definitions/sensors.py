@@ -2,7 +2,6 @@ import os
 import json
 from datetime import datetime as dt
 from datetime import timezone as tz
-from datetime import timedelta as td
 
 import dagster as dg
 from dagster_k8s import PipesK8sClient
@@ -12,7 +11,6 @@ from app.definitions.jobs import k8s_pipes_job
 from app.definitions.pipes import K8sPipe
 from app.github import GithubClient
 
-_DEV_DAYS_OFFSET = 0  # FIXME: Remove after dev - test without raising PR
 MIN_SENSOR_INTERVAL_SECONDS = 30
 
 ARTIFACT_MOUNT_BASE_PATH = os.environ["DAGSTER_ARTIFACT_MOUNT_PATH"]
@@ -42,7 +40,7 @@ GH_WATCH_DIR = os.environ['GH_WATCH_DIR']
 
 
 def utc_now():
-    return (dt.now(tz.utc) + td(days=_DEV_DAYS_OFFSET)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return (dt.now(tz.utc)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @dg.op(
@@ -50,6 +48,7 @@ def utc_now():
         "docker_image": dg.Field(str),
         "parent_run_id": dg.Field(str),
         "pr_number": dg.Field(str),
+        "pr_username": dg.Field(str),
     }
 )
 def github_transfer_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> dg.Output:
@@ -61,6 +60,7 @@ def github_transfer_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> 
         "MNT_BASE_PATH": ARTIFACT_MOUNT_BASE_PATH,
         "PARENT_RUN_ID": context.op_config["parent_run_id"],
         "PR_NUMBER": context.op_config["pr_number"],
+        "PR_USERNAME": context.op_config["pr_username"],
     }
     pipe = K8sPipe(client=k8s_pipes_client, context=context, ext_env=env)
     return pipe().output
@@ -68,8 +68,7 @@ def github_transfer_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> 
 
 @dg.job
 def github_transfer_job():
-    github_transfer_op()
-
+    return github_transfer_op()
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.SUCCESS,
@@ -93,10 +92,16 @@ def github_run_success_transfer_sensor(context: dg.RunStatusSensorContext):
         context.log.error("Skipping - missing pr_number tag")
         return
 
+    if not run.tags.get('pr_username'):
+        yield dg.SkipReason("Missing pr_username tag")
+        context.log.error("Skipping - missing pr_username tag")
+        return
+
     config = {
         'docker_image': GH_TRANSFER_DOCKER_IMAGE,
-        'pr_number': run.tags["pr_number"],
         'parent_run_id': run.run_id,
+        'pr_number': run.tags["pr_number"],
+        'pr_username': run.tags["pr_username"],
     }
 
     context.log.info(f"Triggering GitHub transfer - {config}")
@@ -107,6 +112,7 @@ def github_run_success_transfer_sensor(context: dg.RunStatusSensorContext):
             "type": "internal",
             "trigger": "github_transfer",
             "pr_number": run.tags["pr_number"],
+            "pr_username": run.tags["pr_username"],
             "parent_run_id": run.run_id,
         },
         run_config={
@@ -125,6 +131,8 @@ def github_run_success_transfer_sensor(context: dg.RunStatusSensorContext):
     default_status=dg.DefaultSensorStatus.RUNNING,
 )
 def github_pull_request_polling_sensor(context):
+    context.log.info(f"Using cursor: {context.cursor or 'None'}")
+
     client = GithubClient(
         owner=GH_OWNER,
         repo=GH_REPO,
@@ -133,8 +141,9 @@ def github_pull_request_polling_sensor(context):
     )
 
     if not context.cursor:
-        context.update_cursor(utc_now())
-        yield dg.SkipReason("Initializing Cursor")
+        new_cursor = utc_now()
+        context.update_cursor(new_cursor)
+        context.log.info(f"Initializing cursor to: {new_cursor}")
         return
 
     pullreqs = client.get_new_merged_pulls(
@@ -171,6 +180,7 @@ def github_pull_request_polling_sensor(context):
                 "type": "user",
                 "trigger": "github",
                 "pr_number": str(pr["number"]),
+                "pr_username": pr["user"]["login"],
             },
             run_config={
                 "ops": {
@@ -189,29 +199,35 @@ def github_pull_request_polling_sensor(context):
     config_schema={
         "parent_run_id": dg.Field(str),
         "pr_number": dg.Field(str),
+        "pr_username": dg.Field(str),
     }
 )
 def github_pr_comment_op(context: OpExecCtx):
-    pr_number = context.op_config["pr_number"]
-    parent_run_id = context.op_config["parent_run_id"]
-    if not pr_number or not parent_run_id:
-        context.log.error("Skipping - missing required tags")
-        return
-
-    body = f"Success - #{parent_run_id}"
-    context.log.info(f"Adding GH PR comment - run_id: {parent_run_id}, pr: {pr_number}")
     client = GithubClient(
         owner=GH_OWNER,
         repo=GH_REPO,
         token=GH_TOKEN,
         base_branch=GH_BASE_BRANCH,
     )
-    client.add_pull_request_comment(pr_number, body)
+
+    pr_number = context.op_config["pr_number"]
+    pr_username = context.op_config["pr_username"]
+    parent_run_id = context.op_config["parent_run_id"]
+    results_branch_name = f"{pr_number}-{pr_username}-{parent_run_id}-results"
+
+    # FIXME: fragile and needs to be made more robust
+    results_pr = client.get_pull_request_by_head(results_branch_name)
+    if not results_pr:
+        context.log.error(f"Results branch not found: {results_branch_name}")
+        return
+
+    body = f"Experiment Success - Results PR: #{results_pr['number']}"
+    client.add_pull_request_comment(pr_number,  body)
 
 
 @dg.job
 def github_pr_comment_job():
-    github_pr_comment_op()
+    return github_pr_comment_op()
 
 
 @dg.run_status_sensor(
@@ -240,6 +256,7 @@ def github_transfer_success_sensor(context: dg.RunStatusSensorContext):
                     "config": {
                         "parent_run_id": run.run_id,
                         "pr_number": run.tags["pr_number"],
+                        "pr_username": run.tags["pr_username"],
                     }
                 }
             }

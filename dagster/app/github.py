@@ -1,8 +1,14 @@
 import base64
+from datetime import datetime as dt
+from datetime import timezone as tz
 
 import requests
 
 GH_API_BASE_URI = "https://api.github.com"
+
+
+def utc_from(ts: str) -> dt:
+    return dt.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=tz.utc)
 
 
 class GithubClient:
@@ -26,6 +32,7 @@ class GithubClient:
     def get_new_merged_pulls(self, cursor: str, watch_dir: str, per_page: int = 100):
         page = 1
         results = []
+        cursor_dt = utc_from(cursor)
 
         while True:
             query = (
@@ -52,6 +59,9 @@ class GithubClient:
             for item in items:
                 pr_number = item["number"]
                 pr = self.request("GET", f"/pulls/{pr_number}").json()
+                if utc_from(pr["merged_at"]) <= cursor_dt:
+                    continue
+
                 pr_files = self.get_pull_request_files(pr_number)
                 pr["watched_files"] = self._filter_watched_dir(pr_files, watch_dir)
                 if not pr["watched_files"]:
@@ -60,6 +70,21 @@ class GithubClient:
                 results.append(pr)
 
             page += 1
+
+    def get_search_issues(self, params):
+        return self.request("GET", "/search/issues", params=params).json()
+
+    def get_pull_request_by_head(self, head_branch: str):
+        response = self.request(
+            "GET",
+            "/pulls",
+            params={
+                "head": f"{self.owner}:{head_branch}",
+                "state": "open",
+            },
+        )
+        prs = response.json()
+        return prs[0] if prs else None
 
     def get_pull_request_files(self, pr_number):
         return self.request("GET", f"/pulls/{pr_number}/files").json()

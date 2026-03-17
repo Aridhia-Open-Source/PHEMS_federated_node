@@ -10,6 +10,7 @@ required_vars=(
   MNT_BASE_PATH
   PARENT_RUN_ID
   PR_NUMBER
+  PR_USERNAME
 )
 
 for var in "${required_vars[@]}"; do
@@ -20,7 +21,7 @@ for var in "${required_vars[@]}"; do
 done
 
 CLONE_TARGET_DIR="/tmp/repo"
-BRANCH="${PR_NUMBER}-${PARENT_RUN_ID}-results"
+BRANCH="${PR_NUMBER}-${PR_USERNAME}-${PARENT_RUN_ID}-results"
 GH_REPO_URI_PATH="${GH_OWNER}/${GH_REPO}"
 GH_REPO_OUTPUT_PATH="${GH_RESULTS_DIR}/${PR_NUMBER}/${PARENT_RUN_ID}"
 PARENT_ARTIFACT_PATH="${MNT_BASE_PATH}/${PARENT_RUN_ID}"
@@ -63,7 +64,7 @@ gh repo clone "${GH_REPO_URI_PATH}" "${CLONE_TARGET_DIR}" -- --depth=1
 
   git add .
 
-  git commit -m "PR${PR_NUMBER} - ${PARENT_RUN_ID} - results"
+  git commit -m "PR${PR_NUMBER} - ${PR_USERNAME} - ${PARENT_RUN_ID} - results"
   git push --set-upstream origin "${BRANCH}"
 
   echo "Results branch pushed successfully"
@@ -74,8 +75,8 @@ gh repo clone "${GH_REPO_URI_PATH}" "${CLONE_TARGET_DIR}" -- --depth=1
     --repo "${GH_REPO_URI_PATH}" \
     --head "${BRANCH}" \
     --base "${GH_BASE_BRANCH}" \
-    --title "PR${PR_NUMBER} - ${PARENT_RUN_ID} - results" \
-    --body "Automated results for PR #${PR_NUMBER}, run ${PARENT_RUN_ID}"
+    --title "${PR_NUMBER} - ${} ${PARENT_RUN_ID} - results" \
+    --body "Automated results for PR #${PR_NUMBER})"
 )
 
 rm -rf "${CLONE_TARGET_DIR}"

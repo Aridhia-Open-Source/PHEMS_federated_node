@@ -24,6 +24,10 @@ GH_MERGED_CURSOR_FILE = os.environ['GH_MERGED_CURSOR_FILE']
 MNT_BASE_PATH = os.environ['MNT_BASE_PATH']
 
 
+def utc_from(ts: str) -> dt:
+    return dt.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=tz.utc)
+
+
 def utc_now():
     return (dt.now(tz.utc) - td(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -74,9 +78,30 @@ class GithubClient:
             "Accept": "application/vnd.github+json",
         }
 
+    def get_pull_request_by_head(self, head_branch: str):
+        # FIXME: Error Prone - this assumes the head branch and PR are 1:1
+        # and that the most recent PR is the correct one
+        response = self.request(
+            "GET",
+            "/pulls",
+            params={
+                "head": f"{self.owner}:{head_branch}",
+                "state": "all",
+            },
+        )
+
+        prs = response.json()
+        if len(prs) > 1:
+            raise Exception(f"Multiple PRs found for head {head_branch}")
+        if len(prs) == 0:
+            raise Exception(f"No PR found for head {head_branch}")
+
+        return prs[0]
+
     def get_new_merged_pulls(self, cursor: str, watch_dir: str, per_page: int = 100):
         page = 1
         results = []
+        cursor_dt = utc_from(cursor)
 
         while True:
             query = (
@@ -103,7 +128,10 @@ class GithubClient:
             for item in items:
                 pr_number = item["number"]
                 pr = self.request("GET", f"/pulls/{pr_number}").json()
-                pr_files = self.get_pull_request_file_names(pr_number)
+                if utc_from(pr["merged_at"]) <= cursor_dt:
+                    continue
+
+                pr_files = self.get_pull_request_files(pr_number)
                 pr["watched_files"] = self._filter_watched_dir(pr_files, watch_dir)
                 if not pr["watched_files"]:
                     continue
@@ -111,6 +139,12 @@ class GithubClient:
                 results.append(pr)
 
             page += 1
+
+    def get_search_issues(self, params):
+        return self.request("GET", "/search/issues", params=params).json()
+
+    def get_pull_request_files(self, pr_number):
+        return self.request("GET", f"/pulls/{pr_number}/files").json()
 
     def get_pull_request_file_names(self, pr_number):
         return self.request("GET", f"/pulls/{pr_number}/files").json()
@@ -169,6 +203,7 @@ def dagster_github_polling_sensor(update_cursor=True):
     )
 
     for pr in pullreqs:
+        breakpoint()
         print(pr['number'], pr['merged_at'], pr['watched_files'])
         for fp in pr['watched_files']:
             content = client.get_file_contents(fp, ref=pr['merge_commit_sha'])
