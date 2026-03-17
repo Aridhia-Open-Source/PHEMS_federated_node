@@ -9,19 +9,16 @@ from fastapi import APIRouter, Depends, Query, Request
 from kubernetes.client.exceptions import ApiException
 from requests import Session
 
-from app.helpers.base_model import get_db
-from app.helpers.const import (
-    TASK_CONTROLLER, CONTROLLER_NAMESPACE,
-    GITHUB_DELIVERY, OTHER_DELIVERY
-)
-from app.helpers.exceptions import FeatureNotAvailableException, InvalidRequest
-from app.helpers.kubernetes import KubernetesClient
-from app.helpers.query_filters import apply_filters
-from app.helpers.wrappers import audit, Auth
-from app.models.audit import Audit
-from app.schemas.audits import AuditBase, AuditFilters
-from app.schemas.pagination import PageResponse
-from app.schemas.delivery_secrets import DeliverySecretPost
+from ..helpers.base_model import get_db
+from ..helpers.exceptions import FeatureNotAvailableException, InvalidRequest
+from ..helpers.kubernetes import KubernetesClient
+from ..helpers.settings import settings
+from ..helpers.query_filters import apply_filters
+from ..helpers.wrappers import audit, Auth
+from ..models.audit import Audit
+from ..schemas.audits import AuditBase, AuditFilters
+from ..schemas.delivery_secrets import DeliverySecretPost
+from ..schemas.pagination import PageResponse
 
 
 router = APIRouter(tags=["admin"])
@@ -53,24 +50,24 @@ async def update_delivery_secret(request: Request, body: DeliverySecretPost) -> 
         allows updating the results delivery
         secret
     """
-    if not TASK_CONTROLLER:
+    if not settings.task_controller:
         raise FeatureNotAvailableException("Task Controller")
 
     v1_client = KubernetesClient()
 
     # Which delivery?
-    if GITHUB_DELIVERY:
+    if settings.github_delivery:
         raise InvalidRequest(
             "Unable to update GitHub delivery details for " \
             "security reasons. Please contact the system administrator"
         )
 
     try:
-        if OTHER_DELIVERY:
-            label=f"url={OTHER_DELIVERY}"
+        if settings.other_delivery:
+            label=f"url={settings.other_delivery}"
             secret = None
             for secret in v1_client.list_namespaced_secret(
-                    CONTROLLER_NAMESPACE, label_selector=label
+                    settings.controller_namespace, label_selector=label
                 ).items:
                 break
 
@@ -80,7 +77,7 @@ async def update_delivery_secret(request: Request, body: DeliverySecretPost) -> 
         # Update secret
         secret.data["auth"] = KubernetesClient.encode_secret_value(body.auth)
         v1_client.patch_namespaced_secret(
-            secret.metadata.name, CONTROLLER_NAMESPACE, secret
+            secret.metadata.name, settings.controller_namespace, secret
         )
     except ApiException as apie:
         raise InvalidRequest(

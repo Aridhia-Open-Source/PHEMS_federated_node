@@ -15,7 +15,6 @@ from http import HTTPStatus
 from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
-from kubernetes.client import ApiException
 from requests import Session
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy import func, select
@@ -27,10 +26,8 @@ from ..helpers.query_filters import apply_filters
 from ..services.datasets import DatasetService
 
 from ..helpers.base_model import get_db
-from ..helpers.const import DEFAULT_NAMESPACE
 from ..helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from ..helpers.keycloak import Keycloak
-from ..helpers.kubernetes import KubernetesClient
 from ..helpers.query_validator import validate
 from ..helpers.wrappers import Auth, audit
 from ..models.dataset import Dataset

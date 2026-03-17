@@ -4,7 +4,7 @@ from sqlalchemy import update
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
 from app.helpers.keycloak import Keycloak
-from app.helpers.const import CLEANUP_AFTER_DAYS, CRD_DOMAIN
+from app.helpers.settings import settings
 
 
 class TestTaskResults:
@@ -64,7 +64,11 @@ class TestTaskResults:
         This test makes sure an error is returned as expected
         """
         with db_session:
-            db_session.execute(update(Task).where(Task.id == task_mock.id).values({"created_at": task_mock.created_at - timedelta(days=CLEANUP_AFTER_DAYS)}))
+            db_session.execute(
+                update(Task).
+                where(Task.id == task_mock.id).
+                values({"created_at": task_mock.created_at - timedelta(days=settings.cleanup_after_days)})
+            )
 
         response = client.get(
             f'/tasks/{task_mock.id}/results',
@@ -216,7 +220,7 @@ class TestResultsReview:
                 "metadata": {
                     "name": "crd_name",
                     "annotations": {
-                        f"{CRD_DOMAIN}/task_id": str(task_mock.id)
+                        f"{settings.crd_domain}/task_id": str(task_mock.id)
                     }
                 }
             }
@@ -272,7 +276,7 @@ class TestResultsReview:
                 "metadata": {
                     "name": "crd_name",
                     "annotations": {
-                        f"{CRD_DOMAIN}/task_id": str(task_mock.id)
+                        f"{settings.crd_domain}/task_id": str(task_mock.id)
                     }
                 }
             }

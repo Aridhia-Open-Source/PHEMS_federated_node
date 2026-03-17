@@ -51,6 +51,7 @@ taskReview: false
   # email:
 
 federatedNode:
+  allow_delivery_api: false
   enable_registry_sync: false
   port: 5000
   volumes:

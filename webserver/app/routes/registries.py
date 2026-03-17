@@ -92,12 +92,11 @@ async def patch_registry(registry_id:int, body: RegistryUpdate, request:Request,
     """
     PATCH /registries/<registry_id> endpoint.
     """
-    registry = Registry.get_by_id(session, registry_id)
+    registry: Registry = Registry.get_by_id(session, registry_id)
     if registry is None:
         raise InvalidRequest(f"Registry {registry_id} not found")
 
-    changes = body.model_dump(exclude_unset=True)
-    if not changes:
+    if not body.model_dump(exclude_unset=True):
         raise InvalidRequest("No valid changes detected")
 
-    registry.update(session, changes)
+    RegistryService.update(session, registry, body)

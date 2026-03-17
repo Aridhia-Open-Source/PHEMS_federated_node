@@ -8,10 +8,12 @@ from http import HTTPStatus
 from fastapi import APIRouter, Depends, Request
 
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.keycloak import KEYCLOAK_ADMIN, Keycloak
-from app.helpers.const import PUBLIC_URL
+from app.helpers.keycloak import Keycloak
 from app.helpers.wrappers import Auth, audit
 from app.schemas.users import ResetPassword, UserPost
+from app.helpers.keycloak import Keycloak
+from app.helpers.settings import settings, kc_settings
+
 
 router = APIRouter(tags=["users"], prefix="/users")
 
@@ -37,9 +39,8 @@ async def create_user(request: Request, body: UserPost):
         "username": user_info["username"],
         "tempPassword": user_info["password"],
         "info": "The user should change the temp password at " \
-            f"https://{PUBLIC_URL}/users/reset-password"
+            f"https://{settings.public_url}/users/reset-password"
     }
-
 
 @router.put(
     '/reset-password',
@@ -80,7 +81,7 @@ async def get_users_list(request: Request):
             "lastName": user.get("lastName", ''),
             "role": kc.get_user_role(user["id"]),
             "needs_to_reset_password": user.get("requiredActions", []) != []
-        } for user in ls_users if user["username"] != KEYCLOAK_ADMIN
+        } for user in ls_users if user["username"] != kc_settings.keycloak_admin
     ]
 
     return normalised_list

@@ -16,10 +16,9 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from requests import Session
-from sqlalchemy import update
 from sqlalchemy.orm import Session as DBSession
 
-from app.helpers.const import CLEANUP_AFTER_DAYS, PUBLIC_URL, TASK_REVIEW
+from app.helpers.settings import settings
 from app.helpers.exceptions import (
     DBRecordNotFoundError, FeatureNotAvailableException,
     UnauthorizedError, InvalidRequest, DBRecordNotFoundError
@@ -178,20 +177,20 @@ async def get_task_results(
     kc_client = Keycloak()
     token = kc_client.get_token_from_headers()
     # admin should be able to fetch them regardless
-    if TASK_REVIEW and not task.review_status and not kc_client.is_user_admin(token):
+    if settings.task_review and not task.review_status and not kc_client.is_user_admin(token):
         return JSONResponse(
             {"status": task.get_review_status()},
             status_code=HTTPStatus.BAD_REQUEST
         )
 
-    if task.created_at.date() + timedelta(days=CLEANUP_AFTER_DAYS) <= datetime.now().date():
+    if task.created_at.date() + timedelta(days=settings.cleanup_after_days) <= datetime.now().date():
         return JSONResponse(
             {"error": "Tasks results are not available anymore. Please, run the task again"},
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR
         )
 
     results_file = task.get_results()
-    return FileResponse(results_file, filename=f"{PUBLIC_URL}-{task_id}-results.zip", status_code=HTTPStatus.OK)
+    return FileResponse(results_file, filename=f"{settings.public_url}-{task_id}-results.zip", status_code=HTTPStatus.OK)
 
 
 @router.get('/{task_id}/logs', dependencies=[Depends(Auth("can_admin_task"))])
@@ -229,7 +228,7 @@ async def approve_results(
         Approves the release (automatic or manual) of
         a task's results
     """
-    if not TASK_REVIEW:
+    if not settings.task_review:
         raise FeatureNotAvailableException("Task Review")
 
     task: Task = Task.get_by_id(session, task_id)
@@ -261,7 +260,7 @@ async def block_results(
         Blocks the release (automatic or manual) of
         a task's results
     """
-    if not TASK_REVIEW:
+    if not settings.task_review:
         raise FeatureNotAvailableException("Task Review")
 
     task: Task = Task.get_by_id(session, task_id)

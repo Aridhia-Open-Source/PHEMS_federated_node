@@ -1,14 +1,20 @@
 import logging
 import re
+from typing import TYPE_CHECKING, List
+from kubernetes.client import ApiException, V1Secret
 from sqlalchemy import Integer, String, select
-from sqlalchemy.orm import Session, mapped_column, relationship
-from app.helpers.base_model import BaseModel, get_db
-from app.helpers.const import DEFAULT_NAMESPACE, PUBLIC_URL
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
+from sqlalchemy.orm.properties import MappedColumn
+
+from app.helpers.base_model import BaseModel
+from app.helpers.connection_string import Mssql, Postgres, Mysql, Oracle, MariaDB
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
-from kubernetes.client import ApiException, V1Secret
+from app.helpers.settings import settings
 
-from app.helpers.connection_string import Mssql, Postgres, Mysql, Oracle, MariaDB
+if TYPE_CHECKING:
+    from .catalogue import Catalogue
+    from .dictionary import Dictionary
 
 logger = logging.getLogger("dataset_model")
 logger.setLevel(logging.INFO)
@@ -25,18 +31,18 @@ SUPPORTED_ENGINES = {
 class Dataset(BaseModel):
     __tablename__ = 'datasets'
 
-    id = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name = mapped_column(String(256), unique=True, nullable=False)
-    host = mapped_column(String(256), nullable=False)
-    port = mapped_column(Integer, default=5432)
-    schema_read = mapped_column(String(256), nullable=True)
-    schema_write = mapped_column(String(256), nullable=True)
-    type = mapped_column(String(256), server_default="postgres", nullable=False)
-    extra_connection_args = mapped_column(String(4096), nullable=True)
-    repository = mapped_column(String(4096), nullable=True)
+    id: MappedColumn[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: MappedColumn[str] = mapped_column(String(256), unique=True, nullable=False)
+    host: MappedColumn[str] = mapped_column(String(256), nullable=False)
+    port: MappedColumn[int] = mapped_column(Integer, default=5432)
+    schema_read: MappedColumn[str] = mapped_column(String(256), nullable=True)
+    schema_write: MappedColumn[str] = mapped_column(String(256), nullable=True)
+    type: MappedColumn[str] = mapped_column(String(256), server_default="postgres", nullable=False)
+    extra_connection_args: MappedColumn[str] = mapped_column(String(4096), nullable=True)
+    repository: MappedColumn[str] = mapped_column(String(4096), nullable=True)
 
-    catalogue = relationship("Catalogue", back_populates="dataset", uselist=False, cascade="all, delete-orphan")
-    dictionaries = relationship("Dictionary", back_populates="dataset", cascade="all, delete-orphan")
+    catalogue:Mapped["Catalogue"] = relationship("Catalogue", back_populates="dataset", uselist=False, cascade="all, delete-orphan")
+    dictionaries: Mapped[List["Dictionary"]] = relationship("Dictionary", back_populates="dataset", cascade="all, delete-orphan")
 
     def __init__(self, **kwargs):
         self.username = kwargs.pop("username", None)
@@ -48,7 +54,7 @@ class Dataset(BaseModel):
         super().delete(session, False)
         v1 = KubernetesClient()
         try:
-            v1.delete_namespaced_secret(self.get_creds_secret_name(), DEFAULT_NAMESPACE)
+            v1.delete_namespaced_secret(self.get_creds_secret_name(), settings.default_namespace)
         except ApiException as apie:
             if apie.status != 404:
                 nested.rollback()
@@ -61,7 +67,7 @@ class Dataset(BaseModel):
 
     @property
     def url(self) -> str:
-        return f"https://{PUBLIC_URL}/datasets/{self.slug}"
+        return f"https://{settings.public_url}/datasets/{self.slug}"
 
     def get_creds_secret_name(self, host=None, name=None):
         host = host or self.host
@@ -91,7 +97,7 @@ class Dataset(BaseModel):
         """
         v1 = KubernetesClient()
         secret:V1Secret = v1.read_namespaced_secret(
-            self.get_creds_secret_name(), DEFAULT_NAMESPACE, pretty='pretty'
+            self.get_creds_secret_name(), settings.default_namespace, pretty='pretty'
         )
         # Doesn't matter which key it's being picked up, the value it's the same
         # in terms of *USER or *PASSWORD

@@ -22,7 +22,7 @@ from app.models.dictionary import Dictionary
 from app.models.request import RequestModel
 from app.models.task import Task
 from app.helpers.exceptions import KeycloakError
-from app.helpers.const import CRD_DOMAIN
+from app.helpers.settings import settings
 
 
 sample_ds_body = {
@@ -220,15 +220,14 @@ def v1_crd_mock(mocker, task):
                     "metadata": {
                         "name": "crd_name",
                         "annotations": {
-                            f"{CRD_DOMAIN}/task_id": str(task.id)
+                            f"{settings.crd_domain}/task_id": str(task.id)
                         }
                     }
                 }]
-            },
+            }),
             patch_cluster_custom_object=Mock(),
             create_cluster_custom_object=Mock(),
             get_cluster_custom_object=Mock()
-            )
         )
     )
 
@@ -320,7 +319,7 @@ def dataset_oracle(db_session, mocker, client, user_uuid, k8s_client)  -> Datase
 
 @fixture
 def catalogue(dataset, db_session) -> Catalogue:
-    cat = Catalogue(dataset=dataset, title="new catalogue", description="shiny fresh data")
+    cat = Catalogue(dataset=dataset, version="2.1", title="new catalogue", description="shiny fresh data")
     with db_session as session:
         cat.add(session)
     return cat
@@ -456,13 +455,18 @@ def new_user(new_user_email):
 
 @fixture
 def set_task_other_delivery_env(mocker):
-    mocker.patch('app.routes.admin.TASK_CONTROLLER', return_value="enabled")
-    mocker.patch('app.routes.admin.OTHER_DELIVERY', return_value="url.delivery.com")
+    mocker.patch('app.routes.admin.settings.task_controller', "enabled")
+    mocker.patch('app.routes.admin.settings.other_delivery', "url.delivery.com")
+
+@fixture
+def set_task_other_delivery_allowed_env(mocker, set_task_other_delivery_env):
+    mocker.patch('app.models.task.settings.task_controller', "enabled")
+    mocker.patch('app.models.task.settings.auto_delivery_results', "enabled")
 
 @fixture
 def set_task_github_delivery_env(mocker):
-    mocker.patch('app.routes.admin.TASK_CONTROLLER', return_value="enabled")
-    mocker.patch('app.routes.admin.GITHUB_DELIVERY', return_value="org/repository")
+    mocker.patch('app.routes.admin.settings.task_controller', "enabled")
+    mocker.patch('app.routes.admin.settings.github_delivery', "org/repository")
 
 @fixture
 def decode_token_return(basic_user, user_uuid):
