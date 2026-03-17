@@ -1,19 +1,13 @@
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, computed_field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, computed_field, model_validator
 from datetime import datetime as dt
 
-from sqlalchemy import select
-
-from app.helpers.keycloak import Keycloak
+from app.helpers.const import TASK_POD_INPUTS_PATH
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.const import TASK_POD_RESULTS_PATH, TASK_POD_INPUTS_PATH
-from app.helpers.keycloak import Keycloak
-from app.helpers.exceptions import InvalidRequest
-from app.models.dataset import Dataset
-from app.models.container import Container
-from app.models.request import RequestModel
+from app.helpers.settings import settings
 from app.models.task import REVIEW_STATUS, Task
-from app.helpers.base_model import get_db
+from app.schemas.containers import ContainerCreate
+
 
 class TaskBase(BaseModel):
     name: str
@@ -50,7 +44,7 @@ class TaskCreate(TaskBase):
         data["docker_image"] = executors["image"]
 
         # Docker image validation
-        Container.validate_image_format(data["docker_image"], data["docker_image"])
+        ContainerCreate.validate_image_format(data["docker_image"], data["docker_image"])
 
         data["executors"] = data["executors"]
         data["from_controller"] = data.pop("task_controller", False)
@@ -59,7 +53,7 @@ class TaskCreate(TaskBase):
         if not isinstance(data.get("outputs", {}), dict):
             raise InvalidRequest("\"outputs\" field must be a json object or dictionary")
         if not data.get("outputs", {}):
-            data["outputs"] = {"results": TASK_POD_RESULTS_PATH}
+            data["outputs"] = {"results": settings.task_pod_results_path}
         if not isinstance(data.get("inputs", {}), dict):
             raise InvalidRequest("\"inputs\" field must be a json object or dictionary")
         if not data.get("inputs", {}):

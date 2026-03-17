@@ -36,6 +36,7 @@ dependencies = [
     "python-multipart>=0.0.22",
     "httpx>=0.28.1",
     "asyncpg>=0.31.0",
+    "pydantic-settings>=2.13.1"
 ]
 
 [project.optional-dependencies]
@@ -43,6 +44,7 @@ dev = [
     "pylint>=3.0.3",
     "pytest-asyncio>=1.2.0",
     "pytest",
+    "pytest-env",
     "pytest-mock",
     "python-dotenv",
     "pytest-cov",

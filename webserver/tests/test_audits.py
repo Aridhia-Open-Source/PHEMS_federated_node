@@ -25,7 +25,13 @@ class TestAudits(BaseTest):
         assert r.status_code == 200, r.text
         list_audit = await self.run_query(select(Audit))
         assert len(list_audit) > 0
-        response = await client.get("/audit", headers=simple_admin_header)
+        response = await client.get(
+            "/audit",
+            params={
+                "endpoint": "/datasets"
+            },
+            headers=simple_admin_header
+        )
 
         assert response.status_code == 200
 
@@ -81,7 +87,14 @@ class TestAudits(BaseTest):
         """
         await client.get("/datasets", headers=simple_admin_header)
         date_filter = datetime.now().date()
-        response = await client.get(f"/audit?event_time__lte={date_filter}", headers=simple_admin_header)
+        response = await client.get(
+            "/audit",
+            params={
+                "event_time__lte": date_filter,
+                "endpoint": "/datasets"
+            },
+            headers=simple_admin_header
+        )
 
         assert response.status_code == 200
         assert response.json()["total"] == 1

@@ -4,14 +4,11 @@ import json
 from copy import deepcopy
 from typing import Any, List
 from datetime import datetime as dt, timedelta
-from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 from kubernetes.client import V1Pod, V1Secret
 from pytest_asyncio import fixture
 from sqlalchemy.ext.asyncio import (
-    AsyncConnection,
     create_async_engine,
-    AsyncSession,
     async_sessionmaker
 )
 from sqlalchemy import event
@@ -19,14 +16,14 @@ from unittest.mock import Mock
 
 from app.main import app
 from app.helpers.const import build_sql_uri
-from app.helpers.base_model import BaseModel, get_db
+from app.helpers.base_model import get_db
 from app.models.dataset import Dataset
 from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
 from app.models.request import RequestModel
 from app.models.task import Task
 from app.helpers.exceptions import KeycloakError
-from app.helpers.const import CRD_DOMAIN
+from app.helpers.settings import settings
 
 
 sample_ds_body = {
@@ -234,15 +231,14 @@ def v1_crd_mock(mocker, task):
                     "metadata": {
                         "name": "crd_name",
                         "annotations": {
-                            f"{CRD_DOMAIN}/task_id": str(task.id)
+                            f"{settings.crd_domain}/task_id": str(task.id)
                         }
                     }
                 }]
-            },
+            }),
             patch_cluster_custom_object=Mock(),
             create_cluster_custom_object=Mock(),
             get_cluster_custom_object=Mock()
-            )
         )
     )
 
@@ -331,7 +327,7 @@ async def dataset_oracle(db_session, mocker, client, user_uuid, k8s_client)  -> 
 
 @fixture
 async def catalogue(dataset, db_session) -> Catalogue:
-    cat = Catalogue(dataset=dataset, title="new catalogue", description="shiny fresh data")
+    cat = Catalogue(dataset=dataset, version="2.1", title="new catalogue", description="shiny fresh data")
     await cat.add(db_session)
     return cat
 
@@ -466,13 +462,18 @@ def new_user(new_user_email):
 
 @fixture
 def set_task_other_delivery_env(mocker):
-    mocker.patch('app.routes.admin.TASK_CONTROLLER', return_value="enabled")
-    mocker.patch('app.routes.admin.OTHER_DELIVERY', return_value="url.delivery.com")
+    mocker.patch('app.routes.admin.settings.task_controller', "enabled")
+    mocker.patch('app.routes.admin.settings.other_delivery', "url.delivery.com")
+
+@fixture
+def set_task_other_delivery_allowed_env(mocker, set_task_other_delivery_env):
+    mocker.patch('app.models.task.settings.task_controller', "enabled")
+    mocker.patch('app.models.task.settings.auto_delivery_results', "enabled")
 
 @fixture
 def set_task_github_delivery_env(mocker):
-    mocker.patch('app.routes.admin.TASK_CONTROLLER', return_value="enabled")
-    mocker.patch('app.routes.admin.GITHUB_DELIVERY', return_value="org/repository")
+    mocker.patch('app.routes.admin.settings.task_controller', "enabled")
+    mocker.patch('app.routes.admin.settings.github_delivery', "org/repository")
 
 @fixture
 def decode_token_return(basic_user, user_uuid):

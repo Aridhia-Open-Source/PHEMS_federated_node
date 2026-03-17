@@ -2,10 +2,10 @@ from  pytest_asyncio import fixture
 import responses
 from unittest.mock import Mock
 
-from app.helpers.keycloak import KEYCLOAK_URL
 from app.helpers.container_registries import AzureRegistry
 from app.models.container import Container
 from app.models.registry import Registry
+from app.helpers.settings import kc_settings
 
 
 @fixture
@@ -37,7 +37,7 @@ def registry_client(mocker):
 @fixture
 def azure_login_request(cr_name):
     with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
-        rsps.add_passthru(KEYCLOAK_URL)
+        rsps.add_passthru(kc_settings.keycloak_url)
         rsps.add(
             responses.GET,
             f"https://{cr_name}/oauth2/token?service={cr_name}&scope=registry:catalog:*",

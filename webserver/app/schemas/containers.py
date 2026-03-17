@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -28,9 +29,15 @@ class ContainerCreate(ContainerBase):
         img_with_tag = f"{data["name"]}:{data.get("tag")}"
         img_with_sha = f"{data["name"]}@{data.get("sha")}"
 
-        Container.validate_image_format(img_with_tag, img_with_sha)
+        cls.validate_image_format(img_with_tag, img_with_sha)
         return data
 
+    @classmethod
+    def validate_image_format(cls, img_with_tag, img_with_sha):
+        if not (re.match(r'^((\w+|-|\.)\/?+)+:(\w+(\.|-)?)+$', img_with_tag) or re.match(r'^((\w+|-|\.)\/?+)+@sha256:.+$', img_with_sha)):
+            raise InvalidRequest(
+                f"{img_with_tag} does not have a tag. Please provide one in the format <image>:<tag> or <image>@sha256.."
+            )
 
 class ContainerUpdate(BaseModel):
     ml: Optional[bool] = None
