@@ -1,3 +1,4 @@
+from datetime import timedelta
 import json
 from kubernetes.client.exceptions import ApiException
 import re
@@ -139,6 +140,10 @@ class TestGetTasks:
                     container_statuses=[running_state]
                 )
             )
+        )
+        mocker.patch(
+            'app.models.task.Task.get_expiration_date',
+            return_value=datetime.now() + timedelta(days=1)
         )
 
         response_id = client.get(

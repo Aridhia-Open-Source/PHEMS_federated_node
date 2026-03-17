@@ -30,7 +30,7 @@ URLS: dict[str, str] = {
     "permission": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/clients/%s/authz/resource-server/permission/scope",
     "permissions_check": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/clients/%s/authz/resource-server/policy/evaluate",
     "user": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/users",
-    "user_role": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/users/%s/role-mappings/kc_settings.realm",
+    "user_role": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/users/%s/role-mappings/realm",
     "user_reset": f"{kc_settings.keycloak_url}/admin/realms/{kc_settings.realm}/users/%s/reset-password"
 }
 
