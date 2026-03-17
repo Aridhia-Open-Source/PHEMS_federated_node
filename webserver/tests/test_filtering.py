@@ -24,7 +24,7 @@ async def test_filter_by_date(
     base_audit = {
         "ip_address": "127.0.0.1",
         "http_method": "GET",
-        "endpoint": "/dataset",
+        "endpoint": "/datasets",
         "api_function": "get_datasets",
         "requested_by": "admin",
         "status_code": 200,
@@ -45,6 +45,13 @@ async def test_filter_by_date(
     }
     target_date = (dt.now() - td(days=1)).date().strftime("%Y-%m-%d")
     for fil, expected_results in filters.items():
-        resp = await client.get("/audit", params={f"event_time{fil}": target_date}, headers=simple_admin_header)
+        resp = await client.get(
+            "/audit",
+            params={
+                f"event_time{fil}": target_date,
+                "endpoint": "/datasets"
+            },
+            headers=simple_admin_header
+        )
         assert resp.status_code == 200
-        assert resp.json()["total"] == expected_results
+        assert resp.json()["total"] == expected_results, fil

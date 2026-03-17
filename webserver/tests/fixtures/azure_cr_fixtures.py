@@ -1,9 +1,7 @@
 import httpx
 from  pytest_asyncio import fixture
-import responses
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
-from app.helpers.keycloak import KEYCLOAK_URL
 from app.helpers.container_registries import AzureRegistry
 from app.models.container import Container
 from app.models.registry import Registry

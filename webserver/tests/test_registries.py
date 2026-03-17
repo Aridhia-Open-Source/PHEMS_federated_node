@@ -4,10 +4,10 @@ import json
 from kubernetes_asyncio.client import ApiException
 from sqlalchemy import func, select
 
-from app.helpers.const import TASK_NAMESPACE
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.common_registry_fixtures import *
 from tests.base_test_class import BaseTest
+from app.helpers.settings import settings, kc_settings
 
 
 class TestGetRegistriesApi(BaseTest):
@@ -368,7 +368,7 @@ class TestDeleteRegistries(BaseTest):
         )
         assert response.status_code == 204
         mock_args_k8s.api_client.delete_namespaced_secret.assert_called_with(
-            **{"name": secret_name, "namespace": TASK_NAMESPACE}
+            **{"name": secret_name, "namespace": settings.task_namespace}
         )
 
     @mark.asyncio
@@ -501,7 +501,6 @@ class TestPatchRegistriesApi(BaseTest):
             "password": "new password token",
             "username": "shiny"
         }
-        # mock_args_k8s.api_client.read_namespaced_secret.return_value.data = dockerconfigjson_mock
 
         resp = await client.patch(
             f"registries/{registry.id}",

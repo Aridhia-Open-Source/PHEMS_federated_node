@@ -1,22 +1,27 @@
 import json
 import logging
 import re
-from typing import NoReturn
+from typing import TYPE_CHECKING, List, NoReturn
+
 from kubernetes_asyncio.client.exceptions import ApiException
 from kubernetes_asyncio.client.models.v1_secret import V1Secret
-from sqlalchemy import Column, Integer, String, Boolean
-from sqlalchemy.orm import relationship
+from sqlalchemy import Integer, String, Boolean
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm.properties import MappedColumn
 
-from app.helpers.const import TASK_NAMESPACE
 from app.helpers.container_registries import (
     AzureRegistry, BaseRegistry, DockerRegistry, GitHubRegistry
 )
+from app.helpers.settings import settings
 from app.helpers.base_model import BaseModel
 from app.helpers.exceptions import (
     ContainerRegistryException, InvalidRequest
 )
 from app.helpers.kubernetes import KubernetesClient
+
+if TYPE_CHECKING:
+    from .container import Container
 
 logger = logging.getLogger("registry_model")
 logger.setLevel(logging.INFO)
@@ -25,12 +30,16 @@ logger.setLevel(logging.INFO)
 class Registry(BaseModel):
     __tablename__ = 'registries'
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    url = Column(String(256), nullable=False)
-    needs_auth = Column(Boolean, default=True)
-    active = Column(Boolean, default=True)
+    id: MappedColumn[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    url: MappedColumn[str] = mapped_column(String(256), nullable=False)
+    needs_auth: MappedColumn[bool] = mapped_column(Boolean, default=True)
+    active: MappedColumn[bool] = mapped_column(Boolean, default=True)
 
-    container = relationship("Container", cascade="all, delete-orphan")
+    containers: Mapped[List["Container"]] = relationship(
+        "Container",
+        back_populates="registry",
+        cascade="all, delete-orphan"
+    )
 
     def __init__(self, **kwargs):
         self.username = kwargs.pop("username", None)
@@ -55,18 +64,18 @@ class Registry(BaseModel):
 
         try:
             secret: V1Secret = await v1.api_client.read_namespaced_secret(
-                secret_name, TASK_NAMESPACE
+                secret_name, settings.task_namespace
             )
         except ApiException as apie:
             if apie.status == 404:
-                v1.create_secret(
+                await v1.create_secret(
                     name=secret_name,
                     values={".dockerconfigjson": json.dumps({"auths" : {}})},
-                    namespaces=[TASK_NAMESPACE],
+                    namespaces=[settings.task_namespace],
                     type='kubernetes.io/dockerconfigjson'
                 )
                 secret = await v1.api_client.read_namespaced_secret(
-                    secret_name, TASK_NAMESPACE
+                    secret_name, settings.task_namespace
                 )
             else:
                 raise InvalidRequest(
@@ -84,7 +93,7 @@ class Registry(BaseModel):
         }
         secret.data['.dockerconfigjson'] = v1.encode_secret_value(json.dumps(dockerjson))
         await v1.api_client.patch_namespaced_secret(
-            namespace=TASK_NAMESPACE, name=secret_name, body=secret
+            namespace=settings.task_namespace, name=secret_name, body=secret
         )
 
     async def _get_creds(self):
@@ -93,7 +102,7 @@ class Registry(BaseModel):
 
         v1: KubernetesClient = await KubernetesClient.create()
         regcred = await v1.api_client.read_namespaced_secret(
-            self.slugify_name(), TASK_NAMESPACE, pretty='pretty'
+            self.slugify_name(), settings.task_namespace, pretty='pretty'
         )
 
         dockerjson = json.loads(v1.decode_secret_value(regcred.data['.dockerconfigjson']))
@@ -146,7 +155,7 @@ class Registry(BaseModel):
             v1: KubernetesClient = await KubernetesClient.create()
             try:
                 await v1.api_client.delete_namespaced_secret(
-                    namespace=TASK_NAMESPACE, name=self.slugify_name()
+                    namespace=settings.task_namespace, name=self.slugify_name()
                 )
             except ApiException as apie:
                 await nested.rollback()
@@ -171,7 +180,7 @@ class Registry(BaseModel):
             key = "https://index.docker.io/v1/"
         try:
             regcred: V1Secret = await v1.api_client.read_namespaced_secret(
-                self.slugify_name(), namespace=TASK_NAMESPACE
+                self.slugify_name(), namespace=settings.task_namespace
             )
             dockerjson = json.loads(v1.decode_secret_value(regcred.data['.dockerconfigjson']))
             self.username = dockerjson['auths'][key]["username"]

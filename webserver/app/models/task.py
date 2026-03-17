@@ -15,15 +15,14 @@ from sqlalchemy.sql import func
 from uuid import uuid4
 
 import urllib3
-from app.helpers.const import (
-    CLEANUP_AFTER_DAYS, CRD_DOMAIN, PUBLIC_URL, TASK_CONTROLLER,
-    REVIEW_STATUS, TASK_NAMESPACE, TASK_POD_RESULTS_PATH, RESULTS_PATH
-)
+from app.helpers.const import REVIEW_STATUS
+from app.helpers.settings import settings
 from app.helpers.base_model import BaseModel
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesBatchClient, KubernetesCRDClient, KubernetesClient
 from app.helpers.exceptions import (
-    DBError, InvalidRequest, TaskCRDExecutionException, TaskImageException, TaskExecutionException
+    DBError, InvalidRequest, TaskCRDExecutionException,
+    TaskImageException, TaskExecutionException
 )
 from app.helpers.task_pod import TaskPod
 from app.models.dataset import Dataset
@@ -145,10 +144,14 @@ class Task(BaseModel):
         Running `kubectl delete pvc -n analytics -l "delete_by=$(date +%Y%m%d)"` will bulk delete
         all pvcs to be deleted today.
         """
-        return (datetime.now() + timedelta(days=CLEANUP_AFTER_DAYS)).strftime("%Y%m%d")
+        return (datetime.now() + timedelta(days=settings.cleanup_after_days)).strftime("%Y%m%d")
 
-    def needs_crd(self) -> str | None | Literal[False]:
-        return ((not self.is_from_controller) and TASK_CONTROLLER)
+    def needs_crd(self):
+        return (
+            (not self.is_from_controller) and \
+                settings.task_controller is not None \
+                    and settings.auto_delivery_results is not None
+            )
 
     async def run(self, validate=False) -> None:
         """
@@ -160,7 +163,7 @@ class Task(BaseModel):
         secret_name = self.dataset.get_creds_secret_name()
         provided_env = self.executors[0].get("env", {})
 
-        command=None
+        command = None
         if len(self.executors):
             command= self.executors[0].get("command", '')
 
@@ -190,7 +193,7 @@ class Task(BaseModel):
                 raise TaskExecutionException("Pod is already running", code=409)
 
             await v1.api_client.create_namespaced_pod(
-                namespace=TASK_NAMESPACE,
+                namespace=settings.task_namespace,
                 body=body,
                 pretty='true'
             )
@@ -209,7 +212,7 @@ class Task(BaseModel):
         """
         v1: KubernetesClient = await KubernetesClient.create()
         running_pods: V1PodList = await v1.api_client.list_namespaced_pod(
-            TASK_NAMESPACE,
+            settings.task_namespace,
             label_selector=f"task_id={self.id}"
         )
         try:
@@ -270,7 +273,7 @@ class Task(BaseModel):
         v1: KubernetesClient = await KubernetesClient.create()
         has_error = False
         try:
-            await v1.api_client.delete_namespaced_pod(self.pod_name(), namespace=TASK_NAMESPACE)
+            await v1.api_client.delete_namespaced_pod(self.pod_name(), namespace=settings.task_namespace)
         except ApiException as kexc:
             logger.error(kexc.reason)
             has_error = True
@@ -296,7 +299,7 @@ class Task(BaseModel):
             "persistent_volumes": [
                 {
                     "name": f"{current_pod.metadata.name}-volclaim",
-                    "mount_path": TASK_POD_RESULTS_PATH,
+                    "mount_path": settings.task_pod_results_path,
                     "vol_name": "data",
                     "sub_path": f"{self.id}/results"
                 }
@@ -308,7 +311,7 @@ class Task(BaseModel):
         })
         try:
             await v1_batch.api_client.create_namespaced_job(
-                namespace=TASK_NAMESPACE,
+                namespace=settings.task_namespace,
                 body=job,
                 pretty='true'
             )
@@ -316,13 +319,13 @@ class Task(BaseModel):
             v1: KubernetesClient = await KubernetesClient.create()
             await v1.is_pod_ready(label=f"job-name={job_name}")
 
-            job_pod: V1Pod = (await v1.api_client.list_namespaced_pod(namespace=TASK_NAMESPACE, label_selector=f"job-name={job_name}")).items[0]
+            job_pod: V1Pod = (await v1.api_client.list_namespaced_pod(namespace=settings.task_namespace, label_selector=f"job-name={job_name}")).items[0]
 
             res_file: str = await v1.cp_from_pod(
                 pod_name=job_pod.metadata.name,
-                source_path=TASK_POD_RESULTS_PATH,
-                dest_path=f"{RESULTS_PATH}/{self.id}/results",
-                out_name=f"{PUBLIC_URL}-results-{self.id}"
+                source_path=settings.task_pod_results_path,
+                dest_path=f"{settings.results_path}/{self.id}/results",
+                out_name=f"{settings.public_url}-results-{self.id}"
             )
             await v1.delete_pod(job_pod.metadata.name)
             await v1_batch.delete_job(job_name)
@@ -344,24 +347,24 @@ class Task(BaseModel):
         by the controller at this stage, so we populate them
         with default values.
 
-        If the TASK_CONTROLLER env variable is not set, do nothing
+        If the settings.task_controller env variable is not set, do nothing
         """
-        if not TASK_CONTROLLER:
+        if not settings.task_controller:
             return
 
         kc_client: Keycloak = await Keycloak.create()
         crd_client: KubernetesCRDClient = await KubernetesCRDClient.create()
         try:
             await crd_client.api_client.create_cluster_custom_object(
-                CRD_DOMAIN, 'v1', 'analytics',
+                settings.crd_domain, 'v1', 'analytics',
                 {
-                    "apiVersion": f"{CRD_DOMAIN}/v1",
+                    "apiVersion": f"{settings.crd_domain}/v1",
                     "kind": "Analytics",
                     "metadata": {
                         "annotations": {
-                            f"{CRD_DOMAIN}/user": 'ok',
-                            f"{CRD_DOMAIN}/task_id": str(self.id),
-                            f"{CRD_DOMAIN}/done": 'true'
+                            f"{settings.crd_domain}/user": 'ok',
+                            f"{settings.crd_domain}/task_id": str(self.id),
+                            f"{settings.crd_domain}/done": 'true'
                         },
                         "name": f"fn-task-{self.id}"
                     },
@@ -370,7 +373,7 @@ class Task(BaseModel):
                         "image": self.docker_image,
                         "project": "federated_node",
                         "source": {
-                            "repository": "Aridhia-Open-Source/PHEMS_federated_node"
+                            "repository": self.dataset.repository or "Aridhia-Open-Source/PHEMS_federated_node"
                         },
                         "user": {
                             "idpId": "",
@@ -399,10 +402,10 @@ class Task(BaseModel):
         """
         v1_crds: KubernetesCRDClient = await KubernetesCRDClient.create()
         crds = await v1_crds.api_client.list_cluster_custom_object(
-            CRD_DOMAIN, "v1", "analytics"
+            settings.crd_domain, "v1", "analytics"
         )
         for crd in crds["items"]:
-            if crd["metadata"]["annotations"].get(f"{CRD_DOMAIN}/task_id") == str(self.id):
+            if crd["metadata"]["annotations"].get(f"{settings.crd_domain}/task_id") == str(self.id):
                 return crd["metadata"]["name"]
 
     async def get_task_crd(self) -> dict|None:
@@ -413,7 +416,7 @@ class Task(BaseModel):
         crd_client: KubernetesCRDClient = await KubernetesCRDClient.create()
         try:
             return await crd_client.api_client.get_cluster_custom_object(
-                CRD_DOMAIN,
+                settings.crd_domain,
                 "v1",
                 "analytics",
                 await self.crd_name()
@@ -436,9 +439,9 @@ class Task(BaseModel):
                 raise TaskExecutionException("Failed to update result delivery")
 
             annotations = task_crd["metadata"].get("annotations", {})
-            annotations[f"{CRD_DOMAIN}/approved"] = str(approval)
+            annotations[f"{settings.crd_domain}/approved"] = str(approval)
             await crd_client.api_client.patch_cluster_custom_object(
-                CRD_DOMAIN, "v1", "analytics", await self.crd_name(),
+                settings.crd_domain, "v1", "analytics", await self.crd_name(),
                 [{"op": "add", "path": "/metadata/annotations", "value": annotations}]
             )
         except ApiException as apie:
@@ -460,7 +463,7 @@ class Task(BaseModel):
         try:
             pod_logs_full = await v1.api_client.read_namespaced_pod_log(
                 pod.metadata.name, timestamps=True,
-                namespace=TASK_NAMESPACE,
+                namespace=settings.task_namespace,
                 container=pod.metadata.name
             )
             return pod_logs_full.splitlines()

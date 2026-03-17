@@ -10,8 +10,8 @@ from kubernetes_asyncio import client, stream
 from kubernetes_asyncio.client.exceptions import ApiException
 from kubernetes_asyncio.watch import Watch
 from app.helpers.exceptions import InvalidRequest, KubernetesException
-from app.helpers.const import ALPINE_IMAGE, TASK_NAMESPACE
 from app.helpers.kubernetes_manager import KubernetesBase, get_k8s_base
+from app.helpers.settings import settings
 
 
 logger = logging.getLogger('kubernetes_helper')
@@ -78,7 +78,7 @@ class BaseClient(Generic[T]):
             ))
         container = client.V1Container(
             name=pod_spec["name"],
-            image=ALPINE_IMAGE,
+            image=settings.alpine_image,
             volume_mounts=vol_mounts,
             command=["/bin/sh", "-c", f"sleep {60*60*24}"]
         )
@@ -87,7 +87,7 @@ class BaseClient(Generic[T]):
 
         metadata = client.V1ObjectMeta(
             name=pod_spec["name"],
-            namespace=TASK_NAMESPACE,
+            namespace=settings.task_namespace,
             labels=pod_spec["labels"]
         )
         specs = client.V1PodSpec(
@@ -128,7 +128,7 @@ class KubernetesClient(BaseClient[client.CoreV1Api]):
             if kexc.status != 409:
                 raise KubernetesException(kexc.body) from kexc
         try:
-            await self.api_client.create_namespaced_persistent_volume_claim(namespace=TASK_NAMESPACE, body=task_pvc)
+            await self.api_client.create_namespaced_persistent_volume_claim(namespace=settings.task_namespace, body=task_pvc)
         except ApiException as kexc:
             if kexc.status != 409:
                 raise KubernetesException(kexc.body) from kexc
@@ -141,7 +141,7 @@ class KubernetesClient(BaseClient[client.CoreV1Api]):
         watcher = Watch()
         async for event in watcher.stream(
             func=self.api_client.list_namespaced_pod,
-            namespace=TASK_NAMESPACE,
+            namespace=settings.task_namespace,
             label_selector=label,
             timeout_seconds=60
         ):
@@ -183,7 +183,7 @@ class KubernetesClient(BaseClient[client.CoreV1Api]):
                     raise KubernetesException(e.body)
         return body
 
-    async def delete_pod(self, name:str, namespace=TASK_NAMESPACE) -> None:
+    async def delete_pod(self, name:str, namespace=settings.task_namespace) -> None:
         """
         Given a pod name, delete it. If it doesn't exist
         ignores the exception and logs a message.
@@ -197,7 +197,7 @@ class KubernetesClient(BaseClient[client.CoreV1Api]):
             if e.status != 404:
                 raise InvalidRequest(f"Failed to delete pod {name}: {e.reason}") from e
 
-    async def cp_from_pod(self, pod_name:str, source_path:str, dest_path:str, out_name:str, namespace=TASK_NAMESPACE) -> str:
+    async def cp_from_pod(self, pod_name:str, source_path:str, dest_path:str, out_name:str, namespace=settings.task_namespace) -> str:
         """
         Method that emulates the `kubectl cp` command
         """
@@ -272,7 +272,7 @@ class KubernetesClient(BaseClient[client.CoreV1Api]):
 
 class KubernetesBatchClient(BaseClient[client.BatchV1Api]):
 
-    async def delete_job(self, name:str, namespace=TASK_NAMESPACE) -> None:
+    async def delete_job(self, name:str, namespace=settings.task_namespace) -> None:
         """
         Given a pod name, delete it. If it doesn't exist
         ignores the exception and logs a message.

@@ -1,7 +1,6 @@
 from copy import deepcopy
 from pytest import mark, raises
 from pytest_asyncio import fixture
-from unittest.mock import Mock
 
 from sqlalchemy import select, update
 

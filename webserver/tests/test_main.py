@@ -6,6 +6,7 @@ from unittest import mock
 
 from requests.exceptions import ConnectionError
 from app.helpers.keycloak import URLS
+from app.helpers.settings import kc_settings
 from app.helpers.exceptions import AuthenticationError
 
 
@@ -18,8 +19,8 @@ class TestLogin:
         login_request = await client.post(
             "/login",
             data={
-                "username": os.getenv("KEYCLOAK_ADMIN"),
-                "password": os.getenv("KEYCLOAK_ADMIN_PASSWORD")
+                "username": kc_settings.keycloak_admin,
+                "password": kc_settings.keycloak_admin_password
             },
             headers={
                 'Content-Type': 'application/x-www-form-urlencoded'

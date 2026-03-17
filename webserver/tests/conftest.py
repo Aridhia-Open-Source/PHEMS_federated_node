@@ -22,9 +22,8 @@ from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
 from app.models.request import RequestModel
 from app.models.task import Task
-from app.helpers.exceptions import KeycloakError
-from app.helpers.const import CRD_DOMAIN
 from app.helpers.kubernetes import KubernetesClient
+from app.helpers.settings import settings
 
 
 sample_ds_body = {
@@ -294,7 +293,7 @@ async def mock_args_crd(task):
             "metadata": {
                 "name": "crd_name",
                 "annotations": {
-                    f"{CRD_DOMAIN}/task_id": str(task.id)
+                    f"{settings.crd_domain}/task_id": str(task.id)
                 }
             }
         }]
@@ -362,7 +361,7 @@ async def dataset_oracle(db_session, mocker)  -> Dataset:
 
 @fixture
 async def catalogue(dataset, db_session) -> Catalogue:
-    cat = Catalogue(dataset=dataset, title="new catalogue", description="shiny fresh data")
+    cat = Catalogue(dataset=dataset, version="2.1", title="new catalogue", description="shiny fresh data")
     await cat.add(db_session)
     return cat
 
@@ -496,14 +495,19 @@ async def new_user(new_user_email):
     return {"email": new_user_email, "id": "8b707136-a2d8-4b69-9ab5-ec341011a62f", "username": new_user_email}
 
 @fixture
-async def set_task_other_delivery_env(mocker):
-    mocker.patch('app.routes.admin.TASK_CONTROLLER', return_value="enabled")
-    mocker.patch('app.routes.admin.OTHER_DELIVERY', return_value="url.delivery.com")
+def set_task_other_delivery_env(mocker):
+    mocker.patch('app.routes.admin.settings.task_controller', "enabled")
+    mocker.patch('app.routes.admin.settings.other_delivery', "url.delivery.com")
 
 @fixture
-async def set_task_github_delivery_env(mocker):
-    mocker.patch('app.routes.admin.TASK_CONTROLLER', return_value="enabled")
-    mocker.patch('app.routes.admin.GITHUB_DELIVERY', return_value="org/repository")
+def set_task_other_delivery_allowed_env(mocker, set_task_other_delivery_env):
+    mocker.patch('app.models.task.settings.task_controller', "enabled")
+    mocker.patch('app.models.task.settings.auto_delivery_results', "enabled")
+
+@fixture
+def set_task_github_delivery_env(mocker):
+    mocker.patch('app.routes.admin.settings.task_controller', "enabled")
+    mocker.patch('app.routes.admin.settings.github_delivery', "org/repository")
 
 @fixture
 async def decode_token_return(basic_user, user_uuid):

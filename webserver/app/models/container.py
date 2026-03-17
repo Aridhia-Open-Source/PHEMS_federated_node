@@ -1,5 +1,5 @@
 import re
-from sqlalchemy import Integer, Boolean, String, ForeignKey
+from sqlalchemy import ForeignKey, Integer, Boolean, String
 from sqlalchemy.orm import Mapped, relationship, mapped_column
 from app.helpers.base_model import BaseModel
 from app.models.registry import Registry
@@ -17,7 +17,7 @@ class Container(BaseModel):
     dashboard: Mapped[bool] = mapped_column(Boolean(), default=False)
 
     registry_id: Mapped[int] = mapped_column(Integer, ForeignKey(Registry.id, ondelete='CASCADE'))
-    registry: Mapped["Registry"] = relationship("Registry", overlaps="container")
+    registry: Mapped["Registry"] = relationship("Registry", back_populates="containers")
 
     @classmethod
     def validate_image_format(cls, img_with_tag, img_with_sha):
