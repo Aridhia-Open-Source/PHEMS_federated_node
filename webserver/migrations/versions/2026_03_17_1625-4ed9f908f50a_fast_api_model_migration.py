@@ -1,8 +1,8 @@
-"""fast api db sync
+"""fast-api model migration
 
-Revision ID: 5446dee31bf4
-Revises: 0c165470a9dc
-Create Date: 2026-03-17 13:46:54.749586
+Revision ID: 4ed9f908f50a
+Revises: 63ed4b61151d
+Create Date: 2026-03-17 16:25:41.282345
 
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '5446dee31bf4'
-down_revision: Union[str, None] = '0c165470a9dc'
+revision: str = '4ed9f908f50a'
+down_revision: Union[str, None] = '63ed4b61151d'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -81,6 +81,10 @@ def upgrade() -> None:
     op.alter_column('tasks', 'description',
                existing_type=sa.VARCHAR(length=4096),
                nullable=False)
+    op.alter_column('tasks', 'pod_status',
+               existing_type=sa.VARCHAR(length=256),
+               nullable=False,
+               existing_server_default=sa.text("'scheduled'::character varying"))
     op.alter_column('tasks', 'created_at',
                existing_type=postgresql.TIMESTAMP(),
                nullable=False,
@@ -100,6 +104,10 @@ def downgrade() -> None:
                existing_type=postgresql.TIMESTAMP(),
                nullable=True,
                existing_server_default=sa.text('now()'))
+    op.alter_column('tasks', 'pod_status',
+               existing_type=sa.VARCHAR(length=256),
+               nullable=True,
+               existing_server_default=sa.text("'scheduled'::character varying"))
     op.alter_column('tasks', 'description',
                existing_type=sa.VARCHAR(length=4096),
                nullable=True)
