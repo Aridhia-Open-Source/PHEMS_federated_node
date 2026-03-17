@@ -7,9 +7,6 @@ from dagster import OpExecutionContext as OpExecCtx
 from dagster_k8s import PipesK8sClient
 from dagster._core.pipes.client import PipesClientCompletedInvocation
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 
 @dg.op(
     config_schema={
@@ -67,8 +64,7 @@ class K8sPipeOP:
         )
 
     def log(self, message: str):
-        self.context.log.info(f"[PARENT][{self.run_id}] - {message}")
-        logger.info(f"[PARENT][{self.run_id}] - {message}")
+        self.context.log.info(f"[PIPES][{self.run_id}] - {message}")
 
     def _load_base_pod_spec(self):
         return {
