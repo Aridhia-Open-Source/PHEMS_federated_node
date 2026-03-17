@@ -91,10 +91,10 @@ def patch_registry(registry_id:int):
     if registry is None:
         raise InvalidRequest(f"Registry {registry_id} not found")
 
-    changes = RegistryUpdate(**request.json).model_dump(exclude_unset=True)
-    if not changes:
+    changes = RegistryUpdate(**request.json)
+    if not changes.model_dump(exclude_unset=True):
         raise InvalidRequest("No valid changes detected")
 
-    registry.update(**changes)
+    RegistryService.update(registry, changes)
 
     return {}, HTTPStatus.NO_CONTENT

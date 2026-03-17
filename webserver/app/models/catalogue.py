@@ -28,15 +28,3 @@ class Catalogue( db.Model, BaseModel):
             else:
                 setattr(self, k, v)
         self.query.filter(Catalogue.id == self.id).update(data, synchronize_session='evaluate')
-
-    @classmethod
-    def update_or_create(cls, data:dict, ds:Dataset):
-        """
-        """
-        current_cata = cls.query.filter(cls.dataset_id == ds.id).one_or_none()
-        if current_cata:
-            current_cata.update(**data)
-        else:
-            cata_body = cls.validate(data)
-            catalogue = cls(dataset=ds, **cata_body)
-            catalogue.add(commit=False)

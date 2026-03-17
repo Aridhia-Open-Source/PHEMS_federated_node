@@ -29,18 +29,3 @@ class Dictionary( db.Model, BaseModel):
             else:
                 setattr(self, k, v)
         self.query.filter(Dictionary.id == self.id).update(data, synchronize_session='evaluate')
-
-    @classmethod
-    def update_or_create(cls, data:dict, ds:Dataset):
-        cls.validate(data)
-        current_dict = cls.query.filter(
-            cls.dataset_id == ds.id,
-            cls.field_name == data["field_name"],
-            cls.table_name == data["table_name"]
-        ).one_or_none()
-        if current_dict:
-            current_dict.update(**data)
-        else:
-            dict_body = cls.validate(data)
-            dictionary = cls(dataset=ds, **dict_body)
-            dictionary.add(commit=False)

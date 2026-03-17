@@ -109,7 +109,7 @@ class Registry(db.Model, BaseModel):
         Simply returns a list of strings of all available
             images (or repos) with their tags
         """
-        _class = self.get_registry_class()
+        _class: BaseRegistry = self.get_registry_class()
         return _class.list_repos()
 
     def delete(self, commit:bool=False):
@@ -122,39 +122,3 @@ class Registry(db.Model, BaseModel):
             session.rollback()
             logger.error("%s:\n\tDetails: %s", kae.reason, kae.body)
             raise ContainerRegistryException("Error while deleting entity")
-
-    def update(self, **kwargs) -> None:
-        """
-        Updates the instance with new values. These should be
-        already validated.
-        """
-        if kwargs.get("active") is not None:
-            self.query.filter(Registry.id == self.id).update(
-                {"active": kwargs.get("active")},
-                synchronize_session='evaluate'
-            )
-
-        if not(kwargs.get("username") or kwargs.get("password")):
-            return
-
-        # Get the credentials from the pull docker secret
-        v1 = KubernetesClient()
-        key = self.url
-        if isinstance(self.get_registry_class(), DockerRegistry):
-            key = "https://index.docker.io/v1/"
-        try:
-            regcred = v1.read_namespaced_secret(self.slugify_name(), namespace=settings.task_namespace)
-            dockerjson = json.loads(v1.decode_secret_value(regcred.data['.dockerconfigjson']))
-            self.username = dockerjson['auths'][key]["username"]
-            self.password = dockerjson['auths'][key]["password"]
-
-            if kwargs.get("username"):
-                self.username = kwargs.get("username")
-
-            if kwargs.get("password"):
-                self.password = kwargs.get("password")
-
-            self.update_regcred()
-        except ApiException as apie:
-            logger.error("Reason: %s\nDetails: %s", apie.reason, apie.body)
-            raise InvalidRequest("Could not update credentials") from apie

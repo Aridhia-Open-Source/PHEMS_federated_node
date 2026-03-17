@@ -19,13 +19,6 @@ class Container(db.Model, BaseModel):
     registry_id = Column(Integer, ForeignKey(Registry.id, ondelete='CASCADE'))
     registry = relationship("Registry")
 
-    @classmethod
-    def validate_image_format(cls, img_with_tag, img_with_sha):
-        if not (re.match(r'^((\w+|-|\.)\/?+)+:(\w+(\.|-)?)+$', img_with_tag) or re.match(r'^((\w+|-|\.)\/?+)+@sha256:.+$', img_with_sha)):
-            raise InvalidRequest(
-                f"{img_with_tag} does not have a tag. Please provide one in the format <image>:<tag> or <image>@sha256.."
-            )
-
     def full_image_name(self):
         if self.sha:
             return f"{self.registry.url}/{self.name}@{self.sha}"

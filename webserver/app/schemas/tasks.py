@@ -9,9 +9,10 @@ from app.helpers.settings import settings
 from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import InvalidRequest
 from app.models.dataset import Dataset
-from app.models.container import Container
 from app.models.request import Request
 from app.models.task import REVIEW_STATUS, Task
+from app.schemas.containers import ContainerCreate
+
 
 class TaskBase(BaseModel):
     name: str
@@ -75,7 +76,7 @@ class TaskCreate(TaskBase):
             ).dataset.id
 
         # Docker image validation
-        Container.validate_image_format(data["docker_image"], data["docker_image"])
+        ContainerCreate.validate_image_format(data["docker_image"], data["docker_image"])
         data["docker_image"] = Task.get_image_with_repo(data["docker_image"])
 
         data["executors"] = data["executors"]
