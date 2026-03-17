@@ -42,7 +42,7 @@ class Task(db.Model, BaseModel):
     name = Column(String(256), nullable=False)
     docker_image = Column(String(256), nullable=False)
     description = Column(String(4096))
-    status = Column(String(256), default='scheduled')
+    pod_status = Column(String(256), server_default='scheduled')
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     updated_at = Column(DateTime(timezone=False), onupdate=func.now())
     requested_by = Column(String(256), nullable=False)
