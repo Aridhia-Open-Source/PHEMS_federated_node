@@ -44,7 +44,7 @@ class Task(BaseModel):
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     docker_image: Mapped[str] = mapped_column(String(256), nullable=False)
     description: Mapped[str] = mapped_column(String(4096))
-    status: Mapped[str] = mapped_column(String(256), default='scheduled')
+    pod_status: Mapped[str] = mapped_column(String(256), server_default='scheduled')
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False, insert_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=True, onupdate=func.now())
     requested_by: Mapped[str] = mapped_column(String(256), nullable=False)
@@ -201,7 +201,7 @@ class Task(BaseModel):
         """
         return f"{self.name.lower().replace(' ', '-')}-{uuid4()}"
 
-    def get_expiration_date(self) -> str:
+    def get_expiration_date(self, as_dt:bool=False) -> str|datetime:
         """
         In order to help with the cleanup process we set a lable for
         - pod
@@ -213,7 +213,11 @@ class Task(BaseModel):
         Running `kubectl delete pvc -n analytics -l "delete_by=$(date +%Y%m%d)"` will bulk delete
         all pvcs to be deleted today.
         """
-        return (datetime.now() + timedelta(days=settings.cleanup_after_days)).strftime("%Y%m%d")
+        exp_date = datetime.now() + timedelta(days=settings.cleanup_after_days)
+        if as_dt:
+            return exp_date
+
+        return exp_date.strftime("%Y%m%d")
 
     def needs_crd(self):
         return (
@@ -306,7 +310,11 @@ class Task(BaseModel):
             :dict: if the pod exists
             :str: if the pod is not found or deleted
         """
-        status = "pending"
+        status = self.pod_status
+        if self.get_expiration_date(as_dt=True) < datetime.now():
+            self.pod_status = 'deleted'
+            return self.pod_status
+
         try:
             status_obj = self.get_current_pod(is_running=False).status.container_statuses
             if status_obj is None:
@@ -328,15 +336,13 @@ class Task(BaseModel):
                     "exit_code": getattr(st, "exit_code", None),
                     "reason": getattr(st, "reason", None)
                 })
+            self.pod_status = status
             return {
                 status: returned_status
             }
         except AttributeError:
-            return status if status != 'running' else 'deleted'
-
-    @status.setter
-    def status(self, value):
-        self._status = value
+            self.pod_status = status if status != 'running' else 'deleted'
+            return self.pod_status
 
     def terminate_pod(self):
         """
@@ -352,7 +358,7 @@ class Task(BaseModel):
             has_error = True
 
         try:
-            self.status = 'cancelled'
+            self.pod_status = 'cancelled'
         except Exception as exc:
             raise DBError("An error occurred while updating") from exc
 

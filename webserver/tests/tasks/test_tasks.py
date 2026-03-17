@@ -1,3 +1,4 @@
+from datetime import timedelta
 import json
 import re
 from pytest import mark
@@ -150,6 +151,10 @@ class TestGetTasks(BaseTest):
                     container_statuses=[running_state]
                 )
             )
+        )
+        mocker.patch(
+            'app.models.task.Task.get_expiration_date',
+            return_value=datetime.now() + timedelta(days=1)
         )
 
         response_id = await client.get(
