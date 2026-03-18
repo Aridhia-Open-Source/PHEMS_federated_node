@@ -17,11 +17,7 @@ set -euo pipefail
 ###############################################################################
 
 ### Config ####################################################################
-<<<<<<< HEAD
 DOCKER_TAG="v33"
-=======
-DOCKER_TAG="v30"
->>>>>>> 0bbaf36 (unworking commit)
 CLUSTER_NAME="fn"
 NAMESPACE="fn"
 RELEASE_NAME="fn-dev"

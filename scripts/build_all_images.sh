@@ -5,6 +5,7 @@ DOCKER_DIRS=(
   "dagster"
   "webserver"
   "github_transfer"
+  "docker_models/julia"
 )
 
 DOCKER_TAG=$1
