@@ -74,7 +74,7 @@ gh repo clone "${GH_REPO_URI_PATH}" "${CLONE_TARGET_DIR}" -- --depth=1
     --repo "${GH_REPO_URI_PATH}" \
     --head "${BRANCH}" \
     --base "${GH_BASE_BRANCH}" \
-    --title "PR${PR_NUMBER} - ${PARENT_RUN_ID} - results" \
+    --title "PR${PR_NUMBER} - results" \
     --body "Automated results for PR #${PR_NUMBER}, run ${PARENT_RUN_ID}"
 )
 
