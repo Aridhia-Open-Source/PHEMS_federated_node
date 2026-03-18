@@ -57,6 +57,7 @@ def github_transfer_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> 
         "GH_OWNER": GH_OWNER,
         "GH_REPO": GH_REPO,
         "GH_TOKEN": GH_TOKEN,
+        "GH_BASE_BRANCH": GH_BASE_BRANCH,
         "GH_RESULTS_DIR": GH_RESULTS_DIR,
         "MNT_BASE_PATH": ARTIFACT_MOUNT_BASE_PATH,
         "PARENT_RUN_ID": context.op_config["parent_run_id"],
