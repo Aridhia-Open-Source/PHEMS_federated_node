@@ -43,3 +43,16 @@ class Oracle(BaseEngine):
 class MariaDB(BaseEngine):
     driver = "driver={MariaDB ODBC 3.2 Driver};"
 
+class DuckDB(BaseEngine):
+    driver = "driver={DuckDB Driver};"
+
+    def __init__(
+            self,
+            _user:str,
+            _passw:str,
+            _host:str,
+            _port:str,
+            database:str,
+            args:str
+        ):
+        self.connection_str = f"{self.driver}Database={database};{args or ''}"

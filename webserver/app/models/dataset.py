@@ -10,7 +10,7 @@ from app.helpers.kubernetes import KubernetesClient
 from kubernetes.client import V1Secret
 from kubernetes.client.exceptions import ApiException
 
-from app.helpers.connection_string import Mssql, Postgres, Mysql, Oracle, MariaDB
+from app.helpers.connection_string import Mssql, Postgres, Mysql, Oracle, MariaDB, DuckDB
 
 logger = logging.getLogger("dataset_model")
 logger.setLevel(logging.INFO)
@@ -20,7 +20,8 @@ SUPPORTED_ENGINES = {
     "postgres": Postgres,
     "mysql": Mysql,
     "oracle": Oracle,
-    "mariadb": MariaDB
+    "mariadb": MariaDB,
+    "duckdb": DuckDB
 }
 
 
