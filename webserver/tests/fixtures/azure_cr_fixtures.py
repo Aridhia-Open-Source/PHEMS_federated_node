@@ -27,7 +27,7 @@ def expected_digest_list():
     """
     ACR only returns one sha per tag
     """
-    return "sha256:c1e51a68c68a448a"
+    return "sha256:caed983c5ba866aaa9a15cc31781f0c5fd9a73bee25dae2d9b35ee8fa6255a6c"
 
 @pytest.fixture
 def registry_client(mocker):
