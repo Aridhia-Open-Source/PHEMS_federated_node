@@ -1,5 +1,11 @@
 # Releases Changelog
 
+# 1.12.0
+
+### Bugfixes
+
+- Containers without a tag sometimes cause infinite loops due to faulty regex. [#310](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/issues/310)
+
 ## 1.11.0
 - Added a flag for conditional automatic results returns for tasks triggered by the API, `federatedNode.allow_delivery_api`. Defaults to `false`.
 
