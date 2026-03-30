@@ -1,0 +1,101 @@
+# Default values for federated_node.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+pullPolicy: Always
+create_db_deployment: true
+local_development: true
+smoketests: false
+taskReview: true
+cleanupTime: 3
+host: &host phems-federatednode.net
+
+backend:
+  tag: 1.9.0
+  volumes:
+    results_path: /data/flask/results
+
+keycloak:
+  tag: 1.9.0
+
+db:
+  user: &userDB admin
+  host: db.fn.svc
+  port: &portDB 5432
+  secret:
+    name: local-db
+    key: password
+    value: local-db-secret
+
+storage:
+  capacity: 1Gi
+  local:
+    path: /data/flask
+    dbpath: /data/db
+    artifacts: /data/dagster/artifacts
+
+global:
+  host: *host
+  delivery_url: federated-node.uksouth.analytixagility.aridhiadev.net
+  postgresqlSecretName: dagster-postgresql-secret
+
+certs:
+  frequency: 65
+
+integrations:
+  domains:
+    - http://localhost:8088
+    - https://phems-federatednode.net
+
+whitelist:
+  enabled: false
+blacklist:
+  enabled: false
+tls:
+  secretName: &tls my-tls-secret
+
+cert-manager:
+  enabled: false
+
+ingress-nginx:
+  enabled: false
+  controller:
+    extraArgs:
+      default-ssl-certificate: qcfederatednode/my-tls-secret
+
+outboundMode: true
+
+## Sub Charts
+
+### Gateway API
+gatewayApi:
+  installCRD: false
+
+### Traefik
+traefik:
+  providers:
+    kubernetesIngress:
+      enabled: false
+  enabled: false
+
+### FN Task Controller
+fn-task-controller:
+  controller:
+    tag:
+  storage:
+    size: 100Mi
+    local:
+      path: /data/controller
+
+  # idp:
+  #   github:
+  #     secret_name: github-app
+  #     secret_key: GH_SECRET
+  #     clientid_key: GH_CLIENT_ID
+  #     orgAndRepo: Aridhia-Open-Source/Federated-Node-Example-App
+  delivery:
+    # github:
+    #   repository: Aridhia-Open-Source/Federated-Node-Example-App
+    other:
+      url: federated-node.uksouth.analytixagility.aridhiadev.net
+      auth_type: AzCopy
