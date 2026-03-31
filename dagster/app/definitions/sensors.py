@@ -12,8 +12,8 @@ from app.definitions.jobs import k8s_pipes_job
 from app.definitions.pipes import K8sPipe
 from app.github import GithubClient
 
-_DEV_DAYS_OFFSET = 0  # FIXME: Remove after dev - test without raising PR
-MIN_SENSOR_INTERVAL_SECONDS = 30
+_DEV_DAYS_OFFSET = -30  # FIXME: Remove after dev - test without raising PR
+MIN_SENSOR_INTERVAL_SECONDS = 10
 
 ARTIFACT_MOUNT_BASE_PATH = os.environ["DAGSTER_ARTIFACT_MOUNT_PATH"]
 GH_TRANSFER_DOCKER_IMAGE = os.environ['GH_TRANSFER_DOCKER_IMAGE']
