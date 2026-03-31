@@ -1,149 +1,91 @@
-  #!/usr/bin/env bash
-  set -euo pipefail
+#!/usr/bin/env bash
+set -euo pipefail
 
-  ###############################################################################
-  # Federated Node - Dev Cluster Full Reset & Redeploy (kind)
-  #
-  # Fast-path dev workflow:
-  #   1. Ensure local Docker registry is running
-  #   2. Delete existing kind cluster
-  #   3. Recreate cluster with required mounts
-  #   4. Apply local registry discovery metadata
-  #   5. Create namespace + secrets
-  #   6. Build code locations
-  #   7. Deploy Helm release
-  #
-  # Disposable cluster. No waits. No sanity checks.
-  ###############################################################################
+###############################################################################
+# Federated Node - Dev Cluster Full Reset & Redeploy (kind)
+#
+# Fast-path dev workflow:
+#   1. Ensure host paths exist
+#   2. Delete + recreate kind cluster (via .kind/main.sh)
+#   3. Create namespace + secrets
+#   4. Build code locations
+#   5. Deploy Helm release
+#
+# Disposable cluster. No waits. No sanity checks.
+###############################################################################
 
-  ### Config ####################################################################
-  CLUSTER_NAME="fn"
-  NAMESPACE="fn"
-  RELEASE_NAME="fn-dev"
-  VALUES_FILENAME="example.values.yaml"
-  KIND_CONFIG_FILE=".kind/kind-config.yaml"
-  DB_SECRET_KEY="local-db-secret"
+### Config ####################################################################
+CLUSTER_NAME="fn"
+NAMESPACE="fn"
+RELEASE_NAME="fn-dev"
+VALUES_FILENAME="example.values.yaml"
+DB_SECRET_KEY="local-db-secret"
 
-  # Host paths required local PVs
-  HOST_MOUNT_PATHS=(
-    "/data/db"
-    "/data/flask"
-    "/data/controller"
-    "/data/dagster/artifacts"
-  )
+# Host paths required for local PVs
+HOST_MOUNT_PATHS=(
+  "/data/db"
+  "/data/flask"
+  "/data/controller"
+)
 
-  ###############################################################################
-  echo "=== [1/8] Ensuring host paths exist on the machine ========================"
+###############################################################################
+echo "=== [1/5] Ensuring host paths exist on the machine ========================"
 
-  for path in "${HOST_MOUNT_PATHS[@]}"; do
-    sudo mkdir -p "$path"
-  done
+for path in "${HOST_MOUNT_PATHS[@]}"; do
+  sudo mkdir -p "$path"
+done
 
-  # Dev-friendly permissions
-  sudo chmod -R 777 /data
+sudo chmod -R 777 /data
 
-  ###############################################################################
-  # echo "=== [2/8] Ensuring local docker registries are running ========================"
+###############################################################################
+echo "=== [2/5] Recreating kind cluster ========================================="
 
-  # if [ "$(docker inspect -f '{{.State.Running}}' "kind-registry" 2>/dev/null || true)" != "true" ]; then
-  #   docker run \
-  #     -d --restart=always \
-  #     -p "127.0.0.1:5001:5000" \
-  #     --name kind-registry \
-  #     registry:2
-  # fi
+./.kind/main.sh delete
+./.kind/main.sh create
 
-  # if [ "$(docker inspect -f '{{.State.Running}}' "proxy-docker-hub-registry" 2>/dev/null || true)" != "true" ]; then
-  #   docker run \
-  #     -d --restart=always \
-  #     -p "127.0.0.1:5002:5000" \
-  #     -e REGISTRY_PROXY_REMOTEURL=https://docker.io \
-  #     --name proxy-docker-hub-registry \
-  #     registry:2
-  # fi
+###############################################################################
+echo "=== [3/5] Creating namespace and secrets =================================="
 
-  # if [ "$(docker inspect -f '{{.State.Running}}' "proxy-ghcr-registry" 2>/dev/null || true)" != "true" ]; then
-  #   docker run \
-  #     -d --restart=always \
-  #     -p "127.0.0.1:5003:5000" \
-  #     -e REGISTRY_PROXY_REMOTEURL=https://ghcr.io \
-  #     --name proxy-ghcr-registry \
-  #     registry:2
-  # fi
+kubectl create namespace "$NAMESPACE" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl config set-context \
+  --current --namespace="$NAMESPACE"
+
+kubectl create secret generic local-db \
+  --from-literal=password="$DB_SECRET_KEY" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+###############################################################################
+echo "=== [4/5] Building Docker image(s) ========================================"
+
+echo "skipping image builds..."
 
 
-  # ###############################################################################
-  # echo "=== [3/8] Deleting existing kind cluster (if it exists) ==================="
+echo "Image builds successful!"
 
-  # kind delete cluster --name "$CLUSTER_NAME" || true
+###############################################################################
+echo "=== [5/5] Deploying Helm release =========================================="
+echo
+echo "Watch pods with:"
+echo "  kubectl get pods -n $NAMESPACE -w"
+echo
+echo "Watch events with:"
+echo "  kubectl get events -n $NAMESPACE --sort-by='.metadata.creationTimestamp' -w"
+echo
+echo "If something fails:"
+echo "  - Fix config"
+echo "  - Rerun this script"
+echo
 
-  # ###############################################################################
-  # echo "=== [4/8] Creating kind cluster ==========================================="
+cd k8s/federated-node
 
-  # # create cluster
-  # kind create cluster --name "$CLUSTER_NAME" --config "$KIND_CONFIG_FILE"
+helm dependency update .
 
-  # # Ensure registry is reachable from the kind network
-  # docker network connect kind kind-registry || true
-  # docker network connect kind proxy-docker-hub-registry || true
-  # docker network connect kind proxy-ghcr-registry || true
+helm upgrade \
+  --install "$RELEASE_NAME" . \
+  -f "$VALUES_FILENAME" \
+  --timeout 30m
 
-  # ###############################################################################
-  # echo "=== [5/8] Applying local registry discovery metadata ======================="
-
-  # kubectl config use-context "kind-$CLUSTER_NAME"
-  # kubectl apply -f .kind/docker-registry.yaml
-
-  ###############################################################################
-  echo "=== [6/8] Creating namespace and secrets =================================="
-
-  kubectl create namespace "$NAMESPACE" \
-    --dry-run=client -o yaml | kubectl apply -f -
-
-  kubectl config set-context \
-    --current --namespace="$NAMESPACE"
-
-  kubectl create secret generic local-db \
-    --from-literal=password="$DB_SECRET_KEY" \
-    --dry-run=client -o yaml | kubectl apply -f -
-
-
-  ###############################################################################
-  echo "=== [7/8] Building Docker Images(s) ========================================"
-
-
-  # cd dagster
-  # ./build.sh
-  # cd ../
-
-
-  echo "Image builds successful!"
-
-  ###############################################################################
-  echo "=== [8/8] Deploying Helm release =========================================="
-  echo
-  echo "Watch pods with:"
-  echo "  kubectl get pods -n $NAMESPACE -w"
-  echo
-  echo "Watch events with:"
-  echo "  kubectl get events -n $NAMESPACE --sort-by='.metadata.creationTimestamp' -w"
-  echo
-  echo "If something fails:"
-  echo "  - Fix config"
-  echo "  - Rerun this script"
-  echo
-
-  cd k8s/federated-node
-
-  helm upgrade \
-    --install "$RELEASE_NAME" . \
-    -f "$VALUES_FILENAME" \
-    --timeout 30m
-
-  # TODO: Create a kubernetes pre-deploy hook (needs idempotency long term)
-  # kubectl apply -f k8s/federated-node/templates/dagster-postgres-init-job.yaml
-  # TODO Use rollout restart where possible to speed up dev loop (see below)
-  # kubectl rollout restart deployment fn-dev-dagster-user-deployments-dagster-fn
-
-  echo
-  echo "== Deployment completed ======================================"
+echo
+echo "== Deployment completed ======================================"

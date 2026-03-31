@@ -32,12 +32,11 @@ storage:
   local:
     path: /data/flask
     dbpath: /data/db
-    artifacts: /data/dagster/artifacts
+
 
 global:
   host: *host
   delivery_url: federated-node.uksouth.analytixagility.aridhiadev.net
-  postgresqlSecretName: dagster-postgresql-secret
 
 certs:
   frequency: 65
@@ -78,24 +77,14 @@ traefik:
       enabled: false
   enabled: false
 
-### FN Task Controller
 fn-task-controller:
-  controller:
-    tag:
+  idp:
+    github: null
   storage:
     size: 100Mi
     local:
       path: /data/controller
-
-  # idp:
-  #   github:
-  #     secret_name: github-app
-  #     secret_key: GH_SECRET
-  #     clientid_key: GH_CLIENT_ID
-  #     orgAndRepo: Aridhia-Open-Source/Federated-Node-Example-App
   delivery:
-    # github:
-    #   repository: Aridhia-Open-Source/Federated-Node-Example-App
     other:
       url: federated-node.uksouth.analytixagility.aridhiadev.net
       auth_type: AzCopy
