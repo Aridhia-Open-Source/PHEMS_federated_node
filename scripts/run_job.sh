@@ -2,7 +2,7 @@
 set -euo pipefail
 
 JOB_NAME="k8s_pipes_job"
-DOCKER_IMAGE="localhost:5001/julia-fn:v34"
+DOCKER_IMAGE="localhost:5001/julia-fn:v35"
 DAGSTER_GRAPHQL_API="http://localhost:3000/graphql"
 
 curl -X POST $DAGSTER_GRAPHQL_API \
