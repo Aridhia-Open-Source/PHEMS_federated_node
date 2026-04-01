@@ -4,9 +4,7 @@ set -euo pipefail
 
 NAMESPACE="fn"
 RELEASE_NAME="fn-dev"
-VALUES_FILE="example.values.yaml"
-
-set -euo pipefail
+VALUES_FILE="dev.values.yaml"
 
 cd k8s/federated-node
 
@@ -17,3 +15,5 @@ helm upgrade \
   --install "$RELEASE_NAME" . \
   -f "$VALUES_FILE" \
   --timeout 30m
+
+kubectl rollout restart deployment -n $NAMESPACE

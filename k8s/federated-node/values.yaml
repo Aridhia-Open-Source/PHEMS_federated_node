@@ -10,11 +10,11 @@ github:
 backend:
   image: ghcr.io/aridhia-open-source/federated_node_run
   replicas: 1
-  tag:
+  tag: v1
 
 keycloak:
   replicas: 1
-  tag:
+  tag: v1
 
 alpine:
   image: ghcr.io/aridhia-open-source/alpine
