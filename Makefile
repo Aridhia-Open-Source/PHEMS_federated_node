@@ -46,8 +46,5 @@ portfwd:
 upgrade:
 	./scripts/upgrade.sh
 
-run_job:
-	./scripts/run_job.sh
-
 %:
 	@:
