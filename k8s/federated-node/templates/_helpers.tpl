@@ -66,33 +66,32 @@ app.kubernetes.io/name: {{ include "federated-node.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
-{{/*
-Common db initializer, to use as element of initContainer
-Just need to append the NEW_DB env var
-*/}}
 {{- define "createDBInitContainer" -}}
-- image: {{ include "fn-alpine" . }}
+{{- $ctx := .ctx -}}
+{{- $cfg := .cfg -}}
+- image: {{ include "fn-alpine" $ctx }}
   name: dbinit
   command: [ "dbinit" ]
-  imagePullPolicy: {{ .Values.pullPolicy }}
-  {{- include "nonRootSC" . | nindent 2 }}
+  imagePullPolicy: {{ $ctx.Values.pullPolicy }}
+  {{- include "nonRootSC" $ctx | nindent 2 }}
   env:
   - name: PGUSER
     valueFrom:
       configMapKeyRef:
-        name: keycloak-config
-        key: KC_DB_USERNAME
+        name: {{ $cfg.configMapName }}
+        key: {{ $cfg.userKey }}
   - name: PGHOST
     valueFrom:
       configMapKeyRef:
-        name: keycloak-config
-        key: KC_DB_URL_HOST
+        name: {{ $cfg.configMapName }}
+        key: {{ $cfg.hostKey }}
   - name: PGPASSWORD
     valueFrom:
       secretKeyRef:
-        name: {{.Values.db.secret.name}}
-        key: {{.Values.db.secret.key}}
+        name: {{ $cfg.secretName }}
+        key: {{ $cfg.secretKey }}
 {{- end -}}
+
 
 {{- define "dbPort" -}}
   {{ .Values.db.port | default 5432 | quote }}

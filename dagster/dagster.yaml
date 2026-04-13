@@ -13,11 +13,14 @@ python_logs:
 storage:
   postgres:
     postgres_db:
-      db_name: test
-      username: test
+      db_name:
+        env: DAGSTER_PG_DATABASE
+      username:
+        env: DAGSTER_PG_USER
       password:
         env: DAGSTER_PG_PASSWORD
-      hostname: fn-dev-postgresql
+      hostname:
+        env: DAGSTER_PG_HOST
       port: 5432
 
 run_monitoring:

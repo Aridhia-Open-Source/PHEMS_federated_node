@@ -1,0 +1,64 @@
+{{- include "createDBInitContainer" (dict "ctx" . "cfg" (dict
+    "configMapName" "keycloak-config"
+    "userKey" "KC_DB_USERNAME"
+    "hostKey" "KC_DB_URL_HOST"
+    "secretName" .Values.db.secret.name
+    "secretKey" .Values.db.secret.key
+)) | nindent 8 }}
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: keycloak-config
+        key: KC_DB_NAME
+
+
+{{- include "createDBInitContainer" (dict "ctx" . "cfg" (dict
+    "configMapName" "backend-configmap"
+    "userKey" "BACKEND_DB_USERNAME"
+    "hostKey" "BACKEND_DB_URL_HOST"
+    "secretName" .Values.db.secret.name
+    "secretKey" .Values.db.secret.key
+)) | nindent 8 }}
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: backend-configmap
+        key: PGDATABASE
+
+{{- include "createDBInitContainer" (dict "ctx" . "cfg" (dict
+    "configMapName" "dagster-env-config"
+    "userKey" "DAGSTER_PG_USER"
+    "hostKey" "DAGSTER_PG_HOST"
+    "secretName" "dagster-postgresql-secret"
+    "secretKey" "postgresql-password"
+)) | nindent 8 }}
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: dagster-env-config
+        key: DAGSTER_PG_DATABASE
+
+
+{{- define "createDBInitContainer" -}}
+- image: {{ include "fn-alpine" . }}
+  name: dbinit
+  command: [ "dbinit" ]
+  imagePullPolicy: {{ .Values.pullPolicy }}
+  {{- include "nonRootSC" . | nindent 2 }}
+  env:
+  - name: PGUSER
+    valueFrom:
+      configMapKeyRef:
+        name: keycloak-config
+        key: KC_DB_USERNAME
+  - name: PGHOST
+    valueFrom:
+      configMapKeyRef:
+        name: keycloak-config
+        key: KC_DB_URL_HOST
+  - name: PGPASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: {{.Values.db.secret.name}}
+        key: {{.Values.db.secret.key}}
+{{- end -}}
