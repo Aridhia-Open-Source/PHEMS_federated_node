@@ -1,0 +1,47 @@
+{{ if .Values.fnDagster.createDB }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dagster-db-init
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
+    "helm.sh/hook-weight": "0"
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait-for-db
+          image: {{ include "fn-alpine" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h $PGHOST -p 5432; do
+                echo "waiting for postgres..."
+                sleep 2
+              done
+          env:
+            - name: PGHOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dagster-env-config
+                  key: DAGSTER_PG_HOST
+      containers:
+        {{- include "createDBInitContainer" (dict "ctx" . "cfg" (dict
+            "configMapName" "dagster-env-config"
+            "userKey" "DAGSTER_PG_USER"
+            "hostKey" "DAGSTER_PG_HOST"
+            "secretName" .Values.fnDagster.db.secret.name
+            "secretKey" .Values.fnDagster.db.secret.key
+        )) | nindent 8 }}
+          - name: DB_NAME
+            valueFrom:
+              configMapKeyRef:
+                name: dagster-env-config
+                key: DAGSTER_PG_DATABASE
+{{ end }}

@@ -6,6 +6,7 @@ DOCKER_DIRS=(
   "webserver"
   "github_transfer"
   "docker_models/julia"
+  "build/alpine"
 )
 
 DOCKER_TAG=$1

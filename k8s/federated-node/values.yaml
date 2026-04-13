@@ -175,23 +175,43 @@ traefik:
   ## For AKS only
   #     externalTrafficPolicy: Local
 
+### Dagster Internal Config
+fnDagster:
+  artifactMountPath: /mnt/dagster/artifacts
+  artifactsPvcName: artifacts-pvc
+  mntBasePath: ".data"
+  createDB: false
+  # ghTransferDockerImage: "your-registry/github_transfer-fn:tag"
+  # gh:
+  #   owner: "your-org"
+  #   repo: "your-repo"
+  #   baseBranch: "main"
+  #   watchDir: "mgmt/requests"
+  #   resultsDir: "mgmt/results"
+  db:
+    database: dagster
+    # host: your-db-host
+    # user: your-db-user
+    secret:
+      name: dagster-postgresql-secret
+      key: postgresql-password
 
-### Dagster
+### Dagster Subchart Config
 dagster:
-  enabled: true
+  enabled: false
 
-  generatePostgresqlPasswordSecret: true
-  postgresqlUsername: test
-  postgresqlPassword: test
-  postgresqlDatabase: test
+  generatePostgresqlPasswordSecret: false
 
   postgresql:
-    enabled: true
-    service:
-      port: 5432
-    persistence:
-      enabled: true
-      storageClass: standard
+    enabled: false
+    # postgresqlHost: db.fn.svc
+    # postgresqlDatabase: dagster
+    # postgresqlUsername: admin
+  #   service:
+  #     port: 5432
+  #   persistence:
+  #     enabled: true
+  #     storageClass: standard
 
   runLauncher:
     type: K8sRunLauncher

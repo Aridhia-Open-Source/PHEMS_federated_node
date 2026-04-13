@@ -23,7 +23,11 @@ NAMESPACE="fn"
 RELEASE_NAME="fn-dev"
 VALUES_FILE="dev.values.yaml"
 KIND_CONFIG_FILE=".kind/kind-config.yaml"
-DB_SECRET_KEY="local-db-secret"
+
+# sharing database server
+DB_SECRET_KEY="db-secret-value"
+BACKEND_DB_SECRET_KEY=$DB_SECRET_KEY
+DAGSTER_DB_SECRET_KEY=$DB_SECRET_KEY
 
 # Host paths required local PVs
 HOST_MOUNT_PATHS=(
@@ -37,6 +41,7 @@ HOST_MOUNT_PATHS=(
 echo "=== [1/8] Ensuring host paths exist on the machine ========================"
 
 for path in "${HOST_MOUNT_PATHS[@]}"; do
+  sudo rm -r $path
   sudo mkdir -p "$path"
 done
 
@@ -105,8 +110,13 @@ kubectl config set-context \
   --current --namespace="$NAMESPACE"
 
 kubectl create secret generic local-db \
-  --from-literal=password="$DB_SECRET_KEY" \
+  --from-literal=password="$BACKEND_DB_SECRET_KEY" \
   --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create secret generic dagster-postgresql-secret \
+  --from-literal=postgresql-password="$DAGSTER_DB_SECRET_KEY" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
 
 ###############################################################################
 echo "=== [7/8] Building Docker Images(s) ========================================"
@@ -129,15 +139,12 @@ echo
 
 cd k8s/federated-node
 
+
 helm upgrade \
   --install "$RELEASE_NAME" . \
   -f "$VALUES_FILE" \
   --timeout 30m
 
-# TODO: Create a kubernetes pre-deploy hook (needs idempotency long term)
-# kubectl apply -f k8s/federated-node/templates/dagster-postgres-init-job.yaml
-# TODO Use rollout restart where possible to speed up dev loop (see below)
-# kubectl rollout restart deployment fn-dev-dagster-user-deployments-dagster-fn
 
 echo
 echo "== Deployment completed ======================================"

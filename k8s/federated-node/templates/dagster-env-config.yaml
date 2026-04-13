@@ -3,17 +3,24 @@ kind: ConfigMap
 metadata:
   name: dagster-env-config
   namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
+    "helm.sh/hook-weight": "-1"
 data:
   DAGSTER_DEPLOYMENT_NAMESPACE: {{ .Release.Namespace }}
   DAGSTER_USER_SERVICE_ACCOUNT_NAME: {{ .Release.Name }}-dagster-user-deployments-user-deployments
   DAGSTER_HOME: /opt/dagster/home
-  DAGSTER_ARTIFACT_MOUNT_PATH: /mnt/dagster/artifacts
-  DAGSTER_ARTIFACTS_PVC_NAME: artifacts-pvc
-  GH_TRANSFER_DOCKER_IMAGE: "localhost:5001/github_transfer-fn:v35"
+  DAGSTER_ARTIFACT_MOUNT_PATH: {{ .Values.fnDagster.artifactMountPath | quote }}
+  DAGSTER_ARTIFACTS_PVC_NAME: {{ .Values.fnDagster.artifactsPvcName | quote }}
+  GH_TRANSFER_DOCKER_IMAGE: {{ .Values.fnDagster.ghTransferDockerImage | quote }}
   GH_TOKEN: {{ .Values.github.token }}
-  GH_OWNER: "Aridhia-Open-Source"
-  GH_REPO: "phems-sandbox"
-  GH_BASE_BRANCH: "main"
-  GH_WATCH_DIR: "mgmt/requests"
-  GH_RESULTS_DIR: "mgmt/results"
-  MNT_BASE_PATH: ".data"
+  GH_OWNER: {{ .Values.fnDagster.gh.owner | quote }}
+  GH_REPO: {{ .Values.fnDagster.gh.repo | quote }}
+  GH_BASE_BRANCH: {{ .Values.fnDagster.gh.baseBranch | quote }}
+  GH_WATCH_DIR: {{ .Values.fnDagster.gh.watchDir | quote }}
+  GH_RESULTS_DIR: {{ .Values.fnDagster.gh.resultsDir | quote }}
+  MNT_BASE_PATH: {{ .Values.fnDagster.mntBasePath | quote }}
+  DAGSTER_PG_HOST: {{ .Values.fnDagster.db.host | quote }}
+  DAGSTER_PG_USER: {{ .Values.fnDagster.db.user | quote }}
+  DAGSTER_PG_DATABASE: {{ .Values.fnDagster.db.name | quote }}
