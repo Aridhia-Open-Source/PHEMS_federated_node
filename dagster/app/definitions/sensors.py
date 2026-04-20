@@ -227,20 +227,23 @@ def github_transfer_success_sensor(context: dg.RunStatusSensorContext):
     context.log.info("github_transfer_success_sensor...")
     context.log.info(f"Run tags: {run.tags}")
 
+    parent_run_id = run.tags["parent_run_id"]
+    pr_number = run.tags["pr_number"]
+
     yield dg.RunRequest(
         run_key=run.run_id,
         tags={
             "type": "internal",
             "trigger": "github_pr_comment",
-            "pr_number": run.tags["pr_number"],
-            "parent_run_id": run.run_id,
+            "pr_number": pr_number,
+            "parent_run_id": parent_run_id,
         },
         run_config={
             "ops": {
                 "github_pr_comment_op": {
                     "config": {
-                        "parent_run_id": run.run_id,
-                        "pr_number": run.tags["pr_number"],
+                        "parent_run_id": parent_run_id,
+                        "pr_number": pr_number,
                     }
                 }
             }
