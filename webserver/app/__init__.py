@@ -5,6 +5,7 @@ All general configs are taken care in here:
     - Blueprint used
     - pre and post request handlers
 """
+
 import logging
 import traceback
 from flask_swagger_ui import get_swaggerui_blueprint
@@ -12,17 +13,24 @@ from sqlalchemy import exc
 from werkzeug.exceptions import HTTPException
 
 from app import (
-    main, admin_api, datasets_api, tasks_api, requests_api,
-    containers_api, registries_api, users_api
+    main,
+    admin_api,
+    datasets_api,
+    tasks_api,
+    requests_api,
+    containers_api,
+    registries_api,
+    users_api,
+    dagster_api,
 )
 from app.helpers.base_model import build_sql_uri, db
 from app.helpers.exceptions import LogAndException
 from app.fn_flask import FNFlask
 
-
 logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger('main')
 logger.setLevel(logging.INFO)
+
 
 def create_app():
     """
@@ -33,11 +41,7 @@ def create_app():
     app.config["TRAP_HTTP_EXCEPTIONS"] = True
 
     swagger_ui_blueprint = get_swaggerui_blueprint(
-        "/docs",
-        "/static/openapi.json",
-        config={
-            'app_name': "Federated Node"
-        }
+        "/docs", "/static/openapi.json", config={"app_name": "Federated Node"}
     )
 
     for excp in [LogAndException, HTTPException]:
@@ -75,6 +79,7 @@ def create_app():
     app.register_blueprint(containers_api.bp)
     app.register_blueprint(registries_api.bp)
     app.register_blueprint(users_api.bp)
+    app.register_blueprint(dagster_api.bp)
 
     @app.teardown_appcontext
     # pylint: disable=unused-argument

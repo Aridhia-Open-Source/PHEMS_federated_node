@@ -21,8 +21,14 @@ spec:
     spec:
       serviceAccountName: secret-backend-handler
       initContainers:
-        {{- include "createDBInitContainer" . | nindent 8 }}
-          - name: NEW_DB
+        {{- include "createDBInitContainer" (dict "ctx" . "cfg" (dict
+            "configMapName" "backend-configmap"
+            "userKey" "PGUSER"
+            "hostKey" "PGHOST"
+            "secretName" .Values.db.secret.name
+            "secretKey" .Values.db.secret.key
+        )) | nindent 8 }}
+          - name: DB_NAME
             valueFrom:
               configMapKeyRef:
                 name: backend-configmap
@@ -30,11 +36,11 @@ spec:
         - name: db-migrations
           image: {{ template "backend-image" . }}
           command: ["/bin/sh"]
-          workingDir: /
+          workingDir: /webserver
           {{- include "nonRootSC" . | nindent 10 }}
           args:
             [
-              "-c",
+              '-c',
               'python -m alembic upgrade head'
             ]
           envFrom:
