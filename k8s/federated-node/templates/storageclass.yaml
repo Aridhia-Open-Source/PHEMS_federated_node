@@ -8,7 +8,7 @@ volumeBindingMode: WaitForFirstConsumer
 {{- if .Values.storage.local }}
 provisioner: Local
 {{- else if .Values.storage.azure }}
-provisioner: disk.csi.azure.com
+provisioner: {{ .Values.storage.azure.provisioner | default "disk.csi.azure.com" }}
 parameters:
   skuname: Premium_LRS
 {{- else if .Values.storage.aws }}
