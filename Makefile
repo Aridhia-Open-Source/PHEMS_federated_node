@@ -30,3 +30,18 @@ build_alpine:
 
 build_kc_init:
 	docker build build/kc-init -t ghcr.io/aridhia-open-source/keycloak_initializer:${TAG}
+
+deploy:
+	./scripts/deploy.sh
+
+portfwd:
+	./scripts/portfwd.sh
+
+upgrade:
+	./scripts/upgrade.sh
+
+kind_create:
+	./.kind/main.sh create
+
+kind_delete:
+	./.kind/main.sh delete

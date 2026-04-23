@@ -63,6 +63,7 @@ storage:
   # azure:
     # secretName:
     # shareName:
+    # provisioner:
   # aws:
     # fileSystemId:
     # accessPointId:

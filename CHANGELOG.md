@@ -1,6 +1,9 @@
 # Releases Changelog
 
-# 1.12.0
+## 1.13.0
+- Add Helm chart option for configuring azure storage provisioner
+
+## 1.12.0
 
 ### Bugfixes
 

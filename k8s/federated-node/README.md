@@ -10,6 +10,7 @@ The necessary values are:
 |storage|azure|If running a cluster on azure, or using an Azure Storage Class, this will be the suggested config|
 |storage.azure|secretName|Secret name where the credentials for the azure storage are saved|
 |storage.azure|shareName|Share name within the azure storage|
+|storage.azure|provisioner|Provisioner for azure storage, defaults to disk.csi.azure.com|
 |storage.aws|fileSystemId|EFS system id, e.g. fs-xxxxxxxxx|
 |storage.aws|accessPointId|Optional, access point id for better permission and isolation management in the EFS|
 |-|-|-|
