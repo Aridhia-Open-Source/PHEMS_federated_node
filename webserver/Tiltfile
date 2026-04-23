@@ -1,0 +1,18 @@
+docker_build(
+  "localhost:5001/federated_node_run",
+  ".",
+  live_update=[sync("./app", "/app/app")]
+)
+
+k8s_custom_deploy(
+  "backend",
+  apply_cmd="""
+    kubectl -v=0 set image deployment/backend \
+        backend=$TILT_IMAGE_0 \
+        db-migrations=$TILT_IMAGE_0 > /dev/null && \
+    kubectl get deployment/backend -o yaml
+  """,
+  delete_cmd="echo FN managed outside of Tilt",
+  image_deps=["localhost:5001/federated_node_run"],
+  deps=[]
+)

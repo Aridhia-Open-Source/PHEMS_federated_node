@@ -10,8 +10,7 @@ Contains 2 folders:
 
 ## Dev Setup
 ```sh
-sudo apt-get install -y python3.13 python3.13-venv python3.13-dev
-uv init
+uv sync
 source .venv/bin/activate
 ```
 
