@@ -1,4 +1,6 @@
 # Releases Changelog
+## 1.14.0
+- Add task controller Helm chart option for configuring azure storage provisioner
 
 ## 1.13.0
 - Add Helm chart option for configuring azure storage provisioner
