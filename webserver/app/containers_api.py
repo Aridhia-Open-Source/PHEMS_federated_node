@@ -3,8 +3,6 @@ containers endpoints:
 - GET /containers
 - POST /containers
 - GET /containers/<id>
-- PATCH /containers/<id>
-- POST /registries
 """
 import logging
 from http import HTTPStatus
@@ -17,6 +15,7 @@ from .helpers.exceptions import InvalidRequest
 from .helpers.wrappers import audit, auth
 from .models.container import Container
 from .models.registry import Registry
+from .helpers.const import ENABLE_IMAGE_WHITELIST
 
 
 bp = Blueprint('containers', __name__, url_prefix='/containers')
@@ -24,6 +23,15 @@ bp = Blueprint('containers', __name__, url_prefix='/containers')
 logger = logging.getLogger('containers_api')
 logger.setLevel(logging.INFO)
 session = db.session
+
+@bp.before_request
+def check_validation_enabled():
+    """
+    Check if container validation is enabled before processing any request.
+    """
+    if not ENABLE_IMAGE_WHITELIST:
+        return {"error": "Container validation is disabled"}, HTTPStatus.FORBIDDEN
+    return None
 
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
@@ -51,7 +59,7 @@ def add_image():
     # Make sure it doesn't exist already
     existing_image = Container.query.filter(
         Container.name == body["name"],
-        Registry.url==body["registry"].url
+        Registry.url == body["registry"].url
     ).filter(
         (Container.tag==body.get("tag")) & (Container.sha==body.get("sha"))
     ).join(Registry).one_or_none()
@@ -79,72 +87,14 @@ def get_image_by_id(image_id:int=None):
     return Container.sanitized_dict(image), HTTPStatus.OK
 
 
-@bp.route('/<int:image_id>', methods=['PATCH'])
+@bp.route('/<int:image_id>', methods=['DELETE'])
 @audit
 @auth(scope='can_admin_dataset')
-def patch_datasets_by_id_or_name(image_id:int=None):
+def delete_image(image_id:int=None):
     """
-    PATCH /image/id endpoint. Edits an existing container image with a given id
+    DELETE /containers/<image_id>
     """
-    if not request.is_json:
-        raise InvalidRequest(
-            "Request body must be a valid json, or set the Content-Type to application/json",
-            400
-        )
-
-    data = request.json
-    # validation, only ml and dashboard are allowed
-    if not (data.get("ml") or data.get("dashboard")):
-        raise InvalidRequest("Either `ml` or `dashboard` field must be provided")
-
     image = Container.get_by_id(image_id)
+    image.delete()
 
-    for field in ["ml", "dashboard"]:
-        if data.get(field) and isinstance(data.get(field), bool):
-            setattr(image, field, data.get(field))
-
-    return {}, HTTPStatus.CREATED
-
-
-@bp.route('/sync', methods=['POST'])
-@audit
-@auth(scope='can_admin_dataset')
-def sync():
-    """
-    POST /containers/sync
-        syncs up the list of available containers from the
-        available registries and adds them to the DB table
-        with both dashboard and ml flags to false, effectively
-        making them not usable. To "enable" them one of those
-        flags has to set to true. This is done to avoid undesirable
-        or unintended containers to be used on a node.
-    """
-    synched = []
-    for registry in Registry.query.filter(Registry.active).all():
-        for image in registry.fetch_image_list():
-            for key in ["tag", "sha"]:
-                for tag_or_sha in image[key]:
-                    if Container.query.filter(
-                        Container.name==image["name"],
-                        getattr(Container, key)==tag_or_sha,
-                        Container.registry_id==registry.id
-                    ).one_or_none():
-                        logger.info("Image %s already synched", image["name"])
-                        continue
-                    if key == "tag":
-                        data = Container.validate(
-                            {"name": image["name"], "registry": registry.url, "tag": tag_or_sha}
-                        )
-                    else:
-                        data = Container.validate(
-                            {"name": image["name"], "registry": registry.url, "sha": tag_or_sha}
-                        )
-                    cont = Container(**data)
-                    cont.add(commit=False)
-                    synched.append(cont.full_image_name())
-    session.commit()
-    return {
-        "info": "The sync considers only the latest 100 tag per image. If an older one is needed,"
-                " add it manually via the POST /images endpoint",
-        "images": synched
-        }, HTTPStatus.CREATED
+    return {"message": f"Image {image_id} deleted successfully"}, HTTPStatus.OK

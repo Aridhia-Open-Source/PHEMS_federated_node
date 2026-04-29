@@ -118,13 +118,13 @@ def registry(client, reg_k8s_client, k8s_client, cr_name, azure_login_request) -
 @pytest.fixture
 def container(client, k8s_client, registry, image_name) -> Container:
     img, tag = image_name.split(':')
-    cont = Container(img, registry, tag, dashboard=True)
+    cont = Container(img, registry, tag)
     cont.add()
     return cont
 
 @pytest.fixture
 def container_with_sha(client, k8s_client, registry, image_name, expected_digest_list) -> Container:
     img, _ = image_name.split(':')
-    cont = Container(img, registry, sha=expected_digest_list, dashboard=True)
+    cont = Container(img, registry, sha=expected_digest_list)
     cont.add()
     return cont
