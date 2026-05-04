@@ -184,6 +184,10 @@
         "federatedNode":{
             "type": "object",
             "properties": {
+                "enable_image_whitelist": {
+                    "type": "boolean",
+                    "default": false
+                },
                 "port": {
                     "type": "integer",
                     "default": 5000

@@ -91,11 +91,18 @@ tests:
     asserts:
       - hasDocuments:
           count: 1
-  - it: no registry sync
-    template: registry-sync-cronjob.yaml
+  - it: backend configmap has image whitelist enabled
     set:
       federatedNode:
-        enable_registry_sync: false
+        enable_image_whitelist: true
+    template: backend-configmap.yaml
     asserts:
-      - hasDocuments:
-          count: 0
+      - equal:
+          path: data.ENABLE_IMAGE_WHITELIST
+          value: "true"
+  - it: backend configmap has image whitelist disabled by default
+    template: backend-configmap.yaml
+    asserts:
+      - equal:
+          path: data.ENABLE_IMAGE_WHITELIST
+          value: "false"
