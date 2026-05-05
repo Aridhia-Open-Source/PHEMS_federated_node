@@ -12,7 +12,6 @@ from app.definitions.jobs import k8s_pipes_job
 from app.definitions.pipes import K8sPipe
 from app.github import GithubClient
 
-_DEV_DAYS_OFFSET = -30  # FIXME: Remove after dev - test without raising PR
 MIN_SENSOR_INTERVAL_SECONDS = 10
 
 ARTIFACT_MOUNT_BASE_PATH = os.environ["DAGSTER_ARTIFACT_MOUNT_PATH"]
@@ -42,7 +41,7 @@ GH_WATCH_DIR = os.environ['GH_WATCH_DIR']
 
 
 def utc_now():
-    return (dt.now(tz.utc) + td(days=_DEV_DAYS_OFFSET)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return (dt.now(tz.utc) + td(days=0)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @dg.op(
