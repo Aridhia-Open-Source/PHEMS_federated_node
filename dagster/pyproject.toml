@@ -5,18 +5,16 @@ authors = [{ name = "George Eddie", email = "george.eddie@aridhia.com" }]
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "dagster",
-    "dagster-k8s",
-    "dagster-postgres",
-    'dagster-graphql',
-    "python-dotenv",
-    "pandas",
-    "requests",
+    "dagster~=1.12",
+    "dagster-k8s~=0.28",
+    "dagster-postgres~=0.28",
+    "dagster-graphql~=1.12",
+    "requests~=2.32",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
+    "pytest~=8.3",
 ]
 
 [build-system]
