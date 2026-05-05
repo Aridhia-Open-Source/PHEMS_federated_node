@@ -1,6 +1,6 @@
 [project]
 name = "code"
-description = "Dagster Example Codebase"
+description = "PHEMS Federated Node - Dagster Code Location"
 authors = [{ name = "George Eddie", email = "george.eddie@aridhia.com" }]
 version = "0.1.0"
 requires-python = ">=3.12"

@@ -13,13 +13,6 @@ data:
   DAGSTER_HOME: /opt/dagster/home
   DAGSTER_ARTIFACT_MOUNT_PATH: {{ .Values.fnDagster.artifactMountPath | quote }}
   DAGSTER_ARTIFACTS_PVC_NAME: {{ .Values.fnDagster.artifactsPvcName | quote }}
-  GH_TRANSFER_DOCKER_IMAGE: {{ .Values.fnDagster.ghTransferDockerImage | quote }}
-  GH_TOKEN: {{ .Values.github.token }}
-  GH_OWNER: {{ .Values.fnDagster.gh.owner | quote }}
-  GH_REPO: {{ .Values.fnDagster.gh.repo | quote }}
-  GH_BASE_BRANCH: {{ .Values.fnDagster.gh.baseBranch | quote }}
-  GH_WATCH_DIR: {{ .Values.fnDagster.gh.watchDir | quote }}
-  GH_RESULTS_DIR: {{ .Values.fnDagster.gh.resultsDir | quote }}
   MNT_BASE_PATH: {{ .Values.fnDagster.mntBasePath | quote }}
   DAGSTER_PG_HOST: {{ .Values.fnDagster.db.host | quote }}
   DAGSTER_PG_USER: {{ .Values.fnDagster.db.user | quote }}
