@@ -1,6 +1,7 @@
-from werkzeug.exceptions import HTTPException
+from http.client import HTTPException # FIXME: update to use werkzeug's HTTPException instead of http.client's
 from werkzeug.sansio.response import Response
 import json
+import re
 import traceback
 
 
@@ -14,7 +15,6 @@ class LogAndException(HTTPException):
         if code:
             self.code = code
         super().__init__(self.description, response)
-
 
 class InvalidDBEntry(LogAndException):
     code = 400

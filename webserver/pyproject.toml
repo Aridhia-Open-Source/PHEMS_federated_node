@@ -12,6 +12,7 @@ license = {text = "GPL-3"}
 readme = "README.md"
 requires-python = ">=3.13"
 
+
 dependencies = [
     "flask",
     "sqlalchemy",
@@ -28,8 +29,7 @@ dependencies = [
     "jinja2>=3.1.5",
     "requests>=2.32.4",
     "cryptography>=46.0.5",
-    "urllib3>=2.6.3",
-    "dagster_graphql",
+    "urllib3>=2.6.3"
 ]
 
 [project.optional-dependencies]
