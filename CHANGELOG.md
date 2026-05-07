@@ -1,4 +1,7 @@
 # Releases Changelog
+## 1.15.0
+- Make image whitelisting optional and off by default
+
 ## 1.14.0
 - Add task controller Helm chart option for configuring azure storage provisioner
 
