@@ -193,3 +193,38 @@ class Registry(db.Model, BaseModel):
         except ApiException as apie:
             logger.error("Reason: %s\nDetails: %s", apie.reason, apie.body)
             raise InvalidRequest("Could not update credentials") from apie
+
+    @classmethod
+    def extract_image_parts(cls, docker_image: str) -> tuple['Registry', str, str, str]:
+        """
+        Extract the registry object, image name, tag, and sha from the docker image string.
+        """
+        for i in range(len(docker_image.split('/')) + 1):
+            registry_url = "/".join(docker_image.split('/')[0:i])
+            registry = Registry.query.filter_by(url=registry_url).one_or_none()
+            if registry:
+                image_path = "/".join(docker_image.split('/')[i:])
+                tag = None
+                sha = None
+                if '@' in image_path:
+                    image_name, sha = image_path.split('@')
+                    if ':' in image_name:
+                        image_name, tag = image_name.split(':')
+                elif ':' in image_path:
+                    image_name, tag = image_path.split(':')
+                else:
+                    raise InvalidRequest(f"Image {docker_image} must have a tag or a sha")
+                return registry, image_name, tag, sha
+
+        raise InvalidRequest("Could not find the image in the mapped registries. Check the image has the full name")
+
+    @classmethod
+    def validate_image_exist(cls, docker_image:str) -> bool:
+        """
+        Validate that the image exists in the remote registry.
+        """
+        registry, image_name, tag, sha = cls.extract_image_parts(docker_image)
+        registry_client = registry.get_registry_class()
+        if not registry_client.has_image_tag_or_sha(image_name, tag, sha):
+            return False
+        return True

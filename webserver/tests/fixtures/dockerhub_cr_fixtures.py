@@ -74,6 +74,6 @@ def registry(client, mocker, reg_k8s_client, dockerhub_login_request, cr_name) -
 @pytest.fixture
 def container(client, k8s_client, registry, image_name) -> Container:
     img, tag = image_name.split(':')
-    cont = Container(img, registry, tag, dashboard=True)
+    cont = Container(img, registry, tag)
     cont.add()
     return cont

@@ -132,7 +132,21 @@ class BaseRegistry:
         if not tags_list:
             return False
 
-        return tag in tags_list["tag"] or sha in tags_list["sha"]
+        return (tag and tag in tags_list["tag"]) or (sha and sha in tags_list["sha"])
+
+    def get_tag_sha(self, image:str, tag:str) -> str|None:
+        """
+        Get the SHA for a specific tag
+        """
+        metadata = self.get_image_tags(image)
+        if not metadata:
+            return None
+
+        try:
+            index = metadata["tag"].index(tag)
+            return metadata["sha"][index]
+        except (ValueError, KeyError, IndexError):
+            return None
 
 
 class AzureRegistry(BaseRegistry):
@@ -180,12 +194,21 @@ class AzureRegistry(BaseRegistry):
         full_tags = {"tag": [], "sha": []}
 
         if tags_list:
-            full_tags["tag"] = [t for t in tags_list.get("tags", [])]
-
-            for t in full_tags["tag"]:
-                full_tags["sha"] = [self.get_image_digest(image, t)]
+            tags = tags_list.get("tags", [])
+            full_tags["tag"] = tags
+            for t in tags:
+                full_tags["sha"].append(self.get_image_digest(image, t))
 
         return full_tags
+
+    def get_tag_sha(self, image:str, tag:str) -> str|None:
+        """
+        More efficient way to get the SHA for a specific tag in Azure
+        """
+        try:
+            return self.get_image_digest(image, tag)
+        except ContainerRegistryException:
+            return None
 
     def list_repos(self) -> List[dict[str, str | List[str]]]:
         list_images = super().list_repos()
@@ -290,6 +313,23 @@ class GitHubRegistry(BaseRegistry):
             s_list.append(tags["name"])
 
         return {"tag": t_list,"sha": s_list}
+
+    def get_tag_sha(self, image:str, tag:str) -> str|None:
+        token = self.login(image)
+        try:
+            response_metadata = requests.get(
+                self.tags_url % self.get_url_string_params(image_name=image),
+                params=self.list_req_params,
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            if response_metadata.ok:
+                for version in response_metadata.json():
+                    image_tags = version["metadata"]["container"]["tags"]
+                    if (isinstance(image_tags, list) and tag in image_tags) or (image_tags == tag):
+                        return version["name"]
+        except Exception:
+            pass
+        return None
 
     def list_repos(self) -> List[dict[str, str | List[str]]]:
         list_images = super().list_repos()

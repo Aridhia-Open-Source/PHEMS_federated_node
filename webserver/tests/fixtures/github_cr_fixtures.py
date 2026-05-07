@@ -52,6 +52,6 @@ def registry(client, reg_k8s_client, cr_name) -> Registry:
 @pytest.fixture
 def container(client, k8s_client, registry, image_name) -> Container:
     img, tag = image_name.split(':')
-    cont = Container(img, registry, tag, dashboard=True)
+    cont = Container(img, registry, tag)
     cont.add()
     return cont

@@ -663,15 +663,57 @@ class TestPostTask:
 
         ):
         """
-        Tests task creation returns 500 with a requested docker image is not found
+        Tests task creation returns 404 with a requested docker image is not found
         """
         response = client.post(
             '/tasks/',
             json=task_body,
             headers=post_json_admin_header
         )
-        assert response.status_code == 500
+        assert response.status_code == 404
         assert response.json == {"error": f"Image {task_body["executors"][0]["image"]} not found on our repository"}
+
+    def test_create_task_image_not_whitelisted(
+            self,
+            mocker,
+            post_json_admin_header,
+            client,
+            task_body,
+        ):
+        """
+        Tests task creation returns 403 when image is not whitelisted and ENABLE_IMAGE_WHITELIST is True
+        """
+        mocker.patch("app.models.task.ENABLE_IMAGE_WHITELIST", True)
+        mocker.patch("app.models.container.Container.validate_image_whitelisted", return_value=False)
+
+        response = client.post(
+            '/tasks/',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 403
+        assert "is not whitelisted" in response.json["error"]
+
+    def test_create_task_image_whitelisted_success(
+            self,
+            mocker,
+            post_json_admin_header,
+            client,
+            task_body,
+        ):
+        """
+        Tests task creation success when image is whitelisted and ENABLE_IMAGE_WHITELIST is True
+        """
+        mocker.patch("app.models.task.ENABLE_IMAGE_WHITELIST", True)
+        mocker.patch("app.models.container.Container.validate_image_whitelisted", return_value=True)
+        mocker.patch("app.models.registry.Registry.validate_image_exist", return_value=True)
+
+        response = client.post(
+            '/tasks/',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
 
     def test_create_task_inputs_not_default(
             self,

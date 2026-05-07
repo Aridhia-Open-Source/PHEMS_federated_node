@@ -2,6 +2,7 @@ import logging
 import json
 import re
 from datetime import datetime, timedelta
+from http import HTTPStatus
 from kubernetes.client import V1CustomResourceDefinition
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, Boolean
@@ -12,7 +13,7 @@ from uuid import uuid4
 import urllib3
 from app.helpers.const import (
     AUTO_DELIVERY_RESULTS, CLEANUP_AFTER_DAYS, CRD_DOMAIN, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, PUBLIC_URL, TASK_CONTROLLER,
-    TASK_NAMESPACE, TASK_POD_RESULTS_PATH, TASK_POD_INPUTS_PATH, RESULTS_PATH, TASK_REVIEW
+    TASK_NAMESPACE, TASK_POD_RESULTS_PATH, TASK_POD_INPUTS_PATH, RESULTS_PATH, TASK_REVIEW, ENABLE_IMAGE_WHITELIST
 )
 from app.helpers.base_model import BaseModel, db
 from app.helpers.keycloak import Keycloak
@@ -122,7 +123,15 @@ class Task(db.Model, BaseModel):
 
         # Docker image validation
         Container.validate_image_format(data["docker_image"], data["docker_image"])
-        data["docker_image"] = cls.get_image_with_repo(data["docker_image"])
+
+        # Validate that the image is whitelisted
+        if ENABLE_IMAGE_WHITELIST:
+            if not Container.validate_image_whitelisted(data["docker_image"]):
+                raise TaskImageException(f"Image {data['docker_image']} is not whitelisted", code=HTTPStatus.FORBIDDEN)
+
+        # Validate that the image exists on the registry
+        if not Registry.validate_image_exist(data["docker_image"]):
+            raise TaskImageException(f"Image {data['docker_image']} not found on our repository", code=HTTPStatus.NOT_FOUND)
 
         # Output volumes validation
         if not isinstance(data.get("outputs", {}), dict):
@@ -222,48 +231,6 @@ class Task(db.Model, BaseModel):
         unit = val[unit_index:]
         return int(base) * MEMORY_UNITS[unit]
 
-    @classmethod
-    def split_registry_from_image(cls, docker_image:str) -> tuple[str, str]:
-        """
-        Find the registry
-        """
-        for i in range(len(docker_image.split('/'))):
-            registry = "/".join(docker_image.split('/')[0:i])
-            if Registry.query.filter_by(url=registry).count() == 1:
-                return registry, "/".join(docker_image.split('/')[i:])
-
-        raise InvalidRequest("Could not find the image in the mapped registries. Check the image has the full name")
-
-    @classmethod
-    def get_image_with_repo(cls, docker_image:str, string_only:bool=True) -> str | Container:
-        """
-        Looks through the CRs for the image and if exists,
-        returns the full image name with the repo prefixing the image.
-        """
-        registry, image = cls.split_registry_from_image(docker_image)
-
-        tag = None
-        sha = None
-        if '@' in image:
-            image_name, sha = image.split('@')
-        else:
-            image_name, tag = image.split(':')
-        image: Container = Container.query.filter(
-            Container.name==image_name,
-            Registry.url == registry,
-        ).filter(
-            (((Container.tag==tag) & (Container.tag != None)) | ((Container.sha==sha) & (Container.sha != None)))
-        ).join(Registry).one_or_none()
-        if image is None:
-            raise TaskExecutionException(f"Image {docker_image} could not be found")
-
-        registry_client = image.registry.get_registry_class()
-        if not registry_client.has_image_tag_or_sha(image.name, image.tag, image.sha):
-            raise TaskImageException(f"Image {docker_image} not found on our repository")
-        if string_only:
-            return image.full_image_name()
-
-        return image
 
     def pod_name(self):
         """
@@ -303,7 +270,7 @@ class Task(db.Model, BaseModel):
         if len(self.executors):
             command=self.executors[0].get("command", '')
 
-        image: Container = self.get_image_with_repo(self.docker_image, False)
+        registry, _, _, _ = Registry.extract_image_parts(self.docker_image)
 
         body = TaskPod(**{
             "name": self.pod_name(),
@@ -323,7 +290,7 @@ class Task(db.Model, BaseModel):
             "input_path": self.inputs,
             "resources": self.resources,
             "env_from": v1.create_from_env_object(secret_name),
-            "regcred_secret": image.registry.slugify_name()
+            "regcred_secret": registry.slugify_name()
         }).create_pod_spec()
         try:
             current_pod = self.get_current_pod()
