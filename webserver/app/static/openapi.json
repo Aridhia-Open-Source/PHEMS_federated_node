@@ -1194,14 +1194,14 @@
     },
     "/containers/{id}": {
       "get": {
-        "operationId": "getDatasetById",
+        "operationId": "getContainerById",
         "parameters": [
           {
             "$ref": "#/components/parameters/containerIdPath"
           }
         ],
         "tags": ["Containers"],
-        "summary": "Get a datasets by id if available to the user",
+        "summary": "Get a whitelisted image by id",
         "responses": {
           "200":{
             "$ref": "#/components/responses/ContainerEntry"
@@ -1220,57 +1220,18 @@
           }
         }
       },
-      "patch":{
-        "operationId": "editContainers",
+      "delete":{
+        "operationId": "deleteContainer",
         "parameters": [
           {
             "$ref": "#/components/parameters/containerIdPath"
           }
         ],
         "tags": ["Containers"],
-        "summary": "Set the type of task a container can perform on the platform",
-        "requestBody": {
-          "content": {
-            "application/json":{
-              "schema":{
-                "$ref": "#/components/schemas/ContainerPatchBody"
-              }
-            }
-          }
-        },
+        "summary": "Remove a whitelisted image",
         "responses": {
           "204": {
-            "$ref": "#/components/responses/SimpleOk"
-          },
-          "400":{
-            "$ref": "#/components/responses/InvalidBody"
-          },
-          "401":{
-            "$ref": "#/components/responses/Unauthenticated"
-          },
-          "403":{
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404":{
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500":{
-            "$ref": "#/components/responses/InternalError"
-          }
-        }
-      }
-    },
-    "/containers/sync": {
-      "post":{
-        "operationId": "syncContainers",
-        "tags": ["Containers"],
-        "summary": "Synchronize ",
-        "responses": {
-          "204": {
-            "$ref": "#/components/responses/ContainerSync"
-          },
-          "400":{
-            "$ref": "#/components/responses/InvalidBody"
+            "$ref": "#/components/responses/NoContent"
           },
           "401":{
             "$ref": "#/components/responses/Unauthenticated"
@@ -1894,29 +1855,6 @@
           }
         }
       },
-      "ContainerSync": {
-        "description": "List of synched images from all repositories",
-        "content": {
-          "application/json":{
-            "schema":{
-              "type": "object",
-              "properties": {
-                "info": {
-                  "type": "string",
-                  "default": "The sync considers only the latest 100 tag per image. If an older one is needed, add it manually via the POST /images endpoint"
-                },
-                "images": {
-                  "type": "array",
-                    "items": {
-                      "type": "string",
-                      "example": "repo.azurecr.io/beautiful_image:1.2.0"
-                    }
-                  }
-              }
-            }
-          }
-        }
-      },
       "RegistryEntry": {
         "description": "Single repository representation",
         "content": {
@@ -2460,33 +2398,25 @@
           "newPassword": {"type": "string"}
         }
       },
-      "ContainerPostObject": {
-        "type": "object",
-        "properties": {
-          "name": {"type": "string", "example": "beautiful_image"},
-          "tag": {"type": "string", "example": "1.2.0"},
-          "dashboard": {"type": "boolean", "example": false},
-          "ml": {"type": "boolean", "example": false},
-          "registry_id": {"type": "integer", "example": 2}
-        }
-      },
-      "ContainerPatchBody": {
-        "type": "object",
-        "properties": {
-          "dashboard": {"type": "boolean", "example": false},
-          "ml": {"type": "boolean", "example": false}
-        }
-      },
       "ContainerObject": {
         "type": "object",
         "properties": {
           "id": {"type": "integer", "example": 1},
           "name": {"type": "string", "example": "beautiful_image"},
           "tag": {"type": "string", "example": "1.2.0"},
-          "dashboard": {"type": "boolean", "example": false},
-          "ml": {"type": "boolean", "example": false},
+          "sha": {"type": "string", "example": "sha256:abc..."},
           "registry_id": {"type": "integer", "example": 2}
         }
+      },
+      "ContainerPostObject": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "example": "beautiful_image"},
+          "registry": {"type": "string", "example": "acrregistry.io"},
+          "tag": {"type": "string", "example": "1.2.0"},
+          "sha": {"type": "string", "example": "sha256:abc..."}
+        },
+        "required": ["name", "registry"]
       },
       "RegistryObject": {
         "type": "object",
