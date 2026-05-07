@@ -22,6 +22,7 @@ data:
   CLAIM_CAPACITY: {{ .Values.storage.capacity }}
   STORAGE_CLASS: {{ include "storageClassName" . }}
   CRD_DOMAIN: {{ include "controllerCrdGroup" . }}
+  ENABLE_IMAGE_WHITELIST: {{ .Values.federatedNode.enable_image_whitelist | quote }}
 {{- if .Values.federatedNode.allow_delivery_api }}
   AUTO_DELIVERY_RESULTS: "true"
 {{- end }}

@@ -4,6 +4,7 @@ from kubernetes.client import ApiException
 
 from app.helpers.const import TASK_NAMESPACE
 from tests.fixtures.azure_cr_fixtures import *
+from app.helpers.exceptions import InvalidRequest
 
 
 class TestGetRegistriesApi:
@@ -505,3 +506,50 @@ class TestPatchRegistriesApi:
         )
         assert resp.status_code == 400
         assert resp.json["error"] == "Could not update credentials"
+
+class TestRegistryModel:
+    def test_registry_validate_image_exist_success(self, mocker, registry):
+        """Test Registry.validate_image_exist returns True when image exists remotely"""
+        mock_reg_client = mocker.Mock()
+        mocker.patch.object(Registry, 'get_registry_class', return_value=mock_reg_client)
+        mock_reg_client.has_image_tag_or_sha.return_value = True
+        
+        assert Registry.validate_image_exist(f"{registry.url}/some-image:latest") is True
+
+    def test_registry_extract_image_parts_with_tag(self, registry):
+        """Test Registry.extract_image_parts with tag"""
+        reg, name, tag, sha = Registry.extract_image_parts(f"{registry.url}/my-image:v1")
+        assert reg.id == registry.id
+        assert name == "my-image"
+        assert tag == "v1"
+        assert sha is None
+
+    def test_registry_extract_image_parts_with_sha(self, registry):
+        """Test Registry.extract_image_parts with sha"""
+        test_sha = "sha256:" + "a" * 64
+        reg, name, tag, sha = Registry.extract_image_parts(f"{registry.url}/my-image@{test_sha}")
+        assert reg.id == registry.id
+        assert name == "my-image"
+        assert tag is None
+        assert sha == test_sha
+
+    def test_registry_extract_image_parts_with_tag_and_sha(self, registry):
+        """Test Registry.extract_image_parts with both tag and sha"""
+        test_sha = "sha256:" + "b" * 64
+        reg, name, tag, sha = Registry.extract_image_parts(f"{registry.url}/my-image:v1@{test_sha}")
+        assert reg.id == registry.id
+        assert name == "my-image"
+        assert tag == "v1"
+        assert sha == test_sha
+
+    def test_registry_extract_image_parts_missing_tag_or_sha(self, registry):
+        """Test Registry.extract_image_parts fails when tag or sha is missing"""
+        with pytest.raises(InvalidRequest) as exc:
+            Registry.extract_image_parts(f"{registry.url}/my-image")
+        assert "must have a tag or a sha" in str(exc.value)
+
+    def test_registry_extract_image_parts_unknown_registry(self, registry):
+        """Test Registry.extract_image_parts fails when registry is unknown"""
+        with pytest.raises(InvalidRequest) as exc:
+            Registry.extract_image_parts("unknown-registry.io/image:tag")
+        assert "Could not find the image in the mapped registries" in str(exc.value)
