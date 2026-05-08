@@ -24,37 +24,6 @@ from tests.conftest import side_effect
 from app.helpers.task_pod import TaskPod
 
 
-@pytest.fixture
-def pod_dict(dataset):
-    return {
-        "name": "pod_name",
-        "image": "image",
-        "labels": {
-            "task_id": 1
-        },
-        "dataset": dataset,
-        "dry_run": "false",
-        "env_from": [],
-        "command": "cmd",
-        "mount_path": {"folder1": "/mnt"},
-        "input_path": {"input.csv": "/mnt"},
-        "environment": {},
-        "resources": {},
-        "db_query": {
-            "query": "SELECT * FROM table",
-            "dialect": "postgres"
-        },
-        "regcred_secret": "acrsecret"
-    }
-
-@pytest.fixture
-def job_dict():
-    return {
-        "name": "job_name",
-        "persistent_volumes": [],
-        "labels": {}
-    }
-
 class TestKubernetesHelper:
     @mock.patch('urllib3.PoolManager')
     def test_create_pod(
