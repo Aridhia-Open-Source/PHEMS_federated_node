@@ -231,6 +231,8 @@ dagster:
           - name: dagster-env-config
 
         # Add volumes and volume mounts for artifacts-pvc
+        # NOTE: claimName must match fnDagster.artifactsPvcName. Helm cannot template values.yaml,
+        # so if you override fnDagster.artifactsPvcName in your values file, override claimName here too.
         volumes:
           - name: artifacts-pvc
             persistentVolumeClaim:

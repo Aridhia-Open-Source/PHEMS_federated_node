@@ -65,4 +65,4 @@ spec:
           volumes:
           - name: respv
             persistentVolumeClaim:
-              claimName: {{ include "pvcName" . }}
+              claimName: {{ include "backendResultsPVCName" . }}

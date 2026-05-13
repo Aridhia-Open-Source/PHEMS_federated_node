@@ -171,14 +171,23 @@ http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 {{- end -}}
 {{- end }}
 
-{{- define "pvcName" -}}
+{{- define "backendResultsPVCName" -}}
 {{ printf "backend-results-%s-pv-vc" (.Values.storage.capacity | default "10Gi") | lower }}
 {{- end }}
-{{- define "pvName" -}}
+{{- define "backendResultsPVName" -}}
 {{- printf "%s-backend-results-%s-pv" .Release.Name (.Values.storage.capacity | default "10Gi") | lower }}
 {{- end }}
-{{- define "storageClassName" -}}
+{{- define "backendResultsStorageClassName" -}}
 {{- printf "%s-shared-results" .Release.Name | lower }}
+{{- end }}
+{{- define "dagsterArtifactsPVCName" -}}
+{{- .Values.fnDagster.artifactsPvcName | default "artifacts-pvc" }}
+{{- end }}
+{{- define "dagsterArtifactsPVName" -}}
+{{- printf "%s-dagster-artifacts-%s-pv" .Release.Name (.Values.storage.capacity | default "10Gi") | lower }}
+{{- end }}
+{{- define "dagsterArtifactsStorageClassName" -}}
+{{- printf "%s-dagster-artifacts" .Release.Name | lower }}
 {{- end }}
 
 {{- define "awsStorageAccount" -}}

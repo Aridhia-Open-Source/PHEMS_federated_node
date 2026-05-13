@@ -1,35 +1,76 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ include "dagsterArtifactsStorageClassName" . }}
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+volumeBindingMode: WaitForFirstConsumer
+{{- if .Values.storage.local }}
+provisioner: Local
+{{- else if .Values.storage.azure }}
+provisioner: {{ .Values.storage.azure.provisioner | default "disk.csi.azure.com" }}
+parameters:
+  skuname: Premium_LRS
+{{- else if .Values.storage.aws }}
+provisioner: efs.csi.aws.com
+parameters:
+  provisioningMode: efs-ap
+  fileSystemId: {{ include "awsStorageAccount" . }}
+  directoryPerms: "777"
+{{- else if .Values.storage.nfs }}
+provisioner: {{ .Values.storage.nfs.provisioner }}
+mountOptions:
+  - hard
+{{- end }}
+---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: dagster-artifacts-pv
+  name: {{ include "dagsterArtifactsPVName" . }}
 spec:
+  storageClassName: {{ include "dagsterArtifactsStorageClassName" . }}
   capacity:
     storage: {{ .Values.storage.capacity }}
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
+  {{ if .Values.storage.local }}
   local:
     path: {{ .Values.storage.local.artifacts }}
   nodeAffinity:
     required:
       nodeSelectorTerms:
       - matchExpressions:
-        - key: kubernetes.io/hostname
+        - key: kubernetes.io/os
           operator: In
           values:
-          - fn-control-plane
+          - linux
+  {{ else if .Values.storage.azure }}
+  azureFile:
+    shareName: {{ .Values.storage.azure.shareName }}
+    readOnly: false
+    secretName: {{ .Values.storage.azure.secretName | default "azure-storage-secret" }}
+  {{ else if .Values.storage.aws }}
+  csi:
+    driver: efs.csi.aws.com
+    volumeHandle: {{ include "awsStorageAccount" . }}
+  {{ else if .Values.storage.nfs }}
+  nfs:
+    server: {{ .Values.storage.nfs.url }}
+    path: {{ .Values.storage.nfs.path }}
+    readOnly: false
+  {{ end }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: artifacts-pvc
+  name: {{ include "dagsterArtifactsPVCName" . }}
   namespace: {{ .Release.Namespace }}
 spec:
-  storageClassName: ""
-  volumeName: dagster-artifacts-pv
+  storageClassName: {{ include "dagsterArtifactsStorageClassName" . }}
+  volumeName: {{ include "dagsterArtifactsPVName" . }}
   resources:
     requests:
       storage: {{ .Values.storage.capacity }}
   accessModes:
     - ReadWriteOnce
-
