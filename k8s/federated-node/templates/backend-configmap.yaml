@@ -21,6 +21,7 @@ data:
   ALPINE_IMAGE: {{ include "fn-alpine" . }}
   CLAIM_CAPACITY: {{ .Values.storage.capacity }}
   STORAGE_CLASS: {{ include "storageClassName" . }}
+  MOUNT_OPTIONS: {{ join "," .Values.storage.mountOptions | quote }}
   CRD_DOMAIN: {{ include "controllerCrdGroup" . }}
   ENABLE_IMAGE_WHITELIST: {{ .Values.federatedNode.enable_image_whitelist | quote }}
 {{- if .Values.federatedNode.allow_delivery_api }}
