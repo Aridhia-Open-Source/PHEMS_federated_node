@@ -207,6 +207,13 @@
                 "capacity": {
                     "$ref": "#/definitions/capacity"
                 },
+                "mountOptions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": []
+                },
                 "azure": {
                     "type": "object",
                     "required": [
@@ -222,6 +229,10 @@
                         "shareName": {
                             "type": "string",
                             "description": "Share name within the azure storage account"
+                        },
+                        "provisioner": {
+                            "type": "string",
+                            "description": "Optional provisioner for the azure storage"
                         }
                     }
                 },

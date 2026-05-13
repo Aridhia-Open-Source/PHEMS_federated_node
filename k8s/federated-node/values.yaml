@@ -60,6 +60,7 @@ federatedNode:
 
 storage:
   capacity: 10Gi
+  mountOptions: []
   # azure:
     # secretName:
     # shareName:

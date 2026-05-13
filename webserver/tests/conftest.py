@@ -309,6 +309,37 @@ def dar_user():
     return "some@test.com"
 
 @fixture
+def pod_dict(dataset):
+    return {
+        "name": "pod_name",
+        "image": "image",
+        "labels": {
+            "task_id": 1
+        },
+        "dataset": dataset,
+        "dry_run": "false",
+        "env_from": [],
+        "command": "cmd",
+        "mount_path": {"folder1": "/mnt"},
+        "input_path": {"input.csv": "/mnt"},
+        "environment": {},
+        "resources": {},
+        "db_query": {
+            "query": "SELECT * FROM table",
+            "dialect": "postgres"
+        },
+        "regcred_secret": "acrsecret"
+    }
+
+@fixture
+def job_dict():
+    return {
+        "name": "job_name",
+        "persistent_volumes": [],
+        "labels": {}
+    }
+
+@fixture
 def access_request(dataset, user_uuid, k8s_client):
     request = Request(
         title="TestRequest",
