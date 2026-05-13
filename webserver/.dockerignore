@@ -3,7 +3,6 @@
 !app/**
 !migrations/**
 !requirements.txt
-!pyproject.toml
 !alembic.ini
 
 !.dockerignore

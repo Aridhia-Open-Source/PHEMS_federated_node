@@ -5,10 +5,6 @@ ARG USERNAME=fednode
 ARG USER_UID=1001
 ARG USER_GID=1001
 
-COPY migrations /migrations
-COPY alembic.ini /
-COPY pyproject.toml /
-
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # hadolint ignore=DL3008
@@ -18,21 +14,18 @@ RUN apt-get update \
         libpq-dev \
         python3-dev \
         gcc \
-        curl \
-    && curl -LsSf https://astral.sh/uv/install.sh | sh \
-    && /root/.local/bin/uv sync \
-    && PATH=$(which pg_config):$PATH \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-COPY app /app
-WORKDIR /app
+# Install locked third-party deps
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 RUN groupadd -g "$USER_GID" "$USERNAME" \
-    && useradd --uid "$USER_UID" --gid "$USER_GID" "$USERNAME" \
-    && chown -R "$USERNAME":"$USERNAME" /app
+    && useradd --uid "$USER_UID" --gid "$USER_GID" "$USERNAME"
 
-ENV PATH="/.venv/bin:$PATH"
+COPY --chown=${USERNAME}:${USERNAME} . /
+
 USER ${USER_UID}
 EXPOSE 5000
 WORKDIR /

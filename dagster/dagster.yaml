@@ -29,6 +29,7 @@ run_monitoring:
   cancel_timeout_seconds: 180
   max_resume_run_attempts: 0
   poll_interval_seconds: 60
+  max_runtime_seconds: 3600
 
 run_launcher:
   module: dagster_k8s.launcher

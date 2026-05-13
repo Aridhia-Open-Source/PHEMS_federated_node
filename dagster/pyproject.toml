@@ -1,5 +1,5 @@
 [project]
-name = "code"
+name = "phems"
 description = "PHEMS Federated Node - Dagster Code Location"
 authors = [{ name = "George Eddie", email = "george.eddie@aridhia.com" }]
 version = "0.1.0"

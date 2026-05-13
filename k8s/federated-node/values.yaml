@@ -7,11 +7,11 @@ default_image_tag: 1.9.0
 backend:
   image: ghcr.io/aridhia-open-source/federated_node_run
   replicas: 1
-  tag: v1
+  tag:
 
 keycloak:
   replicas: 1
-  tag: v1
+  tag:
 
 alpine:
   image: ghcr.io/aridhia-open-source/alpine
@@ -223,9 +223,9 @@ dagster:
         image:
           # When a tag is not supplied for a Dagster provided image,
           # it will default as the Helm chart version.
-          repository: localhost:5001/dagster-fn
-          tag: "v15"
+          repository:
           pullPolicy: "Always"
+          tag:
 
         envConfigMaps:
           - name: dagster-env-config
@@ -255,8 +255,8 @@ dagster:
         port: 3030
         image:
           # When a tag is not supplied, it will default as the Helm chart version.
-          repository: localhost:5001/dagster-fn
-          tag: "v15"
+          repository:
+          tag:
 
           # Change with caution! If you're using a fixed tag for pipeline run images, changing the
           # image pull policy to anything other than "Always" will use a cached/stale image, which is
