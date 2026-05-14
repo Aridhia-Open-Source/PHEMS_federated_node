@@ -1,4 +1,7 @@
 # Releases Changelog
+## 1.16.0
+- Add task storage PV parameter to configure mount options
+
 ## 1.15.0
 - Make image whitelisting optional and off by default
 
