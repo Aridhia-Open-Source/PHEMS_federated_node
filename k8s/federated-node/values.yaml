@@ -4,6 +4,9 @@
 
 default_image_tag: 1.9.0
 
+github:
+  token: ""
+
 backend:
   image: ghcr.io/aridhia-open-source/federated_node_run
   replicas: 1
@@ -223,16 +226,14 @@ dagster:
         image:
           # When a tag is not supplied for a Dagster provided image,
           # it will default as the Helm chart version.
-          repository:
+          repository: localhost:5001/dagster-fn
+          tag: "v15"
           pullPolicy: "Always"
-          tag:
 
         envConfigMaps:
           - name: dagster-env-config
 
         # Add volumes and volume mounts for artifacts-pvc
-        # NOTE: claimName must match fnDagster.artifactsPvcName. Helm cannot template values.yaml,
-        # so if you override fnDagster.artifactsPvcName in your values file, override claimName here too.
         volumes:
           - name: artifacts-pvc
             persistentVolumeClaim:
@@ -257,8 +258,8 @@ dagster:
         port: 3030
         image:
           # When a tag is not supplied, it will default as the Helm chart version.
-          repository:
-          tag:
+          repository: localhost:5001/dagster-fn
+          tag: "v15"
 
           # Change with caution! If you're using a fixed tag for pipeline run images, changing the
           # image pull policy to anything other than "Always" will use a cached/stale image, which is

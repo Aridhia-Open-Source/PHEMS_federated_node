@@ -7,6 +7,7 @@ DOCKER_TAG=$1
 DOCKER_DIRS=(
   "dagster"
   "webserver"
+  "github_transfer"
   "build/alpine"
   ".models/julia"
 )
