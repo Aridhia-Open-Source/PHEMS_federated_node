@@ -26,3 +26,6 @@ debug.yaml
 
 # Ignore example values files while developing (remove later)
 !example.values.yaml
+
+# Ignore local model files
+.models/
