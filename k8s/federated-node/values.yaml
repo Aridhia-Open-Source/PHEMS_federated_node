@@ -4,9 +4,6 @@
 
 default_image_tag: 1.9.0
 
-github:
-  token: ""
-
 backend:
   image: ghcr.io/aridhia-open-source/federated_node_run
   replicas: 1
@@ -233,6 +230,9 @@ dagster:
         envConfigMaps:
           - name: dagster-env-config
 
+        envSecrets:
+          - name: github-token
+
         # Add volumes and volume mounts for artifacts-pvc
         volumes:
           - name: artifacts-pvc
@@ -268,6 +268,9 @@ dagster:
 
         envConfigMaps:
           - name: dagster-env-config
+
+        envSecrets:
+          - name: github-token
 
         # Arguments to `dagster api grpc`.
         # Ex: "dagster api grpc -m dagster_test.test_project.test_jobs.repo -a define_demo_execution_repo"

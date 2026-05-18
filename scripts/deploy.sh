@@ -17,17 +17,26 @@ set -euo pipefail
 ###############################################################################
 
 ### Config ####################################################################
-DOCKER_TAG="v36"
-CLUSTER_NAME="fn"
-NAMESPACE="fn"
-RELEASE_NAME="fn-dev"
-VALUES_FILE="dev.values.yaml"
+
+# load env
+source .dev.env
+
+# Required env vars
+# DOCKER_TAG="v1"
+# CLUSTER_NAME="fn"
+# NAMESPACE="fn"
+# RELEASE_NAME="fn-dev"
+# VALUES_FILE="dev.values.yaml"
+# GH_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Config file location for kind cluster
 KIND_CONFIG_FILE=".kind/kind-config.yaml"
 
 # sharing database server
 DB_SECRET_KEY="db-secret-value"
 BACKEND_DB_SECRET_KEY=$DB_SECRET_KEY
 DAGSTER_DB_SECRET_KEY=$DB_SECRET_KEY
+
 
 # Host paths required local PVs
 HOST_MOUNT_PATHS=(
@@ -117,6 +126,9 @@ kubectl create secret generic dagster-postgresql-secret \
   --from-literal=postgresql-password="$DAGSTER_DB_SECRET_KEY" \
   --dry-run=client -o yaml | kubectl apply -f -
 
+kubectl create secret generic github-token \
+  --from-literal=GH_TOKEN="$GH_TOKEN" \
+  --dry-run=client -o yaml | kubectl apply -f -
 
 ###############################################################################
 echo "=== [7/8] Building Docker Images(s) ========================================"
