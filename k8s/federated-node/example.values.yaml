@@ -108,6 +108,23 @@ fn-task-controller:
       auth_type: AzCopy
 
 
+### Dagster Internal Config
+fnDagster:
+  createDB: true
+  ghTransferDockerImage: "localhost:5001/github_transfer-fn:v36"
+  gh:
+    enabled: false
+    owner: "Aridhia-Open-Source"
+    repo: "phems-sandbox"
+    baseBranch: "main"
+    watchDir: "mgmt/requests"
+    resultsDir: "mgmt/results"
+  db:
+    host: db.fn.svc
+    user: admin
+    name: dagster
+
+
 ### Dagster
 dagster:
   enabled: true

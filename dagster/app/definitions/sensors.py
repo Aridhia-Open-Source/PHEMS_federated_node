@@ -12,17 +12,6 @@ from app.definitions.jobs import k8s_pipes_job
 from app.definitions.pipes import K8sPipe
 from app.github import GithubClient
 
-MIN_SENSOR_INTERVAL_SECONDS = 10
-
-ARTIFACT_MOUNT_BASE_PATH = os.environ["DAGSTER_ARTIFACT_MOUNT_PATH"]
-GH_TRANSFER_DOCKER_IMAGE = os.environ['GH_TRANSFER_DOCKER_IMAGE']
-GH_OWNER = os.environ['GH_OWNER']
-GH_REPO = os.environ['GH_REPO']
-GH_TOKEN = os.environ["GH_TOKEN"]
-GH_RESULTS_DIR = os.environ['GH_RESULTS_DIR']
-GH_BASE_BRANCH = os.environ['GH_BASE_BRANCH']
-GH_WATCH_DIR = os.environ['GH_WATCH_DIR']
-
 # =============================================================================
 # TODO: PRODUCTION HARDENING
 # =============================================================================
@@ -39,6 +28,48 @@ GH_WATCH_DIR = os.environ['GH_WATCH_DIR']
 #
 # =============================================================================
 
+MIN_SENSOR_INTERVAL_SECONDS = 10
+
+
+# TODO: convert to pydantic settings model with validation
+class GithubSensorConfig:
+    _REQUIRED_VARIABLES = [
+        "DAGSTER_ARTIFACT_MOUNT_PATH",
+        "GH_TRANSFER_DOCKER_IMAGE",
+        "GH_OWNER",
+        "GH_REPO",
+        "GH_TOKEN",
+        "GH_RESULTS_DIR",
+        "GH_BASE_BRANCH",
+        "GH_WATCH_DIR",
+    ]
+
+    @property
+    def default_sensor_status(self):
+        if self.enabled:
+            return dg.DefaultSensorStatus.RUNNING
+        return dg.DefaultSensorStatus.STOPPED
+
+    def __init__(self):
+        self.enabled = os.environ.get("GH_SENSORS_ENABLED", "").lower() == "true"
+        self.enabled and self._validate_env()  # type: ignore
+
+        self.artifact_mount_path = os.environ.get("DAGSTER_ARTIFACT_MOUNT_PATH", "")
+        self.transfer_docker_image = os.environ.get("GH_TRANSFER_DOCKER_IMAGE", "")
+        self.owner = os.environ.get("GH_OWNER", "")
+        self.repo = os.environ.get("GH_REPO", "")
+        self.token = os.environ.get("GH_TOKEN", "")
+        self.results_dir = os.environ.get("GH_RESULTS_DIR", "")
+        self.base_branch = os.environ.get("GH_BASE_BRANCH", "")
+        self.watch_dir = os.environ.get("GH_WATCH_DIR", "")
+
+    def _validate_env(self):
+        if missing := [v for v in self._REQUIRED_VARIABLES if not os.environ.get(v)]:
+            raise EnvironmentError(f"GH sensors enabled but missing: {missing}")
+
+
+gh_config = GithubSensorConfig()
+
 
 def utc_now():
     return (dt.now(tz.utc) + td(days=0)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -53,12 +84,12 @@ def utc_now():
 )
 def github_transfer_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> dg.Output:
     env = {
-        "GH_OWNER": GH_OWNER,
-        "GH_REPO": GH_REPO,
-        "GH_TOKEN": GH_TOKEN,
-        "GH_BASE_BRANCH": GH_BASE_BRANCH,
-        "GH_RESULTS_DIR": GH_RESULTS_DIR,
-        "MNT_BASE_PATH": ARTIFACT_MOUNT_BASE_PATH,
+        "GH_OWNER": gh_config.owner,
+        "GH_REPO": gh_config.repo,
+        "GH_TOKEN": gh_config.token,
+        "GH_BASE_BRANCH": gh_config.base_branch,
+        "GH_RESULTS_DIR": gh_config.results_dir,
+        "MNT_BASE_PATH": gh_config.artifact_mount_path,
         "PARENT_RUN_ID": context.op_config["parent_run_id"],
         "PR_NUMBER": context.op_config["pr_number"],
     }
@@ -94,7 +125,7 @@ def github_run_success_transfer_sensor(context: dg.RunStatusSensorContext):
         return
 
     config = {
-        'docker_image': GH_TRANSFER_DOCKER_IMAGE,
+        'docker_image': gh_config.transfer_docker_image,
         'pr_number': run.tags["pr_number"],
         'parent_run_id': run.run_id,
     }
@@ -126,10 +157,10 @@ def github_run_success_transfer_sensor(context: dg.RunStatusSensorContext):
 )
 def github_pull_request_polling_sensor(context):
     client = GithubClient(
-        owner=GH_OWNER,
-        repo=GH_REPO,
-        token=GH_TOKEN,
-        base_branch=GH_BASE_BRANCH,
+        owner=gh_config.owner,
+        repo=gh_config.repo,
+        token=gh_config.token,
+        base_branch=gh_config.base_branch,
     )
 
     if not context.cursor:
@@ -139,7 +170,7 @@ def github_pull_request_polling_sensor(context):
 
     pullreqs = client.get_new_merged_pulls(
         cursor=context.cursor,
-        watch_dir=GH_WATCH_DIR,
+        watch_dir=gh_config.watch_dir,
         per_page=100,
     )
 
@@ -201,10 +232,10 @@ def github_pr_comment_op(context: OpExecCtx):
     body = f"Success - #{parent_run_id}"
     context.log.info(f"Adding GH PR comment - run_id: {parent_run_id}, pr: {pr_number}")
     client = GithubClient(
-        owner=GH_OWNER,
-        repo=GH_REPO,
-        token=GH_TOKEN,
-        base_branch=GH_BASE_BRANCH,
+        owner=gh_config.owner,
+        repo=gh_config.repo,
+        token=gh_config.token,
+        base_branch=gh_config.base_branch,
     )
     client.add_pull_request_comment(pr_number, body)
 

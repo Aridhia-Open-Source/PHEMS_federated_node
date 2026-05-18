@@ -180,12 +180,13 @@ fnDagster:
   mntBasePath: ".data"
   createDB: false
   # ghTransferDockerImage: "your-registry/github_transfer-fn:tag"
-  # gh:
-  #   owner: "your-org"
-  #   repo: "your-repo"
-  #   baseBranch: "main"
-  #   watchDir: "mgmt/requests"
-  #   resultsDir: "mgmt/results"
+  gh:
+    enabled: false
+    # owner: "your-org"
+    # repo: "your-repo"
+    # baseBranch: "main"
+    # watchDir: "mgmt/requests"
+    # resultsDir: "mgmt/results"
   db:
     database: dagster
     # host: your-db-host

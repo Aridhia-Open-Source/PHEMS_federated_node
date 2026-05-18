@@ -14,6 +14,7 @@ data:
   DAGSTER_ARTIFACT_MOUNT_PATH: {{ .Values.fnDagster.artifactMountPath | quote }}
   DAGSTER_ARTIFACTS_PVC_NAME: {{ .Values.fnDagster.artifactsPvcName | quote }}
   GH_TRANSFER_DOCKER_IMAGE: {{ .Values.fnDagster.ghTransferDockerImage | quote }}
+  GH_SENSORS_ENABLED: {{ .Values.fnDagster.gh.enabled | quote }}
   GH_OWNER: {{ .Values.fnDagster.gh.owner | quote }}
   GH_REPO: {{ .Values.fnDagster.gh.repo | quote }}
   GH_BASE_BRANCH: {{ .Values.fnDagster.gh.baseBranch | quote }}
