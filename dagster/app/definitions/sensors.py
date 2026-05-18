@@ -25,7 +25,7 @@ from app.github import GithubClient
 # - Document full event flow (PR → sensor → job → transfer → results)
 # - Add README section explaining key design tradeoffs
 # - Document operational assumptions (cursor semantics, retry behavior, artifact model)
-#
+# - Review github api client for optimizations and edge cases (e.g. pagination, rate limits, error handling)
 # =============================================================================
 
 MIN_SENSOR_INTERVAL_SECONDS = 10

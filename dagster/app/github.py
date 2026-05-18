@@ -5,6 +5,7 @@ import requests
 GH_API_BASE_URI = "https://api.github.com"
 
 
+# TODO: use requests.client instead of requests.request directly to handle retries, timeouts, etc
 class GithubClient:
     def __init__(self, owner, repo, token, base_branch):
         self.owner = owner
@@ -98,17 +99,24 @@ class GithubClient:
 
     def request(
             self,
-            verb,
+            method,
             path=None,
             params=None,
             headers=None,
             json=None,
             raise_for_status=True
     ):
-        params = params or {}
-        uri = self._make_uri(path)
         headers = {**self.headers, **(headers or {})}
-        response = requests.request(verb, uri, headers=headers, params=params, json=json)
+
+        response = requests.request(
+            method,
+            url=self._make_uri(path),
+            params=params or {},
+            headers={**self.headers, **(headers or {})},
+            json=json,
+            timeout=10
+        )
+
         if raise_for_status:
             response.raise_for_status()
         return response
