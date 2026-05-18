@@ -62,7 +62,22 @@ class GithubClient:
             page += 1
 
     def get_pull_request_files(self, pr_number):
-        return self.request("GET", f"/pulls/{pr_number}/files").json()
+        page = 1
+        per_page = 100
+        files = []
+        while True:
+            response = self.request(
+                "GET",
+                f"/pulls/{pr_number}/files",
+                params={"per_page": per_page, "page": page},
+            )
+            page_files = response.json()
+            if not page_files:
+                break
+
+            files.extend(page_files)
+            page += 1
+        return files
 
     def get_file_contents(self, path: str, ref: str):
         response = self.request(

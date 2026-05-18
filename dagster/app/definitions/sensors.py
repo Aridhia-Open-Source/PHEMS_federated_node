@@ -52,7 +52,8 @@ class GithubSensorConfig:
 
     def __init__(self):
         self.enabled = os.environ.get("GH_SENSORS_ENABLED", "").lower() == "true"
-        self.enabled and self._validate_env()  # type: ignore
+        if self.enabled:
+            self._validate_env()
 
         self.artifact_mount_path = os.environ.get("DAGSTER_ARTIFACT_MOUNT_PATH", "")
         self.transfer_docker_image = os.environ.get("GH_TRANSFER_DOCKER_IMAGE", "")
