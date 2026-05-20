@@ -111,7 +111,7 @@ fn-task-controller:
 ### Dagster Internal Config
 fnDagster:
   createDB: true
-  ghTransferDockerImage: "localhost:5001/github_transfer-fn:v36"
+  ghTransferDockerImage: "localhost:5001/github_transfer-fn:v1"
   gh:
     enabled: false
     owner: "Aridhia-Open-Source"
