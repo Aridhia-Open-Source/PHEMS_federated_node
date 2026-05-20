@@ -180,12 +180,13 @@ fnDagster:
   mntBasePath: ".data"
   createDB: false
   # ghTransferDockerImage: "your-registry/github_transfer-fn:tag"
-  # gh:
-  #   owner: "your-org"
-  #   repo: "your-repo"
-  #   baseBranch: "main"
-  #   watchDir: "mgmt/requests"
-  #   resultsDir: "mgmt/results"
+  gh:
+    enabled: false
+    # owner: "your-org"
+    # repo: "your-repo"
+    # baseBranch: "main"
+    # watchDir: "mgmt/requests"
+    # resultsDir: "mgmt/results"
   db:
     database: dagster
     # host: your-db-host
@@ -223,16 +224,17 @@ dagster:
         image:
           # When a tag is not supplied for a Dagster provided image,
           # it will default as the Helm chart version.
-          repository:
+          repository: localhost:5001/dagster-fn
+          tag: "v15"
           pullPolicy: "Always"
-          tag:
 
         envConfigMaps:
           - name: dagster-env-config
 
+        envSecrets:
+          - name: github-token
+
         # Add volumes and volume mounts for artifacts-pvc
-        # NOTE: claimName must match fnDagster.artifactsPvcName. Helm cannot template values.yaml,
-        # so if you override fnDagster.artifactsPvcName in your values file, override claimName here too.
         volumes:
           - name: artifacts-pvc
             persistentVolumeClaim:
@@ -257,8 +259,8 @@ dagster:
         port: 3030
         image:
           # When a tag is not supplied, it will default as the Helm chart version.
-          repository:
-          tag:
+          repository: localhost:5001/dagster-fn
+          tag: "v15"
 
           # Change with caution! If you're using a fixed tag for pipeline run images, changing the
           # image pull policy to anything other than "Always" will use a cached/stale image, which is
@@ -267,6 +269,9 @@ dagster:
 
         envConfigMaps:
           - name: dagster-env-config
+
+        envSecrets:
+          - name: github-token
 
         # Arguments to `dagster api grpc`.
         # Ex: "dagster api grpc -m dagster_test.test_project.test_jobs.repo -a define_demo_execution_repo"

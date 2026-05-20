@@ -78,7 +78,7 @@ class K8sPipe:
                 {
                     "name": "main",
                     "env": [
-                        {"name": k, "value": v}
+                        {"name": k, "value": str(v)}
                         for k, v in self.env.items()
                     ],
                     "volumeMounts": [
