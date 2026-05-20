@@ -28,6 +28,12 @@ source .dev.env
 # RELEASE_NAME="fn-dev"
 # VALUES_FILE="dev.values.yaml"
 # GH_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+for required_var in DOCKER_TAG CLUSTER_NAME NAMESPACE RELEASE_NAME VALUES_FILE GH_TOKEN; do
+  if [ -z "${!required_var:-}" ]; then
+    echo "Error: Required environment variable '$required_var' is not set. Please define it in .dev.env." >&2
+    exit 1
+  fi
+done
 
 # Config file location for kind cluster
 KIND_CONFIG_FILE=".kind/kind-config.yaml"
