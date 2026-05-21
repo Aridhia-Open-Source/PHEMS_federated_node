@@ -42,30 +42,18 @@ tests:
         documentSelector:
           path: metadata.namespace
           value: fn-certmanager
-  - it: creates GCP persistency with filestore CSI driver
+  - it: creates GCP persistency with GCS FUSE CSI driver
     template: backend-results-pv.yaml
     asserts:
       - equal:
           path: spec.csi.driver
-          value: filestore.csi.storage.gke.io
+          value: gcsfuse.csi.storage.gke.io
         documentSelector:
           path: kind
           value: PersistentVolume
       - equal:
           path: spec.csi.volumeHandle
-          value: "projects/my-project/locations/us-central1-a/instances/my-filestore/volumes/vol1"
-        documentSelector:
-          path: kind
-          value: PersistentVolume
-      - equal:
-          path: spec.csi.volumeAttributes.ip
-          value: "10.0.0.1"
-        documentSelector:
-          path: kind
-          value: PersistentVolume
-      - equal:
-          path: spec.csi.volumeAttributes.volume
-          value: vol1
+          value: my-results-bucket
         documentSelector:
           path: kind
           value: PersistentVolume
@@ -92,17 +80,11 @@ tests:
           path: data.GCP_STORAGE_ENABLED
           value: "true"
       - equal:
-          path: data.GCP_VOLUME_HANDLE
-          value: "projects/my-project/locations/us-central1-a/instances/my-filestore/volumes/vol1"
-      - equal:
-          path: data.GCP_FILESTORE_IP
-          value: "10.0.0.1"
-      - equal:
-          path: data.GCP_SHARE_NAME
-          value: vol1
-  - it: creates GCP storage class with filestore provisioner
+          path: data.GCP_BUCKET_NAME
+          value: my-results-bucket
+  - it: creates GCP storage class with GCS FUSE provisioner
     template: storageclass.yaml
     asserts:
       - equal:
           path: provisioner
-          value: filestore.csi.storage.gke.io
+          value: gcsfuse.csi.storage.gke.io

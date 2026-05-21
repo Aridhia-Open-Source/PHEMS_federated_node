@@ -31,11 +31,8 @@ spec:
     volumeHandle: {{ include "awsStorageAccount" . }}
   {{ else if .Values.storage.gcp }}
   csi:
-    driver: filestore.csi.storage.gke.io
-    volumeHandle: {{ .Values.storage.gcp.volumeHandle }}
-    volumeAttributes:
-      ip: {{ .Values.storage.gcp.ip }}
-      volume: {{ .Values.storage.gcp.shareName }}
+    driver: gcsfuse.csi.storage.gke.io
+    volumeHandle: {{ .Values.storage.gcp.bucketName }}
   {{ else if .Values.storage.nfs }}
   nfs:
     server: {{ .Values.storage.nfs.url }}

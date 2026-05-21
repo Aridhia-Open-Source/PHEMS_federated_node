@@ -34,9 +34,7 @@ data:
 {{- end }}
 {{- if .Values.storage.gcp }}
   GCP_STORAGE_ENABLED: "true"
-  GCP_VOLUME_HANDLE: {{ .Values.storage.gcp.volumeHandle }}
-  GCP_FILESTORE_IP: {{ .Values.storage.gcp.ip }}
-  GCP_SHARE_NAME: {{ .Values.storage.gcp.shareName }}
+  GCP_BUCKET_NAME: {{ .Values.storage.gcp.bucketName }}
 {{- end }}
 {{- if .Values.storage.azure }}
   AZURE_STORAGE_ENABLED: "true"

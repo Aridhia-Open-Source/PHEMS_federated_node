@@ -69,9 +69,7 @@ storage:
     # fileSystemId:
     # accessPointId:
   # gcp:
-    # volumeHandle: "projects/<project>/locations/<zone>/instances/<instance>/volumes/<share>"
-    # ip: ""          # Filestore instance IP
-    # shareName: ""   # Share name within the instance
+    # bucketName: ""  # GCS bucket name to mount via GCS FUSE
   # nfs:
     # provisioner:
     # url:

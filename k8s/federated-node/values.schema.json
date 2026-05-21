@@ -272,20 +272,12 @@
                 },
                 "gcp": {
                     "type": "object",
-                    "description": "If running on GKE, use Google Filestore as the storage backend",
-                    "required": ["volumeHandle", "ip", "shareName"],
+                    "description": "If running on GKE, use GCS FUSE as the storage backend",
+                    "required": ["bucketName"],
                     "properties": {
-                        "volumeHandle": {
+                        "bucketName": {
                             "type": "string",
-                            "description": "Filestore CSI volume handle: projects/<project>/locations/<zone>/instances/<instance>/volumes/<share>"
-                        },
-                        "ip": {
-                            "type": "string",
-                            "description": "Filestore instance IP address"
-                        },
-                        "shareName": {
-                            "type": "string",
-                            "description": "Share name within the Filestore instance"
+                            "description": "GCS bucket name to mount via GCS FUSE"
                         }
                     }
                 }

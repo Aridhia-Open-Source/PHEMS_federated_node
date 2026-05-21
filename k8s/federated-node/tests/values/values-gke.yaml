@@ -32,9 +32,7 @@ on_gke: true
 pullPolicy: Always
 storage:
   gcp:
-    volumeHandle: "projects/my-project/locations/us-central1-a/instances/my-filestore/volumes/vol1"
-    ip: "10.0.0.1"
-    shareName: vol1
+    bucketName: my-results-bucket
 tls:
   secretName: tls
 smoketests: false
