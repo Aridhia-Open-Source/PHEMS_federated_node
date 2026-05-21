@@ -29,8 +29,6 @@ RUN groupadd -g "$USER_GID" "$USERNAME" && \
 
 # Copy application code with correct ownership
 COPY --chown=${USER_UID}:${USER_GID} . .
-COPY --chmod=777 test-entrypoint.sh .
-COPY setup.cfg .
 
 USER ${USER_UID}
 
