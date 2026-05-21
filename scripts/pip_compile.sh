@@ -11,7 +11,7 @@ set -euo pipefail
 # --strip-extras                    strip extras for pip compatibility
 # --allow-unsafe                    this is safe (misleading), allows pinning of standard tools
 # --verbose                         print debug information
-# --output-file=requirements.txt    specify theoutput file name
+# --output-file=requirements.txt    specify the output file name
 
 DIR="${1:-.}"
 shift || true
