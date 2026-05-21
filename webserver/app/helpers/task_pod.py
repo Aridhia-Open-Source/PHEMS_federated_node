@@ -9,7 +9,7 @@ from kubernetes.client import (
     V1PersistentVolume, V1PersistentVolumeClaim,
     V1EnvVarSource, V1SecretKeySelector,
     V1PersistentVolumeClaimSpec, V1VolumeResourceRequirements,
-    V1CSIPersistentVolumeSource, V1NFSVolumeSource
+    V1CSIPersistentVolumeSource, V1NFSVolumeSource, V1PodSecurityContext
 )
 from app.helpers.const import ALPINE_IMAGE, RESULTS_PATH, STORAGE_CLASS, TASK_NAMESPACE, MOUNT_OPTIONS
 from app.helpers.kubernetes import KubernetesClient
@@ -252,6 +252,12 @@ class TaskPod:
 
         secrets = [V1LocalObjectReference(name=self.regcred_secret)]
 
+        security_context = None
+        annotations = {}
+        if os.getenv("GCP_STORAGE_ENABLED"):
+            security_context = V1PodSecurityContext(fs_group=1001)
+            annotations["gke-gcsfuse/volumes"] = "true"
+
         specs = V1PodSpec(
             termination_grace_period_seconds=300,
             init_containers=self.get_task_pod_init_container(self.labels['task_id']),
@@ -259,13 +265,11 @@ class TaskPod:
             image_pull_secrets=secrets,
             restart_policy="Never",
             automount_service_account_token=False,
+            security_context=security_context,
             volumes=[
                 V1Volume(name="data", persistent_volume_claim=pvc)
             ]
         )
-        annotations = {}
-        if os.getenv("GCP_STORAGE_ENABLED"):
-            annotations["gke-gcsfuse/volumes"] = "true"
         metadata = V1ObjectMeta(
             name=self.name,
             namespace=TASK_NAMESPACE,
