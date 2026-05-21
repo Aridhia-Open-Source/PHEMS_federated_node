@@ -25,6 +25,12 @@ kubernetesProvider:
       data:
         password: dGVzdA==
 tests:
+  - it: adds GCS FUSE sidecar annotation to backend pod
+    template: backend-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["gke-gcsfuse/volumes"]
+          value: "true"
   - it: creates GCP persistency with GCS FUSE CSI driver
     template: backend-results-pv.yaml
     asserts:

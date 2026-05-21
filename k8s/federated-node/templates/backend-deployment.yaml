@@ -16,6 +16,9 @@ spec:
     metadata:
       annotations:
         rollme: {{ template "rollMe" . }}
+        {{- if .Values.on_gke }}
+        gke-gcsfuse/volumes: "true"
+        {{- end }}
       labels:
         app: flask
     spec:
