@@ -27,7 +27,7 @@ appVersion: "1.18.0"
 dependencies:
   - name: fn-task-controller
     repository: https://aridhia-open-source.github.io/federated-node-task-controller
-    version: "1.14.0-v8990e5"
+    version: "1.14.0-v189641"
     condition: outboundMode
   - name: cert-manager
     version: "v1.17.1"
