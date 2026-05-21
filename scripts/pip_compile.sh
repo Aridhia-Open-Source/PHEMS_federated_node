@@ -17,6 +17,13 @@ DIR="${1:-.}"
 shift || true
 pushd "$DIR" > /dev/null
 
+if ! command -v pip-compile > /dev/null 2>&1; then
+    echo "Error: pip-compile is required to generate requirements.txt." >&2
+    echo "Install the pip-tools package first, for example:" >&2
+    echo "  python -m pip install pip-tools" >&2
+    exit 1
+fi
+
 pip-compile \
     --generate-hashes \
     --no-header \
