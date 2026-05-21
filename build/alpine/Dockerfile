@@ -9,10 +9,10 @@ RUN apk add --no-cache \
     'postgresql16-client=~16'
 
 # Copy requirements first for better caching
-COPY requirements.txt .
+COPY requirements.txt /tmp/requirements.txt
 
 RUN python3 -m venv /venv \
-    && /venv/bin/pip install --no-cache-dir -r requirements.txt
+    && /venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt
 
 # Create non-root user
 RUN addgroup -S "${USERNAME}" --gid "${USER_GID}" \
