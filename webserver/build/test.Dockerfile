@@ -1,7 +1,7 @@
 FROM python:3.13.5-slim
 
 COPY ./ /app
-COPY ../../pyproject.toml /
+COPY ../../pyproject.toml ../../uv.lock /
 
 ENV PYTHONDONTWRITEBYTECODE=1
 
