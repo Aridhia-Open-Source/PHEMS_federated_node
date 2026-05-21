@@ -76,14 +76,22 @@ class KubernetesBase:
         if pod_spec.get("command"):
             container.command = pod_spec.get("command")
 
+        annotations = {}
+        security_context = None
+        if os.getenv("GCP_STORAGE_ENABLED"):
+            annotations["gke-gcsfuse/volumes"] = "true"
+            security_context = client.V1PodSecurityContext(fs_group=1001)
+
         metadata = client.V1ObjectMeta(
             name=pod_spec["name"],
             namespace=TASK_NAMESPACE,
-            labels=pod_spec["labels"]
+            labels=pod_spec["labels"],
+            annotations=annotations or None
         )
         specs = client.V1PodSpec(
             containers=[container],
             restart_policy="Never",
+            security_context=security_context,
             volumes=volumes
         )
         template = client.V1JobTemplateSpec(
