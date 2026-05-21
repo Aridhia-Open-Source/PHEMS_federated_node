@@ -28,4 +28,4 @@ pip-compile \
     --allow-unsafe \
     --verbose \
     --output-file=requirements.txt \
-    $@
+    "$@"
