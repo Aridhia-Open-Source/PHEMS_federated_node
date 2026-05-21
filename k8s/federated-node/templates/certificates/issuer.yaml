@@ -55,9 +55,6 @@ spec:
     - dns01:
         cloudDNS:
           project: {{ .Values.certs.gcp.project }}
-          serviceAccountSecretRef:
-            name: {{ .Values.certs.gcp.secretName }}
-            key: key.json
   {{- else if .Values.local_development }}
   selfSigned: {}
   {{- end }}

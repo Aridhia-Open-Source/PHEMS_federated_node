@@ -7,7 +7,6 @@ certs:
   gcp:
     email: test@example.com
     project: my-gcp-project
-    secretName: gcp-dns-secret
 db:
   host: db.federatednode.svc
   name: fndb

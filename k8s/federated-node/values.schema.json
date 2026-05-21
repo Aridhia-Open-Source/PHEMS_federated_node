@@ -362,7 +362,7 @@
                 },
                 "gcp": {
                     "type": "object",
-                    "description": "GCP Cloud DNS configuration for cert-manager DNS-01 challenge",
+                    "description": "GCP Cloud DNS configuration for cert-manager DNS-01 challenge via Workload Identity",
                     "properties": {
                         "email": {
                             "type": "string",
@@ -371,10 +371,6 @@
                         "project": {
                             "type": "string",
                             "description": "GCP project ID"
-                        },
-                        "secretName": {
-                            "type": "string",
-                            "description": "Kubernetes secret name containing the service account JSON key"
                         }
                     }
                 }

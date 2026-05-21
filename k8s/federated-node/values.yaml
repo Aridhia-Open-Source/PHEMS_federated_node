@@ -108,9 +108,8 @@ certs:
     # configmap:
   aws: ""
   gcp:
-    email: ""       # Email for Let's Encrypt registration
-    project: ""     # GCP project ID
-    secretName: ""  # Kubernetes secret name containing the service account JSON key
+    email: ""    # Email for Let's Encrypt registration
+    project: ""  # GCP project ID
 
 # Enables full smoketests when running `helm test`.
 # This will actively try to add new database and keycloak entries
