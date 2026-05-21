@@ -1,0 +1,42 @@
+cert-manager:
+  enabled: true
+  namespace: fn-certmanager
+keycloak:
+  replicas: 1
+certs:
+  gcp:
+    email: test@example.com
+    project: my-gcp-project
+    secretName: gcp-dns-secret
+db:
+  host: db.federatednode.svc
+  name: fndb
+  secret:
+    key: password
+    name: local-db
+  user: admin
+host: test.example.net
+traefik:
+  enabled: false
+ingress:
+  nginx:
+    enabled: true
+  host: test.example.net
+  whitelist:
+    enabled: false
+  blacklist:
+    enabled: false
+  tls:
+    secretName: my-tls-secret
+on_gke: true
+pullPolicy: Always
+storage:
+  gcp:
+    volumeHandle: "projects/my-project/locations/us-central1-a/instances/my-filestore/volumes/vol1"
+    ip: "10.0.0.1"
+    shareName: vol1
+tls:
+  secretName: tls
+smoketests: false
+global:
+  host: test.example.net

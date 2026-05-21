@@ -1,0 +1,108 @@
+suite: Storage testing for GCP GKE
+release:
+  namespace: federatednode
+values:
+  - values/values-gke.yaml
+kubernetesProvider:
+  scheme:
+    v1/Secret:
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+    v1/ConfigMap:
+      gvr:
+        version: v1
+        resource: configmaps
+      namespaced: true
+  objects:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: gcp-dns-secret
+        namespace: federatednode
+      type: Opaque
+      data:
+        key.json: dGVzdA==
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: local-db
+        namespace: federatednode
+      type: Opaque
+      data:
+        password: dGVzdA==
+tests:
+  - it: copies GCP cert secret to cert-manager namespace
+    template: copy-secrets.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: gcp-dns-secret
+        documentSelector:
+          path: metadata.namespace
+          value: fn-certmanager
+  - it: creates GCP persistency with filestore CSI driver
+    template: backend-results-pv.yaml
+    asserts:
+      - equal:
+          path: spec.csi.driver
+          value: filestore.csi.storage.gke.io
+        documentSelector:
+          path: kind
+          value: PersistentVolume
+      - equal:
+          path: spec.csi.volumeHandle
+          value: "projects/my-project/locations/us-central1-a/instances/my-filestore/volumes/vol1"
+        documentSelector:
+          path: kind
+          value: PersistentVolume
+      - equal:
+          path: spec.csi.volumeAttributes.ip
+          value: "10.0.0.1"
+        documentSelector:
+          path: kind
+          value: PersistentVolume
+      - equal:
+          path: spec.csi.volumeAttributes.volume
+          value: vol1
+        documentSelector:
+          path: kind
+          value: PersistentVolume
+  - it: creates GCP certificate issuer with cloudDNS solver
+    template: certificates/issuer.yaml
+    asserts:
+      - exists:
+          path: spec.acme.solvers[0].dns01.cloudDNS
+      - equal:
+          path: spec.acme.solvers[0].dns01.cloudDNS.project
+          value: my-gcp-project
+      - equal:
+          path: spec.acme.solvers[0].dns01.cloudDNS.serviceAccountSecretRef.name
+          value: gcp-dns-secret
+  - it: does not create AWS certificate roles
+    template: certificates/roles.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: sets GCP storage environment variables in backend configmap
+    template: backend-configmap.yaml
+    asserts:
+      - equal:
+          path: data.GCP_STORAGE_ENABLED
+          value: "true"
+      - equal:
+          path: data.GCP_VOLUME_HANDLE
+          value: "projects/my-project/locations/us-central1-a/instances/my-filestore/volumes/vol1"
+      - equal:
+          path: data.GCP_FILESTORE_IP
+          value: "10.0.0.1"
+      - equal:
+          path: data.GCP_SHARE_NAME
+          value: vol1
+  - it: creates GCP storage class with filestore provisioner
+    template: storageclass.yaml
+    asserts:
+      - equal:
+          path: provisioner
+          value: filestore.csi.storage.gke.io
