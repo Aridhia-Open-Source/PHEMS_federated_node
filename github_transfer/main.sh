@@ -26,50 +26,53 @@ GH_REPO_OUTPUT_PATH="${GH_RESULTS_DIR}/${PR_NUMBER}/${PARENT_RUN_ID}"
 PARENT_ARTIFACT_PATH="${MNT_BASE_PATH}/${PARENT_RUN_ID}"
 
 echo "Cloning repo ${GH_REPO_URI_PATH}"
-
 rm -rf "${CLONE_TARGET_DIR}"
-
 gh repo clone "${GH_REPO_URI_PATH}" "${CLONE_TARGET_DIR}" -- --depth=1
 
 (
   cd "${CLONE_TARGET_DIR}"
-
-  # Configure commit identity locally
+  echo "Configuring commit identity locally"
   git config user.name "phems-bot"
   git config user.email "phem-federated-node@users.noreply.github.com"
 
-  # Replace origin with token-auth remote
+
+  echo "Replacing origin with token-auth remote"
   git remote remove origin
   git remote add origin "https://${GH_TOKEN}@github.com/${GH_REPO_URI_PATH}.git"
   git fetch origin
 
-  echo "Checking if results branch already exists on remote"
 
+  echo "Checking if results branch already exists on remote"
   if git ls-remote --exit-code --heads origin "${BRANCH}" > /dev/null 2>&1; then
     echo "ERROR: Results branch ${BRANCH} already exists on remote."
     exit 1
   fi
 
+  echo "Checking out branch and creating output delivery dir"
   git checkout -b "${BRANCH}"
-
   mkdir -p "${GH_REPO_OUTPUT_PATH}"
 
-  echo "Creating archive from ${PARENT_ARTIFACT_PATH}"
 
+  echo "Creating archive from ${PARENT_ARTIFACT_PATH}"
   (
+    # change directory the parent task saved its results to
     cd "${PARENT_ARTIFACT_PATH}"
+    # zip the parent tasks results directory and save it to the tmp cloned repo output path
     zip -r "${CLONE_TARGET_DIR}/${GH_REPO_OUTPUT_PATH}/archive.zip" .
   )
 
+
+  echo "Adding results file to git and commiting"
   git add .
-
   git commit -m "PR${PR_NUMBER} - ${PARENT_RUN_ID} - results"
-  git push --set-upstream origin "${BRANCH}"
 
+
+  echo "Pushing results branch to the upstream origin"
+  git push --set-upstream origin "${BRANCH}"
   echo "Results branch pushed successfully"
 
-  echo "Creating pull request"
 
+  echo "Creating pull request"
   gh pr create \
     --repo "${GH_REPO_URI_PATH}" \
     --head "${BRANCH}" \
@@ -79,5 +82,4 @@ gh repo clone "${GH_REPO_URI_PATH}" "${CLONE_TARGET_DIR}" -- --depth=1
 )
 
 rm -rf "${CLONE_TARGET_DIR}"
-
 echo "Completed"
