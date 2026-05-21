@@ -68,6 +68,10 @@ storage:
   # aws:
     # fileSystemId:
     # accessPointId:
+  # gcp:
+    # volumeHandle: "projects/<project>/locations/<zone>/instances/<instance>/volumes/<share>"
+    # ip: ""          # Filestore instance IP
+    # shareName: ""   # Share name within the instance
   # nfs:
     # provisioner:
     # url:
@@ -89,6 +93,8 @@ tls:
 on_aks: false
 # Running on AWS?
 on_eks: false
+# Running on GCP?
+on_gke: false
 
 # Set the domains that are allowed to send requests
 # to the federated node, in case there is a web UI that tries to
@@ -103,6 +109,10 @@ certs:
     # secretName:
     # configmap:
   aws: ""
+  gcp:
+    email: ""       # Email for Let's Encrypt registration
+    project: ""     # GCP project ID
+    secretName: ""  # Kubernetes secret name containing the service account JSON key
 
 # Enables full smoketests when running `helm test`.
 # This will actively try to add new database and keycloak entries

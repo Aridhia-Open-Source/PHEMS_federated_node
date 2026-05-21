@@ -124,6 +124,15 @@ class TaskPod:
                 path=os.getenv("NFS_PATH"),
                 read_only=False
             )
+        elif os.getenv("GCP_STORAGE_ENABLED"):
+            pv_spec.csi=V1CSIPersistentVolumeSource(
+                driver="filestore.csi.storage.gke.io",
+                volume_handle=os.getenv("GCP_VOLUME_HANDLE"),
+                volume_attributes={
+                    "ip": os.getenv("GCP_FILESTORE_IP"),
+                    "volume": os.getenv("GCP_SHARE_NAME")
+                }
+            )
         else:
             pv_spec.host_path=V1HostPathVolumeSource(
                 path=RESULTS_PATH
