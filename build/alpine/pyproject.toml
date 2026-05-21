@@ -1,0 +1,21 @@
+[project]
+name = "alpine-scripts"
+description = "Alpine assistant scripts for Federated Node deployment"
+version = "1.2.0"
+requires-python = ">=3.13"
+readme = "README.md"
+license = {text = "GPL-3"}
+authors = [
+    {name = "George Eddie", email = "george.eddie@aridhia.com"},
+    {name = "Liam Smith", email = "liam.smith@aridhia.com"},
+    {name = "Riccardo Casula", email = "riccardo.casula@aridhia.com"},
+]
+maintainers = [
+    {name = "George Eddie", email = "george.eddie@aridhia.com"},
+    {name = "Liam Smith", email = "liam.smith@aridhia.com"},
+]
+
+dependencies = [
+    "kubernetes~=33.1.0",
+    "requests~=2.32.5",
+]

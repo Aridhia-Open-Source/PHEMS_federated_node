@@ -1,29 +1,39 @@
 FROM python:3.13.5-slim
 
-COPY ./ /app
-COPY ../../pyproject.toml ../../uv.lock /
+ARG USERNAME=fednode
+ARG USER_UID=1001
+ARG USER_GID=1001
+
+WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1
 
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# Install system dependencies
 RUN apt-get update \
-    && apt-get install -y \
-    libpq-dev \
-    python3-dev \
-    gcc \
-    curl \
-    jq \
-    && curl -LsSf https://astral.sh/uv/install.sh | sh \
-    && /root/.local/bin/uv sync --extra dev \
-    && PATH=$(which pg_config):$PATH \
-    && apt-get clean \
+    && apt-get install --no-install-recommends -y \
+        libpq-dev \
+        python3-dev \
+        gcc \
+        curl \
+        jq \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app/app
-ENV PATH="/.venv/bin:$PATH"
+# Copy requirements first for better caching
+COPY requirements-dev.txt .
 
-WORKDIR /app
+RUN pip install --no-cache-dir -r requirements-dev.txt
+
+# Create non-root user
+RUN groupadd -g "$USER_GID" "$USERNAME" && \
+    useradd --uid "$USER_UID" --gid "$USER_GID" --create-home "$USERNAME"
+
+# Copy application code with correct ownership
+COPY --chown=${USER_UID}:${USER_GID} . .
+COPY --chmod=777 test-entrypoint.sh .
+COPY setup.cfg .
+
+USER ${USER_UID}
+
 EXPOSE 5000
-COPY --chmod=777 test-entrypoint.sh /app/
-COPY setup.cfg /app/setup.cfg
-ENTRYPOINT [ "./test-entrypoint.sh" ]
+
+ENTRYPOINT ["./test-entrypoint.sh"]
