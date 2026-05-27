@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# usage ./compile.sh {dir} --{opt1} --{opt2}
+# usage ./compile.sh {dir} [output-file] --{opt1} --{opt2}
 # --generate-hashes                 generate hashes for security
 # --no-header                       disable requirements file argument header
 # --no-emit-options                 disable requirements file options header
@@ -15,6 +15,11 @@ set -euo pipefail
 
 DIR="${1:-.}"
 shift || true
+OUTPUT_FILE="requirements.txt"
+if [[ -n "${1:-}" && "${1}" != --* ]]; then
+    OUTPUT_FILE="${1}"
+    shift
+fi
 pushd "$DIR" > /dev/null
 
 if ! command -v pip-compile > /dev/null 2>&1; then
@@ -25,14 +30,16 @@ if ! command -v pip-compile > /dev/null 2>&1; then
 fi
 
 pip-compile \
-    --generate-hashes \
-    --no-header \
-    --no-emit-options \
-    --no-emit-trusted-host \
-    --no-emit-index-url \
-    --resolver=backtracking \
-    --strip-extras \
-    --allow-unsafe \
-    --verbose \
-    --output-file=requirements.txt \
-    "$@"
+ --generate-hashes \
+ --no-header \
+ --no-emit-options \
+ --no-emit-trusted-host \
+ --no-emit-index-url \
+ --resolver=backtracking \
+ --strip-extras \
+ --allow-unsafe \
+ --verbose \
+ --output-file="$OUTPUT_FILE" \
+ "$@" \
+ pyproject.toml
+
