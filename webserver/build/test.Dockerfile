@@ -30,6 +30,10 @@ RUN groupadd -g "$USER_GID" "$USERNAME" && \
 # Copy application code with correct ownership
 COPY --chown=${USER_UID}:${USER_GID} . .
 
+# WORKDIR is root-owned; grant the non-root user write access so coverage can
+# create its temp db files in /app and write artifacts/coverage.xml
+RUN chown ${USER_UID}:${USER_GID} /app && mkdir -p /app/artifacts
+
 USER ${USER_UID}
 
 EXPOSE 5000
