@@ -24,3 +24,9 @@ tests_ci:
 
 migrate:
 	echo "Use 'python -m alembic revision --autogenerate -m'"
+
+pip_compile:
+	../scripts/pip_compile.sh .
+
+pip_compile_dev:
+	../scripts/pip_compile.sh . --extra=dev --output-file=requirements-dev.txt

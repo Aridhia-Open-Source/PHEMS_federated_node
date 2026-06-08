@@ -11,16 +11,9 @@ Contains 2 folders:
 ## Dev Setup
 ```sh
 sudo apt-get install -y python3.13 python3.13-venv python3.13-dev
-uv init
+python3.13 -m venv .venv
 source .venv/bin/activate
 ```
-
-### uv
-To upgrade dependencies, run:
-```sh
-uv lock --upgrade
-```
-
 
 ### Tools
 pylint should guarantee a minimum threshold of code quality/standards. It can be run with `make pylint`

@@ -1,0 +1,20 @@
+[project]
+name = "kc-init"
+description = "Keycloak realm initialisation and migration script for the Federated Node"
+version = "1.2.0"
+requires-python = ">=3.13"
+readme = "README.md"
+license = {text = "GPL-3"}
+authors = [
+    {name = "George Eddie", email = "george.eddie@aridhia.com"},
+    {name = "Liam Smith", email = "liam.smith@aridhia.com"},
+    {name = "Riccardo Casula", email = "riccardo.casula@aridhia.com"},
+]
+maintainers = [
+    {name = "George Eddie", email = "george.eddie@aridhia.com"},
+    {name = "Liam Smith", email = "liam.smith@aridhia.com"},
+]
+dependencies = [
+    "requests~=2.32.5",
+    "kubernetes~=33.1.0",
+]

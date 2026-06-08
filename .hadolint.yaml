@@ -1,0 +1,15 @@
+# Fail the pipeline on warning-level findings and above.
+# info-level findings (image size housekeeping) are reported but non-blocking.
+failure-threshold: warning
+
+override:
+  info:
+    # DL3042 - pip cache in image layers is a size concern, not a correctness one.
+    # Downgrade to info so it is visible but does not block CI.
+    - DL3042
+
+ignored:
+  # Pinning apt package versions is impractical: pinned versions are removed from
+  # repos when security patches land, breaking builds. The base image tag already
+  # anchors the distro release and bounds available package versions.
+  - DL3008
