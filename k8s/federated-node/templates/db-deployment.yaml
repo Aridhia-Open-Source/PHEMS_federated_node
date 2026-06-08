@@ -6,6 +6,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: postgres
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
+    "helm.sh/hook-weight": "-2"
 spec:
   selector:
     matchLabels:
@@ -28,6 +32,15 @@ spec:
                 secretKeyRef:
                   name: {{.Values.db.secret.name}}
                   key: {{.Values.db.secret.key}}
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ include "dbUser" . }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 10
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data

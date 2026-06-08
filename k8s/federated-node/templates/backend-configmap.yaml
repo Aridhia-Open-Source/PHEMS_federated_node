@@ -20,7 +20,7 @@ data:
   IMAGE_TAG: {{ include "image-tag" . }}
   ALPINE_IMAGE: {{ include "fn-alpine" . }}
   CLAIM_CAPACITY: {{ .Values.storage.capacity }}
-  STORAGE_CLASS: {{ include "storageClassName" . }}
+  STORAGE_CLASS: {{ include "backendResultsStorageClassName" . }}
   MOUNT_OPTIONS: {{ join "," .Values.storage.mountOptions | quote }}
   CRD_DOMAIN: {{ include "controllerCrdGroup" . }}
   ENABLE_IMAGE_WHITELIST: {{ .Values.federatedNode.enable_image_whitelist | quote }}
