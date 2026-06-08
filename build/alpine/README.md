@@ -22,6 +22,6 @@ Very important during helm chart upgrades, it deletes few entries related to the
 After deletion, the new keycloak pods will re-initialize the admin user, and effectively reset the credentials.
 
 ### sync-registry.sh
-Another cronJob script, this time for `registry-sync`.
+Another cronJob script, this time for `sync-registry`.
 
 It gets a token for the backend, and then triggers the `/containers/sync` endpoint to keep the list of available images in the whitelisted registry updated.
