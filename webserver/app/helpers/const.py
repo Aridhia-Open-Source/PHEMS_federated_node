@@ -37,7 +37,7 @@ MEMORY_UNITS = {
     "k": 10**3,
     "m": 1000
 }
-CLEANUP_AFTER_DAYS = int(os.getenv("CLEANUP_AFTER_DAYS"))
+CLEANUP_AFTER_DAYS = int(os.getenv("CLEANUP_AFTER_DAYS", 0))
 TASK_POD_RESULTS_PATH = os.getenv("TASK_POD_RESULTS_PATH")
 TASK_POD_INPUTS_PATH = "/mnt/inputs"
 RESULTS_PATH = os.getenv("RESULTS_PATH")

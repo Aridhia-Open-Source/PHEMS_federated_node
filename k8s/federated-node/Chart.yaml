@@ -37,3 +37,7 @@ dependencies:
     version: "37.3.0"
     repository: https://traefik.github.io/charts
     condition: traefik.enabled
+  - name: dagster
+    repository: https://dagster-io.github.io/helm
+    version: ">=1.12.0 < 1.13.0"
+    condition: dagster.enabled

@@ -1,4 +1,4 @@
-from http.client import HTTPException
+from http.client import HTTPException # FIXME: update to use werkzeug's HTTPException instead of http.client's
 from werkzeug.sansio.response import Response
 import json
 import re
