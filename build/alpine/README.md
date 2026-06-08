@@ -21,7 +21,7 @@ This is used as initContainer for keycloak statefulset and backend deployment.
 Very important during helm chart upgrades, it deletes few entries related to the `KEYCLOAK_ADMIN` user in order to reset the credentials properly (this might be deprecated when keycloak get updated to v 26.0.0).
 After deletion, the new keycloak pods will re-initialize the admin user, and effectively reset the credentials.
 
-### sync-cron.sh
-Another cronJob script, this time for `registry-sync`.
+### sync-registry.sh
+Another cronJob script, this time for `sync-registry`.
 
 It gets a token for the backend, and then triggers the `/containers/sync` endpoint to keep the list of available images in the whitelisted registry updated.

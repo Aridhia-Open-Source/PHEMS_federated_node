@@ -27,7 +27,7 @@ services:
       - db
     environment:
       KC_HOSTNAME_STRICT: false
-      KC_FEATURES: admin-fine-grained-authz:v1,token-exchange,scripts
+      KC_FEATURES: admin-fine-grained-authz:v1,token-exchange
       KC_HEALTH_ENABLED: true
       KC_DB_URL_HOST: db
       KC_DB: postgres
