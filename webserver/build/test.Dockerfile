@@ -32,7 +32,7 @@ COPY --chown=${USER_UID}:${USER_GID} . .
 
 # WORKDIR is root-owned; grant the non-root user write access so coverage can
 # create its temp db files in /app and write artifacts/coverage.xml
-RUN chown ${USER_UID}:${USER_GID} /app && mkdir -p /app/artifacts
+RUN mkdir -p /app/artifacts && chown -R ${USER_UID}:${USER_GID} /app
 
 USER ${USER_UID}
 

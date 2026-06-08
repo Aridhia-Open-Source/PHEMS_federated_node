@@ -6,3 +6,4 @@
 !alembic.ini
 !setup.cfg
 !test-entrypoint.sh
+!tests/**
