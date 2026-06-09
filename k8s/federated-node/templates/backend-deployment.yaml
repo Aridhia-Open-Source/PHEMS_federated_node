@@ -30,7 +30,7 @@ spec:
         - name: db-migrations
           image: {{ template "backend-image" . }}
           command: ["/bin/sh"]
-          workingDir: /
+          workingDir: /webserver
           {{- include "nonRootSC" . | nindent 10 }}
           args:
             [
