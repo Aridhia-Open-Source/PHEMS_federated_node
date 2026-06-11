@@ -4,6 +4,8 @@ ARG USERNAME=fednode
 ARG USER_UID=1001
 ARG USER_GID=1001
 
+WORKDIR /app
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # hadolint ignore=DL3008
@@ -22,7 +24,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN groupadd -g "$USER_GID" "$USERNAME" \
     && useradd --uid "$USER_UID" --gid "$USER_GID" "$USERNAME"
 
-COPY --chown=${USERNAME}:${USERNAME} . /
+COPY --chown=${USERNAME}:${USERNAME} . .
 
 USER ${USER_UID}
 
