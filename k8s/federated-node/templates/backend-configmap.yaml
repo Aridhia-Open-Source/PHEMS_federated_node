@@ -37,6 +37,11 @@ data:
   AZURE_SHARE_NAME: {{ .Values.storage.azure.shareName }}/results
   AZURE_SECRET_NAME: {{ .Values.storage.azure.secretName | default "azure-storage-secret" }}
 {{- end }}
+{{- if .Values.storage.nfs }}
+  NFS_STORAGE_ENABLED: "true"
+  NFS_SERVER: {{ .Values.storage.nfs.url }}
+  NFS_PATH: {{ .Values.storage.nfs.path }}/results
+{{- end }}
 {{- if .Values.taskReview }}
   TASK_REVIEW: enabled
 {{- end }}
