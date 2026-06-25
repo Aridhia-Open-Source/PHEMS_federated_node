@@ -75,17 +75,29 @@ class TestContainers(ContainersMixin):
             with pytest.raises(InvalidRequest):
                 Container.validate(container_body)
 
-    def test_get_all_containers(self, client, container, enable_image_whitelist):
+    def test_get_all_containers(self, client, container, enable_image_whitelist, post_json_admin_header):
         """
         Basic test for returning a correct response body
         on /GET /containers
         """
-        resp = client.get("/containers")
+        resp = client.get("/containers", headers=post_json_admin_header)
         if not enable_image_whitelist:
             assert resp.status_code == HTTPStatus.FORBIDDEN
             return
         assert resp.status_code == HTTPStatus.OK
         assert any(item["id"] == container.id for item in resp.json["items"])
+
+    def test_get_all_containers_non_auth(self, client, container, enable_image_whitelist, simple_user_header, mock_kc_client):
+        """
+        Basic test to make sure only admin users can
+        use the endpoint
+        """
+        mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
+        resp = client.get(f"/containers", headers=simple_user_header)
+        if not enable_image_whitelist:
+            assert resp.status_code == HTTPStatus.FORBIDDEN  # Gate hook runs first
+            return
+        assert resp.status_code == HTTPStatus.FORBIDDEN  # auth wrapper returns 403
 
     def test_get_image_by_id(self, client, container, enable_image_whitelist, post_json_admin_header):
         """
