@@ -6,6 +6,7 @@ from app.helpers.base_model import BaseModel, db
 from app.models.dataset import Dataset
 from app.helpers.exceptions import InvalidRequest
 
+
 class Catalogue( db.Model, BaseModel):
     __tablename__ = 'catalogues'
     __table_args__ = (

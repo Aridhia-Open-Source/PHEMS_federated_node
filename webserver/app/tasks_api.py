@@ -110,7 +110,7 @@ def post_tasks():
         # Create pod/start ML pipeline
         task.run()
         return {"task_id": task.id}, HTTPStatus.CREATED
-    except:
+    except Exception:
         session.rollback()
         raise
 

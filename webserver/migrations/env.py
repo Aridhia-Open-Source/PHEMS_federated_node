@@ -26,6 +26,7 @@ import app.models.container
 import app.models.dictionary
 import app.models.dataset
 import app.models.registry
+import app.models.repository
 import app.models.request
 import app.models.task
 # target_metadata = mymodel.Base.metadata
