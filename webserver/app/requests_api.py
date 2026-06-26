@@ -60,7 +60,7 @@ def post_requests():
         raise InvalidRequest(
             "Missing field. Make sure \"catalogue\" and \"dictionary\" entries are there"
         ) from kexc
-    except:
+    except Exception:
         session.rollback()
         raise
 

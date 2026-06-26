@@ -101,10 +101,11 @@ class Task(db.Model, BaseModel):
 
         data["from_controller"] = is_from_controller
         # Dataset validation
+
         if repository:
-            data["dataset"] = Dataset.query.filter(
-                Dataset.repository.ilike(repository)
-            ).one_or_none()
+            from app.models.repository import Repository
+            repo = Repository.query.filter(Repository.uri.ilike(repository)).one_or_none()
+            data["dataset"] = Dataset.query.filter(Dataset.repository_id == repo.id).one_or_none() if repo else None
             if data["dataset"] is None:
                 raise InvalidRequest(f"No datasets linked with the repository {repository}")
 

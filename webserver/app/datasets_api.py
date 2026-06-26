@@ -83,7 +83,7 @@ def post_datasets():
         session.commit()
         return { "dataset_id": dataset.id, "url": dataset.url }, 201
 
-    except:
+    except Exception:
         session.rollback()
         raise
 
@@ -151,7 +151,7 @@ def patch_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
         raise InvalidRequest("dictionaries should be a list.")
 
     for k in body:
-        if not hasattr(ds, k) and k not in ["username", "password"]:
+        if not hasattr(ds, k) and k not in ["username", "password", "repository"]:
             raise InvalidRequest(f"Field {k} is not a valid one")
 
     try:
@@ -177,7 +177,7 @@ def patch_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
 
         for d in dict_body:
             Dictionary.update_or_create(d, ds)
-    except:
+    except Exception:
         session.rollback()
         raise
 
@@ -276,7 +276,7 @@ def post_transfer_token():
         raise InvalidRequest(
             f"Missing field. Make sure {"".join(kexc.args)} fields are there"
         ) from kexc
-    except:
+    except Exception:
         session.rollback()
         raise
 
