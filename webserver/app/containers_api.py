@@ -17,12 +17,11 @@ from .models.container import Container
 from .models.registry import Registry
 from .helpers.const import ENABLE_IMAGE_WHITELIST
 
-
 bp = Blueprint('containers', __name__, url_prefix='/containers')
-
 logger = logging.getLogger('containers_api')
 logger.setLevel(logging.INFO)
 session = db.session
+
 
 @bp.before_request
 def check_validation_enabled():
@@ -33,9 +32,11 @@ def check_validation_enabled():
         return {"error": "Container validation is disabled"}, HTTPStatus.FORBIDDEN
     return None
 
+
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
 @audit
+@auth(scope='can_admin_dataset')
 def get_all_containers():
     """
     GET /containers endpoint.
