@@ -32,3 +32,6 @@ debug.yaml
 
 # Ignore local model files
 .models/
+
+# temp
+./federated-node-task-controller

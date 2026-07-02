@@ -349,7 +349,7 @@ class TestPostDataset(MixinTestDataset):
             "slug": "test-dataset",
             "schema": None,
             "schema_write": None,
-            "repository": None,
+            "repository": "github.com/org/test-repo",
             "extra_connection_args": None,
             "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset"
         }

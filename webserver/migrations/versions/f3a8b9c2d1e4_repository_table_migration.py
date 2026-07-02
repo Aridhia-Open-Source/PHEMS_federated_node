@@ -25,7 +25,9 @@ def upgrade() -> None:
         'repositories',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('uri', sa.String(length=4096), nullable=False),
-        sa.Column('last_pr_number', sa.Integer(), nullable=False, server_default='0'),
+        sa.Column('pr_cursor', sa.Integer(), nullable=False, server_default='0'),
+        sa.Column('base_branch', sa.String(length=256), nullable=False, server_default='main'),
+        sa.Column('polled_at', sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('uri')
     )
