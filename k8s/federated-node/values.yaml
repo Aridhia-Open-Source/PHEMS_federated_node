@@ -54,6 +54,7 @@ federatedNode:
   allow_delivery_api: false
   enable_image_whitelist: false
   port: 5000
+  backendApiUri: http://backend:5000
   volumes:
     results_path: /mnt/results
     task_pod_results_path: /mnt/data
