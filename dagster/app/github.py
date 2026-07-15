@@ -1,136 +1,131 @@
+import logging
 import base64
+import requests as req
 
-import requests
+from app.utils import HttpClient
 
-GH_API_BASE_URI = "https://api.github.com"
+GH_API_BASE_URL = "https://api.github.com"
+
+default_logger = logging.getLogger(__name__)
 
 
-# TODO: use requests.client instead of requests.request directly to handle retries, timeouts, etc
-class GithubClient:
-    def __init__(self, owner, repo, token, base_branch):
-        self.owner = owner
-        self.repo = repo
-        self.token = token
-        self.base_branch = base_branch
+class GithubClient(HttpClient):
+    def __init__(self, token: str, session=None, base_uri: str = GH_API_BASE_URL):
+        super().__init__(base_uri, token=token, session=session)
+        self._session.headers.update({"Accept": "application/vnd.github+json"})
 
-    @property
-    def repo_uri(self):
-        return f"{GH_API_BASE_URI}/repos/{self.owner}/{self.repo}"
 
-    @property
-    def headers(self):
-        return {
-            "Authorization": f"Bearer {self.token}",
-            "Accept": "application/vnd.github+json",
-        }
+class GithubAPI:
+    def __init__(self, client: GithubClient, logger=None):
+        self.client = client
+        self.logger = logger or default_logger
 
-    def get_new_merged_pulls(self, cursor: str, watch_dir: str, per_page: int = 100):
+    def get_pull_request(self, repo_path: str, pr_number: int) -> dict:
+        """Fetch full PR details for a given PR number."""
+        self.logger.info(f"Fetching PR details for {repo_path} PR #{pr_number}")
+        response = self.client.request(
+            "GET", f"repos/{repo_path}/pulls/{pr_number}"
+        )
+        return response.json()
+
+    def get_new_merged_pulls(self, repo_path: str, base_branch: str, merged_after: str) -> list[dict]:
+        self.logger.info(f"Fetching merged PRs for {repo_path}, after {merged_after}")
+
         page = 1
+        per_page = 100
         results = []
-
         while True:
             query = (
-                f"repo:{self.owner}/{self.repo} "
-                f"is:pr "
-                f"is:merged "
-                f"base:{self.base_branch} "
-                f"merged:>{cursor}"
+                f"repo:{repo_path} "
+                f"is:pr is:merged "
+                f"base:{base_branch} "
+                f"merged:>{merged_after}"
             )
+            response = self.client.request(
+                "GET", "search/issues",
+                params={"q": query, "per_page": per_page, "page": page},
+            )
+            items = response.json().get("items")
+            self.logger.info(f"Fetched {len(items)} PRs from GitHub for repository {repo_path} (page {page})")
+            results.extend(items)
+            page += 1
 
-            params = {
-                "q": query,
-                "per_page": per_page,
-                "page": page,
-            }
-
-            response = self.request("GET", "/search/issues", params=params)
-            data = response.json()
-            items = data.get("items")
             if not items:
                 return results
 
-            print(f"Processing PRs merged after {cursor} (page {page})...")
-            for item in items:
-                pr_number = item["number"]
-                pr = self.request("GET", f"/pulls/{pr_number}").json()
-                pr_files = self.get_pull_request_files(pr_number)
-                pr["watched_files"] = self._filter_watched_dir(pr_files, watch_dir)
-                if not pr["watched_files"]:
-                    continue
+    def filter_prs_by_watch_dir(self, prs: list[dict], watch_dir: str, file_ext: str = "") -> list[dict]:
+        results = []
+        for pr in prs:
+            pr_number = pr["number"]
+            repo_path = pr["base"]["repo"]["full_name"]
+            self.logger.info(f"Checking PR #{pr_number} files")
+            pr = self.client.request("GET", f"repos/{repo_path}/pulls/{pr_number}").json()
+            pr_files = self.get_pull_request_files(repo_path, pr_number)
+            pr["watched_files"] = self._filter_watched_dir(pr_files, watch_dir, file_ext)
 
+            if pr["watched_files"]:
+                self.logger.info(f"Found new PR #{pr_number} for repo {repo_path} with watched files: {pr['watched_files']}")
                 results.append(pr)
+            else:
+                self.logger.info(f"Skipped new PR #{pr_number} for repo {repo_path} no new files in {watch_dir}")
 
-            page += 1
+        return results
 
-    def get_pull_request_files(self, pr_number):
+    def get_pull_request_files(self, repo_path: str, pr_number: int):
+        self.logger.info(f"fetching pull request files for {repo_path} PR #{pr_number}")
+
         page = 1
-        per_page = 100
         files = []
         while True:
-            response = self.request(
-                "GET",
-                f"/pulls/{pr_number}/files",
-                params={"per_page": per_page, "page": page},
+            response = self.client.request(
+                "GET", f"repos/{repo_path}/pulls/{pr_number}/files",
+                params={"per_page": 100, "page": page},
             )
             page_files = response.json()
             if not page_files:
                 break
-
             files.extend(page_files)
             page += 1
         return files
 
-    def get_file_contents(self, path: str, ref: str):
-        response = self.request(
-            "GET",
-            f"/contents/{path}",
+    @staticmethod
+    def _filter_watched_dir(files, watch_dir: str, file_ext: str = ""):
+        return [
+            f["filename"] for f in files
+            if f["filename"].startswith(watch_dir)
+            and f["status"] == "added"
+            and f["filename"].endswith(file_ext)
+        ]
+
+    def get_file_contents(self, repo_path: str, file_path: str, ref: str) -> str:
+        response = self.client.request(
+            "GET", f"repos/{repo_path}/contents/{file_path}",
             params={"ref": ref},
         )
         data = response.json()
         return base64.b64decode(data["content"]).decode("utf-8")
 
-    def add_pull_request_comment(self, pr_number, body):
-        response = self.request(
-            "POST",
-            f"/issues/{pr_number}/comments",
+    def add_pull_request_comment(self, repo_path: str, pr_number: int, body: str):
+        response = self.client.request(
+            "POST", f"repos/{repo_path}/issues/{pr_number}/comments",
             json={"body": body},
         )
         return response.json()
 
-    def request(
-            self,
-            method,
-            path=None,
-            params=None,
-            headers=None,
-            json=None,
-            raise_for_status=True
-    ):
-        headers = {**self.headers, **(headers or {})}
-
-        response = requests.request(
-            method,
-            url=self._make_uri(path),
-            params=params or {},
-            headers={**self.headers, **(headers or {})},
-            json=json,
-            timeout=10
+    def branch_exists(self, repo_path: str, branch: str) -> bool:
+        """Check if a branch exists on the remote."""
+        response = self.client.request(
+            "GET", f"repos/{repo_path}/branches/{branch}", raise_for_status=False
         )
+        return response.status_code == 200
 
-        if raise_for_status:
-            response.raise_for_status()
-        return response
-
-    def _make_uri(self, path=None):
-        path = (path or '').lstrip('/')
-        if path.startswith("search"):
-            return f"{GH_API_BASE_URI}/{path}"
-        return f"{self.repo_uri}/{path}"
-
-    def _filter_watched_dir(self, files, watch_dir: str):
-        return [
-            f['filename'] for f in files
-            if f["filename"].startswith(watch_dir)
-            and f["status"] == "added"
-            and f["filename"].endswith(".json")
-        ]
+    def create_pull_request(
+        self, repo_path: str, head: str, base: str, title: str, body: str
+    ) -> str:
+        """Create a pull request and return its URL."""
+        response = self.client.request(
+            "POST",
+            f"repos/{repo_path}/pulls",
+            json={"title": title, "body": body, "head": head, "base": base},
+        )
+        return response.json()["html_url"]

@@ -3,10 +3,12 @@
 # Declare variables to be passed into your templates.
 
 default_image_tag: 1.9.0
+dagsterHome: /opt/dagster/home
 
 backend:
   image: ghcr.io/aridhia-open-source/federated_node_run
   replicas: 1
+  uri: http://backend.fn.svc:5000
   tag:
 
 keycloak:
@@ -56,6 +58,13 @@ taskReview: false
   # firstName:
   # lastName:
   # email:
+
+# Dagster system user configuration
+dagster:
+  # enabled: Set to true in your deployment if using Dagster
+  systemUser:
+    # password: Leave blank for auto-generated secure password, or set custom password
+    # password: "your-secure-password-here"
 
 federatedNode:
   allow_delivery_api: false
@@ -178,15 +187,9 @@ traefik:
 fnDagster:
   artifactMountPath: /mnt/dagster/artifacts
   artifactsPvcName: artifacts-pvc
-  mntBasePath: ".data"
   createDB: false
-  # ghTransferDockerImage: "your-registry/github_transfer-fn:tag"
-  gh:
-    enabled: false
-    # owner: "your-org"
-    # repo: "your-repo"
-    # baseBranch: "main"
-    # watchDir: "mgmt/requests"
+  gh: {}
+    # delivery_repo: owner/repo
     # resultsDir: "mgmt/results"
   db:
     database: dagster

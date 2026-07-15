@@ -4,7 +4,7 @@ ARG USERNAME=fednode
 ARG USER_UID=1001
 ARG USER_GID=1001
 
-WORKDIR /app
+WORKDIR /webserver
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

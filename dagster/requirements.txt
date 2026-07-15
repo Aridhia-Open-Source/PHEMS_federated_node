@@ -290,18 +290,18 @@ dagster==1.12.14 \
     --hash=sha256:2dd19a54149ff31846d331dfc4ea4d4eb19bec4c7b7d28295c22d47cced05941 \
     --hash=sha256:acd57cd78854a3213f3850456b546d89ce993b35b1f497e5873162ae02015dff
     # via
-    #   code (pyproject.toml)
     #   dagster-graphql
     #   dagster-k8s
     #   dagster-postgres
+    #   phems (pyproject.toml)
 dagster-graphql==1.12.14 \
     --hash=sha256:787ef4a28578bde368afa296b36bc876a99b708eca43ce226fbe3d742f3687e2 \
     --hash=sha256:fc1a534f027722678aa10b5e5945ceeaf80409310137a4c5d8f5901561a43b8c
-    # via code (pyproject.toml)
+    # via phems (pyproject.toml)
 dagster-k8s==0.28.14 \
     --hash=sha256:521bc3970be0f0a7fc6fd5d4f976c6b881ed0592a43f6a62561b72862a69923e \
     --hash=sha256:b095ead45afcbf86f18044711f174ca8dbae06ff95c5f14dcbb9c1c8d245342d
-    # via code (pyproject.toml)
+    # via phems (pyproject.toml)
 dagster-pipes==1.12.14 \
     --hash=sha256:88cb6280596241f3515c27eaae124498a017d390e4ab45f2cfbbef45cc30e3ad \
     --hash=sha256:9e94dd53a0138ab6ae95aa19288999411f0d18241be9af1be42869470e8cfbb0
@@ -309,7 +309,7 @@ dagster-pipes==1.12.14 \
 dagster-postgres==0.28.14 \
     --hash=sha256:070f869f60982871b6650931e66dadcc269ea8e10afa6ffcf2f126db0bf271cd \
     --hash=sha256:09376429594865964274bbacc6848b44678837bbe2a8b5c653792d6695680dd2
-    # via code (pyproject.toml)
+    # via phems (pyproject.toml)
 dagster-shared==1.12.14 \
     --hash=sha256:954f3065d8e477880176573d6aaf034fc099cbe2679472717cdbe29071b902ce \
     --hash=sha256:c6784ac03f80db252a40929c5f061138446cf4ef76884697c07160ad0184626a
@@ -989,7 +989,10 @@ pycparser==3.0 \
 pydantic==2.12.5 \
     --hash=sha256:4d351024c75c0f085a9febbb665ce8c0c6ec5d30e903bdb6394b7ede26aebb49 \
     --hash=sha256:e561593fccf61e8a20fc46dfc2dfe075b8be7d0188df33f221ad1f0139180f9d
-    # via dagster-shared
+    # via
+    #   dagster-shared
+    #   phems (pyproject.toml)
+    #   pydantic-settings
 pydantic-core==2.41.5 \
     --hash=sha256:0177272f88ab8312479336e1d777f6b124537d47f2123f89cb37e0accea97f90 \
     --hash=sha256:01a3d0ab748ee531f4ea6c3e48ad9dac84ddba4b0d82291f87248f2f9de8d740 \
@@ -1113,6 +1116,10 @@ pydantic-core==2.41.5 \
     --hash=sha256:f41eb9797986d6ebac5e8edff36d5cef9de40def462311b3eb3eeded1431e425 \
     --hash=sha256:f547144f2966e1e16ae626d8ce72b4cfa0caedc7fa28052001c94fb2fcaa1c52
     # via pydantic
+pydantic-settings==2.14.2 \
+    --hash=sha256:a20c97b37910b6550d5ea50fbcc2d4187defe58cd57070b73863d069419c9440 \
+    --hash=sha256:c19dd64b19097f1de80184f0cc7b0272a13ae6e170cbf240a3e27e381ed14a5f
+    # via phems (pyproject.toml)
 pygments==2.19.2 \
     --hash=sha256:636cb2477cec7f8952536970bc533bc43743542f70392ae026374600add5b887 \
     --hash=sha256:86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b
@@ -1126,7 +1133,9 @@ python-dateutil==2.9.0.post0 \
 python-dotenv==1.2.1 \
     --hash=sha256:42667e897e16ab0d66954af0e60a9caa94f0fd4ecf3aaf6d2d260eec1aa36ad6 \
     --hash=sha256:b81ee9561e9ca4004139c6cbba3a238c32b03e4894671e181b671e8cb8425d61
-    # via dagster
+    # via
+    #   dagster
+    #   pydantic-settings
 pytz==2025.2 \
     --hash=sha256:360b9e3dbb49a209c21ad61809c7fb453643e048b38924c765813546746e81c3 \
     --hash=sha256:5ddf76296dd8c44c26eb8f4b6f35488f3ccbf6fbbd7adee0b7262d43f0ec2f00
@@ -1212,11 +1221,11 @@ requests==2.32.5 \
     --hash=sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6 \
     --hash=sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf
     # via
-    #   code (pyproject.toml)
     #   dagster
     #   dagster-graphql
     #   gql
     #   kubernetes
+    #   phems (pyproject.toml)
     #   requests-oauthlib
     #   requests-toolbelt
 requests-oauthlib==2.0.0 \
@@ -1395,7 +1404,9 @@ typing-extensions==4.15.0 \
 typing-inspection==0.4.2 \
     --hash=sha256:4ed1cacbdc298c220f1bd249ed5287caa16f34d44ef4e9c3d0cbad5b521545e7 \
     --hash=sha256:ba561c48a67c5958007083d386c3295464928b01faa735ab8547c5692e87f464
-    # via pydantic
+    # via
+    #   pydantic
+    #   pydantic-settings
 tzdata==2025.3 \
     --hash=sha256:06a47e5700f3081aab02b2e513160914ff0694bce9947d6b76ebd6bf57cfc5d1 \
     --hash=sha256:de39c2ca5dc7b0344f2eba86f49d614019d29f060fc4ebc8a417896a620b56a7

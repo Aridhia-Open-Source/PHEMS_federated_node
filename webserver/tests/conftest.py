@@ -19,12 +19,15 @@ from app.helpers.exceptions import KeycloakError
 from app.helpers.const import CRD_DOMAIN
 
 
+sample_repo_uri = "github.com/org/test-repo"
+
 sample_ds_body = {
     "name": "TestDs",
     "host": "db",
     "port": 5432,
     "username": "Username",
     "password": "pass",
+    "repository": sample_repo_uri,
     "catalogue": {
         "title": "test",
         "description": "test description"
@@ -106,6 +109,7 @@ def post_form_admin_header(login_admin):
         "Authorization": f"Bearer {login_admin}"
     }
 
+
 # Flask client to perform requests
 @fixture
 def client():
@@ -117,6 +121,7 @@ def client():
             yield tclient
             close_all_sessions()
             db.drop_all()
+
 
 # K8s
 @fixture
@@ -170,6 +175,7 @@ def v1_mock(mocker):
         )
     }
 
+
 @fixture
 def v1_batch_mock(mocker):
     return {
@@ -180,6 +186,7 @@ def v1_batch_mock(mocker):
             'app.helpers.kubernetes.KubernetesBatchClient.delete_job'
         )
     }
+
 
 @fixture
 def v1_crd_mock(mocker, task):
@@ -202,6 +209,7 @@ def v1_crd_mock(mocker, task):
         )
     )
 
+
 @fixture
 def pod_listed(image_name):
     pod = Mock(name="default_pod", spec=V1Pod)
@@ -221,6 +229,7 @@ def pod_listed(image_name):
     )]
     return Mock(items=[pod])
 
+
 @fixture
 def secret_listed():
     secret = Mock(spec=V1Secret)
@@ -228,6 +237,7 @@ def secret_listed():
     secret.metadata.labels = {"url": "url.delivery.com"}
     secret.data = {"auth": "originalSecret"}
     return Mock(items=[secret])
+
 
 @fixture
 def k8s_client(secret_listed, pod_listed, v1_mock, v1_batch_mock, k8s_config):
@@ -244,6 +254,7 @@ def k8s_client(secret_listed, pod_listed, v1_mock, v1_batch_mock, k8s_config):
     all_clients["list_namespaced_secret_mock"].return_value = secret_listed
     return all_clients
 
+
 @fixture
 def reg_k8s_client(k8s_client):
     k8s_client["read_namespaced_secret_mock"].return_value.data.update({
@@ -251,16 +262,27 @@ def reg_k8s_client(k8s_client):
         })
     return k8s_client
 
+
+# Repository fixtures
+@fixture
+def default_repo(client) -> Repository:
+    repo = Repository(uri=sample_repo_uri)
+    repo.add()
+    return repo
+
+
 # Dataset Mocking
 @fixture()
-def dataset_post_body():
+def dataset_post_body(default_repo):
     return deepcopy(sample_ds_body)
+
 
 @fixture
 def dataset(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
     dataset = Dataset(name="TestDs", host="example.com", password='pass', username='user')
     dataset.add(user_id=user_uuid)
     return dataset
+
 
 @fixture
 def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
@@ -271,6 +293,7 @@ def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
     dataset.add(user_id=user_uuid)
     return dataset
 
+
 @fixture
 def dataset_oracle(mocker, client, user_uuid, k8s_client)  -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
@@ -278,11 +301,13 @@ def dataset_oracle(mocker, client, user_uuid, k8s_client)  -> Dataset:
     dataset.add(user_id=user_uuid)
     return dataset
 
+
 @fixture
 def catalogue(dataset) -> Catalogue:
     cat = Catalogue(dataset=dataset, title="new catalogue", description="shiny fresh data")
     cat.add()
     return cat
+
 
 @fixture
 def dictionary(dataset) -> List[Dictionary]:
@@ -291,6 +316,7 @@ def dictionary(dataset) -> List[Dictionary]:
     cat1.add()
     cat2.add()
     return [cat1, cat2]
+
 
 @fixture
 def task(user_uuid, dataset, container) -> Task:
@@ -308,9 +334,11 @@ def task(user_uuid, dataset, container) -> Task:
     task.add()
     return task
 
+
 @fixture
 def dar_user():
     return "some@test.com"
+
 
 @fixture
 def pod_dict(dataset):
@@ -335,6 +363,7 @@ def pod_dict(dataset):
         "regcred_secret": "acrsecret"
     }
 
+
 @fixture
 def job_dict():
     return {
@@ -342,6 +371,7 @@ def job_dict():
         "persistent_volumes": [],
         "labels": {}
     }
+
 
 @fixture
 def access_request(dataset, user_uuid, k8s_client):
@@ -355,6 +385,7 @@ def access_request(dataset, user_uuid, k8s_client):
     )
     request.add()
     return request
+
 
 # Conditional url side_effects
 def side_effect(dict_mock:dict):
@@ -385,6 +416,7 @@ def side_effect(dict_mock:dict):
         )
     return _url_side_effects
 
+
 @fixture
 def request_base_body(dataset):
     return {
@@ -396,6 +428,7 @@ def request_base_body(dataset):
         "proj_start": dt.now().date().strftime("%Y-%m-%d"),
         "proj_end": (dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")
     }
+
 
 @fixture
 def request_base_body_name(dataset):
@@ -409,6 +442,7 @@ def request_base_body_name(dataset):
         "proj_end": (dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")
     }
 
+
 @fixture
 def approve_request(mocker):
     return mocker.patch(
@@ -416,28 +450,34 @@ def approve_request(mocker):
         return_value={"token": "somejwttoken"}
     )
 
+
 @fixture
 def new_user_email():
     return "test@test.com"
 
+
 @fixture
 def new_user(new_user_email):
     return {"email": new_user_email, "id": "8b707136-a2d8-4b69-9ab5-ec341011a62f", "username": new_user_email}
+
 
 @fixture
 def set_task_other_delivery_env(mocker):
     mocker.patch('app.admin_api.TASK_CONTROLLER', "enabled")
     mocker.patch('app.admin_api.OTHER_DELIVERY', "url.delivery.com")
 
+
 @fixture
 def set_task_other_delivery_allowed_env(mocker, set_task_other_delivery_env):
     mocker.patch('app.models.task.TASK_CONTROLLER', "enabled")
     mocker.patch('app.models.task.AUTO_DELIVERY_RESULTS', "enabled")
 
+
 @fixture
 def set_task_github_delivery_env(mocker):
     mocker.patch('app.admin_api.TASK_CONTROLLER', "enabled")
     mocker.patch('app.admin_api.GITHUB_DELIVERY', "org/repository")
+
 
 @fixture
 def mock_keycloak_class(mocker):

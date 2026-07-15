@@ -130,7 +130,7 @@ class Keycloak:
             raise KeycloakError("Cannot exchange impersonation token")
         return exchange_resp.json()["refresh_token"]
 
-    def check_if_keycloak_resp_is_valid(self, response) -> bool:
+    def check_if_keycloak_resp_executable(self, response) -> bool:
         """
         If the response status code is:
             - 2xx (ok) or
@@ -588,7 +588,7 @@ class Keycloak:
             json=payload,
             headers=self._post_json_headers()
         )
-        if not self.check_if_keycloak_resp_is_valid(permission_response):
+        if not self.check_if_keycloak_resp_executable(permission_response):
             logger.info(permission_response.content.decode())
             raise KeycloakError("Failed to create a project's permission")
 
@@ -774,7 +774,7 @@ class Keycloak:
             },
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
-        if not self.check_if_keycloak_resp_is_valid(res_pass_resp):
+        if not self.check_if_keycloak_resp_executable(res_pass_resp):
             logging.error(res_pass_resp.json())
             raise KeycloakError("Could not update the password.")
 
