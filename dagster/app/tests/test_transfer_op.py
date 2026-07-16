@@ -71,7 +71,7 @@ class TestGithubTransferOperation:
     def test_setup_repo_clones_delivery_repo(self, mock_git, transfer_op, mock_config):
         """Verify setup clones delivery repo and creates branch."""
         with tempfile.TemporaryDirectory() as clone_dir:
-            transfer_op._setup_repo(clone_dir, "42-test-run-123-results")
+            transfer_op._setup_repo(clone_dir, "42-test-run-123-results", "owner", "delivery-repo")
 
             mock_git.assert_any_call(
                 [
@@ -86,7 +86,7 @@ class TestGithubTransferOperation:
     def test_setup_repo_configures_git_user(self, mock_git, transfer_op):
         """Verify git user is configured."""
         with tempfile.TemporaryDirectory() as clone_dir:
-            transfer_op._setup_repo(clone_dir, "42-test-run-123-results")
+            transfer_op._setup_repo(clone_dir, "42-test-run-123-results", "owner", "delivery-repo")
 
             calls = [call[0][0] for call in mock_git.call_args_list]
             assert any("config" in call and "user.name" in call for call in calls)
@@ -95,7 +95,7 @@ class TestGithubTransferOperation:
     def test_setup_repo_checks_branch_exists(self, mock_git, transfer_op, mock_github_api):
         """Verify branch existence is checked before checkout."""
         with tempfile.TemporaryDirectory() as clone_dir:
-            transfer_op._setup_repo(clone_dir, "42-test-run-123-results")
+            transfer_op._setup_repo(clone_dir, "42-test-run-123-results", "owner", "delivery-repo")
 
             mock_github_api.branch_exists.assert_called_once_with(
                 "owner/delivery-repo", "42-test-run-123-results"
@@ -108,7 +108,7 @@ class TestGithubTransferOperation:
 
         with tempfile.TemporaryDirectory() as clone_dir:
             with pytest.raises(Exception, match="already exists on remote"):
-                transfer_op._setup_repo(clone_dir, "42-test-run-123-results")
+                transfer_op._setup_repo(clone_dir, "42-test-run-123-results", "owner", "delivery-repo")
 
     def test_archive_results_creates_directory_structure(self, transfer_op):
         """Verify results are archived in correct directory structure."""
@@ -144,7 +144,7 @@ class TestGithubTransferOperation:
     def test_create_results_pr_includes_trigger_repo(self, transfer_op, mock_github_api):
         """Verify PR title and body include trigger repo info."""
         pr_url = transfer_op._create_results_pr(
-            "42-test-run-123-results", "42", "test-run-123", "owner", "trigger-repo"
+            "42-test-run-123-results", "42", "test-run-123", "owner", "trigger-repo", "owner", "delivery-repo"
         )
 
         assert pr_url == "https://github.com/owner/delivery-repo/pull/1"
@@ -156,7 +156,7 @@ class TestGithubTransferOperation:
     def test_create_results_pr_uses_delivery_repo(self, transfer_op, mock_github_api, mock_config):
         """Verify PR is created in delivery repo."""
         transfer_op._create_results_pr(
-            "42-test-run-123-results", "42", "test-run-123", "owner", "trigger-repo"
+            "42-test-run-123-results", "42", "test-run-123", "owner", "trigger-repo", "owner", "delivery-repo"
         )
 
         call_args = mock_github_api.create_pull_request.call_args
@@ -165,7 +165,7 @@ class TestGithubTransferOperation:
     def test_create_results_pr_uses_base_branch(self, transfer_op, mock_github_api, mock_config):
         """Verify PR is created against configured base branch."""
         transfer_op._create_results_pr(
-            "42-test-run-123-results", "42", "test-run-123", "owner", "trigger-repo"
+            "42-test-run-123-results", "42", "test-run-123", "owner", "trigger-repo", "owner", "delivery-repo"
         )
 
         call_args = mock_github_api.create_pull_request.call_args

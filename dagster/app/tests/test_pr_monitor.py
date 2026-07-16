@@ -165,7 +165,7 @@ class TestPullRequestStatusSuccessSensor:
         repo_uri = result[0].run_config["ops"]["github_transfer_op"]["config"]["repo_uri"]
         assert repo_uri == "https://github.com/owner/trigger-repo"
 
-    def test_logs_pr_status_update(self, success_sensor, mock_context):
+    def test_logs_pull_request_update(self, success_sensor, mock_context):
         """Verify status update is logged."""
         list(success_sensor())
 

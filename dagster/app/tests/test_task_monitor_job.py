@@ -25,7 +25,7 @@ class TestMonitorTaskOp:
         """Op should log when task monitoring starts."""
         pass
 
-    def test_marks_pr_status_in_progress(self):
+    def test_marks_pull_request_in_progress(self):
         """Op should set PR status to in_progress when starting."""
         pass
 
@@ -33,7 +33,7 @@ class TestMonitorTaskOp:
         """Op should call backend_api.patch_pull_request to update status."""
         pass
 
-    def test_marks_pr_status_success_on_completion(self):
+    def test_marks_pull_request_success_on_completion(self):
         """Op should set PR status to success when task completes."""
         pass
 
@@ -53,7 +53,7 @@ class TestMonitorTaskOp:
         """Op should catch errors when marking PR as in_progress."""
         pass
 
-    def test_marks_pr_status_failed_on_error(self):
+    def test_marks_pull_request_failed_on_error(self):
         """Op should set PR status to failed when an error occurs."""
         pass
 
@@ -93,7 +93,7 @@ class TestTaskMonitorJobIntegration:
         """Job should execute successfully with valid run_config."""
         pass
 
-    def test_job_updates_pr_status_unprocessed_to_in_progress_to_success(self):
+    def test_job_updates_pull_request_unprocessed_to_in_progress_to_success(self):
         """Full flow: unprocessed → in_progress → success."""
         pass
 
