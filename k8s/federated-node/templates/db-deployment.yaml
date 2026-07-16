@@ -20,7 +20,7 @@ spec:
         app: postgres
     spec:
       containers:
-        - image: postgres:13-alpine
+        - image: postgres:17-alpine
           name: db-internal
           env:
             - name: POSTGRES_DB

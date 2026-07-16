@@ -28,7 +28,8 @@ source .dev.env
 # RELEASE_NAME="fn-dev"
 # VALUES_FILE="dev.values.yaml"
 # GH_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-for required_var in DOCKER_TAG CLUSTER_NAME NAMESPACE RELEASE_NAME VALUES_FILE GH_TOKEN; do
+# KEYCLOAK_FIRST_USER_PASSWORD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+for required_var in DOCKER_TAG CLUSTER_NAME NAMESPACE RELEASE_NAME VALUES_FILE GH_TOKEN KEYCLOAK_FIRST_USER_PASSWORD; do
   if [ -z "${!required_var:-}" ]; then
     echo "Error: Required environment variable '$required_var' is not set. Please define it in .dev.env." >&2
     exit 1
@@ -42,7 +43,6 @@ KIND_CONFIG_FILE=".kind/kind-config.yaml"
 DB_SECRET_KEY="db-secret-value"
 BACKEND_DB_SECRET_KEY=$DB_SECRET_KEY
 DAGSTER_DB_SECRET_KEY=$DB_SECRET_KEY
-
 
 # Host paths required local PVs
 HOST_MOUNT_PATHS=(
@@ -78,7 +78,7 @@ if [ "$(docker inspect -f '{{.State.Running}}' "proxy-docker-hub-registry" 2>/de
   docker run \
     -d --restart=always \
     -p "127.0.0.1:5002:5000" \
-    -e REGISTRY_PROXY_REMOTEURL=https://docker.io \
+    -e REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io \
     --name proxy-docker-hub-registry \
     registry:2
 fi
@@ -136,6 +136,15 @@ kubectl create secret generic github-token \
   --from-literal=GH_TOKEN="$GH_TOKEN" \
   --dry-run=client -o yaml | kubectl apply -f -
 
+kubectl create secret generic keycloak-first-user \
+  --from-literal=PASSWORD="$KEYCLOAK_FIRST_USER_PASSWORD" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+
+# Create dagster system user secret in keycloak namespace
+echo "Creating Keycloak namespace if needed..."
+kubectl create namespace keycloak --dry-run=client -o yaml | kubectl apply -f -
+
 ###############################################################################
 echo "=== [7/8] Building Docker Images(s) ========================================"
 
@@ -154,15 +163,17 @@ echo "If something fails:"
 echo "  - Fix config"
 echo "  - Rerun this script"
 echo
+echo "Get dagster keycloak creds"
+echo "microk8s get secret -n $NAMESPACE dagster-keycloak-creds -o json | jq -r .data.DAGSTER_KC_PASSWORD | base64 -d)"
 
 cd k8s/federated-node
-
 
 helm upgrade \
   --install "$RELEASE_NAME" . \
   -f "$VALUES_FILE" \
   --timeout 30m
 
-
 echo
-echo "== Deployment completed ======================================"
+echo "=== Deployment completed ======================================"
+echo "If containers fail to pull images, clear your kind cache and rerun script"
+echo "docker rm -f proxy-docker-hub-registry && make deploy"

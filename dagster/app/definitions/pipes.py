@@ -22,12 +22,11 @@ def k8s_pipes_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> dg.Out
 
 
 class K8sPipe:
-    service_account_name = os.environ["DAGSTER_USER_SERVICE_ACCOUNT_NAME"]
-    namespace = os.environ["DAGSTER_DEPLOYMENT_NAMESPACE"]
-    pvc_name = os.environ["DAGSTER_ARTIFACTS_PVC_NAME"]
-    mnt_base_path = os.environ["DAGSTER_ARTIFACT_MOUNT_PATH"]
-
     def __init__(self, client: PipesK8sClient, context: OpExecCtx, ext_env=None):
+        self.service_account_name = os.environ["DAGSTER_USER_SERVICE_ACCOUNT_NAME"]
+        self.namespace = os.environ["DAGSTER_DEPLOYMENT_NAMESPACE"]
+        self.pvc_name = os.environ["DAGSTER_ARTIFACTS_PVC_NAME"]
+        self.mnt_base_path = os.environ["DAGSTER_ARTIFACT_MOUNT_PATH"]
         self.client = client
         self.context = context
         self.run_id = context.run_id
@@ -106,7 +105,12 @@ class K8sPipesResponse:
             value={"artifacts_path": artifact_path},
             metadata={
                 "run_id": run_id,
-                "image": image,
+                "imag e": image,
                 "artifacts_path": artifact_path,
             },
         )
+
+
+RESOURCES = {
+    "k8s_pipes_client": PipesK8sClient(poll_interval=1.0),
+}

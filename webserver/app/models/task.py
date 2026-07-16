@@ -20,10 +20,8 @@ from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesBatchClient, KubernetesCRDClient, KubernetesClient
 from app.helpers.exceptions import DBError, InvalidRequest, TaskCRDExecutionException, TaskImageException, TaskExecutionException
 from app.helpers.task_pod import TaskPod
-from app.models.dataset import Dataset
-from app.models.container import Container
-from app.models.registry import Registry
-from app.models.request import Request
+from app.models import Models
+
 
 logger = logging.getLogger('task_model')
 logger.setLevel(logging.INFO)
@@ -47,14 +45,14 @@ class Task(db.Model, BaseModel):
     updated_at = Column(DateTime(timezone=False), onupdate=func.now())
     requested_by = Column(String(256), nullable=False)
     review_status = Column(Boolean, nullable=True)
-    dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
+    dataset_id = Column(Integer, ForeignKey('datasets.id', ondelete='CASCADE'))
     dataset = relationship("Dataset")
 
     def __init__(self,
                  name:str,
                  docker_image:str,
                  requested_by:str,
-                 dataset:Dataset,
+                 dataset,
                  executors:list[dict] = [],
                  tags:dict = {},
                  resources:dict = {},
@@ -103,9 +101,8 @@ class Task(db.Model, BaseModel):
         # Dataset validation
 
         if repository:
-            from app.models.repository import Repository
-            repo = Repository.query.filter(Repository.uri.ilike(repository)).one_or_none()
-            data["dataset"] = Dataset.query.filter(Dataset.repository_id == repo.id).one_or_none() if repo else None
+            repo = Models.Repository.query.filter(Models.Repository.uri == repository.lower()).one_or_none()
+            data["dataset"] = Models.Models.Dataset.query.filter(Models.Dataset.repository_id == repo.id).one_or_none() if repo else None
             if data["dataset"] is None:
                 raise InvalidRequest(f"No datasets linked with the repository {repository}")
 
@@ -113,25 +110,25 @@ class Task(db.Model, BaseModel):
             ds_id = data.get("tags", {}).get("dataset_id")
             ds_name = data.get("tags", {}).get("dataset_name")
             if ds_name or ds_id:
-                data["dataset"] = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
+                data["dataset"] = Models.Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
             else:
                 raise InvalidRequest("Administrators need to provide `tags.dataset_id` or `tags.dataset_name`")
         else:
-            data["dataset"] = Request.get_active_project(
+            data["dataset"] = Models.Request.get_active_project(
                 data["project_name"],
                 user["id"]
             ).dataset
 
         # Docker image validation
-        Container.validate_image_format(data["docker_image"], data["docker_image"])
+        Models.Container.validate_image_format(data["docker_image"], data["docker_image"])
 
         # Validate that the image is whitelisted
         if ENABLE_IMAGE_WHITELIST:
-            if not Container.validate_image_whitelisted(data["docker_image"]):
+            if not Models.Container.validate_image_whitelisted(data["docker_image"]):
                 raise TaskImageException(f"Image {data['docker_image']} is not whitelisted", code=HTTPStatus.FORBIDDEN)
 
         # Validate that the image exists on the registry
-        if not Registry.validate_image_exist(data["docker_image"]):
+        if not Models.Registry.validate_image_exist(data["docker_image"]):
             raise TaskImageException(f"Image {data['docker_image']} not found on our repository", code=HTTPStatus.NOT_FOUND)
 
         # Output volumes validation
@@ -271,7 +268,7 @@ class Task(db.Model, BaseModel):
         if len(self.executors):
             command=self.executors[0].get("command", '')
 
-        registry, _, _, _ = Registry.extract_image_parts(self.docker_image)
+        registry, _, _, _ = Models.Registry.extract_image_parts(self.docker_image)
 
         body = TaskPod(**{
             "name": self.pod_name(),

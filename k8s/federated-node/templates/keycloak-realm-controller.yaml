@@ -51,3 +51,5 @@ spec:
               name: keycloak-config
           - secretRef:
               name: kc-secrets
+          - secretRef:
+              name: dagster-keycloak-creds

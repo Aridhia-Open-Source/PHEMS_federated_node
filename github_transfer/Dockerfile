@@ -4,6 +4,8 @@ ARG USERNAME=appuser
 ARG USER_UID=1001
 ARG USER_GID=1001
 
+WORKDIR /app
+
 RUN apk add --no-cache \
     bash \
     git \
@@ -15,8 +17,7 @@ RUN apk add --no-cache \
 RUN addgroup -g "$USER_GID" "$USERNAME" \
     && adduser --uid "$USER_UID" --ingroup "$USERNAME" -D "$USERNAME"
 
-WORKDIR /app
-COPY --chown=${USERNAME}:${USERNAME} main.sh .
+COPY --chown=${USERNAME}:${USERNAME} . .
 
 USER ${USER_UID}
 ENTRYPOINT ["/bin/bash", "/app/main.sh"]

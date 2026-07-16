@@ -16,7 +16,7 @@ def k8s_pipes_job():
     k8s_pipes_op()
 
 
-jobs = [
+JOBS = [
     nojob,
     k8s_pipes_job,
 ]

@@ -14,7 +14,7 @@ spec:
         app: testdb
     spec:
       containers:
-        - image: postgres:13-alpine
+        - image: postgres:17-alpine
           name: testdb
           env:
             - name: POSTGRES_DB

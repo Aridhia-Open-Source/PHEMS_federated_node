@@ -13,6 +13,7 @@ from kubernetes.client import V1Secret
 from kubernetes.client.exceptions import ApiException
 
 from app.helpers.connection_string import Mssql, Postgres, Mysql, Oracle, MariaDB
+from app.models import Models
 
 logger = logging.getLogger("dataset_model")
 logger.setLevel(logging.INFO)
@@ -76,14 +77,15 @@ class Dataset(db.Model, BaseModel):
 
     @classmethod
     def validate(cls, data: dict) -> dict:
+        data = dict(data)  # don't mutate caller's dict (audit decorator reads request.json after)
         uri = data.pop("repository", None)
-        if uri:
-            from app.models.repository import Repository
-            repo = Repository.query.filter(Repository.uri == uri.lower()).one_or_none()
-            if repo is None:
-                repo = Repository(uri=uri)
-                repo.add(commit=False)
-            data["repository"] = repo
+        if not uri:
+            raise InvalidRequest("repository is required")
+        uri = uri.lower().rstrip('/')
+        repo = Models.Repository.query.filter(Models.Repository.uri == uri).one_or_none()
+        if repo is None:
+            raise InvalidRequest(f"Repository '{uri}' not found. Create it first via POST /repositories")
+        data["repository"] = repo
         return super().validate(data)
 
     def get_creds_secret_name(self, host=None, name=None):
@@ -260,11 +262,10 @@ class Dataset(db.Model, BaseModel):
         if "repository" in kwargs:
             repo_uri = kwargs.pop("repository")
             if repo_uri:
-                from app.models.repository import Repository
-                repo = Repository.query.filter(Repository.uri == repo_uri.lower()).one_or_none()
+                repo_uri = repo_uri.lower().rstrip('/')
+                repo = Models.Repository.query.filter(Models.Repository.uri == repo_uri).one_or_none()
                 if repo is None:
-                    repo = Repository(uri=repo_uri)
-                    repo.add(commit=False)
+                    raise InvalidRequest(f"Repository '{repo_uri}' not found. Create it first via POST /repositories")
                 self.repository = repo
             else:
                 self.repository = None
