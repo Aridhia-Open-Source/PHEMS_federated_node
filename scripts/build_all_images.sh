@@ -10,6 +10,7 @@ DOCKER_DIRS=(
   "pypipes"
   "github_transfer"
   "build/alpine"
+  "build/kc-init"
 )
 
 

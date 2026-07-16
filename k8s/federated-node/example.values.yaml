@@ -74,7 +74,7 @@ ingress-nginx:
     extraArgs:
       default-ssl-certificate: qcfederatednode/my-tls-secret
 
-outboundMode: true
+outboundMode: false
 
 ## Sub Charts
 
@@ -127,21 +127,20 @@ fnDagster:
 dagster:
   enabled: true
 
-  generatePostgresqlPasswordSecret: true
-  postgresqlUsername: test
-  postgresqlPassword: test
-  postgresqlDatabase: test
+  # The dagster-postgresql-secret is pre-created by scripts/deploy.sh so the
+  # dagster-db-init pre-install hook can use it. Helm must not try to own it.
+  generatePostgresqlPasswordSecret: false
 
   envConfigMaps:
     - name: dagster-env-config
 
+  # Share the Federated Node database server instead of a bundled postgres.
   postgresql:
-    enabled: true
-    service:
-      port: 5432
-    persistence:
-      enabled: true
-      storageClass: standard
+    enabled: false
+    postgresqlHost: db.fn.svc
+    postgresqlUsername: admin
+    postgresqlDatabase: dagster
+
 
   runLauncher:
     type: K8sRunLauncher
