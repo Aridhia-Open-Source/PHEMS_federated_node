@@ -56,7 +56,7 @@ HOST_MOUNT_PATHS=(
 echo "=== [1/8] Ensuring host paths exist on the machine ========================"
 
 for path in "${HOST_MOUNT_PATHS[@]}"; do
-  sudo rm -r $path
+  sudo rm -rf $path
   sudo mkdir -p "$path"
 done
 

@@ -1,6 +1,8 @@
-# Default values for federated_node.
-# This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
+# Example values for LOCAL DEVELOPMENT with scripts/deploy.sh (kind cluster).
+# Copy this file to dev.values.yaml (gitignored) and personalize it, then set
+# VALUES_FILE=dev.values.yaml in your .dev.env.
+# Unlike example.values.yaml, this uses the locally built images from
+# scripts/build_all_images.sh instead of the published ghcr.io ones.
 
 pullPolicy: Always
 create_db_deployment: true
@@ -20,11 +22,14 @@ backend:
     results_path: /data/flask/results
 
 alpine:
-  image: ghcr.io/aridhia-open-source/alpine
-  tag: 1.9.0
+  image: localhost:5001/alpine-fn
+  tag: "v1"
 
 keycloak:
   tag: 1.9.0
+  initializer:
+    image: localhost:5001/kc-init-fn
+    tag: "v1"
 
 db:
   user: &userDB admin
@@ -44,7 +49,7 @@ storage:
 
 global:
   host: *host
-  delivery_url: federated-node.uksouth.analytixagility.aridhiadev.net
+  delivery_url: federated-node.example.net
   postgresqlSecretName: dagster-postgresql-secret
 
 certs:
@@ -74,7 +79,7 @@ ingress-nginx:
     extraArgs:
       default-ssl-certificate: qcfederatednode/my-tls-secret
 
-outboundMode: false
+outboundMode: true
 
 ## Sub Charts
 
@@ -108,7 +113,6 @@ fn-task-controller:
       url: federated-node.uksouth.analytixagility.aridhiadev.net
       auth_type: AzCopy
 
-
 ### Dagster Internal Config
 fnDagster:
   artifactMountPath: /mnt/dagster/artifacts
@@ -141,19 +145,12 @@ dagster:
     postgresqlUsername: admin
     postgresqlDatabase: dagster
 
-
   runLauncher:
     type: K8sRunLauncher
     config:
       k8sRunLauncher:
-        # Change with caution! If you're using a fixed tag for pipeline run images, changing the
-        # image pull policy to anything other than "Always" will use a cached/stale image, which is
-        # almost certainly not what you want.
         imagePullPolicy: "Always"
-        # The run launcher can be deployed with a fixed image (no user code included)
         image:
-          # When a tag is not supplied for a Dagster provided image,
-          # it will default as the Helm chart version.
           repository: localhost:5001/dagster-fn
           tag: "v1"
           pullPolicy: Always
@@ -164,7 +161,6 @@ dagster:
         envSecrets:
           - name: github-token
 
-        # Add volumes and volume mounts for artifacts-pvc
         volumes:
           - name: artifacts-pvc
             persistentVolumeClaim:
@@ -174,27 +170,16 @@ dagster:
             mountPath: /mnt/dagster/artifacts
 
   dagster-user-deployments:
-    # Creates a workspace file with the gRPC servers hosting your user code.
     enabled: true
-    # If you plan on deploying user code in a separate Helm release, set this to false.
     enableSubchart: true
-
-    # Specify secrets to run user code server containers based on images in private registries. See:
-    # https://kubernetes.io/docs/concepts/containers/images/#referring-to-an-imagepullsecrets-on-a-pod
     imagePullSecrets: []
 
-    # List of unique deployments
     deployments:
       - name: dagster-fn
         port: 3030
         image:
-          # When a tag is not supplied, it will default as the Helm chart version.
           repository: localhost:5001/dagster-fn
           tag: v1
-
-          # Change with caution! If you're using a fixed tag for pipeline run images, changing the
-          # image pull policy to anything other than Always will use a cached/stale image, which is
-          # almost certainly not what you want.
           pullPolicy: Always
 
         envConfigMaps:
@@ -203,9 +188,6 @@ dagster:
         envSecrets:
           - name: github-token
 
-        # Arguments to `dagster api grpc`.
-        # Ex: "dagster api grpc -m dagster_test.test_project.test_jobs.repo -a define_demo_execution_repo"
-        # would translate to:
         dagsterApiGrpcArgs:
           - "-m"
           - "app.definitions"
