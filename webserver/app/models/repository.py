@@ -44,7 +44,8 @@ class Repository(db.Model, BaseModel):
             'path': self.path,
             'watch_dir': self.watch_dir,
             'base_branch': self.base_branch,
-            'last_merged_at': self.get_last_merged_at()
+            'last_merged_at': self.get_last_merged_at(),
+            'pull_request_count': len(self.pull_requests)
         }
 
     def __init__(self, uri: str, watch_dir: str, base_branch: str = 'main', pr_cursor: int = 0):

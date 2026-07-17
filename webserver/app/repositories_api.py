@@ -24,8 +24,8 @@ session = db.session
 
 # TODO: re-enable auth
 @bp.before_request
-# @audit
-# @auth(scope='can_do_admin')
+@audit
+@auth(scope='can_do_admin')
 def auth_and_admin_before():
     """
     Ensure the user is authenticated and has admin privileges before processing requests.
@@ -40,6 +40,16 @@ def get_repositories():
     """
     repos = Repository.query.all()
     return [r.sanitized_dict() for r in repos], HTTPStatus.OK
+
+
+@bp.route('/<int:repo_id>', methods=['GET'])
+def get_repository(repo_id):
+    """
+    GET /repositories/<id> — get a single repository
+    """
+    repo = Repository.get_by_id(repo_id)
+    repo.delete()
+    return '', HTTPStatus.NO_CONTENT
 
 
 @bp.route('/<int:repo_id>', methods=['DELETE'])
