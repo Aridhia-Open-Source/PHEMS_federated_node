@@ -8,7 +8,6 @@ datasets-related endpoints:
 - GET /datasets/id/dictionaries
 - GET /datasets/id/dictionaries/table_name
 - POST /datasets/token_transfer
-- POST /datasets/selection/beacon
 """
 import logging
 from http import HTTPStatus
@@ -279,24 +278,3 @@ def post_transfer_token():
     except:
         session.rollback()
         raise
-
-@bp.route('/selection/beacon', methods=['POST'])
-@audit
-@auth(scope='can_access_dataset', check_dataset=False)
-def select_beacon():
-    """
-    POST /dataset/datasets/selection/beacon endpoint.
-        Checks the validity of a query on a dataset
-    """
-    body = request.json.copy()
-    dataset = Dataset.get_by_id(body['dataset_id'])
-
-    if validate(body['query'], dataset):
-        return {
-            "query": body['query'],
-            "result": "Ok"
-        }, HTTPStatus.OK
-    return {
-        "query": body['query'],
-        "result": "Invalid"
-    }, HTTPStatus.BAD_REQUEST

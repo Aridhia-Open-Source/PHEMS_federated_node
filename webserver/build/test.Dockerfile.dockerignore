@@ -1,0 +1,9 @@
+*
+
+!app/**
+!migrations/**
+!requirements-dev.txt
+!alembic.ini
+!setup.cfg
+!test-entrypoint.sh
+!tests/**
