@@ -9,7 +9,8 @@ override:
     - DL3042
 
 ignored:
-  # Pinning apt package versions is impractical: pinned versions are removed from
+  # Pinning apk/apt package versions is impractical: pinned versions are removed from
   # repos when security patches land, breaking builds. The base image tag already
   # anchors the distro release and bounds available package versions.
   - DL3008
+  - DL3018
