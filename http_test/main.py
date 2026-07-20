@@ -189,6 +189,7 @@ class BackendAPI:
         """Get all repositories."""
         logger.info("Fetching repositories")
         response = self.session.get("/repositories")
+        breakpoint()
         return response.json()
 
     def get_repository(self, repo_id: int) -> dict:
@@ -204,6 +205,14 @@ def _load_creds():
     password = _get_k8s_secret("dagster-keycloak-creds", "keycloak", "DAGSTER_KC_PASSWORD")
     if not user or not password:
         raise ValueError("Could not load credentials from K8s")
+
+    # write creds to .env file
+    # create .creds.env file with the credentials
+    logger.info("========= Credentials =========")
+    logger.info(f"BACKEND_USER={user}")
+    logger.info(f"BACKEND_PASSWORD={password}")
+
+    time.sleep(3)
     return {'username': user, 'password': password}
 
 
@@ -232,13 +241,19 @@ def main():
         username=creds['username'],
         password=creds['password'],
     )
-    session = BackendSession(adapter)
+    session = BackendSession(
+        adapter=adapter,
+        default_raise_for_status=True
+    )
+
     api = BackendAPI(session)
 
     # Fetch repositories
     repos = api.get_repositories()
     logger.info(f"Found {len(repos)} repositories")
+
     for repo in repos:
+        breakpoint()
         logger.info(f"  - {repo.get('uri')} (id={repo.get('id')})")
 
 
