@@ -22,14 +22,11 @@ bp = Blueprint('repositories', __name__, url_prefix='/repositories')
 session = db.session
 
 
-# TODO: re-enable auth
 @bp.before_request
 @audit
-@auth(scope='can_do_admin')
-def auth_and_admin_before():
-    """
-    Ensure the user is authenticated and has admin privileges before processing requests.
-    """
+@auth
+def auth_before():
+    """Ensure the user is authenticated."""
 
 
 @bp.route('/', methods=['GET'])

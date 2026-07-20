@@ -12,9 +12,9 @@ Architecture:
 """
 
 import logging
+import time
 import subprocess
 import base64
-import time
 
 from urllib3.util import Retry
 import requests
@@ -127,8 +127,13 @@ class OAuthAdapter(BaseHttpAdapter):
         raise NotImplementedError
 
     def send(self, request, **kwargs):
+        logger.info(f"OAuthAdapter.send() - checking token")
+        logger.info(f"  _access_token: {self._access_token}")
         if self.access_token:
+            logger.info(f"  Adding Bearer token to request")
             request.headers["Authorization"] = f"Bearer {self.access_token}"
+        else:
+            logger.info(f"  No token, not adding Authorization")
 
         timeout = kwargs.pop("timeout", self.timeout)
         response = super().send(request, timeout=timeout, **kwargs)
@@ -182,20 +187,28 @@ class BackendAdapter(OAuthAdapter):
 
     def login(self):
         """Exchange username/password for token."""
+        logger.info(f"Logging in as {self.username} to {self.base_url}/login")
+        logger.info(f"Credentials: user={self.username}, pass={self.password}")
+
         response = requests.post(
             f"{self.base_url}/login",
             data={'username': self.username, 'password': self.password},
             headers={'Accept': 'application/json'},
             timeout=self.timeout
         )
+        logger.info(f"Login response status: {response.status_code}")
         response.raise_for_status()
         return response
 
     def refresh_tokens(self):
         """Refresh token by logging in again."""
+        logger.warning(f"Refreshing token for {self.username}")
         response = self.login()
+        logger.info(f"Login response body: {response.text}")
         data = response.json()
+        logger.info(f"Extracted token: {data.get('token')}")
         self.access_token = data['token']
+        logger.info(f"Token set. access_token is now: {self._access_token}")
 
 
 class BackendSession(BaseSession):
@@ -227,6 +240,14 @@ def _load_creds():
     password = _get_k8s_secret("dagster-keycloak-creds", "keycloak", "DAGSTER_KC_PASSWORD")
     if not user or not password:
         raise ValueError("Could not load credentials from K8s")
+
+    # write creds to .env file
+    # create .creds.env file with the credentials
+    logger.info("========= Credentials =========")
+    logger.info(f"BACKEND_USER={user}")
+    logger.info(f"BACKEND_PASSWORD={password}")
+
+    time.sleep(3)
     return {'username': user, 'password': password}
 
 
@@ -245,7 +266,11 @@ def _get_k8s_secret(secret_name: str, namespace: str, key: str) -> str:
 def main():
     backend_url = "http://localhost:5000"
 
+    # Fetch credentials from K8s
     creds = _load_creds()
+    logger.info(f"login - {creds}")
+
+    # Initialize backend session, adapter, and API client
     adapter = BackendAdapter(
         base_url=backend_url,
         username=creds['username'],
@@ -255,11 +280,10 @@ def main():
         adapter=adapter,
         default_raise_for_status=True
     )
+
     api = BackendAPI(session)
-    repos = api.get_repositories() or []
 
-    breakpoint()
-
+    repos = api.get_repositories()
     for repo in repos:
         logger.info(repo)
 
