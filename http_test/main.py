@@ -145,7 +145,7 @@ class OAuthAdapter(BaseHttpAdapter):
 
             response = super().send(request, timeout=timeout, **kwargs)
             if response.status_code not in self.oauth_status_codes:
-                return response
+                response.raise_for_status()
 
         return response
 
@@ -189,7 +189,6 @@ class BackendAPI:
         """Get all repositories."""
         logger.info("Fetching repositories")
         response = self.session.get("/repositories")
-        breakpoint()
         return response.json()
 
     def get_repository(self, repo_id: int) -> dict:
@@ -253,7 +252,6 @@ def main():
     logger.info(f"Found {len(repos)} repositories")
 
     for repo in repos:
-        breakpoint()
         logger.info(f"  - {repo.get('uri')} (id={repo.get('id')})")
 
 
