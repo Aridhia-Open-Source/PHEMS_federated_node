@@ -89,7 +89,7 @@ def post_repository():
 @bp.route('/<int:repo_id>', methods=['PATCH'])
 def patch_repository(repo_id):
     """
-    PATCH /repositories/<id> — update pr_cursor and/or base_branch
+    PATCH /repositories/<id> — update repository
     """
     repo = Repository.get_by_id(repo_id)
 

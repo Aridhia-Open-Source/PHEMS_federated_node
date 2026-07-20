@@ -4,7 +4,7 @@ from datetime import datetime as dt
 from datetime import timezone as tz
 
 from sqlalchemy import Column, DateTime, Integer, String, func
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 from app.helpers.base_model import BaseModel, db
 from app.models import Models
 
@@ -24,6 +24,15 @@ class Repository(db.Model, BaseModel):
 
     datasets = relationship("Dataset", back_populates="repository")
     pull_requests = relationship("PullRequest", back_populates="repository", cascade="all, delete")
+
+    @validates('uri')
+    def validate_uri(self, key, value):
+        """Strip http/https schema from URI on save/update."""
+        if value:
+            parsed = urlparse(value)
+            netloc_path = parsed.netloc + parsed.path
+            return netloc_path.lower()
+        return value
 
     @property
     def path(self):
@@ -48,9 +57,8 @@ class Repository(db.Model, BaseModel):
             'pull_request_count': len(self.pull_requests)
         }
 
-    def __init__(self, uri: str, watch_dir: str, base_branch: str = 'main', pr_cursor: int = 0):
-        self.uri = uri.lower()
-        self.pr_cursor = pr_cursor
+    def __init__(self, uri: str, watch_dir: str, base_branch: str = 'main'):
+        self.uri = uri
         self.watch_dir = watch_dir
         self.base_branch = base_branch
 

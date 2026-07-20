@@ -1,360 +1,246 @@
+#!/usr/bin/env python
+
+"""
+Minimal example: Backend API with automatic token refresh via OAuthAdapter.
+
+Architecture:
+- BaseHttpAdapter: base adapter with default retry logic
+- OAuthAdapter: extends BaseHttpAdapter, auto-refreshes on 401/403
+- BaseSession: base session with base URL support, mounts BaseHttpAdapter by default
+- BackendSession: extends BaseSession, handles login + token refresh, mounts OAuthAdapter
+- BackendAPI: pure client code, delegates to session
+"""
+
 import logging
-from enum import Enum
+import time
+import subprocess
+import base64
 
-from dotenv import load_dotenv
-import requests as req
-from pydantic import BaseModel, ConfigDict
+from urllib3.util import Retry
+import requests
+from requests import Session
+from requests.adapters import HTTPAdapter
 
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
-load_dotenv('.dev.env')
-default_logger = logging.getLogger(__name__)
-
-
-class PullRequestStatus(str, Enum):
-    """Status of a pull request in the ingestion and processing pipeline."""
-
-    UNPROCESSED = "unprocessed"
-    IN_PROGRESS = "in_progress"
-    SUCCESS = "success"
-    FAILED = "failed"
-
-    def __str__(self):
-        return self.value
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
-class PullRequest(BaseModel):
-    """Pull Request data from backend API."""
-    model_config = ConfigDict(extra="allow")
+class BaseHttpAdapter(HTTPAdapter):
+    """Base HTTP adapter with default retry logic."""
 
-    repository_id: int
-    number: int
-    title: str
-    raised_by: str
-    merged_at: str
-    spec: dict
-    merge_commit_sha: str
-    is_valid: bool
-    status: str
+    retry_limit = 3
+    backoff_factor = 0.5
+    default_timeout = 10
+    retry_status_forcelist = {429}
 
-
-class Repository(BaseModel):
-    """Repository data from backend API retrieval."""
-
-    model_config = ConfigDict(extra="allow")
-
-    id: int
-    uri: str
-    path: str
-    watch_dir: str
-    base_branch: str
-    last_merged_at: str
-    pull_requests: list[PullRequest] = []
-
-
-class HttpClient:
-    auth_type: str = "bearer"
-
-    SUPPORTED_AUTH_TYPES = ["bearer"]
-
-    def __init__(self, base_uri: str, token: str = "", session=None, logger=None):
-        self._base_uri = base_uri.rstrip("/")
-        self._session = session or req.Session()
-        self._token = token
-        self.logger = logger or logging.getLogger(__name__)
-        self.setup_auth()
+    def __init__(
+        self,
+        base_url: str = '',
+        timeout: int | None = None,
+        max_retries: Retry | None = None,
+        **kwargs
+    ):
+        self.base_url = base_url
+        self.timeout = timeout or self.default_timeout
+        super().__init__(**{**kwargs, 'max_retries': max_retries})
 
     @property
-    def token(self) -> str:
-        return self._token
-
-    @token.setter
-    def token(self, value: str):
-        self._token = value
-        self.setup_auth()
-
-    def setup_auth(self):
-        if not self._token:
-            return
-
-        if not self.auth_type:
-            raise ValueError("Auth type must be specified for setup")
-
-        if not self.auth_type.lower() in self.SUPPORTED_AUTH_TYPES:
-            raise ValueError(f"Unsupported auth type: {self.auth_type}")
-
-        if self.auth_type.lower() == "bearer":
-            self._set_bearer_token()
-
-    def _set_bearer_token(self):
-        self._session.headers.update(
-            {"Authorization": f"Bearer {self._token}"}
+    def default_retry(self):
+        return Retry(
+            total=self.retry_limit,
+            backoff_factor=self.backoff_factor,
+            status_forcelist=self.retry_status_forcelist
         )
 
-    def request(
+    def send(self, request, **kwargs):
+        kwargs["timeout"] = kwargs.pop("timeout", self.timeout)
+        return super().send(request, **kwargs)
+
+
+class BaseSession(Session):
+    """Base session with base URL support."""
+
+    @property
+    def base_url(self) -> str:
+        return self.adapter.base_url
+
+    def __init__(
         self,
-        method: str,
-        path: str,
-        raise_for_status: bool = True,
-        **kwargs,
-    ) -> req.Response:
-        url = f"{self._base_uri}/{path.lstrip('/')}"
-        response = self._session.request(method, url, timeout=10, **kwargs)
+        adapter: BaseHttpAdapter,
+        *args,
+        default_raise_for_status: bool = False,
+        **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        self.mount_adapters(adapter)
+        self.default_raise_for_status = default_raise_for_status
+
+    def request(self, method, url, raise_for_status: bool | None = None, **kwargs):
+        full_url = f"{self.base_url}/{url.lstrip('/')}"
+        response = super().request(method, full_url, **kwargs)
+        return self.handle_response(response, raise_for_status)
+
+    def handle_response(self, response, raise_for_status: bool | None = None):
+        if raise_for_status is None:
+            raise_for_status = self.default_raise_for_status
         if raise_for_status:
             response.raise_for_status()
         return response
 
-    def get(self, path: str, **kwargs) -> req.Response:
-        return self.request("GET", path, **kwargs)
-
-    def post(self, path: str, **kwargs) -> req.Response:
-        return self.request("POST", path, **kwargs)
-
-    def patch(self, path: str, **kwargs) -> req.Response:
-        return self.request("PATCH", path, **kwargs)
-
-    def put(self, path: str, **kwargs) -> req.Response:
-        return self.request("PUT", path, **kwargs)
-
-    def delete(self, path: str, **kwargs) -> req.Response:
-        return self.request("DELETE", path, **kwargs)
+    def mount_adapters(self, adapter):
+        self.adapter = adapter
+        self.mount("http://", self.adapter)
+        self.mount("https://", self.adapter)
 
 
-class KeycloakHttpClient(HttpClient):
-    """HTTP client with automatic Keycloak token refresh on 401"""
+class OAuthAdapter(BaseHttpAdapter):
+    """HTTP adapter that handles login and automatic token refresh on 401/403."""
 
-    def __init__(self, base_uri: str, token: str = "", session=None, logger=None):
-        super().__init__(base_uri, token, session, logger)
-        self._refresh_callback = None
-        self._is_refreshing = False
+    oauth_status_codes = {401, 403}
+    oauth_backoff_factor = 0.5
+    oauth_retry_limit = 3
 
-    def set_token_refresh_callback(self, callback):
-        """Set a callback to refresh the token. Callback should return new token."""
-        self._refresh_callback = callback
+    def __init__(self, base_url: str, username: str, password: str):
+        super().__init__(base_url=base_url)
+        self.username = username
+        self.password = password
+        self._access_token = None
 
-    def request(
-        self,
-        method: str,
-        path: str,
-        raise_for_status: bool = True,
-        **kwargs,
-    ) -> req.Response:
-        url = f"{self._base_uri}/{path.lstrip('/')}"
-        response = self._session.request(method, url, timeout=10, **kwargs)
+    @property
+    def access_token(self):
+        if not self._access_token:
+            self.refresh_tokens()
+        return self._access_token
 
-        if response.status_code == 401 and self._refresh_callback:
-            try:
-                # self._is_refreshing = True
-                self.token = self._refresh_callback()
-                response = self._session.request(method, url, timeout=10, **kwargs)
-            except Exception:
-                if raise_for_status:
-                    response.raise_for_status()
+    @access_token.setter
+    def access_token(self, value):
+        self._access_token = value
+
+    def refresh_tokens(self):
+        """Refresh tokens"""
+        raise NotImplementedError
+
+    def send(self, request, **kwargs):
+        if self.access_token:
+            request.headers["Authorization"] = f"Bearer {self.access_token}"
+
+        timeout = kwargs.pop("timeout", self.timeout)
+        response = super().send(request, timeout=timeout, **kwargs)
+        if response.status_code not in self.oauth_status_codes:
+            return response
+
+        return self._retry_on_auth_failure(request, response, timeout, **kwargs)
+
+    def _send_request(self, request, **kwargs):
+        """Send request without OAuth refresh logic."""
+        kwargs['timeout'] = kwargs.get("timeout", self.timeout)
+        return super().send(request, **kwargs)
+
+    def _retry_on_auth_failure(self, request, response, timeout, **kwargs):
+        for attempt in range(1, self.oauth_retry_limit + 1):
+            backoff = self.oauth_backoff_factor * (2 ** (attempt - 1))
+            self._log_refresh_error(response, attempt, backoff)
+            time.sleep(backoff)
+            self.refresh_tokens()
+
+            response = super().send(request, timeout=timeout, **kwargs)
+            if response.status_code not in self.oauth_status_codes:
                 return response
-            finally:
-                self._is_refreshing = False
 
-        if raise_for_status:
-            response.raise_for_status()
         return response
 
+    def _log_refresh_error(self, response, attempt, backoff):
+        tpl = "Auth failure (%d), refresh token retry %d/%d in %.1fs"
+        logger.error(tpl, response.status_code, attempt, self.oauth_retry_limit, backoff)
 
-class BackendClient(KeycloakHttpClient):
-    def __init__(self, base_uri: str, session=None):
-        super().__init__(base_uri, "", session)
-        self._username = None
-        self._password = None
-        self.set_token_refresh_callback(self._refresh_token)
 
-    def set_credentials(self, username: str, password: str):
-        """Store credentials for automatic token refresh"""
-        self._username = username
-        self._password = password
+class BackendAdapter(OAuthAdapter):
+    def login(self):
+        """Exchange username/password for token."""
+        logger.info(f"Logging in as {self.username}")
 
-    def _refresh_token(self) -> str:
-        """Refresh the token using stored credentials"""
-        if not self._username or not self._password:
-            raise ValueError("Credentials not set. Call set_credentials() first.")
+        req = requests.Request(
+            method="POST",
+            url=f"{self.base_url}/login",
+            data={"username": self.username, "password": self.password},
+        ).prepare()
 
-        self.logger.info(f"Refreshing token for user {self._username}")
-        response = self.post(
-            "/login",
-            data={"username": self._username, "password": self._password},
-        )
-        data = response.json()
-        return data.get("refresh_token") or data.get("token")
+        response = self._send_request(req, timeout=self.timeout)
+        response.raise_for_status()
+        return response
+
+    def refresh_tokens(self):
+        """Refresh token by logging in again."""
+        logger.warning(f"Refreshing token for {self.username}")
+        self.access_token = self.login().json()['token']
+
+
+class BackendSession(BaseSession):
+    """Backend session with automatic token refresh via OAuthAdapter."""
 
 
 class BackendAPI:
-    def __init__(self, client: BackendClient, logger=None):
-        self.client = client
-        self.logger = logger or default_logger
+    """Backend API client. All requests auto-refresh tokens on 401/403."""
 
-    # def login(self, username: str, password: str) -> dict:
-    #     """Login and return token"""
-    #     self.logger.info(f"Logging in as {username}")
-    #     self.client.set_credentials(username, password)
-    #     response = self.client.post(
-    #         "/login",
-    #         data={"username": username, "password": password},
-    #     )
-    #     data = response.json()
-    #     token = data.get("refresh_token") or data.get("token")
-    #     if token:
-    #         self.client.token = token
-    #     return data
+    def __init__(self, session: BackendSession):
+        self.session = session
 
-    def get_repositories(self) -> list[Repository]:
-        """Get all repositories"""
-        self.logger.info("Fetching repositories")
-        response = self.client.get("/repositories")
-        repos = response.json()
-        return [Repository(**repo) for repo in repos]
+    def get_repositories(self) -> list:
+        """Get all repositories."""
+        logger.info("Fetching repositories")
+        response = self.session.get("/repositories")
+        return response.json()
 
-    def get_repository(self, repo_id: int) -> Repository:
-        """Get single repository"""
-        self.logger.info(f"Fetching repository {repo_id}")
-        response = self.client.get(f"/repositories/{repo_id}")
-        return Repository(**response.json())
+    def get_repository(self, repo_id: int) -> dict:
+        """Get single repository."""
+        logger.info(f"Fetching repository {repo_id}")
+        response = self.session.get(f"/repositories/{repo_id}")
+        return response.json()
 
-    def patch_repository(self, repo_id: int, data: dict) -> Repository:
-        """Update repository"""
-        self.logger.info(f"Updating repository {repo_id}")
-        response = self.client.patch(f"/repositories/{repo_id}", json=data)
-        return Repository(**response.json())
 
-    def get_pull_requests(self, repo_id: int, **query_params) -> list[PullRequest]:
-        """Get all pull requests for a repository, automatically handling pagination"""
-        self.logger.info(f"Fetching all pull requests for repo {repo_id}")
-        all_prs = []
-        page = 1
-        per_page = 100
+def _load_creds():
+    """Load credentials from K8s secret."""
+    user = _get_k8s_secret("dagster-keycloak-creds", "keycloak", "DAGSTER_KC_USER")
+    password = _get_k8s_secret("dagster-keycloak-creds", "keycloak", "DAGSTER_KC_PASSWORD")
+    if not user or not password:
+        raise ValueError("Could not load credentials from K8s")
+    return {'username': user, 'password': password}
 
-        while True:
-            params = {**query_params, "page": page, "per_page": per_page}
-            response = self.client.get(
-                f"/repositories/{repo_id}/pull_requests",
-                params=params,
-            )
-            data = response.json()
-            items = data.get("items", [])
 
-            if not items:
-                break
-
-            all_prs.extend([PullRequest(**pr) for pr in items])
-            self.logger.info(f"Fetched page {page}: {len(items)} PRs (total: {len(all_prs)})")
-
-            # Check if there are more pages
-            total = data.get("total") if isinstance(data, dict) else None
-            if total is None or len(all_prs) >= total:
-                break
-
-            page += 1
-
-        self.logger.info(f"Fetched all {len(all_prs)} pull requests for repo {repo_id}")
-        return all_prs
-
-    def create_pull_request(
-        self,
-        repository_id: int,
-        number: int,
-        title: str,
-        raised_by: str,
-        merged_at: str,
-        merge_commit_sha: str,
-        spec: dict,
-        is_valid: bool,
-        status: str = "unprocessed",
-    ) -> PullRequest:
-        """Create a pull request"""
-        self.logger.info(f"Creating PR #{number} in repo {repository_id}")
-        data = {
-            "repository_id": repository_id,
-            "number": number,
-            'title': title,
-            "raised_by": raised_by,
-            "merged_at": merged_at,
-            "merge_commit_sha": merge_commit_sha,
-            "spec": spec,
-            "is_valid": is_valid,
-            "status": status,
-        }
-        response = self.client.post("/pull_requests", json=data)
-        return PullRequest(**response.json())
-
-    def create_pull_requests_batch(self, repo_id: int, pull_requests: list[dict]) -> list[PullRequest]:
-        """Create multiple pull requests for a repository in one request (up to 100)"""
-        if len(pull_requests) > 100:
-            raise ValueError("Maximum 100 pull requests per batch")
-
-        self.logger.info(f"Creating batch of {len(pull_requests)} pull requests for repo {repo_id}")
-        response = self.client.post(f"/repositories/{repo_id}/pull_requests/batch", json=pull_requests)
-        return [PullRequest(**pr) for pr in response.json()]
-
-    def patch_pull_request(
-        self,
-        repo_id: int,
-        number: int,
-        data: dict,
-    ) -> PullRequest:
-        """Update pull request"""
-        self.logger.info(f"Updating PR #{number} in repo {repo_id}")
-        response = self.client.patch(
-            f"/repositories/{repo_id}/pull_requests/{number}",
-            json=data,
-        )
-        return PullRequest(**response.json())
-
-    def update_pull_request_status(
-        self,
-        repo_id: int,
-        number: int,
-        status: str,
-    ) -> PullRequest:
-        """Update pull request"""
-        self.logger.info(f"Updating PR #{number} in repo {repo_id}")
-        response = self.client.patch(
-            f"/repositories/{repo_id}/pull_requests/{number}",
-            json={"status": status},
-        )
-        return PullRequest(**response.json())
+def _get_k8s_secret(secret_name: str, namespace: str, key: str) -> str:
+    """Fetch a secret value from Kubernetes."""
+    result = subprocess.run(
+        ["kubectl", "get", "secret", secret_name, f"-n{namespace}",
+            "-o", f"jsonpath={{.data.{key}}}"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return base64.b64decode(result.stdout).decode()
 
 
 def main():
-    pass
+    backend_url = "http://localhost:5000"
 
+    # Fetch credentials from K8s
+    creds = _load_creds()
+    logger.info(f"login - {creds}")
 
-class EnvConfig(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=None,
-        case_sensitive=True,
-        populate_by_name=True,
+    # Initialize backend session, adapter, and API client
+    adapter = BackendAdapter(
+        base_url=backend_url,
+        username=creds['username'],
+        password=creds['password'],
     )
+    session = BackendSession(adapter)
+    api = BackendAPI(session)
 
-    @field_validator("*", mode="after")
-    @classmethod
-    def validate_required(cls, v: str) -> str:
-        if not v:
-            raise ValueError("required")
-        return v
-
-
-class BackendConfig(EnvConfig):
-    uri: str = Field(default="", alias="BACKEND_API_URI")
-    user: str = Field(default="", alias="DAGSTER_KC_USER")
-    password: str = Field(default="", alias="DAGSTER_KC_PASSWORD")
+    # Fetch repositories
+    repos = api.get_repositories()
+    logger.info(f"Found {len(repos)} repositories")
+    for repo in repos:
+        logger.info(f"  - {repo.get('uri')} (id={repo.get('id')})")
 
 
-class GithubConfig(EnvConfig):
-    token: str = Field(default="", alias="GH_TOKEN")
-    base_uri: str = Field(
-        default="https://api.github.com",
-        alias="GH_API_URI",
-    )
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
