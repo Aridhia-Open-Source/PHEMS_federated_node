@@ -2,6 +2,7 @@ from datetime import datetime as dt
 
 import sqlalchemy as sa
 from sqlalchemy import orm
+from sqlalchemy.orm import validates
 from sqlalchemy.sql import func
 
 from app.helpers.base_model import BaseModel, db
@@ -34,6 +35,16 @@ class PullRequest(db.Model, BaseModel):
     spec = sa.Column(sa.JSON, nullable=False, default={})
 
     repository = orm.relationship("Repository", back_populates="pull_requests")
+
+    @validates('merged_at')
+    def validate_merged_at(self, key, value):
+        """Convert ISO 8601 string to datetime if needed."""
+        if isinstance(value, str):
+            try:
+                return dt.fromisoformat(value.rstrip('Z'))
+            except (ValueError, TypeError):
+                raise ValueError("merged_at must be a valid ISO 8601 datetime string")
+        return value
 
     def __init__(
         self,

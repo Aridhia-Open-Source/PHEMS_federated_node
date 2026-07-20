@@ -108,10 +108,7 @@ def patch_repository(repo_id):
         repo.watch_dir = body['watch_dir']
 
     if 'polled_at' in body:
-        try:
-            repo.polled_at = datetime.fromisoformat(body['polled_at'])  # type: ignore[assignment]
-        except (ValueError, TypeError):
-            raise InvalidRequest("polled_at must be a valid ISO 8601 datetime string")
+        repo.polled_at = body['polled_at']
 
     session.commit()
     return repo.sanitized_dict(), HTTPStatus.OK
@@ -123,20 +120,10 @@ def post_pull_request():
     POST /repositories/pull_requests — create a new pull request
     """
     body = request.json or {}
-
-    # Validate required fields
     required = ['repository_id', 'number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha', 'spec', 'is_valid']
     missing = [f for f in required if f not in body]
     if missing:
         raise InvalidRequest(f"Missing required fields: {', '.join(missing)}")
-
-    # Parse merged_at if it's a string
-    merged_at = body['merged_at']
-    if isinstance(merged_at, str):
-        try:
-            merged_at = datetime.fromisoformat(merged_at.rstrip('Z'))
-        except (ValueError, TypeError):
-            raise InvalidRequest("merged_at must be a valid ISO 8601 datetime string")
 
     # Create PR
     status = body.get('status', PullRequestStatus.UNPROCESSED.value)
@@ -145,7 +132,7 @@ def post_pull_request():
         number=body['number'],
         title=body['title'],
         raised_by=body['raised_by'],
-        merged_at=merged_at,
+        merged_at=body['merged_at'],
         merge_commit_sha=body['merge_commit_sha'],
         spec=body.get('spec', {}),
         is_valid=body.get('is_valid', False),
@@ -189,14 +176,6 @@ def post_pull_requests_batch(repo_id):
                 if pr_data['status'] not in [s.value for s in PullRequestStatus]:
                     raise InvalidRequest(f"Invalid status: {pr_data['status']}")
 
-            # Parse merged_at if it's a string
-            merged_at = pr_data['merged_at']
-            if isinstance(merged_at, str):
-                try:
-                    merged_at = datetime.fromisoformat(merged_at.rstrip('Z'))
-                except (ValueError, TypeError):
-                    raise InvalidRequest("merged_at must be a valid ISO 8601 datetime string")
-
             # Create PR (repository_id always from URL)
             status = pr_data.get('status', PullRequestStatus.UNPROCESSED.value)
             pr = PullRequest(
@@ -204,7 +183,7 @@ def post_pull_requests_batch(repo_id):
                 number=pr_data['number'],
                 title=pr_data['title'],
                 raised_by=pr_data['raised_by'],
-                merged_at=merged_at,
+                merged_at=pr_data['merged_at'],
                 merge_commit_sha=pr_data['merge_commit_sha'],
                 spec=pr_data.get('spec', {}),
                 is_valid=pr_data.get('is_valid', False),
