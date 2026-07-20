@@ -34,10 +34,10 @@ Create chart name and version as used by the chart label.
 # a custom path as helpers are merged and the individual chart values
 # are then applied
 {{- define "backend-image" -}}
-{{ printf "%s:%s" (.Values.backend.image) (.Values.backend.tag) }}
+{{ printf "%s:%s" (.Values.backend.image) ((.Values.backend.tag) | default (include "image-tag" . | trim)) }}
 {{- end }}
 {{- define "fn-alpine" -}}
-{{ printf "%s:%s" (.Values.alpine.image) (.Values.alpine.tag) }}
+{{ printf "%s:%s" (.Values.alpine.image) ((.Values.alpine.tag) | default (include "image-tag" . | trim)) }}
 {{- end }}
 {{- define "image-tag" -}}
 {{ (.Values.default_image_tag) | default .Chart.AppVersion }}
