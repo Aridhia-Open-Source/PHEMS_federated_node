@@ -4,6 +4,8 @@ import requests as req
 class HttpClient:
     auth_type: str = "bearer"
 
+    SUPPORTED_AUTH_TYPES = ["bearer"]
+
     def __init__(self, base_uri: str, token: str = "", session=None):
         self._base_uri = base_uri.rstrip("/")
         self._session = session or req.Session()
@@ -21,14 +23,16 @@ class HttpClient:
 
     def setup_auth(self):
         if not self._token:
-            raise ValueError("Token must be initialized for setup")
+            return
+
         if not self.auth_type:
             raise ValueError("Auth type must be specified for setup")
 
+        if not self.auth_type.lower() in self.SUPPORTED_AUTH_TYPES:
+            raise ValueError(f"Unsupported auth type: {self.auth_type}")
+
         if self.auth_type.lower() == "bearer":
             self._set_bearer_token()
-        else:
-            raise ValueError(f"`Unsupported` auth type: {self.auth_type}")
 
     def _set_bearer_token(self):
         self._session.headers.update(
@@ -62,3 +66,43 @@ class HttpClient:
 
     def delete(self, path: str, **kwargs) -> req.Response:
         return self.request("DELETE", path, **kwargs)
+
+
+class KeycloakHttpClient(HttpClient):
+    """HTTP client with automatic Keycloak token refresh on 401"""
+
+    def __init__(self, base_uri: str, token: str = "", session=None):
+        super().__init__(base_uri, token, session)
+        self._refresh_callback = None
+        self._is_refreshing = False
+
+    def set_token_refresh_callback(self, callback):
+        """Set a callback to refresh the token. Callback should return new token."""
+        self._refresh_callback = callback
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        raise_for_status: bool = True,
+        **kwargs,
+    ) -> req.Response:
+        url = f"{self._base_uri}/{path.lstrip('/')}"
+        response = self._session.request(method, url, timeout=10, **kwargs)
+
+        if response.status_code == 401 and self._refresh_callback and not self._is_refreshing:
+            try:
+                self._is_refreshing = True
+                new_token = self._refresh_callback()
+                self.token = new_token
+                response = self._session.request(method, url, timeout=10, **kwargs)
+            except Exception:
+                if raise_for_status:
+                    response.raise_for_status()
+                return response
+            finally:
+                self._is_refreshing = False
+
+        if raise_for_status:
+            response.raise_for_status()
+        return response
