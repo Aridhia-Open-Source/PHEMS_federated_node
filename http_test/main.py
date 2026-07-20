@@ -12,9 +12,9 @@ Architecture:
 """
 
 import logging
-import time
 import subprocess
 import base64
+import time
 
 from urllib3.util import Retry
 import requests
@@ -60,6 +60,8 @@ class BaseHttpAdapter(HTTPAdapter):
 class BaseSession(Session):
     """Base session with base URL support."""
 
+    timeout = 10
+
     @property
     def base_url(self) -> str:
         return self.adapter.base_url
@@ -74,6 +76,10 @@ class BaseSession(Session):
         super().__init__(*args, **kwargs)
         self.mount_adapters(adapter)
         self.default_raise_for_status = default_raise_for_status
+
+    def send(self, request, **kwargs):
+        kwargs["timeout"] = kwargs.pop("timeout", self.timeout)
+        return super().send(request, **kwargs)
 
     def request(self, method, url, raise_for_status: bool | None = None, **kwargs):
         full_url = f"{self.base_url}/{url.lstrip('/')}"
@@ -98,7 +104,7 @@ class OAuthAdapter(BaseHttpAdapter):
 
     oauth_status_codes = {401, 403}
     oauth_backoff_factor = 0.5
-    oauth_retry_limit = 3
+    oauth_retry_limit = 1  # 3
 
     def __init__(self, base_url: str, username: str, password: str):
         super().__init__(base_url=base_url)
@@ -143,9 +149,10 @@ class OAuthAdapter(BaseHttpAdapter):
             time.sleep(backoff)
             self.refresh_tokens()
 
+            request.headers["Authorization"] = f"Bearer {self.access_token}"
             response = super().send(request, timeout=timeout, **kwargs)
             if response.status_code not in self.oauth_status_codes:
-                return response
+                response.raise_for_status()
 
         return response
 
@@ -155,24 +162,40 @@ class OAuthAdapter(BaseHttpAdapter):
 
 
 class BackendAdapter(OAuthAdapter):
+    # def login(self):
+    #     """Exchange username/password for token."""
+    #     logger.info(f"Logging in as {self.username}")
+
+    #     form = {
+    #         'username': (None, self.username),
+    #         'password': (None, self.password),
+    #     }
+    #     req = requests.Request(
+    #         method="POST",
+    #         url=f"{self.base_url}/login",
+    #         files=form,
+    #     ).prepare()
+
+    #     response = self._send_request(req, timeout=self.timeout)
+    #     response.raise_for_status()
+    #     return response
+
     def login(self):
         """Exchange username/password for token."""
-        logger.info(f"Logging in as {self.username}")
-
-        req = requests.Request(
-            method="POST",
-            url=f"{self.base_url}/login",
-            data={"username": self.username, "password": self.password},
-        ).prepare()
-
-        response = self._send_request(req, timeout=self.timeout)
+        response = requests.post(
+            f"{self.base_url}/login",
+            data={'username': self.username, 'password': self.password},
+            headers={'Accept': 'application/json'},
+            timeout=self.timeout
+        )
         response.raise_for_status()
         return response
 
     def refresh_tokens(self):
         """Refresh token by logging in again."""
-        logger.warning(f"Refreshing token for {self.username}")
-        self.access_token = self.login().json()['token']
+        response = self.login()
+        data = response.json()
+        self.access_token = data['token']
 
 
 class BackendSession(BaseSession):
@@ -222,25 +245,36 @@ def _get_k8s_secret(secret_name: str, namespace: str, key: str) -> str:
 def main():
     backend_url = "http://localhost:5000"
 
-    # Fetch credentials from K8s
     creds = _load_creds()
-    logger.info(f"login - {creds}")
-
-    # Initialize backend session, adapter, and API client
     adapter = BackendAdapter(
         base_url=backend_url,
         username=creds['username'],
         password=creds['password'],
     )
-    session = BackendSession(adapter)
+    session = BackendSession(
+        adapter=adapter,
+        default_raise_for_status=True
+    )
     api = BackendAPI(session)
+    repos = api.get_repositories() or []
 
-    # Fetch repositories
-    repos = api.get_repositories()
-    logger.info(f"Found {len(repos)} repositories")
+    breakpoint()
+
     for repo in repos:
-        logger.info(f"  - {repo.get('uri')} (id={repo.get('id')})")
+        logger.info(repo)
 
 
 if __name__ == "__main__":
     main()
+    # base_url = "http://localhost:5000"
+    # username = "dagster"
+    # password = "oCKa0jHVT9FJAmhGImQrYn7a"
+
+    # response = requests.post(
+    #     f"{base_url}/login",
+    #     data={'username': username, 'password': password},
+    #     headers={'Accept': 'application/json'},
+    #     timeout=10
+    # )
+    # response.raise_for_status()
+    # print(response.json())

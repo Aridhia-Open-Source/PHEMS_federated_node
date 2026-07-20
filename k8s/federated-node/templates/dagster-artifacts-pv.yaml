@@ -32,7 +32,8 @@ spec:
   capacity:
     storage: {{ .Values.storage.capacity }}
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
+    - ReadOnlyMany
   persistentVolumeReclaimPolicy: Retain
   {{ if .Values.storage.local }}
   local:
@@ -73,4 +74,5 @@ spec:
     requests:
       storage: {{ .Values.storage.capacity }}
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
+    - ReadOnlyMany

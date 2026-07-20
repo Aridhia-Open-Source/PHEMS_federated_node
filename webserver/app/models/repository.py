@@ -34,6 +34,16 @@ class Repository(db.Model, BaseModel):
             return netloc_path.lower()
         return value
 
+    @validates('polled_at')
+    def validate_polled_at(self, key, value):
+        """Convert ISO 8601 string to datetime if needed."""
+        if isinstance(value, str):
+            try:
+                return dt.fromisoformat(value.rstrip('Z'))
+            except (ValueError, TypeError):
+                raise ValueError("polled_at must be a valid ISO 8601 datetime string")
+        return value
+
     @property
     def path(self):
         return str(Path(urlparse(str(self.uri)).path)).strip('/')
