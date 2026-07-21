@@ -21,6 +21,10 @@ class PullRequest(db.Model, BaseModel):
         nullable=False, primary_key=True
     )
     number = sa.Column(sa.Integer, nullable=False, primary_key=True)
+    dataset_id = sa.Column(
+        sa.Integer, sa.ForeignKey('datasets.id', ondelete='CASCADE'),
+        nullable=False, primary_key=True
+    )
     title = sa.Column(sa.String(256), nullable=False)
     raised_by = sa.Column(sa.String(256), nullable=False)
     merged_at = sa.Column(sa.DateTime(timezone=False), nullable=False)
@@ -50,6 +54,7 @@ class PullRequest(db.Model, BaseModel):
         self,
         repository_id: int,
         number: int,
+        dataset_id: int,
         title: str,
         raised_by: str,
         merged_at: dt,
@@ -60,6 +65,7 @@ class PullRequest(db.Model, BaseModel):
     ):
         self.repository_id = repository_id
         self.number = number
+        self.dataset_id = dataset_id
         self.title = title
         self.raised_by = raised_by
         self.merged_at = merged_at

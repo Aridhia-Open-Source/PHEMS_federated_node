@@ -100,9 +100,9 @@ class BaseSession(Session):
 
 
 class OAuthAdapter(BaseHttpAdapter):
-    """HTTP adapter that handles login and automatic token refresh on 401/403."""
+    """HTTP adapter that handles login and automatic token refresh on 401/403/429 ."""
 
-    oauth_status_codes = {401, 403}
+    oauth_status_codes = {401, 403, 429}
     oauth_backoff_factor = 0.5
     oauth_retry_limit = 1  # 3
 
