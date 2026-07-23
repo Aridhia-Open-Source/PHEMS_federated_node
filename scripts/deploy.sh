@@ -2,49 +2,16 @@
 set -euo pipefail
 
 ###############################################################################
-# Federated Node - Development Cluster Deployment
-#
-# Workflow
-#   1. Ensure local Docker registry is running
-#   2. Delete existing kind cluster
-#   3. Recreate cluster with required mounts
-#   4. Apply local registry discovery metadata
-#   5. Create namespace + secrets
-#   6. Build code locations
-#   7. Deploy Helm release
-#
-# Disposable cluster
+# Helm Deployment - Sets up namespaces, secrets, and deploys Helm release
 ###############################################################################
 
-### Config ####################################################################
-
-# load env
 source .dev.env
 
-# Required env vars
-# DOCKER_TAG="v1"
-# CLUSTER_NAME="fn"
-# NAMESPACE="fn"
-# RELEASE_NAME="fn-dev"
-# VALUES_FILE="dev.values.yaml"
-# GH_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-# KEYCLOAK_FIRST_USER_PASSWORD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-for required_var in DOCKER_TAG CLUSTER_NAME NAMESPACE RELEASE_NAME VALUES_FILE GH_TOKEN KEYCLOAK_FIRST_USER_PASSWORD; do
-  if [ -z "${!required_var:-}" ]; then
-    echo "Error: Required environment variable '$required_var' is not set. Please define it in .dev.env." >&2
-    exit 1
-  fi
-done
-
-# Config file location for kind cluster
-KIND_CONFIG_FILE=".kind/kind-config.yaml"
-
-# sharing database server
-DB_SECRET_KEY="db-secret-value"
+# Use DB_SECRET_KEY for both services
 BACKEND_DB_SECRET_KEY=$DB_SECRET_KEY
 DAGSTER_DB_SECRET_KEY=$DB_SECRET_KEY
 
-# Host paths required local PVs
+# Host paths required for local PVs
 HOST_MOUNT_PATHS=(
   "/data/db"
   "/data/flask"
@@ -52,128 +19,77 @@ HOST_MOUNT_PATHS=(
   "/data/dagster/artifacts"
 )
 
-###############################################################################
-echo "=== [1/8] Ensuring host paths exist on the machine ========================"
 
-for path in "${HOST_MOUNT_PATHS[@]}"; do
-  sudo rm -rf $path
-  sudo mkdir -p "$path"
-done
-
-# Dev-friendly permissions
-sudo chmod -R 777 /data
-
-###############################################################################
-echo "=== [2/8] Ensuring local docker registries are running ========================"
-
-if [ "$(docker inspect -f '{{.State.Running}}' "kind-registry" 2>/dev/null || true)" != "true" ]; then
-  docker run \
-    -d --restart=always \
-    -p "127.0.0.1:5001:5000" \
-    --name kind-registry \
-    registry:2
-fi
-
-if [ "$(docker inspect -f '{{.State.Running}}' "proxy-docker-hub-registry" 2>/dev/null || true)" != "true" ]; then
-  docker run \
-    -d --restart=always \
-    -p "127.0.0.1:5002:5000" \
-    -e REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io \
-    --name proxy-docker-hub-registry \
-    registry:2
-fi
-
-if [ "$(docker inspect -f '{{.State.Running}}' "proxy-ghcr-registry" 2>/dev/null || true)" != "true" ]; then
-  docker run \
-    -d --restart=always \
-    -p "127.0.0.1:5003:5000" \
-    -e REGISTRY_PROXY_REMOTEURL=https://ghcr.io \
-    --name proxy-ghcr-registry \
-    registry:2
-fi
-
-
-###############################################################################
-echo "=== [3/8] Deleting existing kind cluster (if it exists) ==================="
-
-kind delete cluster --name "$CLUSTER_NAME" || true
-
-###############################################################################
-echo "=== [4/8] Creating kind cluster ==========================================="
-
-# create cluster
-kind create cluster --name "$CLUSTER_NAME" --config "$KIND_CONFIG_FILE"
-
-# Ensure registry is reachable from the kind network
-docker network connect kind kind-registry || true
-docker network connect kind proxy-docker-hub-registry || true
-docker network connect kind proxy-ghcr-registry || true
-
-###############################################################################
-echo "=== [5/8] Applying local registry discovery metadata ======================="
-
-kubectl config use-context "kind-$CLUSTER_NAME"
-kubectl apply -f .kind/docker-registry.yaml
-
-###############################################################################
-echo "=== [6/8] Creating namespace and secrets =================================="
-
+echo "=== Creating Namespace =================================================="
 kubectl create namespace "$NAMESPACE" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl config set-context \
   --current --namespace="$NAMESPACE"
 
+
+echo "=== Creating Secrets ==================================================="
 kubectl create secret generic local-db \
   --from-literal=password="$BACKEND_DB_SECRET_KEY" \
-  --dry-run=client -o yaml | kubectl apply -f -
+  --dry-run=client -o yaml | kubectl apply -f - -n "$NAMESPACE"
 
 kubectl create secret generic dagster-postgresql-secret \
   --from-literal=postgresql-password="$DAGSTER_DB_SECRET_KEY" \
-  --dry-run=client -o yaml | kubectl apply -f -
+  --dry-run=client -o yaml | kubectl apply -f - -n "$NAMESPACE"
 
 kubectl create secret generic github-token \
   --from-literal=GH_TOKEN="$GH_TOKEN" \
-  --dry-run=client -o yaml | kubectl apply -f -
+  --dry-run=client -o yaml | kubectl apply -f - -n "$NAMESPACE"
 
 kubectl create secret generic keycloak-first-user \
   --from-literal=PASSWORD="$KEYCLOAK_FIRST_USER_PASSWORD" \
-  --dry-run=client -o yaml | kubectl apply -f -
+  --dry-run=client -o yaml | kubectl apply -f - -n "$NAMESPACE"
 
 
-# Create dagster system user secret in keycloak namespace
-echo "Creating Keycloak namespace if needed..."
-kubectl create namespace keycloak --dry-run=client -o yaml | kubectl apply -f -
+echo "=== Reconciling PersistentVolumes ======================================"
 
-###############################################################################
-echo "=== [7/8] Building Docker Images(s) ========================================"
+echo "resetting persistent host volumes..."
 
-./scripts/build_all_images.sh $DOCKER_TAG
+for path in "${HOST_MOUNT_PATHS[@]}"; do
+  echo "reset volume $path"
+  sudo rm -rf $path
+  sudo mkdir -p "$path"
+done
 
-###############################################################################
-echo "=== [8/8] Deploying Helm release =========================================="
-echo
-echo "Watch pods with:"
-echo "  kubectl get pods -n $NAMESPACE -w"
-echo
-echo "Watch events with:"
-echo "  kubectl get events -n $NAMESPACE --sort-by='.metadata.creationTimestamp' -w"
-echo
-echo "If something fails:"
-echo "  - Fix config"
-echo "  - Rerun this script"
-echo
-echo "Get dagster keycloak creds"
-echo "microk8s get secret -n $NAMESPACE dagster-keycloak-creds -o json | jq -r .data.DAGSTER_KC_PASSWORD | base64 -d)"
+sudo chmod -R 777 /data
+
+# All PVs (db, backend-results, dagster-artifacts) are plain, Helm-managed
+# resources with reclaimPolicy: Retain and are reconciled idempotently by
+# `helm upgrade` -- we must NOT delete PVs/PVCs here (they may be mounted by a
+# running pod, and deleting a mounted PVC/PV deadlocks on its finalizer).
+#
+# The only recurring hazard is a Retain PV left in "Released" state by an
+# earlier run (its PVC was deleted): it holds a stale claimRef and refuses to
+# rebind to the PVC Helm recreates, leaving the pod stuck Pending. Clearing the
+# claimRef returns it to Available so it rebinds. This is non-blocking and safe.
+for pv in $(kubectl get pv -o jsonpath='{range .items[?(@.status.phase=="Released")]}{.metadata.name}{"\n"}{end}' 2>/dev/null); do
+  case "$pv" in
+    "$RELEASE_NAME"-*) kubectl patch pv "$pv" -p '{"spec":{"claimRef":null}}';;
+  esac
+done
+
+echo "=== Deploying Helm Release =============================================="
 
 cd k8s/federated-node
 
 helm upgrade \
   --install "$RELEASE_NAME" . \
   -f "$VALUES_FILE" \
-  --timeout 30m
+  --timeout 10m \
+  --namespace "$NAMESPACE"
+
+cd - > /dev/null
 
 echo
-echo "=== Deployment completed ======================================"
-echo "If containers fail to pull images, clear your kind cache and rerun script"
-echo "docker rm -f proxy-docker-hub-registry && make deploy"
+echo "=== Helm Deployment Complete ==========================================="
+echo "Namespace: $NAMESPACE"
+echo "Release: $RELEASE_NAME"
+echo
+echo "Watch pods with:"
+echo "  kubectl get pods -n $NAMESPACE -w"
+echo

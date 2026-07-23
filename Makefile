@@ -43,6 +43,12 @@ build_image:
 reload_app:
 	./scripts/reload_app.sh
 
+cluster:
+	@./scripts/cluster.sh $(filter-out $@,$(MAKECMDGOALS))
+
+up down:
+	@:
+
 deploy:
 	./scripts/deploy.sh
 
@@ -51,6 +57,18 @@ portfwd:
 
 upgrade:
 	./scripts/upgrade.sh
+
+tilt-up:
+	tilt up
+
+tilt-down:
+	tilt down
+
+tilt-logs:
+	tilt logs
+
+tilt-open:
+	tilt open
 
 
 %:
