@@ -19,6 +19,9 @@ HOST_MOUNT_PATHS=(
   "/data/dagster/artifacts"
 )
 
+echo "=== Uninstalling deployment =================================================="
+helm uninstall $RELEASE_NAME -n $NAMESPACE
+
 
 echo "=== Creating Namespace =================================================="
 kubectl create namespace "$NAMESPACE" \
@@ -48,11 +51,12 @@ kubectl create secret generic keycloak-first-user \
 
 echo "=== Reconciling PersistentVolumes ======================================"
 
-echo "resetting persistent host volumes..."
+echo "Deleting and creating persistent host volumes..."
 
 for path in "${HOST_MOUNT_PATHS[@]}"; do
-  echo "reset volume $path"
+  echo "sudo rm -rf $path"
   sudo rm -rf $path
+  echo "sudo mkdir -p $path"
   sudo mkdir -p "$path"
 done
 

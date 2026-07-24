@@ -102,7 +102,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "dbKeycloakName" -}}
-  {{ printf "fn_%s" (.Values.db.name | default "fndb") | quote }}
+  {{ .Values.keycloak.db.name | quote }}
 {{- end -}}
 
 {{- define "dbKeycloakHost" }}

@@ -5,7 +5,7 @@ Helm (`make deploy`) owns the real cluster state. Tilt only needs the two
 deployments whose images we rebuild so it can inject freshly built images and
 live_update code into the running containers.
 
-One transform is applied so Tilt's restart-process wrapper works cleanly:
+Transformations applied for dev workflow:
 
   * imagePullPolicy Always -> IfNotPresent, so the kind node uses the image we
     just pushed to the local registry instead of trying to pull it.
@@ -16,9 +16,8 @@ One transform is applied so Tilt's restart-process wrapper works cleanly:
         persist, so the dev pod only needs the long-running server.
 
   For the dagster user-deployment:
-      - Leave the container spec unmodified. The Tiltfile's get_helm_entrypoint()
-        reads the command from the deployment and passes it to
-        docker_build_with_restart, so there's no duplication or conflict.
+      - Clear args field so the Kubernetes container won't append them to the
+        injected entrypoint (which already includes the args from Helm).
 
 Usage: tilt_manifests.py <namespace> <backend-deploy> <dagster-deploy>
 """
