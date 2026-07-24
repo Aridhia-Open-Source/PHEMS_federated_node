@@ -118,9 +118,6 @@ if [ "$COMMAND" = "up" ]; then
 # DOWN - Tear down cluster
 ###############################################################################
 elif [ "$COMMAND" = "down" ]; then
-  echo "=== Stopping Tilt (if running) =========================================="
-  tilt down 2>/dev/null || true
-
   echo
   echo "=== Deleting Kind Cluster ==============================================="
   kind delete cluster --name "$CLUSTER_NAME" || true

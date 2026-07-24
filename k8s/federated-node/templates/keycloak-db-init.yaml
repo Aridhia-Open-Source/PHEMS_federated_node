@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-db-init
+  namespace: {{ include "kc_namespace" . }}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait-for-db
+          image: {{ include "fn-alpine" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h $PGHOST -p 5432; do
+                echo "waiting for postgres..."
+                sleep 2
+              done
+          env:
+            - name: PGHOST
+              valueFrom:
+                configMapKeyRef:
+                  name: keycloak-config
+                  key: KC_DB_URL_HOST
+      containers:
+        {{- include "createDBInitContainer" (dict "ctx" . "cfg" (dict
+            "configMapName" "keycloak-config"
+            "userKey" "KC_DB_USERNAME"
+            "hostKey" "KC_DB_URL_HOST"
+            "secretName" .Values.db.secret.name
+            "secretKey" .Values.db.secret.key
+        )) | nindent 8 }}
+          - name: DB_NAME
+            valueFrom:
+              configMapKeyRef:
+                name: keycloak-config
+                key: KC_DB_URL_DATABASE

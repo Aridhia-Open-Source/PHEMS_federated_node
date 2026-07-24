@@ -31,6 +31,24 @@ spec:
               configMapKeyRef:
                 name: keycloak-config
                 key: KC_DB_URL_DATABASE
+        - name: wait-for-db
+          image: {{ include "fn-alpine" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h $PGHOST -p 5432; do
+                echo "waiting for postgres..."
+                sleep 2
+              done
+          env:
+            - name: PGHOST
+              valueFrom:
+                configMapKeyRef:
+                  name: keycloak-config
+                  key: KC_DB_URL_HOST
         - name: credentials-reset
           imagePullPolicy: {{ .Values.pullPolicy }}
           image: {{ include "fn-alpine" . }}

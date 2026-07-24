@@ -14,6 +14,8 @@ backend:
 keycloak:
   replicas: 1
   tag:
+  db:
+    name: keycloak_db
 
 alpine:
   image: ghcr.io/aridhia-open-source/alpine
@@ -40,14 +42,14 @@ copySecrets: true
 
 db:
   enforceSSL: false
-  name: fndb
+  name: backend
   port: 5432
   # If a secret with password exists, use that
   # secret:
   #   name:
   #   key:
 
-# How many days the results and k8s resources are kept for
+# How many days the resultks and k8s resources are kept for
 cleanupTime: 3
 
 taskReview: false

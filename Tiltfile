@@ -3,6 +3,7 @@
 # - Webserver (Flask backend)
 # - Dagster user code
 # - Dagster daemon and webserver
+
 #
 # Prerequisites:
 # - Kind cluster running (make cluster up)
@@ -20,25 +21,10 @@ NAMESPACE = os.getenv('NAMESPACE', 'fn')
 RELEASE_NAME = os.getenv('RELEASE_NAME', 'fn-dev')
 DAGSTER_DEPLOYMENT = RELEASE_NAME + '-dagster-user-deployments-dagster-fn'
 
-def get_helm_entrypoint(deployment_name):
-  # Try command field first, then args field
-  cmd = str(local(
-    'kubectl get deployment %s -n %s -o jsonpath="{.spec.template.spec.containers[0].command[*]}" 2>/dev/null || echo ""' % (deployment_name, NAMESPACE),
-    quiet=True
-  )).strip()
-  if cmd:
-    return cmd.split()
-
-  args = str(local(
-    'kubectl get deployment %s -n %s -o jsonpath="{.spec.template.spec.containers[0].args[*]}" 2>/dev/null || echo ""' % (deployment_name, NAMESPACE),
-    quiet=True
-  )).strip()
-  if args:
-    return args.split()
-
-  return None
-
-DAGSTER_ENTRYPOINT = get_helm_entrypoint(DAGSTER_DEPLOYMENT)
+# Full entrypoint from dev.values.yaml dagsterApiGrpcArgs
+DAGSTER_FULL_ENTRYPOINT = [
+  'dagster', 'api', 'grpc',
+]
 
 # Allow Tilt to control what K8s cluster to deploy to
 allow_k8s_contexts('kind-fn')
@@ -47,7 +33,8 @@ allow_k8s_contexts('kind-fn')
 # them to inject the restart wrapper.
 k8s_yaml(local(
   'python3 scripts/tilt_manifests.py {ns} backend {dagster}'.format(
-    ns=NAMESPACE, dagster=DAGSTER_DEPLOYMENT,
+    ns=NAMESPACE,
+    dagster=DAGSTER_DEPLOYMENT,
   ),
   quiet=True,
 ))
@@ -61,11 +48,8 @@ docker_build_with_restart(
   '{}/webserver-fn'.format(DOCKER_REGISTRY),
   'webserver',
   entrypoint=[
-    'waitress-serve',
-    '--host=0.0.0.0',
-    '--port=5000',
-    '--call',
-    'app:create_app',
+    'python', '-m', 'flask', 'run',
+    '--host=0.0.0.0', '--port=5000',
   ],
   only=[
     'app',
@@ -90,17 +74,12 @@ docker_build_with_restart(
 # ==============================================================================
 # DAGSTER USER CODE DEPLOYMENT
 # ==============================================================================
-# The gRPC code server loads user code at process start, so a code change must
-# restart the process to be picked up. docker_build_with_restart re-runs the
-# entrypoint after syncing, giving fast reloads without a full image rebuild.
+# Entrypoint combines Tilt's base command with Helm's args.
+# tilt_manifests.py clears the Kubernetes args field so they don't get appended.
 docker_build_with_restart(
   '{}/dagster-fn'.format(DOCKER_REGISTRY),
   'dagster',
-  entrypoint=DAGSTER_ENTRYPOINT if DAGSTER_ENTRYPOINT else [
-    'dagster', 'api', 'grpc',
-    '-h', '0.0.0.0',
-    '-p', '3030',
-  ],
+  entrypoint=[],
   only=[
     'app',
     'requirements.txt',
@@ -120,6 +99,13 @@ docker_build_with_restart(
 # ==============================================================================
 # STATUS HELPERS
 # ==============================================================================
+
+# Watch for dagster code changes, restart the pod, and reload workspace
+local_resource(
+  'dagster-reload',
+  serve_cmd='bash -c \'while inotifywait -r -e modify dagster/app; do echo "Restarting dagster pod..."; kubectl rollout restart deployment/{} -n {}; kubectl rollout status deployment/{} -n {} --timeout=60s >/dev/null 2>&1; echo "Pod restarted, refresh the UI to see changes"; done\''.format(DAGSTER_DEPLOYMENT, NAMESPACE, DAGSTER_DEPLOYMENT, NAMESPACE),
+  labels=['dev'],
+)
 
 # Expose the backend locally
 k8s_resource('backend', port_forwards=['5000:5000'])
