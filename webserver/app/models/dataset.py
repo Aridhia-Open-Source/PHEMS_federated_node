@@ -26,6 +26,7 @@ SUPPORTED_ENGINES = {
     "mariadb": MariaDB
 }
 
+
 class Dataset(db.Model, BaseModel):
     __tablename__ = 'datasets'
 
@@ -40,20 +41,21 @@ class Dataset(db.Model, BaseModel):
 
     repository_id = Column(Integer, ForeignKey('repositories.id'), nullable=True)
     repository = relationship("Repository", foreign_keys=[repository_id], back_populates="datasets")
+    pull_requests = relationship("PullRequest", back_populates="dataset")
 
     def __init__(
-            self,
-            name: str,
-            host: str,
-            username: str,
-            password: str,
-            port: int = 5432,
-            schema: str | None = None,
-            schema_write: str | None = None,
-            type: str = "postgres",
-            extra_connection_args: str | None = None,
-            repository=None,
-            **kwargs
+        self,
+        name: str,
+        host: str,
+        username: str,
+        password: str,
+        port: int = 5432,
+        schema: str | None = None,
+        schema_write: str | None = None,
+        type: str = "postgres",
+        extra_connection_args: str | None = None,
+        repository=None,
+        **kwargs
     ):
         self.name = urllib.parse.unquote(name).lower()
         self.slug = self.slugify_name()
@@ -75,18 +77,35 @@ class Dataset(db.Model, BaseModel):
     def __repr__(self):
         return f'<Dataset {self.name}>'
 
+    def add(self, commit=True, user_id=None):
+        super().add(commit)
+        self.create_kubernetes_secret(self.username, self.password)
+        delattr(self, "username")
+        delattr(self, "password")
+        return self
+
     @classmethod
     def validate(cls, data: dict) -> dict:
-        data = dict(data)  # don't mutate caller's dict (audit decorator reads request.json after)
-        uri = data.pop("repository", None)
-        if not uri:
-            raise InvalidRequest("repository is required")
-        uri = uri.lower().rstrip('/')
-        repo = Models.Repository.query.filter(Models.Repository.uri == uri).one_or_none()
+        data = dict(data)  # prevent mutation
+        repo_id = data.get("repository_id")
+        if not repo_id:
+            raise InvalidRequest("repository_id is required")
+
+        query = Models.Repository.query.filter(Models.Repository.id == repo_id)
+        repo = query.one_or_none()
         if repo is None:
-            raise InvalidRequest(f"Repository '{uri}' not found. Create it first via POST /repositories")
+            raise InvalidRequest(f"Repository with id {repo_id} not found")
+
         data["repository"] = repo
         return super().validate(data)
+
+    @classmethod
+    def parse_repo_uri(cls, uri: str) -> str:
+        """
+        Parse the repository URI to extract the host and path.
+        """
+        parsed = urllib.parse.urlparse(uri)
+        return (parsed.netloc + parsed.path).lower().rstrip('/')
 
     def get_creds_secret_name(self, host=None, name=None):
         host = host or self.host
@@ -113,8 +132,6 @@ class Dataset(db.Model, BaseModel):
         dataset = super().sanitized_dict()
         dataset["slug"] = self.slugify_name()
         dataset["url"] = f"https://{PUBLIC_URL}/datasets/{dataset['slug']}"
-        dataset.pop("repository_id", None)
-        dataset["repository"] = self.repository.uri if self.repository else None
         return dataset
 
     def slugify_name(self) -> str:
@@ -140,11 +157,9 @@ class Dataset(db.Model, BaseModel):
 
         return user, password
 
-    def add(self, commit=True, user_id=None):
-        super().add(commit)
-        # create secrets
+    def create_kubernetes_secret(self, username, password) -> V1Secret:
         v1 = KubernetesClient()
-        v1.create_secret(
+        return v1.create_secret(
             name=self.get_creds_secret_name(),
             values={
                 "PGPASSWORD": self.password,
@@ -154,54 +169,58 @@ class Dataset(db.Model, BaseModel):
             },
             namespaces=[DEFAULT_NAMESPACE, TASK_NAMESPACE]
         )
-        delattr(self, "username")
-        delattr(self, "password")
-        # Add to keycloak
-        kc_client = Keycloak()
-        admin_policy = kc_client.get_policy('admin-policy')
-        sys_policy = kc_client.get_policy('system-policy')
 
-        admin_ds_scope = []
-        admin_ds_scope.append(kc_client.get_scope('can_admin_dataset'))
-        admin_ds_scope.append(kc_client.get_scope('can_access_dataset'))
-        admin_ds_scope.append(kc_client.get_scope('can_exec_task'))
-        admin_ds_scope.append(kc_client.get_scope('can_admin_task'))
-        admin_ds_scope.append(kc_client.get_scope('can_send_request'))
-        admin_ds_scope.append(kc_client.get_scope('can_admin_request'))
-        policy = kc_client.create_policy({
-            "name": f"{self.id} - {self.name} Admin Policy",
-            "description": f"List of users allowed to administrate the {self.name} dataset",
-            "logic": "POSITIVE",
-            "users": [user_id]
-        }, "/user")
+    def add_to_keycloak(self, user_id=None):
+        raise NotImplementedError("Dataset Keycloak integration is not implemented yet.")
+        # kc_client = Keycloak()
+        # admin_policy = kc_client.get_policy('admin-policy')
+        # sys_policy = kc_client.get_policy('system-policy')
 
-        resource_ds = kc_client.create_resource({
-            "name": f"{self.id}-{self.name}",
-            "displayName": f"{self.id} - {self.name}",
-            "scopes": admin_ds_scope,
-            "uris": []
-        })
-        kc_client.create_permission({
-            "name": f"{self.id}-{self.name} Admin Permission",
-            "description": "List of policies that will allow certain users or roles to administrate the dataset",
-            "type": "resource",
-            "logic": "POSITIVE",
-            "decisionStrategy": "AFFIRMATIVE",
-            "policies": [admin_policy["id"], sys_policy["id"], policy["id"]],
-            "resources": [resource_ds["_id"]],
-            "scopes": [scope["id"] for scope in admin_ds_scope]
-        })
+        # admin_ds_scope = []
+        # admin_ds_scope.append(kc_client.get_scope('can_admin_dataset'))
+        # admin_ds_scope.append(kc_client.get_scope('can_access_dataset'))
+        # admin_ds_scope.append(kc_client.get_scope('can_exec_task'))
+        # admin_ds_scope.append(kc_client.get_scope('can_admin_task'))
+        # admin_ds_scope.append(kc_client.get_scope('can_send_request'))
+        # admin_ds_scope.append(kc_client.get_scope('can_admin_request'))
+        # policy = kc_client.create_policy({
+        #     "name": f"{self.id} - {self.name} Admin Policy",
+        #     "description": f"List of users allowed to administrate the {self.name} dataset",
+        #     "logic": "POSITIVE",
+        #     "users": [user_id]
+        # }, "/user")
 
-    def update(self, **kwargs): # noqa: E501
+        # resource_ds = kc_client.create_resource({
+        #     "name": f"{self.id}-{self.name}",
+        #     "displayName": f"{self.id} - {self.name}",
+        #     "scopes": admin_ds_scope,
+        #     "uris": []
+        # })
+        # kc_client.create_permission({
+        #     "name": f"{self.id}-{self.name} Admin Permission",
+        #     "description": "List of policies that will allow certain users or roles to administrate the dataset",
+        #     "type": "resource",
+        #     "logic": "POSITIVE",
+        #     "decisionStrategy": "AFFIRMATIVE",
+        #     "policies": [admin_policy["id"], sys_policy["id"], policy["id"]],
+        #     "resources": [resource_ds["_id"]],
+        #     "scopes": [scope["id"] for scope in admin_ds_scope]
+        # })
+
+    def update(self, **kwargs):
         """
         Updates the instance with new values. These should be
         already validated.
         """
-        # Nothing to validate, i.e updating the dictionaries only
+        query = self.query.filter(Dataset.id == self.id)
+        query.update(**kwargs, synchronize_session='evaluate')
+        self.update_kubernetes_secret(**kwargs)
+        # self.update_keycloak(**kwargs)
+
+    def update_kubernetes_secret(self, **kwargs):
         if not kwargs:
             return
 
-        kc_client = Keycloak()
         v1 = KubernetesClient()
         new_username = kwargs.pop("username", None)
         secret_name: str = self.get_creds_secret_name()
@@ -251,30 +270,23 @@ class Dataset(db.Model, BaseModel):
             # let the exception to be re-raised with the internal one
             raise KubernetesException(e.body, 400) from e
 
-        # Check resource names on KC and update them
-        if new_name and new_name != self.name:
-            update_args = {
-                "name": f"{self.id}-{kwargs["name"]}",
-                "displayName": f"{self.id} - {kwargs["name"]}"
-            }
-            kc_client.patch_resource(f"{self.id}-{self.name}", **update_args)
-
-        if "repository" in kwargs:
-            repo_uri = kwargs.pop("repository")
-            if repo_uri:
-                repo_uri = repo_uri.lower().rstrip('/')
-                repo = Models.Repository.query.filter(Models.Repository.uri == repo_uri).one_or_none()
-                if repo is None:
-                    raise InvalidRequest(f"Repository '{repo_uri}' not found. Create it first via POST /repositories")
-                self.repository = repo
-            else:
-                self.repository = None
-        # Update table
-        if kwargs:
-            self.query.filter(Dataset.id == self.id).update(kwargs, synchronize_session='evaluate')
+    def update_keycloak(self, **kwargs):
+        raise NotImplementedError("Dataset Keycloak integration is not implemented yet.")
+        # kc_client = Keycloak()
+        # new_name = kwargs.get("name", None)
+        # if new_name and new_name != self.name:
+        #     update_args = {
+        #         "name": f"{self.id}-{kwargs['name']}",
+        #         "displayName": f"{self.id} - {kwargs['name']}"
+        #     }
+        #     kc_client.patch_resource(f"{self.id}-{self.name}", **update_args)
 
     @classmethod
-    def get_dataset_by_name_or_id(cls, id:int=None, name:str="") -> "Dataset":
+    def get_dataset_by_name_or_id(
+        cls,
+        id: int | None = None,
+        name: str | None = None
+    ) -> "Dataset":
         """
         Common function to get a dataset by name or id.
         If both arguments are provided, then tries to find as an AND condition

@@ -16,29 +16,33 @@ class PullRequest(db.Model, BaseModel):
     """
     __tablename__ = 'pull_requests'
 
-    repository_id = sa.Column(
-        sa.Integer, sa.ForeignKey('repositories.id', ondelete='CASCADE'),
-        nullable=False, primary_key=True
-    )
+
     number = sa.Column(sa.Integer, nullable=False, primary_key=True)
-    dataset_id = sa.Column(
-        sa.Integer, sa.ForeignKey('datasets.id', ondelete='CASCADE'),
-        nullable=False, primary_key=True
-    )
     title = sa.Column(sa.String(256), nullable=False)
     raised_by = sa.Column(sa.String(256), nullable=False)
     merged_at = sa.Column(sa.DateTime(timezone=False), nullable=False)
     saved_at = sa.Column(sa.DateTime(timezone=False), server_default=func.now())
     is_valid = sa.Column(sa.Boolean, nullable=False, default=False)
+    merge_commit_sha = sa.Column(sa.String(40), nullable=False)
+    spec = sa.Column(sa.JSON, nullable=False, default={})
+
     status = sa.Column(
         sa.String(32),
         nullable=False,
         default=PullRequestStatus.UNPROCESSED.value,
     )
-    merge_commit_sha = sa.Column(sa.String(40), nullable=False)
-    spec = sa.Column(sa.JSON, nullable=False, default={})
+
+    repository_id = sa.Column(
+        sa.Integer, sa.ForeignKey('repositories.id', ondelete='CASCADE'),
+        nullable=False, primary_key=True
+    )
+    dataset_id = sa.Column(
+        sa.Integer, sa.ForeignKey('datasets.id', ondelete='CASCADE'),
+        nullable=True, primary_key=True
+    )
 
     repository = orm.relationship("Repository", back_populates="pull_requests")
+    dataset = orm.relationship("Dataset", back_populates="pull_requests")
 
     @validates('merged_at')
     def validate_merged_at(self, key, value):
@@ -54,12 +58,12 @@ class PullRequest(db.Model, BaseModel):
         self,
         repository_id: int,
         number: int,
-        dataset_id: int,
         title: str,
         raised_by: str,
         merged_at: dt,
         merge_commit_sha: str,
         is_valid: bool,
+        dataset_id: int | None = None,
         status: str = PullRequestStatus.UNPROCESSED.value,
         spec: dict | None = None,
     ):
