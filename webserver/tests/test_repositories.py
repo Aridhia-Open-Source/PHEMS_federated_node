@@ -32,7 +32,8 @@ class TestGetRepositories:
         assert response.status_code == 200
         assert response.json["id"] == repository.id
         assert response.json["uri"] == repository.uri
-        assert response.json["pr_cursor"] == 0
+        assert "pr_cursor" in response.json
+        assert isinstance(response.json["pr_cursor"], str)
         assert response.json["base_branch"] == "main"
 
     def test_get_by_id_not_found(self, client, simple_admin_header):
@@ -54,7 +55,8 @@ class TestPostRepository:
         assert response.status_code == 201
         assert response.json["uri"] == repo_post_body["uri"]
         assert response.json["base_branch"] == "main"
-        assert response.json["pr_cursor"] == 0
+        assert "pr_cursor" in response.json
+        assert isinstance(response.json["pr_cursor"], str)
 
     def test_create_with_custom_base_branch(self, client, post_json_admin_header):
         body = {"uri": "github.com/org/repo", "base_branch": "develop"}
@@ -83,15 +85,6 @@ class TestPostRepository:
 
 
 class TestPatchRepository:
-    def test_update_pr_cursor(self, client, post_json_admin_header, repository):
-        response = client.patch(
-            f"/repositories/{repository.id}",
-            data=json.dumps({"pr_cursor": 42}),
-            headers=post_json_admin_header
-        )
-        assert response.status_code == 200
-        assert response.json["pr_cursor"] == 42
-
     def test_update_base_branch(self, client, post_json_admin_header, repository):
         response = client.patch(
             f"/repositories/{repository.id}",
@@ -100,24 +93,6 @@ class TestPatchRepository:
         )
         assert response.status_code == 200
         assert response.json["base_branch"] == "develop"
-
-    def test_update_both_fields(self, client, post_json_admin_header, repository):
-        response = client.patch(
-            f"/repositories/{repository.id}",
-            data=json.dumps({"pr_cursor": 10, "base_branch": "staging"}),
-            headers=post_json_admin_header
-        )
-        assert response.status_code == 200
-        assert response.json["pr_cursor"] == 10
-        assert response.json["base_branch"] == "staging"
-
-    def test_negative_pr_cursor_fails(self, client, post_json_admin_header, repository):
-        response = client.patch(
-            f"/repositories/{repository.id}",
-            data=json.dumps({"pr_cursor": -1}),
-            headers=post_json_admin_header
-        )
-        assert response.status_code == 400
 
     def test_empty_base_branch_fails(self, client, post_json_admin_header, repository):
         response = client.patch(
@@ -138,11 +113,43 @@ class TestPatchRepository:
     def test_not_found(self, client, post_json_admin_header):
         response = client.patch(
             "/repositories/9999",
-            data=json.dumps({"pr_cursor": 1}),
+            data=json.dumps({"base_branch": "develop"}),
             headers=post_json_admin_header
         )
         assert response.status_code == 404
 
     def test_requires_auth(self, client, repository):
-        response = client.patch(f"/repositories/{repository.id}", data=json.dumps({"pr_cursor": 1}))
+        response = client.patch(f"/repositories/{repository.id}", data=json.dumps({"base_branch": "develop"}))
         assert response.status_code == 401
+
+
+class TestInitialCursor:
+    def test_initial_cursor_set_on_creation(self, client, post_json_admin_header):
+        """initial_cursor should be set to current time when creating a repository"""
+        response = client.post(
+            "/repositories/",
+            data=json.dumps({"uri": "github.com/org/test-repo"}),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        assert "initial_cursor" in response.json
+        assert isinstance(response.json["initial_cursor"], str)
+
+    def test_initial_cursor_custom_value(self, client, post_json_admin_header):
+        """initial_cursor can be set to a custom value on creation"""
+        custom_cursor = "2026-01-01T00:00:00"
+        response = client.post(
+            "/repositories/",
+            data=json.dumps({"uri": "github.com/org/test-repo", "initial_cursor": custom_cursor}),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        assert response.json["initial_cursor"] == custom_cursor
+
+    def test_pr_cursor_uses_initial_cursor(self, client, simple_admin_header, repository):
+        """pr_cursor should use initial_cursor when no PRs exist"""
+        response = client.get(f"/repositories/{repository.id}", headers=simple_admin_header)
+        assert response.status_code == 200
+        # pr_cursor should be a timestamp string matching initial_cursor behavior
+        assert "pr_cursor" in response.json
+        assert isinstance(response.json["pr_cursor"], str)

@@ -42,7 +42,7 @@ def is_response_good(response:Response) -> None:
         exit(1)
 
 
-def login(kc_url:str, kc_user:str, kc_pass:str) -> str:
+def login(kc_url: str, kc_user: str, kc_pass: str) -> str:
     """
     Common login function, gets the url and the password as the user is always the same.
     Returns the access_token

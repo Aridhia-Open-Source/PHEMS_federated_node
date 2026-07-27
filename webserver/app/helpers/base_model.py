@@ -110,7 +110,7 @@ class BaseModel():
         return valid
 
     @classmethod
-    def get_by_id(cls, obj_id:int) -> Self:
+    def get_by_id(cls, obj_id: int) -> Self:
         """
         Common wrapper to get by id, and raise an
         exception if not found

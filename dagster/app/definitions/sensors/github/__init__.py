@@ -156,8 +156,11 @@ def github_pull_request_failure_sensor(context: RunStatusSensorContext):
 def github_pr_comment_op(context: OpExecCtx):
     """Add success comment to original PR."""
     github_config = GithubConfig()
-    github_api = GithubAPI(GithubClient(token=github_config.token,
-                                        base_uri=github_config.base_uri))
+    github_client = GithubClient(
+        token=github_config.token,
+        base_uri=github_config.base_uri
+    )
+    github_api = GithubAPI(github_client)
     operation = GithubCommentOperation(context, github_api)
     return operation()
 

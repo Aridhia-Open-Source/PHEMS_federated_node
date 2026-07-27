@@ -24,6 +24,7 @@ logger = logging.getLogger('containers_api')
 logger.setLevel(logging.INFO)
 session = db.session
 
+
 @bp.before_request
 def check_validation_enabled():
     """
@@ -32,6 +33,7 @@ def check_validation_enabled():
     if not ENABLE_IMAGE_WHITELIST:
         return {"error": "Container validation is disabled"}, HTTPStatus.FORBIDDEN
     return None
+
 
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
@@ -78,7 +80,7 @@ def add_image():
 @bp.route('/<int:image_id>', methods=['GET'])
 @audit
 @auth(scope='can_admin_dataset')
-def get_image_by_id(image_id:int=None):
+def get_image_by_id(image_id: int):
     """
     GET /containers/<image_id>
     """
@@ -90,7 +92,7 @@ def get_image_by_id(image_id:int=None):
 @bp.route('/<int:image_id>', methods=['DELETE'])
 @audit
 @auth(scope='can_admin_dataset')
-def delete_image(image_id:int=None):
+def delete_image(image_id: int):
     """
     DELETE /containers/<image_id>
     """

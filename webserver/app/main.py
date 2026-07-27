@@ -11,6 +11,7 @@ from .helpers.exceptions import AuthenticationError
 
 bp = Blueprint('main', __name__, url_prefix='/')
 
+
 @bp.route('/')
 def index():
     """
@@ -19,6 +20,7 @@ def index():
     """
     return redirect(url_for('main.health_check'))
 
+
 @bp.route("/ready_check")
 def ready_check():
     """
@@ -26,6 +28,7 @@ def ready_check():
         Mostly to tell k8s Flask has started
     """
     return {"status": "ready"}, HTTPStatus.OK
+
 
 @bp.route("/health_check")
 def health_check():
@@ -48,6 +51,7 @@ def health_check():
         "keycloak": kc_status
     }, code
 
+
 @bp.route("/login", methods=['POST'])
 def login():
     """
@@ -58,6 +62,7 @@ def login():
     return {
         "token": Keycloak().get_token(**credentials)
     }, HTTPStatus.OK
+
 
 @bp.route("/refresh_token", methods=['POST'])
 def refresh_token():
