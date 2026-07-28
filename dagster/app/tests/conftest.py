@@ -16,7 +16,6 @@ SAMPLE_REPO = {
     "path": "org/repo",
     "base_branch": "main",
     "watch_dir": "specs/",
-    "polled_at": None,
 }
 
 SAMPLE_REPOSITORY_OBJ = {
@@ -25,7 +24,7 @@ SAMPLE_REPOSITORY_OBJ = {
     "path": "org/repo",
     "base_branch": "main",
     "watch_dir": "specs/",
-    "last_merged_at": "2026-01-01T00:00:00Z",
+    "initial_cursor": "2026-01-01T00:00:00Z",
     "pull_requests": [],
 }
 
@@ -37,7 +36,6 @@ SAMPLE_PR = {
     "merged_at": "2026-06-26T10:00:00Z",
     "merge_commit_sha": "abc123def456",
     "saved_at": "2026-06-26T10:05:00Z",
-    "is_valid": True,
     "status": "unprocessed",
     "spec": {
         "docker_image": "ghcr.io/org/experiment:latest",
@@ -53,7 +51,6 @@ SAMPLE_INVALID_PR = {
     "merged_at": "2026-06-27T10:00:00Z",
     "merge_commit_sha": "xyz789abc123",
     "saved_at": "2026-06-27T10:05:00Z",
-    "is_valid": False,
     "status": "unprocessed",
     "spec": {},
 }
@@ -66,7 +63,6 @@ SAMPLE_IN_PROGRESS_PR = {
     "merged_at": "2026-06-28T10:00:00Z",
     "merge_commit_sha": "pqr456xyz789",
     "saved_at": "2026-06-28T10:05:00Z",
-    "is_valid": True,
     "status": "in_progress",
     "spec": {
         "docker_image": "ghcr.io/org/experiment:v2",

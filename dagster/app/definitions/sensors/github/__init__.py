@@ -1,4 +1,4 @@
-from typing import Generator, cast
+from typing import cast
 
 import dagster as dg
 from dagster import (
@@ -6,18 +6,16 @@ from dagster import (
     RunStatusSensorContext,
 )
 
-from app.backend import BackendAPI, BackendClient
+from app.backend import BackendAPI
+from app.utils import BackendAdapter, BackendSession
 from app.github import GithubAPI, GithubClient
 from app.config import GithubTransferConfig, BackendConfig, GithubConfig
 from app.definitions.sensors.github.pr_ingest import PullRequestIngestSensor
 from app.definitions.sensors.github.pr_trigger import PullRequestTriggerSensor
-from app.definitions.sensors.github.pr_monitor import (
-    PullRequestStatusSuccessSensor,
-    PullRequestStatusFailureSensor,
-)
-from app.definitions.jobs import k8s_pipes_job
+from app.definitions.sensors.github.pr_status import PullRequestStatusSensor
 from app.definitions.sensors.github.transfer_op import GithubTransferOperation
 from app.definitions.sensors.github.comment_op import GithubCommentOperation
+from app.definitions.jobs import k8s_pipes_job
 
 MIN_SENSOR_INTERVAL_SECONDS = 10
 
@@ -48,7 +46,7 @@ def github_transfer_job():
     default_status=dg.DefaultSensorStatus.RUNNING,
     required_resource_keys={"backend_api", "github_api"},
 )
-def github_pull_request_ingest_sensor(context: OpExecCtx):
+def pull_request_ingest_sensor(context: OpExecCtx):
     """
     Sensor that polls GitHub for new merged pull requests in configured
     repositories and saves them to the database.
@@ -75,7 +73,7 @@ def github_pull_request_ingest_sensor(context: OpExecCtx):
     required_resource_keys={"backend_api", "github_api"},
     job_name="k8s_pipes_job",
 )
-def github_pull_request_trigger_sensor(context: OpExecCtx):
+def pull_request_trigger_sensor(context: OpExecCtx):
     """
     Sensor that reads validated, unprocessed PRs from the database and
     triggers task monitoring jobs.
@@ -91,57 +89,6 @@ def github_pull_request_trigger_sensor(context: OpExecCtx):
         context=context,
         backend_api=cast(BackendAPI, context.resources.backend_api),
         github_api=cast(GithubAPI, context.resources.github_api),
-    )
-    yield from sensor()
-
-
-
-@dg.run_status_sensor(
-    run_status=dg.DagsterRunStatus.SUCCESS,
-    default_status=dg.DefaultSensorStatus.RUNNING,
-    monitored_jobs=[k8s_pipes_job],
-    request_job=github_transfer_job,
-    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
-)
-def github_pull_request_status_success_sensor(context: RunStatusSensorContext):
-    """
-    Monitor k8s_pipes_job completion (triggered by PR trigger sensor).
-    On success, mark the PR status as 'success' in the database.
-    """
-    backend_config = BackendConfig()
-    github_config = GithubConfig()
-    backend_api = BackendAPI(BackendClient(base_uri=backend_config.uri))
-    github_api = GithubAPI(GithubClient(token=github_config.token, base_uri=github_config.base_uri))
-
-    sensor = PullRequestStatusSuccessSensor(
-        context=context,
-        backend_api=backend_api,
-        github_api=github_api,
-    )
-    yield from sensor()
-
-
-@dg.run_status_sensor(
-    run_status=dg.DagsterRunStatus.FAILURE,
-    default_status=dg.DefaultSensorStatus.RUNNING,
-    monitored_jobs=[k8s_pipes_job],
-    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
-)
-def github_pull_request_failure_sensor(context: RunStatusSensorContext):
-    """
-    Monitor k8s_pipes_job completion (triggered by PR trigger sensor).
-    On failure, mark the PR status as 'failed' in the database.
-    """
-    backend_config = BackendConfig()
-    github_config = GithubConfig()
-    backend_api = BackendAPI(BackendClient(base_uri=backend_config.uri))
-    github_api = GithubAPI(GithubClient(token=github_config.token,
-                                        base_uri=github_config.base_uri))
-
-    sensor = PullRequestStatusFailureSensor(
-        context=context,
-        backend_api=backend_api,
-        github_api=github_api,
     )
     yield from sensor()
 
@@ -171,58 +118,182 @@ def github_pr_comment_job():
     github_pr_comment_op()
 
 
+
+@dg.run_status_sensor(
+    run_status=dg.DagsterRunStatus.QUEUED,
+    default_status=dg.DefaultSensorStatus.RUNNING,
+    monitored_jobs=[k8s_pipes_job],
+    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
+)
+def task_queued_sensor(context: RunStatusSensorContext):
+    backend_config = BackendConfig()
+    backend_adapter = BackendAdapter(
+        base_url=backend_config.uri,
+        username=backend_config.user,
+        password=backend_config.password
+    )
+    backend_session = BackendSession(adapter=backend_adapter)
+    backend_api = BackendAPI(session=backend_session)
+
+    sensor = PullRequestStatusSensor(
+        context=context,
+        backend_api=backend_api,
+        github_api=cast(GithubAPI, context.resources.github_api),
+    )
+    yield from sensor(context)
+
+
+@dg.run_status_sensor(
+    run_status=dg.DagsterRunStatus.STARTED,
+    default_status=dg.DefaultSensorStatus.RUNNING,
+    monitored_jobs=[k8s_pipes_job],
+    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
+)
+def task_started_sensor(context: RunStatusSensorContext):
+    backend_config = BackendConfig()
+    backend_adapter = BackendAdapter(
+        base_url=backend_config.uri,
+        username=backend_config.user,
+        password=backend_config.password
+    )
+    backend_session = BackendSession(adapter=backend_adapter)
+    backend_api = BackendAPI(session=backend_session)
+
+    sensor = PullRequestStatusSensor(
+        context=context,
+        backend_api=backend_api,
+        github_api=cast(GithubAPI, context.resources.github_api),
+    )
+    yield from sensor(context)
+
+
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.SUCCESS,
     default_status=dg.DefaultSensorStatus.RUNNING,
-    monitored_jobs=[github_transfer_job],
-    request_job=github_pr_comment_job,
+    monitored_jobs=[k8s_pipes_job],
+    request_job=github_transfer_job,
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )
-def github_transfer_success_comment_sensor(context: RunStatusSensorContext):
-    """Trigger PR comment after successful transfer job."""
-    run = context.dagster_run
-
-    if not run.tags.get("trigger") == "github":
-        yield dg.SkipReason("Run not triggered from github")
-        return
-
-    if not run.tags.get("pr_number"):
-        yield dg.SkipReason("Missing pr_number tag")
-        return
-
-    pr_number = run.tags["pr_number"]
-    parent_run_id = run.tags.get("parent_run_id", "")
-    repo_uri = run.tags.get("repo_uri", "")
-
-    context.log.info(f"Triggering PR comment for PR #{pr_number}")
-
-    yield dg.RunRequest(
-        run_key=f"{pr_number}-comment",
-        tags={
-            "trigger": "github",
-            "pr_number": pr_number,
-            "parent_run_id": parent_run_id,
-        },
-        run_config={
-            "ops": {
-                "github_pr_comment_op": {
-                    "config": {
-                        "pr_number": pr_number,
-                        "parent_run_id": parent_run_id,
-                        "repo_uri": repo_uri,
-                    }
-                }
-            }
-        },
+def task_success_sensor(context: RunStatusSensorContext):
+    backend_config = BackendConfig()
+    backend_adapter = BackendAdapter(
+        base_url=backend_config.uri,
+        username=backend_config.user,
+        password=backend_config.password
     )
+    backend_session = BackendSession(adapter=backend_adapter)
+    backend_api = BackendAPI(session=backend_session)
 
+    sensor = PullRequestStatusSensor(
+        context=context,
+        backend_api=backend_api,
+        github_api=cast(GithubAPI, context.resources.github_api),
+    )
+    yield from sensor(context)
+
+
+@dg.run_status_sensor(
+    run_status=dg.DagsterRunStatus.FAILURE,
+    default_status=dg.DefaultSensorStatus.RUNNING,
+    monitored_jobs=[k8s_pipes_job],
+    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
+)
+def task_failure_sensor(context: RunStatusSensorContext):
+    backend_config = BackendConfig()
+    backend_adapter = BackendAdapter(
+        base_url=backend_config.uri,
+        username=backend_config.user,
+        password=backend_config.password
+    )
+    backend_session = BackendSession(adapter=backend_adapter)
+    backend_api = BackendAPI(session=backend_session)
+
+    sensor = PullRequestStatusSensor(
+        context=context,
+        backend_api=backend_api,
+        github_api=cast(GithubAPI, context.resources.github_api),
+    )
+    yield from sensor(context)
+
+
+@dg.run_status_sensor(
+    run_status=dg.DagsterRunStatus.CANCELED,
+    default_status=dg.DefaultSensorStatus.RUNNING,
+    monitored_jobs=[k8s_pipes_job],
+    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
+)
+def task_cancelled_sensor(context: RunStatusSensorContext):
+    backend_config = BackendConfig()
+    backend_adapter = BackendAdapter(
+        base_url=backend_config.uri,
+        username=backend_config.user,
+        password=backend_config.password
+    )
+    backend_session = BackendSession(adapter=backend_adapter)
+    backend_api = BackendAPI(session=backend_session)
+
+    sensor = PullRequestStatusSensor(
+        context=context,
+        backend_api=backend_api,
+        github_api=cast(GithubAPI, context.resources.github_api),
+    )
+    yield from sensor(context)
+
+
+# @dg.run_status_sensor(
+#     run_status=dg.DagsterRunStatus.SUCCESS,
+#     default_status=dg.DefaultSensorStatus.RUNNING,
+#     monitored_jobs=[github_transfer_job],
+#     request_job=github_pr_comment_job,
+#     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
+# )
+# def github_transfer_success_comment_sensor(context: RunStatusSensorContext):
+#     """Trigger PR comment after successful transfer job."""
+#     run = context.dagster_run
+
+#     if not run.tags.get("trigger") == "github":
+#         yield dg.SkipReason("Run not triggered from github")
+#         return
+
+#     if not run.tags.get("pr_number"):
+#         yield dg.SkipReason("Missing pr_number tag")
+#         return
+
+#     pr_number = run.tags["pr_number"]
+#     parent_run_id = run.tags.get("parent_run_id", "")
+#     repo_uri = run.tags.get("repo_uri", "")
+
+#     context.log.info(f"Triggering PR comment for PR #{pr_number}")
+
+#     yield dg.RunRequest(
+#         run_key=f"{pr_number}-comment",
+#         tags={
+#             "trigger": "github",
+#             "pr_number": pr_number,
+#             "parent_run_id": parent_run_id,
+#         },
+#         run_config={
+#             "ops": {
+#                 "github_pr_comment_op": {
+#                     "config": {
+#                         "pr_number": pr_number,
+#                         "parent_run_id": parent_run_id,
+#                         "repo_uri": repo_uri,
+#                     }
+#                 }
+#             }
+#         },
+#     )
 
 SENSORS = [
-    github_pull_request_ingest_sensor,
-    github_pull_request_trigger_sensor,
-    github_pull_request_status_success_sensor,
-    github_pull_request_failure_sensor,
-    github_transfer_success_comment_sensor,
+    pull_request_ingest_sensor,
+    pull_request_trigger_sensor,
+    task_queued_sensor,
+    task_started_sensor,
+    task_success_sensor,
+    task_failure_sensor,
+    task_cancelled_sensor,
+    # github_transfer_success_comment_sensor,
 ]
 
 JOBS = [github_transfer_job, github_pr_comment_job]

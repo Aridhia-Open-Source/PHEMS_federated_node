@@ -29,8 +29,9 @@ def upgrade() -> None:
         sa.Column('watch_dir', sa.String(length=4096), nullable=False),
         sa.Column('base_branch', sa.String(length=256), nullable=False, server_default='main'),
         sa.Column('default_dataset_name', sa.String(length=256), nullable=True),
-        sa.Column('polled_at', sa.DateTime(), nullable=True, server_default=sa.func.now()),
         sa.Column('initial_cursor', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('uri', name='uq_repositories_uri'),
     )
@@ -45,15 +46,14 @@ def upgrade() -> None:
         sa.Column('raised_by', sa.String(length=256), nullable=False),
         sa.Column('merged_at', sa.DateTime(timezone=False), nullable=False),
         sa.Column('saved_at', sa.DateTime(timezone=False), server_default=sa.func.now()),
-        sa.Column('is_valid', sa.Boolean(), nullable=False, server_default='false'),
-        sa.Column('status', sa.String(length=32), nullable=False, server_default='unprocessed'),
+        sa.Column('status', sa.String(length=32), nullable=False, server_default='UNKNOWN'),
         sa.Column('merge_commit_sha', sa.String(length=40), nullable=False),
         sa.Column('spec', sa.JSON(), nullable=False),
         sa.PrimaryKeyConstraint('repository_id', 'number', 'dataset_id'),
         sa.ForeignKeyConstraint(['repository_id'], ['repositories.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
     )
-    op.create_index('ix_pull_requests_status', 'pull_requests', ['repository_id', 'dataset_id', 'is_valid', 'status'])
+    op.create_index('ix_pull_requests_status', 'pull_requests', ['repository_id', 'dataset_id', 'status'])
 
     # Add repository_id column to datasets table
     op.add_column('datasets', sa.Column('repository_id', sa.Integer(), nullable=True))

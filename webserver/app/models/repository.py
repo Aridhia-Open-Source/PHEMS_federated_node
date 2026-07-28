@@ -21,8 +21,9 @@ class Repository(db.Model, BaseModel):
     watch_dir = Column(String(4096), nullable=False)
     base_branch = Column(String(256), nullable=False, default='main')
     default_dataset_name = Column(String(256), nullable=True)
-    polled_at = Column(DateTime, nullable=True)
     initial_cursor = Column(DateTime, default=now_ts)
+    created_at = Column(DateTime(timezone=False), server_default=func.now())
+    updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
 
     datasets = relationship("Dataset", back_populates="repository")
     pull_requests = relationship("PullRequest", back_populates="repository", cascade="all, delete")
@@ -32,16 +33,6 @@ class Repository(db.Model, BaseModel):
         """Strip http/https schema from URI on save/update."""
         if value:
             value = self.parse_repo_uri(value)
-        return value
-
-    @validates('polled_at')
-    def validate_polled_at(self, key, value):
-        """Convert ISO 8601 string to datetime if needed."""
-        if isinstance(value, str):
-            try:
-                value = dt.fromisoformat(value.rstrip('Z'))
-            except (ValueError, TypeError):
-                raise ValueError("polled_at must be a valid ISO 8601 datetime string")
         return value
 
     @validates('initial_cursor')
@@ -104,14 +95,12 @@ class Repository(db.Model, BaseModel):
         watch_dir: str,
         base_branch: str = 'main',
         default_dataset_name: str | None = None,
-        polled_at: dt | None = None,
-        initial_cursor: dt | None = None
+        initial_cursor: dt | None = None,
     ):
         self.uri = uri
         self.watch_dir = watch_dir
         self.base_branch = base_branch
         self.default_dataset_name = default_dataset_name
-        self.polled_at = polled_at
         self.initial_cursor = initial_cursor
 
     def __repr__(self):

@@ -22,20 +22,30 @@ spec:
               done
           env:
             - name: PGHOST
-              valueFrom:
-                configMapKeyRef:
-                  name: keycloak-config
-                  key: KC_DB_URL_HOST
+              value: {{ .Values.db.host }}
       containers:
-        {{- include "createDBInitContainer" (dict "ctx" . "cfg" (dict
-            "configMapName" "keycloak-config"
-            "userKey" "KC_DB_USERNAME"
-            "hostKey" "KC_DB_URL_HOST"
-            "secretName" .Values.db.secret.name
-            "secretKey" .Values.db.secret.key
-        )) | nindent 8 }}
-          - name: DB_NAME
-            valueFrom:
-              configMapKeyRef:
-                name: keycloak-config
-                key: KC_DB_URL_DATABASE
+        - name: db-init
+          image: {{ include "fn-alpine" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          command:
+            - sh
+            - -c
+            - |
+              psql -h {{ .Values.db.host }} -U postgres -d postgres << SQL
+              CREATE DATABASE {{ .Values.keycloak.db.name }};
+              CREATE USER {{ .Values.keycloak.db.user }} WITH PASSWORD '${KC_DB_PASSWORD}';
+              ALTER DATABASE {{ .Values.keycloak.db.name }} OWNER TO {{ .Values.keycloak.db.user }};
+              GRANT ALL PRIVILEGES ON DATABASE {{ .Values.keycloak.db.name }} TO {{ .Values.keycloak.db.user }};
+              SQL
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-superuser
+                  key: password
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.keycloak.db.secret.name }}
+                  key: {{ .Values.keycloak.db.secret.key }}

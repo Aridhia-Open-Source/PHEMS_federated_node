@@ -10,12 +10,22 @@ backend:
   replicas: 1
   uri: http://backend.fn.svc:5000
   tag:
+  db:
+    name: backend
+    user: backend_admin
+    secret:
+      name: backend-db
+      key: password
 
 keycloak:
   replicas: 1
   tag:
   db:
     name: keycloak_db
+    user: keycloak_admin
+    secret:
+      name: keycloak-db-secret
+      key: password
 
 alpine:
   image: ghcr.io/aridhia-open-source/alpine
@@ -42,12 +52,10 @@ copySecrets: true
 
 db:
   enforceSSL: false
-  name: backend
   port: 5432
-  # If a secret with password exists, use that
-  # secret:
-  #   name:
-  #   key:
+  secret:
+    name: postgres-superuser
+    key: password
 
 # How many days the resultks and k8s resources are kept for
 cleanupTime: 3
@@ -194,9 +202,9 @@ fnDagster:
     # delivery_repo: owner/repo
     # resultsDir: "mgmt/results"
   db:
-    database: dagster
+    name: dagster
+    user: dagster_admin
     # host: your-db-host
-    # user: your-db-user
     secret:
       name: dagster-postgresql-secret
       key: postgresql-password
@@ -249,6 +257,46 @@ dagster:
           - name: artifacts-pvc
             mountPath: /mnt/dagster/artifacts
 
+  dagsterDaemon:
+    extraPrependedInitContainers:
+      - name: wait-for-db
+        image: ghcr.io/aridhia-open-source/alpine:1.9.0
+        imagePullPolicy: Always
+        command:
+          - sh
+          - -c
+          - |
+            until pg_isready -h $DAGSTER_PG_HOST -p 5432; do
+              echo "waiting for postgres..."
+              sleep 2
+            done
+        env:
+          - name: DAGSTER_PG_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: dagster-env-config
+                key: DAGSTER_PG_HOST
+
+  dagsterWebserver:
+    extraPrependedInitContainers:
+      - name: wait-for-db
+        image: ghcr.io/aridhia-open-source/alpine:1.9.0
+        imagePullPolicy: Always
+        command:
+          - sh
+          - -c
+          - |
+            until pg_isready -h $DAGSTER_PG_HOST -p 5432; do
+              echo "waiting for postgres..."
+              sleep 2
+            done
+        env:
+          - name: DAGSTER_PG_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: dagster-env-config
+                key: DAGSTER_PG_HOST
+
   dagster-user-deployments:
     # Creates a workspace file with the gRPC servers hosting your user code.
     enabled: true
@@ -285,3 +333,22 @@ dagster:
         dagsterApiGrpcArgs:
           - "-m"
           - "app.definitions"
+
+        initContainers:
+          - name: wait-for-db
+            image: ghcr.io/aridhia-open-source/alpine:1.9.0
+            imagePullPolicy: Always
+            command:
+              - sh
+              - -c
+              - |
+                until pg_isready -h $DAGSTER_PG_HOST -p 5432; do
+                  echo "waiting for postgres..."
+                  sleep 2
+                done
+            env:
+              - name: DAGSTER_PG_HOST
+                valueFrom:
+                  configMapKeyRef:
+                    name: dagster-env-config
+                    key: DAGSTER_PG_HOST

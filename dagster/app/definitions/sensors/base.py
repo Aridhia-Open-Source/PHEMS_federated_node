@@ -1,10 +1,12 @@
-from dagster import Any, OpExecutionContext as OpExecCtx
+from typing import Union
+
+from dagster import Any, OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
 
 class BaseSensor:
     """Base class for all sensors providing common scaffolding."""
 
-    def __init__(self, context: OpExecCtx):
+    def __init__(self, context: Union[OpExecCtx, RunStatusSensorContext]):
         self.context = context
         self.log = context.log
 

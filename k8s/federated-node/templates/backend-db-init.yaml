@@ -1,8 +1,7 @@
-{{ if .Values.fnDagster.createDB }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: dagster-db-init
+  name: backend-db-init
   namespace: {{ .Release.Namespace }}
 spec:
   template:
@@ -34,10 +33,10 @@ spec:
             - -c
             - |
               psql -h {{ .Values.db.host }} -U postgres -d postgres << SQL
-              CREATE DATABASE {{ .Values.fnDagster.db.name }};
-              CREATE USER {{ .Values.fnDagster.db.user }} WITH PASSWORD '${DAGSTER_PG_PASSWORD}';
-              ALTER DATABASE {{ .Values.fnDagster.db.name }} OWNER TO {{ .Values.fnDagster.db.user }};
-              GRANT ALL PRIVILEGES ON DATABASE {{ .Values.fnDagster.db.name }} TO {{ .Values.fnDagster.db.user }};
+              CREATE DATABASE {{ include "backendDbName" . }};
+              CREATE USER {{ .Values.backend.db.user }} WITH PASSWORD '${BACKEND_DB_PASSWORD}';
+              ALTER DATABASE {{ include "backendDbName" . }} OWNER TO {{ .Values.backend.db.user }};
+              GRANT ALL PRIVILEGES ON DATABASE {{ include "backendDbName" . }} TO {{ .Values.backend.db.user }};
               SQL
           env:
             - name: PGPASSWORD
@@ -45,9 +44,8 @@ spec:
                 secretKeyRef:
                   name: postgres-superuser
                   key: password
-            - name: DAGSTER_PG_PASSWORD
+            - name: BACKEND_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.fnDagster.db.secret.name }}
-                  key: {{ .Values.fnDagster.db.secret.key }}
-{{ end }}
+                  name: {{ .Values.backend.db.secret.name }}
+                  key: {{ .Values.backend.db.secret.key }}

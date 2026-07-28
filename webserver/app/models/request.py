@@ -35,16 +35,17 @@ class Request(db.Model, BaseModel):
         'denied': 'denied'
     }
 
-    def __init__(self,
-                 title:str,
-                 project_name:str,
-                 dataset:Dataset,
-                 requested_by:str,
-                 proj_start:datetime,
-                 proj_end:datetime,
-                 description:str='',
-                 **kwargs
-        ):
+    def __init__(
+        self,
+        title: str,
+        project_name: str,
+        dataset: Dataset,
+        requested_by: str,
+        proj_start: datetime,
+        proj_end: datetime,
+        description: str = '',
+        **kwargs
+    ):
         self.title = title
         self.description = description
         self.project_name = project_name

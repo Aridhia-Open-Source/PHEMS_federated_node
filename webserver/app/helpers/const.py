@@ -2,14 +2,33 @@ import os
 import string
 from urllib.parse import quote_plus
 
+
 def build_sql_uri(
-        username=os.getenv('PGUSER'),
-        password=os.getenv('PGPASSWORD'),
-        host=os.getenv('PGHOST'),
-        port=os.getenv('PGPORT'),
-        database=os.getenv('PGDATABASE')
-        ):
-    return f"postgresql://{username}:{quote_plus(password)}@{host}:{port}/{database}{os.getenv("DB_SSL", "")}"
+    username=None,
+    password=None,
+    host=None,
+    port=None,
+    database=None,
+    ssl=None
+):
+    params = {}
+    params['username'] = username or os.environ['BACKEND_DB_USER']
+    params['password'] = password or os.environ['BACKEND_DB_PASSWORD']
+    params['host'] = host or os.environ['PGHOST']
+    params['port'] = port or os.environ['PGPORT']
+    params['database'] = database or os.environ['BACKEND_DB_NAME']
+    params['ssl'] = ssl or os.environ.get('DB_SSL', '')
+
+    template = "postgresql://{username}:{password}@{host}:{port}/{database}{ssl}"
+    return template.format(**params)
+    # return template.format(
+    #     username=params['username'],
+    #     password=quote_plus(params['password']),
+    #     host=params['host'],
+    #     port=params['port'],
+    #     database=params['database'],
+    #     ssl=os.environ.get('DB_SSL', '')
+    # )
 
 PASS_GENERATOR_SET = string.ascii_letters + string.digits + "!$@#.-_"
 PUBLIC_URL = os.getenv("PUBLIC_URL")

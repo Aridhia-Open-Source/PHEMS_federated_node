@@ -253,7 +253,6 @@ class BackendAPI:
         merged_at: str,
         merge_commit_sha: str,
         spec: dict,
-        is_valid: bool,
         status: str = "unprocessed",
     ) -> PullRequest:
         """Create a pull request"""
@@ -266,7 +265,6 @@ class BackendAPI:
             "merged_at": merged_at,
             "merge_commit_sha": merge_commit_sha,
             "spec": spec,
-            "is_valid": is_valid,
             "status": status,
         }
         response = self.session.post("/pull_requests", json=data)

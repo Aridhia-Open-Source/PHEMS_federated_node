@@ -1,8 +1,10 @@
+from typing import Union
+
 from app.definitions.sensors.base import BaseSensor
 from app.backend import BackendAPI
 from app.github import GithubAPI
 
-from dagster import OpExecutionContext as OpExecCtx
+from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
 
 class GithubSensor(BaseSensor):
@@ -10,7 +12,7 @@ class GithubSensor(BaseSensor):
 
     def __init__(
         self,
-        context: OpExecCtx,
+        context: Union[OpExecCtx, RunStatusSensorContext],
         backend_api: BackendAPI,
         github_api: GithubAPI,
     ):

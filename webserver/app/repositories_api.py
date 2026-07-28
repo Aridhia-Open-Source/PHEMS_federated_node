@@ -126,9 +126,6 @@ def patch_repository(repo_id):
     if 'initial_cursor' in body:
         repo.initial_cursor = body['initial_cursor']
 
-    if 'polled_at' in body:
-        repo.polled_at = body['polled_at']
-
     session.commit()
     return repo.sanitized_dict(), HTTPStatus.OK
 
@@ -140,13 +137,13 @@ def post_pull_request():
     POST /repositories/pull_requests — create a new pull request
     """
     body = request.json or {}
-    required = ['repository_id', 'number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha', 'spec', 'is_valid']
+    required = ['repository_id', 'number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha', 'spec']
     missing = [f for f in required if f not in body]
     if missing:
         raise InvalidRequest(f"Missing required fields: {', '.join(missing)}")
 
     # Create PR
-    status = body.get('status', PullRequestStatus.UNPROCESSED.value)
+    status = body.get('status', PullRequestStatus.UNKNOWN.value)
     pr = PullRequest(
         repository_id=body['repository_id'],
         number=body['number'],
@@ -155,7 +152,6 @@ def post_pull_request():
         merged_at=body['merged_at'],
         merge_commit_sha=body['merge_commit_sha'],
         spec=body.get('spec', {}),
-        is_valid=body.get('is_valid', False),
         status=status,
     )
     pr.add()
@@ -187,7 +183,7 @@ def post_pull_requests_batch(repo_id):
     for pr_data in body:
         try:
             # Validate required fields
-            required = ['number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha', 'spec', 'is_valid']
+            required = ['number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha', 'spec']
             missing = [f for f in required if f not in pr_data]
             if missing:
                 raise InvalidRequest(f"Missing required fields in PR: {', '.join(missing)}")
@@ -198,7 +194,7 @@ def post_pull_requests_batch(repo_id):
                     raise InvalidRequest(f"Invalid status: {pr_data['status']}")
 
             # Create PR (repository_id always from URL)
-            status = pr_data.get('status', PullRequestStatus.UNPROCESSED.value)
+            status = pr_data.get('status', PullRequestStatus.UNKNOWN.value)
             pr = PullRequest(
                 repository_id=repo_id,
                 number=pr_data['number'],
@@ -207,7 +203,6 @@ def post_pull_requests_batch(repo_id):
                 merged_at=pr_data['merged_at'],
                 merge_commit_sha=pr_data['merge_commit_sha'],
                 spec=pr_data.get('spec', {}),
-                is_valid=pr_data.get('is_valid', False),
                 status=status,
             )
             pr.add(commit=False)  # Don't commit yet, batch commit at end
@@ -230,8 +225,7 @@ def get_pull_requests(repo_id):
     Query params:
       - page: page number (default 1)
       - per_page: items per page (default 20)
-      - status: filter by status (optional, one of: unprocessed, in_progress, success, failed)
-      - is_valid: filter by validity (optional, 'true'/'false')
+      - status: filter by status (optional, one of: UNKNOWN, IGNORED, INVALID, STARTING, STARTED, SUCCESS, FAILED)
     Sorted by merged_at DESC (most recent first).
     """
     Repository.get_by_id(repo_id)
@@ -239,7 +233,6 @@ def get_pull_requests(repo_id):
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     status = request.args.get('status', None)
-    is_valid = request.args.get('is_valid', None)
 
     query = PullRequest.query.filter(PullRequest.repository_id == repo_id)
 
@@ -247,10 +240,6 @@ def get_pull_requests(repo_id):
         if status not in [s.value for s in PullRequestStatus]:
             raise InvalidRequest(f"Invalid status: {status}. Must be one of: {', '.join([s.value for s in PullRequestStatus])}")
         query = query.filter(PullRequest.status == status)
-
-    if is_valid is not None:
-        is_valid_bool = is_valid.lower() == 'true'
-        query = query.filter(PullRequest.is_valid == is_valid_bool)
 
     query = query.order_by(PullRequest.merged_at.desc())
     paginated = query.paginate(page=page, per_page=per_page, error_out=False)
@@ -297,11 +286,15 @@ def patch_pull_request(repo_id, number):
         raise InvalidRequest(f"PR #{number} not found in repository {repo_id}", code=HTTPStatus.NOT_FOUND)
 
     body = request.json or {}
+
     if 'status' in body:
         status_value = body['status']
         if status_value not in [s.value for s in PullRequestStatus]:
             raise InvalidRequest(f"Invalid status: {status_value}. Must be one of: {', '.join([s.value for s in PullRequestStatus])}")
         pr.status = status_value
+
+    if 'spec' in body:
+        pr.spec = body['spec']
 
     session.commit()
     return _pr_to_dict(pr), HTTPStatus.OK
@@ -317,7 +310,6 @@ def _pr_to_dict(pr: PullRequest) -> dict:
         'merge_commit_sha': pr.merge_commit_sha,
         'merged_at': pr.merged_at.isoformat() if pr.merged_at else None,
         'saved_at': pr.saved_at.isoformat() if pr.saved_at else None,
-        'is_valid': pr.is_valid,
         'status': pr.status,
         'spec': pr.spec,
     }

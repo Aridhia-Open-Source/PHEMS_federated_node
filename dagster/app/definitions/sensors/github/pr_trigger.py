@@ -1,4 +1,5 @@
-from typing import Generator
+import json
+from typing import cast
 
 import dagster as dg
 
@@ -27,38 +28,82 @@ class PullRequestTriggerSensor(GithubSensor):
         pr_count = 0
         for repo in repositories:
             try:
-                unprocessed_prs = self._fetch_unprocessed_prs(repo.id)
+                unknown_prs = self._fetch_unknown_prs(repo.id)
             except Exception as e:
                 self.log.error(f"Failed to fetch PRs for repo {repo.id}: {e}")
                 continue
 
-            if not unprocessed_prs:
+            if not unknown_prs:
                 continue
 
-            self.log.info(f"Found {len(unprocessed_prs)} unprocessed PRs for repo {repo.id}")
+            self.log.info(f"Found {len(unknown_prs)} unknown PRs for repo {repo.id}")
 
-            for pr in unprocessed_prs:
+            for pr in unknown_prs:
                 try:
-                    yield self._make_run_request(repo, pr)
-                    self.backend_api.update_pull_request_status(
-                        repo_id=repo.id,
-                        number=pr.number,
-                        status=PullRequestStatus.IN_PROGRESS.value,
-                    )
+                    pr.status, pr.spec = self._setup_pull_request(repo, pr)
+                    if pr.status == PullRequestStatus.READY.value:
+                        yield self._make_run_request(repo, pr)
+
+                    patch_data = {'status': pr.status, 'spec': pr.spec}
+                    self.backend_api.patch_pull_request(repo.id, pr.number, patch_data)
                     pr_count += 1
                 except Exception as e:
                     self.log.error(f"Failed to create request for PR #{pr.number}: {e}")
 
         if not pr_count:
-            yield dg.SkipReason("No unprocessed pull requests found.")
+            yield dg.SkipReason("No unknown pull requests found.")
 
-    def _fetch_unprocessed_prs(self, repo_id: int) -> list[PullRequest]:
-        """Fetch valid, unprocessed PRs from database, sorted by merge time DESC."""
+    def _fetch_unknown_prs(self, repo_id: int) -> list[PullRequest]:
+        """Fetch unknown PRs from database, sorted by merged_at?"""
         return self.backend_api.get_pull_requests(
             repo_id=repo_id,
-            status=PullRequestStatus.UNPROCESSED.value,
-            is_valid="true",
+            status=PullRequestStatus.UNKNOWN.value,
         )
+
+    def _setup_pull_request(self, repo: Repository, pr: PullRequest) -> tuple[str, dict]:
+        spec = {}
+        pr_files = self.github_api.get_pull_request_files(repo.path, pr.number)
+        watched_files = self._filter_watched_files(repo.watch_dir, pr_files)
+        if not watched_files:
+            return PullRequestStatus.IGNORED.value, spec
+        if len(watched_files) > 1:
+            return PullRequestStatus.INVALID.value, spec
+
+        try:
+            spec_file_name = cast(str, watched_files[0])
+            spec_contents = self._get_spec_data(repo, spec_file_name, pr.merge_commit_sha)
+            spec = self._validate_spec(spec_contents)
+            return PullRequestStatus.READY.value, spec
+        except Exception as e:
+            self.log.error(f"Failed to fetch spec for PR #{pr.number} in repo {repo.path}: {e}")
+            pr.spec = {}
+            return PullRequestStatus.INVALID.value, spec
+
+    def _validate_spec(self, data: dict):
+        spec = data['spec']
+        if not isinstance(spec, dict):
+            raise ValueError("Spec must be a dictionary")
+        if not spec.get("image") and not spec.get("docker_image"):
+            raise ValueError("Spec must contain 'image' or 'docker_image' key")
+
+        return spec
+
+    def _get_spec_data(self, repo: Repository, filepath: str, ref: str):
+        contents = self.github_api.get_file_contents(
+            repo_path=repo.path,
+            file_path=filepath,
+            ref=ref,
+        )
+        return json.loads(contents)
+
+    def _filter_watched_files(self, watch_dir: str, pr_files: list[dict]):
+        def _is_watched_json_file(f):
+            is_dir = f["filename"].startswith(watch_dir)
+            is_ext = f["filename"].endswith('.json')
+            is_new = f["status"] == "added"
+            return is_dir and is_ext and is_new
+
+        return [f for f in pr_files if _is_watched_json_file(f)]
 
     def _make_run_request(self, repo: Repository, pr: PullRequest) -> dg.RunRequest:
         """
