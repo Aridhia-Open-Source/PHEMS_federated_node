@@ -94,11 +94,19 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 
 {{- define "dbPort" -}}
-  {{ .Values.db.port | default 5432 | quote }}
+  {{ .Values.db.port | quote }}
 {{- end -}}
 
 {{- define "dbUser" -}}
-  {{ .Values.db.user | default "admin" | quote }}
+  {{ .Values.db.user | quote }}
+{{- end -}}
+
+{{- define "backendDbName" -}}
+  {{ .Values.backend.db.name | quote }}
+{{- end -}}
+
+{{- define "backendDbUser" -}}
+  {{ .Values.backend.db.user | quote }}
 {{- end -}}
 
 {{- define "dbKeycloakName" -}}

@@ -15,7 +15,7 @@ data:
   DAGSTER_ARTIFACTS_PVC_NAME: {{ .Values.fnDagster.artifactsPvcName | quote }}
   DAGSTER_PG_HOST: {{ .Values.fnDagster.db.host | quote }}
   DAGSTER_PG_USER: {{ .Values.fnDagster.db.user | quote }}
-  DAGSTER_PG_DATABASE: {{ .Values.fnDagster.db.name | quote }}
+  DAGSTER_PG_NAME: {{ .Values.fnDagster.db.name | quote }}
   GH_TOKEN: {{ .Values.fnDagster.gh.token | quote }}
   GH_RESULTS_DIR: {{ .Values.fnDagster.gh.resultsDir | quote }}
   GH_DELIVERY_REPO: {{ .Values.fnDagster.gh.delivery_repo | quote }}

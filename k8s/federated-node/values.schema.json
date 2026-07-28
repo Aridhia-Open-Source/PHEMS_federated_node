@@ -138,17 +138,17 @@
         },
         "db":{
             "type": "object",
-            "required": ["secret", "host", "user"],
+            "required": ["secret", "host"],
             "properties": {
                 "enforceSSL": {"type": "boolean", "default": false},
-                "user": {"type": "string"},
+                "port": {"type": "integer", "default": 5432},
                 "name": {"type": "string", "default": "db"},
                 "host": {"type": "string"},
                 "secret": {
                     "type": "object",
                     "properties": {
-                        "name": {"type": "string", "description": "Secret for DB credentials"},
-                        "key": {"type": "string", "description": "Secret key where the password is stored"}
+                        "name": {"type": "string", "description": "Secret for DB superuser credentials"},
+                        "key": {"type": "string", "description": "Secret key where the superuser password is stored"}
                     }
                 }
             }

@@ -1,6 +1,7 @@
 import dagster as dg
 
-from app.backend import BackendAPI, BackendClient
+from app.backend import BackendAPI
+from app.utils import BackendAdapter, BackendSession
 from app.config import BackendConfig, SensorConfig, GithubConfig
 from app.github import GithubAPI, GithubClient
 
@@ -23,8 +24,9 @@ def github_config() -> GithubConfig:
 @dg.resource(required_resource_keys={"backend_config"})
 def backend_api(context) -> BackendAPI:
     config = context.resources.backend_config
-    client = BackendClient(base_uri=config.uri)
-    return BackendAPI(client)
+    adapter = BackendAdapter(base_url=config.uri, username=config.user, password=config.password)
+    session = BackendSession(adapter=adapter)
+    return BackendAPI(session=session)
 
 
 @dg.resource(required_resource_keys={"github_config"})

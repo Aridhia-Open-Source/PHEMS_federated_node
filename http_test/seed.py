@@ -6,15 +6,13 @@ Creates test dataset, repository, and request for manual testing.
 
 import os
 import sys
-import base64
-import subprocess
 import logging
-import re
-from datetime import datetime, timedelta
+
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.dirname(__file__))
 from clients import BackendSession, BackendAdapter, BackendAPI
+from utils import load_dagster_system_creds as _load_creds
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
@@ -44,35 +42,6 @@ REQUEST_TITLE = os.environ['REQUEST_TITLE']
 REQUEST_DESCRIPTION = os.environ['REQUEST_DESCRIPTION']
 REQUEST_START_DATE = os.environ['REQUEST_START_DATE']
 REQUEST_END_DATE = os.environ['REQUEST_END_DATE']
-
-
-def _get_k8s_secret(secret_name: str, namespace: str, key: str) -> str:
-    """Fetch a secret value from Kubernetes."""
-    result = subprocess.run(
-        ["kubectl", "get", "secret", secret_name, f"-n{namespace}",
-            "-o", f"jsonpath={{.data.{key}}}"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return base64.b64decode(result.stdout).decode()
-
-
-def _load_dataset_secret(dataset_name: str, host: str):
-    """Check if dataset K8s secret exists and return credentials."""
-    cleaned_host = re.sub('http(s)*://', '', host)
-    secret_name = f"{cleaned_host}-{re.sub('\\s|_|#', '-', dataset_name.lower())}-creds"
-
-    user = _get_k8s_secret(secret_name, "fn", "PGUSER")
-    password = _get_k8s_secret(secret_name, "fn", "PGPASSWORD")
-    return {'username': user, 'password': password}
-
-
-def _load_creds():
-    """Load system user credentials from K8s secret or .env."""
-    user = _get_k8s_secret("dagster-keycloak-creds", "keycloak", "DAGSTER_KC_USER")
-    password = _get_k8s_secret("dagster-keycloak-creds", "keycloak", "DAGSTER_KC_PASSWORD")
-    return {'username': user, 'password': password}
 
 
 def _init_backend_api(username: str, password: str):
@@ -128,9 +97,9 @@ def seed():
         repository_id=repo.id,
     )
 
-    logger.info(f"Created dataset: {dataset.id} - {dataset.name}")
+    # logger.info(f"Created dataset: {dataset.id} - {dataset.name}")
 
-    breakpoint()
+    # breakpoint()
     # logger.info(f"Created request: {request.id} - {request.title}")
     # api.approve_request(request.id)
 

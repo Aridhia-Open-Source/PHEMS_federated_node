@@ -21,18 +21,52 @@ spec:
     spec:
       serviceAccountName: secret-backend-handler
       initContainers:
-        {{- include "createDBInitContainer" (dict "ctx" . "cfg" (dict
-            "configMapName" "backend-configmap"
-            "userKey" "PGUSER"
-            "hostKey" "PGHOST"
-            "secretName" .Values.db.secret.name
-            "secretKey" .Values.db.secret.key
-        )) | nindent 8 }}
-          - name: DB_NAME
-            valueFrom:
-              configMapKeyRef:
-                name: backend-configmap
-                key: PGDATABASE
+        - name: wait-for-db
+          image: {{ include "fn-alpine" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h $PGHOST -p 5432; do
+                echo "waiting for postgres..."
+                sleep 2
+              done
+          env:
+            - name: PGHOST
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-configmap
+                  key: PGHOST
+        - name: wait-for-backend-database
+          image: {{ include "fn-alpine" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          command:
+            - sh
+            - -c
+            - |
+              until psql -h $PGHOST -U postgres -d postgres -c "SELECT 1 FROM pg_database WHERE datname='$BACKEND_DB_NAME'" | grep -q 1; do
+                echo "waiting for backend database..."
+                sleep 2
+              done
+          env:
+            - name: PGHOST
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-configmap
+                  key: PGHOST
+            - name: BACKEND_DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-configmap
+                  key: BACKEND_DB_NAME
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-superuser
+                  key: password
         - name: db-migrations
           image: {{ template "backend-image" . }}
           command: ["/bin/sh"]
@@ -48,11 +82,11 @@ spec:
                 name: backend-configmap
           imagePullPolicy: {{ .Values.pullPolicy }}
           env:
-          - name: PGPASSWORD
+          - name: BACKEND_DB_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: {{.Values.db.secret.name}}
-                key: {{.Values.db.secret.key}}
+                name: {{ .Values.backend.db.secret.name }}
+                key: {{ .Values.backend.db.secret.key }}
         - name: storage-init
           image: {{ include "fn-alpine" . }}
           command: ["/bin/sh"]
@@ -100,11 +134,11 @@ spec:
             - secretRef:
                 name: kc-secrets
           env:
-          - name: PGPASSWORD
+          - name: BACKEND_DB_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: {{.Values.db.secret.name}}
-                key: {{.Values.db.secret.key}}
+                name: {{ .Values.backend.db.secret.name }}
+                key: {{ .Values.backend.db.secret.key }}
           volumeMounts:
             - name: respv
               mountPath: {{ .Values.federatedNode.volumes.results_path }}

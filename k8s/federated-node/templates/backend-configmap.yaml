@@ -6,9 +6,9 @@ metadata:
 data:
   FLASK_APP: "/app"
   PGHOST: {{ .Values.db.host | quote }}
-  PGPORT: {{ include "dbPort" . }}
-  PGDATABASE: {{ .Values.db.name | default "fndb" | quote }}
-  PGUSER: {{ include "dbUser" . }}
+  PGPORT: {{ .Values.db.port | quote }}
+  BACKEND_DB_NAME: {{ .Values.backend.db.name | quote }}
+  BACKEND_DB_USER: {{ .Values.backend.db.user | quote }}
   KEYCLOAK_URL: "http://keycloak.{{ include "kc_namespace" . }}.svc.cluster.local"
   DEFAULT_NAMESPACE: {{ .Release.Namespace }}
   KEYCLOAK_NAMESPACE: {{ include "kc_namespace" . }}

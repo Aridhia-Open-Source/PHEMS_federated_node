@@ -1,30 +1,4 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: keycloak-config
-  namespace: {{ include "kc_namespace" . }}
-data:
-  KC_HEALTH_ENABLED: "true"
-  KC_HOSTNAME_STRICT: "false"
-  KC_FEATURES: admin-fine-grained-authz:v1,token-exchange
-  KC_BOOTSTRAP_ADMIN_USERNAME: tmpadmin
-  KEYCLOAK_ADMIN: admin
-  KC_DB_URL_HOST: {{ include "dbKeycloakHost" . }}
-  KC_DB: postgres
-  KC_DB_URL_PORT: {{ include "dbPort" . }}
-  KC_DB_URL_DATABASE: {{ include "dbKeycloakName" . }}
-  KC_DB_USERNAME: {{ include "dbUser" . }}
-  KEYCLOAK_TOKEN_LIFE: {{ include "tokenLife" . }}
-  KEYCLOAK_NAMESPACE: {{ include "kc_namespace" . }}
-  KEYCLOAK_HOSTNAME: {{ .Values.host }}
-  KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "false"
-  # PROXY_ADDRESS_FORWARDING: true
----
-{{- $list_ns := list .Release.Namespace -}}
-{{- if .Values.outboundMode -}}
-    {{ $list_ns = append $list_ns (include "controller_namespace" .) }}
-{{- end -}}
-
+{{- $list_ns := list (include "kc_namespace" .) .Release.Namespace -}}
 {{- range $list_ns }}
 apiVersion: v1
 kind: ConfigMap
@@ -32,8 +6,19 @@ metadata:
   name: keycloak-config
   namespace: {{ . }}
 data:
+  KC_HEALTH_ENABLED: "true"
+  KC_HOSTNAME_STRICT: "false"
+  KC_FEATURES: admin-fine-grained-authz:v1,token-exchange
+  KC_BOOTSTRAP_ADMIN_USERNAME: tmpadmin
   KEYCLOAK_ADMIN: admin
   KC_DB_URL_HOST: {{ include "dbKeycloakHost" $ }}
-  KC_DB_USERNAME: {{ include "dbUser" $ }}
+  KC_DB: postgres
+  KC_DB_URL_PORT: {{ $.Values.db.port | quote }}
+  KC_DB_URL_DATABASE: {{ $.Values.keycloak.db.name | quote }}
+  KC_DB_USERNAME: {{ $.Values.keycloak.db.user | quote }}
+  KEYCLOAK_TOKEN_LIFE: {{ include "tokenLife" $ }}
+  KEYCLOAK_NAMESPACE: {{ include "kc_namespace" $ }}
+  KEYCLOAK_HOSTNAME: {{ $.Values.host }}
+  KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "false"
 ---
 {{- end }}

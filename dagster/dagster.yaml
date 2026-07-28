@@ -14,7 +14,7 @@ storage:
   postgres:
     postgres_db:
       db_name:
-        env: DAGSTER_PG_DATABASE
+        env: DAGSTER_PG_NAME
       username:
         env: DAGSTER_PG_USER
       password:

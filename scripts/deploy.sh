@@ -7,11 +7,9 @@ set -euo pipefail
 
 source .dev.env
 
-# Use DB_SECRET_KEY for both services
-BACKEND_DB_SECRET_KEY=$DB_SECRET_KEY
-DAGSTER_DB_SECRET_KEY=$DB_SECRET_KEY
-
 # Host paths required for local PVs
+HOST_MOUNT_ROOT_PATH="/data"
+
 HOST_MOUNT_PATHS=(
   "/data/db"
   "/data/flask"
@@ -19,64 +17,72 @@ HOST_MOUNT_PATHS=(
   "/data/dagster/artifacts"
 )
 
-echo "=== Uninstalling deployment =================================================="
-helm uninstall $RELEASE_NAME -n $NAMESPACE
+echo
+echo "=== Terminating tilt sessions =================================================="
 
+if command -v tilt &> /dev/null; then
+  if pgrep -f "tilt serve" > /dev/null; then
+    tilt down
+    echo "Terminated tilt session"
+  else
+    echo "No tilt sessions found"
+  fi
+fi
 
-echo "=== Creating Namespace =================================================="
-kubectl create namespace "$NAMESPACE" \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-kubectl config set-context \
-  --current --namespace="$NAMESPACE"
-
-
-echo "=== Creating Secrets ==================================================="
-kubectl create secret generic local-db \
-  --from-literal=password="$BACKEND_DB_SECRET_KEY" \
-  --dry-run=client -o yaml | kubectl apply -f - -n "$NAMESPACE"
-
-kubectl create secret generic dagster-postgresql-secret \
-  --from-literal=postgresql-password="$DAGSTER_DB_SECRET_KEY" \
-  --dry-run=client -o yaml | kubectl apply -f - -n "$NAMESPACE"
-
-kubectl create secret generic github-token \
-  --from-literal=GH_TOKEN="$GH_TOKEN" \
-  --dry-run=client -o yaml | kubectl apply -f - -n "$NAMESPACE"
-
-kubectl create secret generic keycloak-first-user \
-  --from-literal=PASSWORD="$KEYCLOAK_FIRST_USER_PASSWORD" \
-  --dry-run=client -o yaml | kubectl apply -f - -n "$NAMESPACE"
-
-
+echo
 echo "=== Reconciling PersistentVolumes ======================================"
 
-echo "Deleting and creating persistent host volumes..."
+echo "sudo mkdir $HOST_MOUNT_ROOT_PATH"
+sudo mkdir -p $HOST_MOUNT_ROOT_PATH
 
 for path in "${HOST_MOUNT_PATHS[@]}"; do
-  echo "sudo rm -rf $path"
-  sudo rm -rf $path
-  echo "sudo mkdir -p $path"
+  echo "sudo mkdir $path"
   sudo mkdir -p "$path"
 done
 
+echo "sudo chmod -R 777 $HOST_MOUNT_ROOT_PATH"
 sudo chmod -R 777 /data
 
-# All PVs (db, backend-results, dagster-artifacts) are plain, Helm-managed
-# resources with reclaimPolicy: Retain and are reconciled idempotently by
-# `helm upgrade` -- we must NOT delete PVs/PVCs here (they may be mounted by a
-# running pod, and deleting a mounted PVC/PV deadlocks on its finalizer).
-#
-# The only recurring hazard is a Retain PV left in "Released" state by an
-# earlier run (its PVC was deleted): it holds a stale claimRef and refuses to
-# rebind to the PVC Helm recreates, leaving the pod stuck Pending. Clearing the
-# claimRef returns it to Available so it rebinds. This is non-blocking and safe.
-for pv in $(kubectl get pv -o jsonpath='{range .items[?(@.status.phase=="Released")]}{.metadata.name}{"\n"}{end}' 2>/dev/null); do
-  case "$pv" in
-    "$RELEASE_NAME"-*) kubectl patch pv "$pv" -p '{"spec":{"claimRef":null}}';;
-  esac
-done
+echo
+echo "=== Building Docker Images(s) ========================================"
 
+./scripts/build_all_images.sh $DOCKER_TAG
+
+echo
+echo "=== Creating Namespaces =================================================="
+kubectl create namespace "$NAMESPACE" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create namespace keycloak \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+echo
+echo "=== Creating Secrets ==================================================="
+kubectl create secret generic postgres-superuser \
+  --from-literal=password="$POSTGRES_PASSWORD" \
+  --dry-run=client -o yaml -n "$NAMESPACE" | kubectl apply -f - -n "$NAMESPACE"
+
+kubectl create secret generic backend-db \
+  --from-literal=password="$BACKEND_DB_PASSWORD" \
+  --dry-run=client -o yaml -n "$NAMESPACE" | kubectl apply -f - -n "$NAMESPACE"
+
+kubectl create secret generic dagster-postgresql-secret \
+  --from-literal=postgresql-password="$DAGSTER_PG_PASSWORD" \
+  --dry-run=client -o yaml -n "$NAMESPACE" | kubectl apply -f - -n "$NAMESPACE"
+
+kubectl create secret generic keycloak-db-secret \
+  --from-literal=password="$KC_DB_PASSWORD" \
+  --dry-run=client -o yaml -n "$NAMESPACE" | kubectl apply -f - -n "$NAMESPACE"
+
+kubectl create secret generic keycloak-first-user \
+  --from-literal=PASSWORD="$KEYCLOAK_FIRST_USER_PASSWORD" \
+  --dry-run=client -o yaml -n "$NAMESPACE" | kubectl apply -f - -n "$NAMESPACE"
+
+kubectl create secret generic github-token \
+  --from-literal=GH_TOKEN="$GH_TOKEN" \
+  --dry-run=client -o yaml -n "$NAMESPACE" | kubectl apply -f - -n "$NAMESPACE"
+
+echo
 echo "=== Deploying Helm Release =============================================="
 
 cd k8s/federated-node
@@ -88,6 +94,9 @@ helm upgrade \
   --namespace "$NAMESPACE"
 
 cd - > /dev/null
+
+kubectl config set-context \
+  --current --namespace="$NAMESPACE"
 
 echo
 echo "=== Helm Deployment Complete ==========================================="

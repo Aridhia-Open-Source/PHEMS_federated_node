@@ -16,20 +16,19 @@ class PullRequest(db.Model, BaseModel):
     """
     __tablename__ = 'pull_requests'
 
-
     number = sa.Column(sa.Integer, nullable=False, primary_key=True)
     title = sa.Column(sa.String(256), nullable=False)
     raised_by = sa.Column(sa.String(256), nullable=False)
     merged_at = sa.Column(sa.DateTime(timezone=False), nullable=False)
     saved_at = sa.Column(sa.DateTime(timezone=False), server_default=func.now())
-    is_valid = sa.Column(sa.Boolean, nullable=False, default=False)
     merge_commit_sha = sa.Column(sa.String(40), nullable=False)
     spec = sa.Column(sa.JSON, nullable=False, default={})
 
     status = sa.Column(
         sa.String(32),
         nullable=False,
-        default=PullRequestStatus.UNPROCESSED.value,
+        default=PullRequestStatus.UNKNOWN.value,
+        server_default=PullRequestStatus.UNKNOWN.value,
     )
 
     repository_id = sa.Column(
@@ -62,9 +61,8 @@ class PullRequest(db.Model, BaseModel):
         raised_by: str,
         merged_at: dt,
         merge_commit_sha: str,
-        is_valid: bool,
         dataset_id: int | None = None,
-        status: str = PullRequestStatus.UNPROCESSED.value,
+        status: str = PullRequestStatus.UNKNOWN.value,
         spec: dict | None = None,
     ):
         self.repository_id = repository_id
@@ -75,7 +73,6 @@ class PullRequest(db.Model, BaseModel):
         self.merged_at = merged_at
         self.spec = spec or {}
         self.merge_commit_sha = merge_commit_sha
-        self.is_valid = is_valid
         self.status = status
 
     def __repr__(self):

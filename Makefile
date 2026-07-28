@@ -52,6 +52,9 @@ up down:
 deploy:
 	./scripts/deploy.sh
 
+teardown:
+	./scripts/teardown.sh
+
 portfwd:
 	./scripts/portfwd.sh
 
@@ -70,6 +73,8 @@ tilt-logs:
 tilt-open:
 	tilt open
 
+nuke:
+	./scripts/nuke.sh
 
 %:
 	@:

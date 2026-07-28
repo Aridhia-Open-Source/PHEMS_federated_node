@@ -7,10 +7,15 @@ from pydantic import BaseModel, ConfigDict
 class PullRequestStatus(str, Enum):
     """Status of a pull request in the ingestion and processing pipeline."""
 
-    UNPROCESSED = "unprocessed"
-    IN_PROGRESS = "in_progress"
-    SUCCESS = "success"
-    FAILED = "failed"
+    UNKNOWN = "UNKNOWN"
+    IGNORED = "IGNORED"
+    INVALID = "INVALID"
+    READY = "READY"
+    QUEUED = "QUEUED"
+    STARTED = "STARTED"
+    SUCCESS = "SUCCESS"
+    FAILURE = "FAILURE"
+    CANCELLED = "CANCELLED"
 
     def __str__(self):
         return self.value
@@ -28,7 +33,6 @@ class PullRequest(BaseModel):
     merged_at: str
     spec: dict
     merge_commit_sha: str
-    is_valid: bool
     status: str
 
 

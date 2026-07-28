@@ -5,12 +5,6 @@ This folder contains few scripts used by the federated node deployment as "assis
 Alpine is used due to the small size and simplicity.
 
 ## Tools available
-### cleanup.sh
-Takes care of cleaning up the shared storage, old tasks' pod, persistent volumes and claims.
-
-The criteria is set by the `CLEANUP_AFTER_DAYS` environment variable, inherited by the helm chart value `cleanupTime`.
-
-This is run as part of the CronJob `result-cleaner`.
 
 ### dbinit.sh
 Simple script to initialize a databasae if it doesn't exist already.

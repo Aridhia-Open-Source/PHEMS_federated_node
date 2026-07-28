@@ -96,7 +96,7 @@ class PullRequestStatusSuccessSensor(PullRequestTaskMonitor):
 class PullRequestStatusFailureSensor(PullRequestTaskMonitor):
     """Marks PR as failed when k8s_pipes_job completes with failure."""
 
-    STATUS = PullRequestStatus.FAILED.value
+    STATUS = PullRequestStatus.FAILURE.value
 
     def __call__(self):
         """Monitor failed job completion and mark PR as failed."""
