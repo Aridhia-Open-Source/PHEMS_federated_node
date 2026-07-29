@@ -5,19 +5,10 @@ from app.definitions.pipes import k8s_pipes_op
 
 
 @dg.job
-def tilted_job():
+def noop_job():
+    """Dependency-free job. Launch it from the UI after a deploy to confirm the code
+    location loads and the run launcher can start a run pod."""
     ops.noop()
-
-@dg.job
-def tilted_job_2():
-    ops.noop()
-
-@dg.job
-def nojob():
-    ops.noop()
-    ops.noop()
-    ops.noop()
-
 
 
 @dg.job
@@ -26,8 +17,6 @@ def k8s_pipes_job():
 
 
 JOBS = [
-    nojob,
+    noop_job,
     k8s_pipes_job,
-    tilted_job,
-    tilted_job_2
 ]

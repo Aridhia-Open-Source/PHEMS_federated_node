@@ -179,6 +179,19 @@ http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 {{- end -}}
 {{- end }}
 
+{{/*
+The in-cluster URL Dagster uses to reach the FN backend API. Defaults to the
+release namespace so the chart is not pinned to a namespace called "fn";
+set backend.uri explicitly to override (e.g. an external hostname).
+*/}}
+{{- define "backendUri" -}}
+{{- if .Values.backend.uri -}}
+{{ .Values.backend.uri }}
+{{- else -}}
+http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
+{{- end -}}
+{{- end }}
+
 {{- define "backendResultsPVCName" -}}
 {{ printf "backend-results-%s-pv-vc" (.Values.storage.capacity | default "10Gi") | lower }}
 {{- end }}
