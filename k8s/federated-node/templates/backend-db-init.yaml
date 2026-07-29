@@ -16,13 +16,15 @@ spec:
             - sh
             - -c
             - |
-              until pg_isready -h $PGHOST -p 5432; do
+              until pg_isready -h $PGHOST -p $PGPORT; do
                 echo "waiting for postgres..."
                 sleep 2
               done
           env:
             - name: PGHOST
               value: {{ .Values.db.host }}
+            - name: PGPORT
+              value: {{ .Values.db.port | quote }}
       containers:
         - name: db-init
           image: {{ include "fn-alpine" . }}
@@ -32,7 +34,8 @@ spec:
             - sh
             - -c
             - |
-              psql -h {{ .Values.db.host }} -U postgres -d postgres << SQL
+              psql -h {{ .Values.db.host }} -p {{ .Values.db.port }} \
+                -U {{ .Values.db.superuser | default "postgres" }} -d postgres << SQL
               CREATE DATABASE {{ include "backendDbName" . }};
               CREATE USER {{ .Values.backend.db.user }} WITH PASSWORD '${BACKEND_DB_PASSWORD}';
               ALTER DATABASE {{ include "backendDbName" . }} OWNER TO {{ .Values.backend.db.user }};

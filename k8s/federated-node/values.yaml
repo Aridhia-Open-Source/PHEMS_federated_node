@@ -8,7 +8,9 @@ dagsterHome: /opt/dagster/home
 backend:
   image: ghcr.io/aridhia-open-source/federated_node_run
   replicas: 1
-  uri: http://backend.fn.svc:5000
+  # In-cluster URL Dagster uses to reach the backend API. Leave empty to derive it
+  # from the release namespace (http://backend.<namespace>.svc:<federatedNode.port>).
+  uri:
   tag:
   db:
     name: backend
@@ -53,6 +55,10 @@ copySecrets: true
 db:
   enforceSSL: false
   port: 5432
+  # Superuser/admin login the *-db-init jobs connect as. Azure Database for PostgreSQL
+  # Flexible Server has no role called "postgres" - use the admin user chosen at
+  # server creation time instead.
+  superuser: postgres
   secret:
     name: postgres-superuser
     key: password
@@ -68,13 +74,6 @@ taskReview: false
   # firstName:
   # lastName:
   # email:
-
-# Dagster system user configuration
-dagster:
-  # enabled: Set to true in your deployment if using Dagster
-  systemUser:
-    # password: Leave blank for auto-generated secure password, or set custom password
-    # password: "your-secure-password-here"
 
 federatedNode:
   allow_delivery_api: false
@@ -215,11 +214,24 @@ dagster:
 
   generatePostgresqlPasswordSecret: false
 
+  # DAGSTER_HOME must agree with the one baked into the dagster image and published
+  # in the dagster-env-config ConfigMap, otherwise the daemon/webserver look for the
+  # instance config in a different directory to the user-code server.
+  global:
+    dagsterHome: /opt/dagster/home
+
   postgresql:
     enabled: false
+    # Must be set when postgresql.enabled is false, otherwise the generated instance
+    # config gets an empty hostname. Use the in-cluster service (db.<namespace>.svc)
+    # or an external server (e.g. Azure Database for PostgreSQL).
     # postgresqlHost: db.fn.svc
     # postgresqlDatabase: dagster
     # postgresqlUsername: admin
+    # Azure Database for PostgreSQL requires TLS. The parent chart's db.enforceSSL
+    # only covers the backend, so set this explicitly for Dagster:
+    # postgresqlParams:
+    #   sslmode: require
   #   service:
   #     port: 5432
   #   persistence:
@@ -236,10 +248,8 @@ dagster:
         imagePullPolicy: "Always"
         # The run launcher can be deployed with a fixed image (no user code included)
         image:
-          # When a tag is not supplied for a Dagster provided image,
-          # it will default as the Helm chart version.
-          repository: localhost:5001/dagster-fn
-          tag: "v1"
+          repository: ghcr.io/aridhia-open-source/dagster_fn
+          tag: "1.9.0"
           pullPolicy: "Always"
 
         envConfigMaps:
@@ -247,6 +257,7 @@ dagster:
 
         envSecrets:
           - name: github-token
+          - name: dagster-keycloak-creds
 
         # Add volumes and volume mounts for artifacts-pvc
         volumes:
@@ -312,9 +323,8 @@ dagster:
       - name: "dagster-fn"
         port: 3030
         image:
-          # When a tag is not supplied, it will default as the Helm chart version.
-          repository: localhost:5001/dagster-fn
-          tag: "v1"
+          repository: ghcr.io/aridhia-open-source/dagster_fn
+          tag: "1.9.0"
 
           # Change with caution! If you're using a fixed tag for pipeline run images, changing the
           # image pull policy to anything other than "Always" will use a cached/stale image, which is
@@ -326,6 +336,7 @@ dagster:
 
         envSecrets:
           - name: github-token
+          - name: dagster-keycloak-creds
 
         # Arguments to `dagster api grpc`.
         # Ex: "dagster api grpc -m dagster_test.test_project.test_jobs.repo -a define_demo_execution_repo"

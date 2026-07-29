@@ -8,6 +8,7 @@ on:
     branches:
       - main
       - develop
+      - dagster-develop-azure-beta
     paths-ignore:
       - '**/*.md'
       - 'README'
@@ -206,6 +207,20 @@ jobs:
       DOCKER_ACR: ${{ vars.DOCKER_CR }}
     secrets:
       DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-dagster-image:
+    needs:
+      - init
+      - tests
+    if: needs.init.outputs.is_tag == 'false'
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
+    with:
+      TAG: ${{ needs.init.outputs.tag }}
+      IMAGE: dagster_fn
+      BUILD_PATH: dagster
+      HASH_SUFFIX: false
+      DOCKER_ACR: ${{ vars.DOCKER_CR }}
+    secrets:
+      DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   release:
     uses: Aridhia-Open-Source/pipelines/.github/workflows/helm-build.yml@main
     if: always() && !failure() && !cancelled()
@@ -216,6 +231,7 @@ jobs:
       - build-alpine-image
       - build-kc-init-image
       - build-db-connector-image
+      - build-dagster-image
     with:
       VERSION: ${{ needs.init.outputs.chart_version }}
       APP_VERSION: ${{ needs.init.outputs.tag }}

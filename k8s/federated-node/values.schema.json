@@ -144,6 +144,7 @@
                 "port": {"type": "integer", "default": 5432},
                 "name": {"type": "string", "default": "db"},
                 "host": {"type": "string"},
+                "superuser": {"type": "string", "default": "postgres", "description": "Superuser/admin login the *-db-init jobs connect as. Azure Database for PostgreSQL Flexible Server has no 'postgres' role, use the server's admin user"},
                 "secret": {
                     "type": "object",
                     "properties": {
@@ -237,7 +238,16 @@
                         },
                         "provisioner": {
                             "type": "string",
-                            "description": "Optional provisioner for the azure storage"
+                            "description": "Optional provisioner for the azure storage. Defaults to file.csi.azure.com for the Dagster artifacts volume, which needs ReadWriteMany"
+                        },
+                        "skuName": {
+                            "type": "string",
+                            "default": "Premium_LRS",
+                            "description": "Azure Files SKU for the generated StorageClass"
+                        },
+                        "resourceGroup": {
+                            "type": "string",
+                            "description": "Resource group holding the storage account, when it differs from the AKS node resource group"
                         }
                     }
                 },
@@ -474,6 +484,48 @@
                         }
                     }
                 }
+            }
+        },
+        "fnDagster": {
+            "type": "object",
+            "description": "Federated Node specific Dagster configuration, as opposed to the upstream dagster subchart values",
+            "properties": {
+                "artifactMountPath": {"type": "string", "default": "/mnt/dagster/artifacts"},
+                "artifactsPvcName": {"type": "string", "default": "artifacts-pvc"},
+                "createDB": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Run the dagster-db-init job to create the dagster database and role. Needs a reachable superuser login, see db.superuser"
+                },
+                "gh": {
+                    "type": "object",
+                    "properties": {
+                        "delivery_repo": {"type": "string", "description": "Repository results are delivered to"},
+                        "resultsDir": {"type": "string", "description": "Path within the delivery repo where results are written"}
+                    }
+                },
+                "db": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "default": "dagster"},
+                        "user": {"type": "string", "default": "dagster_admin"},
+                        "host": {"type": "string", "description": "Defaults to db.host when unset"},
+                        "secret": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "key": {"type": "string"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "dagster": {
+            "type": "object",
+            "description": "Values passed through to the upstream dagster subchart. Only the keys the Federated Node depends on are validated here",
+            "properties": {
+                "enabled": {"type": "boolean", "default": false}
             }
         }
     }

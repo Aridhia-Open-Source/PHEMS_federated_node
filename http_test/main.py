@@ -24,10 +24,15 @@ def main():
     )
     session = BackendSession(adapter)
     api = BackendAPI(session)
-    repos = api.get_repositories() or []
+    data = api.login(**creds)
+    print(data)
+    breakpoint()
 
-    for repo in repos:
-        logger.info(repo.path)
+
+    # repos = api.get_repositories() or []
+
+    # for repo in repos:
+    #     logger.info(repo.path)
 
 
 if __name__ == "__main__":

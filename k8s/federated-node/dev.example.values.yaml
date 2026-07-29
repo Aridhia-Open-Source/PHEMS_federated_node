@@ -135,8 +135,10 @@ dagster:
   # dagster-db-init pre-install hook can use it. Helm must not try to own it.
   generatePostgresqlPasswordSecret: false
 
-  envConfigMaps:
-    - name: dagster-env-config
+  # DAGSTER_HOME must match the one baked into the dagster image and published in
+  # dagster-env-config, otherwise the daemon/webserver disagree with the user-code server.
+  global:
+    dagsterHome: /opt/dagster/home
 
   # Share the Federated Node database server instead of a bundled postgres.
   postgresql:
@@ -160,6 +162,8 @@ dagster:
 
         envSecrets:
           - name: github-token
+          # DAGSTER_KC_USER / DAGSTER_KC_PASSWORD - required by app.config.BackendConfig
+          - name: dagster-keycloak-creds
 
         volumes:
           - name: artifacts-pvc
@@ -187,6 +191,8 @@ dagster:
 
         envSecrets:
           - name: github-token
+          # DAGSTER_KC_USER / DAGSTER_KC_PASSWORD - required by app.config.BackendConfig
+          - name: dagster-keycloak-creds
 
         dagsterApiGrpcArgs:
           - "-m"

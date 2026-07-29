@@ -1,3 +1,9 @@
+{{- if .Values.dagster.enabled }}
+{{- /*
+The Dagster artifacts volume is mounted concurrently by the run pod and by every
+pipes task pod it launches, so it MUST support ReadWriteMany. On Azure that means
+Azure Files (file.csi.azure.com) - Azure Disk cannot serve RWX.
+*/}}
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -5,12 +11,16 @@ metadata:
   annotations:
     storageclass.kubernetes.io/is-default-class: "false"
 volumeBindingMode: WaitForFirstConsumer
+{{- if .Values.storage.mountOptions }}
+mountOptions:
+{{ toYaml .Values.storage.mountOptions | indent 2 }}
+{{- end }}
 {{- if .Values.storage.local }}
 provisioner: Local
 {{- else if .Values.storage.azure }}
-provisioner: {{ .Values.storage.azure.provisioner | default "disk.csi.azure.com" }}
+provisioner: {{ .Values.storage.azure.provisioner | default "file.csi.azure.com" }}
 parameters:
-  skuname: Premium_LRS
+  skuName: {{ .Values.storage.azure.skuName | default "Premium_LRS" }}
 {{- else if .Values.storage.aws }}
 provisioner: efs.csi.aws.com
 parameters:
@@ -35,6 +45,10 @@ spec:
     - ReadWriteMany
     - ReadOnlyMany
   persistentVolumeReclaimPolicy: Retain
+  {{- if .Values.storage.mountOptions }}
+  mountOptions:
+{{ toYaml .Values.storage.mountOptions | indent 4 }}
+  {{- end }}
   {{ if .Values.storage.local }}
   local:
     path: {{ .Values.storage.local.artifacts }}
@@ -47,10 +61,19 @@ spec:
           values:
           - linux
   {{ else if .Values.storage.azure }}
-  azureFile:
-    shareName: {{ .Values.storage.azure.shareName }}
+  csi:
+    driver: file.csi.azure.com
+    # volumeHandle has to be unique within the cluster
+    volumeHandle: {{ printf "%s-dagster-artifacts" .Release.Name | lower }}
     readOnly: false
-    secretName: {{ .Values.storage.azure.secretName | default "azure-storage-secret" }}
+    volumeAttributes:
+      shareName: {{ .Values.storage.azure.shareName }}
+      {{- if .Values.storage.azure.resourceGroup }}
+      resourceGroup: {{ .Values.storage.azure.resourceGroup }}
+      {{- end }}
+    nodeStageSecretRef:
+      name: {{ .Values.storage.azure.secretName | default "azure-storage-secret" }}
+      namespace: {{ .Release.Namespace }}
   {{ else if .Values.storage.aws }}
   csi:
     driver: efs.csi.aws.com
@@ -76,3 +99,4 @@ spec:
   accessModes:
     - ReadWriteMany
     - ReadOnlyMany
+{{- end }}
