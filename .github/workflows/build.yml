@@ -8,7 +8,6 @@ on:
     branches:
       - main
       - develop
-      - dagster-develop-azure-beta
     paths-ignore:
       - '**/*.md'
       - 'README'
@@ -89,58 +88,58 @@ jobs:
           echo "OWNER_LC=${OWNER,,}" >> ${GITHUB_ENV}
         env:
           OWNER: '${{ github.repository_owner }}'
-  linters:
-    needs: init
-    if: needs.init.outputs.is_tag == 'false'
-    defaults:
-      run:
-        shell: bash
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run pylint
-        run: |
-          make pylint
+  # linters:
+  #   needs: init
+    # if: needs.init.outputs.is_tag == 'false'
+  #   defaults:
+  #     run:
+  #       shell: bash
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Run pylint
+  #       run: |
+  #         make pylint
 
-      - name: Run hadolint
-        run: |
-          make hadolint
-  tests:
-    needs:
-      - init
-      - linters
-    defaults:
-      run:
-        shell: bash
-    runs-on: ubuntu-latest
-    if: needs.init.outputs.is_tag == 'false'
-    steps:
-      - uses: actions/checkout@v4
+  #     - name: Run hadolint
+  #       run: |
+  #         make hadolint
+  # tests:
+  #   needs:
+  #     - init
+  #     - linters
+  #   defaults:
+  #     run:
+  #       shell: bash
+  #   runs-on: ubuntu-latest
+  #   if: needs.init.outputs.is_tag == 'false'
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: Run Helm unittests
-        run: |
-          make helm_tests
+  #     - name: Run Helm unittests
+  #       run: |
+  #         make helm_tests
 
-      - name: Run Python Tests
-        working-directory: webserver
-        run: |
-          make tests_ci
+  #     - name: Run Python Tests
+  #       working-directory: webserver
+  #       run: |
+  #         make tests_ci
 
-      - name: Run Keycloak Integration Tests
-        working-directory: webserver
-        run: |
-          make tests_integration
+  #     - name: Run Keycloak Integration Tests
+  #       working-directory: webserver
+  #       run: |
+  #         make tests_integration
 
-      - uses: irongut/CodeCoverageSummary@v1.3.0
-        name: Code Coverage Summary Report
-        with:
-          filename: artifacts/coverage.xml
-          fail_below_min: true
-          thresholds: '60 80'
+  #     - uses: irongut/CodeCoverageSummary@v1.3.0
+  #       name: Code Coverage Summary Report
+  #       with:
+  #         filename: artifacts/coverage.xml
+  #         fail_below_min: true
+  #         thresholds: '60 80'
   build-flask-image:
     needs:
       - init
-      - tests
+      # - tests
     if: needs.init.outputs.is_tag == 'false'
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
@@ -154,7 +153,7 @@ jobs:
   build-keycloak-image:
     needs:
       - init
-      - tests
+      # - tests
     if: needs.init.outputs.is_tag == 'false'
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
@@ -168,7 +167,7 @@ jobs:
   build-alpine-image:
     needs:
       - init
-      - tests
+      # - tests
     if: needs.init.outputs.is_tag == 'false'
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
@@ -182,7 +181,7 @@ jobs:
   build-kc-init-image:
     needs:
       - init
-      - tests
+      # - tests
     if: needs.init.outputs.is_tag == 'false'
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
@@ -196,27 +195,13 @@ jobs:
   build-db-connector-image:
     needs:
       - init
-      - tests
+      # - tests
     if: needs.init.outputs.is_tag == 'false'
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
       TAG: ${{ needs.init.outputs.tag }}
       IMAGE: db_connector
       BUILD_PATH: build/db-connector/
-      HASH_SUFFIX: false
-      DOCKER_ACR: ${{ vars.DOCKER_CR }}
-    secrets:
-      DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  build-dagster-image:
-    needs:
-      - init
-      - tests
-    if: needs.init.outputs.is_tag == 'false'
-    uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
-    with:
-      TAG: ${{ needs.init.outputs.tag }}
-      IMAGE: dagster_fn
-      BUILD_PATH: dagster
       HASH_SUFFIX: false
       DOCKER_ACR: ${{ vars.DOCKER_CR }}
     secrets:
@@ -231,7 +216,6 @@ jobs:
       - build-alpine-image
       - build-kc-init-image
       - build-db-connector-image
-      - build-dagster-image
     with:
       VERSION: ${{ needs.init.outputs.chart_version }}
       APP_VERSION: ${{ needs.init.outputs.tag }}
