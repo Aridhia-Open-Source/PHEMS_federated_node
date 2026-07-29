@@ -51,5 +51,7 @@ spec:
               name: keycloak-config
           - secretRef:
               name: kc-secrets
+          {{- if .Values.dagster.enabled }}
           - secretRef:
               name: dagster-keycloak-creds
+          {{- end }}
