@@ -105,7 +105,7 @@ class K8sPipesResponse:
             value={"artifacts_path": artifact_path},
             metadata={
                 "run_id": run_id,
-                "imag e": image,
+                "image": image,
                 "artifacts_path": artifact_path,
             },
         )
