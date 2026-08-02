@@ -125,6 +125,7 @@ class PullRequestTriggerSensor(GithubSensor):
         Uses PR composite key as run_key for idempotency.
         Includes PR tags for run_status_sensors to monitor and update PR status.
         Passes spec to k8s_pipes_op via run_config.
+        Injects dataset credentials as mounted secret volume.
         """
         env = pr.spec.get("env") or {}
         run_key = f"{pr.repository_id}/{pr.number}"
@@ -132,6 +133,9 @@ class PullRequestTriggerSensor(GithubSensor):
 
         if not docker_image:
             raise ValueError(f"PR #{pr.number} spec in repo {repo.path} missing 'image'")
+
+        dataset = self.backend_api.get_dataset(repo.dataset_id)
+        dataset_secret_name = self._compute_secret_name(dataset.host, dataset.name)
 
         return dg.RunRequest(
             run_key=run_key,
@@ -148,8 +152,19 @@ class PullRequestTriggerSensor(GithubSensor):
                         "config": {
                             "docker_image": docker_image,
                             "env": env,
+                            "dataset_secret_name": dataset_secret_name,
+                            "dataset_name": dataset.name,
+                            "dataset_host": dataset.host,
+                            "dataset_port": dataset.port,
+                            "dataset_type": dataset.type,
                         }
                     }
                 }
             },
         )
+
+    def _compute_secret_name(self, host: str, name: str) -> str:
+        """Compute k8s secret name following Dataset.get_creds_secret_name logic."""
+        import re
+        cleaned_host = re.sub('http(s)*://', '', host)
+        return f"{cleaned_host}-{re.sub(r'\s|_|#', '-', name.lower())}-creds"

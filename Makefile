@@ -43,6 +43,9 @@ build_reload:
 build_image:
 	./scripts/build_image.sh $(word 2,$(MAKECMDGOALS)) $(word 3,$(MAKECMDGOALS))
 
+build_all_images:
+	./scripts/build_all_images.sh $(word 2,$(MAKECMDGOALS))
+
 reload_app:
 	./scripts/reload_app.sh
 
