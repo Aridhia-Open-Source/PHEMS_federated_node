@@ -265,8 +265,12 @@ def reg_k8s_client(k8s_client):
 
 # Repository fixtures
 @fixture
-def default_repo(client) -> Repository:
-    repo = Repository(uri=sample_repo_uri)
+def default_repo(client, user_uuid, k8s_client, mock_kc_client) -> Repository:
+    # Create a dataset first (required for Repository)
+    dataset = Dataset(name="DefaultDatasetForRepo", host="example.com", password='pass', username='user')
+    dataset.add(user_id=user_uuid)
+
+    repo = Repository(uri=sample_repo_uri, watch_dir="", dataset_id=dataset.id)
     repo.add()
     return repo
 
@@ -287,10 +291,14 @@ def dataset(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
 @fixture
 def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
     from app.models.repository import Repository
-    repo = Repository(uri="organisation/repository")
-    repo.add(commit=False)
-    dataset = Dataset(name="TestDsRepo", host="example.com", password='pass', username='user', repository=repo)
+    # Create dataset first
+    dataset = Dataset(name="TestDsRepo", host="example.com", password='pass', username='user')
     dataset.add(user_id=user_uuid)
+
+    # Then create repository with the dataset_id
+    repo = Repository(uri="organisation/repository", watch_dir="", dataset_id=dataset.id)
+    repo.add()
+
     return dataset
 
 

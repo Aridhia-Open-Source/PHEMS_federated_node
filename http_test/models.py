@@ -27,7 +27,6 @@ class PullRequest(BaseModel):
 
     repository_id: int
     number: int
-    dataset_id: int | None
     title: str
     raised_by: str
     merged_at: str
@@ -48,7 +47,6 @@ class Dataset(BaseModel):
     schema_write: str | None = None
     type: str
     extra_connection_args: str | None = None
-    repository_id: int | None = None
     slug: str
     url: str
 
@@ -63,9 +61,9 @@ class Repository(BaseModel):
     path: str
     watch_dir: str
     base_branch: str
-    default_dataset_name: str | None = None
+    dataset_id: int
     pr_cursor: str
-    pull_request_count: int = 0
+    pr_count: int = 0
     pull_requests: list[PullRequest] = []
 
 

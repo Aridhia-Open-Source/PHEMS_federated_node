@@ -14,6 +14,11 @@ logger = logging.getLogger(__name__)
     config_schema={
         "docker_image": dg.Field(str),
         "env": dg.Field(dict, default_value={}, is_required=False),
+        "dataset_secret_name": dg.Field(str, is_required=False),
+        "dataset_name": dg.Field(str, is_required=False),
+        "dataset_host": dg.Field(str, is_required=False),
+        "dataset_port": dg.Field(int, is_required=False),
+        "dataset_type": dg.Field(str, is_required=False),
     }
 )
 def k8s_pipes_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> dg.Output:
@@ -33,6 +38,11 @@ class K8sPipe:
         self.config = context.op_config
         self.image = self.config['docker_image']
         self.artifact_path = f"{self.mnt_base_path}/{self.run_id}"
+        self.dataset_secret_name = self.config.get('dataset_secret_name')
+        self.dataset_name = self.config.get('dataset_name')
+        self.dataset_host = self.config.get('dataset_host')
+        self.dataset_port = self.config.get('dataset_port')
+        self.dataset_type = self.config.get('dataset_type')
         self.env = self._setup_env(ext_env)
 
     def _setup_env(self, ext_env=None):
@@ -65,14 +75,33 @@ class K8sPipe:
         self.context.log.info(f"[{self.run_id}] - {message}")
 
     def _load_base_pod_spec(self):
+        volumes = [
+            {
+                "name": self.pvc_name,
+                "persistentVolumeClaim": {"claimName": self.pvc_name},
+            }
+        ]
+        if self.dataset_secret_name:
+            volumes.append({
+                "name": "dataset-creds",
+                "secret": {"secretName": self.dataset_secret_name},
+            })
+
+        volume_mounts = [
+            {
+                "name": self.pvc_name,
+                "mountPath": self.mnt_base_path,
+            }
+        ]
+        if self.dataset_secret_name:
+            volume_mounts.append({
+                "name": "dataset-creds",
+                "mountPath": "/var/secrets/db",
+            })
+
         return {
             "serviceAccountName": self.service_account_name,
-            "volumes": [
-                {
-                    "name": self.pvc_name,
-                    "persistentVolumeClaim": {"claimName": self.pvc_name},
-                }
-            ],
+            "volumes": volumes,
             "containers": [
                 {
                     "name": "main",
@@ -80,12 +109,7 @@ class K8sPipe:
                         {"name": k, "value": str(v)}
                         for k, v in self.env.items()
                     ],
-                    "volumeMounts": [
-                        {
-                            "name": self.pvc_name,
-                            "mountPath": self.mnt_base_path,
-                        }
-                    ],
+                    "volumeMounts": volume_mounts,
                 }
             ],
         }

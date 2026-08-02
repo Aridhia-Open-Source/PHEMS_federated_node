@@ -121,19 +121,20 @@ def audit(func):
     return _audit
 
 
-def find_and_redact_key(obj: dict, key: str):
+def find_and_redact_key(obj: dict | list, key: str):
     """
-    Given a dictionary, tries to find a (nested) key and redact its value
+    Given a dictionary or list, tries to find a (nested) key and redact its value
     """
-    for k, v in obj.items():
-        if isinstance(v, dict):
-            find_and_redact_key(v, key)
-        elif isinstance(v, list):
-            for item in obj[k]:
-                if isinstance(item, dict):
-                    find_and_redact_key(item, key)
-        elif k == key:
-            obj[k] = '*****'
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if isinstance(v, (dict, list)):
+                find_and_redact_key(v, key)
+            elif k == key:
+                obj[k] = '*****'
+    elif isinstance(obj, list):
+        for item in obj:
+            if isinstance(item, (dict, list)):
+                find_and_redact_key(item, key)
 
 
 def flatten_dict(to_flatten: dict) -> dict:

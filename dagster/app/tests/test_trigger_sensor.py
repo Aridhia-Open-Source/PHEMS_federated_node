@@ -54,30 +54,47 @@ class TestPullRequestTriggerSensor:
 
         assert len(result) == 1
         assert isinstance(result[0], SkipReason)
-        assert "No unprocessed" in str(result[0])
+        assert "No unknown pull requests found" in str(result[0])
 
     def test_yields_run_requests_for_valid_and_unprocessed_prs(self):
         """Sensor should return list of RunRequests for unprocessed valid PRs."""
         from app.models import PullRequest
+        import json
 
         repo = MagicMock()
         repo.id = SAMPLE_REPO["id"]
         repo.uri = SAMPLE_REPO["uri"]
+        repo.path = SAMPLE_REPO["path"]
+        repo.watch_dir = SAMPLE_REPO["watch_dir"]
 
         pr = MagicMock(spec=PullRequest)
         pr.number = SAMPLE_PR["number"]
         pr.title = SAMPLE_PR["title"]
         pr.repository_id = SAMPLE_REPO["id"]
         pr.spec = SAMPLE_PR["spec"]
+        pr.merge_commit_sha = SAMPLE_PR["merge_commit_sha"]
 
         mock_backend_api = MagicMock()
         mock_backend_api.get_repositories.return_value = [repo]
         mock_backend_api.get_pull_requests.return_value = [pr]
 
+        mock_github_api = MagicMock()
+        # Mock PR files endpoint
+        mock_github_api.get_pull_request_files.return_value = [
+            {"filename": "specs/test.json", "status": "added"}
+        ]
+        # Mock file contents endpoint
+        mock_github_api.get_file_contents.return_value = json.dumps({
+            "spec": {
+                "docker_image": "ghcr.io/org/experiment:latest",
+                "env": {"KEY": "value"},
+            }
+        })
+
         sensor = PullRequestTriggerSensor(
             context=MagicMock(),
             backend_api=mock_backend_api,
-            github_api=MagicMock(),
+            github_api=mock_github_api,
         )
         result = list(sensor())
 

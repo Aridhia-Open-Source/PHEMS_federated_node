@@ -62,20 +62,34 @@ class PullRequestTriggerSensor(GithubSensor):
 
     def _setup_pull_request(self, repo: Repository, pr: PullRequest) -> tuple[str, dict]:
         spec = {}
+        self.log.info(f"=== SETUP PR #{pr.number} in repo {repo.path} ===")
+        self.log.info(f"Watch dir: {repo.watch_dir}")
+
         pr_files = self.github_api.get_pull_request_files(repo.path, pr.number)
+        self.log.info(f"Files in PR: {[f['filename'] for f in pr_files]}")
+
         watched_files = self._filter_watched_files(repo.watch_dir, pr_files)
-        if not watched_files:
+        watched_file_names = [f["filename"] for f in watched_files]
+
+        self.log.info(f"Watched files found: {watched_file_names} (count: {len(watched_file_names)})")
+
+        if not watched_file_names:
+            self.log.warning("No watched files - marking IGNORED")
             return PullRequestStatus.IGNORED.value, spec
-        if len(watched_files) > 1:
+        if len(watched_file_names) > 1:
+            self.log.warning(f"Multiple watched files ({len(watched_file_names)}) - marking INVALID")
             return PullRequestStatus.INVALID.value, spec
 
         try:
-            spec_file_name = cast(str, watched_files[0])
+            spec_file_name = cast(str, watched_file_names[0])
+            self.log.info(f"Fetching spec from: {spec_file_name}")
             spec_contents = self._get_spec_data(repo, spec_file_name, pr.merge_commit_sha)
+            self.log.info(f"Spec contents fetched: {spec_contents}")
             spec = self._validate_spec(spec_contents)
+            self.log.info(f"Spec validated: {spec}")
             return PullRequestStatus.READY.value, spec
         except Exception as e:
-            self.log.error(f"Failed to fetch spec for PR #{pr.number} in repo {repo.path}: {e}")
+            self.log.error(f"EXCEPTION in _setup_pull_request PR #{pr.number}: {type(e).__name__}: {e}", exc_info=True)
             pr.spec = {}
             return PullRequestStatus.INVALID.value, spec
 
@@ -111,6 +125,7 @@ class PullRequestTriggerSensor(GithubSensor):
         Uses PR composite key as run_key for idempotency.
         Includes PR tags for run_status_sensors to monitor and update PR status.
         Passes spec to k8s_pipes_op via run_config.
+        Injects dataset credentials as mounted secret volume.
         """
         env = pr.spec.get("env") or {}
         run_key = f"{pr.repository_id}/{pr.number}"
@@ -118,6 +133,9 @@ class PullRequestTriggerSensor(GithubSensor):
 
         if not docker_image:
             raise ValueError(f"PR #{pr.number} spec in repo {repo.path} missing 'image'")
+
+        dataset = self.backend_api.get_dataset(repo.dataset_id)
+        dataset_secret_name = self._compute_secret_name(dataset.host, dataset.name)
 
         return dg.RunRequest(
             run_key=run_key,
@@ -134,8 +152,19 @@ class PullRequestTriggerSensor(GithubSensor):
                         "config": {
                             "docker_image": docker_image,
                             "env": env,
+                            "dataset_secret_name": dataset_secret_name,
+                            "dataset_name": dataset.name,
+                            "dataset_host": dataset.host,
+                            "dataset_port": dataset.port,
+                            "dataset_type": dataset.type,
                         }
                     }
                 }
             },
         )
+
+    def _compute_secret_name(self, host: str, name: str) -> str:
+        """Compute k8s secret name following Dataset.get_creds_secret_name logic."""
+        import re
+        cleaned_host = re.sub('http(s)*://', '', host)
+        return f"{cleaned_host}-{re.sub(r'\s|_|#', '-', name.lower())}-creds"

@@ -46,7 +46,6 @@ class PullRequest(BaseModel):
     spec: dict
     merge_commit_sha: str
     status: str
-    dataset_id: int | None = None
     saved_at: str | None = None
 
 
@@ -62,7 +61,6 @@ class Dataset(BaseModel):
     schema_write: str | None = None
     type: str
     extra_connection_args: str | None = None
-    repository_id: int | None = None
     slug: str
     url: str
 
@@ -77,7 +75,7 @@ class Repository(BaseModel):
     path: str
     watch_dir: str
     base_branch: str
-    default_dataset_name: str | None = None
+    dataset_id: int
     initial_cursor: str | None = None
     # created_at: str | None = None
     # updated_at: str | None = None

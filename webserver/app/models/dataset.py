@@ -2,7 +2,7 @@ import logging
 import re
 import typing
 import urllib.parse
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import relationship
 from app.helpers.base_model import BaseModel, db
 from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, PUBLIC_URL
@@ -39,9 +39,7 @@ class Dataset(db.Model, BaseModel):
     type = Column(String(256), server_default="postgres", nullable=False)
     extra_connection_args = Column(String(4096), nullable=True)
 
-    repository_id = Column(Integer, ForeignKey('repositories.id'), nullable=True)
-    repository = relationship("Repository", foreign_keys=[repository_id], back_populates="datasets")
-    pull_requests = relationship("PullRequest", back_populates="dataset")
+    repositories = relationship("Repository", back_populates="dataset")
 
     def __init__(
         self,
@@ -87,16 +85,6 @@ class Dataset(db.Model, BaseModel):
     @classmethod
     def validate(cls, data: dict) -> dict:
         data = dict(data)  # prevent mutation
-        repo_id = data.get("repository_id")
-        if not repo_id:
-            raise InvalidRequest("repository_id is required")
-
-        query = Models.Repository.query.filter(Models.Repository.id == repo_id)
-        repo = query.one_or_none()
-        if repo is None:
-            raise InvalidRequest(f"Repository with id {repo_id} not found")
-
-        data["repository"] = repo
         return super().validate(data)
 
     @classmethod

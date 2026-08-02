@@ -111,7 +111,7 @@ class TestPullRequestStatusSuccessSensor:
         list(success_sensor())
 
         mock_backend_api.patch_pull_request.assert_called_once_with(
-            5, 42, {"status": "success"}
+            5, 42, {"status": "SUCCESS"}
         )
 
     def test_returns_run_request_for_transfer_job(self, success_sensor):
@@ -219,7 +219,7 @@ class TestPullRequestStatusFailureSensor:
         list(failure_sensor())
 
         mock_backend_api.patch_pull_request.assert_called_once_with(
-            5, 42, {"status": "failed"}
+            5, 42, {"status": "FAILURE"}
         )
 
     def test_does_not_return_run_request(self, failure_sensor):

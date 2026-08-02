@@ -126,6 +126,10 @@ def github_pr_comment_job():
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )
 def task_queued_sensor(context: RunStatusSensorContext):
+    run = context.dagster_run
+    if run.tags.get("trigger") != "github":
+        return
+
     backend_config = BackendConfig()
     backend_adapter = BackendAdapter(
         base_url=backend_config.uri,
@@ -135,12 +139,11 @@ def task_queued_sensor(context: RunStatusSensorContext):
     backend_session = BackendSession(adapter=backend_adapter)
     backend_api = BackendAPI(session=backend_session)
 
-    sensor = PullRequestStatusSensor(
-        context=context,
-        backend_api=backend_api,
-        github_api=cast(GithubAPI, context.resources.github_api),
+    backend_api.patch_pull_request(
+        int(run.tags["repo_id"]),
+        int(run.tags["pr_number"]),
+        {"status": "QUEUED"}
     )
-    yield from sensor(context)
 
 
 @dg.run_status_sensor(
@@ -150,6 +153,10 @@ def task_queued_sensor(context: RunStatusSensorContext):
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )
 def task_started_sensor(context: RunStatusSensorContext):
+    run = context.dagster_run
+    if run.tags.get("trigger") != "github":
+        return
+
     backend_config = BackendConfig()
     backend_adapter = BackendAdapter(
         base_url=backend_config.uri,
@@ -159,12 +166,11 @@ def task_started_sensor(context: RunStatusSensorContext):
     backend_session = BackendSession(adapter=backend_adapter)
     backend_api = BackendAPI(session=backend_session)
 
-    sensor = PullRequestStatusSensor(
-        context=context,
-        backend_api=backend_api,
-        github_api=cast(GithubAPI, context.resources.github_api),
+    backend_api.patch_pull_request(
+        int(run.tags["repo_id"]),
+        int(run.tags["pr_number"]),
+        {"status": "STARTED"}
     )
-    yield from sensor(context)
 
 
 @dg.run_status_sensor(
@@ -175,6 +181,10 @@ def task_started_sensor(context: RunStatusSensorContext):
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )
 def task_success_sensor(context: RunStatusSensorContext):
+    run = context.dagster_run
+    if run.tags.get("trigger") != "github":
+        return
+
     backend_config = BackendConfig()
     backend_adapter = BackendAdapter(
         base_url=backend_config.uri,
@@ -184,12 +194,31 @@ def task_success_sensor(context: RunStatusSensorContext):
     backend_session = BackendSession(adapter=backend_adapter)
     backend_api = BackendAPI(session=backend_session)
 
-    sensor = PullRequestStatusSensor(
-        context=context,
-        backend_api=backend_api,
-        github_api=cast(GithubAPI, context.resources.github_api),
+    pr_number = run.tags["pr_number"]
+    repo_id = run.tags["repo_id"]
+    repo_uri = run.tags["repo_uri"]
+
+    backend_api.patch_pull_request(int(repo_id), int(pr_number), {"status": "SUCCESS"})
+
+    yield dg.RunRequest(
+        run_key=f"{pr_number}-transfer",
+        tags={
+            "trigger": "github_transfer",
+            "pr_number": pr_number,
+            "parent_run_id": run.run_id,
+        },
+        run_config={
+            "ops": {
+                "github_transfer_op": {
+                    "config": {
+                        "parent_run_id": run.run_id,
+                        "pr_number": pr_number,
+                        "repo_uri": repo_uri,
+                    }
+                }
+            }
+        },
     )
-    yield from sensor(context)
 
 
 @dg.run_status_sensor(
@@ -199,6 +228,10 @@ def task_success_sensor(context: RunStatusSensorContext):
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )
 def task_failure_sensor(context: RunStatusSensorContext):
+    run = context.dagster_run
+    if run.tags.get("trigger") != "github":
+        return
+
     backend_config = BackendConfig()
     backend_adapter = BackendAdapter(
         base_url=backend_config.uri,
@@ -208,12 +241,11 @@ def task_failure_sensor(context: RunStatusSensorContext):
     backend_session = BackendSession(adapter=backend_adapter)
     backend_api = BackendAPI(session=backend_session)
 
-    sensor = PullRequestStatusSensor(
-        context=context,
-        backend_api=backend_api,
-        github_api=cast(GithubAPI, context.resources.github_api),
+    backend_api.patch_pull_request(
+        int(run.tags["repo_id"]),
+        int(run.tags["pr_number"]),
+        {"status": "FAILURE"}
     )
-    yield from sensor(context)
 
 
 @dg.run_status_sensor(
@@ -223,6 +255,10 @@ def task_failure_sensor(context: RunStatusSensorContext):
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )
 def task_cancelled_sensor(context: RunStatusSensorContext):
+    run = context.dagster_run
+    if run.tags.get("trigger") != "github":
+        return
+
     backend_config = BackendConfig()
     backend_adapter = BackendAdapter(
         base_url=backend_config.uri,
@@ -232,12 +268,11 @@ def task_cancelled_sensor(context: RunStatusSensorContext):
     backend_session = BackendSession(adapter=backend_adapter)
     backend_api = BackendAPI(session=backend_session)
 
-    sensor = PullRequestStatusSensor(
-        context=context,
-        backend_api=backend_api,
-        github_api=cast(GithubAPI, context.resources.github_api),
+    backend_api.patch_pull_request(
+        int(run.tags["repo_id"]),
+        int(run.tags["pr_number"]),
+        {"status": "CANCELLED"}
     )
-    yield from sensor(context)
 
 
 # @dg.run_status_sensor(
