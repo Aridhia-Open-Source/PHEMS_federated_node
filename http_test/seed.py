@@ -11,8 +11,9 @@ import logging
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.dirname(__file__))
-from clients import BackendSession, BackendAdapter, BackendAPI
-from utils import load_dagster_system_creds as _load_creds
+from clients import BackendSession, BackendAdapter, BackendAPI  # noqa
+from utils import load_dagster_system_creds as _load_creds  # noqa
+
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
@@ -71,14 +72,6 @@ def seed():
         logger.info(f"Deleting existing repository ({r.id}) - {r.uri}")
         api.delete_repository(r.id)
 
-    repo = api.create_repository(
-        uri=REPO_URI,
-        watch_dir=REPO_WATCH_DIR,
-        base_branch=REPO_BRANCH,
-        initial_cursor=REPO_INIT_CURSOR,
-        default_dataset_name=DATASET_NAME,
-    )
-
     logger.info("Deleting existing datasets...")
     existing_datasets = api.get_datasets() or []
     logger.info(f"Datasets found: {len(existing_datasets)}")
@@ -94,10 +87,19 @@ def seed():
         password=DATASET_PASSWORD,
         schema=DATASET_SCHEMA,
         db_type=DATASET_TYPE,
-        repository_id=repo.id,
     )
 
-    # logger.info(f"Created dataset: {dataset.id} - {dataset.name}")
+    repo = api.create_repository(
+        uri=REPO_URI,
+        watch_dir=REPO_WATCH_DIR,
+        base_branch=REPO_BRANCH,
+        initial_cursor=REPO_INIT_CURSOR,
+        dataset_id=dataset.id,
+    )
+
+
+
+    logger.info(f"Created dataset: {dataset.id} - {dataset.name}")
 
     # breakpoint()
     # logger.info(f"Created request: {request.id} - {request.title}")

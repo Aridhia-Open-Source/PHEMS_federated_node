@@ -35,13 +35,8 @@ class PullRequest(db.Model, BaseModel):
         sa.Integer, sa.ForeignKey('repositories.id', ondelete='CASCADE'),
         nullable=False, primary_key=True
     )
-    dataset_id = sa.Column(
-        sa.Integer, sa.ForeignKey('datasets.id', ondelete='CASCADE'),
-        nullable=True, primary_key=True
-    )
 
     repository = orm.relationship("Repository", back_populates="pull_requests")
-    dataset = orm.relationship("Dataset", back_populates="pull_requests")
 
     @validates('merged_at')
     def validate_merged_at(self, key, value):
@@ -61,13 +56,11 @@ class PullRequest(db.Model, BaseModel):
         raised_by: str,
         merged_at: dt,
         merge_commit_sha: str,
-        dataset_id: int | None = None,
         status: str = PullRequestStatus.UNKNOWN.value,
         spec: dict | None = None,
     ):
         self.repository_id = repository_id
         self.number = number
-        self.dataset_id = dataset_id
         self.title = title
         self.raised_by = raised_by
         self.merged_at = merged_at

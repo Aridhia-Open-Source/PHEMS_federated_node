@@ -15,6 +15,7 @@ from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.wrappers import audit, auth
 from app.models.repository import Repository
+from app.models.dataset import Dataset
 from app.models.pull_request import PullRequest
 from app.models.pull_request_status import PullRequestStatus
 
@@ -79,18 +80,23 @@ def post_repository():
     POST /repositories/ — create a new repository
     """
     body = request.json or {}
-    if not body.get('uri') and body.get('watch_dir'):
+    if not body.get('uri'):
         raise InvalidRequest("uri is required")
+    if not body.get('dataset_id'):
+        raise InvalidRequest("dataset_id is required")
 
     uri = body['uri'].lower().rstrip('/')
     if Repository.query.filter(Repository.uri == uri).one_or_none():
         raise InvalidRequest(f"Repository {uri} already exists")
 
+    # Validate dataset exists
+    dataset = Dataset.get_by_id(body['dataset_id'])
+
     repo = Repository(
         uri=uri,
         watch_dir=body.get('watch_dir', ''),
+        dataset_id=body['dataset_id'],
         base_branch=body.get('base_branch', 'main'),
-        default_dataset_name=body.get('default_dataset_name'),
         initial_cursor=body.get('initial_cursor'),
     )
     repo.add()
@@ -110,6 +116,10 @@ def patch_repository(repo_id):
     if not body:
         raise InvalidRequest("No fields provided to update")
 
+    if 'dataset_id' in body:
+        dataset = Dataset.get_by_id(body['dataset_id'])
+        repo.dataset_id = body['dataset_id']
+
     if 'base_branch' in body:
         if not body['base_branch']:
             raise InvalidRequest("base_branch cannot be empty")
@@ -119,9 +129,6 @@ def patch_repository(repo_id):
         if not body['watch_dir']:
             raise InvalidRequest("watch_dir cannot be empty")
         repo.watch_dir = body['watch_dir']
-
-    if 'default_dataset_name' in body:
-        repo.default_dataset_name = body['default_dataset_name']
 
     if 'initial_cursor' in body:
         repo.initial_cursor = body['initial_cursor']
@@ -166,7 +173,7 @@ def post_pull_requests_batch(repo_id):
     POST /repositories/<repo_id>/pull_requests/batch — create multiple pull requests for a repo
     Body: list of PR objects (up to 100)
     """
-    Repository.get_by_id(repo_id)  # Verify repo exists
+    repository = Repository.get_by_id(repo_id)  # Verify repo exists
 
     body = request.json or []
 

@@ -253,7 +253,7 @@ class BackendAPI:
         merged_at: str,
         merge_commit_sha: str,
         spec: dict,
-        status: str = "unprocessed",
+        status: str = "UNKNOWN",
     ) -> PullRequest:
         """Create a pull request"""
         self.logger.info(f"Creating PR #{number} in repo {repository_id}")
@@ -325,7 +325,6 @@ class BackendAPI:
         password: str,
         schema: str,
         db_type: str,
-        repository_id: int,
     ) -> Dataset:
         """Create a dataset"""
         self.logger.info(f"Creating dataset {name}")
@@ -337,7 +336,6 @@ class BackendAPI:
             "password": password,
             "schema": schema,
             "type": db_type,
-            "repository_id": repository_id,
         }
         response = self.session.post("/datasets", json=data)
         return Dataset(**response.json())
@@ -367,7 +365,7 @@ class BackendAPI:
         watch_dir: str,
         base_branch: str,
         initial_cursor: str,
-        default_dataset_name: str,
+        dataset_id: int,
     ) -> Repository:
         """Create a repository"""
         self.logger.info(f"Creating repository {uri}")
@@ -376,7 +374,7 @@ class BackendAPI:
             "watch_dir": watch_dir,
             "base_branch": base_branch,
             "initial_cursor": initial_cursor,
-            "default_dataset_name": default_dataset_name,
+            "dataset_id": dataset_id,
         }
         response = self.session.post("/repositories", json=data)
         return Repository(**response.json())

@@ -16,6 +16,8 @@ SAMPLE_REPO = {
     "path": "org/repo",
     "base_branch": "main",
     "watch_dir": "specs/",
+    "dataset_id": 1,
+    "pr_cursor": "2026-01-01T00:00:00Z",
 }
 
 SAMPLE_REPOSITORY_OBJ = {
@@ -24,7 +26,9 @@ SAMPLE_REPOSITORY_OBJ = {
     "path": "org/repo",
     "base_branch": "main",
     "watch_dir": "specs/",
+    "dataset_id": 1,
     "initial_cursor": "2026-01-01T00:00:00Z",
+    "pr_cursor": "2026-01-01T00:00:00Z",
     "pull_requests": [],
 }
 

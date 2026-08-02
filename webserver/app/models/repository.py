@@ -3,7 +3,7 @@ from typing import cast
 from datetime import datetime as dt
 from datetime import timezone as tz
 
-from sqlalchemy import Column, DateTime, Integer, String, func
+from sqlalchemy import Column, DateTime, Integer, String, ForeignKey, func
 from sqlalchemy.orm import relationship, validates
 from app.helpers.base_model import BaseModel, db
 from app.models import Models
@@ -20,12 +20,10 @@ class Repository(db.Model, BaseModel):
     uri = Column(String(4096), unique=True, nullable=False)
     watch_dir = Column(String(4096), nullable=False)
     base_branch = Column(String(256), nullable=False, default='main')
-    default_dataset_name = Column(String(256), nullable=True)
+    dataset_id = Column(Integer, ForeignKey('datasets.id'), nullable=False)
     initial_cursor = Column(DateTime, default=now_ts)
-    created_at = Column(DateTime(timezone=False), server_default=func.now())
-    updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now())
 
-    datasets = relationship("Dataset", back_populates="repository")
+    dataset = relationship("Dataset", back_populates="repositories")
     pull_requests = relationship("PullRequest", back_populates="repository", cascade="all, delete")
 
     @validates('uri')
@@ -84,7 +82,7 @@ class Repository(db.Model, BaseModel):
             'path': self.path,
             'watch_dir': self.watch_dir,
             'base_branch': self.base_branch,
-            'default_dataset_name': self.default_dataset_name,
+            'dataset_id': self.dataset_id,
             'pr_cursor': self.get_pull_request_cursor(),
             'pr_count': len(self.pull_requests)
         }
@@ -93,14 +91,14 @@ class Repository(db.Model, BaseModel):
         self,
         uri: str,
         watch_dir: str,
+        dataset_id: int,
         base_branch: str = 'main',
-        default_dataset_name: str | None = None,
         initial_cursor: dt | None = None,
     ):
         self.uri = uri
         self.watch_dir = watch_dir
+        self.dataset_id = dataset_id
         self.base_branch = base_branch
-        self.default_dataset_name = default_dataset_name
         self.initial_cursor = initial_cursor
 
     def __repr__(self):
