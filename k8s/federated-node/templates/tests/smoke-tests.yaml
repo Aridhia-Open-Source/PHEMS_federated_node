@@ -17,11 +17,11 @@ spec:
         - |
 {{ .Files.Get "scripts/tests.sh" | indent 10 }}
       env:
-      - name: KEYCLOAK_ADMIN_PASSWORD
+      - name: KEYCLOAK_SERVICE_PASSWORD
         valueFrom:
           secretKeyRef:
             name: kc-secrets
-            key: KEYCLOAK_ADMIN_PASSWORD
+            key: KEYCLOAK_SERVICE_PASSWORD
       - name: PGPASSWORD
         valueFrom:
           secretKeyRef:

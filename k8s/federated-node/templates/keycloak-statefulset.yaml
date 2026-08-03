@@ -14,7 +14,8 @@ spec:
   template:
     metadata:
       annotations:
-        rollme: {{ template "rollMe" . }}
+        fn.aridhia.com/credential-generation: {{ .Values.keycloak.credentialGeneration | default 1 | quote }}
+        checksum/kc-config: {{ include (print $.Template.BasePath "/keycloak-configmap.yaml") . | sha256sum }}
       labels:
         app: keycloak
     spec:
@@ -49,26 +50,6 @@ spec:
                 configMapKeyRef:
                   name: keycloak-config
                   key: KC_DB_URL_HOST
-        - name: credentials-reset
-          imagePullPolicy: {{ .Values.pullPolicy }}
-          image: {{ include "fn-alpine" . }}
-          command: ["keycloak-reset"]
-          {{- include "nonRootSC" . | nindent 10 }}
-          env:
-          - name: PGPASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: {{.Values.db.secret.name}}
-                key: {{.Values.db.secret.key}}
-          - name: KC_NAMESPACE
-            value: {{ include "kc_namespace" . }}
-          - name: PGDATABASE
-            value: {{ include "dbKeycloakName" . }}
-          envFrom:
-          - secretRef:
-              name: kc-secrets
-          - configMapRef:
-              name: keycloak-config
       containers:
         - image: ghcr.io/aridhia-open-source/federated_keycloak:{{ include "keycloak-image-tag" . }}
           args: [
@@ -120,10 +101,3 @@ spec:
             items:
             - key: quarkus.properties
               path: quarkus.properties
-        - name: db-init
-          configMap:
-            name: keycloak-start-config
-            defaultMode: 0777
-            items:
-            - key: dbinit.sh
-              path: dbinit.sh

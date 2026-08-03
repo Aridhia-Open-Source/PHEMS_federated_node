@@ -14,8 +14,8 @@ class TestLogin:
         login_request = client.post(
             "/login",
             data={
-                "username": os.getenv("KEYCLOAK_ADMIN"),
-                "password": os.getenv("KEYCLOAK_ADMIN_PASSWORD")
+                "username": os.getenv("KEYCLOAK_SERVICE_USER", "fn-service"),
+                "password": os.getenv("KEYCLOAK_SERVICE_PASSWORD")
             },
             headers={
                 'Content-Type': 'application/x-www-form-urlencoded'

@@ -1,7 +1,7 @@
 [project]
 name = "kc-init"
 description = "Keycloak realm initialisation and migration script for the Federated Node"
-version = "1.2.0"
+version = "2.0.0"
 requires-python = ">=3.13"
 readme = "README.md"
 license = {text = "GPL-3"}

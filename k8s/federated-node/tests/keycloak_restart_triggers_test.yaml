@@ -1,0 +1,142 @@
+## Restart triggers.
+##
+## The property under test: a no-op upgrade must produce a byte-identical pod template, so
+## Kubernetes does not roll the pods. That is what `rollme` (randAlphaNum 5) made impossible.
+##
+## A pinned annotation value is asserted rather than merely "an annotation exists": the pinned
+## value is what proves determinism. A random value would satisfy an existence check.
+suite: Keycloak restart triggers
+release:
+  namespace: federatednode
+  name: federatednode
+  revision: 2
+  upgrade: true
+templates:
+  - templates/keycloak-statefulset.yaml
+  - templates/keycloak-realm-controller.yaml
+  ## Listed because the StatefulSet's checksum/kc-config does a cross-template `include` of it.
+  ## Real Helm loads every template, but helm-unittest only loads what a suite declares.
+  - templates/keycloak-configmap.yaml
+values:
+  - values/values-upgrade.yaml
+kubernetesProvider:
+  scheme:
+    v1/Secret:
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+  objects:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: kc-secrets
+        namespace: federatednode
+      data:
+        KEYCLOAK_SECRET: c2VlZGVkLWNsaWVudC1zZWNyZXQ=
+        KEYCLOAK_ADMIN_PASSWORD: c2VlZGVkLWFkbWluLXBhc3M=
+        KC_BOOTSTRAP_ADMIN_PASSWORD: c2VlZGVkLWFkbWluLXBhc3M=
+        KEYCLOAK_SERVICE_PASSWORD: c2VlZGVkLXNlcnZpY2UtcGFzcw==
+        CREDENTIAL_GENERATION: MQ==
+
+tests:
+  - it: no longer forces a roll on every upgrade
+    template: templates/keycloak-statefulset.yaml
+    asserts:
+      - notExists:
+          path: spec.template.metadata.annotations.rollme
+
+  - it: pins the restart trigger to the credential generation, deterministically
+    template: templates/keycloak-statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["fn.aridhia.com/credential-generation"]
+          value: "1"
+
+  - it: changes the Keycloak restart trigger when a rotation is requested
+    template: templates/keycloak-statefulset.yaml
+    set:
+      keycloak:
+        credentialGeneration: 7
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["fn.aridhia.com/credential-generation"]
+          value: "7"
+
+  ## The core race fix: realm-init must restart alongside Keycloak, holding the same generation.
+  ## Before this change it had no annotations at all and was never restarted by an upgrade.
+  - it: restarts realm-init on the same generation as Keycloak
+    template: templates/keycloak-realm-controller.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["fn.aridhia.com/credential-generation"]
+          value: "1"
+
+  - it: changes the realm-init trigger when a rotation is requested
+    template: templates/keycloak-realm-controller.yaml
+    set:
+      keycloak:
+        credentialGeneration: 7
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["fn.aridhia.com/credential-generation"]
+          value: "7"
+
+  ## The baseline is pinned to a literal because that is what proves the checksum is a pure function
+  ## of the config rather than something that churns per render -- an `exists` check would be
+  ## satisfied by a random value. Update it when a deliberate keycloak-configmap.yaml change moves
+  ## it; the point is that it is stable between renders, not that it never changes.
+  - it: derives the config trigger deterministically from the config content
+    template: templates/keycloak-statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["checksum/kc-config"]
+          value: &kcConfigChecksum 46dde5de3573a7823cf0ab50da47ff6b0ad55ce4f680cc198423ee666adabf67
+
+  ## Preserves the one useful thing rollme did: roll when Keycloak's config genuinely changes.
+  ## KEYCLOAK_TOKEN_LIFE lives in keycloak-config, so changing token.life must move the hash away
+  ## from the baseline. Asserted as "differs", so only the baseline above needs maintaining.
+  - it: still rolls Keycloak when its config changes
+    template: templates/keycloak-statefulset.yaml
+    set:
+      token:
+        life: 3600
+    asserts:
+      - notEqual:
+          path: spec.template.metadata.annotations["checksum/kc-config"]
+          value: *kcConfigChecksum
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/kc-config"]
+          pattern: ^[0-9a-f]{64}$
+
+  ## The destructive SQL init container is gone. It deleted the admin and bootstrap-admin users
+  ## from Keycloak's own tables on every pod start.
+  - it: no longer runs the raw-SQL credentials reset
+    template: templates/keycloak-statefulset.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.initContainers
+          content:
+            name: credentials-reset
+          any: true
+
+  - it: does not reference the dagster secret when dagster is disabled
+    template: templates/keycloak-realm-controller.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: dagster-keycloak-creds
+
+  - it: does reference the dagster secret when dagster is enabled
+    template: templates/keycloak-realm-controller.yaml
+    set:
+      dagster:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: dagster-keycloak-creds

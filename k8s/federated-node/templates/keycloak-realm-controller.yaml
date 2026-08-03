@@ -17,6 +17,13 @@ spec:
       app: {{ include "kcControlleName" . }}
   template:
     metadata:
+      annotations:
+        fn.aridhia.com/credential-generation: {{ .Values.keycloak.credentialGeneration | default 1 | quote }}
+        {{- /*
+          Restart realm-init whenever the realm definition changes, so an edit to realms.json is
+          actually applied.
+        */}}
+        checksum/realm-config: {{ .Files.Get "scripts/realms.json" | sha256sum }}
       labels:
         app: {{ include "kcControlleName" . }}
     spec:
@@ -33,6 +40,8 @@ spec:
               value: {{ .Values.keycloak.replicas | default 2 | quote }}
             - name: KEYCLOAK_URL
               value: http://keycloak.{{ include "kc_namespace" . }}.svc.cluster.local
+            - name: MANAGE_REALM
+              value: {{ .Values.keycloak.manageRealm | default true | quote }}
             {{- if (.Values.firstUserSecret).name }}
             - name: FIRST_USER_PASS
               valueFrom:
@@ -49,7 +58,24 @@ spec:
           envFrom:
           - configMapRef:
               name: keycloak-config
-          - secretRef:
-              name: kc-secrets
+          {{- if .Values.dagster.enabled }}
           - secretRef:
               name: dagster-keycloak-creds
+          {{- end }}
+          volumeMounts:
+            - name: realm-config
+              mountPath: /realm-config
+              readOnly: true
+            - name: kc-secrets
+              mountPath: {{ include "kcSecretsMountPath" . }}
+              readOnly: true
+      volumes:
+        - name: realm-config
+          configMap:
+            name: keycloak-realm-config
+            items:
+              - key: realms.json
+                path: realms.json
+        - name: kc-secrets
+          secret:
+            secretName: kc-secrets

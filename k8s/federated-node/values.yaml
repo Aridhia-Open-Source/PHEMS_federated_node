@@ -16,6 +16,36 @@ keycloak:
   tag:
   db:
     name: keycloak_db
+  # Bump this integer to deliberately rotate the platform-managed Keycloak credentials
+  # Credentials are otherwise stable across upgrades. Safe to leave committed: rotation happens
+  # only when this value differs from the one recorded in the kc-secrets Secret.
+  credentialGeneration: 1
+  # Escape hatch. Normally an upgrade with no existing kc-secrets is an error, because it means
+  # `lookup` is unavailable and credentials would be silently regenerated on every sync. Set this
+  # true for a single upgrade if you deleted the secret on purpose.
+  recreateMissingSecrets: false
+  # Set false to hand realm management entirely to the operator. keycloak-realm-init still manages
+  # credentials, but applies neither the realms.json partial import nor any realm migration.
+  manageRealm: true
+
+  # Seconds a service-account token may be reused by the backend. Without this, every Keycloak()
+  # instantiation performs a fresh password grant, so a brief authentication blip during a rotation
+  # becomes a total outage instead of a few retried calls. 0 disables caching.
+  tokenCacheSeconds: 30
+
+  # Automatic rotation of the platform-managed credentials.
+  credentialRotation:
+    enabled: false
+    # Cron cannot express "every 30 days"; monthly on the 1st is the closest sensible equivalent.
+    schedule: "0 3 1 * *"
+    rotate:
+      # The only one with a true grace period: Keycloak keeps the previous secret valid for
+      # rotatedExpirationPeriod, so this is genuinely zero-downtime.
+      clientSecret: true
+      # No dual-password support in Keycloak, so these have a brief cutover that consumers ride out
+      # by retrying. Set false to limit rotation to the client secret alone.
+      servicePassword: true
+      dagsterPassword: true
 
 alpine:
   image: ghcr.io/aridhia-open-source/alpine
@@ -33,7 +63,10 @@ global:
   namespaces: *namespaces
 
 token:
-  life: 2592000
+  # 8 hours. Was 2592000 (30 days), the same order as the rotation period -- which meant sessions
+  # could outlive a rotation and keep depending on refresh flows that present the client secret.
+  # A shorter lifetime also bounds how long a leaked KEYCLOAK_SECRET remains useful.
+  life: 28800
 
 # Local Development-related options
 local_development: false
@@ -60,13 +93,6 @@ taskReview: false
   # firstName:
   # lastName:
   # email:
-
-# Dagster system user configuration
-dagster:
-  # enabled: Set to true in your deployment if using Dagster
-  systemUser:
-    # password: Leave blank for auto-generated secure password, or set custom password
-    # password: "your-secure-password-here"
 
 federatedNode:
   allow_delivery_api: false
@@ -204,6 +230,18 @@ fnDagster:
 ### Dagster Subchart Config
 dagster:
   enabled: false
+
+  # NB: there used to be a second, earlier `dagster:` block here holding `systemUser`. YAML
+  # last-key-wins silently discarded it, so `dagster.systemUser.password` could never be read.
+  # Merged into this block, and now actually honoured by keycloak-secrets.yaml.
+  systemUser:
+    # Leave blank for an auto-generated password (recommended). Set it to pin a specific one,
+    # in which case it is used verbatim and credential rotation does not apply to it.
+    password:
+
+  # Namespace the dagster-keycloak-creds secret is copied into, for the Dagster deployment to
+  # consume. Defaults to the release namespace.
+  # namespace:
 
   generatePostgresqlPasswordSecret: false
 

@@ -204,3 +204,12 @@ http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 {{- define "controllerCrdGroup" -}}
 tasks.federatednode.com
 {{- end -}}
+
+{{/*
+  Where kc-secrets is mounted in components that read credentials from disk rather than the
+  environment. Single-sourced so the chart and the reading code cannot disagree; the same value is
+  compiled into app/helpers/keycloak.py and build/kc-init/secrets.py as their default.
+*/}}
+{{- define "kcSecretsMountPath" -}}
+/etc/secrets/kc
+{{- end -}}

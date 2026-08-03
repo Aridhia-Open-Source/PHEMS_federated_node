@@ -17,7 +17,8 @@ RUN groupadd -g "$USER_GID" "$USERNAME" && \
 
 # Copy application code with correct ownership
 COPY --chown=${USER_UID}:${USER_GID} *.py .
+COPY --chown=${USER_UID}:${USER_GID} migrations/ ./migrations/
 
 USER ${USER_UID}
 
-ENTRYPOINT ["/bin/sh", "-c", "python3 /scripts/setup_realm.py && tail -f /dev/null"]
+ENTRYPOINT ["/bin/sh", "-c", "python3 -u /scripts/setup_realm.py && tail -f /dev/null"]

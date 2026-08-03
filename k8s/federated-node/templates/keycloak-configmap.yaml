@@ -4,13 +4,11 @@ metadata:
   name: keycloak-config
   namespace: {{ include "kc_namespace" . }}
 data:
-  KC_HEALTH_ENABLED: "true"
   KC_HOSTNAME_STRICT: "false"
-  KC_FEATURES: admin-fine-grained-authz:v1,token-exchange
-  KC_BOOTSTRAP_ADMIN_USERNAME: tmpadmin
+  KC_BOOTSTRAP_ADMIN_USERNAME: tmpadmin-{{ .Values.keycloak.credentialGeneration | default 1 }}
   KEYCLOAK_ADMIN: admin
+  KEYCLOAK_SERVICE_USER: fn-service
   KC_DB_URL_HOST: {{ include "dbKeycloakHost" . }}
-  KC_DB: postgres
   KC_DB_URL_PORT: {{ include "dbPort" . }}
   KC_DB_URL_DATABASE: {{ include "dbKeycloakName" . }}
   KC_DB_USERNAME: {{ include "dbUser" . }}
@@ -33,6 +31,12 @@ metadata:
   namespace: {{ . }}
 data:
   KEYCLOAK_ADMIN: admin
+  {{- /*
+    Must be present in this cut-down copy too: it is the one the backend consumes via envFrom in
+    the release namespace. Adding it only to the Keycloak-namespace ConfigMap above would leave
+    the webserver without a service username to authenticate with.
+  */}}
+  KEYCLOAK_SERVICE_USER: fn-service
   KC_DB_URL_HOST: {{ include "dbKeycloakHost" $ }}
   KC_DB_USERNAME: {{ include "dbUser" $ }}
 ---
