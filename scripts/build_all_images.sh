@@ -9,6 +9,7 @@ DOCKER_DIRS=(
   "webserver"
   "pypipes"
   "github_transfer"
+  "uc1"
   "build/alpine"
   "build/kc-init"
 )

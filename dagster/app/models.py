@@ -1,6 +1,7 @@
+import re
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PullRequestStatus(str, Enum):
@@ -63,6 +64,10 @@ class Dataset(BaseModel):
     extra_connection_args: str | None = None
     slug: str
     url: str
+
+    def get_creds_secret_name(self) -> str:
+        cleaned_up_host = re.sub('http(s)*://', '', self.host)
+        return f"{cleaned_up_host}-{re.sub('\\s|_|#', '-', self.name.lower())}-creds"
 
 
 class Repository(BaseModel):

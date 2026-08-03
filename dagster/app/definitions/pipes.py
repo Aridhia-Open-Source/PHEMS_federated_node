@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
         "dataset_host": dg.Field(str, is_required=False),
         "dataset_port": dg.Field(int, is_required=False),
         "dataset_type": dg.Field(str, is_required=False),
+        "dataset_schema": dg.Field(str, is_required=False),
+        "dataset_schema_write": dg.Field(str, is_required=False),
     }
 )
 def k8s_pipes_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> dg.Output:
@@ -43,14 +45,36 @@ class K8sPipe:
         self.dataset_host = self.config.get('dataset_host')
         self.dataset_port = self.config.get('dataset_port')
         self.dataset_type = self.config.get('dataset_type')
+        self.dataset_schema = self.config.get('dataset_schema')
+        self.dataset_schema_write = self.config.get('dataset_schema_write')
         self.env = self._setup_env(ext_env)
 
     def _setup_env(self, ext_env=None):
-        return {
+        env = {
             **(self.config.get('env') or {}),
             **(ext_env or {}),
             'ARTIFACT_PATH': self.artifact_path,
         }
+        # REQUIRED: Dataset connection parameters must be present if secret_name is set
+        # (indicates this is a dataset-backed run)
+        if self.dataset_secret_name:
+            if not self.dataset_host:
+                raise ValueError("dataset_host is required when dataset_secret_name is set")
+            if not self.dataset_port:
+                raise ValueError("dataset_port is required when dataset_secret_name is set")
+            if not self.dataset_name:
+                raise ValueError("dataset_name is required when dataset_secret_name is set")
+            if not self.dataset_schema:
+                raise ValueError("dataset_schema is required when dataset_secret_name is set")
+            if not self.dataset_schema_write:
+                raise ValueError("dataset_schema_write is required when dataset_secret_name is set")
+
+            env['DATASET_HOST'] = self.dataset_host
+            env['DATASET_PORT'] = str(self.dataset_port)
+            env['DATASET_NAME'] = self.dataset_name
+            env['CDM_SCHEMA'] = self.dataset_schema
+            env['WRITE_SCHEMA'] = self.dataset_schema_write
+        return env
 
     def __call__(self):
         self.log(f"Pipes op starting - {self.image}")

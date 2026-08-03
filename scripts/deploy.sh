@@ -15,6 +15,7 @@ HOST_MOUNT_PATHS=(
   "/data/flask"
   "/data/controller"
   "/data/dagster/artifacts"
+  "/data/datasets"
 )
 
 echo
@@ -80,6 +81,14 @@ kubectl create secret generic keycloak-first-user \
 
 kubectl create secret generic github-token \
   --from-literal=GH_TOKEN="$GH_TOKEN" \
+  --dry-run=client -o yaml -n "$NAMESPACE" | kubectl apply -f - -n "$NAMESPACE"
+
+kubectl create secret generic db-datasets-superuser \
+  --from-literal=password="$DATASET_DB_SUPERUSER_PASSWORD" \
+  --dry-run=client -o yaml -n "$NAMESPACE" | kubectl apply -f - -n "$NAMESPACE"
+
+kubectl create secret generic db-datasets-uc1 \
+  --from-literal=password="$DATASET_DB_UC1_PASSWORD" \
   --dry-run=client -o yaml -n "$NAMESPACE" | kubectl apply -f - -n "$NAMESPACE"
 
 echo

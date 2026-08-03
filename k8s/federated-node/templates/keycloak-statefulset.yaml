@@ -45,7 +45,7 @@ spec:
             - sh
             - -c
             - |
-              until psql -h $PGHOST -p {{ .Values.db.port }} -U {{ .Values.db.superuser | default "postgres" }} -d postgres -c "SELECT 1 FROM pg_database WHERE datname='$KC_DB_URL_DATABASE'" | grep -q 1; do
+              until psql -h $PGHOST -p {{ .Values.db.port }} -U {{ .Values.db.superuser }} -d postgres -c "SELECT 1 FROM pg_database WHERE datname='$KC_DB_URL_DATABASE'" | grep -q 1; do
                 echo "waiting for keycloak database..."
                 sleep 2
               done

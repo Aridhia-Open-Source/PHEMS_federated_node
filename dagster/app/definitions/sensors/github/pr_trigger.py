@@ -135,7 +135,22 @@ class PullRequestTriggerSensor(GithubSensor):
             raise ValueError(f"PR #{pr.number} spec in repo {repo.path} missing 'image'")
 
         dataset = self.backend_api.get_dataset(repo.dataset_id)
-        dataset_secret_name = self._compute_secret_name(dataset.host, dataset.name)
+
+        # Validate dataset has required fields
+        if not dataset.host:
+            raise ValueError(f"Dataset {dataset.name} (id={repo.dataset_id}) missing 'host'")
+        if not dataset.name:
+            raise ValueError(f"Dataset (id={repo.dataset_id}) missing 'name'")
+        if not dataset.port:
+            raise ValueError(f"Dataset {dataset.name} (id={repo.dataset_id}) missing 'port'")
+        if not dataset.type:
+            raise ValueError(f"Dataset {dataset.name} (id={repo.dataset_id}) missing 'type'")
+        if not dataset.schema:
+            raise ValueError(f"Dataset {dataset.name} (id={repo.dataset_id}) missing 'schema'")
+        if dataset.schema_write is None:
+            raise ValueError(f"Dataset {dataset.name} (id={repo.dataset_id}) missing 'schema_write'")
+
+        dataset_secret_name = dataset.get_creds_secret_name()
 
         return dg.RunRequest(
             run_key=run_key,
@@ -157,14 +172,10 @@ class PullRequestTriggerSensor(GithubSensor):
                             "dataset_host": dataset.host,
                             "dataset_port": dataset.port,
                             "dataset_type": dataset.type,
+                            "dataset_schema": dataset.schema,
+                            "dataset_schema_write": dataset.schema_write,
                         }
                     }
                 }
             },
         )
-
-    def _compute_secret_name(self, host: str, name: str) -> str:
-        """Compute k8s secret name following Dataset.get_creds_secret_name logic."""
-        import re
-        cleaned_host = re.sub('http(s)*://', '', host)
-        return f"{cleaned_host}-{re.sub(r'\s|_|#', '-', name.lower())}-creds"

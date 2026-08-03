@@ -35,7 +35,7 @@ spec:
             - -c
             - |
               psql -h {{ .Values.db.host }} -p {{ .Values.db.port }} \
-                -U {{ .Values.db.superuser | default "postgres" }} -d postgres << SQL
+                -U {{ .Values.db.superuser }} -d postgres << SQL
               CREATE DATABASE {{ include "backendDbName" . }};
               CREATE USER {{ .Values.backend.db.user }} WITH PASSWORD '${BACKEND_DB_PASSWORD}';
               ALTER DATABASE {{ include "backendDbName" . }} OWNER TO {{ .Values.backend.db.user }};
@@ -45,7 +45,7 @@ spec:
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-superuser
+                  name: {{ .Values.db.secret.name }}
                   key: password
             - name: BACKEND_DB_PASSWORD
               valueFrom:

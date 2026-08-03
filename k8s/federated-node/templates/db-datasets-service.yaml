@@ -1,0 +1,15 @@
+{{ if .Values.datasetDb.create }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-datasets
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+    - port: 5432
+      name: pgport
+      targetPort: 5432
+      protocol: TCP
+  selector:
+    app: dataset-postgres
+{{ end }}

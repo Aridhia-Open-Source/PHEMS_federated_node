@@ -1,0 +1,61 @@
+{{ if .Values.datasetDb.create }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-datasets-init
+  namespace: {{ .Release.Namespace }}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait-for-db
+          image: {{ include "fn-alpine" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h $PGHOST -p $PGPORT; do
+                echo "waiting for postgres..."
+                sleep 2
+              done
+          env:
+            - name: PGHOST
+              value: {{ .Values.datasetDb.host }}
+            - name: PGPORT
+              value: {{ .Values.datasetDb.port | quote }}
+      containers:
+        - name: db-init
+          image: {{ include "fn-alpine" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          command:
+            - sh
+          args:
+            - -c
+            - |
+              psql -h {{ .Values.datasetDb.host }} -p {{ .Values.datasetDb.port }} \
+                -U {{ .Values.datasetDb.superuser }} -d postgres << SQL
+              {{- range $dbKey, $dbConfig := .Values.datasetDb.dbs }}
+              CREATE DATABASE {{ $dbConfig.name }};
+              CREATE USER {{ $dbConfig.user }} WITH PASSWORD '${DB_{{ $dbKey | upper }}_PASSWORD}';
+              ALTER DATABASE {{ $dbConfig.name }} OWNER TO {{ $dbConfig.user }};
+              GRANT ALL PRIVILEGES ON DATABASE {{ $dbConfig.name }} TO {{ $dbConfig.user }};
+              {{- end }}
+              SQL
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.datasetDb.secret.name }}
+                  key: {{ .Values.datasetDb.secret.key }}
+            {{- range $dbKey, $dbConfig := .Values.datasetDb.dbs }}
+            - name: DB_{{ $dbKey | upper }}_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $dbConfig.secret.name }}
+                  key: {{ $dbConfig.secret.key }}
+            {{- end }}
+{{ end }}

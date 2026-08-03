@@ -1,0 +1,61 @@
+{{ if .Values.datasetDb.create }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Release.Name }}-db-datasets-pv
+spec:
+  storageClassName: {{ .Release.Name }}-db-datasets-storage
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: 1Gi
+  {{ if .Values.storage.local }}
+  local:
+    path: {{ .Values.storage.local.datasetDbpath }}
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/os
+          operator: In
+          values:
+          - linux
+  {{ else if .Values.storage.azure }}
+  azureFile:
+    shareName: {{ .Values.storage.azure.shareName }}
+    readOnly: false
+    secretName: {{ .Values.storage.azure.secretName | default "azure-storage-secret" }}
+  {{ else if .Values.storage.aws }}
+  csi:
+    driver: efs.csi.aws.com
+    volumeHandle: {{ include "awsStorageAccount" . }}
+  {{ else if .Values.storage.nfs }}
+  nfs:
+    server: {{ .Values.storage.nfs.url }}
+    path: {{ .Values.storage.nfs.path }}
+    readOnly: false
+  {{ end }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: db-datasets-volclaim
+  namespace: {{ .Release.Namespace }}
+spec:
+  storageClassName: {{ .Release.Name }}-db-datasets-storage
+  volumeName: {{ .Release.Name }}-db-datasets-pv
+  resources:
+    requests:
+      storage: 100Mi
+  accessModes:
+    - ReadWriteMany
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Release.Name }}-db-datasets-storage
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+volumeBindingMode: WaitForFirstConsumer
+provisioner: Local
+{{ end }}

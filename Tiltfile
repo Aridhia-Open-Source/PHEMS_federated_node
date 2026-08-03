@@ -120,6 +120,18 @@ local_resource(
 )
 
 local_resource(
+  'db-internal-port-forward',
+  serve_cmd='kubectl port-forward svc/fn-dev-db-internal -n {ns} 5432:5432'.format(ns=NAMESPACE),
+  labels=['infrastructure'],
+)
+
+local_resource(
+  'db-datasets-port-forward',
+  serve_cmd='kubectl port-forward svc/db-datasets -n {ns} 5433:5432'.format(ns=NAMESPACE),
+  labels=['infrastructure'],
+)
+
+local_resource(
   'deployment-check',
   cmd='kubectl get deployment backend -n {ns} >/dev/null 2>&1 && echo "OK: deployments ready" || echo "MISSING: run make deploy"'.format(ns=NAMESPACE),
   trigger_mode=TRIGGER_MODE_MANUAL,

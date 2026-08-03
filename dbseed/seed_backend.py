@@ -29,11 +29,12 @@ REPO_INIT_CURSOR = os.environ['REPO_INITIAL_CURSOR']
 
 # Dataset
 DATASET_NAME = os.environ['DATASET_NAME']
-DATASET_HOST = os.environ['DATASET_HOST']
+CLUSTER_DATASET_HOST = os.environ['CLUSTER_DATASET_HOST']
 DATASET_PORT = int(os.environ['DATASET_PORT'])
 DATASET_USERNAME = os.environ['DATASET_USERNAME']
 DATASET_PASSWORD = os.environ['DATASET_PASSWORD']
 DATASET_SCHEMA = os.environ['DATASET_SCHEMA']
+DATASET_SCHEMA_WRITE = os.environ['DATASET_SCHEMA_WRITE']
 DATASET_TYPE = os.environ['DATASET_TYPE']
 
 # Data Access Request
@@ -59,36 +60,43 @@ def _init_backend_api(username: str, password: str):
 
 def seed():
     """Create test dataset, repository, and request."""
+    logger.info("===================================================================")
+    logger.info("Seeding Database!")
+    logger.info("===================================================================")
+
     creds = _load_creds()
     logger.info(f"Loaded credentials for user: {creds}")
     api = _init_backend_api(**creds)
+    logger.info(f"Initialized backend API client for {creds['username']}")
 
-    logger.info("Seeding Database!")
-
-    logger.info("Deleting existing repositories...")
+    logger.info("Fetching existing repositories...")
     existing_repos = api.get_repositories() or []
-
+    logger.info(f"Repositories found: {len(existing_repos)}")
     for r in existing_repos:
         logger.info(f"Deleting existing repository ({r.id}) - {r.uri}")
         api.delete_repository(r.id)
 
-    logger.info("Deleting existing datasets...")
+    logger.info("Fetching existing datasets...")
     existing_datasets = api.get_datasets() or []
     logger.info(f"Datasets found: {len(existing_datasets)}")
 
     for ds in existing_datasets:
+        logger.info(f"Deleting existing dataset ({ds.id}) - {ds.name}")
         api.delete_dataset(ds.id)
 
+    logger.info("Creating new dataset...")
     dataset = api.create_dataset(
         name=DATASET_NAME,
-        host=DATASET_HOST,
+        host=CLUSTER_DATASET_HOST,
         port=DATASET_PORT,
         username=DATASET_USERNAME,
         password=DATASET_PASSWORD,
         schema=DATASET_SCHEMA,
         db_type=DATASET_TYPE,
+        schema_write=DATASET_SCHEMA_WRITE,
     )
 
+    logger.info("Creating new repository...")
     repo = api.create_repository(
         uri=REPO_URI,
         watch_dir=REPO_WATCH_DIR,
@@ -97,17 +105,9 @@ def seed():
         dataset_id=dataset.id,
     )
 
-
-
-    logger.info(f"Created dataset: {dataset.id} - {dataset.name}")
-
-    # breakpoint()
-    # logger.info(f"Created request: {request.id} - {request.title}")
-    # api.approve_request(request.id)
-
-    # logger.info(f"Approved Request - {REQUEST_TITLE}")
-
-    # logger.info(f"Seed complete: dataset={dataset.id}, repo={repo.id}, request={request.id}")
+    logger.info("========================================================================")
+    logger.info(f"Seed complete - (dataset_id={dataset.id}, repository_id={repo.id})")
+    logger.info("========================================================================")
 
 
 if __name__ == '__main__':

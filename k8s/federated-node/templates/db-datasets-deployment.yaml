@@ -1,0 +1,60 @@
+{{ if .Values.datasetDb.create }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-datasets
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: dataset-postgres
+spec:
+  selector:
+    matchLabels:
+      app: dataset-postgres
+  template:
+    metadata:
+      labels:
+        app: dataset-postgres
+    spec:
+      containers:
+        - image: postgres:17-alpine
+          name: db-datasets
+          env:
+            - name: POSTGRES_DB
+              value: postgres
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.datasetDb.secret.name }}
+                  key: {{ .Values.datasetDb.secret.key }}
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -d
+                - postgres
+                - -U
+                - postgres
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -d
+                - postgres
+                - -U
+                - postgres
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 1
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: db-datasets-volclaim
+{{ end }}

@@ -36,7 +36,7 @@ spec:
             - -c
             - |
               psql -h {{ .Values.db.host }} -p {{ .Values.db.port }} \
-                -U {{ .Values.db.superuser | default "postgres" }} -d postgres << SQL
+                -U {{ .Values.db.superuser }} -d postgres << SQL
               CREATE DATABASE {{ .Values.fnDagster.db.name }};
               CREATE USER {{ .Values.fnDagster.db.user }} WITH PASSWORD '${DAGSTER_PG_PASSWORD}';
               ALTER DATABASE {{ .Values.fnDagster.db.name }} OWNER TO {{ .Values.fnDagster.db.user }};
@@ -46,7 +46,7 @@ spec:
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-superuser
+                  name: {{ .Values.db.secret.name }}
                   key: password
             - name: DAGSTER_PG_PASSWORD
               valueFrom:

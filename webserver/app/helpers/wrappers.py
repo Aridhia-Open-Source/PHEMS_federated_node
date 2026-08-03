@@ -85,11 +85,6 @@ def audit(func):
                 # details should include the request body. If a json and the body is not empty
                 if request.is_json:
                     details = request.json
-                    # Remove any of the following fields that contain
-                    # sensitive data, so far only username and password on dataset POST
-                    for field in ["username", "password"]:
-                        find_and_redact_key(details, field)
-                    details = str(details)
 
             requested_by = ""
             if "Authorization" in request.headers:
@@ -102,6 +97,14 @@ def audit(func):
             api_function = func.__name__
 
             response_object, http_status = func(*args, **kwargs)
+
+            if details and request.is_json:
+                # Remove any of the following fields that contain
+                # sensitive data, so far only username and password on dataset POST
+                for field in ["username", "password"]:
+                    find_and_redact_key(details, field)
+                details = str(details)
+
             to_save = Audit(source_ip, http_method, http_endpoint, requested_by, http_status, api_function, details)
             to_save.add()
 

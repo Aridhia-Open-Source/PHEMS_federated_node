@@ -35,7 +35,7 @@ spec:
             - -c
             - |
               psql -h {{ .Values.db.host }} -p {{ .Values.db.port }} \
-                -U {{ .Values.db.superuser | default "postgres" }} -d postgres << SQL
+                -U {{ .Values.db.superuser }} -d postgres << SQL
               CREATE DATABASE {{ .Values.keycloak.db.name }};
               CREATE USER {{ .Values.keycloak.db.user }} WITH PASSWORD '${KC_DB_PASSWORD}';
               ALTER DATABASE {{ .Values.keycloak.db.name }} OWNER TO {{ .Values.keycloak.db.user }};
@@ -45,7 +45,7 @@ spec:
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-superuser
+                  name: {{ .Values.db.secret.name }}
                   key: password
             - name: KC_DB_PASSWORD
               valueFrom:
