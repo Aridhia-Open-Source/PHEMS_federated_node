@@ -36,4 +36,5 @@ debug.yaml
 .models/
 
 # temp
-./federated-node-task-controller
+federated-node-task-controller
+uc1

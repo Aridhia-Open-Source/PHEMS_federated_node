@@ -15,6 +15,7 @@ HOST_MOUNT_PATHS=(
   "/data/flask"
   "/data/controller"
   "/data/dagster/artifacts"
+  "/data/datasets"
 )
 
 

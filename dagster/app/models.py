@@ -1,3 +1,4 @@
+import re
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -57,12 +58,16 @@ class Dataset(BaseModel):
     name: str
     host: str
     port: int
-    schema_: str | None = Field(None, alias="schema")
+    schema: str | None = None
     schema_write: str | None = None
     type: str
     extra_connection_args: str | None = None
     slug: str
     url: str
+
+    def get_creds_secret_name(self) -> str:
+        cleaned_up_host = re.sub('http(s)*://', '', self.host)
+        return f"{cleaned_up_host}-{re.sub('\\s|_|#', '-', self.name.lower())}-creds"
 
 
 class Repository(BaseModel):

@@ -29,11 +29,12 @@ REPO_INIT_CURSOR = os.environ['REPO_INITIAL_CURSOR']
 
 # Dataset
 DATASET_NAME = os.environ['DATASET_NAME']
-DATASET_HOST = os.environ['DATASET_HOST']
+CLUSTER_DATASET_HOST = os.environ['CLUSTER_DATASET_HOST']
 DATASET_PORT = int(os.environ['DATASET_PORT'])
 DATASET_USERNAME = os.environ['DATASET_USERNAME']
 DATASET_PASSWORD = os.environ['DATASET_PASSWORD']
 DATASET_SCHEMA = os.environ['DATASET_SCHEMA']
+DATASET_SCHEMA_WRITE = os.environ['DATASET_SCHEMA_WRITE']
 DATASET_TYPE = os.environ['DATASET_TYPE']
 
 # Data Access Request
@@ -86,12 +87,13 @@ def seed():
     logger.info("Creating new dataset...")
     dataset = api.create_dataset(
         name=DATASET_NAME,
-        host=DATASET_HOST,
+        host=CLUSTER_DATASET_HOST,
         port=DATASET_PORT,
         username=DATASET_USERNAME,
         password=DATASET_PASSWORD,
         schema=DATASET_SCHEMA,
         db_type=DATASET_TYPE,
+        schema_write=DATASET_SCHEMA_WRITE,
     )
 
     logger.info("Creating new repository...")

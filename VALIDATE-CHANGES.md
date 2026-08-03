@@ -401,7 +401,7 @@ def create_repository(self, uri, watch_dir, base_branch, initial_cursor,
 
 ---
 
-### http_test/clients.py
+### dbseed/clients.py
 
 **Fixed: create_dataset() signature** (same as dagster)
 ```python
@@ -425,7 +425,7 @@ def create_repository(self, uri, watch_dir, base_branch, initial_cursor,
 
 ---
 
-### http_test/models.py
+### dbseed/models.py
 
 **Updated: Repository model**
 ```python
@@ -458,7 +458,7 @@ repository_id: int | None = None  # ❌ Removed
 
 ---
 
-### http_test/seed.py
+### dbseed/seed_backend.py
 
 **Before:**
 ```python
@@ -720,7 +720,7 @@ Project
 - [x] API endpoints match schema and ORM
 - [x] HTTP test models match API responses
 - [x] Dagster client calls match API signatures
-- [x] http_test seed script enforces new dependency order
+- [x] dbseed seed script enforces new dependency order
 - [x] All fixtures create Dataset before Repository
 - [x] No field name mismatches across layers
 - [x] No type mismatches (Integer FK, datetime strings, etc.)

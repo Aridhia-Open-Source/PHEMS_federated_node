@@ -1,6 +1,7 @@
 import subprocess
 import base64
-import re
+
+from models import Dataset
 
 
 def get_k8s_secret(secret_name: str, namespace: str, key: str) -> str:
@@ -17,8 +18,16 @@ def get_k8s_secret(secret_name: str, namespace: str, key: str) -> str:
 
 def load_dataset_secret(dataset_name: str, host: str):
     """Check if dataset K8s secret exists and return credentials."""
-    cleaned_host = re.sub('http(s)*://', '', host)
-    secret_name = f"{cleaned_host}-{re.sub('\\s|_|#', '-', dataset_name.lower())}-creds"
+    dataset = Dataset(
+        id=0,
+        name=dataset_name,
+        host=host,
+        port=5432,
+        type="postgres",
+        slug="",
+        url=""
+    )
+    secret_name = dataset.get_creds_secret_name()
 
     user = get_k8s_secret(secret_name, "fn", "PGUSER")
     password = get_k8s_secret(secret_name, "fn", "PGPASSWORD")

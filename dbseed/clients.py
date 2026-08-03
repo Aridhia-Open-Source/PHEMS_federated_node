@@ -325,6 +325,7 @@ class BackendAPI:
         password: str,
         schema: str,
         db_type: str,
+        schema_write: str | None = None,
     ) -> Dataset:
         """Create a dataset"""
         self.logger.info(f"Creating dataset {name}")
@@ -337,6 +338,8 @@ class BackendAPI:
             "schema": schema,
             "type": db_type,
         }
+        if schema_write:
+            data["schema_write"] = schema_write
         response = self.session.post("/datasets", json=data)
         return Dataset(**response.json())
 

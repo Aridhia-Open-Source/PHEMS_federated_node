@@ -63,6 +63,27 @@ db:
     name: postgres-superuser
     key: password
 
+datasetDb:
+  create: false
+  port: 5432
+  superuser: postgres
+  secret:
+    name: db-datasets-superuser
+    key: password
+  dbs: {}
+    # uc1:
+    #   name: uc1_omop
+    #   user: uc1_omop_user
+    #   secret:
+    #     name: db-datasets-uc1
+    #     key: password
+    # uc2:
+    #   name: uc2_omop
+    #   user: uc2_omop_user
+    #   secret:
+    #     name: db-datasets-uc2
+    #     key: password
+
 # How many days the resultks and k8s resources are kept for
 cleanupTime: 3
 
