@@ -182,7 +182,10 @@ def task_started_sensor(context: RunStatusSensorContext):
 )
 def task_success_sensor(context: RunStatusSensorContext):
     run = context.dagster_run
-    if run.tags.get("trigger") != "github":
+    supported_triggers = ['github']
+    trigger = run.tags.get("trigger") or 'null'
+    if trigger not in supported_triggers:
+        yield dg.SkipReason(f"Unsupported Trigger - {trigger}")
         return
 
     backend_config = BackendConfig()
@@ -319,6 +322,7 @@ def task_cancelled_sensor(context: RunStatusSensorContext):
 #             }
 #         },
 #     )
+
 
 SENSORS = [
     pull_request_ingest_sensor,
