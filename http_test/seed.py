@@ -59,26 +59,31 @@ def _init_backend_api(username: str, password: str):
 
 def seed():
     """Create test dataset, repository, and request."""
+    logger.info("===================================================================")
+    logger.info("Seeding Database!")
+    logger.info("===================================================================")
+
     creds = _load_creds()
     logger.info(f"Loaded credentials for user: {creds}")
     api = _init_backend_api(**creds)
+    logger.info(f"Initialized backend API client for {creds['username']}")
 
-    logger.info("Seeding Database!")
-
-    logger.info("Deleting existing repositories...")
+    logger.info("Fetching existing repositories...")
     existing_repos = api.get_repositories() or []
-
+    logger.info(f"Repositories found: {len(existing_repos)}")
     for r in existing_repos:
         logger.info(f"Deleting existing repository ({r.id}) - {r.uri}")
         api.delete_repository(r.id)
 
-    logger.info("Deleting existing datasets...")
+    logger.info("Fetching existing datasets...")
     existing_datasets = api.get_datasets() or []
     logger.info(f"Datasets found: {len(existing_datasets)}")
 
     for ds in existing_datasets:
+        logger.info(f"Deleting existing dataset ({ds.id}) - {ds.name}")
         api.delete_dataset(ds.id)
 
+    logger.info("Creating new dataset...")
     dataset = api.create_dataset(
         name=DATASET_NAME,
         host=DATASET_HOST,
@@ -89,6 +94,7 @@ def seed():
         db_type=DATASET_TYPE,
     )
 
+    logger.info("Creating new repository...")
     repo = api.create_repository(
         uri=REPO_URI,
         watch_dir=REPO_WATCH_DIR,
@@ -97,17 +103,9 @@ def seed():
         dataset_id=dataset.id,
     )
 
-
-
-    logger.info(f"Created dataset: {dataset.id} - {dataset.name}")
-
-    # breakpoint()
-    # logger.info(f"Created request: {request.id} - {request.title}")
-    # api.approve_request(request.id)
-
-    # logger.info(f"Approved Request - {REQUEST_TITLE}")
-
-    # logger.info(f"Seed complete: dataset={dataset.id}, repo={repo.id}, request={request.id}")
+    logger.info("========================================================================")
+    logger.info(f"Seed complete - (dataset_id={dataset.id}, repository_id={repo.id})")
+    logger.info("========================================================================")
 
 
 if __name__ == '__main__':

@@ -33,37 +33,40 @@ def read_secret(secret_name: str) -> str:
         return ""
 
 
-def main():
-    logger.info(f"Starting main with artifact path: {ARTIFACT_PATH}")
-
-    if os.path.exists(SECRETS_PATH):
-        logger.info("=== Mounted Secrets ===")
-        try:
-            for filename in os.listdir(SECRETS_PATH):
-                filepath = os.path.join(SECRETS_PATH, filename)
-                if os.path.isfile(filepath):
-                    content = read_secret(filename)
-                    logger.info(f"{filename}: {content}")
-        except Exception as e:
-            logger.error(f"Error reading secrets: {e}")
-        logger.info("=== End Secrets ===")
-    else:
-        logger.warning(f"Secrets path {SECRETS_PATH} not found - dataset credentials not mounted")
-
-    mock_results(count=5)
-    return 0
-
-
-def mock_results(count):
-    os.makedirs(ARTIFACT_PATH, exist_ok=True)
+def mock_results(artifact_path, count):
+    os.makedirs(artifact_path, exist_ok=True)
     logger.info(f"Generating {count} mock results")
 
     for n in range(1, count + 1):
-        filepath = f"{ARTIFACT_PATH}/result_{n}.json"
+        filepath = f"{artifact_path}/result_{n}.json"
         with open(filepath, 'w') as f:
             f.write(json.dumps({"result": {"value": n}}))
 
     logger.info(f"Completed generating {count} results")
+
+
+def dump_secrets(artifact_path, secrets_path):
+    if not os.path.exists(secrets_path):
+        logger.error(f"Secrets path {secrets_path} not found")
+        return
+
+    try:
+        with open(f"{artifact_path}/raw.txt", 'w') as raw_file:
+            for filename in os.listdir(secrets_path):
+                filepath = os.path.join(secrets_path, filename)
+                if os.path.isfile(filepath):
+                    content = read_secret(filename)
+                    logger.info(f"{filename}: {content}")
+                    raw_file.write(f"{filename}={content}\n")
+    except Exception as e:
+        logger.error(f"Error reading secrets: {e}")
+
+
+def main():
+    logger.info(f"main")
+    dump_secrets(ARTIFACT_PATH, SECRETS_PATH)
+    mock_results(ARTIFACT_PATH, count=10)
+    return 0
 
 
 if __name__ == "__main__":

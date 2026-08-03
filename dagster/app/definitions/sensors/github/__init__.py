@@ -200,11 +200,10 @@ def task_success_sensor(context: RunStatusSensorContext):
     pr_number = run.tags["pr_number"]
     repo_id = run.tags["repo_id"]
     repo_uri = run.tags["repo_uri"]
-
     backend_api.patch_pull_request(int(repo_id), int(pr_number), {"status": "SUCCESS"})
 
     yield dg.RunRequest(
-        run_key=f"{pr_number}-transfer",
+        run_key=f"{pr_number}-{repo_id}-transfer",
         tags={
             "trigger": "github_transfer",
             "pr_number": pr_number,

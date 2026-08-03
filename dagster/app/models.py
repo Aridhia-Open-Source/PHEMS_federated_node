@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PullRequestStatus(str, Enum):
@@ -57,7 +57,7 @@ class Dataset(BaseModel):
     name: str
     host: str
     port: int
-    schema: str | None = None
+    schema_: str | None = Field(None, alias="schema")
     schema_write: str | None = None
     type: str
     extra_connection_args: str | None = None

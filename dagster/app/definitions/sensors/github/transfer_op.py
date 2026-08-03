@@ -24,11 +24,12 @@ class GithubTransferOperation:
 
     def __call__(self) -> dg.Output:
         """Execute the transfer operation."""
+        # FIXME: Add Exception and SkipReason handling
+        # FIXME: Initialize variables in __init__ instead of extracting them here
+
         pr_number, parent_run_id, repo_uri = self._extract_config()
         trigger_owner, trigger_repo = self._parse_repo_uri(repo_uri)
-        delivery_owner, delivery_repo = self._parse_repo_uri(
-            self.config.delivery_repo
-        )
+        delivery_owner, delivery_repo = self._parse_repo_uri(self.config.delivery_repo)
         branch = f"{pr_number}-{parent_run_id}-results"
 
         self.log.info(
@@ -38,14 +39,33 @@ class GithubTransferOperation:
 
         clone_dir = tempfile.mkdtemp(prefix="phems-transfer-")
         try:
-            self._setup_repo(clone_dir, branch, delivery_owner, delivery_repo)
-            self._archive_results(
-                clone_dir, pr_number, parent_run_id, trigger_owner, trigger_repo
+            self._setup_repo(
+                clone_dir=clone_dir,
+                branch=branch,
+                delivery_owner=delivery_owner,
+                delivery_repo=delivery_repo,
             )
-            self._commit_and_push(clone_dir, pr_number, parent_run_id, branch)
+            self._archive_results(
+                clone_dir=clone_dir,
+                pr_number=pr_number,
+                parent_run_id=parent_run_id,
+                trigger_owner=trigger_owner,
+                trigger_repo=trigger_repo,
+            )
+            self._commit_and_push(
+                clone_dir=clone_dir,
+                pr_number=pr_number,
+                parent_run_id=parent_run_id,
+                branch=branch,
+            )
             pr_url = self._create_results_pr(
-                branch, pr_number, parent_run_id, trigger_owner, trigger_repo,
-                delivery_owner, delivery_repo
+                branch=branch,
+                pr_number=pr_number,
+                parent_run_id=parent_run_id,
+                trigger_owner=trigger_owner,
+                trigger_repo=trigger_repo,
+                delivery_owner=delivery_owner,
+                delivery_repo=delivery_repo,
             )
         finally:
             shutil.rmtree(clone_dir, ignore_errors=True)
@@ -74,7 +94,11 @@ class GithubTransferOperation:
             return owner, repo
 
     def _setup_repo(
-        self, clone_dir: str, branch: str, delivery_owner: str, delivery_repo: str
+        self,
+        clone_dir: str,
+        branch: str,
+        delivery_owner: str,
+        delivery_repo: str
     ) -> None:
         """Clone delivery repo and setup results branch."""
         clone_url = (
@@ -97,9 +121,7 @@ class GithubTransferOperation:
         _git(["-C", clone_dir, "fetch", "origin"])
 
         if self.github_api.branch_exists(delivery_full, branch):
-            raise Exception(
-                f"Results branch {branch!r} already exists on remote"
-            )
+            raise Exception(f"Results branch {branch} already exists on remote")
 
         _git(["-C", clone_dir, "checkout", "-b", branch])
 
@@ -129,7 +151,11 @@ class GithubTransferOperation:
         return artifact_path
 
     def _commit_and_push(
-        self, clone_dir: str, pr_number: str, parent_run_id: str, branch: str
+        self,
+        clone_dir: str,
+        pr_number: str,
+        parent_run_id: str,
+        branch: str
     ) -> None:
         """Commit and push results branch."""
         _git(["-C", clone_dir, "add", "."])
