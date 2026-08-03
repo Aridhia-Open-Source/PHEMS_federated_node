@@ -1,0 +1,54 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: backend-db-init
+  namespace: {{ .Release.Namespace }}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait-for-db
+          image: {{ include "fn-alpine" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h $PGHOST -p $PGPORT; do
+                echo "waiting for postgres..."
+                sleep 2
+              done
+          env:
+            - name: PGHOST
+              value: {{ .Values.db.host }}
+            - name: PGPORT
+              value: {{ .Values.db.port | quote }}
+      containers:
+        - name: db-init
+          image: {{ include "fn-alpine" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          command:
+            - sh
+            - -c
+            - |
+              psql -h {{ .Values.db.host }} -p {{ .Values.db.port }} \
+                -U {{ .Values.db.superuser | default "postgres" }} -d postgres << SQL
+              CREATE DATABASE {{ include "backendDbName" . }};
+              CREATE USER {{ .Values.backend.db.user }} WITH PASSWORD '${BACKEND_DB_PASSWORD}';
+              ALTER DATABASE {{ include "backendDbName" . }} OWNER TO {{ .Values.backend.db.user }};
+              GRANT ALL PRIVILEGES ON DATABASE {{ include "backendDbName" . }} TO {{ .Values.backend.db.user }};
+              SQL
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-superuser
+                  key: password
+            - name: BACKEND_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.db.secret.name }}
+                  key: {{ .Values.backend.db.secret.key }}

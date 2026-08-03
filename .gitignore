@@ -11,6 +11,7 @@ __pycache__/
 
 .env
 *.env
+.envrc
 k8s/*/*.values.yaml
 *.crt
 *.key
@@ -26,6 +27,13 @@ debug.yaml
 
 # Ignore example values files while developing (remove later)
 !example.values.yaml
+!dev.example.values.yaml
 
 # AI
 .claude/**
+
+# Ignore local model files
+.models/
+
+# temp
+./federated-node-task-controller

@@ -6,26 +6,25 @@ ARG USER_GID=1001
 
 WORKDIR /webserver
 
-# Install system dependencies
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# hadolint ignore=DL3008
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
         libpq-dev \
         python3-dev \
         gcc \
-        curl \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
+# Install locked third-party deps
 COPY requirements.txt .
-
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Create non-root user
-RUN groupadd -g "$USER_GID" "$USERNAME" && \
-    useradd --uid "$USER_UID" --gid "$USER_GID" --create-home "$USERNAME"
+RUN groupadd -g "$USER_GID" "$USERNAME" \
+    && useradd --uid "$USER_UID" --gid "$USER_GID" "$USERNAME"
 
-# Copy application code with correct ownership
-COPY --chown=${USER_UID}:${USER_GID} . .
+COPY --chown=${USERNAME}:${USERNAME} . .
 
 USER ${USER_UID}
 

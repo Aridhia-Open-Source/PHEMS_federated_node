@@ -39,6 +39,7 @@ URLS = {
     "user_reset": f"{KEYCLOAK_URL}/admin/realms/{REALM}/users/%s/reset-password"
 }
 
+
 class Keycloak:
     def __init__(self, client='global') -> None:
         self.client_name = client
@@ -130,7 +131,7 @@ class Keycloak:
             raise KeycloakError("Cannot exchange impersonation token")
         return exchange_resp.json()["refresh_token"]
 
-    def check_if_keycloak_resp_is_valid(self, response) -> bool:
+    def check_if_keycloak_resp_executable(self, response) -> bool:
         """
         If the response status code is:
             - 2xx (ok) or
@@ -257,7 +258,7 @@ class Keycloak:
                     "client_id": self.client_name,
                     "token": token
                 },
-                headers = {
+                headers={
                     'Content-Type': 'application/x-www-form-urlencoded'
                 }
             )
@@ -270,16 +271,23 @@ class Keycloak:
                     "grant_type": tok_type,
                     tok_type: token
                 },
-                headers = {
+                headers={
                     'Content-Type': 'application/x-www-form-urlencoded'
                 }
             )
-        if with_permissions:
+
+        # FIXME: Temporary workaround for system users
+        if with_permissions and not self._is_system_user(token):
             return response_auth.ok and self.check_permissions(token, scope, resource, is_access_token)
 
         return response_auth.ok
 
-    def decode_token(self, token:str) -> dict:
+    def _is_system_user(self, token: str) -> bool:
+        token_dict = self.decode_token(token)
+        roles = token_dict.get("realm_access", {}).get("roles", [])
+        return 'system' in [r.lower() for r in roles]
+
+    def decode_token(self, token: str) -> dict:
         """
         Simple token decode, mostly to fetch user general info or exp date
         """
@@ -588,7 +596,7 @@ class Keycloak:
             json=payload,
             headers=self._post_json_headers()
         )
-        if not self.check_if_keycloak_resp_is_valid(permission_response):
+        if not self.check_if_keycloak_resp_executable(permission_response):
             logger.info(permission_response.content.decode())
             raise KeycloakError("Failed to create a project's permission")
 
@@ -703,7 +711,7 @@ class Keycloak:
 
         return user_response.json()[0] if user_response.json() else None
 
-    def get_user_by_email(self, email:str) -> dict:
+    def get_user_by_email(self, email: str) -> dict:
         """
         Method to return a dictionary representing a Keycloak user,
         using their email
@@ -774,7 +782,7 @@ class Keycloak:
             },
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
-        if not self.check_if_keycloak_resp_is_valid(res_pass_resp):
+        if not self.check_if_keycloak_resp_executable(res_pass_resp):
             logging.error(res_pass_resp.json())
             raise KeycloakError("Could not update the password.")
 

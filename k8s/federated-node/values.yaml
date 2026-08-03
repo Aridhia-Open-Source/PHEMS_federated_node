@@ -2,14 +2,36 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+default_image_tag: 1.9.0
+dagsterHome: /opt/dagster/home
 
 backend:
+  image: ghcr.io/aridhia-open-source/federated_node_run
   replicas: 1
+  # In-cluster URL Dagster uses to reach the backend API. Leave empty to derive it
+  # from the release namespace (http://backend.<namespace>.svc:<federatedNode.port>).
+  uri:
   tag:
+  db:
+    name: backend
+    user: backend_admin
+    secret:
+      name: backend-db
+      key: password
 
 keycloak:
   replicas: 1
   tag:
+  db:
+    name: keycloak_db
+    user: keycloak_admin
+    secret:
+      name: keycloak-db-secret
+      key: password
+
+alpine:
+  image: ghcr.io/aridhia-open-source/alpine
+  tag: 1.9.0
 
 autoscaling:
   enabled: false
@@ -28,17 +50,20 @@ token:
 # Local Development-related options
 local_development: false
 create_db_deployment: false
+copySecrets: true
 
 db:
   enforceSSL: false
-  name: fndb
   port: 5432
-  # If a secret with password exists, use that
-  # secret:
-  #   name:
-  #   key:
+  # Superuser/admin login the *-db-init jobs connect as. Azure Database for PostgreSQL
+  # Flexible Server has no role called "postgres" - use the admin user chosen at
+  # server creation time instead.
+  superuser: postgres
+  secret:
+    name: postgres-superuser
+    key: password
 
-# How many days the results and k8s resources are kept for
+# How many days the resultks and k8s resources are kept for
 cleanupTime: 3
 
 taskReview: false
@@ -77,6 +102,7 @@ storage:
     # path: /data/results
     # Local storage that will be shared with the db
     # dbpath: /data/db
+
 
 pullPolicy: Always
 
@@ -165,3 +191,175 @@ traefik:
   #       -
   ## For AKS only
   #     externalTrafficPolicy: Local
+
+### Dagster Internal Config
+fnDagster:
+  artifactMountPath: /mnt/dagster/artifacts
+  artifactsPvcName: artifacts-pvc
+  createDB: false
+  gh: {}
+    # delivery_repo: owner/repo
+    # resultsDir: "mgmt/results"
+  db:
+    name: dagster
+    user: dagster_admin
+    # host: your-db-host
+    secret:
+      name: dagster-postgresql-secret
+      key: postgresql-password
+
+### Dagster Subchart Config
+dagster:
+  enabled: false
+
+  generatePostgresqlPasswordSecret: false
+
+  # DAGSTER_HOME must agree with the one baked into the dagster image and published
+  # in the dagster-env-config ConfigMap, otherwise the daemon/webserver look for the
+  # instance config in a different directory to the user-code server.
+  global:
+    dagsterHome: /opt/dagster/home
+
+  postgresql:
+    enabled: false
+    # Must be set when postgresql.enabled is false, otherwise the generated instance
+    # config gets an empty hostname. Use the in-cluster service (db.<namespace>.svc)
+    # or an external server (e.g. Azure Database for PostgreSQL).
+    # postgresqlHost: db.fn.svc
+    # postgresqlDatabase: dagster
+    # postgresqlUsername: admin
+    # Azure Database for PostgreSQL requires TLS. The parent chart's db.enforceSSL
+    # only covers the backend, so set this explicitly for Dagster:
+    # postgresqlParams:
+    #   sslmode: require
+  #   service:
+  #     port: 5432
+  #   persistence:
+  #     enabled: true
+  #     storageClass: standard
+
+  runLauncher:
+    type: K8sRunLauncher
+    config:
+      k8sRunLauncher:
+        # Change with caution! If you're using a fixed tag for pipeline run images, changing the
+        # image pull policy to anything other than "Always" will use a cached/stale image, which is
+        # almost certainly not what you want.
+        imagePullPolicy: "Always"
+        # The run launcher can be deployed with a fixed image (no user code included)
+        image:
+          repository: ghcr.io/aridhia-open-source/dagster_fn
+          tag: "1.9.0"
+          pullPolicy: "Always"
+
+        envConfigMaps:
+          - name: dagster-env-config
+
+        envSecrets:
+          - name: github-token
+          - name: dagster-keycloak-creds
+
+        # Add volumes and volume mounts for artifacts-pvc
+        volumes:
+          - name: artifacts-pvc
+            persistentVolumeClaim:
+              claimName: artifacts-pvc
+        volumeMounts:
+          - name: artifacts-pvc
+            mountPath: /mnt/dagster/artifacts
+
+  dagsterDaemon:
+    extraPrependedInitContainers:
+      - name: wait-for-db
+        image: ghcr.io/aridhia-open-source/alpine:1.9.0
+        imagePullPolicy: Always
+        command:
+          - sh
+          - -c
+          - |
+            until pg_isready -h $DAGSTER_PG_HOST -p 5432; do
+              echo "waiting for postgres..."
+              sleep 2
+            done
+        env:
+          - name: DAGSTER_PG_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: dagster-env-config
+                key: DAGSTER_PG_HOST
+
+  dagsterWebserver:
+    extraPrependedInitContainers:
+      - name: wait-for-db
+        image: ghcr.io/aridhia-open-source/alpine:1.9.0
+        imagePullPolicy: Always
+        command:
+          - sh
+          - -c
+          - |
+            until pg_isready -h $DAGSTER_PG_HOST -p 5432; do
+              echo "waiting for postgres..."
+              sleep 2
+            done
+        env:
+          - name: DAGSTER_PG_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: dagster-env-config
+                key: DAGSTER_PG_HOST
+
+  dagster-user-deployments:
+    # Creates a workspace file with the gRPC servers hosting your user code.
+    enabled: true
+    # If you plan on deploying user code in a separate Helm release, set this to false.
+    enableSubchart: true
+
+    # Specify secrets to run user code server containers based on images in private registries. See:
+    # https://kubernetes.io/docs/concepts/containers/images/#referring-to-an-imagepullsecrets-on-a-pod
+    imagePullSecrets: []
+
+    # List of unique deployments
+    deployments:
+      - name: "dagster-fn"
+        port: 3030
+        image:
+          repository: ghcr.io/aridhia-open-source/dagster_fn
+          tag: "1.9.0"
+
+          # Change with caution! If you're using a fixed tag for pipeline run images, changing the
+          # image pull policy to anything other than "Always" will use a cached/stale image, which is
+          # almost certainly not what you want.
+          pullPolicy: "Always"
+
+        envConfigMaps:
+          - name: dagster-env-config
+
+        envSecrets:
+          - name: github-token
+          - name: dagster-keycloak-creds
+
+        # Arguments to `dagster api grpc`.
+        # Ex: "dagster api grpc -m dagster_test.test_project.test_jobs.repo -a define_demo_execution_repo"
+        # would translate to:
+        dagsterApiGrpcArgs:
+          - "-m"
+          - "app.definitions"
+
+        initContainers:
+          - name: wait-for-db
+            image: ghcr.io/aridhia-open-source/alpine:1.9.0
+            imagePullPolicy: Always
+            command:
+              - sh
+              - -c
+              - |
+                until pg_isready -h $DAGSTER_PG_HOST -p 5432; do
+                  echo "waiting for postgres..."
+                  sleep 2
+                done
+            env:
+              - name: DAGSTER_PG_HOST
+                valueFrom:
+                  configMapKeyRef:
+                    name: dagster-env-config
+                    key: DAGSTER_PG_HOST

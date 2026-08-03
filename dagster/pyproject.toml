@@ -1,0 +1,32 @@
+[project]
+name = "phems"
+description = "PHEMS Federated Node - Dagster Code Location"
+authors = [{ name = "George Eddie", email = "george.eddie@aridhia.com" }]
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "dagster~=1.12",
+    "dagster-k8s~=0.28",
+    "dagster-postgres~=0.28",
+    "dagster-graphql~=1.12",
+    "requests~=2.32",
+    "pydantic~=2.0",
+    "pydantic-settings~=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest~=8.3",
+    "pytest-mock~=3.14",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["app/tests"]
+
+[tool.dagster]
+module_name = "app.definitions"
+code_location_name = "code"

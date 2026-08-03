@@ -9,11 +9,19 @@ smoketests: false
 taskReview: true
 cleanupTime: 3
 host: &host phems-federatednode.net
+copySecrets: false
+default_image_tag: 1.9.0
+dagsterHome: /opt/dagster/home
 
 backend:
-  tag: 1.9.0
+  image: localhost:5001/webserver-fn
+  tag: "v1"
   volumes:
     results_path: /data/flask/results
+
+alpine:
+  image: ghcr.io/aridhia-open-source/alpine
+  tag: 1.9.0
 
 keycloak:
   tag: 1.9.0
@@ -23,7 +31,7 @@ db:
   host: db.fn.svc
   port: &portDB 5432
   secret:
-    name: local-db
+    name: backend-db
     key: password
     value: local-db-secret
 
@@ -32,11 +40,12 @@ storage:
   local:
     path: /data/flask
     dbpath: /data/db
-
+    artifacts: /data/dagster/artifacts
 
 global:
   host: *host
   delivery_url: federated-node.uksouth.analytixagility.aridhiadev.net
+  postgresqlSecretName: dagster-postgresql-secret
 
 certs:
   frequency: 65
@@ -45,6 +54,9 @@ integrations:
   domains:
     - http://localhost:8088
     - https://phems-federatednode.net
+
+github:
+  token: ""
 
 whitelist:
   enabled: false
@@ -62,7 +74,7 @@ ingress-nginx:
     extraArgs:
       default-ssl-certificate: qcfederatednode/my-tls-secret
 
-outboundMode: true
+outboundMode: false
 
 ## Sub Charts
 
@@ -77,14 +89,129 @@ traefik:
       enabled: false
   enabled: false
 
+### FN Task Controller
 fn-task-controller:
-  idp:
-    github: null
+  controller:
+    tag:
   storage:
     size: 100Mi
     local:
       path: /data/controller
+
+  idp:
+    github: null
+
   delivery:
+    # github:
+    #   repository: Aridhia-Open-Source/Federated-Node-Example-App
     other:
       url: federated-node.uksouth.analytixagility.aridhiadev.net
       auth_type: AzCopy
+
+
+### Dagster Internal Config
+fnDagster:
+  artifactMountPath: /mnt/dagster/artifacts
+  artifactsPvcName: artifacts-pvc
+  createDB: true
+  gh:
+    delivery_repo: https://github.com/Aridhia-Open-Source/phems-sandbox
+    resultsDir: "mgmt/results"
+  db:
+    host: db.fn.svc
+    user: admin
+    name: dagster
+
+
+### Dagster
+dagster:
+  enabled: true
+
+  # The dagster-postgresql-secret is pre-created by scripts/deploy.sh so the
+  # dagster-db-init pre-install hook can use it. Helm must not try to own it.
+  generatePostgresqlPasswordSecret: false
+
+  # DAGSTER_HOME must match the one baked into the dagster image and published in
+  # dagster-env-config, otherwise the daemon/webserver disagree with the user-code server.
+  global:
+    dagsterHome: /opt/dagster/home
+
+  # Share the Federated Node database server instead of a bundled postgres.
+  postgresql:
+    enabled: false
+    postgresqlHost: db.fn.svc
+    postgresqlUsername: admin
+    postgresqlDatabase: dagster
+
+
+  runLauncher:
+    type: K8sRunLauncher
+    config:
+      k8sRunLauncher:
+        # Change with caution! If you're using a fixed tag for pipeline run images, changing the
+        # image pull policy to anything other than "Always" will use a cached/stale image, which is
+        # almost certainly not what you want.
+        imagePullPolicy: "Always"
+        # The run launcher can be deployed with a fixed image (no user code included)
+        image:
+          # When a tag is not supplied for a Dagster provided image,
+          # it will default as the Helm chart version.
+          repository: localhost:5001/dagster-fn
+          tag: "v1"
+          pullPolicy: Always
+
+        envConfigMaps:
+          - name: dagster-env-config
+
+        envSecrets:
+          - name: github-token
+          # DAGSTER_KC_USER / DAGSTER_KC_PASSWORD - required by app.config.BackendConfig
+          - name: dagster-keycloak-creds
+
+        # Add volumes and volume mounts for artifacts-pvc
+        volumes:
+          - name: artifacts-pvc
+            persistentVolumeClaim:
+              claimName: artifacts-pvc
+        volumeMounts:
+          - name: artifacts-pvc
+            mountPath: /mnt/dagster/artifacts
+
+  dagster-user-deployments:
+    # Creates a workspace file with the gRPC servers hosting your user code.
+    enabled: true
+    # If you plan on deploying user code in a separate Helm release, set this to false.
+    enableSubchart: true
+
+    # Specify secrets to run user code server containers based on images in private registries. See:
+    # https://kubernetes.io/docs/concepts/containers/images/#referring-to-an-imagepullsecrets-on-a-pod
+    imagePullSecrets: []
+
+    # List of unique deployments
+    deployments:
+      - name: dagster-fn
+        port: 3030
+        image:
+          # When a tag is not supplied, it will default as the Helm chart version.
+          repository: localhost:5001/dagster-fn
+          tag: v1
+
+          # Change with caution! If you're using a fixed tag for pipeline run images, changing the
+          # image pull policy to anything other than Always will use a cached/stale image, which is
+          # almost certainly not what you want.
+          pullPolicy: Always
+
+        envConfigMaps:
+          - name: 
+
+        envSecrets:
+          - name: github-token
+          # DAGSTER_KC_USER / DAGSTER_KC_PASSWORD - required by app.config.BackendConfig
+          - name: dagster-keycloak-creds
+
+        # Arguments to `dagster api grpc`.
+        # Ex: "dagster api grpc -m dagster_test.test_project.test_jobs.repo -a define_demo_execution_repo"
+        # would translate to:
+        dagsterApiGrpcArgs:
+          - "-m"
+          - "app.definitions"

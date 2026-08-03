@@ -79,7 +79,7 @@ def add_image():
 @bp.route('/<int:image_id>', methods=['GET'])
 @audit
 @auth(scope='can_admin_dataset')
-def get_image_by_id(image_id:int=None):
+def get_image_by_id(image_id: int):
     """
     GET /containers/<image_id>
     """
@@ -91,7 +91,7 @@ def get_image_by_id(image_id:int=None):
 @bp.route('/<int:image_id>', methods=['DELETE'])
 @audit
 @auth(scope='can_admin_dataset')
-def delete_image(image_id:int=None):
+def delete_image(image_id: int):
     """
     DELETE /containers/<image_id>
     """

@@ -31,11 +31,35 @@ build_alpine:
 build_kc_init:
 	docker build build/kc-init -t ghcr.io/aridhia-open-source/keycloak_initializer:${TAG}
 
+build_dagster:
+	docker build dagster -t ghcr.io/aridhia-open-source/dagster_fn:${TAG}
+
 pip_compile:
 	./scripts/pip_compile.sh $(filter-out $@,$(MAKECMDGOALS))
 
+build_reload:
+	./scripts/build_image.sh $(word 2,$(MAKECMDGOALS)) $(word 3,$(MAKECMDGOALS)) && kubectl rollout restart deployment
+
+build_image:
+	./scripts/build_image.sh $(word 2,$(MAKECMDGOALS)) $(word 3,$(MAKECMDGOALS))
+
+build_all_images:
+	./scripts/build_all_images.sh $(word 2,$(MAKECMDGOALS))
+
+reload_app:
+	./scripts/reload_app.sh
+
+cluster:
+	@./scripts/cluster.sh $(filter-out $@,$(MAKECMDGOALS))
+
+up down:
+	@:
+
 deploy:
 	./scripts/deploy.sh
+
+teardown:
+	./scripts/teardown.sh
 
 portfwd:
 	./scripts/portfwd.sh
@@ -43,8 +67,20 @@ portfwd:
 upgrade:
 	./scripts/upgrade.sh
 
-kind_create:
-	./.kind/main.sh create
+tilt-up:
+	tilt up
 
-kind_delete:
-	./.kind/main.sh delete
+tilt-down:
+	tilt down
+
+tilt-logs:
+	tilt logs
+
+tilt-open:
+	tilt open
+
+nuke:
+	./scripts/nuke.sh
+
+%:
+	@:

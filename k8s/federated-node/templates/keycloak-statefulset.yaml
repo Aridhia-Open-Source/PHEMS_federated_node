@@ -19,12 +19,52 @@ spec:
         app: keycloak
     spec:
       initContainers:
-        {{- include "createDBInitContainer" . | nindent 8 }}
-          - name: NEW_DB
-            valueFrom:
-              configMapKeyRef:
-                name: keycloak-config
-                key: KC_DB_URL_DATABASE
+        - name: wait-for-db
+          image: {{ include "fn-alpine" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h $PGHOST -p {{ .Values.db.port }}; do
+                echo "waiting for postgres..."
+                sleep 2
+              done
+          env:
+            - name: PGHOST
+              valueFrom:
+                configMapKeyRef:
+                  name: keycloak-config
+                  key: KC_DB_URL_HOST
+        - name: wait-for-keycloak-database
+          image: {{ include "fn-alpine" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          command:
+            - sh
+            - -c
+            - |
+              until psql -h $PGHOST -p {{ .Values.db.port }} -U {{ .Values.db.superuser | default "postgres" }} -d postgres -c "SELECT 1 FROM pg_database WHERE datname='$KC_DB_URL_DATABASE'" | grep -q 1; do
+                echo "waiting for keycloak database..."
+                sleep 2
+              done
+          env:
+            - name: PGHOST
+              valueFrom:
+                configMapKeyRef:
+                  name: keycloak-config
+                  key: KC_DB_URL_HOST
+            - name: KC_DB_URL_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: keycloak-config
+                  key: KC_DB_URL_DATABASE
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-superuser
+                  key: password
         - name: credentials-reset
           imagePullPolicy: {{ .Values.pullPolicy }}
           image: {{ include "fn-alpine" . }}
@@ -34,12 +74,12 @@ spec:
           - name: PGPASSWORD
             valueFrom:
               secretKeyRef:
-                name: {{.Values.db.secret.name}}
-                key: {{.Values.db.secret.key}}
+                name: {{ .Values.keycloak.db.secret.name }}
+                key: {{ .Values.keycloak.db.secret.key }}
           - name: KC_NAMESPACE
             value: {{ include "kc_namespace" . }}
           - name: PGDATABASE
-            value: {{ include "dbKeycloakName" . }}
+            value: {{ .Values.keycloak.db.name | quote }}
           envFrom:
           - secretRef:
               name: kc-secrets
@@ -69,8 +109,8 @@ spec:
             - name: KC_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{.Values.db.secret.name}}
-                  key: {{.Values.db.secret.key}}
+                  name: {{ .Values.keycloak.db.secret.name }}
+                  key: {{ .Values.keycloak.db.secret.key }}
           envFrom:
           - secretRef:
               name: kc-secrets

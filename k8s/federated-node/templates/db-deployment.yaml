@@ -16,18 +16,40 @@ spec:
         app: postgres
     spec:
       containers:
-        - image: postgres:13-alpine
+        - image: postgres:17-alpine
           name: db-internal
           env:
             - name: POSTGRES_DB
-              value: {{ .Values.db.name | quote }}
+              value: postgres
             - name: POSTGRES_USER
-              value: {{ include "dbUser" . }}
+              value: postgres
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{.Values.db.secret.name}}
-                  key: {{.Values.db.secret.key}}
+                  name: postgres-superuser
+                  key: password
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -d
+                - postgres
+                - -U
+                - postgres
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -d
+                - postgres
+                - -U
+                - postgres
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 1
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data

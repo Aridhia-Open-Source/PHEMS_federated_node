@@ -1,0 +1,69 @@
+# Tilt ignore patterns - files that shouldn't trigger rebuilds
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+.pytest_cache/
+.venv/
+venv/
+*.egg
+
+# Testing and coverage
+.coverage
+htmlcov/
+.tox/
+*.cover
+
+# Build artifacts
+build/
+dist/
+*.tar.gz
+
+# Documentation
+*.md
+docs/
+
+# Data and logs
+.data/
+logs/
+*.log
+
+# Temporary files
+.tmp/
+temp/
+*.tmp
+
+# Credentials and secrets (never sync these)
+.credentials.env
+.env.local
+*.key
+*.pem
+
+# Kind and Docker
+.kind/
+.docker/
+
+# Kubernetes
+k8s/
+manifests/
+
+# Misc
+CURRENT_PLAN.md
+artifacts/
+paper/

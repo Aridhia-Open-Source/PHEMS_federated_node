@@ -24,7 +24,7 @@ spec:
       containers:
         - name: {{ include "kcControlleName" . }}
           imagePullPolicy: {{ .Values.pullPolicy }}
-          image: "ghcr.io/aridhia-open-source/keycloak_initializer:{{ .Values.keycloak.tag | default .Chart.AppVersion }}"
+          image: "{{ (.Values.keycloak.initializer).image | default "ghcr.io/aridhia-open-source/keycloak_initializer" }}:{{ (.Values.keycloak.initializer).tag | default (.Values.keycloak.tag | default .Chart.AppVersion) }}"
           {{- include "nonRootSC" . | nindent 10 }}
           env:
             - name: KC_NAMESPACE
@@ -51,3 +51,7 @@ spec:
               name: keycloak-config
           - secretRef:
               name: kc-secrets
+          {{- if .Values.dagster.enabled }}
+          - secretRef:
+              name: dagster-keycloak-creds
+          {{- end }}

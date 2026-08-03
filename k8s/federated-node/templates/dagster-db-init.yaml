@@ -1,0 +1,56 @@
+{{ if .Values.fnDagster.createDB }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dagster-db-init
+  namespace: {{ .Release.Namespace }}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait-for-db
+          image: {{ include "fn-alpine" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h $PGHOST -p $PGPORT; do
+                echo "waiting for postgres..."
+                sleep 2
+              done
+          env:
+            - name: PGHOST
+              value: {{ .Values.db.host }}
+            - name: PGPORT
+              value: {{ .Values.db.port | quote }}
+      containers:
+        - name: db-init
+          image: {{ include "fn-alpine" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          command:
+            - sh
+            - -c
+            - |
+              psql -h {{ .Values.db.host }} -p {{ .Values.db.port }} \
+                -U {{ .Values.db.superuser | default "postgres" }} -d postgres << SQL
+              CREATE DATABASE {{ .Values.fnDagster.db.name }};
+              CREATE USER {{ .Values.fnDagster.db.user }} WITH PASSWORD '${DAGSTER_PG_PASSWORD}';
+              ALTER DATABASE {{ .Values.fnDagster.db.name }} OWNER TO {{ .Values.fnDagster.db.user }};
+              GRANT ALL PRIVILEGES ON DATABASE {{ .Values.fnDagster.db.name }} TO {{ .Values.fnDagster.db.user }};
+              SQL
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-superuser
+                  key: password
+            - name: DAGSTER_PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.fnDagster.db.secret.name }}
+                  key: {{ .Values.fnDagster.db.secret.key }}
+{{ end }}

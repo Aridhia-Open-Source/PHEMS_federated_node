@@ -34,6 +34,7 @@ session = db.session
 logger = logging.getLogger("dataset_api")
 logger.setLevel(logging.INFO)
 
+
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
 @audit
@@ -43,6 +44,7 @@ def get_datasets():
     GET /datasets/ endpoint. Returns a list of all datasets
     """
     return Dataset.get_all(), HTTPStatus.OK
+
 
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
@@ -79,36 +81,48 @@ def post_datasets():
             dict_data = Dictionary.validate(d)
             dictionary = Dictionary(dataset=dataset, **dict_data)
             dictionary.add(commit=False)
-        session.commit()
-        return { "dataset_id": dataset.id, "url": dataset.url }, 201
 
-    except:
+        session.commit()
+
+        return Dataset.sanitized_dict(dataset), 201
+
+    except Exception:
         session.rollback()
         raise
 
+
+# @audit
 @bp.route('/<int:dataset_id>', methods=['GET'])
 @bp.route('/<dataset_name>', methods=['GET'])
+# @auth(scope='can_access_dataset')
 @audit
-@auth(scope='can_access_dataset')
-def get_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
+def get_datasets_by_id_or_name(
+    dataset_id: int | None = None,
+    dataset_name: str | None = None
+):
     """
     GET /datasets/id endpoint. Gets dataset with a give id
     """
     ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
     return Dataset.sanitized_dict(ds), HTTPStatus.OK
 
+
 @bp.route('/<int:dataset_id>', methods=['DELETE'])
 @bp.route('/<dataset_name>', methods=['DELETE'])
 @audit
 @auth(scope='can_admin_dataset')
-def delete_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
+def delete_datasets_by_id_or_name(
+    dataset_id: int | None = None,
+    dataset_name: str | None = None
+):
     """
     DELETE /datasets/id endpoint. Deletes the dataset from the db and k8s secrets
         the DB entry deletion is prioritized to the k8s secret.
     """
+    logger.error(f"deleting ({dataset_id or dataset_name})")
     ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
     secret_name = ds.get_creds_secret_name()
-
+    ds.delete(commit=True)
     try:
         ds.delete(False)
     except Exception as exc:
@@ -127,15 +141,19 @@ def delete_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
     session.commit()
     return {}, 204
 
+
 @bp.route('/<int:dataset_id>', methods=['PATCH'])
 @bp.route('/<dataset_name>', methods=['PATCH'])
-@audit
+# @audit
 @auth(scope='can_admin_dataset')
-def patch_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
+def patch_datasets_by_id_or_name(
+    dataset_id: int | None = None,
+    dataset_name: str | None = None
+):
     """
     PATCH /datasets/id endpoint. Edits an existing dataset with a given id
     """
-    ds = Dataset.get_dataset_by_name_or_id(dataset_id, dataset_name)
+    ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
 
     old_ds_name = ds.name
     # Update validation doesn't have required fields
@@ -150,7 +168,7 @@ def patch_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
         raise InvalidRequest("dictionaries should be a list.")
 
     for k in body:
-        if not hasattr(ds, k) and k not in ["username", "password"]:
+        if not hasattr(ds, k) and k not in ["username", "password", "repository"]:
             raise InvalidRequest(f"Field {k} is not a valid one")
 
     try:
@@ -176,18 +194,22 @@ def patch_datasets_by_id_or_name(dataset_id:int=None, dataset_name:str=None):
 
         for d in dict_body:
             Dictionary.update_or_create(d, ds)
-    except:
+    except Exception:
         session.rollback()
         raise
 
     session.commit()
     return Dataset.sanitized_dict(ds), HTTPStatus.ACCEPTED
 
+
 @bp.route('/<dataset_name>/catalogue', methods=['GET'])
 @bp.route('/<int:dataset_id>/catalogue', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
-def get_datasets_catalogue_by_id_or_name(dataset_id=None, dataset_name=None):
+def get_datasets_catalogue_by_id_or_name(
+    dataset_id: int | None = None,
+    dataset_name: str | None = None
+):
     """
     GET /datasets/dataset_name/catalogue endpoint. Gets dataset's catalogue
     GET /datasets/id/catalogue endpoint. Gets dataset's catalogue
@@ -199,11 +221,15 @@ def get_datasets_catalogue_by_id_or_name(dataset_id=None, dataset_name=None):
         raise DBRecordNotFoundError(f"Dataset {dataset.name} has no catalogue.")
     return cata.sanitized_dict(), HTTPStatus.OK
 
+
 @bp.route('/<dataset_name>/dictionaries', methods=['GET'])
 @bp.route('/<int:dataset_id>/dictionaries', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
-def get_datasets_dictionaries_by_id_or_name(dataset_id=None, dataset_name=None):
+def get_datasets_dictionaries_by_id_or_name(
+    dataset_id: int | None = None,
+    dataset_name: str | None = None
+):
     """
     GET /datasets/dataset_name/dictionaries endpoint.
     GET /datasets/id/dictionaries endpoint.
@@ -222,8 +248,11 @@ def get_datasets_dictionaries_by_id_or_name(dataset_id=None, dataset_name=None):
 @bp.route('/<int:dataset_id>/dictionaries/<table_name>', methods=['GET'])
 @audit
 @auth(scope='can_access_dataset')
-
-def get_datasets_dictionaries_table_by_id_or_name(table_name, dataset_id=None, dataset_name=None):
+def get_datasets_dictionaries_table_by_id_or_name(
+    table_name: str,
+    dataset_id: int | None = None,
+    dataset_name: str | None = None
+):
     """
     GET /datasets/dataset_name/dictionaries/table_name endpoint.
     GET /datasets/id/dictionaries/table_name endpoint.
@@ -241,6 +270,7 @@ def get_datasets_dictionaries_table_by_id_or_name(table_name, dataset_id=None, d
         )
 
     return [dc.sanitized_dict() for dc in dictionary], HTTPStatus.OK
+
 
 @bp.route('/token_transfer', methods=['POST'])
 @audit
@@ -275,6 +305,6 @@ def post_transfer_token():
         raise InvalidRequest(
             f"Missing field. Make sure {"".join(kexc.args)} fields are there"
         ) from kexc
-    except:
+    except Exception:
         session.rollback()
         raise
