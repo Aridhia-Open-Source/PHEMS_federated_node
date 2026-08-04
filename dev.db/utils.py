@@ -29,8 +29,8 @@ def load_dataset_secret(dataset_name: str, host: str):
     )
     secret_name = dataset.get_creds_secret_name()
 
-    user = get_k8s_secret(secret_name, "fn", "PGUSER")
-    password = get_k8s_secret(secret_name, "fn", "PGPASSWORD")
+    user = get_k8s_secret(secret_name, "fn", "USERNAME")
+    password = get_k8s_secret(secret_name, "fn", "PASSWORD")
     return {'username': user, 'password': password}
 
 

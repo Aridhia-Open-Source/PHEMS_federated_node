@@ -79,6 +79,9 @@ tilt-logs:
 tilt-open:
 	tilt open
 
+uc1-seed:
+	./dev.db/uc1_make_seed.sh
+
 nuke:
 	./scripts/nuke.sh
 

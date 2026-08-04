@@ -245,8 +245,8 @@ def k8s_client(secret_listed, pod_listed, v1_mock, v1_batch_mock, k8s_config):
     all_clients.update(v1_mock)
     all_clients.update(v1_batch_mock)
     all_clients["read_namespaced_secret_mock"].return_value.data = {
-        "PGUSER": "YWJjMTIz",
-        "PGPASSWORD": "YWJjMTIz",
+        "USERNAME": "YWJjMTIz",
+        "PASSWORD": "YWJjMTIz",
         "USER": "YWJjMTIz",
         "TOKEN": "YWJjMTIz"
     }
