@@ -12,6 +12,7 @@ dependencies = [
     "requests~=2.32",
     "pydantic~=2.0",
     "pydantic-settings~=2.0",
+    "kubernetes~=35.0",
 ]
 
 [project.optional-dependencies]

@@ -64,7 +64,6 @@ class TaskPod:
     def create_db_env_vars(self):
         """
         From a secret name, setup a base env list with db credentials.
-        It will map PG_* for backwards compatibility
         """
         secret_name = self.dataset.get_creds_secret_name()
         self.env_init += [
@@ -73,7 +72,7 @@ class TaskPod:
                 value_from=V1EnvVarSource(
                     secret_key_ref=V1SecretKeySelector(
                         name=secret_name,
-                        key="PGPASSWORD",
+                        key="PASSWORD",
                         optional=True
                     )
                 )
@@ -83,7 +82,7 @@ class TaskPod:
                 value_from=V1EnvVarSource(
                     secret_key_ref=V1SecretKeySelector(
                         name=secret_name,
-                        key="PGUSER",
+                        key="USERNAME",
                         optional=True
                     )
                 )

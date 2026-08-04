@@ -127,33 +127,13 @@ class PullRequestTriggerSensor(GithubSensor):
         Passes spec to k8s_pipes_op via run_config.
         Injects dataset credentials as mounted secret volume.
         """
-        env = pr.spec.get("env") or {}
-        run_key = f"{pr.repository_id}/{pr.number}"
-        docker_image = pr.spec.get("image") or pr.spec.get("docker_image")
-
-        if not docker_image:
+        if not pr.spec.get("image"):
             raise ValueError(f"PR #{pr.number} spec in repo {repo.path} missing 'image'")
 
         dataset = self.backend_api.get_dataset(repo.dataset_id)
 
-        # Validate dataset has required fields
-        if not dataset.host:
-            raise ValueError(f"Dataset {dataset.name} (id={repo.dataset_id}) missing 'host'")
-        if not dataset.name:
-            raise ValueError(f"Dataset (id={repo.dataset_id}) missing 'name'")
-        if not dataset.port:
-            raise ValueError(f"Dataset {dataset.name} (id={repo.dataset_id}) missing 'port'")
-        if not dataset.type:
-            raise ValueError(f"Dataset {dataset.name} (id={repo.dataset_id}) missing 'type'")
-        if not dataset.schema:
-            raise ValueError(f"Dataset {dataset.name} (id={repo.dataset_id}) missing 'schema'")
-        if dataset.schema_write is None:
-            raise ValueError(f"Dataset {dataset.name} (id={repo.dataset_id}) missing 'schema_write'")
-
-        dataset_secret_name = dataset.get_creds_secret_name()
-
         return dg.RunRequest(
-            run_key=run_key,
+            run_key=f"{pr.repository_id}/{pr.number}",
             tags={
                 "trigger": "github",
                 "pr_number": str(pr.number),
@@ -165,17 +145,12 @@ class PullRequestTriggerSensor(GithubSensor):
                 "ops": {
                     "k8s_pipes_op": {
                         "config": {
-                            "docker_image": docker_image,
-                            "env": env,
-                            "dataset_secret_name": dataset_secret_name,
-                            "dataset_name": dataset.name,
-                            "dataset_host": dataset.host,
-                            "dataset_port": dataset.port,
-                            "dataset_type": dataset.type,
-                            "dataset_schema": dataset.schema,
-                            "dataset_schema_write": dataset.schema_write,
+                            "env": pr.spec.get("env") or {},
+                            "docker_image": pr.spec["image"],
+                            **dataset.dump_task_fields(),
                         }
                     }
                 }
             },
         )
+

@@ -77,7 +77,7 @@ class Dataset(db.Model, BaseModel):
 
     def add(self, commit=True, user_id=None):
         super().add(commit)
-        self.create_kubernetes_secret(self.username, self.password)
+        self.create_kubernetes_secret()
         delattr(self, "username")
         delattr(self, "password")
         return self
@@ -138,22 +138,18 @@ class Dataset(db.Model, BaseModel):
         if secret.data is None:
             raise ValueError("Secret data is None")
 
-        # Doesn't matter which key it's being picked up, the value it's the same
-        # in terms of *USER or *PASSWORD
-        user = KubernetesClient.decode_secret_value(secret.data['PGUSER'])
-        password = KubernetesClient.decode_secret_value(secret.data['PGPASSWORD'])
+        user = KubernetesClient.decode_secret_value(secret.data['USERNAME'])
+        password = KubernetesClient.decode_secret_value(secret.data['PASSWORD'])
 
         return user, password
 
-    def create_kubernetes_secret(self, username, password) -> V1Secret:
+    def create_kubernetes_secret(self) -> V1Secret:
         v1 = KubernetesClient()
         return v1.create_secret(
             name=self.get_creds_secret_name(),
             values={
-                "PGPASSWORD": self.password,
-                "PGUSER": self.username,
-                "MSSQL_PASSWORD": self.password,
-                "MSSQL_USER": self.username
+                "USERNAME": self.username,
+                "PASSWORD": self.password,
             },
             namespaces=[DEFAULT_NAMESPACE, TASK_NAMESPACE]
         )

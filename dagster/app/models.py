@@ -1,7 +1,7 @@
 import re
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
 class PullRequestStatus(str, Enum):
@@ -65,9 +65,17 @@ class Dataset(BaseModel):
     slug: str
     url: str
 
-    def get_creds_secret_name(self) -> str:
+    @computed_field
+    @property
+    def secret_name(self) -> str:
         cleaned_up_host = re.sub('http(s)*://', '', self.host)
         return f"{cleaned_up_host}-{re.sub('\\s|_|#', '-', self.name.lower())}-creds"
+
+    def dump_task_fields(self) -> dict:
+        """Return only the fields needed for task configuration with dataset_ prefix."""
+        keys = {"name", "host", "port", "type", "schema", "schema_write", "secret_name"}
+        fields = self.model_dump(include=keys)
+        return {f"dataset_{k}": v for k, v in fields.items()}
 
 
 class Repository(BaseModel):
