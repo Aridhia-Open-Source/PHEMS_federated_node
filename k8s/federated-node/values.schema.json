@@ -492,6 +492,43 @@
             "properties": {
                 "artifactMountPath": {"type": "string", "default": "/mnt/dagster/artifacts"},
                 "artifactsPvcName": {"type": "string", "default": "artifacts-pvc"},
+                "artifacts": {
+                    "type": "object",
+                    "description": "Permissions on the artifacts volume that analytical (pipes) pods write results to",
+                    "properties": {
+                        "fileMode": {
+                            "type": "string",
+                            "default": "0777",
+                            "pattern": "^0[0-7]{3}$",
+                            "description": "Azure Files only. Must be a quoted octal string, e.g. \"0777\""
+                        },
+                        "dirMode": {
+                            "type": "string",
+                            "default": "0777",
+                            "pattern": "^0[0-7]{3}$",
+                            "description": "Azure Files only. Must be a quoted octal string, e.g. \"0777\""
+                        },
+                        "mountOptions": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "default": [],
+                            "description": "If set, replaces ALL computed mount options for the artifacts volume"
+                        },
+                        "securityContext": {
+                            "type": "object",
+                            "description": "Pod securityContext for pipes task pods. fsGroup only takes effect on storage.local",
+                            "properties": {
+                                "fsGroup": {"type": "integer"},
+                                "runAsUser": {"type": "integer"},
+                                "runAsGroup": {"type": "integer"},
+                                "supplementalGroups": {
+                                    "type": "array",
+                                    "items": {"type": "integer"}
+                                }
+                            }
+                        }
+                    }
+                },
                 "createDB": {
                     "type": "boolean",
                     "default": false,

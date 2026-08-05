@@ -218,6 +218,30 @@ fnDagster:
   artifactMountPath: /mnt/dagster/artifacts
   artifactsPvcName: artifacts-pvc
   createDB: false
+  # Permissions on the artifacts volume, which analytical (pipes) pods write results to.
+  # Kept separate from storage.mountOptions, which the backend also consumes for its
+  # per-task PVs - see the dagsterArtifactsMountOptions helper.
+  artifacts:
+    # Azure Files only. 0777 keeps the volume writable by an analytical image running
+    # as any uid, and keeps the root run pod able to read what a non-root pod wrote.
+    fileMode: "0777"
+    dirMode: "0777"
+    # Escape hatch: if set, replaces ALL computed mount options for this volume.
+    mountOptions: []
+    # Pod-level securityContext for pipes task pods. All optional, and none of it is
+    # needed for a non-root analytical image to write its results: the run pod already
+    # creates <artifactMountPath>/<run_id> mode 0777 before the task pod starts.
+    # These are for pinning pod identity, or for reading files the run pod left with
+    # restrictive modes. Note fsGroup is a no-op on Azure Files (fsGroupPolicy
+    # ReadWriteOnceWithFSType on a RWX volume), on EFS and on NFS - it only does
+    # anything on storage.local.
+    # Leave runAsUser unset unless you know the analytical image's uid: setting it
+    # overrides the image's own USER.
+    securityContext: {}
+      # fsGroup: 1001
+      # runAsUser: 1001
+      # runAsGroup: 1001
+      # supplementalGroups: [1001]
   gh: {}
     # delivery_repo: owner/repo
     # resultsDir: "mgmt/results"

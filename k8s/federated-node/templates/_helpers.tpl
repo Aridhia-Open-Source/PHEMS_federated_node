@@ -234,6 +234,36 @@ http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 {{- printf "%s-dagster-artifacts" .Release.Name | lower }}
 {{- end }}
 
+{{/*
+Mount options for the Dagster artifacts volume.
+
+Deliberately NOT .Values.storage.mountOptions: that list is also consumed by the
+backend's per-task PVs (backend-configmap MOUNT_OPTIONS -> task_pod.py), so a value
+chosen there - e.g. idsfromsid/modefromsid, which derive mode and ownership from the
+SMB security descriptor - would silently change this volume's permission semantics
+and stop non-root analytical containers writing their results.
+
+The Azure options below are what the azurefile CSI driver already appends when none
+are given. Setting them explicitly means a driver change cannot alter them under us.
+file_mode/dir_mode of 0777 is what makes the volume writable by an analytical image
+running as ANY uid; uid=/gid= are deliberately omitted, since with 0777 they only
+affect how ownership is reported.
+*/}}
+{{- define "dagsterArtifactsMountOptions" -}}
+{{- $a := (.Values.fnDagster.artifacts | default dict) -}}
+{{- if $a.mountOptions -}}
+{{ toYaml $a.mountOptions }}
+{{- else if .Values.storage.azure -}}
+- file_mode={{ $a.fileMode | default "0777" }}
+- dir_mode={{ $a.dirMode | default "0777" }}
+- mfsymlinks
+- nosharesock
+- actimeo=30
+{{- else if .Values.storage.nfs -}}
+- hard
+{{- end -}}
+{{- end -}}
+
 {{- define "awsStorageAccount" -}}
 {{- if .Values.storage.aws }}
   {{- with .Values.storage.aws }}
