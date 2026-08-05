@@ -24,16 +24,13 @@ session = db.session
 
 
 @bp.before_request
-# @auth(scope='can_admin_dataset')
+@auth(scope='can_admin_dataset')
 def auth_before():
-    foo = "hello world!"
-    print(foo)
     """Ensure the user is authenticated."""
 
 
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
-@audit
 def get_repositories():
     """
     GET /repositories/ — list all repositories with their polling state
@@ -43,7 +40,6 @@ def get_repositories():
 
 
 @bp.route('/<int:repo_id>', methods=['GET'])
-@audit
 def get_repository(repo_id):
     """
     GET /repositories/<id> — get a single repository
@@ -62,7 +58,6 @@ def hello_world():
 
 
 @bp.route('/<int:repo_id>', methods=['DELETE'])
-@audit
 def delete_repository(repo_id):
     """
     DELETE /repositories/<id> — delete a single repository
@@ -74,7 +69,6 @@ def delete_repository(repo_id):
 
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
-@audit
 def post_repository():
     """
     POST /repositories/ — create a new repository
@@ -90,7 +84,7 @@ def post_repository():
         raise InvalidRequest(f"Repository {uri} already exists")
 
     # Validate dataset exists
-    dataset = Dataset.get_by_id(body['dataset_id'])
+    Dataset.get_by_id(body['dataset_id'])
 
     repo = Repository(
         uri=uri,
@@ -105,7 +99,6 @@ def post_repository():
 
 
 @bp.route('/<int:repo_id>', methods=['PATCH'])
-@audit
 def patch_repository(repo_id):
     """
     PATCH /repositories/<id> — update repository
@@ -117,7 +110,7 @@ def patch_repository(repo_id):
         raise InvalidRequest("No fields provided to update")
 
     if 'dataset_id' in body:
-        dataset = Dataset.get_by_id(body['dataset_id'])
+        Dataset.get_by_id(body['dataset_id'])
         repo.dataset_id = body['dataset_id']
 
     if 'base_branch' in body:
@@ -138,7 +131,6 @@ def patch_repository(repo_id):
 
 
 @bp.route('/pull_requests', methods=['POST'])
-@audit
 def post_pull_request():
     """
     POST /repositories/pull_requests — create a new pull request
@@ -167,13 +159,12 @@ def post_pull_request():
 
 
 @bp.route('/<int:repo_id>/pull_requests/batch', methods=['POST'])
-@audit
 def post_pull_requests_batch(repo_id):
     """
     POST /repositories/<repo_id>/pull_requests/batch — create multiple pull requests for a repo
     Body: list of PR objects (up to 100)
     """
-    repository = Repository.get_by_id(repo_id)  # Verify repo exists
+    Repository.get_by_id(repo_id)  # Verify repo exists
 
     body = request.json or []
 
@@ -225,14 +216,14 @@ def post_pull_requests_batch(repo_id):
 
 
 @bp.route('/<int:repo_id>/pull_requests', methods=['GET'])
-@audit
 def get_pull_requests(repo_id):
     """
     GET /repositories/<repo_id>/pull_requests — list PRs for a repository with pagination.
     Query params:
-      - page: page number (default 1)
-      - per_page: items per page (default 20)
-      - status: filter by status (optional, one of: UNKNOWN, IGNORED, INVALID, STARTING, STARTED, SUCCESS, FAILED)
+        - page: page number (default 1)
+        - per_page: items per page (default 20)
+        - status: filter by status (optional), one of:
+            UNKNOWN, IGNORED, INVALID, STARTING, STARTED, SUCCESS, FAILED)
     Sorted by merged_at DESC (most recent first).
     """
     Repository.get_by_id(repo_id)
@@ -260,7 +251,6 @@ def get_pull_requests(repo_id):
 
 
 @bp.route('/<int:repo_id>/pull_requests/<int:number>', methods=['GET'])
-@audit
 def get_pull_request(repo_id, number):
     """
     GET /repositories/<repo_id>/pull_requests/<number> — get a single PR
@@ -278,7 +268,6 @@ def get_pull_request(repo_id, number):
 
 
 @bp.route('/<int:repo_id>/pull_requests/<int:number>', methods=['PATCH'])
-@audit
 def patch_pull_request(repo_id, number):
     """
     PATCH /repositories/<repo_id>/pull_requests/<number> — update PR status
