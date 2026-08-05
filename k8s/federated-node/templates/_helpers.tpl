@@ -147,6 +147,29 @@ securityContext:
     drop: [ "ALL" ]
 {{- end -}}
 
+# Init container that blocks until the target postgres accepts connections.
+# Expects a dict: { ctx: $, host: <string>, port: <string|int> }
+{{- define "pgWaitContainer" -}}
+{{- $ctx := .ctx -}}
+- name: wait-for-db
+  image: {{ include "fn-alpine" $ctx }}
+  imagePullPolicy: {{ $ctx.Values.pullPolicy }}
+  {{- include "nonRootSC" $ctx | nindent 2 }}
+  command:
+    - sh
+    - -c
+    - |
+      until pg_isready -h $PGHOST -p $PGPORT; do
+        echo "waiting for postgres..."
+        sleep 2
+      done
+  env:
+    - name: PGHOST
+      value: {{ .host | quote }}
+    - name: PGPORT
+      value: {{ .port | quote }}
+{{- end -}}
+
 # In case of updating existing entities in hooks, use these default labels/annotations
 # so helm knows they are part of this chart on future updates
 {{- define "defaultLabels" -}}
