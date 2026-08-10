@@ -8,8 +8,6 @@ import logging
 ARTIFACT_PATH = os.environ["ARTIFACT_PATH"]
 SECRETS_PATH = "/var/secrets/db"
 
-os.makedirs(ARTIFACT_PATH, exist_ok=True)
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -17,9 +15,36 @@ stdout_handler = logging.StreamHandler(sys.stdout)
 stdout_handler.setFormatter(logging.Formatter('%(levelname)s:%(name)s:%(message)s'))
 logger.addHandler(stdout_handler)
 
-file_handler = logging.FileHandler(f"{ARTIFACT_PATH}/pypipes.log")
-file_handler.setFormatter(logging.Formatter('%(levelname)s:%(name)s:%(message)s'))
-logger.addHandler(file_handler)
+
+def prepare_artifact_dir(path: str) -> None:
+    """
+    Make sure the artifact directory exists and is writable by whoever we are.
+
+    Called from main(), after stdout logging is up: doing this at import time turns a
+    permissions problem into a bare traceback with no context, which is exactly the
+    case a non-root analytical image hits.
+    """
+    try:
+        os.makedirs(path, exist_ok=True)
+    except OSError as exc:
+        raise RuntimeError(
+            f"Could not create ARTIFACT_PATH {path!r} as "
+            f"uid={os.geteuid()} gid={os.getegid()}: {exc}"
+        ) from exc
+
+    if not os.access(path, os.W_OK | os.X_OK):
+        st = os.stat(path)
+        raise RuntimeError(
+            f"ARTIFACT_PATH {path!r} is not writable by uid={os.geteuid()} "
+            f"gid={os.getegid()} (owner {st.st_uid}:{st.st_gid}, "
+            f"mode {oct(st.st_mode & 0o777)})"
+        )
+
+    file_handler = logging.FileHandler(f"{path}/pypipes.log")
+    file_handler.setFormatter(
+        logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+    )
+    logger.addHandler(file_handler)
 
 
 def read_secret(secret_name: str) -> str:
@@ -34,7 +59,6 @@ def read_secret(secret_name: str) -> str:
 
 
 def mock_results(artifact_path, count):
-    os.makedirs(artifact_path, exist_ok=True)
     logger.info(f"Generating {count} mock results")
 
     for n in range(1, count + 1):
@@ -64,6 +88,7 @@ def dump_secrets(artifact_path, secrets_path):
 
 def main():
     logger.info(f"main")
+    prepare_artifact_dir(ARTIFACT_PATH)
     dump_secrets(ARTIFACT_PATH, SECRETS_PATH)
     mock_results(ARTIFACT_PATH, count=10)
     return 0

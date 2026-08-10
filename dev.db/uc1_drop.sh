@@ -18,6 +18,8 @@ LOCAL_DATASET_PORT="${LOCAL_DATASET_PORT}"
 DATASET_NAME="${DATASET_NAME}"
 DATASET_USERNAME="${DATASET_USERNAME}"
 DATASET_PASSWORD="${DATASET_PASSWORD}"
+DATASET_SCHEMA="${DATASET_SCHEMA}"
+DATASET_SCHEMA_WRITE="${DATASET_SCHEMA_WRITE}"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -29,7 +31,7 @@ echo -e "${BLUE}=== UC1 OMOP Database Drop ===${NC}"
 echo ""
 
 # REQUIRED: Validate ALL inputs are set - no defaults, fail fast
-REQUIRED_VARS=(LOCAL_DATASET_HOST LOCAL_DATASET_PORT DATASET_NAME DATASET_USERNAME DATASET_PASSWORD)
+REQUIRED_VARS=(LOCAL_DATASET_HOST LOCAL_DATASET_PORT DATASET_NAME DATASET_USERNAME DATASET_PASSWORD DATASET_SCHEMA DATASET_SCHEMA_WRITE)
 for var in "${REQUIRED_VARS[@]}"; do
   if [ -z "${!var:-}" ]; then
     echo -e "${RED}ERROR: Required environment variable '$var' is not set${NC}" >&2
@@ -48,24 +50,18 @@ echo "  LOCAL_DATASET_HOST: $LOCAL_DATASET_HOST"
 echo "  LOCAL_DATASET_PORT: $LOCAL_DATASET_PORT"
 echo "  DATASET_NAME: $DATASET_NAME"
 echo "  DATASET_USERNAME: $DATASET_USERNAME"
+echo "  SCHEMAS: $DATASET_SCHEMA, $DATASET_SCHEMA_WRITE"
 echo ""
 
 echo -e "${BLUE}[1/1] Dropping UC1 tables...${NC}"
-PGPASSWORD="$DATASET_PASSWORD" psql -h "$LOCAL_DATASET_HOST" -p "$LOCAL_DATASET_PORT" \
+# uc1_seed.py creates the CDM and write schemas from scratch, so dropping the
+# schemas is both sufficient and necessary -- a stale schema makes its
+# "CREATE SCHEMA" fail on the next seed.
+PGPASSWORD="$DATASET_PASSWORD" psql -v ON_ERROR_STOP=1 \
+  -h "$LOCAL_DATASET_HOST" -p "$LOCAL_DATASET_PORT" \
   -U "$DATASET_USERNAME" -d "$DATASET_NAME" \
-  -c "DROP TABLE IF EXISTS death CASCADE;
-      DROP TABLE IF EXISTS condition_occurrence CASCADE;
-      DROP TABLE IF EXISTS procedure_occurrence CASCADE;
-      DROP TABLE IF EXISTS visit_detail CASCADE;
-      DROP TABLE IF EXISTS visit_occurrence CASCADE;
-      DROP TABLE IF EXISTS observation_period CASCADE;
-      DROP TABLE IF EXISTS person CASCADE;
-      DROP TABLE IF EXISTS concept_ancestor CASCADE;
-      DROP TABLE IF EXISTS concept CASCADE;
-      DROP TABLE IF EXISTS cdm_source CASCADE;
-      DROP TABLE IF EXISTS domain CASCADE;
-      DROP TABLE IF EXISTS vocabulary CASCADE;
-      DROP SCHEMA IF EXISTS write_schema CASCADE;" > /dev/null 2>&1
+  -c "DROP SCHEMA IF EXISTS \"$DATASET_SCHEMA\" CASCADE;
+      DROP SCHEMA IF EXISTS \"$DATASET_SCHEMA_WRITE\" CASCADE;" > /dev/null
 
 if [ $? -eq 0 ]; then
   echo -e "${GREEN}✓ UC1 tables dropped${NC}"

@@ -14,6 +14,9 @@ LOCAL_DATASET_PORT = int(os.environ['LOCAL_DATASET_PORT'])
 DATASET_NAME = os.environ['DATASET_NAME']
 DATASET_USERNAME = os.environ['DATASET_USERNAME']
 DATASET_PASSWORD = os.environ['DATASET_PASSWORD']
+# The seed puts the CDM tables in their own schema (uc1_seed.py CDM_SCHEMA),
+# which is not on the default search_path of '"$user", public'.
+DATASET_SCHEMA = os.environ['DATASET_SCHEMA']
 
 try:
     conn = psycopg2.connect(
@@ -28,6 +31,7 @@ except psycopg2.Error as e:
     sys.exit(1)
 
 cursor = conn.cursor(cursor_factory=RealDictCursor)
+cursor.execute(f'SET search_path TO "{DATASET_SCHEMA}"')
 
 tables = ['person', 'visit_occurrence', 'procedure_occurrence', 'condition_occurrence']
 

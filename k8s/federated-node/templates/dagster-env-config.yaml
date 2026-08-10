@@ -20,4 +20,22 @@ data:
   GH_RESULTS_DIR: {{ .Values.fnDagster.gh.resultsDir | quote }}
   GH_DELIVERY_REPO: {{ .Values.fnDagster.gh.delivery_repo | quote }}
   BACKEND_API_URI: {{ include "backendUri" . | quote }}
+  {{- /*
+  Pod securityContext for pipes task pods. Only emitted when set - an unset
+  runAsUser must stay absent rather than be sent as null, which the API rejects.
+  */}}
+  {{- with (((.Values.fnDagster).artifacts).securityContext) }}
+  {{- with .fsGroup }}
+  DAGSTER_PIPES_FS_GROUP: {{ . | quote }}
+  {{- end }}
+  {{- with .runAsUser }}
+  DAGSTER_PIPES_RUN_AS_USER: {{ . | quote }}
+  {{- end }}
+  {{- with .runAsGroup }}
+  DAGSTER_PIPES_RUN_AS_GROUP: {{ . | quote }}
+  {{- end }}
+  {{- with .supplementalGroups }}
+  DAGSTER_PIPES_SUPPLEMENTAL_GROUPS: {{ join "," . | quote }}
+  {{- end }}
+  {{- end }}
 {{- end }}
