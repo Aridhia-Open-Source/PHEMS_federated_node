@@ -42,7 +42,10 @@ def auth(scope: str, check_dataset=True):
                 ds_id = kwargs.get("dataset_id")
                 ds_name = kwargs.get("dataset_name", "")
 
-                if request.is_json and request.data:
+                # Some endpoints take a JSON list rather than an object. There is no
+                # top-level dataset to scope to in that case, so leave ds_id/
+                # ds_name as they came from the URL rather than flattening.
+                if request.is_json and request.data and isinstance(request.json, dict):
                     flat_json = flatten_dict(request.json)
                     ds_id = flat_json.get("dataset_id")
                     ds_name = flat_json.get("dataset_name", "")

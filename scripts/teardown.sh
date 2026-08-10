@@ -39,9 +39,15 @@ else
 fi
 
 echo
-echo "=== Deleting root mount path ================================================"
-echo "sudo rm -rf $HOST_MOUNT_ROOT_PATH"
-sudo rm -rf $HOST_MOUNT_ROOT_PATH
+echo "=== Clearing root mount path ================================================"
+# Delete the *contents*, not the directory. .kind/kind-config.yaml bind-mounts
+# $HOST_MOUNT_ROOT_PATH into the kind node, and that mount is bound to the inode
+# as it was at cluster creation. Removing the directory leaves the node's mount
+# pointing at a deleted inode, so the node sees an empty /data even after
+# deploy.sh recreates it on the host -- local PVs then fail to mount with
+# 'path "/data/db" does not exist'. Recovering needs a node restart.
+echo "sudo find ${HOST_MOUNT_ROOT_PATH:?} -mindepth 1 -delete"
+sudo find "${HOST_MOUNT_ROOT_PATH:?}" -mindepth 1 -delete
 
 echo
 echo "=== Clearing Released PersistentVolumes ==================================="
