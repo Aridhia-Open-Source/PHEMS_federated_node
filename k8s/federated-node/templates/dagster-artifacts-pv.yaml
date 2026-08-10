@@ -11,10 +11,6 @@ metadata:
   annotations:
     storageclass.kubernetes.io/is-default-class: "false"
 volumeBindingMode: WaitForFirstConsumer
-{{- if .Values.storage.mountOptions }}
-mountOptions:
-{{ toYaml .Values.storage.mountOptions | indent 2 }}
-{{- end }}
 {{- if .Values.storage.local }}
 provisioner: Local
 {{- else if .Values.storage.azure }}
@@ -29,8 +25,6 @@ parameters:
   directoryPerms: "777"
 {{- else if .Values.storage.nfs }}
 provisioner: {{ .Values.storage.nfs.provisioner }}
-mountOptions:
-  - hard
 {{- end }}
 ---
 apiVersion: v1
@@ -45,9 +39,9 @@ spec:
     - ReadWriteMany
     - ReadOnlyMany
   persistentVolumeReclaimPolicy: Retain
-  {{- if .Values.storage.mountOptions }}
+  {{- with (include "dagsterArtifactsMountOptions" . | trim) }}
   mountOptions:
-{{ toYaml .Values.storage.mountOptions | indent 4 }}
+{{ . | indent 4 }}
   {{- end }}
   {{ if .Values.storage.local }}
   local:

@@ -1,61 +1,53 @@
-{{ if .Values.datasetDb.create }}
+{{- define "datasetsDbInit.podTemplate" -}}
+spec:
+  restartPolicy: Never
+  initContainers:
+    {{- include "pgWaitContainer" (dict "ctx" . "host" .Values.datasetDb.host "port" .Values.datasetDb.port) | nindent 4 }}
+  containers:
+    - name: db-init
+      image: {{ include "fn-alpine" . }}
+      imagePullPolicy: {{ .Values.pullPolicy }}
+      {{- include "nonRootSC" . | nindent 6 }}
+      command:
+        - sh
+      args:
+        - -c
+        - |
+          psql -v ON_ERROR_STOP=1 -h {{ .Values.datasetDb.host }} -p {{ .Values.datasetDb.port }} \
+            -U {{ .Values.datasetDb.superuser }} -d postgres << SQL
+          {{- range $dbKey, $dbConfig := .Values.datasetDb.dbs }}
+          SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', '{{ $dbConfig.user }}', '${DB_{{ $dbKey | upper }}_PASSWORD}')
+            WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{{ $dbConfig.user }}')\gexec
+          ALTER ROLE {{ $dbConfig.user }} WITH LOGIN PASSWORD '${DB_{{ $dbKey | upper }}_PASSWORD}';
+          SELECT format('CREATE DATABASE %I OWNER %I', '{{ $dbConfig.name }}', '{{ $dbConfig.user }}')
+            WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '{{ $dbConfig.name }}')\gexec
+          ALTER DATABASE {{ $dbConfig.name }} OWNER TO {{ $dbConfig.user }};
+          GRANT ALL PRIVILEGES ON DATABASE {{ $dbConfig.name }} TO {{ $dbConfig.user }};
+          {{- end }}
+          SQL
+      env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.datasetDb.secret.name }}
+              key: {{ .Values.datasetDb.secret.key }}
+        {{- range $dbKey, $dbConfig := .Values.datasetDb.dbs }}
+        - name: DB_{{ $dbKey | upper }}_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ $dbConfig.secret.name }}
+              key: {{ $dbConfig.secret.key }}
+        {{- end }}
+{{- end }}
+{{- if .Values.datasetDb.create }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: db-datasets-init
+  # See backend-db-init.yaml for why the pod template hash is part of the name.
+  name: db-datasets-init-{{ include "datasetsDbInit.podTemplate" . | sha256sum | trunc 8 }}
   namespace: {{ .Release.Namespace }}
 spec:
+  backoffLimit: 2
   template:
-    spec:
-      restartPolicy: Never
-      initContainers:
-        - name: wait-for-db
-          image: {{ include "fn-alpine" . }}
-          imagePullPolicy: {{ .Values.pullPolicy }}
-          {{- include "nonRootSC" . | nindent 10 }}
-          command:
-            - sh
-            - -c
-            - |
-              until pg_isready -h $PGHOST -p $PGPORT; do
-                echo "waiting for postgres..."
-                sleep 2
-              done
-          env:
-            - name: PGHOST
-              value: {{ .Values.datasetDb.host }}
-            - name: PGPORT
-              value: {{ .Values.datasetDb.port | quote }}
-      containers:
-        - name: db-init
-          image: {{ include "fn-alpine" . }}
-          imagePullPolicy: {{ .Values.pullPolicy }}
-          {{- include "nonRootSC" . | nindent 10 }}
-          command:
-            - sh
-          args:
-            - -c
-            - |
-              psql -h {{ .Values.datasetDb.host }} -p {{ .Values.datasetDb.port }} \
-                -U {{ .Values.datasetDb.superuser }} -d postgres << SQL
-              {{- range $dbKey, $dbConfig := .Values.datasetDb.dbs }}
-              CREATE DATABASE {{ $dbConfig.name }};
-              CREATE USER {{ $dbConfig.user }} WITH PASSWORD '${DB_{{ $dbKey | upper }}_PASSWORD}';
-              ALTER DATABASE {{ $dbConfig.name }} OWNER TO {{ $dbConfig.user }};
-              GRANT ALL PRIVILEGES ON DATABASE {{ $dbConfig.name }} TO {{ $dbConfig.user }};
-              {{- end }}
-              SQL
-          env:
-            - name: PGPASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.datasetDb.secret.name }}
-                  key: {{ .Values.datasetDb.secret.key }}
-            {{- range $dbKey, $dbConfig := .Values.datasetDb.dbs }}
-            - name: DB_{{ $dbKey | upper }}_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $dbConfig.secret.name }}
-                  key: {{ $dbConfig.secret.key }}
-            {{- end }}
-{{ end }}
+    {{- include "datasetsDbInit.podTemplate" . | nindent 4 }}
+{{- end }}

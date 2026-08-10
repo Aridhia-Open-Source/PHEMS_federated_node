@@ -1,0 +1,10 @@
+# Dependencies for the UC1 seed/verify scripts.
+#
+# System python is PEP 668-managed, so install these into a venv:
+#   python3 -m venv dev.db/.venv && dev.db/.venv/bin/pip install -r dev.db/requirements.txt
+# uc1_make_seed.sh picks up dev.db/.venv automatically if it exists.
+
+python-dotenv    # backend_seed.py, uc1_read.py
+pydantic         # models.py
+requests         # clients.py
+psycopg2-binary  # uc1_read.py

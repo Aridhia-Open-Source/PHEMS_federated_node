@@ -38,3 +38,6 @@ debug.yaml
 # temp
 federated-node-task-controller
 uc1
+
+# Local UC1 runs (scripts/run_uc1_local.sh)
+uc1-local-results/

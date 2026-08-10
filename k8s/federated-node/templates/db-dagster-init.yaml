@@ -1,56 +1,48 @@
-{{ if .Values.fnDagster.createDB }}
+{{- define "dagsterDbInit.podTemplate" -}}
+spec:
+  restartPolicy: Never
+  initContainers:
+    {{- include "pgWaitContainer" (dict "ctx" . "host" .Values.db.host "port" .Values.db.port) | nindent 4 }}
+  containers:
+    - name: db-init
+      image: {{ include "fn-alpine" . }}
+      imagePullPolicy: {{ .Values.pullPolicy }}
+      {{- include "nonRootSC" . | nindent 6 }}
+      command:
+        - sh
+        - -c
+        - |
+          psql -v ON_ERROR_STOP=1 -h {{ .Values.db.host }} -p {{ .Values.db.port }} \
+            -U {{ .Values.db.superuser }} -d postgres << SQL
+          SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', '{{ .Values.fnDagster.db.user }}', '${DAGSTER_PG_PASSWORD}')
+            WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{{ .Values.fnDagster.db.user }}')\gexec
+          ALTER ROLE {{ .Values.fnDagster.db.user }} WITH LOGIN PASSWORD '${DAGSTER_PG_PASSWORD}';
+          SELECT format('CREATE DATABASE %I OWNER %I', '{{ .Values.fnDagster.db.name }}', '{{ .Values.fnDagster.db.user }}')
+            WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '{{ .Values.fnDagster.db.name }}')\gexec
+          ALTER DATABASE {{ .Values.fnDagster.db.name }} OWNER TO {{ .Values.fnDagster.db.user }};
+          GRANT ALL PRIVILEGES ON DATABASE {{ .Values.fnDagster.db.name }} TO {{ .Values.fnDagster.db.user }};
+          SQL
+      env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.db.secret.name }}
+              key: password
+        - name: DAGSTER_PG_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.fnDagster.db.secret.name }}
+              key: {{ .Values.fnDagster.db.secret.key }}
+{{- end }}
+{{- if .Values.fnDagster.createDB }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: dagster-db-init
+  # See backend-db-init.yaml for why the pod template hash is part of the name.
+  name: dagster-db-init-{{ include "dagsterDbInit.podTemplate" . | sha256sum | trunc 8 }}
   namespace: {{ .Release.Namespace }}
 spec:
+  backoffLimit: 2
   template:
-    spec:
-      restartPolicy: Never
-      initContainers:
-        - name: wait-for-db
-          image: {{ include "fn-alpine" . }}
-          imagePullPolicy: {{ .Values.pullPolicy }}
-          {{- include "nonRootSC" . | nindent 10 }}
-          command:
-            - sh
-            - -c
-            - |
-              until pg_isready -h $PGHOST -p $PGPORT; do
-                echo "waiting for postgres..."
-                sleep 2
-              done
-          env:
-            - name: PGHOST
-              value: {{ .Values.db.host }}
-            - name: PGPORT
-              value: {{ .Values.db.port | quote }}
-      containers:
-        - name: db-init
-          image: {{ include "fn-alpine" . }}
-          imagePullPolicy: {{ .Values.pullPolicy }}
-          {{- include "nonRootSC" . | nindent 10 }}
-          command:
-            - sh
-            - -c
-            - |
-              psql -h {{ .Values.db.host }} -p {{ .Values.db.port }} \
-                -U {{ .Values.db.superuser }} -d postgres << SQL
-              CREATE DATABASE {{ .Values.fnDagster.db.name }};
-              CREATE USER {{ .Values.fnDagster.db.user }} WITH PASSWORD '${DAGSTER_PG_PASSWORD}';
-              ALTER DATABASE {{ .Values.fnDagster.db.name }} OWNER TO {{ .Values.fnDagster.db.user }};
-              GRANT ALL PRIVILEGES ON DATABASE {{ .Values.fnDagster.db.name }} TO {{ .Values.fnDagster.db.user }};
-              SQL
-          env:
-            - name: PGPASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.db.secret.name }}
-                  key: password
-            - name: DAGSTER_PG_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.fnDagster.db.secret.name }}
-                  key: {{ .Values.fnDagster.db.secret.key }}
-{{ end }}
+    {{- include "dagsterDbInit.podTemplate" . | nindent 4 }}
+{{- end }}

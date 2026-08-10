@@ -121,13 +121,19 @@ local_resource(
 
 local_resource(
   'db-internal-port-forward',
-  serve_cmd='kubectl port-forward svc/fn-dev-db-internal -n {ns} 5432:5432'.format(ns=NAMESPACE),
+  serve_cmd='kubectl port-forward svc/db -n {ns} 5432:5432'.format(ns=NAMESPACE),
   labels=['infrastructure'],
 )
 
 local_resource(
   'db-datasets-port-forward',
   serve_cmd='kubectl port-forward svc/db-datasets -n {ns} 5433:5432'.format(ns=NAMESPACE),
+  labels=['infrastructure'],
+)
+
+local_resource(
+  'keycloak-port-forward',
+  serve_cmd='kubectl port-forward svc/keycloak -n keycloak 8080:80',
   labels=['infrastructure'],
 )
 

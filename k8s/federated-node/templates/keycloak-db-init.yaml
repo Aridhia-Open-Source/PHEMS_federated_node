@@ -1,54 +1,46 @@
+{{- define "keycloakDbInit.podTemplate" -}}
+spec:
+  restartPolicy: Never
+  initContainers:
+    {{- include "pgWaitContainer" (dict "ctx" . "host" .Values.db.host "port" .Values.db.port) | nindent 4 }}
+  containers:
+    - name: db-init
+      image: {{ include "fn-alpine" . }}
+      imagePullPolicy: {{ .Values.pullPolicy }}
+      {{- include "nonRootSC" . | nindent 6 }}
+      command:
+        - sh
+        - -c
+        - |
+          psql -v ON_ERROR_STOP=1 -h {{ .Values.db.host }} -p {{ .Values.db.port }} \
+            -U {{ .Values.db.superuser }} -d postgres << SQL
+          SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', '{{ .Values.keycloak.db.user }}', '${KC_DB_PASSWORD}')
+            WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{{ .Values.keycloak.db.user }}')\gexec
+          ALTER ROLE {{ .Values.keycloak.db.user }} WITH LOGIN PASSWORD '${KC_DB_PASSWORD}';
+          SELECT format('CREATE DATABASE %I OWNER %I', '{{ .Values.keycloak.db.name }}', '{{ .Values.keycloak.db.user }}')
+            WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '{{ .Values.keycloak.db.name }}')\gexec
+          ALTER DATABASE {{ .Values.keycloak.db.name }} OWNER TO {{ .Values.keycloak.db.user }};
+          GRANT ALL PRIVILEGES ON DATABASE {{ .Values.keycloak.db.name }} TO {{ .Values.keycloak.db.user }};
+          SQL
+      env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.db.secret.name }}
+              key: password
+        - name: KC_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.keycloak.db.secret.name }}
+              key: {{ .Values.keycloak.db.secret.key }}
+{{- end }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: keycloak-db-init
+  # See backend-db-init.yaml for why the pod template hash is part of the name.
+  name: keycloak-db-init-{{ include "keycloakDbInit.podTemplate" . | sha256sum | trunc 8 }}
   namespace: {{ include "kc_namespace" . }}
 spec:
+  backoffLimit: 2
   template:
-    spec:
-      restartPolicy: Never
-      initContainers:
-        - name: wait-for-db
-          image: {{ include "fn-alpine" . }}
-          imagePullPolicy: {{ .Values.pullPolicy }}
-          {{- include "nonRootSC" . | nindent 10 }}
-          command:
-            - sh
-            - -c
-            - |
-              until pg_isready -h $PGHOST -p $PGPORT; do
-                echo "waiting for postgres..."
-                sleep 2
-              done
-          env:
-            - name: PGHOST
-              value: {{ .Values.db.host }}
-            - name: PGPORT
-              value: {{ .Values.db.port | quote }}
-      containers:
-        - name: db-init
-          image: {{ include "fn-alpine" . }}
-          imagePullPolicy: {{ .Values.pullPolicy }}
-          {{- include "nonRootSC" . | nindent 10 }}
-          command:
-            - sh
-            - -c
-            - |
-              psql -h {{ .Values.db.host }} -p {{ .Values.db.port }} \
-                -U {{ .Values.db.superuser }} -d postgres << SQL
-              CREATE DATABASE {{ .Values.keycloak.db.name }};
-              CREATE USER {{ .Values.keycloak.db.user }} WITH PASSWORD '${KC_DB_PASSWORD}';
-              ALTER DATABASE {{ .Values.keycloak.db.name }} OWNER TO {{ .Values.keycloak.db.user }};
-              GRANT ALL PRIVILEGES ON DATABASE {{ .Values.keycloak.db.name }} TO {{ .Values.keycloak.db.user }};
-              SQL
-          env:
-            - name: PGPASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.db.secret.name }}
-                  key: password
-            - name: KC_DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.keycloak.db.secret.name }}
-                  key: {{ .Values.keycloak.db.secret.key }}
+    {{- include "keycloakDbInit.podTemplate" . | nindent 4 }}
