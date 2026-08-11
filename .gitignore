@@ -37,7 +37,11 @@ debug.yaml
 
 # temp
 federated-node-task-controller
+# Use case analysis code lives in its own repo; these are symlinks to a sibling
+# checkout (../MVP-Code, ../uc3-dose-interference-model) that the image builds use.
 uc1
+uc3
 
-# Local UC1 runs (scripts/run_uc1_local.sh)
+# Local use case runs (scripts/run_uc1_local.sh, scripts/run_uc3_local.sh)
 uc1-local-results/
+uc3-local-results/

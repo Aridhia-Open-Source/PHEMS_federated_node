@@ -93,6 +93,9 @@ tilt-open:
 uc1-seed:
 	./dev.db/uc1_make_seed.sh
 
+uc3-seed:
+	./dev.db/uc3_make_seed.sh
+
 nuke:
 	./scripts/nuke.sh
 

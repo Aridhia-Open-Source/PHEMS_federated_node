@@ -10,6 +10,7 @@ DOCKER_DIRS=(
   "pypipes"
   "github_transfer"
   "uc1"
+  "uc3"
   "build/alpine"
   "build/kc-init"
 )

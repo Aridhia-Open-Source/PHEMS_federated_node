@@ -15,7 +15,11 @@ from clients import BackendSession, BackendAdapter, BackendAPI  # noqa
 from utils import load_dagster_system_creds as _load_creds  # noqa
 
 
-load_dotenv()
+# Which use case is being seeded: SEED_ENV_FILE picks the dotenv file, so uc1 and
+# uc3 can each keep their own (dev.db/.env, dev.db/uc3.env). Values already exported
+# by the calling script win either way - load_dotenv does not override them.
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         os.environ.get('SEED_ENV_FILE', '.env')))
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
 logger = logging.getLogger(__name__)
 
@@ -46,6 +50,14 @@ REQUEST_START_DATE = os.environ['REQUEST_START_DATE']
 REQUEST_END_DATE = os.environ['REQUEST_END_DATE']
 
 
+def _same_repo(a: str, b: str) -> bool:
+    """Compare repo URIs the way the backend stores them (scheme/.git stripped)."""
+    def norm(uri):
+        return (uri or '').removeprefix('https://').removeprefix('http://') \
+                          .removesuffix('.git').rstrip('/').lower()
+    return norm(a) == norm(b)
+
+
 def _init_backend_api(username: str, password: str):
     adapter = BackendAdapter(
         base_url=BACKEND_API_URI,
@@ -69,18 +81,29 @@ def seed():
     api = _init_backend_api(**creds)
     logger.info(f"Initialized backend API client for {creds['username']}")
 
+    # Datasets are kept per use case, so seeding uc3 leaves uc1's dataset registered
+    # (and vice versa). Repositories cannot be: Repository.uri is unique in the
+    # backend, and the dagster sensor resolves a task's dataset from the repository
+    # the spec arrived through - so the repo row is replaced here, and whichever use
+    # case was seeded last owns spec delivery.
     logger.info("Fetching existing repositories...")
     existing_repos = api.get_repositories() or []
     logger.info(f"Repositories found: {len(existing_repos)}")
     for r in existing_repos:
-        logger.info(f"Deleting existing repository ({r.id}) - {r.uri}")
-        api.delete_repository(r.id)
+        if _same_repo(r.uri, REPO_URI):
+            logger.info(f"Deleting existing repository ({r.id}) - {r.uri} [{r.watch_dir}]")
+            api.delete_repository(r.id)
+        else:
+            logger.info(f"Keeping repository ({r.id}) - {r.uri} [{r.watch_dir}]")
 
     logger.info("Fetching existing datasets...")
     existing_datasets = api.get_datasets() or []
     logger.info(f"Datasets found: {len(existing_datasets)}")
 
     for ds in existing_datasets:
+        if ds.name != DATASET_NAME:
+            logger.info(f"Keeping dataset ({ds.id}) - {ds.name}")
+            continue
         logger.info(f"Deleting existing dataset ({ds.id}) - {ds.name}")
         api.delete_dataset(ds.id)
 

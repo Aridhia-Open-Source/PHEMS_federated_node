@@ -80,7 +80,8 @@ firstUserSecret:
   lastName: User
   email: dev.user+admin@example.org
 
-# A second in-cluster Postgres holding dataset data, needed by `make uc1-seed`.
+# A second in-cluster Postgres holding dataset data, one database per use case,
+# needed by `make uc1-seed` / `make uc3-seed`.
 datasetDb:
   create: true
   host: db-datasets.fn.svc
@@ -90,6 +91,12 @@ datasetDb:
       user: uc1_omop_user
       secret:
         name: db-datasets-uc1
+        key: password
+    uc3:
+      name: uc3_omop
+      user: uc3_omop_user
+      secret:
+        name: db-datasets-uc3
         key: password
 
 ## Subcharts
