@@ -172,7 +172,11 @@ if [ -n "$CLIENT_ID" ]; then
 fi
 
 printf "[cleanup]\tRemoving test db entry\n"
-psql -h db -U "$PGUSER" -d "$PGDATABASE" -c "DELETE FROM datasets WHERE name = '${TEST_DB_NAME}';"  > /dev/null 2>&1
+# PGHOST/PGPORT/BACKEND_DB_USER/BACKEND_DB_NAME are what backend-configmap publishes.
+# This used to hardcode `-h db` and read PGUSER/PGDATABASE, which nothing exports - so
+# with `set -e` above, the whole test pod died here before it could report success.
+psql -h "$PGHOST" -p "$PGPORT" -U "$BACKEND_DB_USER" -d "$BACKEND_DB_NAME" \
+  -c "DELETE FROM datasets WHERE name = '${TEST_DB_NAME}';" > /dev/null 2>&1
 
 if [ $exit_code -gt 0 ]; then
     exit $exit_code

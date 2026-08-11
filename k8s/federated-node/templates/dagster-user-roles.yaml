@@ -14,7 +14,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     namespace: {{ .Release.Namespace }}
-    name: {{ .Release.Name }}-dagster-user-deployments-user-deployments
+    name: {{ include "dagsterCodeServerServiceAccount" . }}
 roleRef:
   kind: ClusterRole
   name: {{ .Release.Name }}-dagster-user-role

@@ -1,0 +1,14 @@
+
+The in-cluster Postgres has a data directory from a previous install, but the superuser
+secret {{ .Values.db.secret.name }} that went with it is gone.
+
+Postgres only reads POSTGRES_PASSWORD when initdb first creates the data directory, so
+the old password is still baked into it and a newly generated one will not authenticate.
+The data and the secret are one unit - keep both or neither:
+
+  * start clean: delete the PersistentVolumeClaim and wipe storage.local.dbpath
+    (`make teardown` locally), then install again; or
+
+  * restore the old secret:
+      kubectl create secret generic {{ .Values.db.secret.name }} -n {{ .Release.Namespace }} \
+        --from-literal={{ .Values.db.secret.key }}='<the previous password>'

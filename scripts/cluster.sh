@@ -19,6 +19,10 @@ source .dev.env
 CLUSTER_NAME="${CLUSTER_NAME:-fn}"
 KIND_CONFIG_FILE=".kind/kind-config.yaml"
 
+# Host directory backing the cluster's local PVs, bind-mounted to /data in the node.
+# Under $HOME so nothing here needs sudo.
+FN_DATA_DIR="${FN_DATA_DIR:-$HOME/.fn/data}"
+
 # Show usage if no command
 if [ -z "$COMMAND" ] || [ "$COMMAND" != "up" ] && [ "$COMMAND" != "down" ]; then
   echo "Usage: $0 <up|down> [--remove-registries]"
@@ -83,7 +87,14 @@ if [ "$COMMAND" = "up" ]; then
     echo "Kind cluster '$CLUSTER_NAME' already exists"
   else
     echo "Creating Kind cluster '$CLUSTER_NAME'..."
-    kind create cluster --name "$CLUSTER_NAME" --config "$KIND_CONFIG_FILE"
+    echo "Local PV data: $FN_DATA_DIR (mounted at /data in the node)"
+    mkdir -p "$FN_DATA_DIR"
+    # kind fixes its mounts at creation time and expands no variables, so render the
+    # host path into a temporary copy of the config.
+    RENDERED_CONFIG="$(mktemp)"
+    trap 'rm -f "$RENDERED_CONFIG"' EXIT
+    sed "s|__FN_DATA_DIR__|$FN_DATA_DIR|" "$KIND_CONFIG_FILE" > "$RENDERED_CONFIG"
+    kind create cluster --name "$CLUSTER_NAME" --config "$RENDERED_CONFIG"
   fi
 
   # Ensure registries are connected to kind network

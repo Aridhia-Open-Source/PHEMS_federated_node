@@ -7,17 +7,7 @@ set -euo pipefail
 
 source .dev.env
 
-# Host paths required for local PVs
-HOST_MOUNT_ROOT_PATH="/data"
-
-HOST_MOUNT_PATHS=(
-  "/data/db"
-  "/data/flask"
-  "/data/controller"
-  "/data/dagster/artifacts"
-  "/data/datasets"
-)
-
+FN_DATA_DIR="${FN_DATA_DIR:-$HOME/.fn/data}"
 
 echo "=== Terminating tilt sessions =================================================="
 
@@ -39,15 +29,42 @@ else
 fi
 
 echo
-echo "=== Clearing root mount path ================================================"
-# Delete the *contents*, not the directory. .kind/kind-config.yaml bind-mounts
-# $HOST_MOUNT_ROOT_PATH into the kind node, and that mount is bound to the inode
-# as it was at cluster creation. Removing the directory leaves the node's mount
-# pointing at a deleted inode, so the node sees an empty /data even after
-# deploy.sh recreates it on the host -- local PVs then fail to mount with
-# 'path "/data/db" does not exist'. Recovering needs a node restart.
-echo "sudo find ${HOST_MOUNT_ROOT_PATH:?} -mindepth 1 -delete"
-sudo find "${HOST_MOUNT_ROOT_PATH:?}" -mindepth 1 -delete
+echo "=== Clearing local PV data =================================================="
+# Before the password secrets below, deliberately: Postgres only reads
+# POSTGRES_PASSWORD when initdb creates the data directory, so data that outlives its
+# password breaks the next install. If this step fails, the passwords are still there.
+#
+# Deleted from inside the node rather than from the host, because these files belong to
+# the uids the containers ran as (postgres is 70) and the host user cannot always
+# remove them - which is what used to make this step need sudo.
+if kubectl get nodes >/dev/null 2>&1; then
+  echo "wiping /data in the node ($FN_DATA_DIR on the host)"
+  kubectl delete pod fn-data-wipe --ignore-not-found >/dev/null 2>&1
+  kubectl run fn-data-wipe --rm -i --restart=Never --image=busybox:1.36 --quiet \
+    --overrides='{"spec":{"containers":[{"name":"fn-data-wipe","image":"busybox:1.36",
+      "command":["sh","-c","rm -rf /host/* /host/.[!.]* 2>/dev/null; echo remaining entries: $(ls -A /host | wc -l)"],
+      "securityContext":{"runAsUser":0},
+      "volumeMounts":[{"name":"host","mountPath":"/host"}]}],
+      "volumes":[{"name":"host","hostPath":{"path":"/data"}}]}}'
+else
+  echo "No cluster reachable, so nothing was wiped. $FN_DATA_DIR is still on disk:"
+  echo "delete it before reinstalling, or keep the password secrets that go with it."
+  exit 1
+fi
+
+echo
+echo "=== Removing chart-generated password secrets ================================"
+# Hook resources, so `helm uninstall` leaves them behind.
+for ns in "$NAMESPACE" keycloak; do
+  kubectl delete secret -n "$ns" -l federatednode.com/generated-password=true \
+    --ignore-not-found 2>/dev/null || true
+done
+
+# Hook Jobs are untracked too.
+for ns in "$NAMESPACE" keycloak; do
+  kubectl delete job -n "$ns" backend-db-init keycloak-db-init dagster-db-init db-datasets-init \
+    --ignore-not-found 2>/dev/null || true
+done
 
 echo
 echo "=== Clearing Released PersistentVolumes ==================================="

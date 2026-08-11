@@ -1,0 +1,238 @@
+{{/*
+Creates the role and database for each component. Helm waits for these hooks, so
+nothing needs to wait for the database at runtime.
+
+The hook event depends on where that job's Postgres is (`inCluster`): pre-install for
+an external server, post-install for an in-cluster one, whose Deployment is an
+ordinary release resource and so does not exist during pre-install. Consumers keep a
+pgWaitContainer in the latter case.
+
+Passwords reach psql via --set and every statement goes through format(%I/%L) +
+\gexec, so a quote in a password or identifier cannot break out.
+*/}}
+{{- define "fn.dbInitJob" -}}
+{{- $ctx := .ctx -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .jobName }}
+  namespace: {{ .namespace }}
+  labels:
+    {{ include "defaultLabels" $ctx }}
+  annotations:
+    {{ include "defaultAnnotations" $ctx }}
+    {{- if .inCluster }}
+    helm.sh/hook: post-install,post-upgrade
+    {{- else }}
+    helm.sh/hook: pre-install,pre-upgrade
+    {{- end }}
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        {{- include "pgWaitContainer" (dict "ctx" $ctx "host" .host "port" .port) | nindent 8 }}
+      containers:
+        - name: db-init
+          image: {{ include "fn-alpine" $ctx }}
+          imagePullPolicy: {{ $ctx.Values.pullPolicy }}
+          {{- include "nonRootSC" $ctx | nindent 10 }}
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              {{- range $i, $role := .roles }}
+              psql -v ON_ERROR_STOP=1 -h {{ $.host }} -p {{ $.port }} \
+                -U {{ $.superuser }} -d postgres \
+                --set=role={{ $role.user | quote }} \
+                --set=dbname={{ $role.dbname | quote }} \
+                --set=pw="$ROLE_PASSWORD_{{ $i }}" <<'SQL'
+              SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'role', :'pw')
+                WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'role')\gexec
+              SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L', :'role', :'pw')\gexec
+              SELECT format('CREATE DATABASE %I OWNER %I', :'dbname', :'role')
+                WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'dbname')\gexec
+              SELECT format('ALTER DATABASE %I OWNER TO %I', :'dbname', :'role')\gexec
+              SELECT format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', :'dbname', :'role')\gexec
+              SQL
+              {{- end }}
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .superuserSecret.name }}
+                  key: {{ .superuserSecret.key }}
+            {{- range $i, $role := .roles }}
+            - name: ROLE_PASSWORD_{{ $i }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $role.secret.name }}
+                  key: {{ $role.secret.key }}
+            {{- end }}
+{{- end -}}
+
+{{/*
+The db.manageRolesAndDatabases: false counterpart. Creates nothing and holds no
+administrator credential: it connects as each role to that role's own database and
+does what the components are about to do, so a wrong password or a role that cannot
+create objects fails the install rather than crash-looping three components.
+
+CREATE TABLE rather than has_schema_privilege() so Postgres emits its own message: on
+PostgreSQL 15+ a role granted database privileges without OWNER cannot create a table
+(see scripts/byo-databases.txt). And no dollar-quoting (DO $$ ... $$) - Kubernetes
+reads `$$` in a container command as an escaped `$`, so psql would receive `DO $`.
+*/}}
+{{- define "fn.dbCheckJob" -}}
+{{- $ctx := .ctx -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .jobName }}
+  namespace: {{ .namespace }}
+  labels:
+    {{ include "defaultLabels" $ctx }}
+  annotations:
+    {{ include "defaultAnnotations" $ctx }}
+    {{- if .inCluster }}
+    helm.sh/hook: post-install,post-upgrade
+    {{- else }}
+    helm.sh/hook: pre-install,pre-upgrade
+    {{- end }}
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        {{- include "pgWaitContainer" (dict "ctx" $ctx "host" .host "port" .port) | nindent 8 }}
+      containers:
+        - name: db-check
+          image: {{ include "fn-alpine" $ctx }}
+          imagePullPolicy: {{ $ctx.Values.pullPolicy }}
+          {{- include "nonRootSC" $ctx | nindent 10 }}
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              {{- range $i, $role := .roles }}
+              {{- $host := $role.host | default $.host }}
+              {{- $port := $role.port | default $.port }}
+              echo "checking {{ $role.user }} on {{ $role.dbname }} at {{ $host }}:{{ $port }}"
+              PGPASSWORD="$ROLE_PASSWORD_{{ $i }}" \
+                psql -v ON_ERROR_STOP=1 -h {{ $host }} -p {{ $port }} \
+                -U {{ $role.user | quote }} -d {{ $role.dbname | quote }} <<'SQL'
+              DROP TABLE IF EXISTS fn_db_check;
+              CREATE TABLE fn_db_check (ok boolean);
+              DROP TABLE fn_db_check;
+              SQL
+              {{- end }}
+          env:
+            {{- if $ctx.Values.db.enforceSSL }}
+            - name: PGSSLMODE
+              value: require
+            {{- end }}
+            {{- range $i, $role := .roles }}
+            - name: ROLE_PASSWORD_{{ $i }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $role.secret.name }}
+                  key: {{ $role.secret.key }}
+            {{- end }}
+{{- end -}}
+
+{{- $superuserSecret := dict "name" .Values.db.secret.name "key" .Values.db.secret.key -}}
+{{- if .Values.db.manageRolesAndDatabases }}
+{{- include "fn.dbInitJob" (dict
+      "ctx" .
+      "jobName" "backend-db-init"
+      "namespace" .Release.Namespace
+      "inCluster" .Values.create_db_deployment
+      "host" (include "dbHost" .)
+      "port" (include "dbPort" .)
+      "superuser" .Values.db.superuser
+      "superuserSecret" $superuserSecret
+      "roles" (list (dict
+        "user" .Values.backend.db.user
+        "dbname" .Values.backend.db.name
+        "secret" .Values.backend.db.secret))) }}
+---
+{{- /* In the release namespace, not the keycloak one, so the superuser password
+       never has to be copied into a second namespace. */}}
+{{ include "fn.dbInitJob" (dict
+      "ctx" .
+      "jobName" "keycloak-db-init"
+      "namespace" .Release.Namespace
+      "inCluster" .Values.create_db_deployment
+      "host" (include "dbHost" .)
+      "port" (include "dbPort" .)
+      "superuser" .Values.db.superuser
+      "superuserSecret" $superuserSecret
+      "roles" (list (dict
+        "user" .Values.keycloak.db.user
+        "dbname" .Values.keycloak.db.name
+        "secret" .Values.keycloak.db.secret))) }}
+{{- if .Values.fnDagster.createDB }}
+---
+{{ include "fn.dbInitJob" (dict
+      "ctx" .
+      "jobName" "dagster-db-init"
+      "namespace" .Release.Namespace
+      "inCluster" .Values.create_db_deployment
+      "host" (include "dagsterDbHost" .)
+      "port" (include "dbPort" .)
+      "superuser" .Values.db.superuser
+      "superuserSecret" $superuserSecret
+      "roles" (list (dict
+        "user" (include "dagsterDbUser" .)
+        "dbname" (include "dagsterDbName" .)
+        "secret" (dict "name" (include "dagsterDbSecretName" .) "key" (include "dagsterDbSecretKey" .))))) }}
+{{- end }}
+{{- else }}
+{{- /* Nothing to create, so verify what the DBA created instead. */}}
+{{- $checkRoles := list
+      (dict "user" .Values.backend.db.user "dbname" .Values.backend.db.name "secret" .Values.backend.db.secret)
+      (dict "user" .Values.keycloak.db.user "dbname" .Values.keycloak.db.name "secret" .Values.keycloak.db.secret) -}}
+{{- if .Values.dagster.enabled -}}
+{{- $checkRoles = append $checkRoles (dict
+      "user" (include "dagsterDbUser" .)
+      "dbname" (include "dagsterDbName" .)
+      "host" (include "dagsterDbHost" .)
+      "port" (((.Values.dagster.postgresql).service).port | default (include "dbPort" .))
+      "secret" (dict "name" (include "dagsterDbSecretName" .) "key" (include "dagsterDbSecretKey" .))) -}}
+{{- end }}
+{{- include "fn.dbCheckJob" (dict
+      "ctx" .
+      "jobName" "db-check"
+      "namespace" .Release.Namespace
+      "inCluster" .Values.create_db_deployment
+      "host" (include "dbHost" .)
+      "port" (include "dbPort" .)
+      "roles" $checkRoles) }}
+{{- end }}
+{{- /* The dataset server is the chart's own, so it follows datasetDb.create alone. */}}
+{{- if .Values.datasetDb.create }}
+{{- $roles := list -}}
+{{- range $key, $cfg := .Values.datasetDb.dbs -}}
+{{- $roles = append $roles (dict "user" $cfg.user "dbname" $cfg.name "secret" $cfg.secret) -}}
+{{- end }}
+{{- if $roles }}
+---
+{{ include "fn.dbInitJob" (dict
+      "ctx" .
+      "jobName" "db-datasets-init"
+      "namespace" .Release.Namespace
+      "inCluster" .Values.datasetDb.create
+      "host" .Values.datasetDb.host
+      "port" (.Values.datasetDb.port | default 5432)
+      "superuser" .Values.datasetDb.superuser
+      "superuserSecret" .Values.datasetDb.secret
+      "roles" $roles) }}
+{{- end }}
+{{- end }}

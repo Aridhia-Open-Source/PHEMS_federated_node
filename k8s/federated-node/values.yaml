@@ -2,7 +2,9 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-default_image_tag: 1.9.0
+# Tag for every image this chart publishes. Unset tracks the chart's appVersion,
+# which is how the images are tagged when built. Set it only to pin an older build.
+# default_image_tag:
 dagsterHome: /opt/dagster/home
 
 backend:
@@ -31,18 +33,18 @@ keycloak:
 
 alpine:
   image: ghcr.io/aridhia-open-source/alpine
-  tag: 1.9.0
+  tag:
 
 autoscaling:
   enabled: false
 
-namespaces: &namespaces
-  keycloak: keycloak
-  tasks: tasks
-  controller: fn-controller
-
+# Set these under `global` so the task-controller subchart sees the same values -
+# it reads global.namespaces too, and a top-level copy would only reach this chart.
 global:
-  namespaces: *namespaces
+  namespaces:
+    keycloak: keycloak
+    tasks: tasks
+    controller: fn-controller
 
 token:
   life: 2592000
@@ -50,21 +52,52 @@ token:
 # Local Development-related options
 local_development: false
 create_db_deployment: false
-copySecrets: true
 
 db:
   enforceSSL: false
   port: 5432
-  # Superuser/admin login the *-db-init jobs connect as. Azure Database for PostgreSQL
-  # Flexible Server has no role called "postgres" - use the admin user chosen at
-  # server creation time instead.
+  # Create and maintain each component's database, role and grants with the *-db-init
+  # hooks. Set false when a DBA has already created them and you have no admin login:
+  # the chart then needs no superuser, generates no passwords, and each role password
+  # becomes a secret you supply. A db-check hook verifies them before install.
+  manageRolesAndDatabases: true
+  # Admin login the *-db-init jobs connect as. Azure Flexible Server has no role
+  # called "postgres". Unused when manageRolesAndDatabases is false.
   superuser: postgres
+  # Generated when create_db_deployment is true; yours when Postgres is external;
+  # unused when manageRolesAndDatabases is false.
   secret:
     name: postgres-superuser
     key: password
+  # Create the per-role password Secrets. Set false when something else owns them -
+  # External Secrets, SealedSecrets, Vault, or a one-off kubectl - and the chart will
+  # expect them to exist instead. It never needs their value at render time: db-init
+  # reads them through secretKeyRef at runtime.
+  #
+  # This is also the answer for ArgoCD and `helm diff`, which render without cluster
+  # access: the chart cannot reuse an existing password there, so left to generate one
+  # it would emit a new Secret on every sync.
+  createPasswordSecrets: true
+  # Fixed passwords instead of generated ones. For tests and throwaway clusters via
+  # --set; do not put real passwords in a values file, since they end up in git, in
+  # `helm get values` and in the release Secret. Use createPasswordSecrets: false and
+  # a secret manager instead.
+  passwords: {}
+    # superuser:
+    # backend:
+    # keycloak:
+    # dagster:
+    # datasets:
+    #   superuser:
+    #   uc1:
 
+# A second, in-cluster Postgres holding dataset data - a development fixture. Real
+# datasets are registered through the /datasets API. `create` covers deploying the
+# server and creating the roles in `dbs`, so `dbs` without it is rejected.
 datasetDb:
   create: false
+  # Defaults to the in-cluster Service created alongside it.
+  host: db-datasets
   port: 5432
   superuser: postgres
   secret:
@@ -170,11 +203,12 @@ fn-task-controller:
     # local:
     #   path:
 
-  idp: {}
-    # github:
-    #   secret_name:
-    #   secret_key:
-    #   clientid_key:
+  # Null, not {}: the subchart ships idp.github as a map of nulls whose schema then
+  # requires all four keys, so leaving it alone fails validation. Set the whole map
+  # (secret_name, secret_key, clientid_key, orgAndRepo) to use a GitHub App as the
+  # task IdP. Helm's "cannot overwrite table with non table" warning here is cosmetic.
+  idp:
+    github: null
   delivery:
     github: {}
       # repository:
@@ -215,28 +249,32 @@ traefik:
 
 ### Dagster Internal Config
 fnDagster:
+  image: ghcr.io/aridhia-open-source/dagster_fn
+  tag:
   artifactMountPath: /mnt/dagster/artifacts
   artifactsPvcName: artifacts-pvc
   createDB: false
-  # Permissions on the artifacts volume, which analytical (pipes) pods write results to.
-  # Kept separate from storage.mountOptions, which the backend also consumes for its
-  # per-task PVs - see the dagsterArtifactsMountOptions helper.
+  # The code location (gRPC) server, owned by this chart rather than the
+  # dagster-user-deployments subchart. `name` is the gRPC host in the workspace file.
+  codeServer:
+    name: dagster-fn
+    port: 3030
+    replicas: 1
+    module: app.definitions
+    # resources: {}
+  # Permissions on the artifacts volume that analytical (pipes) pods write results to.
+  # Separate from storage.mountOptions, which the backend's per-task PVs also use -
+  # see the dagsterArtifactsMountOptions helper.
   artifacts:
-    # Azure Files only. 0777 keeps the volume writable by an analytical image running
-    # as any uid, and keeps the root run pod able to read what a non-root pod wrote.
+    # Azure Files only. 0777 keeps the volume writable by an image running as any uid.
     fileMode: "0777"
     dirMode: "0777"
-    # Escape hatch: if set, replaces ALL computed mount options for this volume.
+    # If set, replaces ALL computed mount options for this volume.
     mountOptions: []
-    # Pod-level securityContext for pipes task pods. All optional, and none of it is
-    # needed for a non-root analytical image to write its results: the run pod already
-    # creates <artifactMountPath>/<run_id> mode 0777 before the task pod starts.
-    # These are for pinning pod identity, or for reading files the run pod left with
-    # restrictive modes. Note fsGroup is a no-op on Azure Files (fsGroupPolicy
-    # ReadWriteOnceWithFSType on a RWX volume), on EFS and on NFS - it only does
-    # anything on storage.local.
-    # Leave runAsUser unset unless you know the analytical image's uid: setting it
-    # overrides the image's own USER.
+    # Optional pod securityContext for pipes task pods. Not needed for a non-root
+    # image to write its results - the run pod pre-creates <mount>/<run_id> 0777 -
+    # only for pinning pod identity. fsGroup does nothing except on storage.local,
+    # and runAsUser overrides the image's own USER.
     securityContext: {}
       # fsGroup: 1001
       # runAsUser: 1001
@@ -245,13 +283,9 @@ fnDagster:
   gh: {}
     # delivery_repo: owner/repo
     # resultsDir: "mgmt/results"
-  db:
-    name: dagster
-    user: dagster_admin
-    # host: your-db-host
-    secret:
-      name: dagster-postgresql-secret
-      key: postgresql-password
+  # No db block here: Dagster's database name and user come from
+  # dagster.postgresql.*, its host from db.host, and its password secret from
+  # global.postgresqlSecretName. See templates/_db.tpl.
 
 ### Dagster Subchart Config
 dagster:
@@ -265,23 +299,23 @@ dagster:
   global:
     dagsterHome: /opt/dagster/home
 
+  # The single source of truth for Dagster's database: the subchart reads these keys
+  # itself, and this chart reads them back.
   postgresql:
     enabled: false
-    # Must be set when postgresql.enabled is false, otherwise the generated instance
-    # config gets an empty hostname. Use the in-cluster service (db.<namespace>.svc)
-    # or an external server (e.g. Azure Database for PostgreSQL).
-    # postgresqlHost: db.fn.svc
-    # postgresqlDatabase: dagster
-    # postgresqlUsername: admin
-    # Azure Database for PostgreSQL requires TLS. The parent chart's db.enforceSSL
-    # only covers the backend, so set this explicitly for Dagster:
+    # Must equal db.host, and has to be written twice because Helm cannot template a
+    # subchart value. The chart fails at render time if they disagree. Use an anchor:
+    #   db: {host: &dbHost db.fn.svc}
+    #   dagster: {postgresql: {postgresqlHost: *dbHost}}
+    # postgresqlHost:
+    postgresqlDatabase: dagster
+    postgresqlUsername: dagster_admin
+    # Azure requires TLS, and db.enforceSSL only covers the backend. The chart
+    # insists on this when db.enforceSSL is set:
     # postgresqlParams:
     #   sslmode: require
-  #   service:
-  #     port: 5432
-  #   persistence:
-  #     enabled: true
-  #     storageClass: standard
+    # service:
+    #   port: 5432
 
   runLauncher:
     type: K8sRunLauncher
@@ -291,11 +325,9 @@ dagster:
         # image pull policy to anything other than "Always" will use a cached/stale image, which is
         # almost certainly not what you want.
         imagePullPolicy: "Always"
-        # The run launcher can be deployed with a fixed image (no user code included)
-        image:
-          repository: ghcr.io/aridhia-open-source/dagster_fn
-          tag: "1.9.0"
-          pullPolicy: "Always"
+        # No `image` on purpose: without it Dagster uses the code location's image,
+        # published as DAGSTER_CURRENT_IMAGE from fnDagster.image/tag, so no tag has
+        # to be hand-written into a subchart value.
 
         envConfigMaps:
           - name: dagster-env-config
@@ -313,98 +345,21 @@ dagster:
           - name: artifacts-pvc
             mountPath: /mnt/dagster/artifacts
 
-  dagsterDaemon:
-    extraPrependedInitContainers:
-      - name: wait-for-db
-        image: ghcr.io/aridhia-open-source/alpine:1.9.0
-        imagePullPolicy: Always
-        command:
-          - sh
-          - -c
-          - |
-            until pg_isready -h $DAGSTER_PG_HOST -p 5432; do
-              echo "waiting for postgres..."
-              sleep 2
-            done
-        env:
-          - name: DAGSTER_PG_HOST
-            valueFrom:
-              configMapKeyRef:
-                name: dagster-env-config
-                key: DAGSTER_PG_HOST
+  # No wait-for-db init containers: the subchart's own checkDbReadyInitContainer
+  # already runs pg_isready for the daemon and webserver, and the db-init hooks
+  # create the databases before any of this starts.
 
   dagsterWebserver:
-    extraPrependedInitContainers:
-      - name: wait-for-db
-        image: ghcr.io/aridhia-open-source/alpine:1.9.0
-        imagePullPolicy: Always
-        command:
-          - sh
-          - -c
-          - |
-            until pg_isready -h $DAGSTER_PG_HOST -p 5432; do
-              echo "waiting for postgres..."
-              sleep 2
-            done
-        env:
-          - name: DAGSTER_PG_HOST
-            valueFrom:
-              configMapKeyRef:
-                name: dagster-env-config
-                key: DAGSTER_PG_HOST
+    # The code location list comes from a ConfigMap this chart writes
+    # (templates/dagster-code-server.yaml). `servers` is required by the subchart's
+    # schema even when externalConfigmap is set.
+    workspace:
+      enabled: true
+      servers: []
+      externalConfigmap: dagster-workspace
 
   dagster-user-deployments:
-    # Creates a workspace file with the gRPC servers hosting your user code.
+    # Keep the workspace file, but not the subchart's Deployment/Service/SA/RBAC -
+    # this chart provides the code server. `deployments` is not read in this mode.
     enabled: true
-    # If you plan on deploying user code in a separate Helm release, set this to false.
-    enableSubchart: true
-
-    # Specify secrets to run user code server containers based on images in private registries. See:
-    # https://kubernetes.io/docs/concepts/containers/images/#referring-to-an-imagepullsecrets-on-a-pod
-    imagePullSecrets: []
-
-    # List of unique deployments
-    deployments:
-      - name: "dagster-fn"
-        port: 3030
-        image:
-          repository: ghcr.io/aridhia-open-source/dagster_fn
-          tag: "1.9.0"
-
-          # Change with caution! If you're using a fixed tag for pipeline run images, changing the
-          # image pull policy to anything other than "Always" will use a cached/stale image, which is
-          # almost certainly not what you want.
-          pullPolicy: "Always"
-
-        envConfigMaps:
-          - name: dagster-env-config
-
-        envSecrets:
-          - name: github-token
-          - name: dagster-keycloak-creds
-
-        # Arguments to `dagster api grpc`.
-        # Ex: "dagster api grpc -m dagster_test.test_project.test_jobs.repo -a define_demo_execution_repo"
-        # would translate to:
-        dagsterApiGrpcArgs:
-          - "-m"
-          - "app.definitions"
-
-        initContainers:
-          - name: wait-for-db
-            image: ghcr.io/aridhia-open-source/alpine:1.9.0
-            imagePullPolicy: Always
-            command:
-              - sh
-              - -c
-              - |
-                until pg_isready -h $DAGSTER_PG_HOST -p 5432; do
-                  echo "waiting for postgres..."
-                  sleep 2
-                done
-            env:
-              - name: DAGSTER_PG_HOST
-                valueFrom:
-                  configMapKeyRef:
-                    name: dagster-env-config
-                    key: DAGSTER_PG_HOST
+    enableSubchart: false

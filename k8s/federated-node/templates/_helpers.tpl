@@ -42,6 +42,24 @@ Create chart name and version as used by the chart label.
 {{- define "image-tag" -}}
 {{ (.Values.default_image_tag) | default .Chart.AppVersion }}
 {{- end }}
+{{/* The Dagster code image. Run pods inherit it via DAGSTER_CURRENT_IMAGE. */}}
+{{- define "dagster-fn-image" -}}
+{{ printf "%s:%s" (.Values.fnDagster.image) ((.Values.fnDagster.tag) | default (include "image-tag" . | trim)) }}
+{{- end }}
+{{- define "dagsterCodeServerName" -}}
+{{- ((.Values.fnDagster).codeServer).name | default "dagster-fn" -}}
+{{- end }}
+{{- define "dagsterCodeServerPort" -}}
+{{- ((.Values.fnDagster).codeServer).port | default 3030 -}}
+{{- end }}
+{{- define "dagsterCodeServerServiceAccount" -}}
+{{- printf "%s-dagster-code-server" .Release.Name -}}
+{{- end }}
+{{/* Not release-prefixed: the subchart names it in a value, which cannot be
+     templated. One release per namespace, as with dagster-env-config. */}}
+{{- define "dagsterWorkspaceConfigMap" -}}
+dagster-workspace
+{{- end }}
 {{- define "keycloak-image-tag" -}}
 {{ (.Values.keycloak).tag | default .Chart.AppVersion }}
 {{- end }}
@@ -65,41 +83,6 @@ Selector labels
 app.kubernetes.io/name: {{ include "federated-node.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
-
-{{- define "createDBInitContainer" -}}
-{{- $ctx := .ctx -}}
-{{- $cfg := .cfg -}}
-- image: {{ include "fn-alpine" $ctx }}
-  name: dbinit
-  command: [ "dbinit" ]
-  imagePullPolicy: {{ $ctx.Values.pullPolicy }}
-  {{- include "nonRootSC" $ctx | nindent 2 }}
-  env:
-  - name: PGUSER
-    valueFrom:
-      configMapKeyRef:
-        name: {{ $cfg.configMapName }}
-        key: {{ $cfg.userKey }}
-  - name: PGHOST
-    valueFrom:
-      configMapKeyRef:
-        name: {{ $cfg.configMapName }}
-        key: {{ $cfg.hostKey }}
-  - name: PGPASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: {{ $cfg.secretName }}
-        key: {{ $cfg.secretKey }}
-{{- end -}}
-
-
-{{- define "dbPort" -}}
-  {{ .Values.db.port | quote }}
-{{- end -}}
-
-{{- define "dbUser" -}}
-  {{ .Values.db.user | quote }}
-{{- end -}}
 
 {{- define "backendDbName" -}}
   {{ .Values.backend.db.name | quote }}
@@ -186,13 +169,13 @@ securityContext:
   {{- join " " (.Values.integrations).domains -}}
 {{- end -}}
 {{- define "kc_namespace" -}}
-{{ ((.Values.global).namespaces).keycloak | default .Values.namespaces.keycloak }}
+{{ ((.Values.global).namespaces).keycloak | default "keycloak" }}
 {{- end -}}
 {{- define "tasks_namespace" -}}
-{{ ((.Values.global).namespaces).tasks | default .Values.namespaces.tasks }}
+{{ ((.Values.global).namespaces).tasks | default "tasks" }}
 {{- end -}}
 {{- define "controller_namespace" -}}
-{{ ((.Values.global).namespaces).controller | default .Values.namespaces.controller }}
+{{ ((.Values.global).namespaces).controller | default "fn-controller" }}
 {{- end -}}
 {{- define "testsBaseUrl" }}
 {{- if not .Values.local_development -}}

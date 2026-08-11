@@ -22,11 +22,14 @@ spec:
           secretKeyRef:
             name: kc-secrets
             key: KEYCLOAK_ADMIN_PASSWORD
+      {{- /* The backend's own role, not the superuser: all this needs is to delete a
+             row from the backend database, and asking for an admin login here would
+             mean there is no such thing as an install without one. */}}
       - name: PGPASSWORD
         valueFrom:
           secretKeyRef:
-            name: {{ .Values.db.secret.name }}
-            key: {{ .Values.db.secret.key }}
+            name: {{ .Values.backend.db.secret.name }}
+            key: {{ .Values.backend.db.secret.key }}
       - name: BACKEND_URL
         value: {{ include "testsBaseUrl" . }}
       envFrom:

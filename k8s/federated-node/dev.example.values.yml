@@ -1,0 +1,129 @@
+# Example values for LOCAL DEVELOPMENT on kind.
+#
+#   cp .dev.env.example .dev.env                 # then fill in GH_TOKEN etc.
+#   cp dev.example.values.yml dev.values.yaml    # dev.values.yaml is gitignored
+#   ./scripts/cluster.sh up && make deploy
+#
+# Images come from the kind registry at localhost:5001 (scripts/build_all_images.sh).
+# Everything else comes from values.yaml, including every database password:
+#
+#   make show-db-passwords
+#
+# For a real deployment see the wiki: Prerequisites, Deploy-Core and your platform page.
+
+local_development: true      # http instead of https, in-cluster test URLs
+create_db_deployment: true   # run Postgres in the cluster instead of a managed one
+
+# Optional, all off by default:
+# taskReview: true           # tasks need approval before they run
+# smoketests: true           # `helm test` creates and deletes real db/keycloak rows
+# cleanupTime: 3             # days results and task resources are kept
+#
+# outboundMode deploys the task controller - the older results-delivery path, which
+# Dagster replaces. Only for working on outbound-only mode:
+# outboundMode: true
+# fn-task-controller:
+#   storage:
+#     local:
+#       path: /data/controller
+#   delivery:
+#     other:
+#       url: federated-node.example.net
+#       auth_type: AzCopy
+
+host: &host phems-federatednode.net
+global:
+  host: *host
+
+# The one Postgres server. The *-db-init hooks create the databases, roles and
+# passwords. The .svc name embeds the namespace - keep it in step with NAMESPACE.
+db:
+  host: &dbHost db.fn.svc
+
+# Host paths on the kind node, created by scripts/deploy.sh.
+storage:
+  capacity: 1Gi
+  local:
+    path: /data/flask                  # backend results
+    dbpath: /data/db                   # postgres data
+    datasetDbpath: /data/datasets      # dataset postgres data (datasetDb below)
+    artifacts: /data/dagster/artifacts # dagster artifacts volume
+
+# Locally built images; devTag must match DOCKER_TAG in .dev.env. On a real cluster
+# you set none of this - the chart's images track its appVersion.
+backend:
+  image: localhost:5001/webserver-fn
+  tag: &devTag "v1"
+
+alpine:
+  image: localhost:5001/alpine-fn
+  tag: *devTag
+
+keycloak:
+  # Not built locally. Remove to track the chart's appVersion.
+  tag: "1.9.0"
+  initializer:
+    image: localhost:5001/kc-init-fn
+    tag: *devTag
+
+# Origins allowed to call the API (CSP).
+integrations:
+  domains:
+    - http://localhost:8088
+    - https://phems-federatednode.net
+
+# First admin user. Its password comes from KEYCLOAK_FIRST_USER_PASSWORD in .dev.env.
+firstUserSecret:
+  name: keycloak-first-user
+  passKey: PASSWORD
+  firstName: Dev
+  lastName: User
+  email: dev.user+admin@example.org
+
+# A second in-cluster Postgres holding dataset data, needed by `make uc1-seed`.
+datasetDb:
+  create: true
+  host: db-datasets.fn.svc
+  dbs:
+    uc1:
+      name: uc1_omop
+      user: uc1_omop_user
+      secret:
+        name: db-datasets-uc1
+        key: password
+
+## Subcharts
+
+### Dagster - Federated Node side
+fnDagster:
+  image: localhost:5001/dagster-fn
+  tag: *devTag
+  createDB: true               # run the dagster-db-init job
+  gh:
+    delivery_repo: https://github.com/Aridhia-Open-Source/phems-sandbox
+    resultsDir: "mgmt/results"
+  # Pipes pods can write results as any uid without help. Only pin identity if you
+  # need to; fsGroup does nothing except on storage.local.
+  # artifacts:
+  #   securityContext:
+  #     fsGroup: 1001
+
+### Dagster - upstream subchart
+dagster:
+  enabled: true
+
+  # Must equal db.host, and has to be a literal because Helm cannot template a
+  # subchart value - hence the anchor. The database name and user live here too, so
+  # never set fnDagster.db.
+  postgresql:
+    postgresqlHost: *dbHost
+
+  # No image tags, init containers or deployments list needed: the code server is
+  # part of this chart and takes its image from fnDagster.image/tag above.
+  #
+  # If your kind cannot reach the Docker Hub mirror that check-db-ready uses:
+  # postgresql:
+  #   image:
+  #     registry: localhost:5002
+  #     repository: library/postgres
+  #     tag: "14.6"

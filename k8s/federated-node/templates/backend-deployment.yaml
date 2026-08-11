@@ -21,52 +21,12 @@ spec:
     spec:
       serviceAccountName: secret-backend-handler
       initContainers:
-        - name: wait-for-db
-          image: {{ include "fn-alpine" . }}
-          imagePullPolicy: {{ .Values.pullPolicy }}
-          {{- include "nonRootSC" . | nindent 10 }}
-          command:
-            - sh
-            - -c
-            - |
-              until pg_isready -h $PGHOST -p {{ .Values.db.port }}; do
-                echo "waiting for postgres..."
-                sleep 2
-              done
-          env:
-            - name: PGHOST
-              valueFrom:
-                configMapKeyRef:
-                  name: backend-configmap
-                  key: PGHOST
-        - name: wait-for-backend-database
-          image: {{ include "fn-alpine" . }}
-          imagePullPolicy: {{ .Values.pullPolicy }}
-          {{- include "nonRootSC" . | nindent 10 }}
-          command:
-            - sh
-            - -c
-            - |
-              until psql -h $PGHOST -p {{ .Values.db.port }} -U {{ .Values.db.superuser }} -d postgres -c "SELECT 1 FROM pg_database WHERE datname='$BACKEND_DB_NAME'" | grep -q 1; do
-                echo "waiting for backend database..."
-                sleep 2
-              done
-          env:
-            - name: PGHOST
-              valueFrom:
-                configMapKeyRef:
-                  name: backend-configmap
-                  key: PGHOST
-            - name: BACKEND_DB_NAME
-              valueFrom:
-                configMapKeyRef:
-                  name: backend-configmap
-                  key: BACKEND_DB_NAME
-            - name: PGPASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-superuser
-                  key: password
+        {{- /* backend-db-init is a pre-install hook, so the database already exists
+               by now - except with an in-cluster Postgres, where the server is part
+               of this release and its hook runs post-install. */}}
+        {{- if .Values.create_db_deployment }}
+        {{- include "pgWaitContainer" (dict "ctx" . "host" (include "dbHost" .) "port" (include "dbPort" .)) | nindent 8 }}
+        {{- end }}
         - name: db-migrations
           image: {{ template "backend-image" . }}
           command: ["/bin/sh"]

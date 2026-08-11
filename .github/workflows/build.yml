@@ -105,6 +105,26 @@ jobs:
   #     - name: Run hadolint
   #       run: |
   #         make hadolint
+  chart-checks:
+    needs: init
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      # Guards the "renders without cluster access" property that ArgoCD and
+      # `helm diff` depend on.
+      - name: Render the chart without a cluster
+        run: |
+          make helm_lint
+          make helm_template
+
+      - name: Run Helm unittests
+        run: |
+          make helm_tests
+
   # tests:
   #   needs:
   #     - init
@@ -226,6 +246,7 @@ jobs:
     if: always() && !failure() && !cancelled()
     needs:
       - init
+      - chart-checks
       - build-flask-image
       - build-keycloak-image
       - build-alpine-image
