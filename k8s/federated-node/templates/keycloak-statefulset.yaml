@@ -14,39 +14,17 @@ spec:
   template:
     metadata:
       annotations:
-        rollme: {{ template "rollMe" . }}
+        fn.aridhia.com/credential-generation: {{ .Values.keycloak.credentialGeneration | default 1 | quote }}
+        checksum/kc-config: {{ include (print $.Template.BasePath "/keycloak-configmap.yaml") . | sha256sum }}
       labels:
         app: keycloak
     spec:
+      {{- if .Values.create_db_deployment }}
       initContainers:
-        {{- /* keycloak-db-init is a pre-install hook, so the database already exists
-               by now - except with an in-cluster Postgres, where the server is part
-               of this release and its hook runs post-install. */}}
-        {{- if .Values.create_db_deployment }}
         {{- include "pgWaitContainer" (dict "ctx" . "host" (include "dbKeycloakHost" . | trim) "port" (include "dbPort" .)) | nindent 8 }}
-        {{- end }}
-        - name: credentials-reset
-          imagePullPolicy: {{ .Values.pullPolicy }}
-          image: {{ include "fn-alpine" . }}
-          command: ["keycloak-reset"]
-          {{- include "nonRootSC" . | nindent 10 }}
-          env:
-          - name: PGPASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: {{ .Values.keycloak.db.secret.name }}
-                key: {{ .Values.keycloak.db.secret.key }}
-          - name: KC_NAMESPACE
-            value: {{ include "kc_namespace" . }}
-          - name: PGDATABASE
-            value: {{ .Values.keycloak.db.name | quote }}
-          envFrom:
-          - secretRef:
-              name: kc-secrets
-          - configMapRef:
-              name: keycloak-config
+      {{- end }}
       containers:
-        - image: ghcr.io/aridhia-open-source/federated_keycloak:{{ include "keycloak-image-tag" . }}
+        - image: {{ include "keycloak-image" . }}
           args: [
             "start",
             "--import-realm",
@@ -96,10 +74,3 @@ spec:
             items:
             - key: quarkus.properties
               path: quarkus.properties
-        - name: db-init
-          configMap:
-            name: keycloak-start-config
-            defaultMode: 0777
-            items:
-            - key: dbinit.sh
-              path: dbinit.sh

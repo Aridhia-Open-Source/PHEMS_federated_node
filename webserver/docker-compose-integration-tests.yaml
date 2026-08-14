@@ -27,17 +27,18 @@ services:
       - db
     environment:
       KC_HOSTNAME_STRICT: false
-      # Features are baked into the image by `kc.sh build` in build/keycloak/Dockerfile.
-      # Passing them again at runtime with --optimized is rejected by Keycloak.
-      KC_HEALTH_ENABLED: true
+      # No KC_FEATURES / KC_HEALTH_ENABLED / KC_DB here: those are build-time options, baked
+      # into the image by `kc.sh build` in build/keycloak/Dockerfile. Passing them again at
+      # runtime with --optimized is rejected by Keycloak.
       KC_DB_URL_HOST: db
-      KC_DB: postgres
       KC_DB_URL_PORT: ${PGPORT}
       KC_DB_URL_DATABASE: ${PGDATABASE}
       KC_DB_USERNAME: ${PGUSER}
       KC_DB_PASSWORD: ${PGPASSWORD}
       KEYCLOAK_ADMIN:
       KEYCLOAK_ADMIN_PASSWORD:
+      KEYCLOAK_SERVICE_USER:
+      KEYCLOAK_SERVICE_PASSWORD:
       KC_BOOTSTRAP_ADMIN_USERNAME:
       KC_BOOTSTRAP_ADMIN_PASSWORD:
       KEYCLOAK_SECRET:
@@ -60,6 +61,8 @@ services:
         condition: service_healthy
     environment:
       KEYCLOAK_ADMIN_PASSWORD:
+      KEYCLOAK_SERVICE_USER:
+      KEYCLOAK_SERVICE_PASSWORD:
       KEYCLOAK_SECRET:
       KEYCLOAK_ADMIN:
       KEYCLOAK_URL:
@@ -73,3 +76,9 @@ services:
       - ../build/kc-init/setup_realm.py:/scripts/setup_realm.py
       - ../build/kc-init/common.py:/scripts/common.py
       - ../build/kc-init/settings.py:/scripts/settings.py
+      - ../build/kc-init/migrations:/scripts/migrations
+      - ../build/kc-init/secrets_reader.py:/scripts/secrets_reader.py
+      - ../build/kc-init/rotate_credentials.py:/scripts/rotate_credentials.py
+      # realms.json, so the partial import has something to converge from. In a cluster this
+      # arrives via the keycloak-realm-config ConfigMap mounted at the same path.
+      - ../k8s/federated-node/scripts/realms.json:/realm-config/realms.json

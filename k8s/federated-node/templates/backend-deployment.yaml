@@ -91,8 +91,6 @@ spec:
                 name: backend-configmap
             - configMapRef:
                 name: keycloak-config
-            - secretRef:
-                name: kc-secrets
           env:
           - name: BACKEND_DB_PASSWORD
             valueFrom:
@@ -103,7 +101,13 @@ spec:
             - name: respv
               mountPath: {{ .Values.federatedNode.volumes.results_path }}
               subPath: results
+            - name: kc-secrets
+              mountPath: {{ include "kcSecretsMountPath" . }}
+              readOnly: true
       volumes:
         - name: respv
           persistentVolumeClaim:
             claimName: {{ include "backendResultsPVCName" . }}
+        - name: kc-secrets
+          secret:
+            secretName: kc-secrets
