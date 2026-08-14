@@ -44,8 +44,23 @@ fi
 for path in "${HOST_MOUNT_PATHS[@]}"; do
   echo "mkdir $path"
   mkdir -p "$path"
-  # The containers that write here run as their own uids (postgres is 70).
-  chmod 777 "$path"
+  # The containers that write here run as their own uids (postgres is 70), so a directory
+  # they are about to initialise has to be world-writable first.
+  #
+  # Only while we still own it, though. initdb takes ownership of PGDATA and tightens it to
+  # 0700 - Postgres refuses to start on a group- or world-accessible data directory - so on
+  # any later run this chmod is both impossible (the directory now belongs to uid 70 and we
+  # are not root) and wrong (it would put PGDATA back into a state Postgres rejects). Under
+  # `set -e` that failure aborted the deploy, so `make deploy` only ever worked once per
+  # fresh data directory.
+  #
+  # Tested with -O rather than emptiness: a 0700 directory owned by another uid is one we
+  # cannot even list, so an `ls` test reports it empty and chmods it regardless.
+  if [ -O "$path" ]; then
+    chmod 777 "$path"
+  else
+    echo "  owned by uid $(stat -c %u "$path"), which initialised it - leaving it alone"
+  fi
 done
 
 echo
