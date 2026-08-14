@@ -6,6 +6,9 @@ export PGDATABASE=test_app
 export PGPORT=5432
 export PGUSER=admin
 export PGPASSWORD=test_app
+export BACKEND_DB_USER=$PGUSER
+export BACKEND_DB_PASSWORD=$PGPASSWORD
+export BACKEND_DB_NAME=$PGDATABASE
 export KEYCLOAK_URL=http://keycloak:8080
 export KEYCLOAK_REALM=FederatedNode
 export KEYCLOAK_CLIENT=global
@@ -28,9 +31,12 @@ export CONTROLLER_NAMESPACE=fn-controller
 export COMPOSE_FILE="docker-compose-integration-tests.yaml"
 
 echo "Starting docker compose"
+# `compose run --name` leaves the container behind, and `compose rm` does not clean a
+# container it did not name itself - so a second run hits a name conflict.
+docker rm -f keycloak-test-initializer > /dev/null 2>&1 || true
 docker compose -f "$COMPOSE_FILE" run --quiet-pull --name keycloak-test-initializer kc_init
 exit_code=$?
-if [[ exit_code -gt 0 ]]; then
+if [[ $exit_code -gt 0 ]]; then
     echo "Something went wrong. Here are some logs"
     docker compose -f "$COMPOSE_FILE" logs keycloak
     docker compose -f "$COMPOSE_FILE" logs kc_init
@@ -38,4 +44,5 @@ fi
 echo "Cleaning up compose resources"
 docker compose -f "$COMPOSE_FILE" stop
 docker compose -f "$COMPOSE_FILE" rm -f
+docker rm -f keycloak-test-initializer > /dev/null 2>&1 || true
 exit $exit_code

@@ -6,6 +6,10 @@ export PGDATABASE=test_app
 export PGPORT=5432
 export PGUSER=admin
 export PGPASSWORD=test_app
+# The app builds its URI from BACKEND_DB_*; PG* stay for psql inside the container.
+export BACKEND_DB_USER=$PGUSER
+export BACKEND_DB_PASSWORD=$PGPASSWORD
+export BACKEND_DB_NAME=$PGDATABASE
 export KEYCLOAK_URL=http://keycloak:8080
 export KEYCLOAK_REALM=FederatedNode
 export KEYCLOAK_CLIENT=global
@@ -33,9 +37,10 @@ if [[ "$is_ci" != "ci" ]]; then
     docker cp flask-app-test:/app/artifacts/coverage.xml ../artifacts/
     docker rm flask-app-test
 else
+    docker rm -f flask-app-test > /dev/null 2>&1 || true
     docker compose -f docker-compose-tests-ci.yaml run --build --quiet-pull --name flask-app-test app
     exit_code=$?
-    if [[ exit_code -gt 0 ]]; then
+    if [[ $exit_code -gt 0 ]]; then
         echo "Something went wrong. Here are some logs"
         docker compose -f docker-compose-tests-ci.yaml logs app
     fi

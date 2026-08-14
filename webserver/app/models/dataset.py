@@ -66,8 +66,6 @@ class Dataset(db.Model, BaseModel):
         self.username = username
         self.password = password
         self.extra_connection_args = extra_connection_args
-        if repository:
-            self.repository = repository
 
         if self.type.lower() not in SUPPORTED_ENGINES:
             raise InvalidRequest(f"DB type {self.type} is not supported.")
@@ -80,6 +78,7 @@ class Dataset(db.Model, BaseModel):
         self.create_kubernetes_secret()
         delattr(self, "username")
         delattr(self, "password")
+        self.add_to_keycloak(user_id)
         return self
 
     @classmethod
@@ -131,7 +130,7 @@ class Dataset(db.Model, BaseModel):
 
     def get_credentials(self) -> tuple:
         """
-        Mostly used to create a direct connection to the DB, i.e. /beacon endpoint
+        Mostly used to create a direct connection to the DB
         This is not involved in the Task Execution Service
         """
         secret = self._get_secret(self.get_creds_secret_name())
@@ -151,55 +150,76 @@ class Dataset(db.Model, BaseModel):
                 "USERNAME": self.username,
                 "PASSWORD": self.password,
             },
-            namespaces=[DEFAULT_NAMESPACE, TASK_NAMESPACE]
+            namespaces=[DEFAULT_NAMESPACE, TASK_NAMESPACE],
+            # The labels update_kubernetes_secret already sets, so a secret reads the
+            # same whether it was created or updated last. Teardown selects on them to
+            # clear the ones the Helm release does not own.
+            labels={
+                "type": "database",
+                "host": self.get_creds_secret_name()
+            },
+            # Registering a dataset is what decides its credentials. Without this the
+            # create is refused as a conflict whenever a secret from a previous
+            # registration is still around - silently, so the dataset row is new while
+            # the password behind it is the old one, and the failure surfaces only much
+            # later as an authentication error inside a task pod.
+            overwrite=True
         )
 
     def add_to_keycloak(self, user_id=None):
-        raise NotImplementedError("Dataset Keycloak integration is not implemented yet.")
-        # kc_client = Keycloak()
-        # admin_policy = kc_client.get_policy('admin-policy')
-        # sys_policy = kc_client.get_policy('system-policy')
+        kc_client = Keycloak()
+        admin_policy = kc_client.get_policy('admin-policy')
+        sys_policy = kc_client.get_policy('system-policy')
 
-        # admin_ds_scope = []
-        # admin_ds_scope.append(kc_client.get_scope('can_admin_dataset'))
-        # admin_ds_scope.append(kc_client.get_scope('can_access_dataset'))
-        # admin_ds_scope.append(kc_client.get_scope('can_exec_task'))
-        # admin_ds_scope.append(kc_client.get_scope('can_admin_task'))
-        # admin_ds_scope.append(kc_client.get_scope('can_send_request'))
-        # admin_ds_scope.append(kc_client.get_scope('can_admin_request'))
-        # policy = kc_client.create_policy({
-        #     "name": f"{self.id} - {self.name} Admin Policy",
-        #     "description": f"List of users allowed to administrate the {self.name} dataset",
-        #     "logic": "POSITIVE",
-        #     "users": [user_id]
-        # }, "/user")
+        admin_ds_scope = []
+        admin_ds_scope.append(kc_client.get_scope('can_admin_dataset'))
+        admin_ds_scope.append(kc_client.get_scope('can_access_dataset'))
+        admin_ds_scope.append(kc_client.get_scope('can_exec_task'))
+        admin_ds_scope.append(kc_client.get_scope('can_admin_task'))
+        admin_ds_scope.append(kc_client.get_scope('can_send_request'))
+        admin_ds_scope.append(kc_client.get_scope('can_admin_request'))
+        policy = kc_client.create_policy({
+            "name": f"{self.id} - {self.name} Admin Policy",
+            "description": f"List of users allowed to administrate the {self.name} dataset",
+            "logic": "POSITIVE",
+            "users": [user_id]
+        }, "/user")
 
-        # resource_ds = kc_client.create_resource({
-        #     "name": f"{self.id}-{self.name}",
-        #     "displayName": f"{self.id} - {self.name}",
-        #     "scopes": admin_ds_scope,
-        #     "uris": []
-        # })
-        # kc_client.create_permission({
-        #     "name": f"{self.id}-{self.name} Admin Permission",
-        #     "description": "List of policies that will allow certain users or roles to administrate the dataset",
-        #     "type": "resource",
-        #     "logic": "POSITIVE",
-        #     "decisionStrategy": "AFFIRMATIVE",
-        #     "policies": [admin_policy["id"], sys_policy["id"], policy["id"]],
-        #     "resources": [resource_ds["_id"]],
-        #     "scopes": [scope["id"] for scope in admin_ds_scope]
-        # })
+        resource_ds = kc_client.create_resource({
+            "name": f"{self.id}-{self.name}",
+            "displayName": f"{self.id} - {self.name}",
+            "scopes": admin_ds_scope,
+            "uris": []
+        })
+        kc_client.create_permission({
+            "name": f"{self.id}-{self.name} Admin Permission",
+            "description": "List of policies that will allow certain users or roles to administrate the dataset",
+            "type": "resource",
+            "logic": "POSITIVE",
+            "decisionStrategy": "AFFIRMATIVE",
+            "policies": [admin_policy["id"], sys_policy["id"], policy["id"]],
+            "resources": [resource_ds["_id"]],
+            "scopes": [scope["id"] for scope in admin_ds_scope]
+        })
 
     def update(self, **kwargs):
         """
         Updates the instance with new values. These should be
         already validated.
         """
-        query = self.query.filter(Dataset.id == self.id)
-        query.update(**kwargs, synchronize_session='evaluate')
+        # Both of these compare kwargs against the current values - the secret's name
+        # and the Keycloak resource name are derived from them - so they run before the
+        # UPDATE, while self still holds the old ones.
         self.update_kubernetes_secret(**kwargs)
-        # self.update_keycloak(**kwargs)
+        self.update_keycloak(**kwargs)
+
+        # Query.update() takes a dict of column -> value. username and password are
+        # not columns and were handled above.
+        values = {k: v for k, v in kwargs.items() if k in self._get_fields_name()}
+        if values:
+            self.query.filter(Dataset.id == self.id).update(
+                values, synchronize_session='evaluate'
+            )
 
     def update_kubernetes_secret(self, **kwargs):
         if not kwargs:
@@ -216,13 +236,16 @@ class Dataset(db.Model, BaseModel):
             v1.read_namespaced_secret(secret_name, DEFAULT_NAMESPACE)
         )
 
-        # Update secret if credentials are provided
+        # Update secret if credentials are provided. The keys have to be the ones
+        # create_kubernetes_secret wrote, which are also the ones get_credentials, the
+        # task pod env and the Dagster pipes op read - anything else updates a key
+        # nobody looks at and leaves the old credentials in service.
         new_name = kwargs.get("name", None)
         if new_username:
-            secret.data["PGUSER"] = KubernetesClient.encode_secret_value(new_username)
+            secret.data["USERNAME"] = KubernetesClient.encode_secret_value(new_username)
         new_pass = kwargs.pop("password", None)
         if new_pass:
-            secret.data["PGPASSWORD"] = KubernetesClient.encode_secret_value(new_pass)
+            secret.data["PASSWORD"] = KubernetesClient.encode_secret_value(new_pass)
 
         secret_task: V1Secret = cast(
             V1Secret,
@@ -255,15 +278,14 @@ class Dataset(db.Model, BaseModel):
             raise KubernetesException(e.body, 400) from e
 
     def update_keycloak(self, **kwargs):
-        raise NotImplementedError("Dataset Keycloak integration is not implemented yet.")
-        # kc_client = Keycloak()
-        # new_name = kwargs.get("name", None)
-        # if new_name and new_name != self.name:
-        #     update_args = {
-        #         "name": f"{self.id}-{kwargs['name']}",
-        #         "displayName": f"{self.id} - {kwargs['name']}"
-        #     }
-        #     kc_client.patch_resource(f"{self.id}-{self.name}", **update_args)
+        kc_client = Keycloak()
+        new_name = kwargs.get("name", None)
+        if new_name and new_name != self.name:
+            update_args = {
+                "name": f"{self.id}-{kwargs['name']}",
+                "displayName": f"{self.id} - {kwargs['name']}"
+            }
+            kc_client.patch_resource(f"{self.id}-{self.name}", **update_args)
 
     @classmethod
     def get_dataset_by_name_or_id(

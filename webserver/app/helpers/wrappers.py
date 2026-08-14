@@ -101,7 +101,7 @@ def audit(func):
 
             response_object, http_status = func(*args, **kwargs)
 
-            if details and request.is_json:
+            if request.is_json and isinstance(details, (dict, list)):
                 # Remove any of the following fields that contain
                 # sensitive data, so far only username and password on dataset POST
                 for field in ["username", "password"]:

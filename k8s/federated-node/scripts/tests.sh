@@ -84,7 +84,7 @@ test_create_dataset() {
             \"username\": \"user\",
             \"password\": \"password1\",
             \"extra_connection_args\": \";TrustServerCertificate=Yes\"
-        }" | jq -e -r '.dataset_id')
+        }" | jq -e -r '.id')
 }
 
 test_dar() {

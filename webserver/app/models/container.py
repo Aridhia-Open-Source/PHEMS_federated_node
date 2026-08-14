@@ -46,9 +46,12 @@ class Container(db.Model, BaseModel):
 
     @classmethod
     def validate_image_format(cls, img_with_tag, img_with_sha):
-        if not (re.match(r'^\w[\w\.\-/]+\w:[\w\.\-]+$', img_with_tag) or re.match(r'^\w[\w\.\-/]+\w@(sha256:)?[a-fA-F0-9]{7,64}$', img_with_sha)):
+        tag_ok = re.match(r'^\w[\w\.\-/]+\w:[\w\.\-]+$', img_with_tag)
+        sha_ok = re.match(r'^\w[\w\.\-/]+\w@(sha256:)?[a-fA-F0-9]{7,64}$', img_with_sha)
+        if not (tag_ok or sha_ok):
             raise InvalidRequest(
-                f"{img_with_tag} does not have a tag or is malformed. Please provide one in the format <registry>/<image>:<tag> or <registry>/<image>@sha256.."
+                f"{img_with_tag} does not have a tag or is malformed. Please provide one in "
+                "the format <registry>/<image>:<tag> or <registry>/<image>@sha256.."
             )
 
     @classmethod
@@ -78,7 +81,10 @@ class Container(db.Model, BaseModel):
         # Resolve tag to SHA if SHA-restricted entries exist for this image
         if tag and not sha and base.filter(Container.sha != None).first():
             remote_sha = registry.get_registry_class().get_tag_sha(name, tag)
-            if remote_sha and base.filter(Container.sha == remote_sha, or_(Container.tag == None, Container.tag == tag)).first():
+            matches_sha = base.filter(
+                Container.sha == remote_sha, or_(Container.tag == None, Container.tag == tag)
+            ).first()
+            if remote_sha and matches_sha:
                 return True
 
         return False

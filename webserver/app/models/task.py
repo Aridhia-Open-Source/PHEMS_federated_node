@@ -12,13 +12,16 @@ from uuid import uuid4
 
 import urllib3
 from app.helpers.const import (
-    AUTO_DELIVERY_RESULTS, CLEANUP_AFTER_DAYS, CRD_DOMAIN, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, PUBLIC_URL, TASK_CONTROLLER,
+    AUTO_DELIVERY_RESULTS, CLEANUP_AFTER_DAYS, CRD_DOMAIN, MEMORY_RESOURCE_REGEX, MEMORY_UNITS,
+    CPU_RESOURCE_REGEX, PUBLIC_URL, TASK_CONTROLLER,
     TASK_NAMESPACE, TASK_POD_RESULTS_PATH, TASK_POD_INPUTS_PATH, RESULTS_PATH, TASK_REVIEW, ENABLE_IMAGE_WHITELIST
 )
 from app.helpers.base_model import BaseModel, db
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesBatchClient, KubernetesCRDClient, KubernetesClient
-from app.helpers.exceptions import DBError, InvalidRequest, TaskCRDExecutionException, TaskImageException, TaskExecutionException
+from app.helpers.exceptions import (
+    DBError, InvalidRequest, TaskCRDExecutionException, TaskImageException, TaskExecutionException
+)
 from app.helpers.task_pod import TaskPod
 from app.models import Models
 
@@ -101,8 +104,11 @@ class Task(db.Model, BaseModel):
         # Dataset validation
 
         if repository:
-            repo = Models.Repository.query.filter(Models.Repository.uri == repository.lower()).one_or_none()
-            data["dataset"] = Models.Models.Dataset.query.filter(Models.Dataset.repository_id == repo.id).one_or_none() if repo else None
+            repo = Models.Repository.query.filter(
+                Models.Repository.uri == repository.lower()
+            ).one_or_none()
+            # The link is Repository.dataset_id, so walk it from the repository.
+            data["dataset"] = repo.dataset if repo else None
             if data["dataset"] is None:
                 raise InvalidRequest(f"No datasets linked with the repository {repository}")
 
@@ -129,7 +135,9 @@ class Task(db.Model, BaseModel):
 
         # Validate that the image exists on the registry
         if not Models.Registry.validate_image_exist(data["docker_image"]):
-            raise TaskImageException(f"Image {data['docker_image']} not found on our repository", code=HTTPStatus.NOT_FOUND)
+            raise TaskImageException(
+                f"Image {data['docker_image']} not found on our repository", code=HTTPStatus.NOT_FOUND
+            )
 
         # Output volumes validation
         if not isinstance(data.get("outputs", {}), dict):
@@ -471,7 +479,11 @@ class Task(db.Model, BaseModel):
                         "image": self.docker_image,
                         "project": "federated_node",
                         "source": {
-                            "repository": self.dataset.repository or "Aridhia-Open-Source/PHEMS_federated_node"
+                            "repository": (
+                                self.dataset.repositories[0].path
+                                if self.dataset.repositories
+                                else "Aridhia-Open-Source/PHEMS_federated_node"
+                            )
                         },
                         "user": {
                             "idpId": "",

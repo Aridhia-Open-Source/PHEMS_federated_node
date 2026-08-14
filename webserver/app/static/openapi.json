@@ -377,38 +377,6 @@
         }
       }
     },
-    "/datasets/selection/beacon": {
-      "post": {
-        "operationId": "select_beacon",
-        "tags": [
-          "Datasets"
-        ],
-        "summary": "Endpoint to check if a given query is valid",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BeaconPostBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "$ref": "#/components/responses/SelectBeaconPost"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthenticated"
-          },
-          "403": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "500": {
-            "$ref": "#/components/responses/DBConnectionFailed"
-          }
-        }
-      }
-    },
     "/tasks/{id}": {
       "get": {
         "operationId": "get_task_by_id",
@@ -1591,12 +1559,7 @@
         "content": {
           "application/json": {
             "schema": {
-              "type": "object",
-              "properties": {
-                "dataset_id": {
-                  "type": "integer"
-                }
-              }
+              "$ref": "#/components/schemas/DatasetById"
             }
           }
         }
@@ -1792,26 +1755,6 @@
               "properties": {
                 "token": {
                   "type": "string"
-                }
-              }
-            }
-          }
-        }
-      },
-      "SelectBeaconPost": {
-        "description": "Successful beacon. Query is correct",
-        "content": {
-          "application/json": {
-            "schema": {
-              "type": "object",
-              "properties": {
-                "query": {
-                  "type": "string",
-                  "example": "SELECT * FROM patients;"
-                },
-                "result": {
-                  "type": "string",
-                  "example": "Ok"
                 }
               }
             }
@@ -2480,23 +2423,6 @@
           "dataset_name",
           "proj_start",
           "proj_end"
-        ]
-      },
-      "BeaconPostBody": {
-        "type": "object",
-        "properties": {
-          "query": {
-            "type": "string",
-            "example": "SELECT col1, col2 FROM table;"
-          },
-          "dataset_id": {
-            "type": "integer",
-            "example": 1
-          }
-        },
-        "required": [
-          "query",
-          "dataset_id"
         ]
       },
       "LoginBody": {

@@ -236,7 +236,8 @@ def get_pull_requests(repo_id):
 
     if status is not None:
         if status not in [s.value for s in PullRequestStatus]:
-            raise InvalidRequest(f"Invalid status: {status}. Must be one of: {', '.join([s.value for s in PullRequestStatus])}")
+            valid = ', '.join([s.value for s in PullRequestStatus])
+            raise InvalidRequest(f"Invalid status: {status}. Must be one of: {valid}")
         query = query.filter(PullRequest.status == status)
 
     query = query.order_by(PullRequest.merged_at.desc())
@@ -286,7 +287,8 @@ def patch_pull_request(repo_id, number):
     if 'status' in body:
         status_value = body['status']
         if status_value not in [s.value for s in PullRequestStatus]:
-            raise InvalidRequest(f"Invalid status: {status_value}. Must be one of: {', '.join([s.value for s in PullRequestStatus])}")
+            valid = ', '.join([s.value for s in PullRequestStatus])
+            raise InvalidRequest(f"Invalid status: {status_value}. Must be one of: {valid}")
         pr.status = status_value
 
     if 'spec' in body:

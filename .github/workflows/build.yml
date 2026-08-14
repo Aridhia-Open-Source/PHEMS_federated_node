@@ -89,34 +89,56 @@ jobs:
           echo "OWNER_LC=${OWNER,,}" >> ${GITHUB_ENV}
         env:
           OWNER: '${{ github.repository_owner }}'
-  # linters:
-  #   needs: init
-  #   if: needs.init.outputs.is_tag == 'false'
-  #   defaults:
-  #     run:
-  #       shell: bash
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Run pylint
-  #       run: |
-  #         make pylint
-
-  #     - name: Run hadolint
-  #       run: |
-  #         make hadolint
-  chart-checks:
+  linters:
     needs: init
-    runs-on: ubuntu-latest
+    if: needs.init.outputs.is_tag == 'false'
     defaults:
       run:
         shell: bash
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      # Guards the "renders without cluster access" property that ArgoCD and
-      # `helm diff` depend on.
-      - name: Render the chart without a cluster
+      # Both linters write their reports here.
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
+
+      - name: Run pylint
+        run: |
+          make pylint
+
+      - name: Run hadolint
+        run: |
+          make hadolint
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lint-reports
+          path: |
+            artifacts/pylint.txt
+            artifacts/hadolint.xml
+          if-no-files-found: ignore
+  tests:
+    needs:
+      - init
+      - linters
+    defaults:
+      run:
+        shell: bash
+    runs-on: ubuntu-latest
+    if: needs.init.outputs.is_tag == 'false'
+    steps:
+      - uses: actions/checkout@v4
+
+      # run_tests.sh copies coverage.xml out of the container into here.
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
+
+      # `helm template` renders client-side, so every lookup returns nil. The chart
+      # keeps its cluster-state checks behind fn.clusterReachable so that it still
+      # renders for ArgoCD, `helm diff` and CI - this is what holds that.
+      - name: Lint and render the chart without a cluster
         run: |
           make helm_lint
           make helm_template
@@ -125,42 +147,26 @@ jobs:
         run: |
           make helm_tests
 
-  # tests:
-  #   needs:
-  #     - init
-  #     - linters
-  #   defaults:
-  #     run:
-  #       shell: bash
-  #   runs-on: ubuntu-latest
-  #   if: needs.init.outputs.is_tag == 'false'
-  #   steps:
-  #     - uses: actions/checkout@v4
+      - name: Run Python Tests
+        working-directory: webserver
+        run: |
+          make tests_ci
 
-  #     - name: Run Helm unittests
-  #       run: |
-  #         make helm_tests
+      - name: Run Keycloak Integration Tests
+        working-directory: webserver
+        run: |
+          make tests_integration
 
-  #     - name: Run Python Tests
-  #       working-directory: webserver
-  #       run: |
-  #         make tests_ci
-
-  #     - name: Run Keycloak Integration Tests
-  #       working-directory: webserver
-  #       run: |
-  #         make tests_integration
-
-  #     - uses: irongut/CodeCoverageSummary@v1.3.0
-  #       name: Code Coverage Summary Report
-  #       with:
-  #         filename: artifacts/coverage.xml
-  #         fail_below_min: true
-  #         thresholds: '60 80'
+      - uses: irongut/CodeCoverageSummary@v1.3.0
+        name: Code Coverage Summary Report
+        with:
+          filename: artifacts/coverage.xml
+          fail_below_min: true
+          thresholds: '60 80'
   build-flask-image:
     needs:
       - init
-      # - tests
+      - tests
     if: needs.init.outputs.is_tag == 'false'
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
@@ -174,7 +180,7 @@ jobs:
   build-keycloak-image:
     needs:
       - init
-      # - tests
+      - tests
     if: needs.init.outputs.is_tag == 'false'
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
@@ -188,7 +194,7 @@ jobs:
   build-alpine-image:
     needs:
       - init
-      # - tests
+      - tests
     if: needs.init.outputs.is_tag == 'false'
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
@@ -202,7 +208,7 @@ jobs:
   build-kc-init-image:
     needs:
       - init
-      # - tests
+      - tests
     if: needs.init.outputs.is_tag == 'false'
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
@@ -216,7 +222,7 @@ jobs:
   build-db-connector-image:
     needs:
       - init
-      # - tests
+      - tests
     if: needs.init.outputs.is_tag == 'false'
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
@@ -230,7 +236,7 @@ jobs:
   build-dagster-image:
     needs:
       - init
-      # - tests
+      - tests
     if: needs.init.outputs.is_tag == 'false'
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
@@ -246,7 +252,6 @@ jobs:
     if: always() && !failure() && !cancelled()
     needs:
       - init
-      - chart-checks
       - build-flask-image
       - build-keycloak-image
       - build-alpine-image
