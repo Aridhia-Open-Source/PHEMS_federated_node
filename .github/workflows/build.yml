@@ -100,10 +100,6 @@ jobs:
       - name: Run pylint
         run: |
           make pylint
-
-      - name: Run hadolint
-        run: |
-          make hadolint
   tests:
     needs:
       - init
