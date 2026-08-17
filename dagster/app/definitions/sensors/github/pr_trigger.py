@@ -4,7 +4,7 @@ from typing import cast
 import dagster as dg
 
 from app.definitions.sensors.github.base import GithubSensor
-from app.models import Repository, PullRequest, PullRequestStatus
+from app.models import Registry, Repository, PullRequest, PullRequestStatus
 
 
 class PullRequestTriggerSensor(GithubSensor):
@@ -127,10 +127,20 @@ class PullRequestTriggerSensor(GithubSensor):
         Passes spec to k8s_pipes_op via run_config.
         Injects dataset credentials as mounted secret volume.
         """
-        if not pr.spec.get("image"):
+        # Either key, as _validate_spec accepts.
+        image = pr.spec.get("image") or pr.spec.get("docker_image")
+        if not image:
             raise ValueError(f"PR #{pr.number} spec in repo {repo.path} missing 'image'")
 
         dataset = self.backend_api.get_dataset(repo.dataset_id)
+        op_config = {
+            "env": pr.spec.get("env") or {},
+            "docker_image": image,
+            **dataset.dump_task_fields(),
+        }
+        pull_secret = self._image_pull_secret(image)
+        if pull_secret:
+            op_config["image_pull_secret"] = pull_secret
 
         return dg.RunRequest(
             run_key=f"{pr.repository_id}/{pr.number}",
@@ -144,13 +154,20 @@ class PullRequestTriggerSensor(GithubSensor):
             run_config={
                 "ops": {
                     "k8s_pipes_op": {
-                        "config": {
-                            "env": pr.spec.get("env") or {},
-                            "docker_image": pr.spec["image"],
-                            **dataset.dump_task_fields(),
-                        }
+                        "config": op_config
                     }
                 }
             },
         )
 
+    def _image_pull_secret(self, image: str) -> str | None:
+        """
+        The regcred secret name for the image's registry, so the task pod can pull
+        from a private one. Public images have no registry configured and need none.
+        """
+        try:
+            registries = self.backend_api.get_registries()
+        except Exception as e:
+            self.log.warning(f"Could not fetch registries for image {image}: {e}")
+            return None
+        return Registry.secret_for_image(image, registries)

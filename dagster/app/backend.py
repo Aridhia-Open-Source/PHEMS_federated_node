@@ -1,7 +1,7 @@
 import logging
 
 from app.utils import BackendSession
-from app.models import Repository, PullRequest, Dataset, Request
+from app.models import Repository, PullRequest, Dataset, Registry, Request
 
 default_logger = logging.getLogger(__name__)
 
@@ -179,6 +179,14 @@ class BackendAPI:
         data = response.json()
         items = data.get("items", data) if isinstance(data, dict) else data
         return [Dataset(**ds) for ds in items]
+
+    def get_registries(self) -> list[Registry]:
+        """Get all container registries"""
+        self.logger.info("Fetching registries")
+        response = self.session.get("/registries")
+        data = response.json()
+        items = data.get("items", data) if isinstance(data, dict) else data
+        return [Registry(**reg) for reg in items]
 
     def get_dataset(self, dataset_id: int) -> Dataset:
         """Get single dataset"""
