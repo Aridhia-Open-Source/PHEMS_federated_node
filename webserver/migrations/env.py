@@ -22,7 +22,7 @@ if config.config_file_name is not None:
 from app.helpers.base_model import Base
 import app.models.audit
 import app.models.catalogue
-import app.models.container
+import app.models.whitelisted_image
 import app.models.dictionary
 import app.models.dataset
 import app.models.registry

@@ -27,9 +27,9 @@ test_dataset_list(){
         --header "Authorization: Bearer ${TOKEN}" > /dev/null 2>&1
 }
 
-test_containers_list() {
-    printf "[test]\t### Test Fetch Containers list ###\n\n"
-    curl "${BACKEND_URL}/containers" \
+test_whitelisted_images_list() {
+    printf "[test]\t### Test Fetch Whitelisted Images list ###\n\n"
+    curl "${BACKEND_URL}/whitelisted_images" \
         --silent \
         --fail-with-body \
         --header "Authorization: Bearer ${TOKEN}" > /dev/null 2>&1
@@ -120,8 +120,8 @@ if ! test_dataset_list; then
     printf "[ERROR]\tFailed fetching dataset list test\n"
     exit_code=1
 fi
-if ! test_containers_list; then
-    printf "[ERROR]\tFailed fetching containers list test\n"
+if ! test_whitelisted_images_list; then
+    printf "[ERROR]\tFailed fetching whitelisted images list test\n"
     exit_code=1
 fi
 if ! test_create_user; then

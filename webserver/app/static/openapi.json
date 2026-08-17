@@ -41,8 +41,8 @@
       "description": "Endpoints related to the Container registry management"
     },
     {
-      "name": "Containers",
-      "description": "Endpoints related to the Containers management"
+      "name": "Whitelisted Images",
+      "description": "Endpoints related to the image whitelist"
     },
     {
       "name": "Users",
@@ -965,11 +965,11 @@
         }
       }
     },
-    "/containers": {
+    "/whitelisted_images": {
       "get": {
-        "operationId": "getContainers",
+        "operationId": "getWhitelistedImages",
         "tags": [
-          "Containers"
+          "Whitelisted Images"
         ],
         "security": [],
         "parameters": [
@@ -980,10 +980,10 @@
             "$ref": "#/components/parameters/paginationPerPage"
           }
         ],
-        "summary": "List all containers available to the user",
+        "summary": "List all whitelisted images",
         "responses": {
           "200": {
-            "$ref": "#/components/responses/ContainerList"
+            "$ref": "#/components/responses/WhitelistedImageList"
           },
           "400": {
             "$ref": "#/components/responses/InvalidBody"
@@ -1000,23 +1000,23 @@
         }
       },
       "post": {
-        "operationId": "postContainers",
+        "operationId": "postWhitelistedImage",
         "tags": [
-          "Containers"
+          "Whitelisted Images"
         ],
-        "summary": "Maps a new container that the Federated Node can fetch data from",
+        "summary": "Add an image to the whitelist",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ContainerPostObject"
+                "$ref": "#/components/schemas/WhitelistedImagePostObject"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "$ref": "#/components/responses/ContainerPost"
+            "$ref": "#/components/responses/WhitelistedImagePost"
           },
           "400": {
             "$ref": "#/components/responses/InvalidBody"
@@ -1036,21 +1036,21 @@
         }
       }
     },
-    "/containers/{id}": {
+    "/whitelisted_images/{id}": {
       "get": {
-        "operationId": "getContainerById",
+        "operationId": "getWhitelistedImageById",
         "parameters": [
           {
-            "$ref": "#/components/parameters/containerIdPath"
+            "$ref": "#/components/parameters/whitelistedImageIdPath"
           }
         ],
         "tags": [
-          "Containers"
+          "Whitelisted Images"
         ],
         "summary": "Get a whitelisted image by id",
         "responses": {
           "200": {
-            "$ref": "#/components/responses/ContainerEntry"
+            "$ref": "#/components/responses/WhitelistedImageEntry"
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
@@ -1067,19 +1067,19 @@
         }
       },
       "delete": {
-        "operationId": "deleteContainer",
+        "operationId": "deleteWhitelistedImage",
         "parameters": [
           {
-            "$ref": "#/components/parameters/containerIdPath"
+            "$ref": "#/components/parameters/whitelistedImageIdPath"
           }
         ],
         "tags": [
-          "Containers"
+          "Whitelisted Images"
         ],
         "summary": "Remove a whitelisted image",
         "responses": {
-          "204": {
-            "$ref": "#/components/responses/NoContent"
+          "200": {
+            "$ref": "#/components/responses/WhitelistedImageDeleted"
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
@@ -1520,7 +1520,7 @@
         "required": false,
         "description": "Used by non admin users. The value should match the project decalred on the roken_transfer endpoint"
       },
-      "containerIdPath": {
+      "whitelistedImageIdPath": {
         "in": "path",
         "name": "id",
         "schema": {
@@ -1905,17 +1905,17 @@
           }
         }
       },
-      "ContainerEntry": {
-        "description": "Container representation",
+      "WhitelistedImageEntry": {
+        "description": "Whitelisted image representation",
         "content": {
           "application/json": {
             "schema": {
-              "$ref": "#/components/schemas/ContainerObject"
+              "$ref": "#/components/schemas/WhitelistedImageObject"
             }
           }
         }
       },
-      "ContainerList": {
+      "WhitelistedImageList": {
         "description": "List of registries",
         "content": {
           "application/json": {
@@ -1925,7 +1925,7 @@
                 "items": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ContainerObject"
+                    "$ref": "#/components/schemas/WhitelistedImageObject"
                   }
                 },
                 "page": {
@@ -1949,7 +1949,23 @@
           }
         }
       },
-      "ContainerPost": {
+      "WhitelistedImageDeleted": {
+        "description": "Image removed from the whitelist",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "Image 1 deleted successfully"
+                }
+              }
+            }
+          }
+        }
+      },
+      "WhitelistedImagePost": {
         "description": "Successfully added",
         "content": {
           "application/json": {
@@ -2681,7 +2697,7 @@
           }
         }
       },
-      "ContainerObject": {
+      "WhitelistedImageObject": {
         "type": "object",
         "properties": {
           "id": {
@@ -2706,7 +2722,7 @@
           }
         }
       },
-      "ContainerPostObject": {
+      "WhitelistedImagePostObject": {
         "type": "object",
         "properties": {
           "name": {

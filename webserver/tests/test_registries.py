@@ -342,12 +342,12 @@ class TestDeleteRegistries:
         containers are deleted as well
         """
         reg_id = registry.id
-        Container(
+        WhitelistedImage(
             registry=registry,
             name="newimage",
             tag="1.0.0"
         ).add()
-        Container(
+        WhitelistedImage(
             registry=registry,
             name="newimage",
             tag="1.3.0"
@@ -359,7 +359,7 @@ class TestDeleteRegistries:
         )
         assert response.status_code == 204
         assert Registry.query.filter_by(id=reg_id).one_or_none() is None
-        assert Container.query.filter_by(
+        assert WhitelistedImage.query.filter_by(
             name="newimage", registry_id=reg_id
             ).count() == 0
 

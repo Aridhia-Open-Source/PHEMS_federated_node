@@ -6,8 +6,8 @@ from app.models.registry import Registry
 from app.helpers.exceptions import ContainerRegistryException, InvalidRequest
 
 
-class Container(db.Model, BaseModel):
-    __tablename__ = 'containers'
+class WhitelistedImage(db.Model, BaseModel):
+    __tablename__ = 'whitelisted_images'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(256), nullable=False)
@@ -66,23 +66,26 @@ class Container(db.Model, BaseModel):
         SHA-restricted entries.
         """
         registry, name, tag, sha = Registry.extract_image_parts(docker_image)
-        base = Container.query.filter_by(name=name, registry_id=registry.id)
+        base = WhitelistedImage.query.filter_by(name=name, registry_id=registry.id)
 
         # Static whitelist checks (no registry call needed)
-        checks = [and_(Container.tag == None, Container.sha == None)]
+        checks = [and_(WhitelistedImage.tag == None, WhitelistedImage.sha == None)]
         if sha:
-            checks.append(and_(Container.sha == sha, or_(Container.tag == None, Container.tag == tag)))
+            checks.append(and_(
+                WhitelistedImage.sha == sha,
+                or_(WhitelistedImage.tag == None, WhitelistedImage.tag == tag)
+            ))
         elif tag:
-            checks.append(and_(Container.tag == tag, Container.sha == None))
+            checks.append(and_(WhitelistedImage.tag == tag, WhitelistedImage.sha == None))
 
         if base.filter(or_(*checks)).first():
             return True
 
         # Resolve tag to SHA if SHA-restricted entries exist for this image
-        if tag and not sha and base.filter(Container.sha != None).first():
+        if tag and not sha and base.filter(WhitelistedImage.sha != None).first():
             remote_sha = registry.get_registry_class().get_tag_sha(name, tag)
             matches_sha = base.filter(
-                Container.sha == remote_sha, or_(Container.tag == None, Container.tag == tag)
+                WhitelistedImage.sha == remote_sha, or_(WhitelistedImage.tag == None, WhitelistedImage.tag == tag)
             ).first()
             if remote_sha and matches_sha:
                 return True

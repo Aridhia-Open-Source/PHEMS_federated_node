@@ -13,7 +13,7 @@ from werkzeug.exceptions import HTTPException
 
 from app import (
     main, admin_api, datasets_api, tasks_api, requests_api,
-    containers_api, registries_api, users_api, repositories_api
+    whitelisted_images_api, registries_api, users_api, repositories_api
 )
 from app.helpers.base_model import build_sql_uri, db
 from app.helpers.exceptions import LogAndException
@@ -72,7 +72,7 @@ def create_app():
     app.register_blueprint(requests_api.bp)
     app.register_blueprint(tasks_api.bp)
     app.register_blueprint(admin_api.bp)
-    app.register_blueprint(containers_api.bp)
+    app.register_blueprint(whitelisted_images_api.bp)
     app.register_blueprint(registries_api.bp)
     app.register_blueprint(users_api.bp)
     app.register_blueprint(repositories_api.bp)

@@ -126,11 +126,11 @@ class Task(db.Model, BaseModel):
             ).dataset
 
         # Docker image validation
-        Models.Container.validate_image_format(data["docker_image"], data["docker_image"])
+        Models.WhitelistedImage.validate_image_format(data["docker_image"], data["docker_image"])
 
         # Validate that the image is whitelisted
         if ENABLE_IMAGE_WHITELIST:
-            if not Models.Container.validate_image_whitelisted(data["docker_image"]):
+            if not Models.WhitelistedImage.validate_image_whitelisted(data["docker_image"]):
                 raise TaskImageException(f"Image {data['docker_image']} is not whitelisted", code=HTTPStatus.FORBIDDEN)
 
         # Validate that the image exists on the registry

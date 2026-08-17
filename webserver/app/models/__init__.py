@@ -16,11 +16,6 @@ class ModelRegistry:
         return Catalogue
 
     @cached_property
-    def Container(self):
-        from app.models.container import Container
-        return Container
-
-    @cached_property
     def Dataset(self):
         from app.models.dataset import Dataset
         return Dataset
@@ -54,6 +49,11 @@ class ModelRegistry:
     def Task(self):
         from app.models.task import Task
         return Task
+
+    @cached_property
+    def WhitelistedImage(self):
+        from app.models.whitelisted_image import WhitelistedImage
+        return WhitelistedImage
 
 
 Models = ModelRegistry()

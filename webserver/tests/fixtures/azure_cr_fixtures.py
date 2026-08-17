@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 from app.helpers.keycloak import KEYCLOAK_URL
 from app.helpers.container_registries import AzureRegistry
-from app.models.container import Container
+from app.models.whitelisted_image import WhitelistedImage
 from app.models.registry import Registry
 
 
@@ -116,15 +116,15 @@ def registry(client, reg_k8s_client, k8s_client, cr_name, azure_login_request) -
     return reg
 
 @pytest.fixture
-def container(client, k8s_client, registry, image_name) -> Container:
+def container(client, k8s_client, registry, image_name) -> WhitelistedImage:
     img, tag = image_name.split(':')
-    cont = Container(img, registry, tag)
+    cont = WhitelistedImage(img, registry, tag)
     cont.add()
     return cont
 
 @pytest.fixture
-def container_with_sha(client, k8s_client, registry, image_name, expected_digest_list) -> Container:
+def container_with_sha(client, k8s_client, registry, image_name, expected_digest_list) -> WhitelistedImage:
     img, _ = image_name.split(':')
-    cont = Container(img, registry, sha=expected_digest_list)
+    cont = WhitelistedImage(img, registry, sha=expected_digest_list)
     cont.add()
     return cont
