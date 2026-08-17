@@ -140,6 +140,36 @@ def ensure_realm_accounts(admin_token:str):
         )
 
 
+def sweep_bootstrap_users():
+    """
+    Delete the bootstrap admin, whether this run authenticated as it or not.
+
+    Keycloak recreates the KC_BOOTSTRAP_ADMIN_* account on every start where it is absent, so
+    the one deleted at install comes back the first time the pod restarts. The reconcile that
+    follows authenticates as fn-service, which is scoped to the FederatedNode realm and so
+    cannot delete a master-realm user - left alone, the account survives indefinitely as a full
+    master admin whose password is readable from the kc-secrets Secret.
+
+    Hence a login of its own rather than reusing the run's token: it is the only credential that
+    can do this, and on the fn-service path we do not have it. Failure means no bootstrap user
+    exists, which is the steady state and the outcome being aimed at anyway.
+    """
+    token = login(
+        settings.keycloak_url,
+        settings.kc_bootstrap_admin_username,
+        settings.kc_bootstrap_admin_password,
+        realm="master",
+        # The expected outcome: no bootstrap user exists, which is what we want.
+        expected_to_fail=True
+    )
+    if not token:
+        logger.info("No bootstrap user to clean up")
+        return
+
+    logger.info("Bootstrap user recreated by a Keycloak restart, cleaning it up")
+    delete_bootstrap_user(token)
+
+
 def setup_keycloak():
     logger.info("Setting up Keycloak")
 
@@ -167,9 +197,8 @@ def setup_keycloak():
     else:
         logger.info("keycloak.manageRealm is false, skipping realm configuration")
 
-    if used_bootstrap:
-        # Always last: this is the credential the run authenticated with.
-        delete_bootstrap_user(admin_token)
+    # Always last: on the bootstrap path this deletes the credential the run authenticated with.
+    sweep_bootstrap_users()
 
     logger.info("Done!")
 

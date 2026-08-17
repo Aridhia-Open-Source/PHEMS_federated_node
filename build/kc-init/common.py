@@ -461,8 +461,7 @@ def delete_bootstrap_user(admin_token:str):
         if user.get("username", "").startswith(BOOTSTRAP_USER_PREFIX)
     ]
     if not candidates:
-        # Reachable whenever setup ran under the service account rather than the bootstrap user,
-        # which is now the normal case for an ordinary realm-init restart.
+        # Only reachable if something else removed them between the login and this call
         logger.info("No bootstrap users present, nothing to delete")
         return
 
