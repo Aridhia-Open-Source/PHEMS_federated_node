@@ -8,28 +8,69 @@ its own service account ({{ .Release.Name }}-dagster), not under the code server
 only the code server bound, every dataset-backed task fails with
   secrets "<host>-<dataset>-creds" is forbidden: User
   "system:serviceaccount:<ns>:<release>-dagster" cannot get resource "secrets"
+
+Namespaced: the secrets live in the release namespace, and the task pod itself holds no
+token, so nothing needs to read secrets anywhere else.
 */}}
+{{- $subjects := list (include "dagsterCodeServerServiceAccount" .) (((.Values.dagster.serviceAccount).name) | default (printf "%s-dagster" .Release.Name)) }}
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: {{ .Release.Name }}-dagster-user-role
+  namespace: {{ .Release.Namespace }}
 rules:
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: {{ .Release.Name }}-dagster-user-role-binding
+  namespace: {{ .Release.Namespace }}
 subjects:
+{{- range $subjects }}
   - kind: ServiceAccount
-    namespace: {{ .Release.Namespace }}
-    name: {{ include "dagsterCodeServerServiceAccount" . }}
-  - kind: ServiceAccount
-    namespace: {{ .Release.Namespace }}
-    name: {{ ((.Values.dagster.serviceAccount).name) | default (printf "%s-dagster" .Release.Name) }}
+    namespace: {{ $.Release.Namespace }}
+    name: {{ . }}
+{{- end }}
 roleRef:
-  kind: ClusterRole
+  kind: Role
   name: {{ .Release.Name }}-dagster-user-role
+  apiGroup: rbac.authorization.k8s.io
+---
+{{/*
+Pipes task pods run in the tasks namespace, so the run pod has to create, watch, log and
+delete pods there (PipesK8sClient.run - it creates a bare pod, not a Job).
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-dagster-task-pod-role
+  namespace: {{ include "tasks_namespace" . }}
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["create", "get", "list", "watch", "delete"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-dagster-task-pod-role-binding
+  namespace: {{ include "tasks_namespace" . }}
+subjects:
+{{- range $subjects }}
+  - kind: ServiceAccount
+    namespace: {{ $.Release.Namespace }}
+    name: {{ . }}
+{{- end }}
+roleRef:
+  kind: Role
+  name: {{ .Release.Name }}-dagster-task-pod-role
   apiGroup: rbac.authorization.k8s.io

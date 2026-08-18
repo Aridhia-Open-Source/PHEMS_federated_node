@@ -11,7 +11,7 @@ metadata:
 data:
   DAGSTER_HOME: {{ .Values.dagsterHome | quote }}
   DAGSTER_DEPLOYMENT_NAMESPACE: {{ .Release.Namespace }}
-  DAGSTER_USER_SERVICE_ACCOUNT_NAME: {{ include "dagsterCodeServerServiceAccount" . }}
+  DAGSTER_TASK_NAMESPACE: {{ include "tasks_namespace" . }}
   DAGSTER_ARTIFACT_MOUNT_PATH: {{ .Values.fnDagster.artifactMountPath | quote }}
   DAGSTER_ARTIFACTS_PVC_NAME: {{ .Values.fnDagster.artifactsPvcName | quote }}
   DAGSTER_PG_HOST: {{ include "dagsterDbHost" . | quote }}
