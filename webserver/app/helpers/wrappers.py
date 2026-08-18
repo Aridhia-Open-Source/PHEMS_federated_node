@@ -1,7 +1,7 @@
 import logging
 from requests import HTTPError
 from functools import wraps
-from flask import request
+from flask import g, request
 from sqlalchemy.exc import IntegrityError
 
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError
@@ -23,7 +23,6 @@ def auth(scope: str, check_dataset=True):
                 raise AuthenticationError("Token not provided")
 
             resource = 'endpoints'
-            ds_id = None
             requested_project = request.headers.get("project-name")
             client = 'global'
             token_type = 'refresh_token'
@@ -32,24 +31,40 @@ def auth(scope: str, check_dataset=True):
             token_info = kc_client.decode_token(token)
             user = kc_client.get_user_by_username(token_info['username'])
 
-            if requested_project and not kc_client.is_user_admin(token):
-                dar = Request.get_active_project(requested_project, user["id"])
+            # Handlers that scope by project read these rather than repeating the token
+            # decode and the DAR lookup.
+            g.caller_is_admin = kc_client.is_user_admin(token)
+            g.caller_project_id = None
+
+            # A project can hold several datasets, so the DAR branch needs to know which
+            # dataset the request is about before it can pick one. Both branches read it
+            # the same way.
+            ds_id = kwargs.get("dataset_id")
+            ds_name = kwargs.get("dataset_name", "")
+
+            # Some endpoints take a JSON list rather than an object. There is no
+            # top-level dataset to scope to in that case, so leave ds_id/
+            # ds_name as they came from the URL rather than flattening.
+            if request.is_json and request.data and isinstance(request.json, dict):
+                flat_json = flatten_dict(request.json)
+                ds_id = flat_json.get("dataset_id")
+                ds_name = flat_json.get("dataset_name", "")
+
+            if requested_project and not g.caller_is_admin:
+                requested_ds = None
+                if ds_id or ds_name:
+                    requested_ds = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
+
+                dar = Request.get_active_project(
+                    requested_project, user["id"],
+                    dataset_id=requested_ds.id if requested_ds else None
+                )
                 if dar.dataset_id:
                     ds = Dataset.get_dataset_by_name_or_id(id=dar.dataset_id)
                     resource = f"{ds.id}-{ds.name}"
+                    g.caller_project_id = ds.project_id
 
             elif check_dataset:
-                ds_id = kwargs.get("dataset_id")
-                ds_name = kwargs.get("dataset_name", "")
-
-                # Some endpoints take a JSON list rather than an object. There is no
-                # top-level dataset to scope to in that case, so leave ds_id/
-                # ds_name as they came from the URL rather than flattening.
-                if request.is_json and request.data and isinstance(request.json, dict):
-                    flat_json = flatten_dict(request.json)
-                    ds_id = flat_json.get("dataset_id")
-                    ds_name = flat_json.get("dataset_name", "")
-
                 if ds_id or ds_name:
                     ds = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
                     resource = f"{ds.id}-{ds.name}"

@@ -73,7 +73,7 @@ class TestPullRequestTriggerSensor:
         pr = MagicMock(spec=PullRequest)
         pr.number = SAMPLE_PR["number"]
         pr.title = SAMPLE_PR["title"]
-        pr.repository_id = SAMPLE_REPO["id"]
+        pr.trigger_repository_id = SAMPLE_REPO["id"]
         pr.spec = SAMPLE_PR["spec"]
         pr.merge_commit_sha = SAMPLE_PR["merge_commit_sha"]
 
@@ -171,7 +171,7 @@ def make_pr(spec, number=5):
     pr = MagicMock(spec=PullRequest)
     pr.number = number
     pr.title = "Add experiment spec"
-    pr.repository_id = 1
+    pr.trigger_repository_id = 1
     pr.spec = spec
     pr.merge_commit_sha = "abc123"
     return pr

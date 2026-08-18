@@ -72,8 +72,8 @@ def registry(client, mocker, reg_k8s_client, dockerhub_login_request, cr_name) -
         return reg
 
 @pytest.fixture
-def container(client, k8s_client, registry, image_name) -> WhitelistedImage:
+def container(client, k8s_client, registry, image_name, project) -> WhitelistedImage:
     img, tag = image_name.split(':')
-    cont = WhitelistedImage(img, registry, tag)
+    cont = WhitelistedImage(img, registry, project.id, tag)
     cont.add()
     return cont

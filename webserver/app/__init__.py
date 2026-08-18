@@ -12,9 +12,12 @@ from sqlalchemy import exc
 from werkzeug.exceptions import HTTPException
 
 from app import (
-    main, admin_api, datasets_api, tasks_api, requests_api,
-    whitelisted_images_api, registries_api, users_api, repositories_api
+    main, admin_api, datasets_api, tasks_api, requests_api, projects_api,
+    whitelisted_images_api, registries_api, users_api, trigger_repositories_api
 )
+# Project declares relationships to these by name and no blueprint imports them, so the
+# mapper cannot resolve "DeliveryTarget"/"TaskDelivery" unless they are registered here.
+from app.models import delivery_target, task_delivery  # noqa: F401  pylint: disable=unused-import
 from app.helpers.base_model import build_sql_uri, db
 from app.helpers.exceptions import LogAndException
 from app.fn_flask import FNFlask
@@ -68,6 +71,7 @@ def create_app():
 
     db.init_app(app)
     app.register_blueprint(main.bp)
+    app.register_blueprint(projects_api.bp)
     app.register_blueprint(datasets_api.bp)
     app.register_blueprint(requests_api.bp)
     app.register_blueprint(tasks_api.bp)
@@ -75,7 +79,7 @@ def create_app():
     app.register_blueprint(whitelisted_images_api.bp)
     app.register_blueprint(registries_api.bp)
     app.register_blueprint(users_api.bp)
-    app.register_blueprint(repositories_api.bp)
+    app.register_blueprint(trigger_repositories_api.bp)
 
     @app.teardown_appcontext
     # pylint: disable=unused-argument

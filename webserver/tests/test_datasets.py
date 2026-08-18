@@ -70,7 +70,10 @@ class TestDatasets(MixinTestDataset):
             "slug": dataset.name,
             "schema": None,
             "schema_write": None,
-            "extra_connection_args": None
+            "extra_connection_args": None,
+            "project_id": dataset.project_id,
+            "created_at": dataset.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            "updated_at": dataset.updated_at.strftime("%Y-%m-%d %H:%M:%S")
         }
 
     def test_get_all_datasets(
@@ -350,7 +353,10 @@ class TestPostDataset(MixinTestDataset):
             "schema": None,
             "schema_write": None,
             "extra_connection_args": None,
-            "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset"
+            "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset",
+            "project_id": new_ds["project_id"],
+            "created_at": new_ds["created_at"],
+            "updated_at": new_ds["updated_at"]
         }
 
     def test_post_dataset_mssql_type(
@@ -404,16 +410,16 @@ class TestPostDataset(MixinTestDataset):
         ):
         """
         `repository` is not part of the dataset contract - repositories point at
-        datasets (Repository.dataset_id) and are created through POST /repositories.
+        datasets (TriggerRepository.dataset_id) and are created through POST /trigger_repositories.
         POST ignores unknown keys, so it is accepted and simply not stored.
         """
-        from app.models.repository import Repository
+        from app.models.trigger_repository import TriggerRepository
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
         data_body['repository'] = 'organisation/repository'
         self.post_dataset(client, post_json_admin_header, data_body)
 
-        assert Repository.query.filter_by(uri='organisation/repository').one_or_none() is None
+        assert TriggerRepository.query.filter_by(uri='organisation/repository').one_or_none() is None
 
     def test_patch_dataset_rejects_repository_field(
             self,

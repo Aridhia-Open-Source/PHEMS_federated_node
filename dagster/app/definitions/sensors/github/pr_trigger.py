@@ -4,7 +4,7 @@ from typing import cast
 import dagster as dg
 
 from app.definitions.sensors.github.base import GithubSensor
-from app.models import Registry, Repository, PullRequest, PullRequestStatus
+from app.models import Registry, TriggerRepository, PullRequest, PullRequestStatus
 
 
 class PullRequestTriggerSensor(GithubSensor):
@@ -60,7 +60,7 @@ class PullRequestTriggerSensor(GithubSensor):
             status=PullRequestStatus.UNKNOWN.value,
         )
 
-    def _setup_pull_request(self, repo: Repository, pr: PullRequest) -> tuple[str, dict]:
+    def _setup_pull_request(self, repo: TriggerRepository, pr: PullRequest) -> tuple[str, dict]:
         spec = {}
         self.log.info(f"=== SETUP PR #{pr.number} in repo {repo.path} ===")
         self.log.info(f"Watch dir: {repo.watch_dir}")
@@ -102,7 +102,7 @@ class PullRequestTriggerSensor(GithubSensor):
 
         return spec
 
-    def _get_spec_data(self, repo: Repository, filepath: str, ref: str):
+    def _get_spec_data(self, repo: TriggerRepository, filepath: str, ref: str):
         contents = self.github_api.get_file_contents(
             repo_path=repo.path,
             file_path=filepath,
@@ -119,7 +119,7 @@ class PullRequestTriggerSensor(GithubSensor):
 
         return [f for f in pr_files if _is_watched_json_file(f)]
 
-    def _make_run_request(self, repo: Repository, pr: PullRequest) -> dg.RunRequest:
+    def _make_run_request(self, repo: TriggerRepository, pr: PullRequest) -> dg.RunRequest:
         """
         Create RunRequest to trigger k8s_pipes_job.
         Uses PR composite key as run_key for idempotency.
@@ -143,7 +143,7 @@ class PullRequestTriggerSensor(GithubSensor):
             op_config["image_pull_secret"] = pull_secret
 
         return dg.RunRequest(
-            run_key=f"{pr.repository_id}/{pr.number}",
+            run_key=f"{pr.trigger_repository_id}/{pr.number}",
             tags={
                 "trigger": "github",
                 "pr_number": str(pr.number),

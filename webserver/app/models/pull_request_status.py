@@ -18,6 +18,9 @@ class PullRequestStatus(str, Enum):
     - SUCCESS: Dagster job succeeded
     - FAILURE: Dagster job failed
     - CANCELLED: Dagster job cancelled
+
+    
+    TODO: Move the job lifecycle values to tasks.status
     """
 
     UNKNOWN = "UNKNOWN"

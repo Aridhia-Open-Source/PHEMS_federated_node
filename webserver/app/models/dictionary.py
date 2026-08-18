@@ -16,8 +16,10 @@ class Dictionary( db.Model, BaseModel):
     field_name = Column(String(256), nullable=False)
     label = Column(String(256))
     description = Column(String(4096), nullable=False)
-    created_at = Column(DateTime(timezone=False), server_default=func.now())
-    updated_at = Column(DateTime(timezone=False), onupdate=func.now())
+    created_at = Column(DateTime(timezone=False), nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
 
     dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
     dataset = relationship("Dataset")

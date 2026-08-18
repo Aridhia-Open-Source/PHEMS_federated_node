@@ -1,6 +1,6 @@
 import pytest
 
-from app.models import Dataset, PullRequest, PullRequestStatus, Registry, Repository
+from app.models import Dataset, PullRequest, PullRequestStatus, Registry, TriggerRepository
 
 
 SAMPLE_DATASET = {
@@ -129,9 +129,9 @@ class TestPullRequestStatus:
         assert PullRequestStatus.SUCCESS == "SUCCESS"
 
 
-class TestRepository:
+class TestTriggerRepository:
     def test_pull_requests_default_to_empty(self):
-        repo = Repository(
+        repo = TriggerRepository(
             id=1,
             uri="github.com/org/repo",
             path="org/repo",
@@ -145,7 +145,7 @@ class TestRepository:
         assert repo.pr_count == 0
 
     def test_nested_pull_requests_are_parsed(self):
-        repo = Repository(
+        repo = TriggerRepository(
             id=1,
             uri="github.com/org/repo",
             path="org/repo",
@@ -154,7 +154,7 @@ class TestRepository:
             dataset_id=1,
             pr_cursor="2026-01-01T00:00:00Z",
             pull_requests=[{
-                "repository_id": 1,
+                "trigger_repository_id": 1,
                 "number": 5,
                 "title": "t",
                 "raised_by": "dev",

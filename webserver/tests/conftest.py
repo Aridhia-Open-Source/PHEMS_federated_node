@@ -12,9 +12,10 @@ from app.helpers.base_model import db
 from app.models.dataset import Dataset
 from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
+from app.models.project import Project
 from app.models.request import Request
 from app.models.task import Task
-from app.models.repository import Repository
+from app.models.trigger_repository import TriggerRepository
 from app.helpers.exceptions import KeycloakError
 from app.helpers.const import CRD_DOMAIN
 
@@ -266,49 +267,67 @@ def reg_k8s_client(k8s_client):
     return k8s_client
 
 
-# Repository fixtures
 @fixture
-def default_repo(client, user_uuid, k8s_client, mock_kc_client) -> Repository:
-    # Create a dataset first (required for Repository)
-    dataset = Dataset(name="DefaultDatasetForRepo", host="example.com", password='pass', username='user')
+def project(client) -> Project:
+    """The project datasets, tasks and whitelisted images belong to in tests."""
+    project = Project(name="TestProject")
+    project.add()
+    return project
+
+
+@fixture
+def other_project(client) -> Project:
+    """A second project, for checking one project cannot reach another's rows."""
+    project = Project(name="OtherProject")
+    project.add()
+    return project
+
+
+# Trigger repository fixtures
+@fixture
+def default_repo(client, user_uuid, k8s_client, mock_kc_client, project) -> TriggerRepository:
+    # Create a dataset first (required for TriggerRepository)
+    dataset = Dataset(name="DefaultDatasetForRepo", host="example.com", password='pass', username='user', project_id=project.id)
     dataset.add(user_id=user_uuid)
 
-    repo = Repository(uri=sample_repo_uri, watch_dir="", dataset_id=dataset.id)
+    repo = TriggerRepository(uri=sample_repo_uri, watch_dir="", project_id=project.id)
     repo.add()
     return repo
 
 
 # Dataset Mocking
 @fixture()
-def dataset_post_body(default_repo):
-    return deepcopy(sample_ds_body)
+def dataset_post_body(default_repo, project):
+    body = deepcopy(sample_ds_body)
+    body["project_id"] = project.id
+    return body
 
 
 @fixture
-def dataset(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
-    dataset = Dataset(name="TestDs", host="example.com", password='pass', username='user')
+def dataset(client, user_uuid, k8s_client, mock_kc_client, project) -> Dataset:
+    dataset = Dataset(name="TestDs", host="example.com", password='pass', username='user', project_id=project.id)
     dataset.add(user_id=user_uuid)
     return dataset
 
 
 @fixture
-def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
-    from app.models.repository import Repository
+def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project) -> Dataset:
+    from app.models.trigger_repository import TriggerRepository
     # Create dataset first
-    dataset = Dataset(name="TestDsRepo", host="example.com", password='pass', username='user')
+    dataset = Dataset(name="TestDsRepo", host="example.com", password='pass', username='user', project_id=project.id)
     dataset.add(user_id=user_uuid)
 
     # Then create repository with the dataset_id
-    repo = Repository(uri="organisation/repository", watch_dir="", dataset_id=dataset.id)
+    repo = TriggerRepository(uri="organisation/repository", watch_dir="", project_id=project.id)
     repo.add()
 
     return dataset
 
 
 @fixture
-def dataset_oracle(mocker, client, user_uuid, k8s_client)  -> Dataset:
+def dataset_oracle(mocker, client, user_uuid, k8s_client, project)  -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
-    dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user', type="oracle")
+    dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user', type="oracle", project_id=project.id)
     dataset.add(user_id=user_uuid)
     return dataset
 
@@ -330,7 +349,7 @@ def dictionary(dataset) -> List[Dictionary]:
 
 
 @fixture
-def task(user_uuid, dataset, container) -> Task:
+def task(user_uuid, dataset, container, project) -> Task:
     task = Task(
         dataset=dataset,
         docker_image=container.full_image_name(),
@@ -340,7 +359,8 @@ def task(user_uuid, dataset, container) -> Task:
                 "image": container.full_image_name()
             }
         ],
-        requested_by=user_uuid
+        requested_by=user_uuid,
+        project_id=project.id
     )
     task.add()
     return task

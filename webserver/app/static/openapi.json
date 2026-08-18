@@ -971,7 +971,6 @@
         "tags": [
           "Whitelisted Images"
         ],
-        "security": [],
         "parameters": [
           {
             "$ref": "#/components/parameters/paginationPage"
@@ -1467,6 +1466,98 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/projects": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "List projects",
+        "responses": {
+          "200": {
+            "description": "List of projects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectObject"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Create a project",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Project created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Project already exists"
+          }
+        }
+      }
+    },
+    "/projects/{project_id}": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get a project",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found"
           }
         }
       }
@@ -2187,11 +2278,6 @@
             "description": "Extra argument to use for connecting to the DB. Eventually this is passed to the tasks' pod as environment variable",
             "example": "TrustServerCertificate=Yes"
           },
-          "repository": {
-            "type": "string",
-            "description": "For outbound mode, it links the repository source to a dataset. So all of the CRD with that repo will be \"pre-authorized\" to run on that dataset",
-            "example": "Aridhia-Open-Source/PHEMS_federated_node"
-          },
           "schema": {
             "type": "string",
             "description": "Read from DB schema"
@@ -2218,13 +2304,19 @@
           },
           "dictionaries": {
             "$ref": "#/components/schemas/DictionariesPostBody"
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "The project the dataset belongs to",
+            "example": 1
           }
         },
         "required": [
           "name",
           "username",
           "password",
-          "host"
+          "host",
+          "project_id"
         ]
       },
       "DatasetById": {
@@ -2266,13 +2358,22 @@
             "type": "string",
             "example": "mssql"
           },
-          "repository": {
-            "type": "string",
-            "example": "Aridhia-Open-Source/PHEMS_federated_node"
-          },
           "extra_connection_args": {
             "type": "string",
             "example": "TrustServerCertificate=Yes"
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "The project this dataset belongs to",
+            "example": 1
+          },
+          "created_at": {
+            "type": "string",
+            "example": "2026-08-18 09:30:00"
+          },
+          "updated_at": {
+            "type": "string",
+            "example": "2026-08-18 09:30:00"
           }
         }
       },
@@ -2567,12 +2668,18 @@
           "repository": {
             "type": "string",
             "example": "Aridhia-Open-Source/PHEMS_federated_node"
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "The project the task belongs to",
+            "example": 1
           }
         },
         "required": [
           "executors",
           "name",
-          "tags"
+          "tags",
+          "project_id"
         ]
       },
       "TaskById": {
@@ -2623,6 +2730,10 @@
           "updated_at": {
             "type": "string",
             "example": "Mon, 19 Feb 2024 11:41:54 GMT"
+          },
+          "project_id": {
+            "type": "integer",
+            "example": 1
           }
         }
       },
@@ -2719,6 +2830,10 @@
           "registry_id": {
             "type": "integer",
             "example": 2
+          },
+          "project_id": {
+            "type": "integer",
+            "example": 1
           }
         }
       },
@@ -2740,6 +2855,11 @@
           "sha": {
             "type": "string",
             "example": "sha256:abc..."
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "The project this image is whitelisted for. Defaults to the caller's project.",
+            "example": 1
           }
         },
         "required": [
@@ -2815,6 +2935,52 @@
           "active": {
             "type": "boolean",
             "example": true
+          }
+        }
+      },
+      "ProjectObject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "cardio"
+          },
+          "description": {
+            "type": "string",
+            "example": "Cardiac benchmarking"
+          },
+          "default_dataset_id": {
+            "type": "integer",
+            "description": "Dataset a task runs against when it names only this project",
+            "example": 1
+          },
+          "created_at": {
+            "type": "string",
+            "example": "2026-08-18 09:30:00"
+          },
+          "updated_at": {
+            "type": "string",
+            "example": "2026-08-18 09:30:00"
+          }
+        }
+      },
+      "ProjectPostBody": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "cardio"
+          },
+          "description": {
+            "type": "string",
+            "example": "Cardiac benchmarking"
           }
         }
       }

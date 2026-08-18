@@ -204,6 +204,36 @@ class TestGetTasks:
         }
         assert response_id.json["status"] == expected_status
 
+    def test_get_task_by_id_response_keys(
+            self,
+            post_json_admin_header,
+            client,
+            task,
+            mocker
+        ):
+        """
+        Pins the response body, so a column added to `tasks` cannot leak onto the wire and
+        an existing field cannot quietly vanish from it.
+        """
+        mocker.patch('app.models.task.Task.get_current_pod', return_value=None)
+
+        response = client.get(f'/tasks/{task.id}', headers=post_json_admin_header)
+
+        assert response.status_code == 200
+        assert response.json == {
+            'id': task.id,
+            'name': task.name,
+            'docker_image': task.docker_image,
+            'description': task.description,
+            'status': task.status,
+            'created_at': task.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            'updated_at': task.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+            'requested_by': task.requested_by,
+            'review_status': task.review_status,
+            'dataset_id': task.dataset_id,
+            'project_id': task.project_id,
+        }
+
 
 class TestPostTask:
     def test_create_task(
@@ -638,7 +668,7 @@ class TestPostTask:
             client,
             container,
             task_body,
-
+            project,
         ):
         """
         Tests task creation is successful if two images are mapped with the
@@ -646,7 +676,7 @@ class TestPostTask:
         """
         registry = Registry(url="another.azurecr.io", username="user", password="pass")
         registry.add()
-        WhitelistedImage(registry=registry, name=container.name, tag=container.tag).add()
+        WhitelistedImage(registry=registry, name=container.name, tag=container.tag, project_id=project.id).add()
         response = client.post(
             '/tasks/',
             json=task_body,
@@ -1082,11 +1112,12 @@ class TestValidateTask:
             cr_client,
             registry_client,
             post_json_admin_header,
-
+            dataset,
+            project,
         ):
         """
-        Test the validation endpoint can be used by admins returns
-        an error message if the dataset info is not provided
+        A task naming only a project runs against that project's default dataset, so an
+        admin no longer has to name one.
         """
         task_body["tags"].pop("dataset_id")
         response = client.post(
@@ -1094,8 +1125,52 @@ class TestValidateTask:
             json=task_body,
             headers=post_json_admin_header
         )
+        assert response.status_code == 200, response.json
+        assert project.default_dataset_id == dataset.id
+
+    def test_validate_task_project_without_default_dataset(
+            self,
+            client,
+            task_body,
+            cr_client,
+            registry_client,
+            post_json_admin_header,
+            other_project,
+        ):
+        """
+        A project with no datasets has no default, so the dataset has to be named.
+        """
+        task_body["tags"].pop("dataset_id")
+        task_body["project_id"] = other_project.id
+        response = client.post(
+            '/tasks/validate',
+            json=task_body,
+            headers=post_json_admin_header
+        )
         assert response.status_code == 400
-        assert response.json["error"] == "Administrators need to provide `tags.dataset_id` or `tags.dataset_name`"
+        assert "has no default dataset" in response.json["error"]
+
+    def test_validate_task_dataset_from_another_project(
+            self,
+            client,
+            task_body,
+            cr_client,
+            registry_client,
+            post_json_admin_header,
+            other_project,
+        ):
+        """
+        Naming a project and a dataset that belong to different projects is a conflict,
+        not something to silently resolve one way or the other.
+        """
+        task_body["project_id"] = other_project.id
+        response = client.post(
+            '/tasks/validate',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert "does not belong to project" in response.json["error"]
 
     def test_validate_task_basic_user(
             self,
