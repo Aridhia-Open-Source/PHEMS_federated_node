@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import Mock
 
 from app.helpers.container_registries import GitHubRegistry
-from app.models.container import Container
+from app.models.whitelisted_image import WhitelistedImage
 from app.models.registry import Registry
 
 
@@ -50,8 +50,8 @@ def registry(client, reg_k8s_client, cr_name) -> Registry:
     return reg
 
 @pytest.fixture
-def container(client, k8s_client, registry, image_name) -> Container:
+def container(client, k8s_client, registry, image_name) -> WhitelistedImage:
     img, tag = image_name.split(':')
-    cont = Container(img, registry, tag)
+    cont = WhitelistedImage(img, registry, tag)
     cont.add()
     return cont

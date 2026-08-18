@@ -69,6 +69,9 @@ tests:
       - hasDocuments:
           count: 1
 
+  # copy-secrets only handles external inputs now: the first-user secret and the
+  # storage/cert ones. The database passwords are created directly in every
+  # namespace that needs them by db-secrets.yaml, so there is nothing to copy.
   - it: set new user
     template: copy-secrets.yaml
     set:
@@ -81,10 +84,10 @@ tests:
         email: user.last@email.com
     asserts:
       - hasDocuments:
-          count: 3
+          count: 2
 
   - it: don't set new user
     template: copy-secrets.yaml
     asserts:
       - hasDocuments:
-          count: 2
+          count: 1

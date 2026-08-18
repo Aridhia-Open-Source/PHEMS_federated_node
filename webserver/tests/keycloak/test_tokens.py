@@ -52,6 +52,9 @@ class TestKeycloakTokens(TestKeycloakMixin):
         assert exc.value.description == 'User is not authorized'
 
     def test_is_token_valid(self, keycloak_login_request_mock, mocker):
+        # is_token_valid asks Keycloak whether the caller is a system user, which
+        # bypasses the permission check. These cover the non-system branch.
+        mocker.patch.object(Keycloak, "_is_system_user", return_value=False)
         mocker.patch.object(Keycloak, "check_permissions", return_value=True)
         keycloak_login_request_mock.add(
             responses.POST,
@@ -108,6 +111,9 @@ class TestKeycloakTokens(TestKeycloakMixin):
         assert not Keycloak().is_token_valid("token", "can_admin_dataset", "resource", with_permissions=False)
 
     def test_is_token_valid_fails(self, keycloak_login_request_mock, mocker):
+        # is_token_valid asks Keycloak whether the caller is a system user, which
+        # bypasses the permission check. These cover the non-system branch.
+        mocker.patch.object(Keycloak, "_is_system_user", return_value=False)
         mocker.patch.object(Keycloak, "check_permissions", return_value=True)
         keycloak_login_request_mock.add(
             responses.POST,
@@ -128,6 +134,9 @@ class TestKeycloakTokens(TestKeycloakMixin):
         assert not Keycloak().is_token_valid("token", "can_admin_dataset", "resource")
 
     def test_is_token_valid_with_access(self, keycloak_login_request_mock, mocker):
+        # is_token_valid asks Keycloak whether the caller is a system user, which
+        # bypasses the permission check. These cover the non-system branch.
+        mocker.patch.object(Keycloak, "_is_system_user", return_value=False)
         mocker.patch.object(Keycloak, "check_permissions", return_value=True)
         keycloak_login_request_mock.add(
             responses.POST,

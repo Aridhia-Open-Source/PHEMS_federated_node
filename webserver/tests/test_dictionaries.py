@@ -21,7 +21,7 @@ class TestDictionaries(MixinTestDataset):
         data_body['name'] = 'TestDs78'
         resp_ds = self.post_dataset(client, post_json_admin_header, data_body)
         response = client.get(
-            f"/datasets/{resp_ds["dataset_id"]}/dictionaries",
+            f"/datasets/{resp_ds["id"]}/dictionaries",
             headers=simple_admin_header
         )
         assert response.status_code == 200
@@ -88,12 +88,12 @@ class TestDictionaries(MixinTestDataset):
         data_body["dictionaries"][0]["description"] = "shiny new table"
 
         response = client.patch(
-            f"/datasets/{resp_ds["dataset_id"]}",
+            f"/datasets/{resp_ds["id"]}",
             json=data_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        dictionaries = Dictionary.query.filter(Dictionary.dataset_id == resp_ds["dataset_id"]).all()
+        dictionaries = Dictionary.query.filter(Dictionary.dataset_id == resp_ds["id"]).all()
         for dictionary in dictionaries:
             for k, v in data_body["dictionaries"][0].items():
                 assert getattr(dictionary, k) == v
@@ -121,12 +121,12 @@ class TestDictionaries(MixinTestDataset):
             }]
         }
         response = client.patch(
-            f"/datasets/{resp_ds["dataset_id"]}",
+            f"/datasets/{resp_ds["id"]}",
             json=data_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        assert Dictionary.query.filter(Dictionary.dataset_id == resp_ds["dataset_id"]).count() == 2
+        assert Dictionary.query.filter(Dictionary.dataset_id == resp_ds["id"]).count() == 2
 
     def test_patch_dictionary_fails_if_exists(
             self,
@@ -147,12 +147,12 @@ class TestDictionaries(MixinTestDataset):
             "dictionaries": data_body["dictionaries"]
         }
         response = client.patch(
-            f"/datasets/{resp_ds["dataset_id"]}",
+            f"/datasets/{resp_ds["id"]}",
             json=data_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 202
-        assert Dictionary.query.filter(Dictionary.dataset_id == resp_ds["dataset_id"]).count() == 1
+        assert Dictionary.query.filter(Dictionary.dataset_id == resp_ds["id"]).count() == 1
 
     def test_patch_dictionary_fails_if_mandatory_field_missing(
             self,
@@ -175,7 +175,7 @@ class TestDictionaries(MixinTestDataset):
         data_body["dictionaries"][0].pop("field_name")
 
         response = client.patch(
-            f"/datasets/{resp_ds["dataset_id"]}",
+            f"/datasets/{resp_ds["id"]}",
             json=data_body,
             headers=post_json_admin_header
         )
@@ -201,7 +201,7 @@ class TestDictionaries(MixinTestDataset):
 
         mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
         response = client.get(
-            f"/datasets/{resp_ds["dataset_id"]}/dictionaries",
+            f"/datasets/{resp_ds["id"]}/dictionaries",
             headers=simple_user_header
         )
         assert response.status_code == 403
@@ -227,7 +227,7 @@ class TestDictionaryTable(MixinTestDataset):
         data_body['name'] = 'TestDs78'
         resp_ds = self.post_dataset(client, post_json_admin_header, data_body)
         response = client.get(
-            f"/datasets/{resp_ds["dataset_id"]}/dictionaries/test",
+            f"/datasets/{resp_ds["id"]}/dictionaries/test",
             headers=simple_admin_header
         )
         assert response.status_code == 200
@@ -288,7 +288,7 @@ class TestDictionaryTable(MixinTestDataset):
 
         mock_kc_client["wrappers_kc"].return_value.is_token_valid.return_value = False
         response = client.get(
-            f"/datasets/{resp_ds["dataset_id"]}/dictionaries/test",
+            f"/datasets/{resp_ds["id"]}/dictionaries/test",
             headers=simple_user_header
         )
         assert response.status_code == 403

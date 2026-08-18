@@ -10,6 +10,7 @@ from unittest.mock import Mock
 
 from app.helpers.base_model import db
 from app.helpers.exceptions import KeycloakError
+from app.helpers.kubernetes import KubernetesClient
 from app.models.dataset import Dataset
 from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
@@ -69,7 +70,6 @@ class TestDatasets(MixinTestDataset):
             "slug": dataset.name,
             "schema": None,
             "schema_write": None,
-            "repository": None,
             "extra_connection_args": None
         }
 
@@ -341,7 +341,7 @@ class TestPostDataset(MixinTestDataset):
         response = client.get("/datasets/" + data_body['name'], headers=simple_admin_header)
         assert response.status_code == 200
         assert response.json == {
-            "id": new_ds["dataset_id"],
+            "id": new_ds["id"],
             "name": "test dataset",
             "host": data_body["host"],
             "port": 5432,
@@ -349,7 +349,6 @@ class TestPostDataset(MixinTestDataset):
             "slug": "test-dataset",
             "schema": None,
             "schema_write": None,
-            "repository": "github.com/org/test-repo",
             "extra_connection_args": None,
             "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset"
         }
@@ -396,17 +395,17 @@ class TestPostDataset(MixinTestDataset):
         assert ds is not None
 
     @mock.patch('app.datasets_api.Dataset.add')
-    def test_post_dataset_can_share_repository(
+    def test_post_dataset_ignores_repository_field(
             self,
             ds_add_mock,
             post_json_admin_header,
             client,
-            dataset_with_repo,
             dataset_post_body
         ):
         """
-        /datasets POST succeeds even when the new dataset uses a repository
-        already linked to another dataset (shared FK is allowed).
+        `repository` is not part of the dataset contract - repositories point at
+        datasets (Repository.dataset_id) and are created through POST /repositories.
+        POST ignores unknown keys, so it is accepted and simply not stored.
         """
         from app.models.repository import Repository
         data_body = dataset_post_body.copy()
@@ -414,10 +413,24 @@ class TestPostDataset(MixinTestDataset):
         data_body['repository'] = 'organisation/repository'
         self.post_dataset(client, post_json_admin_header, data_body)
 
-        repo = Repository.query.filter_by(uri='organisation/repository').one_or_none()
-        assert repo is not None
-        datasets = Dataset.query.filter(Dataset.repository_id == repo.id).all()
-        assert len(datasets) == 2
+        assert Repository.query.filter_by(uri='organisation/repository').one_or_none() is None
+
+    def test_patch_dataset_rejects_repository_field(
+            self,
+            post_json_admin_header,
+            client,
+            dataset
+        ):
+        """
+        PATCH validates its body strictly, so `repository` is rejected rather than
+        silently dropped.
+        """
+        response = client.patch(
+            f"/datasets/{dataset.id}",
+            json={"repository": "organisation/repository"},
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400, response.json
 
     def test_post_dataset_invalid_type(
             self,
@@ -494,6 +507,43 @@ class TestPostDataset(MixinTestDataset):
 
         self.assert_datasets_by_name(data_body['name'])
 
+    def test_dataset_secret_from_a_previous_registration_is_replaced(
+            self,
+            dataset,
+            k8s_client,
+            k8s_config
+        ):
+        """
+        A secret left behind by an earlier registration of the same dataset does not
+        get to keep its credentials: the password the task pods read has to be the one
+        registered here, or it authenticates against the database with the old one.
+        """
+        k8s_client["create_namespaced_secret_mock"].side_effect = ApiException(
+            status=409, reason="Conflict"
+        )
+        dataset.username = "uc1_user"
+        dataset.password = "the-current-password"
+
+        dataset.create_kubernetes_secret()
+
+        patch_mock = k8s_client["patch_namespaced_secret_mock"]
+        secret_name = dataset.get_creds_secret_name()
+
+        assert [call.args for call in patch_mock.call_args_list] == [
+            (secret_name, ns) for ns in self.expected_namespaces
+        ]
+        for call in patch_mock.call_args_list:
+            body = call.kwargs["body"]
+            assert body.data == {
+                "USERNAME": KubernetesClient.encode_secret_value("uc1_user"),
+                "PASSWORD": KubernetesClient.encode_secret_value("the-current-password")
+            }
+            # Teardown selects on these to clear secrets the Helm release cannot.
+            assert body.metadata["labels"] == {
+                "type": "database",
+                "host": secret_name
+            }
+
     def test_post_dataset_is_unsuccessful_non_admin(
             self,
             post_json_user_header,
@@ -567,7 +617,7 @@ class TestPostDataset(MixinTestDataset):
         self.assert_datasets_by_name(data_body['name'])
         query = self.run_query(select(Catalogue).where(Catalogue.title == data_body["catalogue"]["title"]))
         assert len(query) == 1
-        query = self.run_query(select(Dictionary).where(Dictionary.dataset_id == query_ds["dataset_id"]))
+        query = self.run_query(select(Dictionary).where(Dictionary.dataset_id == query_ds["id"]))
         assert len(query) == 0
 
     @mock.patch('app.datasets_api.Dataset.add')
@@ -662,7 +712,7 @@ class TestPostDataset(MixinTestDataset):
         self.assert_datasets_by_name(data_body['name'])
         query = self.run_query(select(Catalogue).where(Catalogue.title == data_body["catalogue"]["title"]))
         assert len(query) == 1
-        query = self.run_query(select(Dictionary).where(Dictionary.dataset_id == query_ds["dataset_id"]))
+        query = self.run_query(select(Dictionary).where(Dictionary.dataset_id == query_ds["id"]))
         assert len(query) == 0
 
     @mock.patch('app.datasets_api.Dataset.add')
@@ -685,7 +735,7 @@ class TestPostDataset(MixinTestDataset):
         # Make sure any db entry is created
         self.assert_datasets_by_name(data_body['name'])
 
-        query = self.run_query(select(Catalogue).where(Catalogue.dataset_id == query_ds["dataset_id"]))
+        query = self.run_query(select(Catalogue).where(Catalogue.dataset_id == query_ds["id"]))
         assert len(query) == 0
         for d in data_body["dictionaries"]:
             query = self.run_query(select(Dictionary).where(Dictionary.table_name == d["table_name"]))
@@ -813,6 +863,15 @@ class TestPatchDataset(MixinTestDataset):
                 **{'name':expected_secret_name, 'namespace':ns, 'body': expected_body}
             )
 
+        # Under the keys everything else reads them by: get_credentials, the task pod
+        # env and the Dagster pipes op. Written anywhere else, the patch succeeds while
+        # the credentials in service stay the old ones.
+        assert expected_body.data["USERNAME"] == \
+            KubernetesClient.encode_secret_value("john")
+        assert expected_body.data["PASSWORD"] == \
+            KubernetesClient.encode_secret_value("johnsmith")
+        assert not [key for key in expected_body.data if key.startswith("PG")]
+
     def test_patch_dataset_fails_on_k8s_error(
             self,
             dataset,
@@ -902,90 +961,6 @@ class TestPatchDataset(MixinTestDataset):
             headers=simple_admin_header
         )
         assert response.status_code == 404
-
-
-class TestBeacon:
-    def test_beacon_available_to_admin(
-            self,
-            client,
-            post_json_admin_header,
-            mocker,
-            dataset
-    ):
-        """
-        Test that the beacon endpoint is accessible to admin users
-        """
-        mocker.patch('app.helpers.query_validator.create_engine')
-        mocker.patch(
-            'app.helpers.query_validator.sessionmaker',
-        ).__enter__.return_value = Mock()
-        response = client.post(
-            "/datasets/selection/beacon",
-            json={
-                "query": "SELECT * FROM table_name",
-                "dataset_id": dataset.id
-            },
-            headers=post_json_admin_header
-        )
-        assert response.status_code == 200
-        assert response.json['result'] == 'Ok'
-
-    def test_beacon_available_to_admin_invalid_query(
-            self,
-            client,
-            post_json_admin_header,
-            mocker,
-            dataset
-    ):
-        """
-        Test that the beacon endpoint is accessible to admin users
-        """
-        mocker.patch('app.helpers.query_validator.create_engine')
-        mocker.patch(
-            'app.helpers.query_validator.sessionmaker',
-            side_effect = ProgrammingError(statement="", params={}, orig="error test")
-        )
-        response = client.post(
-            "/datasets/selection/beacon",
-            json={
-                "query": "SELECT * FROM table",
-                "dataset_id": dataset.id
-            },
-            headers=post_json_admin_header
-        )
-        assert response.status_code == 400
-        assert response.json['result'] == 'Invalid'
-
-    def test_beacon_connection_failed(
-            self,
-            client,
-            post_json_admin_header,
-            mocker,
-            dataset
-    ):
-        """
-        Test that the beacon endpoint is accessible to admin users
-        but returns an appropriate error message in case of connection
-        failed
-        """
-        mocker.patch('app.helpers.query_validator.create_engine')
-        mocker.patch(
-            'app.helpers.query_validator.sessionmaker',
-            side_effect = OperationalError(
-                statement="Unable to connect: Adaptive Server is unavailable or does not exist",
-                params={}, orig="error test"
-            )
-        )
-        response = client.post(
-            "/datasets/selection/beacon",
-            json={
-                "query": "SELECT * FROM table",
-                "dataset_id": dataset.id
-            },
-            headers=post_json_admin_header
-        )
-        assert response.status_code == 500
-        assert response.json['error'] == 'Could not connect to the database'
 
 
 class TestDeleteDataset(MixinTestDataset):

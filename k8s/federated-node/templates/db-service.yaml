@@ -6,9 +6,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   ports:
-    - port: 5432
+    - port: {{ include "dbPort" . }}
       name: pgport
-      targetPort: 5432
+      targetPort: {{ include "dbPort" . }}
       protocol: TCP
   selector:
     app: postgres

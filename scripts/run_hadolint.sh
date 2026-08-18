@@ -15,6 +15,11 @@ DOCKERFILES=$(find . -type f -name "Dockerfile" -not -path "./.*")
 
 set +e
 
+# Pinned deliberately. On `latest-alpine` a hadolint release lands mid-sprint and fails an
+# unrelated PR with findings nobody introduced - 2.15.0 added DL3064, which broke every
+# build at once. Bump this when you want the new rules, and fix them in that commit.
+HADOLINT_IMAGE="hadolint/hadolint:v2.15.1-alpine"
+
 HADOLINT_FLAGS="--config /mnt/.hadolint.yaml"
 
 # Run with readable output
@@ -26,7 +31,7 @@ docker run \
   --workdir /mnt \
   --init \
   --rm \
-  hadolint/hadolint:latest-alpine hadolint $HADOLINT_FLAGS $DOCKERFILES
+  "$HADOLINT_IMAGE" hadolint $HADOLINT_FLAGS $DOCKERFILES
 exit_status=$?
 
 # Generate JUnit XML artifact for CI reporting
@@ -36,7 +41,7 @@ docker run \
   --workdir /mnt \
   --init \
   --rm \
-  hadolint/hadolint:latest-alpine hadolint -f checkstyle $HADOLINT_FLAGS $DOCKERFILES \
+  "$HADOLINT_IMAGE" hadolint -f checkstyle $HADOLINT_FLAGS $DOCKERFILES \
   | xmlstarlet tr scripts/checkstyle2junit.xslt > "$ARTIFACTS_DIR"/hadolint.xml
 
 set -e

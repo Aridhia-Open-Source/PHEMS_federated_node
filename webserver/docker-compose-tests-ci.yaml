@@ -22,6 +22,9 @@ services:
       PGPORT:
       PGUSER:
       PGPASSWORD:
+      BACKEND_DB_USER:
+      BACKEND_DB_PASSWORD:
+      BACKEND_DB_NAME:
       PYTHONPATH: /app
       RESULTS_PATH:
       TASK_POD_RESULTS_PATH:

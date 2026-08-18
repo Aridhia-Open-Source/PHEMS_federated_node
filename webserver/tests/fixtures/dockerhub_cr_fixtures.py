@@ -4,7 +4,7 @@ import responses
 from unittest.mock import Mock
 
 from app.helpers.container_registries import DockerRegistry
-from app.models.container import Container
+from app.models.whitelisted_image import WhitelistedImage
 from app.models.registry import Registry
 from app.helpers.keycloak import KEYCLOAK_URL
 
@@ -72,8 +72,8 @@ def registry(client, mocker, reg_k8s_client, dockerhub_login_request, cr_name) -
         return reg
 
 @pytest.fixture
-def container(client, k8s_client, registry, image_name) -> Container:
+def container(client, k8s_client, registry, image_name) -> WhitelistedImage:
     img, tag = image_name.split(':')
-    cont = Container(img, registry, tag)
+    cont = WhitelistedImage(img, registry, tag)
     cont.add()
     return cont

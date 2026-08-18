@@ -646,7 +646,7 @@ class TestPostTask:
         """
         registry = Registry(url="another.azurecr.io", username="user", password="pass")
         registry.add()
-        Container(registry=registry, name=container.name, tag=container.tag).add()
+        WhitelistedImage(registry=registry, name=container.name, tag=container.tag).add()
         response = client.post(
             '/tasks/',
             json=task_body,
@@ -684,7 +684,7 @@ class TestPostTask:
         Tests task creation returns 403 when image is not whitelisted and ENABLE_IMAGE_WHITELIST is True
         """
         mocker.patch("app.models.task.ENABLE_IMAGE_WHITELIST", True)
-        mocker.patch("app.models.container.Container.validate_image_whitelisted", return_value=False)
+        mocker.patch("app.models.whitelisted_image.WhitelistedImage.validate_image_whitelisted", return_value=False)
 
         response = client.post(
             '/tasks/',
@@ -705,7 +705,7 @@ class TestPostTask:
         Tests task creation success when image is whitelisted and ENABLE_IMAGE_WHITELIST is True
         """
         mocker.patch("app.models.task.ENABLE_IMAGE_WHITELIST", True)
-        mocker.patch("app.models.container.Container.validate_image_whitelisted", return_value=True)
+        mocker.patch("app.models.whitelisted_image.WhitelistedImage.validate_image_whitelisted", return_value=True)
         mocker.patch("app.models.registry.Registry.validate_image_exist", return_value=True)
 
         response = client.post(

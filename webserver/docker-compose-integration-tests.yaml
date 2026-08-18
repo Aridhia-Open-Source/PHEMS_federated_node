@@ -27,7 +27,8 @@ services:
       - db
     environment:
       KC_HOSTNAME_STRICT: false
-      KC_FEATURES: admin-fine-grained-authz:v1,token-exchange
+      # Features are baked into the image by `kc.sh build` in build/keycloak/Dockerfile.
+      # Passing them again at runtime with --optimized is rejected by Keycloak.
       KC_HEALTH_ENABLED: true
       KC_DB_URL_HOST: db
       KC_DB: postgres

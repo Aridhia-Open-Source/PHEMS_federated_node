@@ -6,9 +6,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   ports:
-    - port: 5432
+    - port: {{ .Values.datasetDb.port | default 5432 }}
       name: pgport
-      targetPort: 5432
+      targetPort: {{ .Values.datasetDb.port | default 5432 }}
       protocol: TCP
   selector:
     app: dataset-postgres

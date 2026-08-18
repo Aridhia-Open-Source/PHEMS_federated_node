@@ -1,3 +1,14 @@
+{{/*
+Read access to the dataset credentials Secret, which the pipes op resolves into the
+task pod's CONNECTION_STRING (_get_k8s_dataset_secret in dagster/app/definitions/pipes.py).
+
+Both service accounts need it, and the run launcher's is the one that actually does the
+read: the op executes in the per-run pod, which the subchart's k8sRunLauncher runs under
+its own service account ({{ .Release.Name }}-dagster), not under the code server's. With
+only the code server bound, every dataset-backed task fails with
+  secrets "<host>-<dataset>-creds" is forbidden: User
+  "system:serviceaccount:<ns>:<release>-dagster" cannot get resource "secrets"
+*/}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -14,7 +25,10 @@ metadata:
 subjects:
   - kind: ServiceAccount
     namespace: {{ .Release.Namespace }}
-    name: {{ .Release.Name }}-dagster-user-deployments-user-deployments
+    name: {{ include "dagsterCodeServerServiceAccount" . }}
+  - kind: ServiceAccount
+    namespace: {{ .Release.Namespace }}
+    name: {{ ((.Values.dagster.serviceAccount).name) | default (printf "%s-dagster" .Release.Name) }}
 roleRef:
   kind: ClusterRole
   name: {{ .Release.Name }}-dagster-user-role

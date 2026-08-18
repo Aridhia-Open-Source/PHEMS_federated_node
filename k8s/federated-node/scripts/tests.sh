@@ -27,9 +27,9 @@ test_dataset_list(){
         --header "Authorization: Bearer ${TOKEN}" > /dev/null 2>&1
 }
 
-test_containers_list() {
-    printf "[test]\t### Test Fetch Containers list ###\n\n"
-    curl "${BACKEND_URL}/containers" \
+test_whitelisted_images_list() {
+    printf "[test]\t### Test Fetch Whitelisted Images list ###\n\n"
+    curl "${BACKEND_URL}/whitelisted_images" \
         --silent \
         --fail-with-body \
         --header "Authorization: Bearer ${TOKEN}" > /dev/null 2>&1
@@ -84,7 +84,7 @@ test_create_dataset() {
             \"username\": \"user\",
             \"password\": \"password1\",
             \"extra_connection_args\": \";TrustServerCertificate=Yes\"
-        }" | jq -e -r '.dataset_id')
+        }" | jq -e -r '.id')
 }
 
 test_dar() {
@@ -120,8 +120,8 @@ if ! test_dataset_list; then
     printf "[ERROR]\tFailed fetching dataset list test\n"
     exit_code=1
 fi
-if ! test_containers_list; then
-    printf "[ERROR]\tFailed fetching containers list test\n"
+if ! test_whitelisted_images_list; then
+    printf "[ERROR]\tFailed fetching whitelisted images list test\n"
     exit_code=1
 fi
 if ! test_create_user; then
@@ -172,7 +172,11 @@ if [ -n "$CLIENT_ID" ]; then
 fi
 
 printf "[cleanup]\tRemoving test db entry\n"
-psql -h db -U "$PGUSER" -d "$PGDATABASE" -c "DELETE FROM datasets WHERE name = '${TEST_DB_NAME}';"  > /dev/null 2>&1
+# PGHOST/PGPORT/BACKEND_DB_USER/BACKEND_DB_NAME are what backend-configmap publishes.
+# This used to hardcode `-h db` and read PGUSER/PGDATABASE, which nothing exports - so
+# with `set -e` above, the whole test pod died here before it could report success.
+psql -h "$PGHOST" -p "$PGPORT" -U "$BACKEND_DB_USER" -d "$BACKEND_DB_NAME" \
+  -c "DELETE FROM datasets WHERE name = '${TEST_DB_NAME}';" > /dev/null 2>&1
 
 if [ $exit_code -gt 0 ]; then
     exit $exit_code

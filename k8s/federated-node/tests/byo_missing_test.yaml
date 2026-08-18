@@ -1,0 +1,112 @@
+suite: Bring-your-own databases - telling the operator what to create
+# A reachable cluster, but none of the role secrets: the install must stop and hand
+# the operator the exact DDL and kubectl lines, using their own names.
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-aks.yaml
+set:
+  db:
+    manageRolesAndDatabases: false
+  dagster:
+    enabled: true
+    postgresql:
+      postgresqlHost: postgres.postgres.database.azure.com
+  datasetDb:
+    create: false
+kubernetesProvider:
+  scheme:
+    v1/Secret:
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+    v1/ConfigMap:
+      gvr:
+        version: v1
+        resource: configmaps
+      namespaced: true
+    v1/Namespace:
+      gvr:
+        version: v1
+        resource: namespaces
+      namespaced: false
+    "apiextensions.k8s.io/v1/CustomResourceDefinition":
+      gvr:
+        group: "apiextensions.k8s.io"
+        version: "v1"
+        resource: "customresourcedefinitions"
+      namespaced: false
+  objects:
+    # Makes fn.clusterReachable true, so the cluster-state checks actually run.
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: kube-system
+    - apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: httproutes.gateway.networking.k8s.io
+    - apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: middlewares.traefik.io
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: test-azure
+        namespace: federatednode
+      type: Opaque
+      data:
+        SP_SECRET: dGVzdA==
+    - apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: azurecert-config
+        namespace: federatednode
+      data:
+        EMAIL_CERT: test@test.com
+        SP_ID: as1d1as351as
+        RG_NAME: rg-test
+        SUBSCRIPTION_ID: 123-123-123
+        HOSTED_ZONE: uksouth
+        TENANT_ID: as13151cv18a1ca651ac
+    # The role passwords, as a DBA-run install would have them. No superuser.
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: github-token
+        namespace: federatednode
+      type: Opaque
+      data:
+        GH_TOKEN: dGVzdA==
+tests:
+  - it: names every role secret it needs, and the DDL to create them
+    template: requirements-check.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "backend-db \\(key password\\)"
+      - failedTemplate:
+          errorPattern: "keycloak-db-secret"
+      - failedTemplate:
+          errorPattern: "dagster-postgresql-secret"
+      - failedTemplate:
+          errorPattern: "CREATE DATABASE keycloak_db OWNER keycloak_admin"
+      - failedTemplate:
+          errorPattern: "SUPERUSER is required"
+      - failedTemplate:
+          errorPattern: "kubectl create secret generic backend-db -n federatednode"
+
+  - it: uses the operator's own database and role names in that DDL
+    template: requirements-check.yaml
+    set:
+      backend:
+        db:
+          name: fn_backend
+          user: fn_backend_role
+    asserts:
+      - failedTemplate:
+          errorPattern: "CREATE DATABASE fn_backend OWNER fn_backend_role"
+      - failedTemplate:
+          errorPattern: "GRANT USAGE, CREATE ON SCHEMA public TO fn_backend_role"

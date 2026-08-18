@@ -1,3 +1,10 @@
+# Instance config baked into the image at $DAGSTER_HOME/dagster.yaml.
+#
+# Only the code (gRPC) server and `dagster dev` use this. The daemon, webserver and
+# run pods get the Helm-generated instance config, which the dagster subchart mounts
+# over this file. So keep this to settings that hold in any environment - anything
+# Kubernetes-specific belongs in the chart, derived from values.
+
 python_logs:
   dagster_handler_config:
     handlers:
@@ -10,6 +17,7 @@ python_logs:
         level: ERROR
         stream: ext://sys.stderr
 
+# Env vars come from the dagster-env-config ConfigMap and the Dagster password secret.
 storage:
   postgres:
     postgres_db:
@@ -22,29 +30,3 @@ storage:
       hostname:
         env: DAGSTER_PG_HOST
       port: 5432
-
-run_monitoring:
-  enabled: true
-  start_timeout_seconds: 180
-  cancel_timeout_seconds: 180
-  max_resume_run_attempts: 0
-  poll_interval_seconds: 60
-
-run_launcher:
-  module: dagster_k8s.launcher
-  class: K8sRunLauncher
-  config:
-    job_namespace: fn
-    load_incluster_config: true
-
-    env_config_maps:
-      - dagster-env-config
-
-    volumes:
-      - name: artifacts-pvc
-        persistentVolumeClaim:
-          claimName: artifacts-pvc
-
-    volume_mounts:
-      - name: artifacts-pvc
-        mountPath: /mnt/dagster/artifacts

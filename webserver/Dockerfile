@@ -1,6 +1,6 @@
 FROM python:3.13.5-slim
 
-ARG USERNAME=fednode
+ARG APP_USER=fednode
 ARG USER_UID=1001
 ARG USER_GID=1001
 
@@ -21,10 +21,10 @@ RUN apt-get update \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-RUN groupadd -g "$USER_GID" "$USERNAME" \
-    && useradd --uid "$USER_UID" --gid "$USER_GID" "$USERNAME"
+RUN groupadd -g "$USER_GID" "$APP_USER" \
+    && useradd --uid "$USER_UID" --gid "$USER_GID" "$APP_USER"
 
-COPY --chown=${USERNAME}:${USERNAME} . .
+COPY --chown=${APP_USER}:${APP_USER} . .
 
 USER ${USER_UID}
 

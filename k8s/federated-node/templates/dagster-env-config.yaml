@@ -11,12 +11,12 @@ metadata:
 data:
   DAGSTER_HOME: {{ .Values.dagsterHome | quote }}
   DAGSTER_DEPLOYMENT_NAMESPACE: {{ .Release.Namespace }}
-  DAGSTER_USER_SERVICE_ACCOUNT_NAME: {{ .Release.Name }}-dagster-user-deployments-user-deployments
+  DAGSTER_USER_SERVICE_ACCOUNT_NAME: {{ include "dagsterCodeServerServiceAccount" . }}
   DAGSTER_ARTIFACT_MOUNT_PATH: {{ .Values.fnDagster.artifactMountPath | quote }}
   DAGSTER_ARTIFACTS_PVC_NAME: {{ .Values.fnDagster.artifactsPvcName | quote }}
-  DAGSTER_PG_HOST: {{ .Values.fnDagster.db.host | default .Values.db.host | quote }}
-  DAGSTER_PG_USER: {{ .Values.fnDagster.db.user | quote }}
-  DAGSTER_PG_NAME: {{ .Values.fnDagster.db.name | quote }}
+  DAGSTER_PG_HOST: {{ include "dagsterDbHost" . | quote }}
+  DAGSTER_PG_USER: {{ include "dagsterDbUser" . | quote }}
+  DAGSTER_PG_NAME: {{ include "dagsterDbName" . | quote }}
   GH_RESULTS_DIR: {{ .Values.fnDagster.gh.resultsDir | quote }}
   GH_DELIVERY_REPO: {{ .Values.fnDagster.gh.delivery_repo | quote }}
   BACKEND_API_URI: {{ include "backendUri" . | quote }}

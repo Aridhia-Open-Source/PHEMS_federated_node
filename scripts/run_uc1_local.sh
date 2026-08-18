@@ -24,6 +24,9 @@ IMAGE="localhost:5001/uc1-fn:${TAG}"
 set -a
 source "$ROOT_DIR/dev.db/.env"
 set +a
+source "$ROOT_DIR/dev.db/dataset_password.sh"
+set -a
+set +a
 
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/uc1-local-results}"
 mkdir -p "$OUT_DIR"

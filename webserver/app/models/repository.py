@@ -83,6 +83,7 @@ class Repository(db.Model, BaseModel):
             'watch_dir': self.watch_dir,
             'base_branch': self.base_branch,
             'dataset_id': self.dataset_id,
+            'initial_cursor': self.initial_cursor.isoformat() if self.initial_cursor else None,
             'pr_cursor': self.get_pull_request_cursor(),
             'pr_count': len(self.pull_requests)
         }
