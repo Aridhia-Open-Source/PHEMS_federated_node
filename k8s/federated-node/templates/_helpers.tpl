@@ -63,6 +63,9 @@ dagster-workspace
 {{- define "keycloak-image-tag" -}}
 {{ (.Values.keycloak).tag | default .Chart.AppVersion }}
 {{- end }}
+{{- define "keycloak-image" -}}
+{{ printf "%s:%s" ((.Values.keycloak).image | default "ghcr.io/aridhia-open-source/federated_keycloak") (include "keycloak-image-tag" . | trim) }}
+{{- end }}
 
 {{/*
 Common labels
@@ -260,4 +263,12 @@ affect how ownership is reported.
 {{- end -}}
 {{- define "controllerCrdGroup" -}}
 tasks.federatednode.com
+{{- end -}}
+
+{{/*
+  Where kc-secrets is mounted in components that read credentials from disk rather than the
+  environment.
+*/}}
+{{- define "kcSecretsMountPath" -}}
+/etc/secrets/kc
 {{- end -}}

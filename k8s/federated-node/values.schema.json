@@ -79,12 +79,75 @@
         "keycloak": {
             "type": "object",
             "properties": {
+                "image": {
+                    "type": "string",
+                    "default": "ghcr.io/aridhia-open-source/federated_keycloak",
+                    "description": "Keycloak server image repository. Must be built from build/keycloak in this repo: features, --db and --health-enabled are baked in at build time, so an unrelated Keycloak image falls back to H2 and exposes no management port."
+                },
                 "replicas": {
                     "type": "integer",
                     "default": 2
                 },
                 "tag": {
                     "$ref": "#/definitions/tag"
+                },
+                "credentialGeneration": {
+                    "type": "integer",
+                    "default": 1,
+                    "description": "Increment to deliberately rotate the platform-managed Keycloak credentials. Credentials are otherwise stable across upgrades. Safe to leave committed: rotation only happens when this differs from the generation recorded in kc-secrets."
+                },
+                "tokenCacheSeconds": {
+                    "type": "integer",
+                    "default": 30,
+                    "description": "Seconds a service-account token may be cached by the backend. 0 disables caching."
+                },
+                "credentialRotation": {
+                    "type": "object",
+                    "description": "Automatic rotation of platform-managed Keycloak credentials. Requires volume-mounted credentials; never rotates the operator-owned admin password.",
+                    "properties": {
+                        "enabled": {"type": "boolean", "default": false},
+                        "schedule": {"type": "string", "default": "0 3 1 * *", "description": "Cron schedule. Cron cannot express exactly 30 days; monthly is the closest equivalent."},
+                        "rotate": {
+                            "type": "object",
+                            "properties": {
+                                "clientSecret": {"type": "boolean", "default": true},
+                                "servicePassword": {"type": "boolean", "default": true},
+                                "dagsterPassword": {"type": "boolean", "default": true}
+                            }
+                        }
+                    }
+                },
+                "manageRealm": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether keycloak-realm-init applies the realms.json partial import and realm migrations. Set false to hand realm management entirely to the operator."
+                },
+                "recreateMissingSecrets": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Allow an upgrade to regenerate kc-secrets when it is absent. Normally that is a hard error, since it usually means Helm's lookup cannot reach the cluster and credentials would be silently regenerated on every sync."
+                },
+                "db": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "default": "keycloak_db",
+                            "description": "Keycloak's database name"
+                        }
+                    }
+                },
+                "initializer": {
+                    "type": "object",
+                    "description": "Overrides the image/tag for the keycloak-realm-init controller",
+                    "properties": {
+                        "image": {
+                            "type": "string"
+                        },
+                        "tag": {
+                            "$ref": "#/definitions/tag"
+                        }
+                    }
                 }
             }
         },

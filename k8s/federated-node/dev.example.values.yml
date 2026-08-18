@@ -60,8 +60,8 @@ alpine:
   tag: *devTag
 
 keycloak:
-  # Not built locally. Remove to track the chart's appVersion.
-  tag: "1.9.0"
+  image: localhost:5001/keycloak-fn
+  tag: *devTag
   initializer:
     image: localhost:5001/kc-init-fn
     tag: *devTag
