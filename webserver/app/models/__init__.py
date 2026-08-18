@@ -21,9 +21,19 @@ class ModelRegistry:
         return Dataset
 
     @cached_property
+    def DeliveryTarget(self):
+        from app.models.delivery_target import DeliveryTarget
+        return DeliveryTarget
+
+    @cached_property
     def Dictionary(self):
         from app.models.dictionary import Dictionary
         return Dictionary
+
+    @cached_property
+    def Project(self):
+        from app.models.project import Project
+        return Project
 
     @cached_property
     def PullRequest(self):
@@ -34,11 +44,6 @@ class ModelRegistry:
     def Registry(self):
         from app.models.registry import Registry
         return Registry
-
-    @cached_property
-    def Repository(self):
-        from app.models.repository import Repository
-        return Repository
 
     @cached_property
     def Request(self):
@@ -54,6 +59,16 @@ class ModelRegistry:
     def WhitelistedImage(self):
         from app.models.whitelisted_image import WhitelistedImage
         return WhitelistedImage
+
+    @cached_property
+    def TaskDelivery(self):
+        from app.models.task_delivery import TaskDelivery
+        return TaskDelivery
+
+    @cached_property
+    def TriggerRepository(self):
+        from app.models.trigger_repository import TriggerRepository
+        return TriggerRepository
 
 
 Models = ModelRegistry()

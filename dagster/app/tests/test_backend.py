@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.backend import BackendAPI
-from app.models import Dataset, PullRequest, Registry, Repository
+from app.models import Dataset, PullRequest, Registry, TriggerRepository
 from app.tests.conftest import SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, make_response
 
 
@@ -64,21 +64,21 @@ class TestRepositories:
 
         repos = api.get_repositories()
 
-        assert [type(r) for r in repos] == [Repository]
+        assert [type(r) for r in repos] == [TriggerRepository]
         assert repos[0].path == "org/repo"
 
     def test_get_repository(self, api, session):
         session.get.return_value = make_response(SAMPLE_REPOSITORY_OBJ)
 
         assert api.get_repository(1).id == 1
-        session.get.assert_called_once_with("/repositories/1")
+        session.get.assert_called_once_with("/trigger_repositories/1")
 
     def test_patch_repository(self, api, session):
         session.patch.return_value = make_response(SAMPLE_REPOSITORY_OBJ)
 
         api.patch_repository(1, {"pr_cursor": "2026-07-01T00:00:00Z"})
 
-        assert session.patch.call_args.args[0] == "/repositories/1"
+        assert session.patch.call_args.args[0] == "/trigger_repositories/1"
         assert session.patch.call_args.kwargs["json"] == {
             "pr_cursor": "2026-07-01T00:00:00Z"
         }
@@ -86,7 +86,7 @@ class TestRepositories:
     def test_delete_repository(self, api, session):
         api.delete_repository(3)
 
-        session.delete.assert_called_once_with("/repositories/3")
+        session.delete.assert_called_once_with("/trigger_repositories/3")
 
 
 class TestPullRequests:
@@ -126,7 +126,7 @@ class TestPullRequests:
         session.post.return_value = make_response(SAMPLE_PR)
 
         api.create_pull_request(
-            repository_id=1,
+            trigger_repository_id=1,
             number=5,
             title="t",
             raised_by="dev",
@@ -148,7 +148,7 @@ class TestPullRequests:
 
         prs = api.create_pull_requests_batch(1, [SAMPLE_PR])
 
-        assert session.post.call_args.args[0] == "/repositories/1/pull_requests/batch"
+        assert session.post.call_args.args[0] == "/trigger_repositories/1/pull_requests/batch"
         assert len(prs) == 1
 
     def test_update_status(self, api, session):
@@ -156,7 +156,7 @@ class TestPullRequests:
 
         api.update_pull_request_status(1, 5, "SUCCESS")
 
-        assert session.patch.call_args.args[0] == "/repositories/1/pull_requests/5"
+        assert session.patch.call_args.args[0] == "/trigger_repositories/1/pull_requests/5"
         assert session.patch.call_args.kwargs["json"] == {"status": "SUCCESS"}
 
 

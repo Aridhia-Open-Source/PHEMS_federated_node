@@ -8,7 +8,7 @@ import requests
 from requests import Session
 from requests.adapters import HTTPAdapter
 
-from models import Repository, PullRequest, Dataset, Request
+from models import TriggerRepository, PullRequest, Dataset, Request, Project
 
 logger = logging.getLogger(__name__)
 
@@ -193,24 +193,24 @@ class BackendAPI:
             self.session.adapter.access_token = token
         return data
 
-    def get_repositories(self) -> list[Repository]:
+    def get_repositories(self) -> list[TriggerRepository]:
         """Get all repositories"""
         self.logger.info("Fetching repositories")
-        response = self.session.get("/repositories")
+        response = self.session.get("/trigger_repositories")
         repos = response.json()
-        return [Repository(**repo) for repo in repos]
+        return [TriggerRepository(**repo) for repo in repos]
 
-    def get_repository(self, repo_id: int) -> Repository:
+    def get_repository(self, repo_id: int) -> TriggerRepository:
         """Get single repository"""
         self.logger.info(f"Fetching repository {repo_id}")
-        response = self.session.get(f"/repositories/{repo_id}")
-        return Repository(**response.json())
+        response = self.session.get(f"/trigger_repositories/{repo_id}")
+        return TriggerRepository(**response.json())
 
-    def patch_repository(self, repo_id: int, data: dict) -> Repository:
+    def patch_repository(self, repo_id: int, data: dict) -> TriggerRepository:
         """Update repository"""
         self.logger.info(f"Updating repository {repo_id}")
-        response = self.session.patch(f"/repositories/{repo_id}", json=data)
-        return Repository(**response.json())
+        response = self.session.patch(f"/trigger_repositories/{repo_id}", json=data)
+        return TriggerRepository(**response.json())
 
     def get_pull_requests(self, repo_id: int, **query_params) -> list[PullRequest]:
         """Get all pull requests for a repository, automatically handling pagination"""
@@ -223,7 +223,7 @@ class BackendAPI:
         while True:
             params = {**query_params, "page": page, "per_page": per_page}
             response = self.session.get(
-                f"/repositories/{repo_id}/pull_requests",
+                f"/trigger_repositories/{repo_id}/pull_requests",
                 params=params,
             )
             data = response.json()
@@ -246,7 +246,7 @@ class BackendAPI:
 
     def create_pull_request(
         self,
-        repository_id: int,
+        trigger_repository_id: int,
         number: int,
         title: str,
         raised_by: str,
@@ -256,9 +256,9 @@ class BackendAPI:
         status: str = "UNKNOWN",
     ) -> PullRequest:
         """Create a pull request"""
-        self.logger.info(f"Creating PR #{number} in repo {repository_id}")
+        self.logger.info(f"Creating PR #{number} in repo {trigger_repository_id}")
         data = {
-            "repository_id": repository_id,
+            "trigger_repository_id": trigger_repository_id,
             "number": number,
             'title': title,
             "raised_by": raised_by,
@@ -267,7 +267,7 @@ class BackendAPI:
             "spec": spec,
             "status": status,
         }
-        response = self.session.post("/pull_requests", json=data)
+        response = self.session.post("/trigger_repositories/pull_requests", json=data)
         return PullRequest(**response.json())
 
     def create_pull_requests_batch(self, repo_id: int, pull_requests: list[dict]) -> list[PullRequest]:
@@ -276,7 +276,7 @@ class BackendAPI:
             raise ValueError("Maximum 100 pull requests per batch")
 
         self.logger.info(f"Creating batch of {len(pull_requests)} pull requests for repo {repo_id}")
-        response = self.session.post(f"/repositories/{repo_id}/pull_requests/batch", json=pull_requests)
+        response = self.session.post(f"/trigger_repositories/{repo_id}/pull_requests/batch", json=pull_requests)
         return [PullRequest(**pr) for pr in response.json()]
 
     def patch_pull_request(
@@ -288,7 +288,7 @@ class BackendAPI:
         """Update pull request"""
         self.logger.info(f"Updating PR #{number} in repo {repo_id}")
         response = self.session.patch(
-            f"/repositories/{repo_id}/pull_requests/{number}",
+            f"/trigger_repositories/{repo_id}/pull_requests/{number}",
             json=data,
         )
         return PullRequest(**response.json())
@@ -302,7 +302,7 @@ class BackendAPI:
         """Update pull request status"""
         self.logger.info(f"Updating PR #{number} status in repo {repo_id}")
         response = self.session.patch(
-            f"/repositories/{repo_id}/pull_requests/{number}",
+            f"/trigger_repositories/{repo_id}/pull_requests/{number}",
             json={"status": status},
         )
         return PullRequest(**response.json())
@@ -316,6 +316,36 @@ class BackendAPI:
             self.logger.warning(f"Failed to fetch dataset {name}: {e}")
             return None
 
+    def get_projects(self) -> list[Project]:
+        """Get all projects"""
+        self.logger.info("Fetching projects")
+        response = self.session.get("/projects")
+        data = response.json()
+        items = data.get("items", data) if isinstance(data, dict) else data
+        return [Project(**p) for p in items]
+
+    def get_or_create_project(self, name: str, description: str | None = None) -> Project:
+        """
+        A project owns the datasets, so one has to exist before a dataset can be created.
+        Re-running the seed should reuse the project rather than fail on the name clash.
+        """
+        for project in self.get_projects():
+            if project.name == name:
+                self.logger.info(f"Reusing existing project {name} ({project.id})")
+                return project
+
+        self.logger.info(f"Creating project {name}")
+        data = {"name": name}
+        if description:
+            data["description"] = description
+        response = self.session.post("/projects", json=data)
+        return self.get_project(response.json()["id"])
+
+    def get_project(self, project_id: int) -> Project:
+        """Get single project"""
+        response = self.session.get(f"/projects/{project_id}")
+        return Project(**response.json())
+
     def create_dataset(
         self,
         name: str,
@@ -325,6 +355,7 @@ class BackendAPI:
         password: str,
         schema: str,
         db_type: str,
+        project_id: int,
         schema_write: str | None = None,
     ) -> Dataset:
         """Create a dataset"""
@@ -337,6 +368,7 @@ class BackendAPI:
             "password": password,
             "schema": schema,
             "type": db_type,
+            "project_id": project_id,
         }
         if schema_write:
             data["schema_write"] = schema_write
@@ -368,8 +400,8 @@ class BackendAPI:
         watch_dir: str,
         base_branch: str,
         initial_cursor: str,
-        dataset_id: int,
-    ) -> Repository:
+        project_id: int,
+    ) -> TriggerRepository:
         """Create a repository"""
         self.logger.info(f"Creating repository {uri}")
         data = {
@@ -377,14 +409,14 @@ class BackendAPI:
             "watch_dir": watch_dir,
             "base_branch": base_branch,
             "initial_cursor": initial_cursor,
-            "dataset_id": dataset_id,
+            "project_id": project_id,
         }
-        response = self.session.post("/repositories", json=data)
-        return Repository(**response.json())
+        response = self.session.post("/trigger_repositories", json=data)
+        return TriggerRepository(**response.json())
 
     def delete_repository(self, repo_id: int) -> None:
         """Delete a repository"""
-        self.session.delete(f"/repositories/{repo_id}")
+        self.session.delete(f"/trigger_repositories/{repo_id}")
 
     def create_request(
         self,
@@ -394,7 +426,7 @@ class BackendAPI:
         requested_by: str,
         proj_start: str,
         proj_end: str,
-        dataset_id: int,
+        project_id: int,
     ) -> Request:
         """Create a Data Access Request"""
         self.logger.info(f"Creating request {title}")
@@ -405,7 +437,7 @@ class BackendAPI:
             "requested_by": requested_by,
             "proj_start": proj_start,
             "proj_end": proj_end,
-            "dataset_id": dataset_id,
+            "project_id": project_id,
         }
         response = self.session.post("/requests", json=data, raise_for_status=False)
         return response

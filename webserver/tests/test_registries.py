@@ -335,7 +335,8 @@ class TestDeleteRegistries:
             client,
             registry,
             reg_k8s_client,
-            simple_admin_header
+            simple_admin_header,
+            project
     ):
         """
         Tests that by simply deleting a registry all of its
@@ -343,11 +344,13 @@ class TestDeleteRegistries:
         """
         reg_id = registry.id
         WhitelistedImage(
+            project_id=project.id,
             registry=registry,
             name="newimage",
             tag="1.0.0"
         ).add()
         WhitelistedImage(
+            project_id=project.id,
             registry=registry,
             name="newimage",
             tag="1.3.0"

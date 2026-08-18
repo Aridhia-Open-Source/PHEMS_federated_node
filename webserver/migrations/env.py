@@ -26,7 +26,11 @@ import app.models.whitelisted_image
 import app.models.dictionary
 import app.models.dataset
 import app.models.registry
-import app.models.repository
+import app.models.delivery_target
+import app.models.project
+import app.models.pull_request
+import app.models.task_delivery
+import app.models.trigger_repository
 import app.models.request
 import app.models.task
 # target_metadata = mymodel.Base.metadata

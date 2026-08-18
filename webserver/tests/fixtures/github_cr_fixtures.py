@@ -50,8 +50,8 @@ def registry(client, reg_k8s_client, cr_name) -> Registry:
     return reg
 
 @pytest.fixture
-def container(client, k8s_client, registry, image_name) -> WhitelistedImage:
+def container(client, k8s_client, registry, image_name, project) -> WhitelistedImage:
     img, tag = image_name.split(':')
-    cont = WhitelistedImage(img, registry, tag)
+    cont = WhitelistedImage(img, registry, project.id, tag)
     cont.add()
     return cont

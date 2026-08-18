@@ -2,11 +2,16 @@ import re
 from sqlalchemy import Column, Integer, String, ForeignKey, or_, and_
 from sqlalchemy.orm import relationship
 from app.helpers.base_model import BaseModel, db
+from app.models import Models
 from app.models.registry import Registry
 from app.helpers.exceptions import ContainerRegistryException, InvalidRequest
 
 
 class WhitelistedImage(db.Model, BaseModel):
+    """
+    Which images a project is permitted to run.
+    """
+
     __tablename__ = 'whitelisted_images'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -17,15 +22,22 @@ class WhitelistedImage(db.Model, BaseModel):
     registry_id = Column(Integer, ForeignKey(Registry.id, ondelete='CASCADE'))
     registry = relationship("Registry")
 
+    project_id = Column(
+        Integer, ForeignKey('projects.id', ondelete='CASCADE'), nullable=False
+    )
+    project = relationship("Project", back_populates="whitelisted_images")
+
     def __init__(
             self,
             name:str,
             registry:Registry,
+            project_id:int,
             tag:str=None,
             sha:str=None
         ):
         self.name = name
         self.registry = registry
+        self.project_id = project_id
         self.tag = tag
         self.sha = sha
 
@@ -37,6 +49,12 @@ class WhitelistedImage(db.Model, BaseModel):
         if reg is None:
             raise ContainerRegistryException(f"Registry {data["registry"]} could not be found")
         data["registry"] = reg
+
+        project = Models.Project.query.filter(
+            Models.Project.id == data["project_id"]
+        ).one_or_none()
+        if project is None:
+            raise InvalidRequest(f"Project {data["project_id"]} could not be found")
 
         img_with_tag = f"{data["name"]}:{data.get("tag")}"
         img_with_sha = f"{data["name"]}@{data.get("sha")}"
@@ -55,9 +73,9 @@ class WhitelistedImage(db.Model, BaseModel):
             )
 
     @classmethod
-    def validate_image_whitelisted(cls, docker_image: str) -> bool:
+    def validate_image_whitelisted(cls, docker_image: str, project_id: int) -> bool:
         """
-        Validate that the image is whitelisted in the database based on the following criteria:
+        Validate that the image is whitelisted for this project, based on the following criteria:
         - Image-only: Neither tag nor SHA specified in DB (allows all versions).
         - Tag-only: Tag specified but no SHA in DB (allows matching tag).
         - SHA-restricted: SHA specified (and optionally tag) in DB (allows matching SHA/tag).
@@ -66,7 +84,9 @@ class WhitelistedImage(db.Model, BaseModel):
         SHA-restricted entries.
         """
         registry, name, tag, sha = Registry.extract_image_parts(docker_image)
-        base = WhitelistedImage.query.filter_by(name=name, registry_id=registry.id)
+        base = WhitelistedImage.query.filter_by(
+            name=name, registry_id=registry.id, project_id=project_id
+        )
 
         # Static whitelist checks (no registry call needed)
         checks = [and_(WhitelistedImage.tag == None, WhitelistedImage.sha == None)]

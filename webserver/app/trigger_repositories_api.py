@@ -1,25 +1,27 @@
 """
-repositories-related endpoints (used by dagster for polling state):
-- GET /repositories
-- GET /repositories/<id>
-- POST /repositories
-- PATCH /repositories/<id>
-- GET /repositories/<repo_id>/pull_requests
-- GET /repositories/<repo_id>/pull_requests/<number>
-- PATCH /repositories/<repo_id>/pull_requests/<number>
+trigger repository endpoints (used by dagster for polling state):
+- GET /trigger_repositories
+- GET /trigger_repositories/<id>
+- POST /trigger_repositories
+- PATCH /trigger_repositories/<id>
+- DELETE /trigger_repositories/<id>
+- POST /trigger_repositories/pull_requests
+- POST /trigger_repositories/<repo_id>/pull_requests/batch
+- GET /trigger_repositories/<repo_id>/pull_requests
+- GET /trigger_repositories/<repo_id>/pull_requests/<number>
+- PATCH /trigger_repositories/<repo_id>/pull_requests/<number>
 """
-from datetime import datetime
 from http import HTTPStatus
 from flask import Blueprint, request
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.wrappers import audit, auth
-from app.models.repository import Repository
-from app.models.dataset import Dataset
+from app.helpers.wrappers import auth
+from app.models.trigger_repository import TriggerRepository
+from app.models.project import Project
 from app.models.pull_request import PullRequest
 from app.models.pull_request_status import PullRequestStatus
 
-bp = Blueprint('repositories', __name__, url_prefix='/repositories')
+bp = Blueprint('trigger_repositories', __name__, url_prefix='/trigger_repositories')
 session = db.session
 
 
@@ -33,36 +35,27 @@ def auth_before():
 @bp.route('', methods=['GET'])
 def get_repositories():
     """
-    GET /repositories/ — list all repositories with their polling state
+    GET /trigger_repositories/ — list all repositories with their polling state
     """
-    repos = Repository.query.all()
+    repos = TriggerRepository.query.all()
     return [r.sanitized_dict() for r in repos], HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['GET'])
 def get_repository(repo_id):
     """
-    GET /repositories/<id> — get a single repository
+    GET /trigger_repositories/<id> — get a single repository
     """
-    repo = Repository.get_by_id(repo_id)
+    repo = TriggerRepository.get_by_id(repo_id)
     return repo.sanitized_dict(), HTTPStatus.OK
-
-
-@bp.route('/hello_world', methods=['GET'])
-def hello_world():
-    """
-    GET /repositories/<id> — get a single repository
-    """
-
-    return {"message": "Hello World"}, HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['DELETE'])
 def delete_repository(repo_id):
     """
-    DELETE /repositories/<id> — delete a single repository
+    DELETE /trigger_repositories/<id> — delete a single repository
     """
-    repo = Repository.get_by_id(repo_id)
+    repo = TriggerRepository.get_by_id(repo_id)
     repo.delete()
     return '', HTTPStatus.NO_CONTENT
 
@@ -71,25 +64,25 @@ def delete_repository(repo_id):
 @bp.route('', methods=['POST'])
 def post_repository():
     """
-    POST /repositories/ — create a new repository
+    POST /trigger_repositories/ — create a new repository
     """
     body = request.json or {}
     if not body.get('uri'):
         raise InvalidRequest("uri is required")
-    if not body.get('dataset_id'):
-        raise InvalidRequest("dataset_id is required")
+    if not body.get('project_id'):
+        raise InvalidRequest("project_id is required")
 
     uri = body['uri'].lower().rstrip('/')
-    if Repository.query.filter(Repository.uri == uri).one_or_none():
+    if TriggerRepository.query.filter(TriggerRepository.uri == uri).one_or_none():
         raise InvalidRequest(f"Repository {uri} already exists")
 
-    # Validate dataset exists
-    Dataset.get_by_id(body['dataset_id'])
+    # Validate project exists
+    Project.get_by_id(body['project_id'])
 
-    repo = Repository(
+    repo = TriggerRepository(
         uri=uri,
         watch_dir=body.get('watch_dir', ''),
-        dataset_id=body['dataset_id'],
+        project_id=body['project_id'],
         base_branch=body.get('base_branch', 'main'),
         initial_cursor=body.get('initial_cursor'),
     )
@@ -101,17 +94,17 @@ def post_repository():
 @bp.route('/<int:repo_id>', methods=['PATCH'])
 def patch_repository(repo_id):
     """
-    PATCH /repositories/<id> — update repository
+    PATCH /trigger_repositories/<id> — update repository
     """
-    repo = Repository.get_by_id(repo_id)
+    repo = TriggerRepository.get_by_id(repo_id)
 
     body = request.json or {}
     if not body:
         raise InvalidRequest("No fields provided to update")
 
-    if 'dataset_id' in body:
-        Dataset.get_by_id(body['dataset_id'])
-        repo.dataset_id = body['dataset_id']
+    if 'project_id' in body:
+        Project.get_by_id(body['project_id'])
+        repo.project_id = body['project_id']
 
     if 'base_branch' in body:
         if not body['base_branch']:
@@ -133,10 +126,10 @@ def patch_repository(repo_id):
 @bp.route('/pull_requests', methods=['POST'])
 def post_pull_request():
     """
-    POST /repositories/pull_requests — create a new pull request
+    POST /trigger_repositories/pull_requests — create a new pull request
     """
     body = request.json or {}
-    required = ['repository_id', 'number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha', 'spec']
+    required = ['trigger_repository_id', 'number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha', 'spec']
     missing = [f for f in required if f not in body]
     if missing:
         raise InvalidRequest(f"Missing required fields: {', '.join(missing)}")
@@ -144,7 +137,7 @@ def post_pull_request():
     # Create PR
     status = body.get('status', PullRequestStatus.UNKNOWN.value)
     pr = PullRequest(
-        repository_id=body['repository_id'],
+        trigger_repository_id=body['trigger_repository_id'],
         number=body['number'],
         title=body['title'],
         raised_by=body['raised_by'],
@@ -161,10 +154,10 @@ def post_pull_request():
 @bp.route('/<int:repo_id>/pull_requests/batch', methods=['POST'])
 def post_pull_requests_batch(repo_id):
     """
-    POST /repositories/<repo_id>/pull_requests/batch — create multiple pull requests for a repo
+    POST /trigger_repositories/<repo_id>/pull_requests/batch — create multiple pull requests for a repo
     Body: list of PR objects (up to 100)
     """
-    Repository.get_by_id(repo_id)  # Verify repo exists
+    TriggerRepository.get_by_id(repo_id)  # Verify repo exists
 
     body = request.json or []
 
@@ -194,7 +187,7 @@ def post_pull_requests_batch(repo_id):
             # Create PR (repository_id always from URL)
             status = pr_data.get('status', PullRequestStatus.UNKNOWN.value)
             pr = PullRequest(
-                repository_id=repo_id,
+                trigger_repository_id=repo_id,
                 number=pr_data['number'],
                 title=pr_data['title'],
                 raised_by=pr_data['raised_by'],
@@ -218,7 +211,7 @@ def post_pull_requests_batch(repo_id):
 @bp.route('/<int:repo_id>/pull_requests', methods=['GET'])
 def get_pull_requests(repo_id):
     """
-    GET /repositories/<repo_id>/pull_requests — list PRs for a repository with pagination.
+    GET /trigger_repositories/<repo_id>/pull_requests — list PRs for a repository with pagination.
     Query params:
         - page: page number (default 1)
         - per_page: items per page (default 20)
@@ -226,13 +219,13 @@ def get_pull_requests(repo_id):
             UNKNOWN, IGNORED, INVALID, STARTING, STARTED, SUCCESS, FAILED)
     Sorted by merged_at DESC (most recent first).
     """
-    Repository.get_by_id(repo_id)
+    TriggerRepository.get_by_id(repo_id)
 
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     status = request.args.get('status', None)
 
-    query = PullRequest.query.filter(PullRequest.repository_id == repo_id)
+    query = PullRequest.query.filter(PullRequest.trigger_repository_id == repo_id)
 
     if status is not None:
         if status not in [s.value for s in PullRequestStatus]:
@@ -254,11 +247,11 @@ def get_pull_requests(repo_id):
 @bp.route('/<int:repo_id>/pull_requests/<int:number>', methods=['GET'])
 def get_pull_request(repo_id, number):
     """
-    GET /repositories/<repo_id>/pull_requests/<number> — get a single PR
+    GET /trigger_repositories/<repo_id>/pull_requests/<number> — get a single PR
     """
-    Repository.get_by_id(repo_id)
+    TriggerRepository.get_by_id(repo_id)
     pr = PullRequest.query.filter(
-        PullRequest.repository_id == repo_id,
+        PullRequest.trigger_repository_id == repo_id,
         PullRequest.number == number
     ).one_or_none()
 
@@ -271,11 +264,11 @@ def get_pull_request(repo_id, number):
 @bp.route('/<int:repo_id>/pull_requests/<int:number>', methods=['PATCH'])
 def patch_pull_request(repo_id, number):
     """
-    PATCH /repositories/<repo_id>/pull_requests/<number> — update PR status
+    PATCH /trigger_repositories/<repo_id>/pull_requests/<number> — update PR status
     """
-    Repository.get_by_id(repo_id)
+    TriggerRepository.get_by_id(repo_id)
     pr = PullRequest.query.filter(
-        PullRequest.repository_id == repo_id,
+        PullRequest.trigger_repository_id == repo_id,
         PullRequest.number == number
     ).one_or_none()
 
@@ -301,7 +294,7 @@ def patch_pull_request(repo_id, number):
 def _pr_to_dict(pr: PullRequest) -> dict:
     """Convert PR to dict for serialization"""
     return {
-        'repository_id': pr.repository_id,
+        'trigger_repository_id': pr.trigger_repository_id,
         'number': pr.number,
         'title': pr.title,
         'raised_by': pr.raised_by,

@@ -2,8 +2,9 @@ import logging
 import re
 import typing
 import urllib.parse
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from app.helpers.base_model import BaseModel, db
 from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, KubernetesException
@@ -38,8 +39,17 @@ class Dataset(db.Model, BaseModel):
     schema_write = Column(String(256), nullable=True)
     type = Column(String(256), server_default="postgres", nullable=False)
     extra_connection_args = Column(String(4096), nullable=True)
+    project_id = Column(
+        Integer, ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False
+    )
+    created_at = Column(DateTime(timezone=False), nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
 
-    repositories = relationship("Repository", back_populates="dataset")
+    project = relationship(
+        "Project", back_populates="datasets", foreign_keys=[project_id]
+    )
 
     def __init__(
         self,
@@ -52,7 +62,7 @@ class Dataset(db.Model, BaseModel):
         schema_write: str | None = None,
         type: str = "postgres",
         extra_connection_args: str | None = None,
-        repository=None,
+        project_id: int | None = None,
         **kwargs
     ):
         self.name = urllib.parse.unquote(name).lower()
@@ -66,6 +76,7 @@ class Dataset(db.Model, BaseModel):
         self.username = username
         self.password = password
         self.extra_connection_args = extra_connection_args
+        self.project_id = project_id
 
         if self.type.lower() not in SUPPORTED_ENGINES:
             raise InvalidRequest(f"DB type {self.type} is not supported.")
@@ -75,6 +86,12 @@ class Dataset(db.Model, BaseModel):
 
     def add(self, commit=True, user_id=None):
         super().add(commit)
+        # First dataset into a project becomes what a task gets when it names only the
+        # project. Later ones do not displace it.
+        project = Models.Project.get_by_id(self.project_id)
+        if project.default_dataset_id is None:
+            project.default_dataset_id = self.id
+            project.add(commit)
         self.create_kubernetes_secret()
         delattr(self, "username")
         delattr(self, "password")
