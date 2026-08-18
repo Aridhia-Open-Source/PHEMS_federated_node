@@ -23,22 +23,20 @@ dependencies = [
     "alembic~=1.16.5",
     "kubernetes~=33.1.0",
     "flask-sqlalchemy~=3.1.1",
-    "joserfc~=1.6.5",
-    "pyjwt~=2.10.1",
     "waitress~=3.0.2",
     "flask-swagger-ui~=5.21.0",
     "pymssql~=2.3.7",
     "werkzeug~=3.1.5",
     "jinja2~=3.1.6",
-    "requests~=2.32.5",
-    "cryptography~=46.0.5",
-    "urllib3~=2.6.3",
+    "requests~=2.34.2",
+    "cryptography~=50.0.0",
+    "urllib3~=2.7.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pylint~=4.0.5",
-    "pytest~=8.4.2",
+    "pytest~=9.1.1",
     "pytest-mock~=3.15.1",
     "python-dotenv~=1.2.2",
     "pytest-cov~=7.1.0",
