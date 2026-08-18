@@ -156,8 +156,8 @@ def v1_mock(mocker):
         "create_namespaced_secret_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.create_namespaced_secret'
         ),
-        "replace_namespaced_secret_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.replace_namespaced_secret'
+        "patch_namespaced_secret_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.patch_namespaced_secret'
         ),
         "list_namespaced_pod_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.list_namespaced_pod'

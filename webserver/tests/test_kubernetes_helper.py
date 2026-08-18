@@ -269,7 +269,7 @@ class TestKubernetesHelper:
             namespaces=["default", "tasks"]
         )
 
-        k8s_client["replace_namespaced_secret_mock"].assert_not_called()
+        k8s_client["patch_namespaced_secret_mock"].assert_not_called()
 
     def test_create_secret_overwrites_existing_when_asked(
         self,
@@ -292,14 +292,14 @@ class TestKubernetesHelper:
             overwrite=True
         )
 
-        replace_mock = k8s_client["replace_namespaced_secret_mock"]
+        patch_mock = k8s_client["patch_namespaced_secret_mock"]
         expected = {"PASSWORD": KubernetesClient.encode_secret_value("newpass")}
 
-        assert [call.args for call in replace_mock.call_args_list] == [
+        assert [call.args for call in patch_mock.call_args_list] == [
             ("a-secret", "default"),
             ("a-secret", "tasks")
         ]
-        for call in replace_mock.call_args_list:
+        for call in patch_mock.call_args_list:
             assert call.kwargs["body"].data == expected
 
     def test_create_secret_overwrite_failure_raises(
@@ -313,7 +313,7 @@ class TestKubernetesHelper:
         k8s_client["create_namespaced_secret_mock"].side_effect = ApiException(
             status=409, reason="Conflict"
         )
-        k8s_client["replace_namespaced_secret_mock"].side_effect = ApiException(
+        k8s_client["patch_namespaced_secret_mock"].side_effect = ApiException(
             http_resp=Mock(status=403, reason="Forbidden", data="Forbidden")
         )
 
@@ -346,4 +346,4 @@ class TestKubernetesHelper:
                 namespaces=["default"],
                 overwrite=True
             )
-        k8s_client["replace_namespaced_secret_mock"].assert_not_called()
+        k8s_client["patch_namespaced_secret_mock"].assert_not_called()

@@ -526,13 +526,13 @@ class TestPostDataset(MixinTestDataset):
 
         dataset.create_kubernetes_secret()
 
-        replace_mock = k8s_client["replace_namespaced_secret_mock"]
+        patch_mock = k8s_client["patch_namespaced_secret_mock"]
         secret_name = dataset.get_creds_secret_name()
 
-        assert [call.args for call in replace_mock.call_args_list] == [
+        assert [call.args for call in patch_mock.call_args_list] == [
             (secret_name, ns) for ns in self.expected_namespaces
         ]
-        for call in replace_mock.call_args_list:
+        for call in patch_mock.call_args_list:
             body = call.kwargs["body"]
             assert body.data == {
                 "USERNAME": KubernetesClient.encode_secret_value("uc1_user"),

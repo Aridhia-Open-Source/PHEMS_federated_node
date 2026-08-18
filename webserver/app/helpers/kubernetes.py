@@ -253,7 +253,9 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
                     raise KubernetesException(e.body)
                 if overwrite:
                     try:
-                        self.replace_namespaced_secret(name, ns, body=body, pretty='true')
+                        # PATCH, not PUT: the backend role grants `patch` on secrets but
+                        # not `update`, so replace_namespaced_secret is always a 403.
+                        self.patch_namespaced_secret(name, ns, body=body, pretty='true')
                     except ApiException as exc:
                         raise KubernetesException(exc.body) from exc
         return body
