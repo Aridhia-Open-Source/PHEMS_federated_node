@@ -39,6 +39,7 @@ def check_validation_enabled():
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
 @audit
+@auth(scope='can_admin_dataset')
 def get_all_whitelisted_images():
     """
     GET /whitelisted_images endpoint.
