@@ -1,0 +1,78 @@
+suite: Storage testing for GCP GKE
+release:
+  namespace: federatednode
+values:
+  - values/values-gke.yaml
+kubernetesProvider:
+  scheme:
+    v1/Secret:
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+    v1/ConfigMap:
+      gvr:
+        version: v1
+        resource: configmaps
+      namespaced: true
+  objects:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: local-db
+        namespace: federatednode
+      type: Opaque
+      data:
+        password: dGVzdA==
+tests:
+  - it: adds GCS FUSE sidecar annotation to backend pod
+    template: backend-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["gke-gcsfuse/volumes"]
+          value: "true"
+  - it: creates GCP persistency with GCS FUSE CSI driver
+    template: backend-results-pv.yaml
+    asserts:
+      - equal:
+          path: spec.csi.driver
+          value: gcsfuse.csi.storage.gke.io
+        documentSelector:
+          path: kind
+          value: PersistentVolume
+      - equal:
+          path: spec.csi.volumeHandle
+          value: my-results-bucket
+        documentSelector:
+          path: kind
+          value: PersistentVolume
+  - it: creates GCP certificate issuer with cloudDNS solver using Workload Identity
+    template: certificates/issuer.yaml
+    asserts:
+      - exists:
+          path: spec.acme.solvers[0].dns01.cloudDNS
+      - equal:
+          path: spec.acme.solvers[0].dns01.cloudDNS.project
+          value: my-gcp-project
+      - notExists:
+          path: spec.acme.solvers[0].dns01.cloudDNS.serviceAccountSecretRef
+  - it: does not create AWS certificate roles
+    template: certificates/roles.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: sets GCP storage environment variables in backend configmap
+    template: backend-configmap.yaml
+    asserts:
+      - equal:
+          path: data.GCP_STORAGE_ENABLED
+          value: "true"
+      - equal:
+          path: data.GCP_BUCKET_NAME
+          value: my-results-bucket
+  - it: creates GCP storage class with GCS FUSE provisioner
+    template: storageclass.yaml
+    asserts:
+      - equal:
+          path: provisioner
+          value: gcsfuse.csi.storage.gke.io

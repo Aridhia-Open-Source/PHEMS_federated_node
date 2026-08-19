@@ -9,7 +9,7 @@ from kubernetes.client import (
     V1PersistentVolume, V1PersistentVolumeClaim,
     V1EnvVarSource, V1SecretKeySelector,
     V1PersistentVolumeClaimSpec, V1VolumeResourceRequirements,
-    V1CSIPersistentVolumeSource, V1NFSVolumeSource
+    V1CSIPersistentVolumeSource, V1NFSVolumeSource, V1PodSecurityContext
 )
 from app.helpers.const import ALPINE_IMAGE, RESULTS_PATH, STORAGE_CLASS, TASK_NAMESPACE, MOUNT_OPTIONS
 from app.helpers.kubernetes import KubernetesClient
@@ -123,6 +123,11 @@ class TaskPod:
                 server=os.getenv("NFS_SERVER"),
                 path=os.getenv("NFS_PATH"),
                 read_only=False
+            )
+        elif os.getenv("GCP_STORAGE_ENABLED"):
+            pv_spec.csi=V1CSIPersistentVolumeSource(
+                driver="gcsfuse.csi.storage.gke.io",
+                volume_handle=os.getenv("GCP_BUCKET_NAME")
             )
         else:
             pv_spec.host_path=V1HostPathVolumeSource(
@@ -247,6 +252,12 @@ class TaskPod:
 
         secrets = [V1LocalObjectReference(name=self.regcred_secret)]
 
+        security_context = None
+        annotations = {}
+        if os.getenv("GCP_STORAGE_ENABLED"):
+            security_context = V1PodSecurityContext(fs_group=1001)
+            annotations["gke-gcsfuse/volumes"] = "true"
+
         specs = V1PodSpec(
             termination_grace_period_seconds=300,
             init_containers=self.get_task_pod_init_container(self.labels['task_id']),
@@ -254,6 +265,7 @@ class TaskPod:
             image_pull_secrets=secrets,
             restart_policy="Never",
             automount_service_account_token=False,
+            security_context=security_context,
             volumes=[
                 V1Volume(name="data", persistent_volume_claim=pvc)
             ]
@@ -261,7 +273,8 @@ class TaskPod:
         metadata = V1ObjectMeta(
             name=self.name,
             namespace=TASK_NAMESPACE,
-            labels=self.labels
+            labels=self.labels,
+            annotations=annotations or None
         )
         return V1Pod(
             api_version='v1',

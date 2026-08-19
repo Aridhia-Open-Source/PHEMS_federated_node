@@ -16,9 +16,17 @@ spec:
     metadata:
       annotations:
         rollme: {{ template "rollMe" . }}
+        {{- if .Values.on_gke }}
+        gke-gcsfuse/volumes: "true"
+        {{- end }}
       labels:
         app: flask
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
       serviceAccountName: secret-backend-handler
       initContainers:
         {{- include "createDBInitContainer" . | nindent 8 }}

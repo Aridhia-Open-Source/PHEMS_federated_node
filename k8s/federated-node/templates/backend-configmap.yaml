@@ -32,6 +32,10 @@ data:
   AWS_STORAGE_DRIVER: "efs.csi.aws.com"
   AWS_FILES_SYSTEM_ID: {{ include "awsStorageAccount" . }}
 {{- end }}
+{{- if .Values.storage.gcp }}
+  GCP_STORAGE_ENABLED: "true"
+  GCP_BUCKET_NAME: {{ .Values.storage.gcp.bucketName }}
+{{- end }}
 {{- if .Values.storage.azure }}
   AZURE_STORAGE_ENABLED: "true"
   AZURE_SHARE_NAME: {{ .Values.storage.azure.shareName }}/results

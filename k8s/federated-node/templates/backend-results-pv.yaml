@@ -29,6 +29,10 @@ spec:
   csi:
     driver: efs.csi.aws.com
     volumeHandle: {{ include "awsStorageAccount" . }}
+  {{ else if .Values.storage.gcp }}
+  csi:
+    driver: gcsfuse.csi.storage.gke.io
+    volumeHandle: {{ .Values.storage.gcp.bucketName }}
   {{ else if .Values.storage.nfs }}
   nfs:
     server: {{ .Values.storage.nfs.url }}

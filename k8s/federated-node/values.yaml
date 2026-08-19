@@ -68,6 +68,8 @@ storage:
   # aws:
     # fileSystemId:
     # accessPointId:
+  # gcp:
+    # bucketName: ""  # GCS bucket name to mount via GCS FUSE
   # nfs:
     # provisioner:
     # url:
@@ -89,6 +91,8 @@ tls:
 on_aks: false
 # Running on AWS?
 on_eks: false
+# Running on GCP?
+on_gke: false
 
 # Set the domains that are allowed to send requests
 # to the federated node, in case there is a web UI that tries to
@@ -103,6 +107,9 @@ certs:
     # secretName:
     # configmap:
   aws: ""
+  gcp:
+    email: ""    # Email for Let's Encrypt registration
+    project: ""  # GCP project ID
 
 # Enables full smoketests when running `helm test`.
 # This will actively try to add new database and keycloak entries
