@@ -1,7 +1,9 @@
 import logging
 import re
-import requests
-from sqlalchemy import Column, Integer, String
+import typing
+import urllib.parse
+from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import relationship
 from app.helpers.base_model import BaseModel, db
 from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, KubernetesException
@@ -23,7 +25,6 @@ SUPPORTED_ENGINES = {
     "mariadb": MariaDB
 }
 
-
 class Dataset(db.Model, BaseModel):
     __tablename__ = 'datasets'
 
@@ -35,22 +36,25 @@ class Dataset(db.Model, BaseModel):
     schema_write = Column(String(256), nullable=True)
     type = Column(String(256), server_default="postgres", nullable=False)
     extra_connection_args = Column(String(4096), nullable=True)
-    repository = Column(String(4096), nullable=True)
 
-    def __init__(self,
-                 name:str,
-                 host:str,
-                 username:str,
-                 password:str,
-                 port:int=5432,
-                 schema:str=None,
-                 schema_write:str=None,
-                 type:str="postgres",
-                 extra_connection_args:str=None,
-                 repository:str=None,
-                 **kwargs
-                ):
-        self.name = requests.utils.unquote(name).lower()
+    repository_id = Column(Integer, ForeignKey('repositories.id'), nullable=True)
+    repository = relationship("Repository", foreign_keys=[repository_id], back_populates="datasets")
+
+    def __init__(
+            self,
+            name: str,
+            host: str,
+            username: str,
+            password: str,
+            port: int = 5432,
+            schema: str | None = None,
+            schema_write: str | None = None,
+            type: str = "postgres",
+            extra_connection_args: str | None = None,
+            repository=None,
+            **kwargs
+    ):
+        self.name = urllib.parse.unquote(name).lower()
         self.slug = self.slugify_name()
         self.url = f"https://{PUBLIC_URL}/datasets/{self.slug}"
         self.host = host
@@ -62,19 +66,24 @@ class Dataset(db.Model, BaseModel):
         self.password = password
         self.extra_connection_args = extra_connection_args
         if repository:
-            self.repository = repository.lower()
+            self.repository = repository
 
         if self.type.lower() not in SUPPORTED_ENGINES:
             raise InvalidRequest(f"DB type {self.type} is not supported.")
 
+    def __repr__(self):
+        return f'<Dataset {self.name}>'
+
     @classmethod
-    def validate(cls, data:dict) -> dict:
-        if data.get("repository"):
-            existing_link = cls.query.filter(Dataset.repository == data.get("repository")).one_or_none()
-            if existing_link:
-                raise InvalidRequest(
-                    "Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
-                )
+    def validate(cls, data: dict) -> dict:
+        uri = data.pop("repository", None)
+        if uri:
+            from app.models.repository import Repository
+            repo = Repository.query.filter(Repository.uri == uri.lower()).one_or_none()
+            if repo is None:
+                repo = Repository(uri=uri)
+                repo.add(commit=False)
+            data["repository"] = repo
         return super().validate(data)
 
     def get_creds_secret_name(self, host=None, name=None):
@@ -89,7 +98,7 @@ class Dataset(db.Model, BaseModel):
         From the helper classes, return the correct connection string
         """
         un, passw = self.get_credentials()
-        return SUPPORTED_ENGINES[self.type](
+        return SUPPORTED_ENGINES[str(self.type)](
             user=un,
             passw=passw,
             host=self.host,
@@ -101,7 +110,9 @@ class Dataset(db.Model, BaseModel):
     def sanitized_dict(self):
         dataset = super().sanitized_dict()
         dataset["slug"] = self.slugify_name()
-        dataset["url"] = f"https://{PUBLIC_URL}/datasets/{dataset["slug"]}"
+        dataset["url"] = f"https://{PUBLIC_URL}/datasets/{dataset['slug']}"
+        dataset.pop("repository_id", None)
+        dataset["repository"] = self.repository.uri if self.repository else None
         return dataset
 
     def slugify_name(self) -> str:
@@ -116,10 +127,10 @@ class Dataset(db.Model, BaseModel):
         Mostly used to create a direct connection to the DB
         This is not involved in the Task Execution Service
         """
-        v1 = KubernetesClient()
-        secret:V1Secret = v1.read_namespaced_secret(
-            self.get_creds_secret_name(), DEFAULT_NAMESPACE, pretty='pretty'
-        )
+        secret = self._get_secret(self.get_creds_secret_name())
+        if secret.data is None:
+            raise ValueError("Secret data is None")
+
         # Doesn't matter which key it's being picked up, the value it's the same
         # in terms of *USER or *PASSWORD
         user = KubernetesClient.decode_secret_value(secret.data['PGUSER'])
@@ -179,7 +190,7 @@ class Dataset(db.Model, BaseModel):
             "scopes": [scope["id"] for scope in admin_ds_scope]
         })
 
-    def update(self, **kwargs):
+    def update(self, **kwargs): # noqa: E501
         """
         Updates the instance with new values. These should be
         already validated.
@@ -191,11 +202,14 @@ class Dataset(db.Model, BaseModel):
         kc_client = Keycloak()
         v1 = KubernetesClient()
         new_username = kwargs.pop("username", None)
-        secret_name:str = self.get_creds_secret_name()
+        secret_name: str = self.get_creds_secret_name()
 
         # Get existing secret
-        secret: V1Secret = v1.read_namespaced_secret(secret_name, DEFAULT_NAMESPACE, pretty='pretty')
-        secret_task: V1Secret = v1.read_namespaced_secret(secret_name, TASK_NAMESPACE, pretty='pretty')
+        from typing import cast
+        secret: V1Secret = cast(
+            V1Secret,
+            v1.read_namespaced_secret(secret_name, DEFAULT_NAMESPACE)
+        )
 
         # Update secret if credentials are provided
         new_name = kwargs.get("name", None)
@@ -204,6 +218,11 @@ class Dataset(db.Model, BaseModel):
         new_pass = kwargs.pop("password", None)
         if new_pass:
             secret.data["PGPASSWORD"] = KubernetesClient.encode_secret_value(new_pass)
+
+        secret_task: V1Secret = cast(
+            V1Secret,
+            v1.read_namespaced_secret(secret_name, TASK_NAMESPACE)
+        )
 
         secret.metadata.labels = {
             "type": "database",
@@ -238,8 +257,17 @@ class Dataset(db.Model, BaseModel):
             }
             kc_client.patch_resource(f"{self.id}-{self.name}", **update_args)
 
-        if kwargs.get("repository"):
-            kwargs["repository"] = kwargs.get("repository").lower()
+        if "repository" in kwargs:
+            repo_uri = kwargs.pop("repository")
+            if repo_uri:
+                from app.models.repository import Repository
+                repo = Repository.query.filter(Repository.uri == repo_uri.lower()).one_or_none()
+                if repo is None:
+                    repo = Repository(uri=repo_uri)
+                    repo.add(commit=False)
+                self.repository = repo
+            else:
+                self.repository = None
         # Update table
         if kwargs:
             self.query.filter(Dataset.id == self.id).update(kwargs, synchronize_session='evaluate')
@@ -269,5 +297,6 @@ class Dataset(db.Model, BaseModel):
 
         return dataset
 
-    def __repr__(self):
-        return f'<Dataset {self.name}>'
+    def _get_secret(self, name) -> V1Secret:
+        v1 = KubernetesClient()
+        return typing.cast(V1Secret, v1.read_namespaced_secret(name, DEFAULT_NAMESPACE))

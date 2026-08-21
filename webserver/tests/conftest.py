@@ -14,6 +14,7 @@ from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
 from app.models.request import Request
 from app.models.task import Task
+from app.models.repository import Repository
 from app.helpers.exceptions import KeycloakError
 from app.helpers.const import CRD_DOMAIN
 
@@ -263,7 +264,10 @@ def dataset(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
 
 @fixture
 def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client) -> Dataset:
-    dataset = Dataset(name="TestDsRepo", host="example.com", password='pass', username='user', repository="organisation/repository")
+    from app.models.repository import Repository
+    repo = Repository(uri="organisation/repository")
+    repo.add(commit=False)
+    dataset = Dataset(name="TestDsRepo", host="example.com", password='pass', username='user', repository=repo)
     dataset.add(user_id=user_uuid)
     return dataset
 

@@ -395,27 +395,29 @@ class TestPostDataset(MixinTestDataset):
         ).one_or_none()
         assert ds is not None
 
-    def test_post_dataset_with_existing_repo_linked(
+    @mock.patch('app.datasets_api.Dataset.add')
+    def test_post_dataset_can_share_repository(
             self,
+            ds_add_mock,
             post_json_admin_header,
             client,
             dataset_with_repo,
             dataset_post_body
         ):
         """
-        /datasets POST fails if the new dataset uses a repository that
-        already has an association on an existing FN dataset
+        /datasets POST succeeds even when the new dataset uses a repository
+        already linked to another dataset (shared FK is allowed).
         """
+        from app.models.repository import Repository
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
-        data_body['repository'] = dataset_with_repo.repository
-        resp = self.post_dataset(client, post_json_admin_header, data_body, 400)
-        assert resp["error"] == "Repository is already linked to another dataset. Please PATCH that dataset with repository: null"
+        data_body['repository'] = 'organisation/repository'
+        self.post_dataset(client, post_json_admin_header, data_body)
 
-        ds = Dataset.query.filter(
-            Dataset.repository == dataset_with_repo.repository
-        ).one_or_none()
-        assert ds is not None
+        repo = Repository.query.filter_by(uri='organisation/repository').one_or_none()
+        assert repo is not None
+        datasets = Dataset.query.filter(Dataset.repository_id == repo.id).all()
+        assert len(datasets) == 2
 
     def test_post_dataset_invalid_type(
             self,
@@ -805,7 +807,7 @@ class TestPatchDataset(MixinTestDataset):
         for ns in self.expected_namespaces:
             k8s_client["read_namespaced_secret_mock"].assert_any_call(
                 expected_secret_name,
-                ns, pretty='pretty'
+                ns
             )
             k8s_client["patch_namespaced_secret_mock"].assert_any_call(
                 **{'name':expected_secret_name, 'namespace':ns, 'body': expected_body}
