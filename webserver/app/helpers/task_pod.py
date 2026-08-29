@@ -11,7 +11,10 @@ from kubernetes.client import (
     V1PersistentVolumeClaimSpec, V1VolumeResourceRequirements,
     V1CSIPersistentVolumeSource, V1NFSVolumeSource, V1PodSecurityContext
 )
-from app.helpers.const import ALPINE_IMAGE, RESULTS_PATH, STORAGE_CLASS, TASK_NAMESPACE, MOUNT_OPTIONS
+from app.helpers.const import (
+    ALPINE_IMAGE, RESULTS_PATH, STORAGE_CLASS, TASK_NAMESPACE, MOUNT_OPTIONS,
+    DB_LIVENESS_ENABLED, DB_LIVENESS_RETRIES, DB_LIVENESS_BACKOFF, DB_LIVENESS_TIMEOUT
+)
 from app.helpers.kubernetes import KubernetesClient
 from app.models.dataset import Dataset
 
@@ -182,6 +185,20 @@ class TaskPod:
             ]
         )
         init_containers = [dir_init]
+
+        if DB_LIVENESS_ENABLED:
+            db_liveness = V1Container(
+                name="db-liveness",
+                image=f"ghcr.io/aridhia-open-source/db_liveness:{IMAGE_TAG}",
+                image_pull_policy="Always",
+                env=[
+                    V1EnvVar(name="CONNECTION_STRING", value=self.dataset.get_connection_string()),
+                    V1EnvVar(name="DB_LIVENESS_RETRIES", value=str(DB_LIVENESS_RETRIES)),
+                    V1EnvVar(name="DB_LIVENESS_BACKOFF", value=str(DB_LIVENESS_BACKOFF)),
+                    V1EnvVar(name="DB_LIVENESS_TIMEOUT", value=str(DB_LIVENESS_TIMEOUT))
+                ]
+            )
+            init_containers.append(db_liveness)
 
         if self.db_query:
             data_init = V1Container(

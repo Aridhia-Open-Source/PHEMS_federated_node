@@ -25,6 +25,9 @@ build_keycloak:
 build_connector:
 	docker build build/db-connector -t ghcr.io/aridhia-open-source/db_connector:${TAG}
 
+build_db_liveness:
+	docker build build/db-liveness -t ghcr.io/aridhia-open-source/db_liveness:${TAG}
+
 build_alpine:
 	docker build build/alpine -t ghcr.io/aridhia-open-source/alpine:${TAG}
 

@@ -19,6 +19,10 @@ data:
   TASK_POD_RESULTS_PATH: {{ .Values.federatedNode.volumes.task_pod_results_path }}
   IMAGE_TAG: {{ include "image-tag" . }}
   ALPINE_IMAGE: {{ include "fn-alpine" . }}
+  DB_LIVENESS_ENABLED: {{ .Values.taskDbLiveness.enabled | quote }}
+  DB_LIVENESS_RETRIES: {{ .Values.taskDbLiveness.retries | quote }}
+  DB_LIVENESS_BACKOFF: {{ .Values.taskDbLiveness.backoff | quote }}
+  DB_LIVENESS_TIMEOUT: {{ .Values.taskDbLiveness.timeout | quote }}
   CLAIM_CAPACITY: {{ .Values.storage.capacity }}
   STORAGE_CLASS: {{ include "storageClassName" . }}
   MOUNT_OPTIONS: {{ join "," .Values.storage.mountOptions | quote }}
