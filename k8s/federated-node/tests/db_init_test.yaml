@@ -1,0 +1,112 @@
+suite: Database init hooks
+release:
+  namespace: federatednode
+  name: federatednode
+templates:
+  - db-init-jobs.yaml
+tests:
+  - it: waits for an in-cluster Postgres, so runs after the release is applied
+    values:
+      - values/values-local.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-install,post-upgrade
+        documentSelector:
+          path: metadata.name
+          value: backend-db-init
+      # Stable names: before-hook-creation removes the previous Job, so the pod
+      # template hash is no longer needed in the name.
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation
+        documentSelector:
+          path: metadata.name
+          value: backend-db-init
+
+  - it: runs before the release for an external Postgres, so nothing has to wait
+    values:
+      - values/values-aks.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-install,pre-upgrade
+        documentSelector:
+          path: metadata.name
+          value: backend-db-init
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-install,pre-upgrade
+        documentSelector:
+          path: metadata.name
+          value: keycloak-db-init
+
+  - it: keeps every job in the release namespace, superuser password included
+    values:
+      - values/values-aks.yaml
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: federatednode
+        documentSelector:
+          path: metadata.name
+          value: keycloak-db-init
+
+  - it: reads the superuser password from the configured key, not a hardcoded one
+    values:
+      # values-aks sets db.secret.key: value
+      - values/values-aks.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.key
+          value: value
+        documentSelector:
+          path: metadata.name
+          value: backend-db-init
+
+  - it: defaults the dataset server host to its own in-cluster Service
+    values:
+      - values/values-local.yaml
+    set:
+      datasetDb:
+        create: true
+        dbs:
+          uc1:
+            name: uc1_omop
+            user: uc1_omop_user
+            secret:
+              name: db-datasets-uc1
+              key: password
+    asserts:
+      # Unset would render `psql -h  -p 5432`.
+      - equal:
+          path: spec.template.spec.initContainers[0].env[0].value
+          value: db-datasets
+        documentSelector:
+          path: metadata.name
+          value: db-datasets-init
+      # datasetDb.create also means "in-cluster", so this hook is post-install even
+      # when the shared server is external.
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-install,post-upgrade
+        documentSelector:
+          path: metadata.name
+          value: db-datasets-init
+
+  - it: passes passwords to psql as variables rather than interpolating them
+    values:
+      - values/values-local.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '--set=pw="\$ROLE_PASSWORD_0"'
+        documentSelector:
+          path: metadata.name
+          value: backend-db-init
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "format\\('CREATE ROLE %I LOGIN PASSWORD %L', :'role', :'pw'\\)"
+        documentSelector:
+          path: metadata.name
+          value: backend-db-init

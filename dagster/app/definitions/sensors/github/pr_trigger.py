@@ -4,7 +4,7 @@ from typing import cast
 import dagster as dg
 
 from app.definitions.sensors.github.base import GithubSensor
-from app.models import Repository, PullRequest, PullRequestStatus
+from app.models import Registry, TriggerRepository, PullRequest, PullRequestStatus
 
 
 class PullRequestTriggerSensor(GithubSensor):
@@ -60,7 +60,7 @@ class PullRequestTriggerSensor(GithubSensor):
             status=PullRequestStatus.UNKNOWN.value,
         )
 
-    def _setup_pull_request(self, repo: Repository, pr: PullRequest) -> tuple[str, dict]:
+    def _setup_pull_request(self, repo: TriggerRepository, pr: PullRequest) -> tuple[str, dict]:
         spec = {}
         self.log.info(f"=== SETUP PR #{pr.number} in repo {repo.path} ===")
         self.log.info(f"Watch dir: {repo.watch_dir}")
@@ -102,7 +102,7 @@ class PullRequestTriggerSensor(GithubSensor):
 
         return spec
 
-    def _get_spec_data(self, repo: Repository, filepath: str, ref: str):
+    def _get_spec_data(self, repo: TriggerRepository, filepath: str, ref: str):
         contents = self.github_api.get_file_contents(
             repo_path=repo.path,
             file_path=filepath,
@@ -119,7 +119,7 @@ class PullRequestTriggerSensor(GithubSensor):
 
         return [f for f in pr_files if _is_watched_json_file(f)]
 
-    def _make_run_request(self, repo: Repository, pr: PullRequest) -> dg.RunRequest:
+    def _make_run_request(self, repo: TriggerRepository, pr: PullRequest) -> dg.RunRequest:
         """
         Create RunRequest to trigger k8s_pipes_job.
         Uses PR composite key as run_key for idempotency.
@@ -127,13 +127,23 @@ class PullRequestTriggerSensor(GithubSensor):
         Passes spec to k8s_pipes_op via run_config.
         Injects dataset credentials as mounted secret volume.
         """
-        if not pr.spec.get("image"):
+        # Either key, as _validate_spec accepts.
+        image = pr.spec.get("image") or pr.spec.get("docker_image")
+        if not image:
             raise ValueError(f"PR #{pr.number} spec in repo {repo.path} missing 'image'")
 
         dataset = self.backend_api.get_dataset(repo.dataset_id)
+        op_config = {
+            "env": pr.spec.get("env") or {},
+            "docker_image": image,
+            **dataset.dump_task_fields(),
+        }
+        pull_secret = self._image_pull_secret(image)
+        if pull_secret:
+            op_config["image_pull_secret"] = pull_secret
 
         return dg.RunRequest(
-            run_key=f"{pr.repository_id}/{pr.number}",
+            run_key=f"{pr.trigger_repository_id}/{pr.number}",
             tags={
                 "trigger": "github",
                 "pr_number": str(pr.number),
@@ -144,13 +154,20 @@ class PullRequestTriggerSensor(GithubSensor):
             run_config={
                 "ops": {
                     "k8s_pipes_op": {
-                        "config": {
-                            "env": pr.spec.get("env") or {},
-                            "docker_image": pr.spec["image"],
-                            **dataset.dump_task_fields(),
-                        }
+                        "config": op_config
                     }
                 }
             },
         )
 
+    def _image_pull_secret(self, image: str) -> str | None:
+        """
+        The regcred secret name for the image's registry, so the task pod can pull
+        from a private one. Public images have no registry configured and need none.
+        """
+        try:
+            registries = self.backend_api.get_registries()
+        except Exception as e:
+            self.log.warning(f"Could not fetch registries for image {image}: {e}")
+            return None
+        return Registry.secret_for_image(image, registries)

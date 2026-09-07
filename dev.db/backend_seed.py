@@ -84,6 +84,9 @@ def seed():
         logger.info(f"Deleting existing dataset ({ds.id}) - {ds.name}")
         api.delete_dataset(ds.id)
 
+    logger.info("Ensuring project exists...")
+    project = api.get_or_create_project(REQUEST_PROJECT_NAME)
+
     logger.info("Creating new dataset...")
     dataset = api.create_dataset(
         name=DATASET_NAME,
@@ -94,6 +97,7 @@ def seed():
         schema=DATASET_SCHEMA,
         db_type=DATASET_TYPE,
         schema_write=DATASET_SCHEMA_WRITE,
+        project_id=project.id,
     )
 
     logger.info("Creating new repository...")
@@ -102,11 +106,14 @@ def seed():
         watch_dir=REPO_WATCH_DIR,
         base_branch=REPO_BRANCH,
         initial_cursor=REPO_INIT_CURSOR,
-        dataset_id=dataset.id,
+        project_id=project.id,
     )
 
     logger.info("========================================================================")
-    logger.info(f"Seed complete - (dataset_id={dataset.id}, repository_id={repo.id})")
+    logger.info(
+        f"Seed complete - (project_id={project.id}, dataset_id={dataset.id}, "
+        f"repository_id={repo.id})"
+    )
     logger.info("========================================================================")
 
 

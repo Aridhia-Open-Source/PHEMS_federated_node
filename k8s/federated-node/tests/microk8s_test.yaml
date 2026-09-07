@@ -106,3 +106,10 @@ tests:
       - equal:
           path: data.ENABLE_IMAGE_WHITELIST
           value: "false"
+  # It only deletes a row from the backend's own database, so it needs no superuser.
+  - it: smoke tests use the backend role, not the superuser
+    template: tests/smoke-tests.yaml
+    asserts:
+      - equal:
+          path: spec.containers[0].env[1].valueFrom.secretKeyRef.name
+          value: backend-db

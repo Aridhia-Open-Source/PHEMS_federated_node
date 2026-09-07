@@ -19,7 +19,10 @@ dotenv('.dev.env')
 DOCKER_REGISTRY = 'localhost:5001'
 NAMESPACE = os.getenv('NAMESPACE', 'fn')
 RELEASE_NAME = os.getenv('RELEASE_NAME', 'fn-dev')
-DAGSTER_DEPLOYMENT = RELEASE_NAME + '-dagster-user-deployments-dagster-fn'
+# The code server is part of the Federated Node chart (templates/dagster-code-server.yaml),
+# so it is <release>-<fnDagster.codeServer.name>, not the dagster subchart's
+# <release>-dagster-user-deployments-dagster-<name>.
+DAGSTER_DEPLOYMENT = RELEASE_NAME + '-' + os.getenv('DAGSTER_USER_DEPLOYMENT', 'dagster-fn')
 
 # Full entrypoint from dev.values.yaml dagsterApiGrpcArgs
 DAGSTER_FULL_ENTRYPOINT = [

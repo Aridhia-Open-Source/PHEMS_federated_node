@@ -1,6 +1,6 @@
 FROM alpine/k8s:1.33.2
 
-ARG USERNAME=fednode
+ARG APP_USER=fednode
 ARG USER_UID=1001
 ARG USER_GID=1001
 
@@ -15,8 +15,8 @@ RUN python3 -m venv /venv \
     && /venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt
 
 # Create non-root user
-RUN addgroup -S "${USERNAME}" --gid "${USER_GID}" \
-    && adduser -S "${USERNAME}" -G "${USERNAME}" -u "${USER_UID}"
+RUN addgroup -S "${APP_USER}" --gid "${USER_GID}" \
+    && adduser -S "${APP_USER}" -G "${APP_USER}" -u "${USER_UID}"
 
 # Install scripts to PATH
 COPY --chown=${USER_UID}:${USER_GID} scripts/ /usr/bin/

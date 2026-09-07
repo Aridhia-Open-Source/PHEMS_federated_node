@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 set -a
 source "$SCRIPT_DIR/.env"
 set +a
+source "$SCRIPT_DIR/dataset_password.sh"
 
 # System python is PEP 668-managed, so the deps in requirements.txt live in a
 # venv rather than site-packages. Use it when present.

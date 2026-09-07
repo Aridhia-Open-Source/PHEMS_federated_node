@@ -13,10 +13,6 @@ federatedNode:
     task_pod_results_path: /mnt/data
 autoscaling:
   enabled: false
-namespaces: &namespaces
-  keycloak: keycloak
-  tasks: tasks
-  controller: fn-controller
 db:
   user: admin
   host: db.federatednode.svc
@@ -47,7 +43,10 @@ host: &host phems-federatednode.net
 
 global:
   host: *host
-  namespaces: *namespaces
+  namespaces:
+    keycloak: keycloak
+    tasks: tasks
+    controller: fn-controller
 
 cert-manager:
   enabled: true

@@ -17,11 +17,16 @@ from app.config import PipesSecurityContextConfig
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Analytical containers flushing results to the shared volume need longer than the
+# 30s default to exit before SIGKILL.
+TERMINATION_GRACE_PERIOD_SECONDS = 300
+
 
 @dg.op(
     config_schema={
         "docker_image": dg.Field(str),
         "env": dg.Field(dict, default_value={}, is_required=False),
+        "image_pull_secret": dg.Field(str, is_required=False),
         "dataset_secret_name": dg.Field(str, is_required=False),
         "dataset_name": dg.Field(str, is_required=False),
         "dataset_host": dg.Field(str, is_required=False),
@@ -42,11 +47,14 @@ class K8sPipe:
         self.context = context
         self.run_id = context.run_id
         self.config = context.op_config
-        self.service_account_name = os.environ["DAGSTER_USER_SERVICE_ACCOUNT_NAME"]
         self.namespace = os.environ["DAGSTER_DEPLOYMENT_NAMESPACE"]
+        # Task pods run apart from the release namespace, which holds the backend,
+        # Keycloak and the Dagster infrastructure.
+        self.task_namespace = os.environ.get("DAGSTER_TASK_NAMESPACE") or self.namespace
         self.pvc_name = os.environ["DAGSTER_ARTIFACTS_PVC_NAME"]
         self.mnt_base_path = os.environ["DAGSTER_ARTIFACT_MOUNT_PATH"]
         self.image = self.config['docker_image']
+        self.image_pull_secret = self.config.get('image_pull_secret')
         self.name = f"pipes-{self.run_id}"
         self.artifact_path = f"{self.mnt_base_path}/{self.run_id}"
         self.security_context = PipesSecurityContextConfig().to_pod_security_context()
@@ -81,7 +89,7 @@ class K8sPipe:
         self._prepare_artifact_dir()
         result = self.client.run(
             base_pod_spec=self._build_base_pod_spec(),
-            namespace=self.namespace,
+            namespace=self.task_namespace,
             context=self.context,
             image=self.image,
         )
@@ -153,17 +161,24 @@ class K8sPipe:
                 pass
 
     def _build_base_pod_spec(self):
+        # No service account: the task pod runs partner code and never talks to the
+        # Kubernetes API, so it gets no token and no identity to borrow.
         spec = {
-            "serviceAccountName": self.service_account_name,
+            "automountServiceAccountToken": False,
+            "restartPolicy": "Never",
+            "terminationGracePeriodSeconds": TERMINATION_GRACE_PERIOD_SECONDS,
             "volumes": self._pod_volumes(),
             "containers": [
                 {
                     "name": self.name,
+                    "imagePullPolicy": "Always",
                     "env": self._pod_env(),
                     "volumeMounts": self._pod_volume_mounts(),
                 }
             ],
         }
+        if self.image_pull_secret:
+            spec["imagePullSecrets"] = [{"name": self.image_pull_secret}]
         if self.security_context:
             spec["securityContext"] = self.security_context
         return spec

@@ -26,7 +26,7 @@ class PullRequest(BaseModel):
     """Pull Request data from backend API."""
     model_config = ConfigDict(extra="allow")
 
-    repository_id: int
+    trigger_repository_id: int
     number: int
     title: str
     raised_by: str
@@ -34,6 +34,16 @@ class PullRequest(BaseModel):
     spec: dict
     merge_commit_sha: str
     status: str
+
+
+class Project(BaseModel):
+    """Project data from backend API."""
+    model_config = ConfigDict(extra="allow")
+
+    id: int
+    name: str
+    description: str | None = None
+    default_dataset_id: int | None = None
 
 
 class Dataset(BaseModel):
@@ -48,6 +58,7 @@ class Dataset(BaseModel):
     schema_write: str | None = None
     type: str
     extra_connection_args: str | None = None
+    project_id: int
     slug: str
     url: str
 
@@ -56,8 +67,8 @@ class Dataset(BaseModel):
         return f"{cleaned_up_host}-{re.sub('\\s|_|#', '-', self.name.lower())}-creds"
 
 
-class Repository(BaseModel):
-    """Repository data from backend API retrieval."""
+class TriggerRepository(BaseModel):
+    """Trigger repository data from backend API retrieval."""
 
     model_config = ConfigDict(extra="allow")
 

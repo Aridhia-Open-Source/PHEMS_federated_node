@@ -73,7 +73,7 @@ tests:
           value: test-azure
         documentSelector:
           path: metadata.namespace
-          value: tasks
+          value: analytics
   - it: creates AWS persistency
     template: backend-results-pv.yaml
     asserts:

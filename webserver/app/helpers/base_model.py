@@ -26,6 +26,8 @@ class BaseModel():
 
         return cls.query.paginate(page=page, per_page=per_page)
 
+    WIRE_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+
     def sanitized_dict(self) -> dict[str, bool|int|str]:
         """
         Based on the list of column names, conditionally render the values
@@ -38,7 +40,7 @@ class BaseModel():
                 case int() | bool() | None:
                     jsonized[field] = val
                 case datetime():
-                    jsonized[field] = val.strftime("%Y-%m-%d %H:%M:%S")
+                    jsonized[field] = val.strftime(self.WIRE_DATETIME_FORMAT)
                 case BaseModel():
                     pass
                 case _:

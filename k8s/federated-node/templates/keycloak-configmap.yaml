@@ -1,20 +1,35 @@
+{{- /*
+  One ConfigMap definition, rendered into every namespace that needs it
+*/ -}}
 {{- $list_ns := list (include "kc_namespace" .) .Release.Namespace -}}
-{{- range $list_ns }}
+{{- if .Values.outboundMode -}}
+    {{- $list_ns = append $list_ns (include "controller_namespace" .) -}}
+{{- end -}}
+{{- range ($list_ns | uniq) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: keycloak-config
   namespace: {{ . }}
 data:
-  KC_HEALTH_ENABLED: "true"
   KC_HOSTNAME_STRICT: "false"
-  KC_FEATURES: admin-fine-grained-authz:v1,token-exchange
-  KC_BOOTSTRAP_ADMIN_USERNAME: tmpadmin
+  {{- /*
+    No KC_HEALTH_ENABLED / KC_FEATURES / KC_DB: those are build-time options, baked into the
+    image by `kc.sh build` in build/keycloak/Dockerfile. Keycloak runs --optimized and rejects
+    them at startup if they are also supplied through the environment.
+  */}}
+  {{- /*
+    Suffixed with the credential generation. The bootstrap admin is created by Keycloak from
+    KC_BOOTSTRAP_ADMIN_* on startup and deleted by realm-init once the real service account
+    exists; a rotation therefore has to ask for a name that does not already exist, or Keycloak
+    refuses to create it and realm-init has no credential to bootstrap with.
+  */}}
+  KC_BOOTSTRAP_ADMIN_USERNAME: tmpadmin-{{ $.Values.keycloak.credentialGeneration | default 1 }}
   KEYCLOAK_ADMIN: admin
+  KEYCLOAK_SERVICE_USER: fn-service
   KC_DB_URL_HOST: {{ include "dbKeycloakHost" $ }}
-  KC_DB: postgres
-  KC_DB_URL_PORT: {{ $.Values.db.port | quote }}
-  KC_DB_URL_DATABASE: {{ $.Values.keycloak.db.name | quote }}
+  KC_DB_URL_PORT: {{ include "dbPort" $ | quote }}
+  KC_DB_URL_DATABASE: {{ include "dbKeycloakName" $ }}
   KC_DB_USERNAME: {{ $.Values.keycloak.db.user | quote }}
   KEYCLOAK_TOKEN_LIFE: {{ include "tokenLife" $ }}
   KEYCLOAK_NAMESPACE: {{ include "kc_namespace" $ }}

@@ -22,12 +22,14 @@ spec:
             - name: POSTGRES_DB
               value: postgres
             - name: POSTGRES_USER
-              value: postgres
+              value: {{ .Values.db.superuser }}
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-superuser
-                  key: password
+                  # initdb only reads this when the data directory is first created,
+                  # so this secret and storage.local.dbpath are a single unit.
+                  name: {{ .Values.db.secret.name }}
+                  key: {{ .Values.db.secret.key }}
           readinessProbe:
             exec:
               command:
@@ -35,7 +37,7 @@ spec:
                 - -d
                 - postgres
                 - -U
-                - postgres
+                - {{ .Values.db.superuser }}
             initialDelaySeconds: 5
             periodSeconds: 5
             failureThreshold: 10
@@ -46,7 +48,7 @@ spec:
                 - -d
                 - postgres
                 - -U
-                - postgres
+                - {{ .Values.db.superuser }}
             initialDelaySeconds: 10
             periodSeconds: 5
             failureThreshold: 1

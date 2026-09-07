@@ -1,14 +1,158 @@
-# This just works as a big check for available resources, so
-# the templates won't be filled with this, and will reduce code duplication
+# One place for all the "you cannot install with these values" checks, so the rest of
+# the templates stay readable.
+#
+# Cluster-state checks are gated on fn.clusterReachable, because `helm template` and
+# client-side --dry-run return nil from every lookup and a valid values file must
+# still render there.
 
-{{- if .Values.traefik.enabled -}}
-{{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "httproutes.gateway.networking.k8s.io" -}}
-{{- if not $crd }}
+{{- /* --- Render-time checks --- */ -}}
+
+{{- if .Values.dagster.enabled }}
+{{- if not .Values.dagster.postgresql.enabled }}
+{{- $host := (.Values.dagster.postgresql).postgresqlHost | default "" }}
+{{- if not $host }}
+  {{ fail "dagster.postgresql.postgresqlHost is empty with postgresql.enabled: false, so the dagster daemon and webserver would be given no hostname. Set it to the server holding dagster's database - db.host, unless you are keeping it somewhere else." }}
+{{- end }}
+{{- /* Only when the chart manages roles: db-init connects as db.superuser with
+       db.secret, and that credential belongs to db.host's server. With
+       manageRolesAndDatabases false nothing needs an admin login, so dagster is free
+       to live on a different server entirely. */ -}}
+{{- if and .Values.db.manageRolesAndDatabases (ne $host (include "dbHost" .)) }}
+  {{ fail (tpl (.Files.Get "scripts/dagster-db-mismatch.txt") (dict "found" $host "expected" (include "dbHost" .))) }}
+{{- end }}
+{{- $port := ((.Values.dagster.postgresql).service).port | default 5432 }}
+{{- if and .Values.db.manageRolesAndDatabases (ne (toString $port) (toString (include "dbPort" .))) }}
+  {{ fail (printf "dagster.postgresql.service.port (%v) must equal db.port (%v) while db.manageRolesAndDatabases is true, because dagster-db-init connects to db.host with the one superuser credential." $port (include "dbPort" .)) }}
+{{- end }}
+{{- if and .Values.db.enforceSSL (not ((.Values.dagster.postgresql).postgresqlParams).sslmode) }}
+  {{ fail "db.enforceSSL is set but dagster.postgresql.postgresqlParams.sslmode is not, so the dagster daemon and webserver would connect without TLS. Add:\n\n  dagster:\n    postgresql:\n      postgresqlParams:\n        sslmode: require\n" }}
+{{- end }}
+{{- end }}
+{{- if .Values.fnDagster.db }}
+  {{ fail "fnDagster.db has been removed. Dagster's database name, user and password secret are now derived from the dagster: block (postgresqlDatabase / postgresqlUsername / global.postgresqlSecretName) and its host from db.host, so each one is written exactly once. Delete fnDagster.db from your values file." }}
+{{- end }}
+{{- end }}
+
+{{- /* Combinations that cannot mean anything. All render-time, so CI catches them. */ -}}
+{{- if not .Values.db.manageRolesAndDatabases }}
+{{- if .Values.create_db_deployment }}
+  {{ fail "create_db_deployment is true but db.manageRolesAndDatabases is false: the chart would deploy a PostgreSQL and then create nothing in it, with no superuser password to initialise it with. Use an external server, or let the chart manage roles and databases." }}
+{{- end }}
+{{- if .Values.fnDagster.createDB }}
+  {{ fail "fnDagster.createDB is true but db.manageRolesAndDatabases is false. Dagster's database is on the same server as the others, so it cannot be managed while they are not. Either set db.manageRolesAndDatabases: true, or create the dagster role and database yourself along with the rest and drop fnDagster.createDB." }}
+{{- end }}
+{{- end }}
+{{- if .Values.namespaces }}
+  {{ fail "Move `namespaces` under `global`: the task-controller subchart reads global.namespaces, so a top-level copy would only ever reach this chart and the two would disagree. Use:\n\n  global:\n    namespaces:\n      keycloak: ...\n      tasks: ...\n      controller: ...\n" }}
+{{- end }}
+{{- if and (not .Values.datasetDb.create) .Values.datasetDb.dbs }}
+  {{ fail "datasetDb.dbs is set but datasetDb.create is false. datasetDb is an in-cluster development fixture, and those roles are only ever created and read by the chart's own db-datasets-init job - nothing else consumes them. Register an external dataset database through the /datasets API instead, and remove datasetDb.dbs." }}
+{{- end }}
+
+{{- /* --- Cluster-state checks --- */ -}}
+
+{{- if eq (include "fn.clusterReachable" .) "true" }}
+
+{{- if .Values.traefik.enabled }}
+{{- if not (lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "httproutes.gateway.networking.k8s.io") }}
   {{ fail (.Files.Get "scripts/missing-gateway-api-crd.txt") }}
-{{- end -}}
-
-{{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "middlewares.traefik.io" -}}
-{{- if not $crd }}
+{{- end }}
+{{- if not (lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "middlewares.traefik.io") }}
   {{ fail (.Files.Get "scripts/missing-traefik-crd.txt") }}
-{{- end -}}
-{{- end -}}
+{{- end }}
+{{- end }}
+
+{{- /* Secrets the chart cannot invent. */ -}}
+{{- $missing := list }}
+
+{{- /* Only needed when the chart connects as an administrator. */ -}}
+{{- if and (not .Values.create_db_deployment) .Values.db.manageRolesAndDatabases }}
+{{- $s := lookup "v1" "Secret" .Release.Namespace .Values.db.secret.name }}
+{{- if not (index (($s).data | default dict) .Values.db.secret.key) }}
+{{- $missing = append $missing (dict "name" .Values.db.secret.name "key" .Values.db.secret.key
+      "what" (printf "the administrator password for %s on db.host. create_db_deployment is false, so this Postgres is yours and the chart cannot generate or guess it" .Values.db.superuser)) }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.dagster.enabled }}
+{{- $s := lookup "v1" "Secret" .Release.Namespace "github-token" }}
+{{- if not (index (($s).data | default dict) "GH_TOKEN") }}
+{{- $missing = append $missing (dict "name" "github-token" "key" "GH_TOKEN"
+      "what" "a GitHub PAT, read on the repositories you register and write on fnDagster.gh.delivery_repo") }}
+{{- end }}
+{{- end }}
+
+{{- /* Something else owns the password Secrets, so they have to be there already. */ -}}
+{{- if and .Values.db.manageRolesAndDatabases (not .Values.db.createPasswordSecrets) }}
+{{- $needed := list
+      (dict "name" .Values.backend.db.secret.name "key" .Values.backend.db.secret.key "what" "the backend role's password")
+      (dict "name" .Values.keycloak.db.secret.name "key" .Values.keycloak.db.secret.key "what" (printf "the keycloak role's password. It is also needed in namespace %s, which the chart does not copy for you in this mode" (include "kc_namespace" .))) }}
+{{- if .Values.dagster.enabled }}
+{{- $needed = append $needed (dict "name" (include "dagsterDbSecretName" .) "key" (include "dagsterDbSecretKey" .) "what" "the dagster role's password") }}
+{{- end }}
+{{- if .Values.create_db_deployment }}
+{{- $needed = append $needed (dict "name" .Values.db.secret.name "key" .Values.db.secret.key "what" (printf "the password initdb gives %s on the in-cluster Postgres" .Values.db.superuser)) }}
+{{- end }}
+{{- range $r := $needed }}
+{{- $s := lookup "v1" "Secret" $.Release.Namespace $r.name }}
+{{- if not (index (($s).data | default dict) $r.key) }}
+{{- $missing = append $missing $r }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- if $missing }}
+  {{ fail (tpl (.Files.Get "scripts/missing-secrets.txt") (dict "Release" .Release "Values" .Values "missing" $missing)) }}
+{{- end }}
+
+{{- /* With no db-init hook to apply a password, every role secret has to exist up
+       front. Reported through its own message: missing-secrets.txt tells the reader
+       not to create these by hand, which is the opposite instruction here. */ -}}
+{{- if not .Values.db.manageRolesAndDatabases }}
+{{- $roles := list
+      (dict "user" .Values.backend.db.user "dbname" .Values.backend.db.name
+            "name" .Values.backend.db.secret.name "key" .Values.backend.db.secret.key)
+      (dict "user" .Values.keycloak.db.user "dbname" .Values.keycloak.db.name
+            "name" .Values.keycloak.db.secret.name "key" .Values.keycloak.db.secret.key) }}
+{{- if .Values.dagster.enabled }}
+{{- /* dagster.enabled, not createDB: the daemon, webserver, migrate job and code
+       server all read this secret. */ -}}
+{{- $roles = append $roles (dict "user" (include "dagsterDbUser" .) "dbname" (include "dagsterDbName" .)
+      "name" (include "dagsterDbSecretName" .) "key" (include "dagsterDbSecretKey" .)) }}
+{{- end }}
+{{- $missingRoles := list }}
+{{- range $r := $roles }}
+{{- $s := lookup "v1" "Secret" $.Release.Namespace $r.name }}
+{{- if not (index (($s).data | default dict) $r.key) }}
+{{- $missingRoles = append $missingRoles $r }}
+{{- end }}
+{{- end }}
+{{- if $missingRoles }}
+  {{ fail (tpl (.Files.Get "scripts/byo-databases.txt") (dict "Release" .Release "Values" .Values "roles" $roles "missing" $missingRoles)) }}
+{{- end }}
+{{- end }}
+
+{{- /* Keycloak runs in its own namespace and reads its database password there. The
+       chart derives that copy when it creates password Secrets; when it does not, the
+       operator places it in both namespaces. */ -}}
+{{- if not .Values.db.createPasswordSecrets }}
+{{- $kcNs := include "kc_namespace" . }}
+{{- if ne $kcNs .Release.Namespace }}
+{{- $kcSecret := lookup "v1" "Secret" $kcNs .Values.keycloak.db.secret.name }}
+{{- if not (index (($kcSecret).data | default dict) .Values.keycloak.db.secret.key) }}
+  {{ fail (printf "Secret %q (key %q) is missing from namespace %q. Keycloak runs there and reads its database password from it, and with db.createPasswordSecrets false this chart does not place that copy for you:\n\n  kubectl create secret generic %s -n %s --from-literal=%s='<the %s password>'\n" .Values.keycloak.db.secret.name .Values.keycloak.db.secret.key $kcNs .Values.keycloak.db.secret.name $kcNs .Values.keycloak.db.secret.key .Values.keycloak.db.user) }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- /* A Postgres data directory that outlived its superuser secret: helm uninstall
+       deletes the PV and PVC but not the data behind them. */ -}}
+{{- if .Values.create_db_deployment }}
+{{- $pvc := lookup "v1" "PersistentVolumeClaim" .Release.Namespace "db-volclaim" }}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace .Values.db.secret.name }}
+{{- if and $pvc (not (index (($secret).data | default dict) .Values.db.secret.key)) }}
+  {{ fail (tpl (.Files.Get "scripts/stale-postgres-data.txt") .) }}
+{{- end }}
+{{- end }}
+
+{{- end }}

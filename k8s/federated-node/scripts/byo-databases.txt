@@ -1,0 +1,44 @@
+
+db.manageRolesAndDatabases is false, so this chart creates no databases, roles or
+grants - and therefore needs no administrator login. What it does need is one secret
+per role, holding the password that role already has.
+
+Missing in namespace {{ .Release.Namespace }}:
+{{ range .missing }}
+  {{ .name }} (key {{ .key }}) - password for role {{ .user }} on database {{ .dbname }}
+{{- end }}
+
+Ask your DBA to run this once, as any login with CREATEDB and CREATEROLE. No
+SUPERUSER is required, and that login is never needed again - the chart holds no
+administrator credential at all:
+{{ range .roles }}
+  CREATE ROLE {{ .user }} LOGIN PASSWORD '<{{ .user }}-password>';
+  CREATE DATABASE {{ .dbname }} OWNER {{ .user }};
+{{ end }}
+OWNER matters. PostgreSQL 15 removed CREATE on schema public for PUBLIC, so GRANT ALL
+PRIVILEGES ON DATABASE alone leaves the role unable to create a table, and `alembic
+upgrade head` fails with "permission denied for schema public". Ownership is what
+carries that privilege.
+
+If your policy forbids the application role owning its database, grant it explicitly
+instead (redundant if you used OWNER above):
+{{ range .roles }}
+  \c {{ .dbname }}
+  GRANT CONNECT ON DATABASE {{ .dbname }} TO {{ .user }};
+  GRANT USAGE, CREATE ON SCHEMA public TO {{ .user }};
+{{ end }}
+Then create the secrets, using the same passwords:
+{{ range .missing }}
+  kubectl create secret generic {{ .name }} -n {{ $.Release.Namespace }} --from-literal={{ .key }}='<{{ .user }}-password>'
+{{- end }}
+
+A db-check hook verifies all of this before anything is installed: it connects as each
+role to its own database and fails the release, naming the role, if the password is
+wrong or the role cannot create objects.
+
+The roles need nothing else: no SUPERUSER, REPLICATION or BYPASSRLS, no CREATEDB or
+CREATEROLE of their own, no membership of any other role, no extensions, no schema
+other than public, and no privileges on the postgres database.
+
+On RDS and Azure the admin is not a real superuser, so on PostgreSQL 15 and older
+`CREATE DATABASE ... OWNER <role>` needs `GRANT <role> TO <admin>;` first.

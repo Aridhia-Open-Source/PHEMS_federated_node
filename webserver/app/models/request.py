@@ -6,6 +6,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.exc import IntegrityError
 from app.helpers.base_model import BaseModel, db
 from app.models.dataset import Dataset
+from app.models.project import Project
 from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import DBError, InvalidRequest, LogAndException
 
@@ -24,11 +25,18 @@ class Request(db.Model, BaseModel):
     status = Column(String(256), default='pending')
     proj_start = Column(DateTime(timezone=False), nullable=False)
     proj_end = Column(DateTime(timezone=False), nullable=False)
-    created_at = Column(DateTime(timezone=False), server_default=func.now())
-    updated_at = Column(DateTime(timezone=False), onupdate=func.now())
+    created_at = Column(DateTime(timezone=False), nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
 
     dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
     dataset = relationship("Dataset")
+
+    # The dataset determines the project, so this is derived rather than submitted. It is
+    # nullable only because project_name predates it and old rows are backfilled.
+    project_id = Column(Integer, ForeignKey(Project.id, ondelete='RESTRICT'), nullable=True)
+    project = relationship("Project", back_populates="requests")
     STATUSES = {
         'approved': 'approved',
         'pending': 'pending',
@@ -51,6 +59,9 @@ class Request(db.Model, BaseModel):
         self.project_name = project_name
         # Not sure how to track the dataset yet, as DAR provider will have different IDs from the internal ones
         self.dataset = dataset
+        # The project comes from the dataset, never from the submitted string, so a DAR
+        # cannot name one project while granting access to another project's dataset.
+        self.project_id = dataset.project_id if dataset is not None else None
         self.requested_by = requested_by
         self.proj_start = proj_start
         self.proj_end = proj_end
@@ -58,19 +69,25 @@ class Request(db.Model, BaseModel):
         self.updated_at = datetime.now()
 
     def _get_client_name(self, user_id:str):
-        return f"Request {user_id} - {self.project_name}"
+        # Built from the project the dataset belongs to. Falls back to the submitted string
+        # for rows written before requests carried a project.
+        name = self.project.name if self.project else self.project_name
+        return f"Request {user_id} - {name}"
 
     @classmethod
     def validate(cls, data:dict):
         validated = super().validate(data)
+        dataset = data.get("dataset")
         overlaps = cls.query.filter(
-            cls.project_name == data["project_name"],
             cls.proj_end >= func.now(),
-            cls.requested_by == data["requested_by"]
-        ).one_or_none()
+            cls.requested_by == data["requested_by"],
+            cls.dataset_id == (dataset.id if dataset is not None else None)
+        ).first()
 
         if overlaps:
-            raise InvalidRequest(f"User already belongs to the active project {data["project_name"]}")
+            raise InvalidRequest(
+                f"User already has active access to this dataset in project {data["project_name"]}"
+            )
 
         return validated
 
@@ -193,16 +210,35 @@ class Request(db.Model, BaseModel):
         return ret_response
 
     @classmethod
-    def get_active_project(cls, proj_name:str, user_id:str):
+    def get_active_project(cls, proj_name:str, user_id:str, dataset_id:int=None):
         """
-        Get the active project by namme and user
+        Get the user's active DAR for a project.
+
+        A project can hold several datasets, so a user can hold several DARs in it. Pass
+        dataset_id to say which one is wanted. Without it this only resolves when there is
+        exactly one, rather than picking arbitrarily.
         """
-        dar = cls.query.filter(
-            cls.project_name == proj_name,
+
+        project = Project.query.filter(Project.name == proj_name).one_or_none()
+        if project is None:
+            raise DBError("User does not belong to a valid project")
+
+        query = cls.query.filter(
+            cls.project_id == project.id,
             cls.requested_by == user_id,
             cls.proj_start <= func.now(),
             cls.proj_end > func.now()
-        ).one_or_none()
-        if dar is None:
+        )
+        if dataset_id is not None:
+            query = query.filter(cls.dataset_id == dataset_id)
+
+        dars = query.all()
+        if not dars:
             raise DBError("User does not belong to a valid project")
-        return dar
+        if len(dars) > 1:
+            candidates = ", ".join(sorted(str(dar.dataset_id) for dar in dars))
+            raise DBError(
+                f"Project {proj_name} covers more than one dataset ({candidates}). "
+                "Say which dataset the request is for."
+            )
+        return dars[0]

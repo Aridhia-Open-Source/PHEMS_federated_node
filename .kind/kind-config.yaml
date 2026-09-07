@@ -7,7 +7,9 @@ nodes:
     hostPort: 30001
     protocol: TCP
   extraMounts:
-  - hostPath: /data
+  # Rendered by scripts/cluster.sh from FN_DATA_DIR (default $HOME/.fn/data). The
+  # container path stays /data, so the chart's storage.local.* values are unchanged.
+  - hostPath: __FN_DATA_DIR__
     containerPath: /data
 containerdConfigPatches:
   - |-

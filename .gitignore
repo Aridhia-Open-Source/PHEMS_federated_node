@@ -13,6 +13,7 @@ __pycache__/
 *.env
 .envrc
 k8s/*/*.values.yaml
+k8s/*/*.values.yml
 *.crt
 *.key
 
@@ -25,9 +26,8 @@ k8s/federated-node/charts
 k8s/federated-node/.debug
 debug.yaml
 
-# Ignore example values files while developing (remove later)
-!example.values.yaml
-!dev.example.values.yaml
+# ... except the tracked example, which the ignore above would otherwise catch
+!k8s/*/dev.example.values.yml
 
 # AI
 .claude/**

@@ -31,12 +31,12 @@ class PullRequest(db.Model, BaseModel):
         server_default=PullRequestStatus.UNKNOWN.value,
     )
 
-    repository_id = sa.Column(
-        sa.Integer, sa.ForeignKey('repositories.id', ondelete='CASCADE'),
+    trigger_repository_id = sa.Column(
+        sa.Integer, sa.ForeignKey('trigger_repositories.id', ondelete='CASCADE'),
         nullable=False, primary_key=True
     )
 
-    repository = orm.relationship("Repository", back_populates="pull_requests")
+    trigger_repository = orm.relationship("TriggerRepository", back_populates="pull_requests")
 
     @validates('merged_at')
     def validate_merged_at(self, key, value):
@@ -50,7 +50,7 @@ class PullRequest(db.Model, BaseModel):
 
     def __init__(
         self,
-        repository_id: int,
+        trigger_repository_id: int,
         number: int,
         title: str,
         raised_by: str,
@@ -59,7 +59,7 @@ class PullRequest(db.Model, BaseModel):
         status: str = PullRequestStatus.UNKNOWN.value,
         spec: dict | None = None,
     ):
-        self.repository_id = repository_id
+        self.trigger_repository_id = trigger_repository_id
         self.number = number
         self.title = title
         self.raised_by = raised_by
@@ -69,4 +69,4 @@ class PullRequest(db.Model, BaseModel):
         self.status = status
 
     def __repr__(self):
-        return f'<PullRequest (repo_id={self.repository_id}, pr={self.number})>'
+        return f'<PullRequest (repo_id={self.trigger_repository_id}, pr={self.number})>'
