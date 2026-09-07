@@ -28,7 +28,11 @@ a pull request.
    dependencies as described in the repository `README.md`.
 4. **Make your change**, keeping commits focused and descriptive.
 5. **Add or update tests** covering the change where applicable.
-6. **Run the test suite and linters** locally before opening a PR.
+6. **Run the test suite and linters** locally before opening a PR:
+   ```bash
+   cd webserver && make tests_local   # unit tests (see webserver/README.md)
+   cd .. && make pylint               # linter, from the repository root
+   ```
 7. **Update documentation** (README, docstrings, etc.) if behaviour changes.
 
 ## Submitting a pull request

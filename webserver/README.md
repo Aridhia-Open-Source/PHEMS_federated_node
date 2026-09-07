@@ -16,7 +16,8 @@ source .venv/bin/activate
 ```
 
 ### Tools
-pylint should guarantee a minimum threshold of code quality/standards. It can be run with `make pylint`
+pylint should guarantee a minimum threshold of code quality/standards. It is run from the
+repository root with `make pylint` (the target lives in the top-level `Makefile`).
 
 ### Run (dev mode)
 ```sh
