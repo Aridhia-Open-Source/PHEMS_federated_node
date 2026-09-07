@@ -113,7 +113,7 @@ class Dataset(db.Model, BaseModel):
 
     def get_credentials(self) -> tuple:
         """
-        Mostly used to create a direct connection to the DB, i.e. /beacon endpoint
+        Mostly used to create a direct connection to the DB
         This is not involved in the Task Execution Service
         """
         v1 = KubernetesClient()

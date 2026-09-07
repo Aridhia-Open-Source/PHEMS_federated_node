@@ -1,4 +1,8 @@
 # Releases Changelog
+## 1.18.0
+- Fully implement NFS storage support for on-prem installations
+- Remove legacy endpoints
+
 ## 1.17.0
 - Fix volume mount path for AWS EBS storage job in task controller
 - Add storage mount options configuration to task controller 

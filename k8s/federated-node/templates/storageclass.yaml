@@ -17,6 +17,8 @@ parameters:
   provisioningMode: efs-ap
   fileSystemId: {{ include "awsStorageAccount" . }}
   directoryPerms: "777"
+{{- else if .Values.storage.gcp }}
+provisioner: gcsfuse.csi.storage.gke.io
 {{- else if .Values.storage.nfs }}
 provisioner: {{ .Values.storage.nfs.provisioner | default "kubernetes.io/no-provisioner" }}
 mountOptions:

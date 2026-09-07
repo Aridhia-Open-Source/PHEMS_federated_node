@@ -15,6 +15,6 @@ maintainers = [
     {name = "Liam Smith", email = "liam.smith@aridhia.com"},
 ]
 dependencies = [
-    "requests~=2.32.5",
+    "requests~=2.34.2",
     "kubernetes~=33.1.0",
 ]
