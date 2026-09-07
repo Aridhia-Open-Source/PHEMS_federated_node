@@ -1,0 +1,124 @@
+{{/*
+The Dagster code location (gRPC) server and the workspace file pointing at it. Owned
+here rather than by the dagster-user-deployments subchart (disabled) so the image tag
+follows appVersion - a subchart value cannot be templated. Run pods inherit it via
+DAGSTER_CURRENT_IMAGE, so the run launcher sets no job_image.
+
+No nonRootSC: the dagster image declares no USER, so runAsNonRoot would stop the pod
+starting. See _prepare_artifact_dir in dagster/app/definitions/pipes.py.
+*/}}
+{{- if .Values.dagster.enabled }}
+{{- $image := include "dagster-fn-image" . | trim }}
+{{- $name := include "dagsterCodeServerName" . }}
+{{- $port := include "dagsterCodeServerPort" . }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "dagsterCodeServerServiceAccount" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "federated-node.labels" . | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dagsterWorkspaceConfigMap" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "federated-node.labels" . | nindent 4 }}
+data:
+  workspace.yaml: |
+    load_from:
+      - grpc_server:
+          host: {{ $name }}
+          port: {{ $port }}
+          location_name: {{ $name }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  # The gRPC host in workspace.yaml above, so not release-prefixed.
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "federated-node.labels" . | nindent 4 }}
+    component: dagster-code-server
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ $port }}
+      protocol: TCP
+      name: grpc
+  selector:
+    {{- include "federated-node.selectorLabels" . | nindent 4 }}
+    component: dagster-code-server
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-{{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "federated-node.labels" . | nindent 4 }}
+    component: dagster-code-server
+spec:
+  replicas: {{ ((.Values.fnDagster).codeServer).replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "federated-node.selectorLabels" . | nindent 6 }}
+      component: dagster-code-server
+  template:
+    metadata:
+      labels:
+        {{- include "federated-node.selectorLabels" . | nindent 8 }}
+        component: dagster-code-server
+      annotations:
+        checksum/image: {{ $image | sha256sum | trunc 8 }}
+    spec:
+      serviceAccountName: {{ include "dagsterCodeServerServiceAccount" . }}
+      automountServiceAccountToken: true
+      containers:
+        - name: dagster-code-server
+          image: {{ $image | quote }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          args:
+            - dagster
+            - api
+            - grpc
+            - -h
+            - "0.0.0.0"
+            - -p
+            - {{ $port | quote }}
+            - -m
+            - {{ ((.Values.fnDagster).codeServer).module | default "app.definitions" | quote }}
+          ports:
+            - name: grpc
+              containerPort: {{ $port }}
+          env:
+            # Dagster uses this as the image for run pods launched from here.
+            - name: DAGSTER_CURRENT_IMAGE
+              value: {{ $image | quote }}
+            - name: DAGSTER_PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "dagsterDbSecretName" . }}
+                  key: {{ include "dagsterDbSecretKey" . }}
+          envFrom:
+            - configMapRef:
+                name: dagster-env-config
+            - secretRef:
+                name: github-token
+            - secretRef:
+                name: dagster-keycloak-creds
+          {{- with ((.Values.fnDagster).codeServer).resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          readinessProbe:
+            exec:
+              command: ["dagster", "api", "grpc-health-check", "-p", {{ $port | quote }}]
+            periodSeconds: 20
+            timeoutSeconds: 10
+            successThreshold: 1
+            failureThreshold: 15
+{{- end }}

@@ -5,22 +5,29 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 from kubernetes.client import V1CustomResourceDefinition
 from kubernetes.client.exceptions import ApiException
-from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, Boolean
+from sqlalchemy import (
+    Boolean, CheckConstraint, Column, DateTime, ForeignKey, ForeignKeyConstraint, Index,
+    Integer, JSON, String
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from uuid import uuid4
 
 import urllib3
 from app.helpers.const import (
-    AUTO_DELIVERY_RESULTS, CLEANUP_AFTER_DAYS, CRD_DOMAIN, MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, PUBLIC_URL, TASK_CONTROLLER,
+    AUTO_DELIVERY_RESULTS, CLEANUP_AFTER_DAYS, CRD_DOMAIN, MEMORY_RESOURCE_REGEX, MEMORY_UNITS,
+    CPU_RESOURCE_REGEX, PUBLIC_URL, TASK_CONTROLLER,
     TASK_NAMESPACE, TASK_POD_RESULTS_PATH, TASK_POD_INPUTS_PATH, RESULTS_PATH, TASK_REVIEW, ENABLE_IMAGE_WHITELIST
 )
 from app.helpers.base_model import BaseModel, db
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesBatchClient, KubernetesCRDClient, KubernetesClient
-from app.helpers.exceptions import DBError, InvalidRequest, TaskCRDExecutionException, TaskImageException, TaskExecutionException
+from app.helpers.exceptions import (
+    DBError, InvalidRequest, TaskCRDExecutionException, TaskImageException, TaskExecutionException
+)
 from app.helpers.task_pod import TaskPod
 from app.models import Models
+from app.models.task_status import TriggerSource
 
 
 logger = logging.getLogger('task_model')
@@ -41,18 +48,65 @@ class Task(db.Model, BaseModel):
     docker_image = Column(String(256), nullable=False)
     description = Column(String(4096))
     status = Column(String(256), default='scheduled')
-    created_at = Column(DateTime(timezone=False), server_default=func.now())
-    updated_at = Column(DateTime(timezone=False), onupdate=func.now())
+    created_at = Column(DateTime(timezone=False), nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
     requested_by = Column(String(256), nullable=False)
     review_status = Column(Boolean, nullable=True)
     dataset_id = Column(Integer, ForeignKey('datasets.id', ondelete='CASCADE'))
     dataset = relationship("Dataset")
+    # RESTRICT: a project with task history should not be deletable.
+    project_id = Column(
+        Integer, ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False, index=True
+    )
+    project = relationship("Project")
+
+    # NOT NULL columns need a server_default: _get_required_fields() would otherwise make
+    # them mandatory in the POST /tasks request body.
+    trigger_source = Column(String(16), nullable=False, server_default=TriggerSource.API.value)
+    pr_repository_id = Column(Integer, nullable=True)
+    pr_number = Column(Integer, nullable=True)
+    request_id = Column(Integer, ForeignKey('requests.id', ondelete='SET NULL'), nullable=True)
+
+    dagster_run_id = Column(String(64), nullable=True, unique=True)
+    started_at = Column(DateTime(timezone=False), nullable=True)
+    completed_at = Column(DateTime(timezone=False), nullable=True)
+    exit_code = Column(Integer, nullable=True)
+    reason = Column(String(256), nullable=True)
+
+    # Relative to the artifacts mount, which is resolved at read time.
+    artifact_key = Column(String(512), nullable=True)
+    params = Column(JSON, nullable=False, server_default='{}')
+
+    reviewed_by = Column(String(256), nullable=True)
+    reviewed_at = Column(DateTime(timezone=False), nullable=True)
+
+    # The check is both-or-neither and not tied to trigger_source: deleting a repository
+    # cascades to its PRs, which nulls these columns, and a tied constraint would fail.
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ['pr_repository_id', 'pr_number'],
+            ['pull_requests.trigger_repository_id', 'pull_requests.number'],
+            ondelete='SET NULL',
+            name='fk_tasks_pull_request',
+        ),
+        CheckConstraint(
+            '(pr_repository_id IS NULL) = (pr_number IS NULL)',
+            name='ck_tasks_pr_both_or_neither',
+        ),
+        Index('ix_tasks_dataset_status', 'dataset_id', 'status'),
+        Index('ix_tasks_requested_by', 'requested_by'),
+        Index('ix_tasks_trigger_source_status', 'trigger_source', 'status'),
+        Index('ix_tasks_pull_request', 'pr_repository_id', 'pr_number'),
+    )
 
     def __init__(self,
                  name:str,
                  docker_image:str,
                  requested_by:str,
                  dataset,
+                 project_id:int,
                  executors:list[dict] = [],
                  tags:dict = {},
                  resources:dict = {},
@@ -66,6 +120,7 @@ class Task(db.Model, BaseModel):
         self.docker_image = docker_image
         self.requested_by = requested_by
         self.dataset = dataset
+        self.project_id = project_id
         self.description = description
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
@@ -98,38 +153,78 @@ class Task(db.Model, BaseModel):
         data = super().validate(data)
 
         data["from_controller"] = is_from_controller
-        # Dataset validation
 
+        # A task always states which project it belongs to. Delivery and the image
+        # allow-list are both scoped to it, so neither resolves without one.
+        repo = None
         if repository:
-            repo = Models.Repository.query.filter(Models.Repository.uri == repository.lower()).one_or_none()
-            data["dataset"] = Models.Models.Dataset.query.filter(Models.Dataset.repository_id == repo.id).one_or_none() if repo else None
-            if data["dataset"] is None:
+            repo = Models.TriggerRepository.query.filter(
+                Models.TriggerRepository.uri == repository.lower()
+            ).one_or_none()
+            if repo is None:
                 raise InvalidRequest(f"No datasets linked with the repository {repository}")
-
-        elif kc_client.is_user_admin(user_token):
-            ds_id = data.get("tags", {}).get("dataset_id")
-            ds_name = data.get("tags", {}).get("dataset_name")
-            if ds_name or ds_id:
-                data["dataset"] = Models.Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
-            else:
-                raise InvalidRequest("Administrators need to provide `tags.dataset_id` or `tags.dataset_name`")
+            # The sensor sends no project, so a PR-driven task takes its repository's.
+            project = repo.project
         else:
+            project = Models.Project.query.filter(
+                Models.Project.id == data.get("project_id")
+            ).one_or_none()
+            if project is None:
+                raise InvalidRequest("project_id is a mandatory field")
+        data["project_id"] = project.id
+
+        # Dataset validation
+        ds_id = data.get("tags", {}).get("dataset_id")
+        ds_name = data.get("tags", {}).get("dataset_name")
+        requested_ds = None
+        if ds_name or ds_id:
+            requested_ds = Models.Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
+            # Two ways of saying the same thing must not be allowed to disagree.
+            if requested_ds.project_id != project.id:
+                raise InvalidRequest(
+                    f"Dataset {requested_ds.name} does not belong to project {project.name}"
+                )
+
+        if repo:
+            # Same rule as the API path: the named dataset if the spec has one, and it has
+            # already been checked against the project, otherwise the project's default.
+            data["dataset"] = requested_ds or project.default_dataset
+            if data["dataset"] is None:
+                raise InvalidRequest(
+                    f"Project {project.name} has no default dataset. Provide "
+                    "`tags.dataset_id` or `tags.dataset_name`"
+                )
+        elif kc_client.is_user_admin(user_token):
+            data["dataset"] = requested_ds or project.default_dataset
+            if data["dataset"] is None:
+                raise InvalidRequest(
+                    f"Project {project.name} has no default dataset. Provide "
+                    "`tags.dataset_id` or `tags.dataset_name`"
+                )
+        else:
+            # Naming a dataset does not grant it: an active DAR still has to cover it.
+            # Without one, fall back to the single active DAR for the project.
             data["dataset"] = Models.Request.get_active_project(
                 data["project_name"],
-                user["id"]
+                user["id"],
+                dataset_id=requested_ds.id if requested_ds else None
             ).dataset
 
         # Docker image validation
-        Models.Container.validate_image_format(data["docker_image"], data["docker_image"])
+        Models.WhitelistedImage.validate_image_format(data["docker_image"], data["docker_image"])
 
-        # Validate that the image is whitelisted
+        # Validate that the image is whitelisted for this project
         if ENABLE_IMAGE_WHITELIST:
-            if not Models.Container.validate_image_whitelisted(data["docker_image"]):
+            if not Models.WhitelistedImage.validate_image_whitelisted(
+                data["docker_image"], project.id
+            ):
                 raise TaskImageException(f"Image {data['docker_image']} is not whitelisted", code=HTTPStatus.FORBIDDEN)
 
         # Validate that the image exists on the registry
         if not Models.Registry.validate_image_exist(data["docker_image"]):
-            raise TaskImageException(f"Image {data['docker_image']} not found on our repository", code=HTTPStatus.NOT_FOUND)
+            raise TaskImageException(
+                f"Image {data['docker_image']} not found on our repository", code=HTTPStatus.NOT_FOUND
+            )
 
         # Output volumes validation
         if not isinstance(data.get("outputs", {}), dict):
@@ -471,7 +566,11 @@ class Task(db.Model, BaseModel):
                         "image": self.docker_image,
                         "project": "federated_node",
                         "source": {
-                            "repository": self.dataset.repository or "Aridhia-Open-Source/PHEMS_federated_node"
+                            "repository": (
+                                self.project.trigger_repositories[0].path
+                                if self.project.trigger_repositories
+                                else "Aridhia-Open-Source/PHEMS_federated_node"
+                            )
                         },
                         "user": {
                             "idpId": "",
@@ -497,14 +596,23 @@ class Task(db.Model, BaseModel):
 
     def sanitized_dict(self):
         """
-        Extend the method to add custom status and review
+        The response body, written out rather than derived from the columns.
         """
-        san_dict = super().sanitized_dict()
-        san_dict["status"] = self.get_status()
-        if TASK_REVIEW:
-            san_dict["review_status"] = self.get_review_status()
-
-        return san_dict
+        return {
+            "id": self.id,
+            "name": self.name,
+            "docker_image": self.docker_image,
+            "description": self.description,
+            "status": self.get_status(),
+            "created_at": self.created_at.strftime(self.WIRE_DATETIME_FORMAT),
+            "updated_at": self.updated_at.strftime(self.WIRE_DATETIME_FORMAT),
+            "requested_by": self.requested_by,
+            "review_status": (
+                self.get_review_status() if TASK_REVIEW else self.review_status
+            ),
+            "dataset_id": self.dataset_id,
+            "project_id": self.project_id,
+        }
 
     def crd_name(self):
         """

@@ -94,7 +94,7 @@ def post_datasets():
 # @audit
 @bp.route('/<int:dataset_id>', methods=['GET'])
 @bp.route('/<dataset_name>', methods=['GET'])
-# @auth(scope='can_access_dataset')
+@auth(scope='can_access_dataset')
 @audit
 def get_datasets_by_id_or_name(
     dataset_id: int | None = None,
@@ -122,7 +122,8 @@ def delete_datasets_by_id_or_name(
     logger.error(f"deleting ({dataset_id or dataset_name})")
     ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
     secret_name = ds.get_creds_secret_name()
-    ds.delete(commit=True)
+    # Staged, not committed: the secret deletion below has to be able to roll this
+    # back, and a rollback after a commit is a no-op.
     try:
         ds.delete(False)
     except Exception as exc:
@@ -168,7 +169,7 @@ def patch_datasets_by_id_or_name(
         raise InvalidRequest("dictionaries should be a list.")
 
     for k in body:
-        if not hasattr(ds, k) and k not in ["username", "password", "repository"]:
+        if not hasattr(ds, k) and k not in ["username", "password"]:
             raise InvalidRequest(f"Field {k} is not a valid one")
 
     try:

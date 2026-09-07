@@ -19,6 +19,22 @@ chart:
 helm_tests:
 	./scripts/run_helm_tests.sh
 
+# charts/ is gitignored, so a fresh checkout has no subcharts and helm refuses to
+# lint or render. Both targets below depend on this.
+helm_deps:
+	cd k8s/federated-node && helm dependency build || helm dependency update
+
+helm_lint: helm_deps
+	helm lint k8s/federated-node -f k8s/federated-node/dev.example.values.yml
+
+# Renders with no cluster access - guards against a lookup that ArgoCD or CI cannot do.
+helm_template: helm_deps
+	helm template fn k8s/federated-node -f k8s/federated-node/dev.example.values.yml >/dev/null
+
+show-db-passwords:
+	@kubectl get secret -l federatednode.com/generated-password=true \
+		-o go-template='{{range .items}}{{printf "%-26s" .metadata.name}}{{range $$k, $$v := .data}}{{$$k}}={{$$v | base64decode}}{{end}}{{"\n"}}{{end}}'
+
 build_keycloak:
 	docker build build/keycloak -t ghcr.io/aridhia-open-source/federated_keycloak:${TAG}
 

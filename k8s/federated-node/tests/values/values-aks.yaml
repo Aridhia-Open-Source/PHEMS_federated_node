@@ -19,10 +19,10 @@ traefik:
 integrations:
   domains:
   - '*.test.aridhia.io'
-namespaces:
-  keycloak: identities
-  nginx: federated-nginx
-  tasks: analytics
+global:
+  namespaces:
+    keycloak: identities
+    tasks: analytics
 on_aks: true
 pullPolicy: Always
 storage:

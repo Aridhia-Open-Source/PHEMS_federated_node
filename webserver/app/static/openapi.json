@@ -41,8 +41,8 @@
       "description": "Endpoints related to the Container registry management"
     },
     {
-      "name": "Containers",
-      "description": "Endpoints related to the Containers management"
+      "name": "Whitelisted Images",
+      "description": "Endpoints related to the image whitelist"
     },
     {
       "name": "Users",
@@ -373,38 +373,6 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
-          }
-        }
-      }
-    },
-    "/datasets/selection/beacon": {
-      "post": {
-        "operationId": "select_beacon",
-        "tags": [
-          "Datasets"
-        ],
-        "summary": "Endpoint to check if a given query is valid",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BeaconPostBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "$ref": "#/components/responses/SelectBeaconPost"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthenticated"
-          },
-          "403": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "500": {
-            "$ref": "#/components/responses/DBConnectionFailed"
           }
         }
       }
@@ -997,13 +965,12 @@
         }
       }
     },
-    "/containers": {
+    "/whitelisted_images": {
       "get": {
-        "operationId": "getContainers",
+        "operationId": "getWhitelistedImages",
         "tags": [
-          "Containers"
+          "Whitelisted Images"
         ],
-        "security": [],
         "parameters": [
           {
             "$ref": "#/components/parameters/paginationPage"
@@ -1012,10 +979,10 @@
             "$ref": "#/components/parameters/paginationPerPage"
           }
         ],
-        "summary": "List all containers available to the user",
+        "summary": "List all whitelisted images",
         "responses": {
           "200": {
-            "$ref": "#/components/responses/ContainerList"
+            "$ref": "#/components/responses/WhitelistedImageList"
           },
           "400": {
             "$ref": "#/components/responses/InvalidBody"
@@ -1032,23 +999,23 @@
         }
       },
       "post": {
-        "operationId": "postContainers",
+        "operationId": "postWhitelistedImage",
         "tags": [
-          "Containers"
+          "Whitelisted Images"
         ],
-        "summary": "Maps a new container that the Federated Node can fetch data from",
+        "summary": "Add an image to the whitelist",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ContainerPostObject"
+                "$ref": "#/components/schemas/WhitelistedImagePostObject"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "$ref": "#/components/responses/ContainerPost"
+            "$ref": "#/components/responses/WhitelistedImagePost"
           },
           "400": {
             "$ref": "#/components/responses/InvalidBody"
@@ -1068,21 +1035,21 @@
         }
       }
     },
-    "/containers/{id}": {
+    "/whitelisted_images/{id}": {
       "get": {
-        "operationId": "getContainerById",
+        "operationId": "getWhitelistedImageById",
         "parameters": [
           {
-            "$ref": "#/components/parameters/containerIdPath"
+            "$ref": "#/components/parameters/whitelistedImageIdPath"
           }
         ],
         "tags": [
-          "Containers"
+          "Whitelisted Images"
         ],
         "summary": "Get a whitelisted image by id",
         "responses": {
           "200": {
-            "$ref": "#/components/responses/ContainerEntry"
+            "$ref": "#/components/responses/WhitelistedImageEntry"
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
@@ -1099,19 +1066,19 @@
         }
       },
       "delete": {
-        "operationId": "deleteContainer",
+        "operationId": "deleteWhitelistedImage",
         "parameters": [
           {
-            "$ref": "#/components/parameters/containerIdPath"
+            "$ref": "#/components/parameters/whitelistedImageIdPath"
           }
         ],
         "tags": [
-          "Containers"
+          "Whitelisted Images"
         ],
         "summary": "Remove a whitelisted image",
         "responses": {
-          "204": {
-            "$ref": "#/components/responses/NoContent"
+          "200": {
+            "$ref": "#/components/responses/WhitelistedImageDeleted"
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
@@ -1502,6 +1469,98 @@
           }
         }
       }
+    },
+    "/projects": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "List projects",
+        "responses": {
+          "200": {
+            "description": "List of projects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectObject"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Create a project",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Project created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Project already exists"
+          }
+        }
+      }
+    },
+    "/projects/{project_id}": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get a project",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        }
+      }
     }
   },
   "security": [
@@ -1552,7 +1611,7 @@
         "required": false,
         "description": "Used by non admin users. The value should match the project decalred on the roken_transfer endpoint"
       },
-      "containerIdPath": {
+      "whitelistedImageIdPath": {
         "in": "path",
         "name": "id",
         "schema": {
@@ -1591,12 +1650,7 @@
         "content": {
           "application/json": {
             "schema": {
-              "type": "object",
-              "properties": {
-                "dataset_id": {
-                  "type": "integer"
-                }
-              }
+              "$ref": "#/components/schemas/DatasetById"
             }
           }
         }
@@ -1798,26 +1852,6 @@
           }
         }
       },
-      "SelectBeaconPost": {
-        "description": "Successful beacon. Query is correct",
-        "content": {
-          "application/json": {
-            "schema": {
-              "type": "object",
-              "properties": {
-                "query": {
-                  "type": "string",
-                  "example": "SELECT * FROM patients;"
-                },
-                "result": {
-                  "type": "string",
-                  "example": "Ok"
-                }
-              }
-            }
-          }
-        }
-      },
       "SimpleOk": {
         "description": "Simple text ok response",
         "content": {
@@ -1962,17 +1996,17 @@
           }
         }
       },
-      "ContainerEntry": {
-        "description": "Container representation",
+      "WhitelistedImageEntry": {
+        "description": "Whitelisted image representation",
         "content": {
           "application/json": {
             "schema": {
-              "$ref": "#/components/schemas/ContainerObject"
+              "$ref": "#/components/schemas/WhitelistedImageObject"
             }
           }
         }
       },
-      "ContainerList": {
+      "WhitelistedImageList": {
         "description": "List of registries",
         "content": {
           "application/json": {
@@ -1982,7 +2016,7 @@
                 "items": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ContainerObject"
+                    "$ref": "#/components/schemas/WhitelistedImageObject"
                   }
                 },
                 "page": {
@@ -2006,7 +2040,23 @@
           }
         }
       },
-      "ContainerPost": {
+      "WhitelistedImageDeleted": {
+        "description": "Image removed from the whitelist",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "Image 1 deleted successfully"
+                }
+              }
+            }
+          }
+        }
+      },
+      "WhitelistedImagePost": {
         "description": "Successfully added",
         "content": {
           "application/json": {
@@ -2228,11 +2278,6 @@
             "description": "Extra argument to use for connecting to the DB. Eventually this is passed to the tasks' pod as environment variable",
             "example": "TrustServerCertificate=Yes"
           },
-          "repository": {
-            "type": "string",
-            "description": "For outbound mode, it links the repository source to a dataset. So all of the CRD with that repo will be \"pre-authorized\" to run on that dataset",
-            "example": "Aridhia-Open-Source/PHEMS_federated_node"
-          },
           "schema": {
             "type": "string",
             "description": "Read from DB schema"
@@ -2259,13 +2304,19 @@
           },
           "dictionaries": {
             "$ref": "#/components/schemas/DictionariesPostBody"
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "The project the dataset belongs to",
+            "example": 1
           }
         },
         "required": [
           "name",
           "username",
           "password",
-          "host"
+          "host",
+          "project_id"
         ]
       },
       "DatasetById": {
@@ -2307,13 +2358,22 @@
             "type": "string",
             "example": "mssql"
           },
-          "repository": {
-            "type": "string",
-            "example": "Aridhia-Open-Source/PHEMS_federated_node"
-          },
           "extra_connection_args": {
             "type": "string",
             "example": "TrustServerCertificate=Yes"
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "The project this dataset belongs to",
+            "example": 1
+          },
+          "created_at": {
+            "type": "string",
+            "example": "2026-08-18 09:30:00"
+          },
+          "updated_at": {
+            "type": "string",
+            "example": "2026-08-18 09:30:00"
           }
         }
       },
@@ -2482,23 +2542,6 @@
           "proj_end"
         ]
       },
-      "BeaconPostBody": {
-        "type": "object",
-        "properties": {
-          "query": {
-            "type": "string",
-            "example": "SELECT col1, col2 FROM table;"
-          },
-          "dataset_id": {
-            "type": "integer",
-            "example": 1
-          }
-        },
-        "required": [
-          "query",
-          "dataset_id"
-        ]
-      },
       "LoginBody": {
         "type": "object",
         "properties": {
@@ -2625,12 +2668,18 @@
           "repository": {
             "type": "string",
             "example": "Aridhia-Open-Source/PHEMS_federated_node"
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "The project the task belongs to",
+            "example": 1
           }
         },
         "required": [
           "executors",
           "name",
-          "tags"
+          "tags",
+          "project_id"
         ]
       },
       "TaskById": {
@@ -2681,6 +2730,10 @@
           "updated_at": {
             "type": "string",
             "example": "Mon, 19 Feb 2024 11:41:54 GMT"
+          },
+          "project_id": {
+            "type": "integer",
+            "example": 1
           }
         }
       },
@@ -2755,7 +2808,7 @@
           }
         }
       },
-      "ContainerObject": {
+      "WhitelistedImageObject": {
         "type": "object",
         "properties": {
           "id": {
@@ -2777,10 +2830,14 @@
           "registry_id": {
             "type": "integer",
             "example": 2
+          },
+          "project_id": {
+            "type": "integer",
+            "example": 1
           }
         }
       },
-      "ContainerPostObject": {
+      "WhitelistedImagePostObject": {
         "type": "object",
         "properties": {
           "name": {
@@ -2798,6 +2855,11 @@
           "sha": {
             "type": "string",
             "example": "sha256:abc..."
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "The project this image is whitelisted for. Defaults to the caller's project.",
+            "example": 1
           }
         },
         "required": [
@@ -2873,6 +2935,52 @@
           "active": {
             "type": "boolean",
             "example": true
+          }
+        }
+      },
+      "ProjectObject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "cardio"
+          },
+          "description": {
+            "type": "string",
+            "example": "Cardiac benchmarking"
+          },
+          "default_dataset_id": {
+            "type": "integer",
+            "description": "Dataset a task runs against when it names only this project",
+            "example": 1
+          },
+          "created_at": {
+            "type": "string",
+            "example": "2026-08-18 09:30:00"
+          },
+          "updated_at": {
+            "type": "string",
+            "example": "2026-08-18 09:30:00"
+          }
+        }
+      },
+      "ProjectPostBody": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "cardio"
+          },
+          "description": {
+            "type": "string",
+            "example": "Cardiac benchmarking"
           }
         }
       }

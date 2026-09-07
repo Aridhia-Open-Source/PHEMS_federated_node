@@ -10,7 +10,8 @@ class TestPagination:
             user_uuid,
             dataset,
             dataset_oracle,
-            simple_admin_header
+            simple_admin_header,
+            project
         ):
         """
         Test that an endpoint that supports pagination
@@ -21,7 +22,8 @@ class TestPagination:
             name="testnew",
             host="host.url",
             username="user",
-            password="pass"
+            password="pass",
+            project_id=project.id
         ).add(user_id=user_uuid)
         resp = client.get('/datasets', query_string={"page": "2", "per_page": '2'}, headers=simple_admin_header)
 

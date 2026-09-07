@@ -22,11 +22,15 @@ if config.config_file_name is not None:
 from app.helpers.base_model import Base
 import app.models.audit
 import app.models.catalogue
-import app.models.container
+import app.models.whitelisted_image
 import app.models.dictionary
 import app.models.dataset
 import app.models.registry
-import app.models.repository
+import app.models.delivery_target
+import app.models.project
+import app.models.pull_request
+import app.models.task_delivery
+import app.models.trigger_repository
 import app.models.request
 import app.models.task
 # target_metadata = mymodel.Base.metadata

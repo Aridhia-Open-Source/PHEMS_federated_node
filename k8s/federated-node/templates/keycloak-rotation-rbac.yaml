@@ -1,0 +1,31 @@
+{{- if (.Values.keycloak.credentialRotation).enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keycloak-credential-rotator
+  namespace: {{ include "kc_namespace" . }}
+  labels:
+    {{ include "defaultLabels" . }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Name }}-keycloak-credential-rotator
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "create", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-keycloak-credential-rotator
+subjects:
+  - kind: ServiceAccount
+    name: keycloak-credential-rotator
+    namespace: {{ include "kc_namespace" . }}
+roleRef:
+  kind: ClusterRole
+  name: {{ .Release.Name }}-keycloak-credential-rotator
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

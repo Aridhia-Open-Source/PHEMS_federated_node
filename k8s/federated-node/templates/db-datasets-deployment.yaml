@@ -22,7 +22,7 @@ spec:
             - name: POSTGRES_DB
               value: postgres
             - name: POSTGRES_USER
-              value: postgres
+              value: {{ .Values.datasetDb.superuser }}
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -35,7 +35,7 @@ spec:
                 - -d
                 - postgres
                 - -U
-                - postgres
+                - {{ .Values.datasetDb.superuser }}
             initialDelaySeconds: 5
             periodSeconds: 5
             failureThreshold: 10
@@ -46,7 +46,7 @@ spec:
                 - -d
                 - postgres
                 - -U
-                - postgres
+                - {{ .Values.datasetDb.superuser }}
             initialDelaySeconds: 10
             periodSeconds: 5
             failureThreshold: 1

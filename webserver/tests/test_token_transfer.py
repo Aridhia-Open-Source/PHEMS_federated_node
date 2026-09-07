@@ -153,7 +153,7 @@ class TestTransfers:
             data=json.dumps(request_base_body)
         )
         assert response.status_code == 400
-        assert response.json["error"] == 'User already belongs to the active project project1'
+        assert response.json["error"] == 'User already has active access to this dataset in project project1'
 
     def test_transfer_does_not_override_existing(
             self,
@@ -186,7 +186,6 @@ class TestTransfers:
             self,
             client,
             post_json_admin_header,
-            access_request,
             approve_request,
             kc_user_mock,
             request_model_body,
@@ -210,7 +209,7 @@ class TestTransfers:
         )
         assert response.status_code == 201
 
-    def test_transfer_only_one_ds_per_project(
+    def test_transfer_second_dataset_in_same_project(
             self,
             client,
             post_json_admin_header,
@@ -223,7 +222,7 @@ class TestTransfers:
             dataset_oracle
         ):
         """
-        Tests that only one dataset per active project is allowed.
+        A project holds several datasets, so a user can hold one DAR per dataset in it.
         """
         Request(**request_model_body).add()
         request_base_body["dataset_id"] = dataset_oracle.id
@@ -233,7 +232,31 @@ class TestTransfers:
             headers=post_json_admin_header,
             data=json.dumps(request_base_body)
         )
-        assert response.status_code == 400
+        assert response.status_code == 201, response.json
+
+    def test_transfer_derives_project_from_dataset(
+            self,
+            client,
+            post_json_admin_header,
+            kc_user_mock,
+            approve_request,
+            request_base_body,
+            dataset
+        ):
+        """
+        The project on a DAR comes from its dataset, not from the submitted string.
+        """
+        response = client.post(
+            "/datasets/token_transfer",
+            headers=post_json_admin_header,
+            data=json.dumps(request_base_body)
+        )
+        assert response.status_code == 201, response.json
+
+        dar = Request.query.filter(
+            Request.project_name == request_base_body["project_name"]
+        ).one_or_none()
+        assert dar.project_id == dataset.project_id
 
     def test_transfer_deleted_if_exception_raised(
             self,

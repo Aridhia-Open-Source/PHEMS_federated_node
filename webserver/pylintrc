@@ -9,7 +9,8 @@ ignore-paths=
 fail-under=9.0
 
 [MESSAGES CONTROL]
-disable=raw-checker-failed,
+disable=not-callable,
+        raw-checker-failed,
         bad-inline-option,
         locally-disabled,
         file-ignored,
@@ -17,3 +18,6 @@ disable=raw-checker-failed,
         useless-suppression,
         deprecated-pragma,
         missing-timeout
+
+[FORMAT]
+max-line-length=120

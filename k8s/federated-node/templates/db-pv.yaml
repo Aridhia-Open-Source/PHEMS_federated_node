@@ -57,7 +57,8 @@ kind: StorageClass
 metadata:
   name: {{ .Release.Name }}-db-storage
   annotations:
-    storageclass.kubernetes.io/is-default-class: "true"
+    # Every PVC in this chart names its class explicitly.
+    storageclass.kubernetes.io/is-default-class: "false"
 volumeBindingMode: WaitForFirstConsumer
 provisioner: Local
 {{ end }}

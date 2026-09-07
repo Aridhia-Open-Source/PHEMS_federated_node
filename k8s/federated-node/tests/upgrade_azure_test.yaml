@@ -33,6 +33,20 @@ kubernetesProvider:
       kind: CustomResourceDefinition
       metadata:
         name: middlewares.traefik.io
+    ## An upgrade of a real deployment always has kc-secrets already present. The chart now
+    ## fails loudly if it is missing on an upgrade, because that means `lookup` is unavailable
+    ## and credentials would be silently regenerated on every sync.
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: kc-secrets
+        namespace: federatednode
+      data:
+        KEYCLOAK_SECRET: dGVzdA==
+        KEYCLOAK_ADMIN_PASSWORD: dGVzdA==
+        KC_BOOTSTRAP_ADMIN_PASSWORD: dGVzdA==
+        KEYCLOAK_SERVICE_PASSWORD: dGVzdA==
+        CREDENTIAL_GENERATION: MQ==
     - apiVersion: v1
       kind: Secret
       metadata:

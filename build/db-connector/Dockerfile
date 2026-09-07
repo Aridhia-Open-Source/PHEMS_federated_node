@@ -2,7 +2,7 @@ FROM python:3.13.5-slim
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-ARG USERNAME=fednode
+ARG APP_USER=fednode
 ARG USER_UID=1001
 ARG USER_GID=1001
 
@@ -37,8 +37,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Create non-root user
-RUN groupadd -g "$USER_GID" "$USERNAME" && \
-    useradd --uid "$USER_UID" --gid "$USER_GID" --create-home "$USERNAME"
+RUN groupadd -g "$USER_GID" "$APP_USER" && \
+    useradd --uid "$USER_UID" --gid "$USER_GID" --create-home "$APP_USER"
 
 # Copy application code with correct ownership
 COPY --chown=${USER_UID}:${USER_GID} *.py .

@@ -1,0 +1,20 @@
+
+dagster.postgresql.postgresqlHost is {{ .found | quote }} but db.host is {{ .expected | quote }}.
+
+They have to agree while db.manageRolesAndDatabases is true: dagster-db-init connects
+as db.superuser with db.secret, and that credential belongs to db.host's server. Helm
+cannot template a subchart value, so this fact is written twice - use a YAML anchor and
+it stays stated once:
+
+  db:
+    host: &dbHost {{ .expected }}
+
+  dagster:
+    postgresql:
+      enabled: false
+      postgresqlHost: *dbHost
+
+Everything else about the dagster database comes from the dagster: block, so do not set
+fnDagster.db. If dagster's database really does live on another server, set
+db.manageRolesAndDatabases: false and create its role and database yourself - the chart
+then holds no admin credential and does not care where each database is.

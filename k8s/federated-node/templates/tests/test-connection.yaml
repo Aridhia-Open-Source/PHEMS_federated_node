@@ -8,7 +8,7 @@ metadata:
     helm.sh/hook-delete-policy: before-hook-creation
 spec:
   containers:
-    {{ range list "health_check" "containers" }}
+    {{ range list "health_check" "whitelisted_images" }}
     - name: {{ . | replace "_" "-" }}
       image: curlimages/curl
       command: ['curl' , '{{ include "testsBaseUrl" $ }}/{{ . }}']

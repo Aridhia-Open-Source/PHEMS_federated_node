@@ -14,10 +14,11 @@ from app.models.task import Task
 
 
 @fixture(scope='function')
-def task_body(dataset, container):
+def task_body(dataset, container, project):
     return deepcopy({
         "name": "Test Task",
         "requested_by": "das9908-as098080c-9a80s9",
+        "project_id": project.id,
         "executors": [
             {
                 "image": container.full_image_name(),
@@ -103,13 +104,14 @@ def results_job_mock(mocker, task_body, reg_k8s_client):
     return pod_mock
 
 @fixture
-def task_mock(dataset, user_uuid, container):
+def task_mock(dataset, user_uuid, container, project):
     task = Task(
         name="Test Task",
         docker_image=container.full_image_name(),
         description="something",
         requested_by=user_uuid,
         dataset=dataset,
+        project_id=project.id,
         created_at=datetime.now()
     )
     task.add()

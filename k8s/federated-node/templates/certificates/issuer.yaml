@@ -9,7 +9,7 @@ metadata:
     helm.sh/hook: post-install, post-upgrade
 spec:
   {{- if .Values.on_aks }}
-  {{- with include "lookupOrError" (dict "entity" "ConfigMap" "namespace" .Release.Namespace "name" .Values.certs.azure.configmap) | fromYaml }}
+  {{- with include "lookupOrError" (dict "ctx" $ "entity" "ConfigMap" "namespace" .Release.Namespace "name" .Values.certs.azure.configmap "purpose" "It holds the Azure DNS details cert-manager needs for the ACME dns01 solver (certs.azure.configmap).") | fromYaml }}
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
     email: {{ .data.EMAIL_CERT }}
@@ -29,7 +29,7 @@ spec:
           tenantID: {{ .data.TENANT_ID }}
   {{ end }}
   {{- else if .Values.on_eks }}
-  {{- with include "lookupOrError" (dict "entity" "Secret" "namespace" .Release.Namespace "name" .Values.certs.aws) | fromYaml }}
+  {{- with include "lookupOrError" (dict "ctx" $ "entity" "Secret" "namespace" .Release.Namespace "name" .Values.certs.aws "purpose" "It holds the Route53 details cert-manager needs for the ACME dns01 solver (certs.aws).") | fromYaml }}
   acme:
     server: https://acme-staging-v02.api.letsencrypt.org/directory
     email: {{ .data.EMAIL_CERT | b64dec }}

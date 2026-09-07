@@ -1,0 +1,97 @@
+{{- if (.Values.keycloak.credentialRotation).enabled }}
+{{- /*
+  Scheduled rotation of the platform-managed Keycloak credentials.
+
+  The master-realm `admin` password is deliberately NOT rotated -- it belongs to the operator. Nor
+  is KC_BOOTSTRAP_ADMIN_PASSWORD, which is Keycloak startup configuration and would need a Keycloak
+  restart to take effect. See build/kc-init/rotate_credentials.py.
+*/ -}}
+{{- $kcNs := include "kc_namespace" . -}}
+{{- $secretNs := list .Release.Namespace $kcNs -}}
+{{- if .Values.outboundMode -}}
+  {{- $secretNs = append $secretNs (include "controller_namespace" .) -}}
+{{- end -}}
+{{- $secretNs = $secretNs | uniq -}}
+{{- $dagsterNs := list -}}
+{{- if .Values.dagster.enabled -}}
+  {{- /* Must match the namespaces keycloak-secrets.yaml writes dagster-keycloak-creds into. */ -}}
+  {{- $dagsterNs = list $kcNs .Release.Namespace | uniq -}}
+{{- end -}}
+{{- /*
+  Per-credential switches, resolved with hasKey rather than `| default true`.
+
+  Helm's `default` treats false as empty, so `false | default true` evaluates to TRUE -- which meant
+  setting `rotate.servicePassword: false` was silently ignored and the password was rotated anyway.
+  hasKey distinguishes "explicitly false" from "not set".
+*/ -}}
+{{- $rotate := (.Values.keycloak.credentialRotation).rotate | default dict -}}
+{{- $rotateClientSecret := true -}}
+{{- $rotateServicePassword := true -}}
+{{- $rotateDagsterPassword := true -}}
+{{- if hasKey $rotate "clientSecret" -}}{{- $rotateClientSecret = $rotate.clientSecret -}}{{- end -}}
+{{- if hasKey $rotate "servicePassword" -}}{{- $rotateServicePassword = $rotate.servicePassword -}}{{- end -}}
+{{- if hasKey $rotate "dagsterPassword" -}}{{- $rotateDagsterPassword = $rotate.dagsterPassword -}}{{- end -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: keycloak-credential-rotation
+  namespace: {{ $kcNs }}
+  labels:
+    {{ include "defaultLabels" . }}
+  annotations:
+    {{ template "defaultAnnotations" . }}
+spec:
+  schedule: {{ (.Values.keycloak.credentialRotation).schedule | default "0 3 1 * *" | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  {{- /* Kept so a failed rotation is still inspectable when someone comes to investigate. */}}
+  failedJobsHistoryLimit: 3
+  {{- /* If a scheduled run is missed (cluster down, for example), do not fire a late one at an
+         arbitrary moment -- wait for the next scheduled slot. */}}
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      {{- /* Bounded so a wedged run cannot block the next schedule indefinitely under Forbid. */}}
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels:
+            app: keycloak-credential-rotation
+        spec:
+          restartPolicy: Never
+          serviceAccountName: keycloak-credential-rotator
+          containers:
+            - name: rotate
+              image: "{{ (.Values.keycloak.initializer).image | default "ghcr.io/aridhia-open-source/keycloak_initializer" }}:{{ (.Values.keycloak.initializer).tag | default (.Values.keycloak.tag | default .Chart.AppVersion) }}"
+              imagePullPolicy: {{ .Values.pullPolicy }}
+              command: ["python3", "-u", "/scripts/rotate_credentials.py"]
+              {{- include "nonRootSC" . | nindent 14 }}
+              env:
+                - name: KEYCLOAK_URL
+                  value: http://keycloak.{{ $kcNs }}.svc.cluster.local
+                {{- /* Every namespace holding a copy must be patched, or components in different
+                       namespaces end up disagreeing about the current credential. */}}
+                - name: KC_SECRET_NAMESPACES
+                  value: {{ join "," $secretNs | quote }}
+                - name: DAGSTER_SECRET_NAMESPACES
+                  value: {{ join "," $dagsterNs | quote }}
+                - name: ROTATE_CLIENT_SECRET
+                  value: {{ $rotateClientSecret | quote }}
+                - name: ROTATE_SERVICE_PASSWORD
+                  value: {{ $rotateServicePassword | quote }}
+                - name: ROTATE_DAGSTER_PASSWORD
+                  value: {{ $rotateDagsterPassword | quote }}
+              envFrom:
+                - configMapRef:
+                    name: keycloak-config
+              volumeMounts:
+                {{- /* Directory mount, no subPath -- a subPath-mounted secret is never refreshed. */}}
+                - name: kc-secrets
+                  mountPath: {{ include "kcSecretsMountPath" . }}
+                  readOnly: true
+          volumes:
+            - name: kc-secrets
+              secret:
+                secretName: kc-secrets
+{{- end }}

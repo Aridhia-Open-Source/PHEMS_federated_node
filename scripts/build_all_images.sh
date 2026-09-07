@@ -12,6 +12,7 @@ DOCKER_DIRS=(
   "uc1"
   "build/alpine"
   "build/kc-init"
+  "build/keycloak"
 )
 
 

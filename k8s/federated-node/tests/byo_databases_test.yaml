@@ -1,0 +1,162 @@
+suite: Bring-your-own databases - render-time behaviour
+# No kubernetesProvider: fn.clusterReachable is false, which is the `helm template` /
+# ArgoCD / CI path. Everything here must hold without a cluster.
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-aks.yaml
+set:
+  db:
+    manageRolesAndDatabases: false
+  dagster:
+    enabled: true
+    postgresql:
+      postgresqlHost: postgres.postgres.database.azure.com   # values-aks' db.host
+  datasetDb:
+    create: false
+tests:
+  - it: creates nothing, and checks instead
+    template: db-init-jobs.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: db-check
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-install,pre-upgrade
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "0"
+
+  - it: holds no administrator credential
+    template: db-init-jobs.yaml
+    asserts:
+      # One password per role, from that role's own secret - never db.secret, which
+      # under values-aks is "local-db".
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
+          value: backend-db
+      - equal:
+          path: spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.name
+          value: keycloak-db-secret
+      - equal:
+          path: spec.template.spec.containers[0].env[2].valueFrom.secretKeyRef.name
+          value: dagster-postgresql-secret
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "local-db|-U postgres"
+      # Does what the components do, so Postgres emits its own "permission denied for
+      # schema public" - the PG15 trap this job exists to catch.
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "CREATE TABLE fn_db_check"
+      # No dollar-quoting: Kubernetes turns $$ into $ in a container command.
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "DO \\$\\$"
+
+  - it: invents no passwords
+    template: db-secrets.yaml
+    asserts:
+      # The core assertion: with no db-init hook to apply one, nothing is emitted.
+      - hasDocuments:
+          count: 0
+
+  - it: still writes a password the operator pinned explicitly
+    template: db-secrets.yaml
+    set:
+      db:
+        passwords:
+          backend: pinned
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: backend-db
+      - equal:
+          path: data.password
+          value: cGlubmVk
+
+  - it: renders clean without a cluster, for CI and ArgoCD
+    template: requirements-check.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: rejects deploying a postgres it would then not initialise
+    template: requirements-check.yaml
+    set:
+      create_db_deployment: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "create_db_deployment is true but db.manageRolesAndDatabases is false"
+
+  - it: rejects managing dagster's database but not the others
+    template: requirements-check.yaml
+    set:
+      fnDagster:
+        createDB: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "fnDagster.createDB is true but db.manageRolesAndDatabases is false"
+
+  - it: rejects dataset roles on a dataset server it does not deploy
+    template: requirements-check.yaml
+    set:
+      datasetDb:
+        create: false
+        dbs:
+          uc1:
+            name: uc1_omop
+            user: uc1_omop_user
+            secret:
+              name: db-datasets-uc1
+              key: password
+    asserts:
+      - failedTemplate:
+          errorPattern: "datasetDb.dbs is set but datasetDb.create is false"
+
+  # With no admin credential in play, each database is free to live wherever the
+  # operator put it - the equality check only applies while the chart manages roles.
+  - it: lets each database live on a different server
+    template: dagster-env-config.yaml
+    set:
+      dagster:
+        postgresql:
+          postgresqlHost: dagster-only.example.org
+          service:
+            port: 6432
+    asserts:
+      - equal:
+          path: data.DAGSTER_PG_HOST
+          value: dagster-only.example.org
+
+  - it: still refuses an empty dagster host
+    template: requirements-check.yaml
+    set:
+      dagster:
+        postgresql:
+          postgresqlHost: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "postgresqlHost is empty"
+
+  # Each role is checked at its own server, not all at db.host - dagster is free to
+  # live elsewhere once no admin credential is involved.
+  - it: checks each role against its own server
+    template: db-init-jobs.yaml
+    set:
+      dagster:
+        postgresql:
+          postgresqlHost: dagster-only.example.org
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "dagster_admin on dagster at dagster-only.example.org"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "backend_admin on backend at postgres.postgres.database.azure.com"

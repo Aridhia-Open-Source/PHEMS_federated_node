@@ -2,3 +2,5 @@
 
 !requirements.txt
 !*.py
+!migrations
+!migrations/*.py

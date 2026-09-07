@@ -5,7 +5,7 @@ from datetime import timezone as tz
 import dagster as dg
 
 from app.definitions.sensors.github.base import GithubSensor
-from app.models import Repository, PullRequest, PullRequestStatus
+from app.models import TriggerRepository, PullRequest, PullRequestStatus
 
 
 class PullRequestIngestSensor(GithubSensor):
@@ -36,7 +36,7 @@ class PullRequestIngestSensor(GithubSensor):
 
             if repo.pull_requests:
                 self.log.info(f"Saving batch of {len(repo.pull_requests)} PRs for repo {repo.id}")
-                pr_dicts = [pr.model_dump(exclude={'repository_id'}) for pr in repo.pull_requests]
+                pr_dicts = [pr.model_dump(exclude={'trigger_repository_id'}) for pr in repo.pull_requests]
                 self.backend_api.create_pull_requests_batch(repo.id, pr_dicts)
                 prs_found.extend(pr_dicts)
 
@@ -46,10 +46,10 @@ class PullRequestIngestSensor(GithubSensor):
 
         yield dg.SkipReason(f"Saved {len(prs_found)} new pull requests to database.")
 
-    def _fetch_pr(self, repo: Repository, pr_number: int) -> PullRequest:
+    def _fetch_pr(self, repo: TriggerRepository, pr_number: int) -> PullRequest:
         pr = self.github_api.get_pull_request(repo.path, pr_number)
         return PullRequest(
-            repository_id=repo.id,
+            trigger_repository_id=repo.id,
             number=pr['number'],
             title=pr['title'],
             raised_by=pr['user']['login'],
@@ -59,7 +59,7 @@ class PullRequestIngestSensor(GithubSensor):
             spec={},
         )
 
-    def _save_prs(self, repo: Repository, pull_reqs: list[PullRequest]) -> None:
+    def _save_prs(self, repo: TriggerRepository, pull_reqs: list[PullRequest]) -> None:
         """Save valid PRs to database."""
         for pr in pull_reqs:
             self.backend_api.create_pull_request(**pr.model_dump())

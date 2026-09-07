@@ -221,11 +221,17 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
                 return
             logger.info(f"Pod is in state {event["object"].status.phase}")
 
-    def create_secret(self, name:str, values:dict[str, str], namespaces:list, type:str='Opaque', labels:dict={}) -> client.V1Secret:
+    def create_secret(self, name:str, values:dict[str, str], namespaces:list, type:str='Opaque', labels:dict={}, overwrite:bool=False) -> client.V1Secret:
         """
         From a dict of values, encodes them,
             and creates a secret in a given list of namespace
             keeping the same structure as values
+
+        overwrite decides what an already existing secret means. Left off, it is kept:
+        a create that lost a race should not clobber the winner. Turned on, the values
+        passed here win, for callers that are the authority on the content - a secret
+        that survives what it describes otherwise goes on serving credentials that no
+        longer work.
         """
         body = client.V1Secret()
         body.api_version = 'v1'
@@ -245,6 +251,13 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
             except ApiException as e:
                 if e.status != 409:
                     raise KubernetesException(e.body)
+                if overwrite:
+                    try:
+                        # PATCH, not PUT: the backend role grants `patch` on secrets but
+                        # not `update`, so replace_namespaced_secret is always a 403.
+                        self.patch_namespaced_secret(name, ns, body=body, pretty='true')
+                    except ApiException as exc:
+                        raise KubernetesException(exc.body) from exc
         return body
 
 
