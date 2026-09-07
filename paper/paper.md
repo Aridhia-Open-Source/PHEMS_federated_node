@@ -145,7 +145,7 @@ The International Covid-19 Data Alliance ([ICODA](https://icoda-research.org/ICO
 The Federated Node (FN) builds upons this open standard, and provides a
 practical, working implementation of the standard that can be easily
 deployed and operated into federated research networks. The FN packages
-an implimention of the Common API with other opensource components
+an implementation of the Common API with other opensource components
 including :
 
 - The Common API
