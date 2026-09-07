@@ -2,10 +2,10 @@
 
 ## Introduction
 
-This page briefly shows how to create the envrionment needed by the Federated Node server on Azure.
+This page briefly shows how to create the environment needed by the Federated Node server on Azure.
 
 ## Requirements
-The below resources are required in order to deploy Federated Node remotely. The below shows the way to deploy them on Azure Cloud. It is also possible to setup the equivalant environment with other cloud providers or on-premises environment.
+The below resources are required in order to deploy Federated Node remotely. The below shows the way to deploy them on Azure Cloud. It is also possible to setup the equivalent environment with other cloud providers or on-premises environment.
 1. Kuberenetes Cluster
 2. PostgreSQL Server
 3. Blob Storage
