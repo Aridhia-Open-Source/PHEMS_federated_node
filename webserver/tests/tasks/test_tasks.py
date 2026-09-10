@@ -204,6 +204,45 @@ class TestGetTasks:
         }
         assert response_id.json["status"] == expected_status
 
+    def test_get_task_status_waiting_for_db(
+            self,
+            post_json_admin_header,
+            client,
+            task_body,
+            mocker,
+            task,
+        ):
+        """
+        While the db-liveness init container is still running (database waking
+        up), the task status should say it's waiting for the database.
+        """
+        liveness_status = Mock(
+            state=Mock(
+                terminated=None,
+                running=Mock(started_at='1/1/2024')
+            )
+        )
+        liveness_status.name = "db-liveness"
+        mocker.patch(
+            'app.models.task.Task.get_current_pod',
+            return_value=Mock(
+                status=Mock(
+                    init_container_statuses=[liveness_status],
+                    container_statuses=None
+                )
+            )
+        )
+
+        response_id = client.get(
+            f'/tasks/{task.id}',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response_id.status_code == 200
+        assert response_id.json["status"] == {
+            'waiting': {'reason': 'WaitingForDatabase', 'started_at': '1/1/2024'}
+        }
+
 
 class TestPostTask:
     def test_create_task(
@@ -229,9 +268,14 @@ class TestPostTask:
         reg_k8s_client["create_namespaced_pod_mock"].assert_called()
         v1_crd_mock.return_value.create_cluster_custom_object.assert_not_called()
         pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
-        # Make sure the two init containers are created
-        assert len(pod_body.spec.init_containers) == 2
-        assert [pod.name for pod in pod_body.spec.init_containers] == [f"init-{response.json["task_id"]}", "fetch-data"]
+        # Init containers: dir setup, db-liveness, then fetch-data
+        assert len(pod_body.spec.init_containers) == 3
+        assert [pod.name for pod in pod_body.spec.init_containers] == [
+            f"init-{response.json["task_id"]}", "db-liveness", "fetch-data"
+        ]
+        db_liveness = pod_body.spec.init_containers[1]
+        assert db_liveness.image.startswith("ghcr.io/aridhia-open-source/db_liveness:")
+        assert "CONNECTION_STRING" in [env.name for env in db_liveness.env]
 
     def test_create_task_no_tag_fails(
             self,
@@ -381,12 +425,40 @@ class TestPostTask:
         assert response.status_code == 201
         reg_k8s_client["create_namespaced_pod_mock"].assert_called()
         pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
-        # The fetch_data init container should not be created
-        assert len(pod_body.spec.init_containers) == 1
-        assert pod_body.spec.init_containers[0].name == "init-1"
+        # No fetch_data init container without a db_query, but db-liveness still
+        # runs since it doesn't depend on db_query
+        assert len(pod_body.spec.init_containers) == 2
+        assert [pod.name for pod in pod_body.spec.init_containers] == ["init-1", "db-liveness"]
         envs = [env.name for env in pod_body.spec.containers[0].env]
         assert "CONNECTION_STRING" in envs
         assert set(envs).intersection({"QUERY", "FROM_DIALECT", "TO_DIALECT"}) == set()
+
+    def test_create_task_db_liveness_disabled(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            reg_k8s_client,
+            registry_client,
+            task_body,
+            v1_crd_mock,
+            monkeypatch
+        ):
+        """
+        With the liveness check turned off, only the dir setup and fetch-data
+        init containers are left.
+        """
+        monkeypatch.setattr("app.helpers.task_pod.DB_LIVENESS_ENABLED", False)
+        response = client.post(
+            '/tasks/',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        pod_body = reg_k8s_client["create_namespaced_pod_mock"].call_args.kwargs["body"]
+        names = [pod.name for pod in pod_body.spec.init_containers]
+        assert "db-liveness" not in names
+        assert names == [f"init-{response.json["task_id"]}", "fetch-data"]
 
     def test_create_task_incomplete_db_query(
             self,

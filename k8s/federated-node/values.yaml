@@ -11,6 +11,14 @@ keycloak:
   replicas: 1
   tag:
 
+# Database liveness check. A task init container retries the database connection
+# with backoff before the task starts, Defaults cover about a 5 minute resume window
+taskDbLiveness:
+  enabled: true
+  retries: 5
+  backoff: 30
+  timeout: 30
+
 autoscaling:
   enabled: false
 
