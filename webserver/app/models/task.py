@@ -342,7 +342,16 @@ class Task(db.Model, BaseModel):
             :str: if the pod is not found or deleted
         """
         try:
-            status_obj = self.get_current_pod(is_running=False).status.container_statuses
+            pod = self.get_current_pod(is_running=False)
+
+            # The main containers don't start until the db-liveness init container
+            # finishes, so report that we're waiting on the database rather than
+            # leaving the task looking generically pending.
+            liveness_wait = self._get_db_liveness_status(pod)
+            if liveness_wait is not None:
+                return liveness_wait
+
+            status_obj = pod.status.container_statuses
             if status_obj is None:
                 return self.status
 
@@ -368,6 +377,32 @@ class Task(db.Model, BaseModel):
             }
         except AttributeError:
             return self.status if self.status != 'running' else 'deleted'
+
+    def _get_db_liveness_status(self, pod) -> dict | None:
+        """
+        Look at the db-liveness init container. While it's still running we
+        report that we're waiting for the database; once it has exited cleanly
+        (or isn't there) we return None and let the normal container status take
+        over.
+        """
+        init_statuses = getattr(pod.status, "init_container_statuses", None)
+        if not isinstance(init_statuses, (list, tuple)):
+            return None
+        for init_status in init_statuses:
+            if init_status.name != "db-liveness":
+                continue
+            terminated = init_status.state.terminated
+            if terminated is not None and terminated.exit_code == 0:
+                return None
+            self.status = 'waiting'
+            return {
+                "waiting": {
+                    "reason": "WaitingForDatabase",
+                    "started_at": getattr(init_status.state.running, "started_at", None)
+                    if init_status.state.running is not None else None
+                }
+            }
+        return None
 
     def terminate_pod(self):
         """

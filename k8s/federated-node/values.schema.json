@@ -269,13 +269,25 @@
                         "path": {"type": "string", "description": "Where to persist files in the host machine"},
                         "dbpath": {"type": "string"}
                     }
+                },
+                "gcp": {
+                    "type": "object",
+                    "description": "If running on GKE, use GCS FUSE as the storage backend",
+                    "required": ["bucketName"],
+                    "properties": {
+                        "bucketName": {
+                            "type": "string",
+                            "description": "GCS bucket name to mount via GCS FUSE"
+                        }
+                    }
                 }
             },
             "oneOf": [
                 { "required": ["azure"] },
                 { "required": ["aws"] },
                 { "required": ["local"] },
-                { "required": ["nfs"] }
+                { "required": ["nfs"] },
+                { "required": ["gcp"] }
             ]
         },
         "pullPolicy": {
@@ -305,6 +317,11 @@
         "on_eks":{
             "type": "boolean",
             "description": "Deploying on AWS?",
+            "default": false
+        },
+        "on_gke":{
+            "type": "boolean",
+            "description": "Deploying on GCP GKE?",
             "default": false
         },
         "integrations":{
@@ -342,6 +359,20 @@
                 "aws": {
                     "type": "string",
                     "description": "Secret that holds all of the AWS related info for SSL certificate management"
+                },
+                "gcp": {
+                    "type": "object",
+                    "description": "GCP Cloud DNS configuration for cert-manager DNS-01 challenge via Workload Identity",
+                    "properties": {
+                        "email": {
+                            "type": "string",
+                            "description": "Email for Let's Encrypt registration"
+                        },
+                        "project": {
+                            "type": "string",
+                            "description": "GCP project ID"
+                        }
+                    }
                 }
             }
         },

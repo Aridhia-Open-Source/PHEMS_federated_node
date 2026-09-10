@@ -1,4 +1,8 @@
 # Releases Changelog
+## 1.19.0
+- Add GCP support
+- Add DB liveness check as init container on task pods
+
 ## 1.18.0
 - Fully implement NFS storage support for on-prem installations
 - Remove legacy endpoints
