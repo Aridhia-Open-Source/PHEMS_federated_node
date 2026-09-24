@@ -36,7 +36,6 @@ debug.yaml
 .models/
 
 # temp
-federated-node-task-controller
 uc1
 
 # Local UC1 runs (scripts/run_uc1_local.sh)

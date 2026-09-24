@@ -163,7 +163,7 @@ tests:
           value: keycloak-credential-rotator
 
   ## Every copy of kc-secrets must be patched, or components in different namespaces end up
-  ## disagreeing about the current credential. values-upgrade.yaml sets outboundMode: true.
+  ## disagreeing about the current credential.
   - it: targets every namespace holding a copy of the credentials
     template: templates/keycloak-rotation-cronjob.yaml
     set:
@@ -175,7 +175,7 @@ tests:
           path: spec.jobTemplate.spec.template.spec.containers[0].env
           content:
             name: KC_SECRET_NAMESPACES
-            value: "federatednode,keycloak,fn-controller"
+            value: "federatednode,keycloak"
 
   - it: allows rotating only the client secret, which is the one with a grace period
     template: templates/keycloak-rotation-cronjob.yaml

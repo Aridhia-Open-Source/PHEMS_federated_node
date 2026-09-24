@@ -1,13 +1,8 @@
 pullPolicy: Always
 
 create_db_deployment: true
-cleanupTime: 1
 keycloak:
   replicas: 1
-backend:
-  volumes:
-    results_path: /data/flask/results
-
 db:
   user: admin
   host: db.federatednode.svc
@@ -50,4 +45,3 @@ cert-manager:
 traefik:
   enabled: false
 
-outboundMode: false

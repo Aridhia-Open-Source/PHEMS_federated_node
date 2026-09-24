@@ -6,8 +6,7 @@ from enum import Enum
 class TaskStatus(str, Enum):
     """
     The canonical status of a task run and of a delivery attempt. Dagster's own vocabulary
-    is mapped into this and never stored; so are the legacy lowercase values (`scheduled`,
-    `running`, `cancelled`, `deleted`) that Task.get_status() renders on the wire.
+    is mapped into this and never stored.
     """
 
     PENDING = "PENDING"

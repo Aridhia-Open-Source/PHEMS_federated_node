@@ -38,9 +38,6 @@ show-db-passwords:
 build_keycloak:
 	docker build build/keycloak -t ghcr.io/aridhia-open-source/federated_keycloak:${TAG}
 
-build_connector:
-	docker build build/db-connector -t ghcr.io/aridhia-open-source/db_connector:${TAG}
-
 build_alpine:
 	docker build build/alpine -t ghcr.io/aridhia-open-source/alpine:${TAG}
 

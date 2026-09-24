@@ -30,9 +30,6 @@ Create chart name and version as used by the chart label.
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-# To support the task controller subchart we will need to include
-# a custom path as helpers are merged and the individual chart values
-# are then applied
 {{- define "backend-image" -}}
 {{ printf "%s:%s" (.Values.backend.image) ((.Values.backend.tag) | default (include "image-tag" . | trim)) }}
 {{- end }}
@@ -177,9 +174,6 @@ securityContext:
 {{- define "tasks_namespace" -}}
 {{ ((.Values.global).namespaces).tasks | default "tasks" }}
 {{- end -}}
-{{- define "controller_namespace" -}}
-{{ ((.Values.global).namespaces).controller | default "fn-controller" }}
-{{- end -}}
 {{- define "testsBaseUrl" }}
 {{- if not .Values.local_development -}}
 https://{{ .Values.host }}
@@ -201,15 +195,6 @@ http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 {{- end -}}
 {{- end }}
 
-{{- define "backendResultsPVCName" -}}
-{{ printf "backend-results-%s-pv-vc" (.Values.storage.capacity | default "10Gi") | lower }}
-{{- end }}
-{{- define "backendResultsPVName" -}}
-{{- printf "%s-backend-results-%s-pv" .Release.Name (.Values.storage.capacity | default "10Gi") | lower }}
-{{- end }}
-{{- define "backendResultsStorageClassName" -}}
-{{- printf "%s-shared-results" .Release.Name | lower }}
-{{- end }}
 {{- define "dagsterArtifactsPVCName" -}}
 {{- .Values.fnDagster.artifactsPvcName | default "artifacts-pvc" }}
 {{- end }}
@@ -222,12 +207,6 @@ http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
 
 {{/*
 Mount options for the Dagster artifacts volume.
-
-Deliberately NOT .Values.storage.mountOptions: that list is also consumed by the
-backend's per-task PVs (backend-configmap MOUNT_OPTIONS -> task_pod.py), so a value
-chosen there - e.g. idsfromsid/modefromsid, which derive mode and ownership from the
-SMB security descriptor - would silently change this volume's permission semantics
-and stop non-root analytical containers writing their results.
 
 The Azure options below are what the azurefile CSI driver already appends when none
 are given. Setting them explicitly means a driver change cannot alter them under us.
@@ -260,9 +239,6 @@ affect how ownership is reported.
     {{- end }}
   {{- end }}
 {{- end }}
-{{- end -}}
-{{- define "controllerCrdGroup" -}}
-tasks.federatednode.com
 {{- end -}}
 
 {{/*

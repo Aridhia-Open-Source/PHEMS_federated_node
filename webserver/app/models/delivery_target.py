@@ -1,10 +1,8 @@
 """
 Delivery targets.
 
-`type` is the transport; auth lives in the config. The task-controller's auth_type enum
-(Bearer, Basic, AzCopy) conflates the two - Bearer and Basic are schemes over one
-transport, AzCopy is a different transport. So other+Bearer|Basic maps to http and
-other+AzCopy to azcopy.
+`type` is the transport; auth lives in the config. Bearer and Basic are schemes over one
+transport (http), azcopy is a different transport.
 
 A target belongs to a project, not to a trigger repository. A task submitted through the
 API has no repository, so a repository-owned target could never route it.
@@ -36,7 +34,7 @@ class DeliveryTargetType(str, Enum):
 
 
 class HttpAuthScheme(str, Enum):
-    """Spelled as the task-controller spells them, minus AzCopy."""
+    """Auth schemes for the http transport."""
 
     BEARER = "Bearer"
     BASIC = "Basic"

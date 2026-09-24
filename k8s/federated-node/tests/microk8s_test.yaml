@@ -72,20 +72,33 @@ tests:
     asserts:
       - exists:
           path: spec.selfSigned
-  - it: creates selfsigned issuer
-    template: backend-results-pv.yaml
+  - it: creates local persistency
+    template: dagster-artifacts-pv.yaml
+    set:
+      dagster:
+        enabled: true
+        postgresql:
+          postgresqlHost: db.default.svc
+      storage:
+        local:
+          artifacts: /data/dagster/artifacts
     asserts:
-      - exists:
+      - equal:
           path: spec.local.path
-        documentSelector:
-          path: kind
-          value: PersistentVolume
-  - it: creates selfsigned issuer
-    template: storageclass.yaml
+          value: /data/dagster/artifacts
+        documentIndex: 1
+  - it: creates local storage class
+    template: dagster-artifacts-pv.yaml
+    set:
+      dagster:
+        enabled: true
+        postgresql:
+          postgresqlHost: db.default.svc
     asserts:
       - equal:
           path: provisioner
           value: Local
+        documentIndex: 0
   - it: simulate reuse-values args
     template: keycloak-realm-controller.yaml
     asserts:

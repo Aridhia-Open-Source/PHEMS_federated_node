@@ -1,6 +1,5 @@
 pullPolicy: Always
 
-cleanupTime: 1
 keycloak:
   replicas: 1
 backend:
@@ -8,9 +7,6 @@ backend:
 
 federatedNode:
   port: 5000
-  volumes:
-    results_path: /mnt/results
-    task_pod_results_path: /mnt/data
 autoscaling:
   enabled: false
 db:
@@ -46,7 +42,6 @@ global:
   namespaces:
     keycloak: keycloak
     tasks: tasks
-    controller: fn-controller
 
 cert-manager:
   enabled: true
@@ -56,25 +51,6 @@ cert-manager:
 traefik:
   enabled: false
 
-outboundMode: true
-fn-task-controller:
-  controller:
-    vol_path: /data/controller
-
-  storage:
-    aws:
-      fileSystemId: fs-12345aef
-      accessPointId: fsap-12345aef
-
-  idp:
-    github:
-      secret_name: github-app
-      secret_key: GH_SECRET
-      clientid_key: GH_CLIENT_ID
-      orgAndRepo: Aridhia-Open-Source/Federated-Node-Example-App
-  delivery:
-    github:
-      repository: Aridhia-Open-Source/Federated-Node-Example-App
 integrations:
   domains:
    - 'self'

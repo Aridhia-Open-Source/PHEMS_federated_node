@@ -13,19 +13,12 @@ from app.helpers.kubernetes import KubernetesClient
 from kubernetes.client import V1Secret
 from kubernetes.client.exceptions import ApiException
 
-from app.helpers.connection_string import Mssql, Postgres, Mysql, Oracle, MariaDB
 from app.models import Models
 
 logger = logging.getLogger("dataset_model")
 logger.setLevel(logging.INFO)
 
-SUPPORTED_ENGINES = {
-    "mssql": Mssql,
-    "postgres": Postgres,
-    "mysql": Mysql,
-    "oracle": Oracle,
-    "mariadb": MariaDB
-}
+SUPPORTED_ENGINES = ("mssql", "postgres", "mysql", "oracle", "mariadb")
 
 
 class Dataset(db.Model, BaseModel):
@@ -117,20 +110,6 @@ class Dataset(db.Model, BaseModel):
 
         cleaned_up_host = re.sub('http(s)*://', '', host)
         return f"{cleaned_up_host}-{re.sub('\\s|_|#', '-', name.lower())}-creds"
-
-    def get_connection_string(self):
-        """
-        From the helper classes, return the correct connection string
-        """
-        un, passw = self.get_credentials()
-        return SUPPORTED_ENGINES[str(self.type)](
-            user=un,
-            passw=passw,
-            host=self.host,
-            port=self.port,
-            database=self.name,
-            args=self.extra_connection_args
-        ).connection_str
 
     def sanitized_dict(self):
         dataset = super().sanitized_dict()

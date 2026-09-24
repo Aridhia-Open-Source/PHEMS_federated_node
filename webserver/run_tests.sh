@@ -21,15 +21,10 @@ export KC_BOOTSTRAP_ADMIN_USERNAME=tmpadmin
 export KC_BOOTSTRAP_ADMIN_PASSWORD=password1
 export KEYCLOAK_SECRET=qwtirtvJJ4PW4skOlW6Oifk2
 export PYTHONPATH=/app
-export RESULTS_PATH=/tmp/results
-export TASK_POD_RESULTS_PATH=/mnt/data
 export DEFAULT_NAMESPACE=default
 export TASK_NAMESPACE=tasks
 export KEYCLOAK_NAMESPACE=keycloak
-export CLEANUP_AFTER_DAYS=1
 export PUBLIC_URL=localhost:5000
-export CLAIM_CAPACITY=100Mi
-export CONTROLLER_NAMESPACE=fn-controller
 
 is_ci=$1
 

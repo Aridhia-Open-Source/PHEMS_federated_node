@@ -74,15 +74,18 @@ tests:
         documentSelector:
           path: metadata.namespace
           value: analytics
-  - it: creates AWS persistency
-    template: backend-results-pv.yaml
+  - it: creates Azure persistency
+    template: dagster-artifacts-pv.yaml
+    set:
+      dagster:
+        enabled: true
+        postgresql:
+          postgresqlHost: postgres.postgres.database.azure.com
     asserts:
       - equal:
-          path: spec.azureFile.shareName
+          path: spec.csi.volumeAttributes.shareName
           value: files
-        documentSelector:
-          path: kind
-          value: PersistentVolume
+        documentIndex: 1
   - it: creates AKS certificate issuer
     template: certificates/issuer.yaml
     asserts:

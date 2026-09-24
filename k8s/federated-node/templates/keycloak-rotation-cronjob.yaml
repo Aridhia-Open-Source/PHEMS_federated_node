@@ -8,9 +8,6 @@
 */ -}}
 {{- $kcNs := include "kc_namespace" . -}}
 {{- $secretNs := list .Release.Namespace $kcNs -}}
-{{- if .Values.outboundMode -}}
-  {{- $secretNs = append $secretNs (include "controller_namespace" .) -}}
-{{- end -}}
 {{- $secretNs = $secretNs | uniq -}}
 {{- $dagsterNs := list -}}
 {{- if .Values.dagster.enabled -}}

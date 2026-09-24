@@ -48,16 +48,19 @@ tests:
           path: metadata.name
           value: awscert-config
   - it: creates AWS persistency
-    template: backend-results-pv.yaml
+    template: dagster-artifacts-pv.yaml
     values:
       - values/values-aws.yaml
+    set:
+      dagster:
+        enabled: true
+        postgresql:
+          postgresqlHost: db.federatednode.svc
     asserts:
       - equal:
           path: spec.csi.driver
           value: efs.csi.aws.com
-        documentSelector:
-          path: kind
-          value: PersistentVolume
+        documentIndex: 1
   - it: creates AWS certificate issuer
     template: certificates/issuer.yaml
     values:

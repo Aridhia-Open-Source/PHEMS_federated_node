@@ -24,49 +24,11 @@ data:
   */}}
   KEYCLOAK_TOKEN_CACHE_TTL: {{ .Values.keycloak.tokenCacheSeconds | default 30 | quote }}
   TASK_NAMESPACE: {{ include "tasks_namespace" . }}
-  CLEANUP_AFTER_DAYS: {{ .Values.cleanupTime | quote }}
   PUBLIC_URL: {{ .Values.host }}
-  RESULTS_PATH: {{ .Values.federatedNode.volumes.results_path }}
-  TASK_POD_RESULTS_PATH: {{ .Values.federatedNode.volumes.task_pod_results_path }}
-  IMAGE_TAG: {{ include "image-tag" . }}
-  ALPINE_IMAGE: {{ include "fn-alpine" . }}
-  CLAIM_CAPACITY: {{ .Values.storage.capacity }}
-  STORAGE_CLASS: {{ include "backendResultsStorageClassName" . }}
-  MOUNT_OPTIONS: {{ join "," .Values.storage.mountOptions | quote }}
-  CRD_DOMAIN: {{ include "controllerCrdGroup" . }}
   ENABLE_IMAGE_WHITELIST: {{ .Values.federatedNode.enable_image_whitelist | quote }}
-{{- if .Values.federatedNode.allow_delivery_api }}
-  AUTO_DELIVERY_RESULTS: "true"
-{{- end }}
-{{- if .Values.storage.aws }}
-  AWS_STORAGE_ENABLED: "true"
-  AWS_STORAGE_DRIVER: "efs.csi.aws.com"
-  AWS_FILES_SYSTEM_ID: {{ include "awsStorageAccount" . }}
-{{- end }}
-{{- if .Values.storage.azure }}
-  AZURE_STORAGE_ENABLED: "true"
-  AZURE_SHARE_NAME: {{ .Values.storage.azure.shareName }}/results
-  AZURE_SECRET_NAME: {{ .Values.storage.azure.secretName | default "azure-storage-secret" }}
-{{- end }}
-{{- if .Values.storage.nfs }}
-  NFS_STORAGE_ENABLED: "true"
-  NFS_SERVER: {{ .Values.storage.nfs.url }}
-  NFS_PATH: {{ .Values.storage.nfs.path }}/results
-{{- end }}
 {{- if .Values.taskReview }}
   TASK_REVIEW: enabled
 {{- end }}
 {{- if .Values.db.enforceSSL }}
   DB_SSL: "?sslmode=require"
-{{- end }}
-{{- if .Values.outboundMode }}
-  CONTROLLER_NAMESPACE: {{ include "controller_namespace" . }}
-  TASK_CONTROLLER: enabled
-  {{- with index .Values "fn-task-controller" "delivery" -}}
-  {{- if .github }}
-  GITHUB_DELIVERY: {{ .github.repository }}
-  {{- else if .other }}
-  OTHER_DELIVERY: {{ .other.url }}
-  {{- end }}
-  {{- end }}
 {{- end }}

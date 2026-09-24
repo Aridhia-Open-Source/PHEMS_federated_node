@@ -16,11 +16,6 @@ on:
         required: false
         type: boolean
         default: true
-      taskController:
-        description: 'Task controller sub-chart version'
-        required: false
-        type: string
-        default: null
       certManager:
         description: 'CertManager sub-chart version'
         required: false
@@ -65,25 +60,19 @@ jobs:
           if [[ -n "${APP_VERSION}" ]]; then
             sed -i "s/^appVersion: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
             sed -i "s/version = .*/version = \"${APP_VERSION}\"/" ../../webserver/pyproject.toml
-            sed -i "s/version = .*/version = \"${APP_VERSION}\"/" ../../build/db-connector/pyproject.toml
           fi
           cat Chart.yaml
           grep version ../../webserver/pyproject.toml
-          grep version ../../build/db-connector/pyproject.toml
       - name: Update SubCharts Version
         env:
           CERTMANAGER_VERSION: ${{ inputs.certManager }}
           TRAEFIK_VERSION: ${{ inputs.traefik }}
-          FNTC_VERSION: ${{ inputs.taskController }}
         run: |
           if [[ -n "${CERTMANAGER_VERSION}" ]]; then
             python scripts/upgrade_subchart.py -s cert-manager -v ${CERTMANAGER_VERSION}
           fi
           if [[ -n "${TRAEFIK_VERSION}" ]]; then
             python scripts/upgrade_subchart.py -s traefik -v ${TRAEFIK_VERSION}
-          fi
-          if [[ -n "${FNTC_VERSION}" ]]; then
-            python scripts/upgrade_subchart.py -s fn-task-controller -v ${FNTC_VERSION}
           fi
           cat k8s/federated-node/Chart.yaml
       - name: Commit Changes

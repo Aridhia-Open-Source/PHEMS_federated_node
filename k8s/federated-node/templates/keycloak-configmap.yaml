@@ -2,9 +2,6 @@
   One ConfigMap definition, rendered into every namespace that needs it
 */ -}}
 {{- $list_ns := list (include "kc_namespace" .) .Release.Namespace -}}
-{{- if .Values.outboundMode -}}
-    {{- $list_ns = append $list_ns (include "controller_namespace" .) -}}
-{{- end -}}
 {{- range ($list_ns | uniq) }}
 apiVersion: v1
 kind: ConfigMap

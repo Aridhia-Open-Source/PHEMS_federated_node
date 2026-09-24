@@ -69,13 +69,10 @@ alpine:
 autoscaling:
   enabled: false
 
-# Set these under `global` so the task-controller subchart sees the same values -
-# it reads global.namespaces too, and a top-level copy would only reach this chart.
 global:
   namespaces:
     keycloak: keycloak
     tasks: tasks
-    controller: fn-controller
 
 token:
   # 8 hours. Was 2592000 (30 days), the same order as the rotation period -- which meant sessions
@@ -151,9 +148,6 @@ datasetDb:
     #     name: db-datasets-uc2
     #     key: password
 
-# How many days the resultks and k8s resources are kept for
-cleanupTime: 3
-
 taskReview: false
 
 # firstUserSecret:
@@ -164,16 +158,11 @@ taskReview: false
   # email:
 
 federatedNode:
-  allow_delivery_api: false
   enable_image_whitelist: false
   port: 5000
-  volumes:
-    results_path: /mnt/results
-    task_pod_results_path: /mnt/data
 
 storage:
   capacity: 10Gi
-  mountOptions: []
   # azure:
     # secretName:
     # shareName:
@@ -224,32 +213,7 @@ certs:
 # If not comfortable with these smoketests, do no overwrite this value.
 smoketests: false
 
-outboundMode: false
-
 ##SUBCHARTS
-### Task controller
-fn-task-controller:
-  controller: {}
-    # tag:
-
-  storage: {}
-    # size:
-    # local:
-    #   path:
-
-  # Null, not {}: the subchart ships idp.github as a map of nulls whose schema then
-  # requires all four keys, so leaving it alone fails validation. Set the whole map
-  # (secret_name, secret_key, clientid_key, orgAndRepo) to use a GitHub App as the
-  # task IdP. Helm's "cannot overwrite table with non table" warning here is cosmetic.
-  idp:
-    github: null
-  delivery:
-    github: {}
-      # repository:
-    other: {}
-      # url
-      # auth_type
-
 ### Cert manager
 cert-manager:
   enabled: false
@@ -297,8 +261,7 @@ fnDagster:
     module: app.definitions
     # resources: {}
   # Permissions on the artifacts volume that analytical (pipes) pods write results to.
-  # Separate from storage.mountOptions, which the backend's per-task PVs also use -
-  # see the dagsterArtifactsMountOptions helper.
+  # See the dagsterArtifactsMountOptions helper.
   artifacts:
     # Azure Files only. 0777 keeps the volume writable by an image running as any uid.
     fileMode: "0777"

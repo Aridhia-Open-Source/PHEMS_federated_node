@@ -48,10 +48,6 @@
                 "tasks": {
                     "type": "string",
                     "default": "tasks"
-                },
-                "controller": {
-                    "type": "string",
-                    "default": "fn-controller"
                 }
             }
         },
@@ -166,7 +162,7 @@
             "properties": {
                 "namespaces": {
                     "$ref": "#/definitions/namespaces",
-                    "description": "Namespaces this chart and the task-controller subchart both use. Set them here, not at the top level - only global reaches the subchart"
+                    "description": "Namespaces this chart uses"
                 },
                 "host": {
                     "$ref": "#/definitions/host"
@@ -283,10 +279,6 @@
                 }
             }
         },
-        "cleanupTime": {
-            "type": "integer",
-            "description": "Amount of days the result stored in the storage will be kept for"
-        },
         "taskReview": {
             "$ref": "#/definitions/taskReview"
         },
@@ -330,17 +322,6 @@
                 "port": {
                     "type": "integer",
                     "default": 5000
-                },
-                "volumes": {
-                    "type": "object",
-                    "properties": {
-                        "results_path": {
-                            "type": "string"
-                        },
-                        "task_pod_results_path": {
-                            "type": "string"
-                        }
-                    }
                 }
             }
         },
@@ -349,13 +330,6 @@
             "properties": {
                 "capacity": {
                     "$ref": "#/definitions/capacity"
-                },
-                "mountOptions": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "default": []
                 },
                 "azure": {
                     "type": "object",
@@ -424,10 +398,6 @@
                 "local": {
                     "type": "object",
                     "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "Where to persist files in the host machine"
-                        },
                         "dbpath": {
                             "type": "string"
                         },
@@ -538,11 +508,6 @@
         "smoketests": {
             "type": "boolean",
             "description": "Enables simple smoketests on the helm charts",
-            "default": false
-        },
-        "outboundMode": {
-            "type": "boolean",
-            "description": "Enables outbound connection mode",
             "default": false
         },
         "cert-manager": {

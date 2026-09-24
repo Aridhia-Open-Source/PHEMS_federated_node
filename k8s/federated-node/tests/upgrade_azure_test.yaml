@@ -76,19 +76,21 @@ kubernetesProvider:
         HOSTED_ZONE: uksouth
         TENANT_ID: as13151cv18a1ca651ac
 tests:
-  - it: upgrade AWS storage
-    template: backend-results-pv.yaml
+  - it: upgrade Azure storage
+    template: dagster-artifacts-pv.yaml
     set:
+      dagster:
+        enabled: true
+        postgresql:
+          postgresqlHost: postgres.postgres.database.azure.com
       storage:
         azure:
           shareName: folder
     asserts:
       - equal:
-          path: spec.azureFile.shareName
+          path: spec.csi.volumeAttributes.shareName
           value: folder
-        documentSelector:
-          path: kind
-          value: PersistentVolume
+        documentIndex: 1
   - it: upgrade Azure certificate issuer
     template: certificates/issuer.yaml
     kubernetesProvider:
