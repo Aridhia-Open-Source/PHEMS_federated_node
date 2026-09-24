@@ -3,8 +3,8 @@ from datetime import datetime as dt
 import sqlalchemy as sa
 from sqlalchemy import orm
 from sqlalchemy.orm import validates
-from sqlalchemy.sql import func
 
+from app.models import SqlaColumn
 from app.helpers.base_model import BaseModel, db
 from app.models.pull_request_status import PullRequestStatus
 
@@ -20,9 +20,9 @@ class PullRequest(db.Model, BaseModel):
     title = sa.Column(sa.String(256), nullable=False)
     raised_by = sa.Column(sa.String(256), nullable=False)
     merged_at = sa.Column(sa.DateTime(timezone=False), nullable=False)
-    saved_at = sa.Column(sa.DateTime(timezone=False), server_default=func.now())
     merge_commit_sha = sa.Column(sa.String(40), nullable=False)
     spec = sa.Column(sa.JSON, nullable=False, default={})
+    saved_at = SqlaColumn.created_at()
 
     status = sa.Column(
         sa.String(32),
@@ -36,7 +36,10 @@ class PullRequest(db.Model, BaseModel):
         nullable=False, primary_key=True
     )
 
-    trigger_repository = orm.relationship("TriggerRepository", back_populates="pull_requests")
+    trigger_repository = orm.relationship(
+        "TriggerRepository",
+        back_populates="pull_requests"
+    )
 
     @validates('merged_at')
     def validate_merged_at(self, key, value):

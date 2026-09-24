@@ -1,15 +1,17 @@
-from datetime import datetime
 import logging
+from datetime import datetime as dt
+
 from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, update
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.exc import IntegrityError
+
+from app.models import SqlaColumn
 from app.helpers.base_model import BaseModel, db
 from app.models.dataset import Dataset
 from app.models.project import Project
 from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import DBError, InvalidRequest, LogAndException
-
 
 logger = logging.getLogger('request_model')
 logger.setLevel(logging.INFO)
@@ -25,18 +27,25 @@ class Request(db.Model, BaseModel):
     status = Column(String(256), default='pending')
     proj_start = Column(DateTime(timezone=False), nullable=False)
     proj_end = Column(DateTime(timezone=False), nullable=False)
-    created_at = Column(DateTime(timezone=False), nullable=False, server_default=func.now())
-    updated_at = Column(
-        DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
-    )
-
-    dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
-    dataset = relationship("Dataset")
+    created_at = SqlaColumn.created_at()
+    updated_at = SqlaColumn.updated_at()
 
     # The dataset determines the project, so this is derived rather than submitted. It is
     # nullable only because project_name predates it and old rows are backfilled.
-    project_id = Column(Integer, ForeignKey(Project.id, ondelete='RESTRICT'), nullable=True)
+    dataset_id = Column(
+        Integer,
+        ForeignKey(Dataset.id, ondelete='CASCADE'),
+        nullable=False
+    )
+    project_id = Column(
+        Integer,
+        ForeignKey(Project.id, ondelete='RESTRICT'),
+        nullable=True
+    )
+
+    dataset = relationship("Dataset")
     project = relationship("Project", back_populates="requests")
+
     STATUSES = {
         'approved': 'approved',
         'pending': 'pending',
@@ -49,8 +58,8 @@ class Request(db.Model, BaseModel):
         project_name: str,
         dataset: Dataset,
         requested_by: str,
-        proj_start: datetime,
-        proj_end: datetime,
+        proj_start: dt,
+        proj_end: dt,
         description: str = '',
         **kwargs
     ):
@@ -65,17 +74,18 @@ class Request(db.Model, BaseModel):
         self.requested_by = requested_by
         self.proj_start = proj_start
         self.proj_end = proj_end
-        self.created_at = datetime.now()
-        self.updated_at = datetime.now()
+        self.created_at = dt.now()
+        self.updated_at = dt.now()
+        super().__init__(**kwargs)
 
-    def _get_client_name(self, user_id:str):
+    def _get_client_name(self, user_id: str):
         # Built from the project the dataset belongs to. Falls back to the submitted string
         # for rows written before requests carried a project.
         name = self.project.name if self.project else self.project_name
         return f"Request {user_id} - {name}"
 
     @classmethod
-    def validate(cls, data:dict):
+    def validate(cls, data: dict):
         validated = super().validate(data)
         dataset = data.get("dataset")
         overlaps = cls.query.filter(
@@ -86,7 +96,7 @@ class Request(db.Model, BaseModel):
 
         if overlaps:
             raise InvalidRequest(
-                f"User already has active access to this dataset in project {data["project_name"]}"
+                f"User already has active access to this dataset in project {data['project_name']}"
             )
 
         return validated
@@ -99,13 +109,14 @@ class Request(db.Model, BaseModel):
         self.proj_end = self.proj_end.replace(hour=23, minute=59)
         try:
             global_kc_client = Keycloak()
-            user = global_kc_client.get_user_by_id(self.requested_by)
-
+            user = global_kc_client.get_user_by_id(
+                self.requested_by  # pyright: ignore[reportArgumentType]
+            )
             admin_global_policy = global_kc_client.get_role('Administrator')
             system_global_policy = global_kc_client.get_role('System')
 
             new_client_name = self._get_client_name(user["email"])
-            token_lifetime = (self.proj_end - datetime.now()).seconds
+            token_lifetime = (self.proj_end - dt.now()).seconds
 
             logger.info("Creating client %s", new_client_name)
             global_kc_client.create_client(new_client_name, token_lifetime)
@@ -115,7 +126,12 @@ class Request(db.Model, BaseModel):
             logger.info("%s - Token exchange", new_client_name)
             kc_client.enable_token_exchange()
 
-            scopes = ["can_admin_dataset","can_exec_task", "can_admin_task", "can_access_dataset"]
+            scopes = [
+                "can_admin_dataset",
+                "can_exec_task",
+                "can_admin_task",
+                "can_access_dataset"
+            ]
 
             logger.info("%s - Creating scopes", new_client_name)
             created_scopes = []
@@ -135,6 +151,7 @@ class Request(db.Model, BaseModel):
 
             logger.info("%s - Creating policies", new_client_name)
             policies = []
+
             # Create admin policy
             policies.append(kc_client.create_policy({
                 "name": f"{ds.id} - {ds.name} Admin Policy",
@@ -210,7 +227,12 @@ class Request(db.Model, BaseModel):
         return ret_response
 
     @classmethod
-    def get_active_project(cls, proj_name:str, user_id:str, dataset_id:int=None):
+    def get_active_project(
+        cls,
+        proj_name: str,
+        user_id: str,
+        dataset_id: int | None = None
+    ):
         """
         Get the user's active DAR for a project.
 
@@ -219,13 +241,16 @@ class Request(db.Model, BaseModel):
         exactly one, rather than picking arbitrarily.
         """
 
-        project = Project.query.filter(Project.name == proj_name).one_or_none()
+        project = Project.query.filter(
+            Project.name == proj_name  # pyright: ignore[reportArgumentType]
+        ).one_or_none()
+
         if project is None:
             raise DBError("User does not belong to a valid project")
 
         query = cls.query.filter(
             cls.project_id == project.id,
-            cls.requested_by == user_id,
+            cls.requested_by == user_id,  # pyright: ignore[reportArgumentType]
             cls.proj_start <= func.now(),
             cls.proj_end > func.now()
         )
@@ -235,6 +260,7 @@ class Request(db.Model, BaseModel):
         dars = query.all()
         if not dars:
             raise DBError("User does not belong to a valid project")
+
         if len(dars) > 1:
             candidates = ", ".join(sorted(str(dar.dataset_id) for dar in dars))
             raise DBError(

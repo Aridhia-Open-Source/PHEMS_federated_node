@@ -1,13 +1,13 @@
-from datetime import datetime
-from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+
+from app.models import SqlaColumn
 from app.helpers.base_model import BaseModel, db
 from app.models.dataset import Dataset
 from app.helpers.exceptions import InvalidRequest
 
 
-class Catalogue( db.Model, BaseModel):
+class Catalogue(db.Model, BaseModel):
     __tablename__ = 'catalogues'
     __table_args__ = (
         UniqueConstraint('title', 'dataset_id'),
@@ -16,45 +16,48 @@ class Catalogue( db.Model, BaseModel):
     version = Column(String(256))
     title = Column(String(256), nullable=False)
     description = Column(String(4096), nullable=False)
-    created_at = Column(DateTime(timezone=False), nullable=False, server_default=func.now())
-    updated_at = Column(
-        DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
-    )
+    created_at = SqlaColumn.created_at()
+    updated_at = SqlaColumn.updated_at()
 
     dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
     dataset = relationship("Dataset")
 
-    def __init__(self,
-                 title:str,
-                 description:str,
-                 dataset:Dataset,
-                 version:str='1',
-                 created_at:datetime=datetime.now(),
-                 **kwargs
-        ):
-        self.version = version
+    def __init__(
+        self,
+        title: str,
+        description: str,
+        version: str = '1',
+        dataset_id: int | None = None,
+        dataset: Dataset | None = None,
+    ):
         self.title = title
-        self.dataset = dataset
         self.description = description
-        self.created_at = created_at
-        self.updated_at = datetime.now()
+        self.version = version
+        self.dataset_id = dataset_id
+        if dataset is not None:
+            self.dataset = dataset
 
     def update(self, **data):
         for k, v in data.items():
-            if not hasattr(self, k):
-                raise InvalidRequest(f"Field {k} is not a valid one")
-            else:
+            if hasattr(self, k):
                 setattr(self, k, v)
-        self.query.filter(Catalogue.id == self.id).update(data, synchronize_session='evaluate')
+                continue
+
+            raise InvalidRequest(f"Field {k} is invalid.")
+
+        update_data = {getattr(Catalogue, k): v for k, v in data.items()}
+        q = self.query.filter(Catalogue.id == self.id)
+        q.update(update_data, synchronize_session='evaluate')
 
     @classmethod
-    def update_or_create(cls, data:dict, ds:Dataset):
+    def update_or_create(cls, data: dict, ds: Dataset):
         """
+        Update the dataset's catalogue if it already has one, otherwise create it.
         """
-        current_cata = cls.query.filter(cls.dataset_id == ds.id).one_or_none()
-        if current_cata:
+        if current_cata := cls.query.filter(cls.dataset_id == ds.id).one_or_none():  # pyright: ignore[reportArgumentType]
             current_cata.update(**data)
-        else:
-            cata_body = cls.validate(data)
-            catalogue = cls(dataset=ds, **cata_body)
-            catalogue.add(commit=False)
+            return
+
+        cata_body = cls.validate(data)
+        catalogue = cls(dataset=ds, **cata_body)
+        catalogue.add(commit=False)

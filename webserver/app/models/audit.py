@@ -1,7 +1,9 @@
-from datetime import datetime
+from datetime import datetime as dt
+
 from sqlalchemy import Column, Integer, DateTime, String
 from sqlalchemy.sql import func
 from app.helpers.base_model import BaseModel, db
+
 
 class Audit(db.Model, BaseModel):
     __tablename__ = 'audit'
@@ -15,15 +17,16 @@ class Audit(db.Model, BaseModel):
     details = Column(String(4096))
     event_time = Column(DateTime(timezone=False), server_default=func.now())
 
-    def __init__(self,
-                 ip_address:str,
-                 http_method:str,
-                 endpoint:str,
-                 requested_by:str,
-                 status_code:int,
-                 api_function:str,
-                 details:str
-                ):
+    def __init__(
+        self,
+        ip_address: str,
+        http_method: str,
+        endpoint: str,
+        requested_by: str,
+        status_code: int | None,
+        api_function: str | None,
+        details: str | None,
+    ):
         self.ip_address = ip_address
         self.http_method = http_method
         self.endpoint = endpoint
@@ -31,4 +34,4 @@ class Audit(db.Model, BaseModel):
         self.status_code = status_code
         self.api_function = api_function
         self.details = details
-        self.event_time = datetime.now()
+        self.event_time = dt.now()

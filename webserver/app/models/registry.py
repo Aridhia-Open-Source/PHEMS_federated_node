@@ -1,15 +1,16 @@
-import base64
 import json
 import logging
 import re
+
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy import Column, Integer, String, Boolean
 
 from app.helpers.const import TASK_NAMESPACE
-from app.helpers.container_registries import AzureRegistry, BaseRegistry, DockerRegistry, GitHubRegistry
 from app.helpers.base_model import BaseModel, db
 from app.helpers.exceptions import ContainerRegistryException, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
+from app.helpers import container_registries
+
 
 logger = logging.getLogger("registry_model")
 logger.setLevel(logging.INFO)
@@ -24,13 +25,13 @@ class Registry(db.Model, BaseModel):
     active = Column(Boolean, default=True)
 
     def __init__(
-            self,
-            url: str,
-            username: str,
-            password: str,
-            needs_auth:bool=True,
-            active:bool=True
-        ):
+        self,
+        url: str,
+        username: str,
+        password: str,
+        needs_auth: bool = True,
+        active: bool = True
+    ):
         self.url = url
         self.needs_auth = needs_auth
         self.active = active
@@ -55,7 +56,7 @@ class Registry(db.Model, BaseModel):
         return data
 
     def _get_name(self):
-        return re.sub('^http(s{,1})://', '', self.url)
+        return re.sub(r'^https?://', '', self.url)  # type: ignore
 
     def add(self, commit=True):
         self.update_regcred()
@@ -67,11 +68,11 @@ class Registry(db.Model, BaseModel):
         is created.
         """
         v1 = KubernetesClient()
-        secret_name:str = self.slugify_name()
+        secret_name: str = self.slugify_name()
         dockerjson = dict()
 
         key = self.url
-        if isinstance(self.get_registry_class(), DockerRegistry):
+        if isinstance(self.get_registry_class(), container_registries.DockerRegistry):
             key = "https://index.docker.io/v1/"
 
         try:
@@ -111,7 +112,7 @@ class Registry(db.Model, BaseModel):
         """
         return re.sub(r'[\W_]+', '-', self._get_name())
 
-    def get_registry_class(self) -> BaseRegistry:
+    def get_registry_class(self):
         """
         We have interface classes with dedicated login, and
         image tag parsers. Based on the registry name
@@ -123,17 +124,17 @@ class Registry(db.Model, BaseModel):
         }
         if self.id:
             args["secret_name"]= self.slugify_name()
-        matches = re.search(r'azurecr\.io|ghcr\.io', self.url)
 
+        matches = re.search(r'azurecr\.io|ghcr\.io', self.url)  # type: ignore
         matches = '' if matches is None else matches.group()
 
         match matches:
             case 'azurecr.io':
-                return AzureRegistry(**args)
+                return container_registries.AzureRegistry(**args)
             case 'ghcr.io':
-                return GitHubRegistry(**args)
+                return container_registries.GitHubRegistry(**args)
             case _:
-                return DockerRegistry(**args)
+                return container_registries.DockerRegistry(**args)
 
     def fetch_image_list(self) -> list[str]:
         """
@@ -143,7 +144,7 @@ class Registry(db.Model, BaseModel):
         _class = self.get_registry_class()
         return _class.list_repos()
 
-    def delete(self, commit:bool=False):
+    def delete(self, commit: bool = False):
         session = db.session
         super().delete(commit)
         v1 = KubernetesClient()
@@ -156,48 +157,57 @@ class Registry(db.Model, BaseModel):
 
     def update(self, **kwargs) -> None:
         """
-        Updates the instance with new values. These should be
-        already validated.
+        Updates the instance with new values. These should be already validated.
         """
         for key in kwargs.keys():
             if key not in ["username", "password", "active"]:
                 raise InvalidRequest(f"Field {key} is not valid")
+            if kwargs[key] is None:
+                raise InvalidRequest(f"Field {key} cannot be None")
 
-        if kwargs.get("active") is not None:
-            self.query.filter(Registry.id == self.id).update(
-                {"active": kwargs.get("active")},
-                synchronize_session='evaluate'
-            )
+        if kwargs.get("active"):
+            query = self.query.filter(Registry.id == self.id)
+            query.update({"active": kwargs.get("active")}, synchronize_session='evaluate')
 
-        if not(kwargs.get("username") or kwargs.get("password")):
+        if not kwargs.get("username") and not kwargs.get("password"):
             return
 
-        # Get the credentials from the pull docker secret
+        self.update_username_password(kwargs.get("username"), kwargs.get("password"))
+
+        self.update_regcred()
+
+    def update_username_password(
+        self,
+        username: str | None,
+        password: str | None
+    ) -> None:
+        """
+        Updates the instance with new username and password values
+        """
         v1 = KubernetesClient()
-        key = self.url
-        if isinstance(self.get_registry_class(), DockerRegistry):
-            key = "https://index.docker.io/v1/"
-        try:
-            regcred = v1.read_namespaced_secret(self.slugify_name(), namespace=TASK_NAMESPACE)
-            dockerjson = json.loads(v1.decode_secret_value(regcred.data['.dockerconfigjson']))
-            self.username = dockerjson['auths'][key]["username"]
-            self.password = dockerjson['auths'][key]["password"]
+        reg_class = self.get_registry_class()
+        is_docker_reg = isinstance(reg_class, container_registries.DockerRegistry)
+        key = self.url if not is_docker_reg else "https://index.docker.io/v1/"
 
-            if kwargs.get("username"):
-                self.username = kwargs.get("username")
+        regcred = v1.read_namespaced_secret(self.slugify_name(), TASK_NAMESPACE)
+        secret_val = regcred.data['.dockerconfigjson']  # type: ignore
+        dockerjson = json.loads(v1.decode_secret_value(secret_val))
+        self.username = dockerjson['auths'][key]["username"]
+        self.password = dockerjson['auths'][key]["password"]
 
-            if kwargs.get("password"):
-                self.password = kwargs.get("password")
+        if username:
+            self.username = username
+        if password:
+            self.password = password
 
-            self.update_regcred()
-        except ApiException as apie:
-            logger.error("Reason: %s\nDetails: %s", apie.reason, apie.body)
-            raise InvalidRequest("Could not update credentials") from apie
 
     @classmethod
-    def extract_image_parts(cls, docker_image: str) -> tuple['Registry', str, str, str]:
+    def extract_image_parts(
+        cls,
+        docker_image: str
+    ) -> tuple['Registry', str, str | None, str | None]:
         """
-        Extract the registry object, image name, tag, and sha from the docker image string.
+        Extract the registry object, image name, tag, and sha from the docker image str.
         """
         for i in range(len(docker_image.split('/')) + 1):
             registry_url = "/".join(docker_image.split('/')[0:i])
@@ -216,10 +226,13 @@ class Registry(db.Model, BaseModel):
                     raise InvalidRequest(f"Image {docker_image} must have a tag or a sha")
                 return registry, image_name, tag, sha
 
-        raise InvalidRequest("Could not find the image in the mapped registries. Check the image has the full name")
+        raise InvalidRequest(
+            "Could not find the image in the mapped registries."
+            " Check the image has the full name"
+        )
 
     @classmethod
-    def validate_image_exist(cls, docker_image:str) -> bool:
+    def validate_image_exist(cls, docker_image: str) -> bool:
         """
         Validate that the image exists in the remote registry.
         """

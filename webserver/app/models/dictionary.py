@@ -1,55 +1,63 @@
-from datetime import datetime
+from datetime import datetime as dt
+
 from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+
+from app.models import SqlaColumn
 from app.helpers.base_model import BaseModel, db
 from app.helpers.exceptions import InvalidRequest
 from app.models.dataset import Dataset
+
 
 class Dictionary( db.Model, BaseModel):
     __tablename__ = 'dictionaries'
     __table_args__ = (
         UniqueConstraint('table_name', 'dataset_id', 'field_name'),
     )
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     table_name = Column(String(256), nullable=False)
     field_name = Column(String(256), nullable=False)
     label = Column(String(256))
     description = Column(String(4096), nullable=False)
-    created_at = Column(DateTime(timezone=False), nullable=False, server_default=func.now())
-    updated_at = Column(
-        DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
-    )
+    created_at = SqlaColumn.created_at()
+    updated_at = SqlaColumn.updated_at()
 
     dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
+
     dataset = relationship("Dataset")
 
-    def __init__(self,
-                 table_name:str,
-                 description:str,
-                 dataset:Dataset,
-                 label:str='',
-                 field_name:str='',
-                 created_at:datetime=datetime.now(),
-                 **kwargs):
+    def __init__(
+        self,
+        table_name: str,
+        description: str,
+        dataset: Dataset,
+        label: str = '',
+        field_name: str = '',
+        created_at: dt = dt.now()
+    ):
         self.table_name = table_name
         self.description = description
         self.dataset = dataset
         self.label = label
         self.field_name = field_name
         self.created_at = created_at
-        self.updated_at = datetime.now()
+        self.updated_at = dt.now()
 
     def update(self, **data):
         for k, v in data.items():
-            if not hasattr(self, k):
-                raise InvalidRequest(f"Field {k} is not a valid one")
-            else:
+            if hasattr(self, k):
                 setattr(self, k, v)
-        self.query.filter(Dictionary.id == self.id).update(data, synchronize_session='evaluate')
+                continue
+
+            raise InvalidRequest(f"Field {k} is invalid.")
+
+        update_data = {getattr(Dictionary, k): v for k, v in data.items()}
+        q = self.query.filter(Dictionary.id == self.id)
+        q.update(update_data, synchronize_session='evaluate')
 
     @classmethod
-    def update_or_create(cls, data:dict, ds:Dataset):
+    def update_or_create(cls, data: dict, ds: Dataset):
         cls.validate(data)
         current_dict = cls.query.filter(
             cls.dataset_id == ds.id,

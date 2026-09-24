@@ -1,5 +1,8 @@
 """Model registry — lazy-initialized on first access."""
 from functools import cached_property
+from sqlalchemy.sql import func
+from sqlalchemy import DateTime
+from sqlalchemy import Column
 
 
 class ModelRegistry:
@@ -72,3 +75,26 @@ class ModelRegistry:
 
 
 Models = ModelRegistry()
+
+
+class SqlaColumn:
+    """Commonly used Sqlalchemy column definitions."""
+
+    @staticmethod
+    def created_at(**kwargs):
+        return Column(
+            DateTime(timezone=False),
+            server_default=func.now(),
+            nullable=False,
+            **kwargs
+        )
+
+    @staticmethod
+    def updated_at(**kwargs):
+        return Column(
+            DateTime(timezone=False),
+            server_default=func.now(),
+            onupdate=func.now(),
+            nullable=False,
+            **kwargs
+        )

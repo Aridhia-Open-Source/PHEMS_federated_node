@@ -1,10 +1,10 @@
-import logging
 import re
 import typing
 import urllib.parse
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+
+from sqlalchemy import Column, ForeignKey, Integer, String, and_, or_
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+
 from app.helpers.base_model import BaseModel, db
 from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, KubernetesException
@@ -12,12 +12,8 @@ from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
 from kubernetes.client import V1Secret
 from kubernetes.client.exceptions import ApiException
-
 from app.helpers.connection_string import Mssql, Postgres, Mysql, Oracle, MariaDB
-from app.models import Models
-
-logger = logging.getLogger("dataset_model")
-logger.setLevel(logging.INFO)
+from app.models import Models, SqlaColumn
 
 SUPPORTED_ENGINES = {
     "mssql": Mssql,
@@ -39,12 +35,13 @@ class Dataset(db.Model, BaseModel):
     schema_write = Column(String(256), nullable=True)
     type = Column(String(256), server_default="postgres", nullable=False)
     extra_connection_args = Column(String(4096), nullable=True)
+    created_at = SqlaColumn.created_at()
+    updated_at = SqlaColumn.updated_at()
+
     project_id = Column(
-        Integer, ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False
-    )
-    created_at = Column(DateTime(timezone=False), nullable=False, server_default=func.now())
-    updated_at = Column(
-        DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
+        Integer,
+        ForeignKey('projects.id', ondelete='RESTRICT'),
+        nullable=False
     )
 
     project = relationship(
@@ -63,26 +60,34 @@ class Dataset(db.Model, BaseModel):
         type: str = "postgres",
         extra_connection_args: str | None = None,
         project_id: int | None = None,
-        **kwargs
     ):
+        if type.lower() not in SUPPORTED_ENGINES:
+            raise InvalidRequest(f"DB type {type} is not supported.")
+
         self.name = urllib.parse.unquote(name).lower()
-        self.slug = self.slugify_name()
-        self.url = f"https://{PUBLIC_URL}/datasets/{self.slug}"
         self.host = host
         self.port = port
         self.schema = schema
         self.schema_write = schema_write
         self.type = type
-        self.username = username
-        self.password = password
         self.extra_connection_args = extra_connection_args
         self.project_id = project_id
-
-        if self.type.lower() not in SUPPORTED_ENGINES:
-            raise InvalidRequest(f"DB type {self.type} is not supported.")
+        self.username = username
+        self.password = password
 
     def __repr__(self):
         return f'<Dataset {self.name}>'
+
+    @property
+    def slug(self) -> str:
+        """
+        Slugified name, safe to use in URLs and to save on the DB
+        """
+        return re.sub(r'[\W_]+', '-', str(self.name))  # pyright: ignore[reportCallIssue]
+
+    @property
+    def url(self) -> str:
+        return f"https://{PUBLIC_URL}/datasets/{self.slug}"
 
     def add(self, commit=True, user_id=None):
         super().add(commit)
@@ -97,11 +102,6 @@ class Dataset(db.Model, BaseModel):
         delattr(self, "password")
         self.add_to_keycloak(user_id)
         return self
-
-    @classmethod
-    def validate(cls, data: dict) -> dict:
-        data = dict(data)  # prevent mutation
-        return super().validate(data)
 
     @classmethod
     def parse_repo_uri(cls, uri: str) -> str:
@@ -134,16 +134,9 @@ class Dataset(db.Model, BaseModel):
 
     def sanitized_dict(self):
         dataset = super().sanitized_dict()
-        dataset["slug"] = self.slugify_name()
-        dataset["url"] = f"https://{PUBLIC_URL}/datasets/{dataset['slug']}"
+        dataset["slug"] = self.slug
+        dataset["url"] = self.url
         return dataset
-
-    def slugify_name(self) -> str:
-        """
-        Based on the provided name, it will return the slugified name
-        so that it will be sade to save on the DB
-        """
-        return re.sub(r'[\W_]+', '-', self.name)
 
     def get_credentials(self) -> tuple:
         """
@@ -243,12 +236,11 @@ class Dataset(db.Model, BaseModel):
             return
 
         v1 = KubernetesClient()
-        new_username = kwargs.pop("username", None)
+        new_user = kwargs.pop("username", None)
         secret_name: str = self.get_creds_secret_name()
 
         # Get existing secret
-        from typing import cast
-        secret: V1Secret = cast(
+        secret: V1Secret = typing.cast(
             V1Secret,
             v1.read_namespaced_secret(secret_name, DEFAULT_NAMESPACE)
         )
@@ -257,18 +249,21 @@ class Dataset(db.Model, BaseModel):
         # create_kubernetes_secret wrote, which are also the ones get_credentials, the
         # task pod env and the Dagster pipes op read - anything else updates a key
         # nobody looks at and leaves the old credentials in service.
+
         new_name = kwargs.get("name", None)
-        if new_username:
-            secret.data["USERNAME"] = KubernetesClient.encode_secret_value(new_username)
+        assert secret.data is not None
+        if new_user:
+            secret.data["USERNAME"] = KubernetesClient.encode_secret_value(new_user)
         new_pass = kwargs.pop("password", None)
         if new_pass:
             secret.data["PASSWORD"] = KubernetesClient.encode_secret_value(new_pass)
 
-        secret_task: V1Secret = cast(
+        secret_task: V1Secret = typing.cast(
             V1Secret,
             v1.read_namespaced_secret(secret_name, TASK_NAMESPACE)
         )
 
+        assert secret.metadata is not None
         secret.metadata.labels = {
             "type": "database",
             "host": secret_name
@@ -292,6 +287,7 @@ class Dataset(db.Model, BaseModel):
         except ApiException as e:
             # Host and name are unique so there shouldn't be duplicates. If so
             # let the exception to be re-raised with the internal one
+            assert e.body is not None
             raise KubernetesException(e.body, 400) from e
 
     def update_keycloak(self, **kwargs):
@@ -323,10 +319,12 @@ class Dataset(db.Model, BaseModel):
         """
         if id and name:
             error_msg = f"Dataset \"{name}\" with id {id} does not exist"
-            dataset = cls.query.filter((Dataset.name.ilike(name or "") & (Dataset.id == id))).one_or_none()
+            condition = and_(Dataset.name == name.lower(), Dataset.id == id)  # pyright: ignore[reportArgumentType]
         else:
             error_msg = f"Dataset {name if name else id} does not exist"
-            dataset = cls.query.filter((Dataset.name.ilike(name or "") | (Dataset.id == id))).one_or_none()
+            condition = or_(Dataset.name == (name or "").lower(), Dataset.id == id)  # pyright: ignore[reportArgumentType]
+
+        dataset = cls.query.filter(condition).one_or_none()
 
         if not dataset:
             raise DBRecordNotFoundError(error_msg)

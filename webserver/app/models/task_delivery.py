@@ -27,25 +27,37 @@ class TaskDelivery(db.Model, BaseModel):
     """One attempt at delivering a task's results."""
 
     __tablename__ = 'task_deliveries'
+    __table_args__ = (
+        UniqueConstraint(
+            'task_id', 'target_id', 'attempt',
+            name='uq_task_deliveries_attempt'
+        ),
+        Index('ix_task_deliveries_task_id', 'task_id'),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False)
-    target_id = Column(Integer, ForeignKey('delivery_targets.id', ondelete='RESTRICT'), nullable=False)
-    dagster_run_id = Column(String(64), nullable=True)
-    status = Column(String(16), nullable=False, server_default=DeliveryStatus.PENDING.value)
+    status = Column(String(64), nullable=False, server_default=DeliveryStatus.PENDING.value)
     attempt = Column(Integer, nullable=False, server_default='1')
     location = Column(String(2048), nullable=True)
     error = Column(Text, nullable=True)
     started_at = Column(DateTime(timezone=False), nullable=True)
     completed_at = Column(DateTime(timezone=False), nullable=True)
+    dagster_run_id = Column(String(64), nullable=True)
+
+    task_id = Column(
+        Integer,
+        ForeignKey('tasks.id', ondelete='CASCADE'),
+        nullable=False
+    )
+
+    target_id = Column(
+        Integer,
+        ForeignKey('delivery_targets.id', ondelete='RESTRICT'),
+        nullable=False
+    )
 
     task = relationship("Task")
     target = relationship("DeliveryTarget", back_populates="deliveries")
-
-    __table_args__ = (
-        UniqueConstraint('task_id', 'target_id', 'attempt', name='uq_task_deliveries_attempt'),
-        Index('ix_task_deliveries_task_id', 'task_id'),
-    )
 
     def __init__(self, task_id: int, target_id: int, attempt: int = 1):
         self.task_id = task_id
@@ -54,4 +66,7 @@ class TaskDelivery(db.Model, BaseModel):
         self.status = DeliveryStatus.PENDING.value
 
     def __repr__(self):
-        return f'<TaskDelivery (task={self.task_id}, target={self.target_id}, attempt={self.attempt})>'
+        return (
+            f"<TaskDelivery (task={self.task_id}, target={self.target_id}, "
+            f"attempt={self.attempt})>"
+        )
