@@ -43,7 +43,7 @@
 {{- end }}
 {{- end }}
 {{- if .Values.namespaces }}
-  {{ fail "Move `namespaces` under `global`: the task-controller subchart reads global.namespaces, so a top-level copy would only ever reach this chart and the two would disagree. Use:\n\n  global:\n    namespaces:\n      keycloak: ...\n      tasks: ...\n      controller: ...\n" }}
+  {{ fail "Move `namespaces` under `global`: the chart reads global.namespaces, so a top-level copy would be ignored. Use:\n\n  global:\n    namespaces:\n      keycloak: ...\n      tasks: ...\n" }}
 {{- end }}
 {{- if and (not .Values.datasetDb.create) .Values.datasetDb.dbs }}
   {{ fail "datasetDb.dbs is set but datasetDb.create is false. datasetDb is an in-cluster development fixture, and those roles are only ever created and read by the chart's own db-datasets-init job - nothing else consumes them. Register an external dataset database through the /datasets API instead, and remove datasetDb.dbs." }}

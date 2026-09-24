@@ -336,7 +336,7 @@ Edit `Tiltfile` and update the `only=` and `live_update=` sections.
 
 ### Adding More Services
 
-To monitor additional services (pypipes, github_transfer, etc.):
+To monitor additional services (pypipes, etc.):
 
 1. Add a `docker_build()` or `docker_build_with_restart()` block
 2. Add a corresponding `k8s_resource()` block

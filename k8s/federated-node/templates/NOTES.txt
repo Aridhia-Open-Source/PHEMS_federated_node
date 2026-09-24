@@ -7,9 +7,6 @@ Subcharts:
     {{- if eq .Name "cert-manager" }}
     Cert manager: {{ .Version }}
     {{- end }}
-    {{- if eq .Name  "fn-task-controller" }}
-    Task Controller: {{ .Version }}
-    {{- end }}
 {{- end }}
 
 You can run some smoketests with:

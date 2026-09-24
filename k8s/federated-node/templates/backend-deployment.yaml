@@ -47,16 +47,6 @@ spec:
               secretKeyRef:
                 name: {{ .Values.backend.db.secret.name }}
                 key: {{ .Values.backend.db.secret.key }}
-        - name: storage-init
-          image: {{ include "fn-alpine" . }}
-          command: ["/bin/sh"]
-          imagePullPolicy: {{ .Values.pullPolicy }}
-          args:
-            - -c
-            - mkdir -p /mnt/storage/results
-          volumeMounts:
-            - name: respv
-              mountPath: /mnt/storage
       containers:
         - image: {{ template "backend-image" . }}
           name: backend
@@ -98,16 +88,10 @@ spec:
                 name: {{ .Values.backend.db.secret.name }}
                 key: {{ .Values.backend.db.secret.key }}
           volumeMounts:
-            - name: respv
-              mountPath: {{ .Values.federatedNode.volumes.results_path }}
-              subPath: results
             - name: kc-secrets
               mountPath: {{ include "kcSecretsMountPath" . }}
               readOnly: true
       volumes:
-        - name: respv
-          persistentVolumeClaim:
-            claimName: {{ include "backendResultsPVCName" . }}
         - name: kc-secrets
           secret:
             secretName: kc-secrets

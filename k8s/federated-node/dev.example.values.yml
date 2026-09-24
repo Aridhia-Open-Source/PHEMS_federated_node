@@ -17,19 +17,6 @@ create_db_deployment: true   # run Postgres in the cluster instead of a managed 
 # Optional, all off by default:
 # taskReview: true           # tasks need approval before they run
 # smoketests: true           # `helm test` creates and deletes real db/keycloak rows
-# cleanupTime: 3             # days results and task resources are kept
-#
-# outboundMode deploys the task controller - the older results-delivery path, which
-# Dagster replaces. Only for working on outbound-only mode:
-# outboundMode: true
-# fn-task-controller:
-#   storage:
-#     local:
-#       path: /data/controller
-#   delivery:
-#     other:
-#       url: federated-node.example.net
-#       auth_type: AzCopy
 
 host: &host phems-federatednode.net
 global:
@@ -44,7 +31,6 @@ db:
 storage:
   capacity: 1Gi
   local:
-    path: /data/flask                  # backend results
     dbpath: /data/db                   # postgres data
     datasetDbpath: /data/datasets      # dataset postgres data (datasetDb below)
     artifacts: /data/dagster/artifacts # dagster artifacts volume

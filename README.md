@@ -34,7 +34,7 @@ Licences for the component projects can be found [here](https://github.com/Aridh
 
 ### Dependency Management
 
-Python dependencies are declared in `pyproject.toml` files within each component directory (e.g. `webserver/`, `build/db-connector/`, `build/alpine/`, `build/kc-init/`). Locked `requirements.txt` files are generated from these using [pip-tools](https://pip-tools.readthedocs.io/) via the `pip_compile` Makefile target.
+Python dependencies are declared in `pyproject.toml` files within each component directory (e.g. `webserver/`, `build/alpine/`, `build/kc-init/`). Locked `requirements.txt` files are generated from these using [pip-tools](https://pip-tools.readthedocs.io/) via the `pip_compile` Makefile target.
 
 #### Prerequisites
 
@@ -53,7 +53,7 @@ Run `make pip_compile` with the target component directory as an argument:
 make pip_compile webserver
 
 # Lock dependencies for a build component
-make pip_compile build/db-connector
+make pip_compile build/kc-init
 ```
 
 By default this writes `requirements.txt` in the given directory. To write to a different output file, pass it as a second positional argument:

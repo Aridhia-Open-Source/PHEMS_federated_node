@@ -3,13 +3,8 @@ pullPolicy: Always
 local_development: true
 create_db_deployment: true
 
-cleanupTime: 1
 keycloak:
   replicas: 1
-backend:
-  volumes:
-    results_path: /data/flask/results
-
 db:
   user: admin
   host: db.default.svc
@@ -20,7 +15,6 @@ db:
 
 storage:
   local:
-    path: /data/flask
     dbpath: /data/db/
 
 certs:
@@ -56,23 +50,3 @@ traefik:
         certificateRefs:
         - kind: Secret
           name: *tls
-
-outboundMode: true
-fn-task-controller:
-  controller:
-    vol_path: /data/controller
-
-  storage:
-    size: 100Mi
-    local:
-      path: /data/controller
-
-  idp:
-    github:
-      secret_name: github-app
-      secret_key: GH_SECRET
-      clientid_key: GH_CLIENT_ID
-      orgAndRepo: Aridhia-Open-Source/Federated-Node-Example-App
-  delivery:
-    github:
-      repository: Aridhia-Open-Source/Federated-Node-Example-App
