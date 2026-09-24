@@ -42,37 +42,9 @@ class KeycloakError(LogAndException):
 class TaskImageException(LogAndException):
     code = 403
 
-class TaskExecutionException(LogAndException):
-    pass
-
-class TaskCRDExecutionException(LogAndException):
-    """
-    For the specific use case of CRD creation.
-    Since we are reformatting the k8s exception body
-    to be less verbose and more useful to the end user.
-    Another benefit is that CRD validation happens at k8s level
-    and we can just pick info up and be sure is accurate.
-    """
-    details = "Could not activate automatic delivery"
-
-    def __init__(self, description = None, code=None, response = None):
-        super().__init__(description, code, response)
-        req_values = []
-        unsupp_values = []
-        for mess in json.loads(description)["details"]["causes"]:
-            if "Unsupported value" in mess["message"]:
-                unsupp_values.append(mess["message"])
-            else:
-                pass
-        if req_values:
-            self.description = {"Missing values": req_values}
-            self.code = 400
-        elif unsupp_values:
-            self.description = unsupp_values
-            self.code = 400
-        else:
-            self.code = 500
-            self.description = self.details
+class NotImplementedException(LogAndException):
+    code = 501
+    description = "Not implemented"
 
 class KubernetesException(LogAndException):
     def __init__(self, body:dict|str = None, code:int = None):

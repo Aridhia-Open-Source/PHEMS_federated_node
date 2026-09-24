@@ -27,10 +27,9 @@ export KEYCLOAK_ADMIN=admin KEYCLOAK_ADMIN_PASSWORD=password1
 export KEYCLOAK_SERVICE_USER=fn-service KEYCLOAK_SERVICE_PASSWORD=servicepass1
 export KEYCLOAK_SECRET=qwtirtvJJ4PW4skOlW6Oifk2
 export KEYCLOAK_TOKEN_LIFE=3600 KEYCLOAK_LOGLEVEL=INFO
-export PYTHONPATH=/app RESULTS_PATH=/tmp/results TASK_POD_RESULTS_PATH=/mnt/data
+export PYTHONPATH=/app
 export DEFAULT_NAMESPACE=default TASK_NAMESPACE=tasks KEYCLOAK_NAMESPACE=keycloak
-export CLEANUP_AFTER_DAYS=1 PUBLIC_URL=localhost:5000 CLAIM_CAPACITY=100Mi
-export CONTROLLER_NAMESPACE=fn-controller
+export PUBLIC_URL=localhost:5000
 
 # Where steps leave each kc-init run's output for the steps that assert across runs.
 ARTIFACTS="$(mktemp -d)"

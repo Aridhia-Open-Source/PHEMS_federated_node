@@ -14,8 +14,6 @@ FN_DATA_DIR="${FN_DATA_DIR:-$HOME/.fn/data}"
 
 HOST_MOUNT_PATHS=(
   "$FN_DATA_DIR/db"
-  "$FN_DATA_DIR/flask"
-  "$FN_DATA_DIR/controller"
   "$FN_DATA_DIR/dagster/artifacts"
   "$FN_DATA_DIR/datasets"
 )

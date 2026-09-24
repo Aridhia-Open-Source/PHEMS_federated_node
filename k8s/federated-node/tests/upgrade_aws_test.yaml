@@ -66,10 +66,14 @@ kubernetesProvider:
         password: dGVzdA==
 tests:
   - it: upgrade AWS storage
-    template: storageclass.yaml
+    template: dagster-artifacts-pv.yaml
     values:
       - values/values-aws.yaml
     set:
+      dagster:
+        enabled: true
+        postgresql:
+          postgresqlHost: db.federatednode.svc
       storage:
         aws:
           fileSystemId: fs-newstring
@@ -78,6 +82,7 @@ tests:
       - equal:
           path: parameters.fileSystemId
           value: fs-newstring::fs-shortnewstring
+        documentIndex: 0
   - it: upgrade AWS certificate issuer
     template: certificates/issuer.yaml
     kubernetesProvider:

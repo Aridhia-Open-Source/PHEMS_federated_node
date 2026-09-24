@@ -3,7 +3,6 @@ from copy import deepcopy
 from typing import List
 from pytest import fixture
 from datetime import datetime as dt, timedelta
-from kubernetes.client import V1Pod, V1Secret
 from sqlalchemy.orm.session import close_all_sessions
 from unittest.mock import Mock
 
@@ -14,10 +13,8 @@ from app.models.catalogue import Catalogue
 from app.models.dictionary import Dictionary
 from app.models.project import Project
 from app.models.request import Request
-from app.models.task import Task
 from app.models.trigger_repository import TriggerRepository
 from app.helpers.exceptions import KeycloakError
-from app.helpers.const import CRD_DOMAIN
 
 
 sample_repo_uri = "github.com/org/test-repo"
@@ -133,20 +130,8 @@ def k8s_config(mocker):
 @fixture
 def v1_mock(mocker):
     return {
-        "create_namespaced_pod_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.create_namespaced_pod'
-        ),
-        "create_persistent_volume_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.create_persistent_volume'
-        ),
-        "create_namespaced_persistent_volume_claim_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.create_namespaced_persistent_volume_claim'
-        ),
         "read_namespaced_secret_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.read_namespaced_secret'
-        ),
-        "list_namespaced_secret_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.list_namespaced_secret'
         ),
         "patch_namespaced_secret_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.patch_namespaced_secret'
@@ -156,106 +141,20 @@ def v1_mock(mocker):
         ),
         "create_namespaced_secret_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.create_namespaced_secret'
-        ),
-        "patch_namespaced_secret_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.patch_namespaced_secret'
-        ),
-        "list_namespaced_pod_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.list_namespaced_pod'
-        ),
-        "delete_namespaced_pod_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.delete_namespaced_pod'
-        ),
-        "is_pod_ready_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.is_pod_ready'
-        ),
-        "read_namespaced_pod_log": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.read_namespaced_pod_log',
-            return_value="Example logs\nanother line"
-        ),
-        "cp_from_pod_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesClient.cp_from_pod',
-            return_value="../tests/files/results.zip"
         )
     }
 
 
 @fixture
-def v1_batch_mock(mocker):
-    return {
-        "create_namespaced_job_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesBatchClient.create_namespaced_job'
-        ),
-        "delete_job_mock": mocker.patch(
-            'app.helpers.kubernetes.KubernetesBatchClient.delete_job'
-        )
-    }
-
-
-@fixture
-def v1_crd_mock(mocker, task):
-    return mocker.patch(
-        "app.models.task.KubernetesCRDClient",
-        return_value=Mock(
-            list_cluster_custom_object=Mock(
-                return_value={"items": [{
-                    "metadata": {
-                        "name": "crd_name",
-                        "annotations": {
-                            f"{CRD_DOMAIN}/task_id": str(task.id)
-                        }
-                    }
-                }]
-            }),
-            patch_cluster_custom_object=Mock(),
-            create_cluster_custom_object=Mock(),
-            get_cluster_custom_object=Mock()
-        )
-    )
-
-
-@fixture
-def pod_listed(image_name):
-    pod = Mock(name="default_pod", spec=V1Pod)
-    pod.spec.containers = [Mock(image=f"acr.azurecr.io/{image_name}")]
-    pod.status.container_statuses = [Mock(
-        name="default_status",
-        state=Mock(
-            running=None,
-            waiting=None,
-            terminated=Mock(
-                finished_at="1/1/2024",
-                exit_code="0",
-                reason="Done",
-                started_at="1/1/2024",
-            )
-        )
-    )]
-    return Mock(items=[pod])
-
-
-@fixture
-def secret_listed():
-    secret = Mock(spec=V1Secret)
-    secret.metadata.name = "url.delivery.com"
-    secret.metadata.labels = {"url": "url.delivery.com"}
-    secret.data = {"auth": "originalSecret"}
-    return Mock(items=[secret])
-
-
-@fixture
-def k8s_client(secret_listed, pod_listed, v1_mock, v1_batch_mock, k8s_config):
+def k8s_client(v1_mock, k8s_config):
     all_clients = {}
     all_clients.update(v1_mock)
-    all_clients.update(v1_batch_mock)
     all_clients["read_namespaced_secret_mock"].return_value.data = {
         "USERNAME": "YWJjMTIz",
         "PASSWORD": "YWJjMTIz",
         "USER": "YWJjMTIz",
         "TOKEN": "YWJjMTIz"
     }
-    all_clients["list_namespaced_pod_mock"].return_value = pod_listed
-    all_clients["list_namespaced_secret_mock"].return_value = secret_listed
     return all_clients
 
 
@@ -349,59 +248,8 @@ def dictionary(dataset) -> List[Dictionary]:
 
 
 @fixture
-def task(user_uuid, dataset, container, project) -> Task:
-    task = Task(
-        dataset=dataset,
-        docker_image=container.full_image_name(),
-        name="testTask",
-        executors=[
-            {
-                "image": container.full_image_name()
-            }
-        ],
-        requested_by=user_uuid,
-        project_id=project.id
-    )
-    task.add()
-    return task
-
-
-@fixture
 def dar_user():
     return "some@test.com"
-
-
-@fixture
-def pod_dict(dataset):
-    return {
-        "name": "pod_name",
-        "image": "image",
-        "labels": {
-            "task_id": 1
-        },
-        "dataset": dataset,
-        "dry_run": "false",
-        "env_from": [],
-        "command": "cmd",
-        "mount_path": {"folder1": "/mnt"},
-        "input_path": {"input.csv": "/mnt"},
-        "environment": {},
-        "resources": {},
-        "db_query": {
-            "query": "SELECT * FROM table",
-            "dialect": "postgres"
-        },
-        "regcred_secret": "acrsecret"
-    }
-
-
-@fixture
-def job_dict():
-    return {
-        "name": "job_name",
-        "persistent_volumes": [],
-        "labels": {}
-    }
 
 
 @fixture
@@ -416,36 +264,6 @@ def access_request(dataset, user_uuid, k8s_client):
     )
     request.add()
     return request
-
-
-# Conditional url side_effects
-def side_effect(dict_mock:dict):
-    """
-    This tries to mock dynamically according to what urllib3.requests
-    receives as args returning a default 200 response body with an empty body
-
-    :param dict_mock: should include the following keys
-        - url:str       (required): portion of the requested url to mock
-        - method:str    (optional): request method, defaults to GET
-        - status:int    (optional): response status_code, defaults to 200
-        - body:bytes    (optional): response body, defaults to an empty bytes string
-    """
-    def _url_side_effects(*args, **kwargs):
-        """
-        args:
-        [0] -> method
-        [1] -> url
-        """
-        default_body = ''.encode()
-        method, url = args
-        if dict_mock['url'] in url and dict_mock.get('method', 'GET') == method:
-            return Mock(
-                status=dict_mock.get('status', 200), data=dict_mock.get('body', default_body)
-            )
-        return Mock(
-            status=200, data=default_body
-        )
-    return _url_side_effects
 
 
 @fixture
@@ -490,24 +308,6 @@ def new_user_email():
 @fixture
 def new_user(new_user_email):
     return {"email": new_user_email, "id": "8b707136-a2d8-4b69-9ab5-ec341011a62f", "username": new_user_email}
-
-
-@fixture
-def set_task_other_delivery_env(mocker):
-    mocker.patch('app.admin_api.TASK_CONTROLLER', "enabled")
-    mocker.patch('app.admin_api.OTHER_DELIVERY', "url.delivery.com")
-
-
-@fixture
-def set_task_other_delivery_allowed_env(mocker, set_task_other_delivery_env):
-    mocker.patch('app.models.task.TASK_CONTROLLER', "enabled")
-    mocker.patch('app.models.task.AUTO_DELIVERY_RESULTS', "enabled")
-
-
-@fixture
-def set_task_github_delivery_env(mocker):
-    mocker.patch('app.admin_api.TASK_CONTROLLER', "enabled")
-    mocker.patch('app.admin_api.GITHUB_DELIVERY', "org/repository")
 
 
 @fixture
