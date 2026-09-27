@@ -2,18 +2,17 @@ import logging
 import re
 import typing
 import urllib.parse
-
-import sqlalchemy as sa
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from kubernetes.client import V1Secret
-from kubernetes.client.exceptions import ApiException
-
 from app.helpers.base_model import BaseModel, db
 from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, KubernetesException
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
+from kubernetes.client import V1Secret
+from kubernetes.client.exceptions import ApiException
+
 from app.models import Models
 
 logger = logging.getLogger("dataset_model")
@@ -25,22 +24,20 @@ SUPPORTED_ENGINES = ("mssql", "postgres", "mysql", "oracle", "mariadb")
 class Dataset(db.Model, BaseModel):
     __tablename__ = 'datasets'
 
-    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    project_id = sa.Column(
-        sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(256), unique=True, nullable=False)
+    host = Column(String(256), nullable=False)
+    port = Column(Integer, default=5432)
+    schema = Column(String(256), nullable=True)
+    schema_write = Column(String(256), nullable=True)
+    type = Column(String(256), server_default="postgres", nullable=False)
+    extra_connection_args = Column(String(4096), nullable=True)
+    project_id = Column(
+        Integer, ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False
     )
-
-    name = sa.Column(sa.String(256), unique=True, nullable=False)
-    host = sa.Column(sa.String(256), nullable=False)
-    port = sa.Column(sa.Integer, default=5432)
-    schema = sa.Column(sa.String(256), nullable=True)
-    schema_write = sa.Column(sa.String(256), nullable=True)
-    type = sa.Column(sa.String(256), server_default="postgres", nullable=False)
-    extra_connection_args = sa.Column(sa.String(4096), nullable=True)
-
-    created_at = sa.Column(sa.DateTime(timezone=False), nullable=False, server_default=func.now())
-    updated_at = sa.Column(
-        sa.DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
+    created_at = Column(DateTime(timezone=False), nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
     project = relationship(

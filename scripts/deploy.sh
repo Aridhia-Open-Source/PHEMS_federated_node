@@ -97,11 +97,15 @@ echo "=== Deploying Helm Release =============================================="
 
 cd k8s/federated-node
 
-helm upgrade \
-  --install "$RELEASE_NAME" . \
+echo "Helm install command:"
+echo "  helm install $RELEASE_NAME . -f $VALUES_FILE --timeout 10m --namespace $NAMESPACE --debug"
+echo
+
+helm install "$RELEASE_NAME" . \
   -f "$VALUES_FILE" \
   --timeout 10m \
-  --namespace "$NAMESPACE"
+  --namespace "$NAMESPACE" \
+  --debug
 
 cd - > /dev/null
 

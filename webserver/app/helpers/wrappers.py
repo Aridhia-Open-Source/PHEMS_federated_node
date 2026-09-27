@@ -6,9 +6,9 @@ from sqlalchemy.exc import IntegrityError
 
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError
 from app.helpers.keycloak import Keycloak
-from app.models.audit import Audit
+from app.models.extras.audit import Audit
 from app.models.dataset import Dataset
-from app.models.request import Request
+from app.models.extras.request import Request
 
 logger = logging.getLogger('wrappers')
 logger.setLevel(logging.INFO)

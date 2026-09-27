@@ -11,22 +11,18 @@ from app.models.pull_request_status import PullRequestStatus
 
 class PullRequest(db.Model, BaseModel):
     """
-    A GitHub pull request merged to a watched repository.
+    A GitHub pull request merged to a watched repository.`
     Stores PR metadata and spec for async processing by Dagster sensors.
     """
     __tablename__ = 'pull_requests'
 
-    trigger_repository_id = sa.Column(
-        sa.Integer, sa.ForeignKey('trigger_repositories.id', ondelete='CASCADE'),
-        nullable=False, primary_key=True
-    )
     number = sa.Column(sa.Integer, nullable=False, primary_key=True)
-
     title = sa.Column(sa.String(256), nullable=False)
     raised_by = sa.Column(sa.String(256), nullable=False)
-    merge_commit_sha = sa.Column(sa.String(40), nullable=False)
     merged_at = sa.Column(sa.DateTime(timezone=False), nullable=False)
     saved_at = sa.Column(sa.DateTime(timezone=False), server_default=func.now())
+    merge_commit_sha = sa.Column(sa.String(40), nullable=False)
+    spec = sa.Column(sa.JSON, nullable=False, default={})
 
     status = sa.Column(
         sa.String(32),
@@ -34,7 +30,11 @@ class PullRequest(db.Model, BaseModel):
         default=PullRequestStatus.UNKNOWN.value,
         server_default=PullRequestStatus.UNKNOWN.value,
     )
-    spec = sa.Column(sa.JSON, nullable=False, default={})
+
+    trigger_repository_id = sa.Column(
+        sa.Integer, sa.ForeignKey('trigger_repositories.id', ondelete='CASCADE'),
+        nullable=False, primary_key=True
+    )
 
     trigger_repository = orm.relationship("TriggerRepository", back_populates="pull_requests")
 
