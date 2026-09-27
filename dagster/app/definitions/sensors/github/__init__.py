@@ -208,6 +208,7 @@ def task_success_sensor(context: RunStatusSensorContext):
             "trigger": "github_transfer",
             "pr_number": pr_number,
             "parent_run_id": run.run_id,
+            "repo_uri": repo_uri,
         },
         run_config={
             "ops": {
@@ -277,50 +278,50 @@ def task_cancelled_sensor(context: RunStatusSensorContext):
     )
 
 
-# @dg.run_status_sensor(
-#     run_status=dg.DagsterRunStatus.SUCCESS,
-#     default_status=dg.DefaultSensorStatus.RUNNING,
-#     monitored_jobs=[github_transfer_job],
-#     request_job=github_pr_comment_job,
-#     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
-# )
-# def github_transfer_success_comment_sensor(context: RunStatusSensorContext):
-#     """Trigger PR comment after successful transfer job."""
-#     run = context.dagster_run
+@dg.run_status_sensor(
+    run_status=dg.DagsterRunStatus.SUCCESS,
+    default_status=dg.DefaultSensorStatus.RUNNING,
+    monitored_jobs=[github_transfer_job],
+    request_job=github_pr_comment_job,
+    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
+)
+def github_transfer_success_comment_sensor(context: RunStatusSensorContext):
+    """Trigger PR comment after successful transfer job."""
+    run = context.dagster_run
 
-#     if not run.tags.get("trigger") == "github":
-#         yield dg.SkipReason("Run not triggered from github")
-#         return
+    if not run.tags.get("trigger") == "github_transfer":
+        yield dg.SkipReason("Run not triggered from github transfer")
+        return
 
-#     if not run.tags.get("pr_number"):
-#         yield dg.SkipReason("Missing pr_number tag")
-#         return
+    if not run.tags.get("pr_number"):
+        yield dg.SkipReason("Missing pr_number tag")
+        return
 
-#     pr_number = run.tags["pr_number"]
-#     parent_run_id = run.tags.get("parent_run_id", "")
-#     repo_uri = run.tags.get("repo_uri", "")
+    pr_number = run.tags["pr_number"]
+    parent_run_id = run.tags.get("parent_run_id", "")
+    repo_uri = run.tags.get("repo_uri", "")
 
-#     context.log.info(f"Triggering PR comment for PR #{pr_number}")
+    context.log.info(f"Triggering PR comment for PR #{pr_number}")
 
-#     yield dg.RunRequest(
-#         run_key=f"{pr_number}-comment",
-#         tags={
-#             "trigger": "github",
-#             "pr_number": pr_number,
-#             "parent_run_id": parent_run_id,
-#         },
-#         run_config={
-#             "ops": {
-#                 "github_pr_comment_op": {
-#                     "config": {
-#                         "pr_number": pr_number,
-#                         "parent_run_id": parent_run_id,
-#                         "repo_uri": repo_uri,
-#                     }
-#                 }
-#             }
-#         },
-#     )
+    yield dg.RunRequest(
+        run_key=f"{pr_number}-comment",
+        tags={
+            "trigger": "github",
+            "pr_number": pr_number,
+            "parent_run_id": parent_run_id,
+        },
+        run_config={
+            "ops": {
+                "github_pr_comment_op": {
+                    "config": {
+                        "pr_number": pr_number,
+                        "parent_run_id": parent_run_id,
+                        "repo_uri": repo_uri,
+                    }
+                }
+            }
+        },
+    )
 
 
 SENSORS = [
@@ -331,7 +332,7 @@ SENSORS = [
     task_success_sensor,
     task_failure_sensor,
     task_cancelled_sensor,
-    # github_transfer_success_comment_sensor,
+    github_transfer_success_comment_sensor,
 ]
 
 JOBS = [github_transfer_job, github_pr_comment_job]

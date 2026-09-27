@@ -157,6 +157,23 @@ def upgrade() -> None:
         sa.UniqueConstraint('project_id'),
     )
 
+    # Create task_requests table (NEW - unified trigger entity)
+    op.create_table(
+        'task_requests',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('pull_request_id', sa.Integer(), nullable=True),
+        sa.Column('api_request_id', sa.Integer(), nullable=True),
+        sa.Column('project_id', sa.Integer(), nullable=False),
+        sa.Column('status', sa.String(length=32), nullable=False, server_default='UNKNOWN'),
+        sa.Column('payload', sa.JSON(), nullable=False, server_default='{}'),
+        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.ForeignKeyConstraint(['pull_request_id'], ['pull_requests.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['api_request_id'], ['api_requests.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id'),
+    )
+
     # Create tasks table
     op.create_table(
         'tasks',
@@ -263,6 +280,7 @@ def downgrade() -> None:
     op.drop_table('dictionaries')
     op.drop_table('catalogues')
     op.drop_table('whitelisted_images')
+    op.drop_table('task_requests')
     op.drop_index('ix_tasks_project_id', 'tasks')
     op.drop_table('tasks')
     op.drop_table('results_backends')

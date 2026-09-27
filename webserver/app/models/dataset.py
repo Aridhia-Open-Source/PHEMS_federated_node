@@ -2,6 +2,7 @@ import logging
 import re
 import typing
 import urllib.parse
+from typing import cast
 
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship
@@ -229,8 +230,7 @@ class Dataset(db.Model, BaseModel):
         secret_name: str = self.get_creds_secret_name()
 
         # Get existing secret
-        from typing import cast
-        secret: V1Secret = cast(
+        secret: V1Secret = typing.cast(
             V1Secret,
             v1.read_namespaced_secret(secret_name, DEFAULT_NAMESPACE)
         )

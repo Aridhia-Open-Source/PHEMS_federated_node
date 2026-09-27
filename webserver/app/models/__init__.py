@@ -16,6 +16,8 @@ class SqlaColumn:
 
 sqla_column = SqlaColumn()
 
+__all__ = ['sqla_column', 'SqlaColumn', 'ModelRegistry', 'Models']
+
 
 class ModelRegistry:
     """Registry of all app models. Cached on first access."""
@@ -89,6 +91,11 @@ class ModelRegistry:
     def ApiRequest(self):
         from app.models.api_request import ApiRequest
         return ApiRequest
+
+    @cached_property
+    def TaskRequest(self):
+        from app.models.task_request import TaskRequest
+        return TaskRequest
 
 
 Models = ModelRegistry()

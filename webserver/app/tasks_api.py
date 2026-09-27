@@ -13,11 +13,15 @@ tasks-related endpoints:
 """
 from http import HTTPStatus
 from flask import Blueprint, request
+from sqlalchemy import text
 
+from app.helpers.base_model import db
 from app.helpers.exceptions import NotImplementedException, UnauthorizedError
 from app.helpers.keycloak import Keycloak
 from app.helpers.wrappers import audit, auth
 from app.models.task import Task
+from app.models.api_request import ApiRequest
+from app.models.project import Project
 
 bp = Blueprint('tasks', __name__, url_prefix='/tasks')
 
@@ -55,9 +59,6 @@ def get_health():
     """
     GET /tasks/health endpoint. Integration test - checks DB connectivity and schema
     """
-    from app.helpers.base_model import db
-    from sqlalchemy import text
-
     try:
         # Test database connection
         db.session.execute(text("SELECT 1"))
@@ -93,9 +94,8 @@ def get_tasks():
     """
     GET /tasks/ endpoint. Gets the list of tasks with pagination
     """
-    from flask import request as flask_request
-    page = flask_request.args.get('page', 1, type=int)
-    per_page = flask_request.args.get('per_page', 10, type=int)
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
 
     pagination = Task.query.paginate(page=page, per_page=per_page)
     tasks = [t.sanitized_dict() if hasattr(t, 'sanitized_dict') else t.__dict__ for t in pagination.items]
@@ -141,9 +141,6 @@ def post_tasks():
     """
     POST /tasks/ endpoint. Creates a new task from API request
     """
-    from app.helpers.base_model import db
-    from app.models.api_request import ApiRequest
-
     req_body = request.json or {}
     project_name = request.headers.get("project-name")
     req_body["project_name"] = project_name
@@ -157,7 +154,6 @@ def post_tasks():
     dec_token = kc_client.decode_token(token)
     user_id = kc_client.get_user_by_email(dec_token["email"])["id"]
 
-    from app.models.project import Project
     project = Project.query.filter_by(name=project_name).first()
     if not project:
         return {"error": f"Project '{project_name}' not found"}, HTTPStatus.NOT_FOUND

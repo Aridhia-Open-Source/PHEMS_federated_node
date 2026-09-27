@@ -372,3 +372,44 @@ dagster:
     # this chart provides the code server. `deployments` is not read in this mode.
     enabled: true
     enableSubchart: false
+
+### Gitea Git Server
+gitea:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: gitea/gitea
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  service:
+    http:
+      type: ClusterIP
+      port: 3000
+    ssh:
+      type: ClusterIP
+      port: 22
+
+  persistence:
+    enabled: true
+    storageClass: local-path
+    size: 10Gi
+    mountPath: /data
+
+  postgresql:
+    enabled: true
+    auth:
+      username: gitea
+      password: gitea
+      database: gitea
+
+  # Gitea configuration for open/no-auth access during development
+  gitea:
+    config:
+      service:
+        DISABLE_REGISTRATION: false
+        ALLOW_ONLY_EXTERNAL_REGISTRATION: false
+      security:
+        INSTALL_LOCK: true
+      log:
+        LEVEL: info

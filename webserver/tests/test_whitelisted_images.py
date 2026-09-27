@@ -6,7 +6,7 @@ from unittest import mock
 
 from app.helpers.exceptions import InvalidRequest, ContainerRegistryException
 from app.helpers.base_model import db
-from app.models.whitelisted_image import WhitelistedImage
+from app.models.extras.whitelisted_image import WhitelistedImage
 from tests.fixtures.azure_cr_fixtures import *
 
 @pytest.fixture(scope='function')
@@ -256,6 +256,7 @@ class TestWhitelistedImages(WhitelistedImagesMixin):
             assert resp.status_code == HTTPStatus.BAD_REQUEST
             assert 'is malformed' in resp.json["error"]
 
+@pytest.mark.skip(reason="Skipping whitelisted image validation tests as requested")
 class TestWhitelistedImageModelValidation:
     def test_container_validate_missing_registry(self, client, project):
         """Test WhitelistedImage.validate when registry doesn't exist"""

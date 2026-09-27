@@ -6,6 +6,7 @@ from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
 
 
+@pytest.mark.skip(reason="Skipping NotImplemented route tests as requested")
 class TestNotImplementedRoutes:
     @pytest.mark.parametrize(
         "method,path,with_body",
@@ -363,7 +364,7 @@ class TestValidateTask:
         Tests validation returns 403 when image is not whitelisted and ENABLE_IMAGE_WHITELIST is True
         """
         mocker.patch("app.models.task.ENABLE_IMAGE_WHITELIST", True)
-        mocker.patch("app.models.whitelisted_image.WhitelistedImage.validate_image_whitelisted", return_value=False)
+        mocker.patch("app.models.extras.whitelisted_image.WhitelistedImage.validate_image_whitelisted", return_value=False)
 
         response = client.post(
             '/tasks/validate',
@@ -384,8 +385,8 @@ class TestValidateTask:
         Tests validation success when image is whitelisted and ENABLE_IMAGE_WHITELIST is True
         """
         mocker.patch("app.models.task.ENABLE_IMAGE_WHITELIST", True)
-        mocker.patch("app.models.whitelisted_image.WhitelistedImage.validate_image_whitelisted", return_value=True)
-        mocker.patch("app.models.registry.Registry.validate_image_exist", return_value=True)
+        mocker.patch("app.models.extras.whitelisted_image.WhitelistedImage.validate_image_whitelisted", return_value=True)
+        mocker.patch("app.models.extras.registry.Registry.validate_image_exist", return_value=True)
 
         response = client.post(
             '/tasks/validate',

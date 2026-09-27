@@ -114,6 +114,7 @@ class TestModelRegistry:
         configure_mappers()
 
     def test_project_relationships_are_queryable(self, client, project):
-        assert project.delivery_targets == []
         assert project.whitelisted_images == []
         assert project.datasets == []
+        assert project.results_backend is None
+        assert project.api_requests == []

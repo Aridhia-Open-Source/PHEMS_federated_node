@@ -1,0 +1,53 @@
+Setting up docker-compose env vars
+Starting docker compose
+time="2026-09-27T16:54:45+01:00" level=warning msg="Found orphan containers ([flask-app-test]) for this project. If you removed or renamed this service in your compose file, you can run this command with the --remove-orphans flag to clean it up."
+ Container federated_node_tests-db-1  Running
+#1 [internal] load local bake definitions
+#1 reading from stdin 649B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from test.Dockerfile
+#2 transferring dockerfile: 1.20kB done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/python:3.13.5-slim
+#3 DONE 0.5s
+
+#4 [1/8] FROM docker.io/library/python:3.13.5-slim@sha256:4c2cf9917bd1cbacc5e9b07320025bdb7cdf2df7b0ceaccb55e9dd7e30987419
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 49.99kB done
+#5 DONE 0.0s
+
+#6 [2/8] WORKDIR /app
+#6 CACHED
+
+#7 [3/8] RUN apt-get update     && apt-get install --no-install-recommends -y         libpq-dev         python3-dev         gcc         curl         jq     && rm -rf /var/lib/apt/lists/*
+#7 CACHED
+
+#8 [5/8] RUN pip install --no-cache-dir -r requirements-dev.txt
+#8 CACHED
+
+#9 [4/8] COPY requirements-dev.txt .
+#9 CACHED
+
+#10 [6/8] RUN groupadd -g "1001" "fednode" &&     useradd --uid "1001" --gid "1001" --create-home "fednode"
+#10 CACHED
+
+#11 [7/8] COPY --chown=1001:1001 . .
+#11 DONE 0.1s
+
+#12 [8/8] RUN mkdir -p /app/artifacts && chown -R 1001:1001 /app
+#12 DONE 0.9s
+
+#13 exporting to image
+#13 exporting layers 0.1s done
+#13 writing image sha256:fd1b5748b3e58c025c0cc74ca92bff82111880c87113b13135cfdfae0f6aa5e0 done
+#13 naming to docker.io/library/federated_node_app_test done
+#13 DONE 0.1s
+
+#14 resolving provenance for metadata file
+#14 DONE 0.0s
+Error response from daemon: Conflict. The container name "/flask-app-test" is already in use by container "f8d60b5ed8444725315702431f925e7de54ade7a6a51eb8e5b5eb5dda9711289". You have to remove (or rename) that container to be able to reuse that name.
+flask-app-test

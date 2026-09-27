@@ -1,6 +1,7 @@
 import re
 
 import sqlalchemy as sa
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import relationship
 
 from app.helpers.base_model import BaseModel, db

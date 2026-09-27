@@ -14,8 +14,8 @@ from .helpers.query_filters import parse_query_params
 from .helpers.base_model import db
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from .helpers.wrappers import audit, auth
-from .models.whitelisted_image import WhitelistedImage
-from .models.registry import Registry
+from .models.extras.whitelisted_image import WhitelistedImage
+from .models.extras.registry import Registry
 from .helpers.const import ENABLE_IMAGE_WHITELIST
 
 

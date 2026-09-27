@@ -1,0 +1,186 @@
+Setting up docker-compose env vars
+Starting docker compose
+ Container federated_node_tests-db-1  Running
+#1 [internal] load local bake definitions
+#1 reading from stdin 649B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from test.Dockerfile
+#2 transferring dockerfile: 1.20kB done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/python:3.13.5-slim
+#3 DONE 1.0s
+
+#4 [1/8] FROM docker.io/library/python:3.13.5-slim@sha256:4c2cf9917bd1cbacc5e9b07320025bdb7cdf2df7b0ceaccb55e9dd7e30987419
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 29.97kB 0.0s done
+#5 DONE 0.0s
+
+#6 [3/8] RUN apt-get update     && apt-get install --no-install-recommends -y         libpq-dev         python3-dev         gcc         curl         jq     && rm -rf /var/lib/apt/lists/*
+#6 CACHED
+
+#7 [4/8] COPY requirements-dev.txt .
+#7 CACHED
+
+#8 [5/8] RUN pip install --no-cache-dir -r requirements-dev.txt
+#8 CACHED
+
+#9 [2/8] WORKDIR /app
+#9 CACHED
+
+#10 [6/8] RUN groupadd -g "1001" "fednode" &&     useradd --uid "1001" --gid "1001" --create-home "fednode"
+#10 CACHED
+
+#11 [7/8] COPY --chown=1001:1001 . .
+#11 DONE 0.1s
+
+#12 [8/8] RUN mkdir -p /app/artifacts && chown -R 1001:1001 /app
+#12 DONE 1.7s
+
+#13 exporting to image
+#13 exporting layers
+#13 exporting layers 0.2s done
+#13 writing image sha256:d0fda2aa8f9b3d4484b43080194e252d656b6cc0ddb50327cd6248aca70031cd done
+#13 naming to docker.io/library/federated_node_app_test 0.0s done
+#13 DONE 0.2s
+
+#14 resolving provenance for metadata file
+#14 DONE 0.0s
+============================= test session starts ==============================
+platform linux -- Python 3.13.5, pytest-8.4.2, pluggy-1.6.0 -- /usr/local/bin/python3.13
+cachedir: .pytest_cache
+rootdir: /app
+configfile: setup.cfg
+plugins: cov-7.1.0, responses-0.5.1, mock-3.15.1
+collecting ... collected 357 items
+
+tests/keycloak/test_clients.py::TestKeycloakClients::test_create_client PASSED [  0%]
+tests/keycloak/test_clients.py::TestKeycloakClients::test_create_client_update PASSED [  0%]
+tests/keycloak/test_clients.py::TestKeycloakClients::test_get_client_id PASSED [  0%]
+tests/keycloak/test_clients.py::TestKeycloakClients::test_get_client_id_fails PASSED [  1%]
+tests/keycloak/test_clients.py::TestKeycloakClients::test_enable_token_exchange PASSED [  1%]
+tests/keycloak/test_clients.py::TestKeycloakClients::test_enable_token_exchange_policy_exchange_exists PASSED [  1%]
+tests/keycloak/test_clients.py::TestKeycloakClients::test_enable_token_exchange_policy_exchange_fails PASSED [  1%]
+tests/keycloak/test_clients.py::TestKeycloakClients::test_enable_token_exchange_policy_exchange_patch_fails PASSED [  2%]
+tests/keycloak/test_keycloak_helper.py::TestKeycloakResponseFailures::test_exchange_global_token_access_token PASSED [  2%]
+tests/keycloak/test_keycloak_helper.py::TestKeycloakResponseFailures::test_exchange_global_token PASSED [  2%]
+tests/keycloak/test_keycloak_helper.py::TestKeycloakResponseFailures::test_impersonation_token PASSED [  3%]
+tests/keycloak/test_keycloak_helper.py::TestKeycloakResponseFailures::test_get_client_secret PASSED [  3%]
+tests/keycloak/test_keycloak_helper.py::TestKeycloakResponseFailures::test_get_role PASSED [  3%]
+tests/keycloak/test_keycloak_helper.py::TestKeycloakResponseFailures::test_get_resource PASSED [  3%]
+tests/keycloak/test_keycloak_helper.py::TestKeycloakResponseFailures::test_get_resource_empty_list_fails PASSED [  4%]
+tests/keycloak/test_keycloak_helper.py::TestKeycloakResponseFailures::test_get_resource_fails PASSED [  4%]
+tests/keycloak/test_keycloak_helper.py::TestKeycloakResponseFailures::test_create_resource PASSED [  4%]
+tests/keycloak/test_keycloak_helper.py::TestKeycloakResponseFailures::test_patch_resource PASSED [  5%]
+tests/keycloak/test_keycloak_helper.py::TestKeycloakResponseFailures::test_patch_resource_fails PASSED [  5%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_list_users PASSED [  5%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_list_users_fails PASSED [  5%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_get_user PASSED [  6%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_get_user_with_email PASSED [  6%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_get_user_fails PASSED [  6%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_create_user PASSED [  7%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_create_user_fails PASSED [  7%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_get_user_role PASSED [  7%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_get_user_role_fails PASSED [  7%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_assign_role_to_user PASSED [  8%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_assign_role_to_user_fails PASSED [  8%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_reset_user_pass PASSED [  8%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_reset_user_pass_incorrect_temp_pass PASSED [  8%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_reset_user_pass_fails PASSED [  9%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_is_user_admin PASSED [  9%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_is_user_admin_normal_user PASSED [  9%]
+tests/keycloak/test_keycloak_users.py::TestKeycloakUsers::test_is_user_admin_token_expired PASSED [ 10%]
+tests/keycloak/test_permission_model.py::TestKeycloakPolicies::test_get_policy_fails PASSED [ 10%]
+tests/keycloak/test_permission_model.py::TestKeycloakPolicies::test_create_policy PASSED [ 10%]
+tests/keycloak/test_permission_model.py::TestKeycloakPolicies::test_create_policy_409_accepted PASSED [ 10%]
+tests/keycloak/test_permission_model.py::TestKeycloakPolicies::test_create_policy_failed_request PASSED [ 11%]
+tests/keycloak/test_permission_model.py::TestKeycloakScopes::test_get_scope_fails PASSED [ 11%]
+tests/keycloak/test_permission_model.py::TestKeycloakScopes::test_create_scope PASSED [ 11%]
+tests/keycloak/test_permission_model.py::TestKeycloakScopes::test_create_scope_409_accepted PASSED [ 12%]
+tests/keycloak/test_permission_model.py::TestKeycloakScopes::test_create_scope_failed_request PASSED [ 12%]
+tests/keycloak/test_permission_model.py::TestKeycloakPermissions::test_create_permission PASSED [ 12%]
+tests/keycloak/test_permission_model.py::TestKeycloakPermissions::test_create_permission_409_accepted PASSED [ 12%]
+tests/keycloak/test_permission_model.py::TestKeycloakPermissions::test_create_permission_failed_request PASSED [ 13%]
+tests/keycloak/test_permission_model.py::TestKeycloakTimePolicy::test_create_or_update_time_policy PASSED [ 13%]
+tests/keycloak/test_permission_model.py::TestKeycloakTimePolicy::test_create_or_update_time_policy_exists PASSED [ 13%]
+tests/keycloak/test_permission_model.py::TestKeycloakTimePolicy::test_create_or_update_time_policy_fails PASSED [ 14%]
+tests/keycloak/test_tokens.py::TestKeycloakTokens::test_check_permissions PASSED [ 14%]
+tests/keycloak/test_tokens.py::TestKeycloakTokens::test_check_permissions_fails PASSED [ 14%]
+tests/keycloak/test_tokens.py::TestKeycloakTokens::test_is_token_valid PASSED [ 14%]
+tests/keycloak/test_tokens.py::TestKeycloakTokens::test_is_token_valid_without_permission_check PASSED [ 15%]
+tests/keycloak/test_tokens.py::TestKeycloakTokens::test_is_token_valid_without_permission_check_fails PASSED [ 15%]
+tests/keycloak/test_tokens.py::TestKeycloakTokens::test_is_token_valid_fails PASSED [ 15%]
+tests/keycloak/test_tokens.py::TestKeycloakTokens::test_is_token_valid_with_access PASSED [ 15%]
+tests/tasks/test_resource_validators.py::TestResourceValidators::test_valid_values PASSED [ 16%]
+tests/tasks/test_resource_validators.py::TestResourceValidators::test_valid_values_exp PASSED [ 16%]
+tests/tasks/test_resource_validators.py::TestResourceValidators::test_invalid_memory_values PASSED [ 16%]
+tests/tasks/test_resource_validators.py::TestResourceValidators::test_invalid_cpu_values PASSED [ 17%]
+tests/tasks/test_resource_validators.py::TestResourceValidators::test_mem_limit_lower_than_request_fails PASSED [ 17%]
+tests/tasks/test_resource_validators.py::TestResourceValidators::test_cpu_limit_lower_than_request_fails PASSED [ 17%]
+tests/tasks/test_tasks.py::TestNotImplementedRoutes::test_route_not_implemented[get-/tasks/-False] SKIPPED [ 17%]
+tests/tasks/test_tasks.py::TestNotImplementedRoutes::test_route_not_implemented[get-/tasks/1-False] SKIPPED [ 18%]
+tests/tasks/test_tasks.py::TestNotImplementedRoutes::test_route_not_implemented[post-/tasks/1/cancel-False] SKIPPED [ 18%]
+tests/tasks/test_tasks.py::TestNotImplementedRoutes::test_route_not_implemented[post-/tasks/-True] SKIPPED [ 18%]
+tests/tasks/test_tasks.py::TestNotImplementedRoutes::test_route_not_implemented[get-/tasks/1/results-False] SKIPPED [ 19%]
+tests/tasks/test_tasks.py::TestNotImplementedRoutes::test_route_not_implemented[get-/tasks/1/logs-False] SKIPPED [ 19%]
+tests/tasks/test_tasks.py::TestNotImplementedRoutes::test_route_not_implemented[post-/tasks/1/results/approve-False] SKIPPED [ 19%]
+tests/tasks/test_tasks.py::TestNotImplementedRoutes::test_route_not_implemented[post-/tasks/1/results/block-False] SKIPPED [ 19%]
+tests/tasks/test_tasks.py::TestNotImplementedRoutes::test_get_list_tasks_base_user SKIPPED [ 20%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task PASSED   [ 20%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_no_tag_fails PASSED [ 20%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_no_name_fails PASSED [ 21%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_space_name_fails PASSED [ 21%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_with_ds_name PASSED [ 21%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_with_ds_name_and_id PASSED [ 21%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_with_conflicting_ds_name_and_id PASSED [ 22%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_with_non_existing_dataset PASSED [ 22%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_with_non_existing_dataset_name PASSED [ 22%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_unauthorized_task PASSED [ 22%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_image_with_digest PASSED [ 23%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_image_same_name_different_registry PASSED [ 23%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_image_not_found PASSED [ 23%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_image_not_whitelisted FAILED [ 24%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_image_whitelisted_success FAILED [ 24%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_dataset_with_repo PASSED [ 24%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_dataset_with_repo_unlinked PASSED [ 24%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_admin_missing_dataset PASSED [ 25%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_project_without_default_dataset PASSED [ 25%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_dataset_from_another_project PASSED [ 25%]
+tests/tasks/test_tasks.py::TestValidateTask::test_validate_task_basic_user PASSED [ 26%]
+tests/test_audits.py::TestAudits::test_get_audit_events PASSED           [ 26%]
+tests/test_audits.py::TestAudits::test_get_audit_events_not_by_standard_users PASSED [ 26%]
+tests/test_audits.py::TestAudits::test_audit_ignore_empty_json PASSED    [ 26%]
+tests/test_audits.py::TestAudits::test_get_filtered_audit_events PASSED  [ 27%]
+tests/test_audits.py::TestAudits::test_sensitive_data_is_purged PASSED   [ 27%]
+tests/test_catalogues.py::TestCatalogues::test_admin_get_catalogue PASSED [ 27%]
+tests/test_catalogues.py::TestCatalogues::test_admin_get_catalogue_dataset_name PASSED [ 28%]
+tests/test_catalogues.py::TestCatalogues::test_edit_existing_catalogue PASSED [ 28%]
+tests/test_catalogues.py::TestCatalogues::test_add_catalogue_to_existing_dataset PASSED [ 28%]
+tests/test_catalogues.py::TestCatalogues::test_patch_catalogue_doesnt_add_new_one_if_exists PASSED [ 28%]
+tests/test_catalogues.py::TestCatalogues::test_get_catalogue_not_allowed_user PASSED [ 29%]
+tests/test_containers_azure_registries_helper.py::TestAzureRegistry::test_cr_login_failed PASSED [ 29%]
+tests/test_containers_azure_registries_helper.py::TestAzureRegistry::test_cr_metadata_empty PASSED [ 29%]
+tests/test_containers_azure_registries_helper.py::TestAzureRegistry::test_cr_metadata_tag_not_in_api_response PASSED [ 29%]
+tests/test_containers_azure_registries_helper.py::TestAzureRegistry::test_cr_login_connection_error PASSED [ 30%]
+tests/test_containers_azure_registries_helper.py::TestAzureRegistry::test_cr_tags_connection_error PASSED [ 30%]
+tests/test_containers_azure_registries_helper.py::TestAzureRegistry::test_cr_tags_request_fails PASSED [ 30%]
+tests/test_containers_azure_registries_helper.py::TestAzureRegistry::test_cr_list_repo_connection_error PASSED [ 31%]
+tests/test_containers_azure_registries_helper.py::TestAzureRegistry::test_cr_list_repo_request_fails PASSED [ 31%]
+tests/test_containers_dockerhub_registries_helper.py::TestDockerRegistry::test_cr_login_failed PASSED [ 31%]
+tests/test_containers_dockerhub_registries_helper.py::TestDockerRegistry::test_cr_metadata_empty PASSED [ 31%]
+tests/test_containers_dockerhub_registries_helper.py::TestDockerRegistry::test_cr_metadata_tag_not_in_api_response PASSED [ 32%]
+tests/test_containers_github_registries_helper.py::TestGitHubRegistry::test_create_registry_with_no_org_fails PASSED [ 32%]
+tests/test_containers_github_registries_helper.py::TestGitHubRegistry::test_cr_metadata_empty PASSED [ 32%]
+tests/test_containers_github_registries_helper.py::TestGitHubRegistry::test_cr_metadata_tag_not_in_api_response PASSED [ 33%]
+tests/test_containers_github_registries_helper.py::TestGitHubRegistry::test_list_repos PASSED [ 33%]
+tests/test_datasets.py::TestDatasets::test_get_all_datasets PASSED       [ 33%]
+tests/test_datasets.py::TestDatasets::test_get_url_returned_in_dataset_list_executable PASSED [ 33%]
+tests/test_datasets.py::TestDatasets::test_get_all_datasets_no_token PASSED [ 34%]
+tests/test_datasets.py::TestDatasets::test_get_all_datasets_does_not_fail_for_non_admin PASSED [ 34%]
+tests/test_datasets.py::TestDatasets::test_get_dataset_by_id_200 PASSED  [ 34%]
+tests/test_datasets.py::TestDatasets::test_get_dataset_by_id_403 
+Error response from daemon: Could not find the file /app/artifacts/coverage.xml in container flask-app-test
+Error response from daemon: No such container: flask-app-test

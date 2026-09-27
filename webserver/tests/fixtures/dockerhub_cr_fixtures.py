@@ -4,12 +4,12 @@ import responses
 from unittest.mock import Mock
 
 from app.helpers.container_registries import DockerRegistry
-from app.models.whitelisted_image import WhitelistedImage
-from app.models.registry import Registry
+from app.models.extras.whitelisted_image import WhitelistedImage
+from app.models.extras.registry import Registry
 from app.helpers.keycloak import KEYCLOAK_URL
 
 
-DOCKER_CLASS = 'app.models.registry.DockerRegistry'
+DOCKER_CLASS = 'app.models.extras.registry.DockerRegistry'
 
 @pytest.fixture
 def cr_name():

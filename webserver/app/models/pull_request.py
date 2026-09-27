@@ -37,6 +37,7 @@ class PullRequest(db.Model, BaseModel):
     spec = sa.Column(sa.JSON, nullable=False, default={})
 
     trigger_repository = orm.relationship("TriggerRepository", back_populates="pull_requests")
+    task_requests = orm.relationship("TaskRequest", back_populates="pull_request")
 
     @validates('merged_at')
     def validate_merged_at(self, key, value):

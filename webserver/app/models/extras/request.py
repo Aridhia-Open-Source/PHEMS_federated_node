@@ -67,8 +67,8 @@ class Request(db.Model, BaseModel):
         self.requested_by = requested_by
         self.proj_start = proj_start
         self.proj_end = proj_end
-        self.created_at = datetime.now()
-        self.updated_at = datetime.now()
+        self.created_at = dt.now()
+        self.updated_at = dt.now()
 
     def _get_client_name(self, user_id:str):
         # Built from the project the dataset belongs to. Falls back to the submitted string

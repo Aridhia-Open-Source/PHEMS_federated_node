@@ -37,6 +37,7 @@ class Project(db.Model, BaseModel):
     results_repository = relationship("ResultsRepository", back_populates="projects")
     results_backend = relationship("ResultsBackend", back_populates="project", uselist=False)
     api_requests = relationship("ApiRequest", back_populates="project")
+    task_requests = relationship("TaskRequest", back_populates="project")
 
     def __init__(self, name: str, description: str | None = None, **kwargs):
         self.name = name

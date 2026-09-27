@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import select
 
 from app.helpers.base_model import db
-from app.models.audit import Audit
+from app.models.extras.audit import Audit
 
 
 class TestAudits:
