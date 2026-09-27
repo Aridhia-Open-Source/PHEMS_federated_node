@@ -1,0 +1,153 @@
+{{- if and .Values.gitea.enabled (eq .Values.gitea.enabled true) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitea-config
+  namespace: {{ .Release.Namespace }}
+data:
+  app.ini: |
+    ; Gitea configuration
+    APP_NAME = Gitea
+    RUN_MODE = prod
+    RUN_USER = git
+
+    [database]
+    DB_TYPE = sqlite3
+    PATH = /data/gitea.db
+
+    [repository]
+    ROOT = /data/gitea/repositories
+
+    [server]
+    PROTOCOL = http
+    DOMAIN = {{ .Values.gitea.gitea.config.server.DOMAIN | default "gitea.fn.svc" }}
+    ROOT_URL = {{ .Values.gitea.gitea.config.server.ROOT_URL | default "http://gitea.fn.svc:3000/" }}
+    HTTP_PORT = {{ .Values.gitea.gitea.config.server.HTTP_PORT | default "3000" }}
+    SSH_PORT = 22
+    LANDING_PAGE = home
+
+    [service]
+    DISABLE_REGISTRATION = {{ .Values.gitea.gitea.config.service.DISABLE_REGISTRATION | default false }}
+    ALLOW_ONLY_EXTERNAL_REGISTRATION = {{ .Values.gitea.gitea.config.service.ALLOW_ONLY_EXTERNAL_REGISTRATION | default false }}
+    DEFAULT_KEEP_EMAIL_PRIVATE = {{ .Values.gitea.gitea.config.service.DEFAULT_KEEP_EMAIL_PRIVATE | default false }}
+    DEFAULT_USER_VISIBILITY = {{ .Values.gitea.gitea.config.service.DEFAULT_USER_VISIBILITY | default "public" }}
+    REQUIRE_SIGNIN_VIEW = {{ .Values.gitea.gitea.config.service.REQUIRE_SIGNIN_VIEW | default false }}
+
+    [security]
+    INSTALL_LOCK = {{ .Values.gitea.gitea.config.security.INSTALL_LOCK | default true }}
+
+    [log]
+    LEVEL = {{ .Values.gitea.gitea.config.log.LEVEL | default "info" }}
+    MODE = console
+
+    [admin]
+    ADMIN_USER_CREATE = true
+    ADMIN_USERNAME = {{ .Values.gitea.gitea.admin.username | default "admin" }}
+    ADMIN_PASSWORD = {{ .Values.gitea.gitea.admin.password | default "admin" }}
+    ADMIN_EMAIL = {{ .Values.gitea.gitea.admin.email | default "admin@example.com" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitea
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: gitea
+spec:
+  selector:
+    app: gitea
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+    - name: ssh
+      port: 22
+      targetPort: 22
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: gitea
+spec:
+  replicas: {{ .Values.gitea.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: gitea
+  template:
+    metadata:
+      labels:
+        app: gitea
+    spec:
+      initContainers:
+      - name: init-data
+        image: gitea/gitea:{{ .Values.gitea.image.tag | default "1.27.0" }}
+        imagePullPolicy: {{ .Values.gitea.image.pullPolicy | default "IfNotPresent" }}
+        command:
+        - sh
+        - -c
+        - |
+          mkdir -p /data/gitea/conf
+          mkdir -p /data/gitea/repositories
+          mkdir -p /data/gitea/data
+          mkdir -p /data/gitea/log
+          # Copy config from ConfigMap if it exists
+          if [ -f /config/app.ini ]; then
+            cp /config/app.ini /data/gitea/conf/app.ini
+            chmod 644 /data/gitea/conf/app.ini
+          fi
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: config
+          mountPath: /config
+      containers:
+      - name: gitea
+        image: gitea/gitea:{{ .Values.gitea.image.tag | default "1.27.0" }}
+        imagePullPolicy: {{ .Values.gitea.image.pullPolicy | default "IfNotPresent" }}
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        - name: ssh
+          containerPort: 22
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: data
+        emptyDir: {}
+      - name: config
+        configMap:
+          name: gitea-config
+          items:
+          - key: app.ini
+            path: app.ini
+{{- end }}
