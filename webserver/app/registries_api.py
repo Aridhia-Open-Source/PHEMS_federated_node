@@ -31,7 +31,7 @@ def list_registries():
 @bp.route('/<int:registry_id>', methods=['GET'])
 @audit
 @auth(scope='can_admin_dataset')
-def registry_by_id(registry_id:int):
+def registry_by_id(registry_id: int):
     """
     GET /registries endpoint.
     """
@@ -44,7 +44,7 @@ def registry_by_id(registry_id:int):
 @bp.route('/<int:registry_id>', methods=['DELETE'])
 @audit
 @auth(scope='can_admin_dataset')
-def delete_registry_by_id(registry_id:int):
+def delete_registry_by_id(registry_id: int):
     """
     GET /registries endpoint.
     """
@@ -76,7 +76,7 @@ def add_registry():
 @bp.route('/<int:registry_id>', methods=['PATCH'])
 @audit
 @auth(scope='can_admin_dataset')
-def patch_registry(registry_id:int):
+def patch_registry(registry_id: int):
     """
     PATCH /registries/<registry_id> endpoint.
     """

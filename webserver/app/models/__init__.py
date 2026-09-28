@@ -99,3 +99,23 @@ class ModelRegistry:
 
 
 Models = ModelRegistry()
+
+# Force eager import of all models to register them with SQLAlchemy before mapper configuration
+# This ensures string-based relationships can be resolved
+_ = (
+    Models.Audit,
+    Models.Catalogue,
+    Models.Dataset,
+    Models.Dictionary,
+    Models.Project,
+    Models.PullRequest,
+    Models.Registry,
+    Models.Request,
+    Models.Task,
+    Models.WhitelistedImage,
+    Models.TriggerRepository,
+    Models.ResultsRepository,
+    Models.ResultsBackend,
+    Models.ApiRequest,
+    Models.TaskRequest,
+)

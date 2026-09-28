@@ -4,18 +4,21 @@ request-related endpoints:
 - POST /requests
 - GET /code/approve
 """
-from http import HTTPStatus
 import json
+from http import HTTPStatus
+
 from flask import Blueprint, request
-from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from app.helpers.wrappers import audit, auth
+
 from app.helpers.base_model import db
+from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
+from app.helpers.query_filters import parse_query_params
+from app.helpers.wrappers import audit, auth
 from app.models.dataset import Dataset
 from app.models.extras.request import Request
-from app.helpers.query_filters import parse_query_params
 
 bp = Blueprint('requests', __name__, url_prefix='/requests')
 session = db.session
+
 
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
@@ -25,10 +28,8 @@ def get_requests():
     """
     GET /requests/ endpoint. Gets a list of Data Access Request
     """
-    query = parse_query_params(Request, request.args.copy())
-    res = session.execute(query).all()
-    if res:
-        res = [r[0].sanitized_dict() for r in res]
+    paginated = parse_query_params(Request, request.args.copy())
+    res = [r.sanitized_dict() for r in paginated.items]
     return res, HTTPStatus.OK
 
 # Disabled for the time being, also disable the pylint rule for duplicated code

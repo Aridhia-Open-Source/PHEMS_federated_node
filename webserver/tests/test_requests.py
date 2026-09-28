@@ -19,7 +19,6 @@ def request_base_body():
         "proj_end": (dt.now().date() + timedelta(days=10)).strftime("%Y-%m-%d")
     }
 
-@pytest.mark.skip("The requests/ endpoints are deactivated for the time being")
 class TestRequests:
     def create_request(self, client, body:dict, header:dict, status_code=201):
         """
@@ -65,8 +64,9 @@ class TestRequests:
         Tests for non-admin user not being able to see the list of open requests
         """
         response = client.get('/requests/?status=pending', headers=simple_user_header)
-        assert response.status_code == 401
+        assert response.status_code == 403
 
+    @pytest.mark.skip(reason="POST /requests/ endpoint disabled")
     def test_create_request_fails_on_missing_email(
             self,
             request_base_body,
@@ -82,6 +82,7 @@ class TestRequests:
 
         self.create_request(client, request_base_body, post_json_admin_header, 500)
 
+    @pytest.mark.skip(reason="POST /requests/ endpoint disabled")
     def test_create_request_fails_on_missing_dataset(
             self,
             request_base_body,
@@ -95,6 +96,7 @@ class TestRequests:
         response = self.create_request(client, request_base_body, post_json_admin_header, 404)
         assert response == {"error": "Dataset with id 5012 does not exist"}
 
+    @pytest.mark.skip(reason="POST /requests/ approval endpoint disabled")
     def test_approve_non_existing_dar_id(
             self,
             simple_admin_header,
@@ -106,6 +108,7 @@ class TestRequests:
         response_approval = self.approve_request(client, 12354, simple_admin_header, 404)
         assert response_approval == {'error': 'Data Access Request 12354 not found'}
 
+    @pytest.mark.skip(reason="POST /requests/ endpoint disabled")
     def test_create_request_and_approve_is_successful(
             self,
             simple_admin_header,
@@ -141,6 +144,7 @@ class TestRequests:
             headers={"Authorization": f"Bearer {kc_client.admin_token}"}
         )
 
+    @pytest.mark.skip(reason="POST /requests/ endpoint disabled")
     def test_create_request_non_admin_is_not_successful(
             self,
             request_base_body,
@@ -154,6 +158,7 @@ class TestRequests:
         request_base_body["dataset_id"] = dataset.id
         self.create_request(client, request_base_body, post_json_user_header, 401)
 
+    @pytest.mark.skip(reason="POST /requests/ approval endpoint disabled")
     def test_approve_request_already_approved(
             self,
             simple_admin_header,
@@ -167,6 +172,7 @@ class TestRequests:
         response_approval = self.approve_request(client, access_request.id, simple_admin_header, 200)
         assert response_approval == {"message": "Request already approved"}
 
+    @pytest.mark.skip(reason="POST /requests/ approval endpoint disabled")
     def test_approve_request_already_denied(
             self,
             simple_admin_header,
@@ -184,6 +190,7 @@ class TestRequests:
         response_approval = self.approve_request(client, access_request.id, simple_admin_header, 500)
         assert response_approval == {"error": "Request was denied already"}
 
+    @pytest.mark.skip(reason="POST /requests/ endpoint disabled")
     def test_create_request_with_same_project_is_successful(
             self,
             request_base_body,
@@ -225,6 +232,7 @@ class TestRequests:
                 headers={"Authorization": f"Bearer {cl_id.admin_token}"}
             )
 
+    @pytest.mark.skip(reason="POST /requests/ endpoint disabled")
     def test_create_request_with_expired_project(
             self,
             request_base_body,
@@ -266,6 +274,7 @@ class TestRequests:
             headers={"Authorization": f"Bearer {kc_client.admin_token}"}
         )
 
+    @pytest.mark.skip(reason="POST /requests/ endpoint disabled")
     def test_create_request_with_conflicting_project_dates(
             self,
             request_base_body,
@@ -307,6 +316,7 @@ class TestRequests:
             headers={"Authorization": f"Bearer {kc_client.admin_token}"}
         )
 
+    @pytest.mark.skip(reason="POST /requests/ endpoint disabled")
     def test_request_for_invalid_dataset_fails(
             self,
             request_base_body,

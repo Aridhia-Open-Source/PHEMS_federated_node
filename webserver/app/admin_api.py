@@ -29,6 +29,7 @@ def get_audit_logs():
     """
     return parse_query_params(Audit, request.args.copy()), HTTPStatus.OK
 
+
 @bp.route('/delivery-secret', methods=['PATCH'])
 @auth(scope='can_do_admin', check_dataset=False)
 @audit

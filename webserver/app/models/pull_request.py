@@ -15,18 +15,18 @@ class PullRequest(db.Model, BaseModel):
     Stores PR metadata and spec for async processing by Dagster sensors.
     """
     __tablename__ = 'pull_requests'
-
-    trigger_repository_id = sa.Column(
-        sa.Integer, sa.ForeignKey('trigger_repositories.id', ondelete='CASCADE'),
-        nullable=False, primary_key=True
+    __table_args__ = (
+        sa.UniqueConstraint('trigger_repository_id', 'number', name='uq_pr_repo_number'),
     )
-    number = sa.Column(sa.Integer, nullable=False, primary_key=True)
 
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    number = sa.Column(sa.Integer, nullable=False)
     title = sa.Column(sa.String(256), nullable=False)
     raised_by = sa.Column(sa.String(256), nullable=False)
     merge_commit_sha = sa.Column(sa.String(40), nullable=False)
     merged_at = sa.Column(sa.DateTime(timezone=False), nullable=False)
     saved_at = sa.Column(sa.DateTime(timezone=False), server_default=func.now())
+    spec = sa.Column(sa.JSON, nullable=False, default={})
 
     status = sa.Column(
         sa.String(32),
@@ -34,7 +34,11 @@ class PullRequest(db.Model, BaseModel):
         default=PullRequestStatus.UNKNOWN.value,
         server_default=PullRequestStatus.UNKNOWN.value,
     )
-    spec = sa.Column(sa.JSON, nullable=False, default={})
+
+    trigger_repository_id = sa.Column(
+        sa.Integer, sa.ForeignKey('trigger_repositories.id', ondelete='CASCADE'),
+        nullable=False
+    )
 
     trigger_repository = orm.relationship("TriggerRepository", back_populates="pull_requests")
     task_request = orm.relationship("TaskRequest", back_populates="pull_request", uselist=False)

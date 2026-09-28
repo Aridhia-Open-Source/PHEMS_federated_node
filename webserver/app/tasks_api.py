@@ -12,6 +12,7 @@ tasks-related endpoints:
 - GET /tasks/id/logs
 """
 from http import HTTPStatus
+
 from flask import Blueprint, request
 from sqlalchemy import text
 
@@ -19,14 +20,14 @@ from app.helpers.base_model import db
 from app.helpers.exceptions import NotImplementedException, UnauthorizedError
 from app.helpers.keycloak import Keycloak
 from app.helpers.wrappers import audit, auth
-from app.models.task import Task
 from app.models.api_request import ApiRequest
 from app.models.project import Project
+from app.models.task import Task
 
 bp = Blueprint('tasks', __name__, url_prefix='/tasks')
 
 
-def does_user_own_task(task:Task):
+def does_user_own_task(task: Task):
     """
     Simple wrapper to check if the user is the one who
     triggered the task, or is admin.
@@ -40,6 +41,7 @@ def does_user_own_task(task:Task):
 
     if task.requested_by != user_id and not kc_client.is_user_admin(token):
         raise UnauthorizedError("User does not have enough permissions")
+
 
 @bp.route('/service-info', methods=['GET'])
 @audit
@@ -108,6 +110,7 @@ def get_tasks():
         "pages": pagination.pages
     }, HTTPStatus.OK
 
+
 @bp.route('/<int:task_id>', methods=['GET'])
 @audit
 @auth(scope='can_exec_task')
@@ -124,6 +127,7 @@ def get_task_id(task_id):
     task_data = task.sanitized_dict() if hasattr(task, 'sanitized_dict') else task.__dict__
     return task_data, HTTPStatus.OK
 
+
 @bp.route('/<task_id>/cancel', methods=['POST'])
 @audit
 @auth(scope='can_admin_task')
@@ -132,6 +136,7 @@ def cancel_tasks(task_id):
     POST /tasks/id/cancel endpoint. Cancels a task either scheduled or running one
     """
     raise NotImplementedException()
+
 
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
@@ -185,6 +190,7 @@ def post_tasks():
         "created_at": task.created_at.isoformat() if task.created_at else None
     }, HTTPStatus.CREATED
 
+
 @bp.route('/validate', methods=['POST'])
 @audit
 @auth(scope='can_exec_task', check_dataset=False)
@@ -198,6 +204,7 @@ def post_tasks_validate():
     Task.validate(req_body)
     return "Ok", 200
 
+
 @bp.route('/<task_id>/results', methods=['GET'])
 @audit
 @auth(scope='can_exec_task')
@@ -209,14 +216,16 @@ def get_task_results(task_id):
     """
     raise NotImplementedException()
 
+
 @bp.route('/<task_id>/logs', methods=['GET'])
 @audit
 @auth(scope='can_exec_task')
-def get_tasks_logs(task_id:int):
+def get_tasks_logs(task_id: int):
     """
     From a given task, return its logs
     """
     raise NotImplementedException()
+
 
 @bp.route('/<task_id>/results/approve', methods=['POST'])
 @audit
@@ -228,6 +237,7 @@ def approve_results(task_id):
         a task's results
     """
     raise NotImplementedException()
+
 
 @bp.route('/<task_id>/results/block', methods=['POST'])
 @audit

@@ -256,7 +256,6 @@ class TestWhitelistedImages(WhitelistedImagesMixin):
             assert resp.status_code == HTTPStatus.BAD_REQUEST
             assert 'is malformed' in resp.json["error"]
 
-@pytest.mark.skip(reason="Skipping whitelisted image validation tests as requested")
 class TestWhitelistedImageModelValidation:
     def test_container_validate_missing_registry(self, client, project):
         """Test WhitelistedImage.validate when registry doesn't exist"""

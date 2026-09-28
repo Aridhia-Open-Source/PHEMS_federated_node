@@ -1,23 +1,16 @@
-import os
 import base64
 from copy import deepcopy
 from typing import List
 from pytest import fixture
+import pytest
 from datetime import datetime as dt, timedelta
 from sqlalchemy.orm.session import close_all_sessions
+from sqlalchemy import text
 from unittest.mock import Mock
-
-os.environ.setdefault('PGHOST', 'localhost')
-os.environ.setdefault('PGPORT', '5432')
-os.environ.setdefault('PGUSER', 'test')
-os.environ.setdefault('PGPASSWORD', 'test')
-os.environ.setdefault('PGDATABASE', 'test')
-os.environ.setdefault('BACKEND_DB_USER', 'test')
-os.environ.setdefault('BACKEND_DB_PASSWORD', 'test')
-os.environ.setdefault('BACKEND_DB_NAME', 'test')
+import time
 
 from app import create_app
-from app.helpers.base_model import db
+from app.helpers.base_model import db, engine
 from app.models.dataset import Dataset
 from app.models.extras.catalogue import Catalogue
 from app.models.extras.dictionary import Dictionary
@@ -28,6 +21,26 @@ from app.models.results_repository import ResultsRepository
 from app.models.results_backend import ResultsBackend
 from app.models.api_request import ApiRequest
 from app.helpers.exceptions import KeycloakError
+
+
+@fixture(scope='session', autouse=True)
+def check_database_connection():
+    """Check database connectivity before running any tests. Exit entire suite if DB unavailable."""
+    max_retries = 5
+    retry_delay = 1
+    for attempt in range(max_retries):
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            return
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"DB connection attempt {attempt + 1}/{max_retries} failed, retrying...")
+                time.sleep(retry_delay)
+            else:
+                msg = f"DATABASE UNAVAILABLE: Could not connect after {max_retries} attempts: {e}"
+                print(f"\n{msg}\n")
+                pytest.exit(msg, 1)
 
 
 sample_repo_uri = "github.com/org/test-repo"
@@ -354,7 +367,10 @@ def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
             get_token=Mock(return_value={"access_token": "token"}),
             decode_token=Mock(return_value=decode_token_return),
             get_user_by_email=Mock(return_value=basic_user),
-            get_user_by_username=Mock(return_value=basic_user)
+            get_user_by_username=Mock(return_value=basic_user),
+            is_user_admin=Mock(side_effect=lambda token: token == "admin_token"),
+            has_user_roles=Mock(side_effect=lambda user_id, roles: False),
+            is_token_valid=Mock(side_effect=lambda token, scope, *args, **kwargs: token == "admin_token" or scope != 'can_admin_request')
         )),
         "datasets_api_kc": mocker.patch('app.datasets_api.Keycloak', return_value=Mock(
             get_token=Mock(return_value={"access_token": "token"}),

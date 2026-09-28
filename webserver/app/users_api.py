@@ -5,11 +5,12 @@ user-related endpoints:
 - PUT /users/reset-password
 """
 from http import HTTPStatus
+
 from flask import Blueprint, request
 
+from app.helpers.const import PUBLIC_URL
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.keycloak import KEYCLOAK_ADMIN, KEYCLOAK_SERVICE_USER, Keycloak
-from app.helpers.const import PUBLIC_URL
 from app.helpers.wrappers import audit, auth
 
 bp = Blueprint('users', __name__, url_prefix='/users')
@@ -64,6 +65,7 @@ def reset_password():
         new_pass=request.json.get("newPassword")
     )
     return '', HTTPStatus.NO_CONTENT
+
 
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
