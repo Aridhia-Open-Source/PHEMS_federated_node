@@ -1,4 +1,7 @@
 # Releases Changelog
+## 1.20.0
+- Fix AzCopy permission error
+
 ## 1.19.0
 - Add GCP support
 - Add DB liveness check as init container on task pods
