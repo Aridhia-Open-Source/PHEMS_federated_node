@@ -137,6 +137,7 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=False),
         sa.Column('user_id', sa.String(length=256), nullable=False),
+        sa.Column('status', sa.String(length=32), nullable=False, server_default='UNKNOWN'),
         sa.Column('payload', sa.JSON(), nullable=False, server_default='{}'),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),

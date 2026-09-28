@@ -4,6 +4,7 @@ from sqlalchemy.orm import relationship
 
 from app.helpers.base_model import BaseModel, db
 from app.models import sqla_column
+from app.models.pull_request_status import PullRequestStatus
 
 
 class ApiRequest(db.Model, BaseModel):
@@ -12,6 +13,12 @@ class ApiRequest(db.Model, BaseModel):
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     project_id = sa.Column(sa.Integer, sa.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False)
     user_id = sa.Column(sa.String(256), nullable=False)
+    status = sa.Column(
+        sa.String(32),
+        nullable=False,
+        default=PullRequestStatus.UNKNOWN.value,
+        server_default=PullRequestStatus.UNKNOWN.value,
+    )
     payload = sa.Column(sa.JSON, nullable=False, default=dict, server_default='{}')
     created_at = sqla_column.created_at()
 
