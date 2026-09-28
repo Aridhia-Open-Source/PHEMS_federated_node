@@ -1,10 +1,12 @@
 import urllib.parse
-from typing import cast
 from datetime import datetime as dt
 from datetime import timezone as tz
+from typing import cast
 
-from sqlalchemy import Column, DateTime, Integer, String, ForeignKey, func
+import sqlalchemy as sa
 from sqlalchemy.orm import relationship, validates
+from sqlalchemy.sql import func
+
 from app.helpers.base_model import BaseModel, db
 from app.models import Models
 
@@ -16,18 +18,20 @@ def now_ts():
 class TriggerRepository(db.Model, BaseModel):
     __tablename__ = 'trigger_repositories'
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    uri = Column(String(4096), unique=True, nullable=False)
-    watch_dir = Column(String(4096), nullable=False)
-    base_branch = Column(String(256), nullable=False, default='main')
-    project_id = Column(
-        Integer, ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    project_id = sa.Column(
+        sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False
     )
-    initial_cursor = Column(
-        DateTime, nullable=False, server_default=func.now(), default=now_ts
+
+    uri = sa.Column(sa.String(4096), unique=True, nullable=False)
+    watch_dir = sa.Column(sa.String(4096), nullable=False)
+    base_branch = sa.Column(sa.String(256), nullable=False, default='main')
+    initial_cursor = sa.Column(
+        sa.DateTime, nullable=False, server_default=func.now(), default=now_ts
     )
-    created_at = Column(DateTime(timezone=False), server_default=func.now())
-    updated_at = Column(DateTime(timezone=False), onupdate=func.now())
+
+    created_at = sa.Column(sa.DateTime(timezone=False), server_default=func.now(), nullable=True)
+    updated_at = sa.Column(sa.DateTime(timezone=False), onupdate=func.now(), nullable=True)
 
     project = relationship("Project", back_populates="trigger_repositories")
     pull_requests = relationship(

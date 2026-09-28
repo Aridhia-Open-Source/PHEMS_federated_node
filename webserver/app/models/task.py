@@ -1,11 +1,9 @@
 import logging
 import re
-from datetime import datetime
+from datetime import datetime as dt
 from http import HTTPStatus
-from sqlalchemy import (
-    Boolean, CheckConstraint, Column, DateTime, ForeignKey, ForeignKeyConstraint, Index,
-    Integer, JSON, String
-)
+
+import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -32,62 +30,63 @@ REVIEW_STATUS = {
 
 class Task(db.Model, BaseModel):
     __tablename__ = 'tasks'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(256), nullable=False)
-    docker_image = Column(String(256), nullable=False)
-    description = Column(String(4096))
-    status = Column(String(256), default='scheduled')
-    created_at = Column(DateTime(timezone=False), nullable=False, server_default=func.now())
-    updated_at = Column(
-        DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    dataset_id = sa.Column(sa.Integer, sa.ForeignKey('datasets.id', ondelete='CASCADE'), nullable=True)
+    project_id = sa.Column(
+        sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False, index=True
     )
-    requested_by = Column(String(256), nullable=False)
-    review_status = Column(Boolean, nullable=True)
-    dataset_id = Column(Integer, ForeignKey('datasets.id', ondelete='CASCADE'))
+    pr_repository_id = sa.Column(sa.Integer, nullable=True)
+    pr_number = sa.Column(sa.Integer, nullable=True)
+    request_id = sa.Column(sa.Integer, sa.ForeignKey('requests.id', ondelete='SET NULL'), nullable=True)
+    api_request_id = sa.Column(sa.Integer, sa.ForeignKey('api_requests.id', ondelete='SET NULL'), nullable=True)
+
+    name = sa.Column(sa.String(256), nullable=False)
+    docker_image = sa.Column(sa.String(256), nullable=False)
+    description = sa.Column(sa.String(4096), nullable=True)
+    status = sa.Column(sa.String(256), default='scheduled')
+    requested_by = sa.Column(sa.String(256), nullable=False)
+    trigger_source = sa.Column(sa.String(16), nullable=False, server_default=TriggerSource.API.value)
+    dagster_run_id = sa.Column(sa.String(64), nullable=True, unique=True)
+    git_commit_sha = sa.Column(sa.String(40), nullable=True)
+    artifact_key = sa.Column(sa.String(512), nullable=True)
+    reason = sa.Column(sa.String(256), nullable=True)
+    reviewed_by = sa.Column(sa.String(256), nullable=True)
+    results_path = sa.Column(sa.String(512), nullable=True)
+
+    review_status = sa.Column(sa.Boolean, nullable=True)
+    exit_code = sa.Column(sa.Integer, nullable=True)
+
+    created_at = sa.Column(sa.DateTime(timezone=False), nullable=False, server_default=func.now())
+    updated_at = sa.Column(
+        sa.DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+    started_at = sa.Column(sa.DateTime(timezone=False), nullable=True)
+    completed_at = sa.Column(sa.DateTime(timezone=False), nullable=True)
+    reviewed_at = sa.Column(sa.DateTime(timezone=False), nullable=True)
+
+    params = sa.Column(sa.JSON, nullable=False, server_default='{}')
+    trigger_payload = sa.Column(sa.JSON, nullable=True)
+
     dataset = relationship("Dataset")
-    # RESTRICT: a project with task history should not be deletable.
-    project_id = Column(
-        Integer, ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False, index=True
-    )
     project = relationship("Project")
+    api_request = relationship("ApiRequest", back_populates="tasks")
 
-    # NOT NULL columns need a server_default: _get_required_fields() would otherwise make
-    # them mandatory in the POST /tasks request body.
-    trigger_source = Column(String(16), nullable=False, server_default=TriggerSource.API.value)
-    pr_repository_id = Column(Integer, nullable=True)
-    pr_number = Column(Integer, nullable=True)
-    request_id = Column(Integer, ForeignKey('requests.id', ondelete='SET NULL'), nullable=True)
-
-    dagster_run_id = Column(String(64), nullable=True, unique=True)
-    started_at = Column(DateTime(timezone=False), nullable=True)
-    completed_at = Column(DateTime(timezone=False), nullable=True)
-    exit_code = Column(Integer, nullable=True)
-    reason = Column(String(256), nullable=True)
-
-    # Relative to the artifacts mount, which is resolved at read time.
-    artifact_key = Column(String(512), nullable=True)
-    params = Column(JSON, nullable=False, server_default='{}')
-
-    reviewed_by = Column(String(256), nullable=True)
-    reviewed_at = Column(DateTime(timezone=False), nullable=True)
-
-    # The check is both-or-neither and not tied to trigger_source: deleting a repository
-    # cascades to its PRs, which nulls these columns, and a tied constraint would fail.
     __table_args__ = (
-        ForeignKeyConstraint(
+        sa.ForeignKeyConstraint(
             ['pr_repository_id', 'pr_number'],
             ['pull_requests.trigger_repository_id', 'pull_requests.number'],
             ondelete='SET NULL',
             name='fk_tasks_pull_request',
         ),
-        CheckConstraint(
+        sa.CheckConstraint(
             '(pr_repository_id IS NULL) = (pr_number IS NULL)',
             name='ck_tasks_pr_both_or_neither',
         ),
-        Index('ix_tasks_dataset_status', 'dataset_id', 'status'),
-        Index('ix_tasks_requested_by', 'requested_by'),
-        Index('ix_tasks_trigger_source_status', 'trigger_source', 'status'),
-        Index('ix_tasks_pull_request', 'pr_repository_id', 'pr_number'),
+        sa.Index('ix_tasks_dataset_status', 'dataset_id', 'status'),
+        sa.Index('ix_tasks_requested_by', 'requested_by'),
+        sa.Index('ix_tasks_trigger_source_status', 'trigger_source', 'status'),
+        sa.Index('ix_tasks_pull_request', 'pr_repository_id', 'pr_number'),
     )
 
     def __init__(self,
@@ -109,8 +108,8 @@ class Task(db.Model, BaseModel):
         self.dataset = dataset
         self.project_id = project_id
         self.description = description
-        self.created_at = datetime.now()
-        self.updated_at = datetime.now()
+        self.created_at = dt.now()
+        self.updated_at = dt.now()
         self.tags = tags
         self.executors = executors
         self.resources = resources

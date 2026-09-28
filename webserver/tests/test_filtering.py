@@ -1,4 +1,4 @@
-from app.models.audit import Audit
+from app.models.extras.audit import Audit
 
 
 def test_filter_by_date(

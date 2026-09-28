@@ -23,9 +23,9 @@ from .helpers.kubernetes import KubernetesClient
 from .helpers.query_validator import validate
 from .helpers.wrappers import auth, audit
 from .models.dataset import Dataset
-from .models.catalogue import Catalogue
-from .models.dictionary import Dictionary
-from .models.request import Request
+from .models.extras.catalogue import Catalogue
+from .models.extras.dictionary import Dictionary
+from .models.extras.request import Request
 
 
 bp = Blueprint('datasets', __name__, url_prefix='/datasets')

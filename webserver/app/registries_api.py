@@ -11,7 +11,7 @@ from flask import Blueprint, request
 
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.wrappers import audit, auth
-from app.models.registry import Registry
+from app.models.extras.registry import Registry
 
 
 bp = Blueprint('registries', __name__, url_prefix='/registries')

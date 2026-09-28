@@ -13,11 +13,15 @@ tasks-related endpoints:
 """
 from http import HTTPStatus
 from flask import Blueprint, request
+from sqlalchemy import text
 
+from app.helpers.base_model import db
 from app.helpers.exceptions import NotImplementedException, UnauthorizedError
 from app.helpers.keycloak import Keycloak
 from app.helpers.wrappers import audit, auth
 from app.models.task import Task
+from app.models.api_request import ApiRequest
+from app.models.project import Project
 
 bp = Blueprint('tasks', __name__, url_prefix='/tasks')
 
@@ -49,24 +53,76 @@ def get_service_info():
         "doc": "Part of the PHEMS network"
     }, HTTPStatus.OK
 
+
+@bp.route('/health', methods=['GET'])
+def get_health():
+    """
+    GET /tasks/health endpoint. Integration test - checks DB connectivity and schema
+    """
+    try:
+        # Test database connection
+        db.session.execute(text("SELECT 1"))
+
+        # Get list of tables
+        inspector = db.inspect(db.engine)
+        tables = inspector.get_table_names()
+
+        # Check for new tables
+        new_tables = [t for t in ['results_repositories', 'results_backends', 'api_requests'] if t in tables]
+        legacy_tables = [t for t in ['delivery_targets', 'task_deliveries'] if t in tables]
+
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "tables": len(tables),
+            "new_tables": new_tables,
+            "legacy_tables_found": legacy_tables,
+            "schema_version": "baseline",
+            "message": "DB schema migrated successfully" if len(new_tables) == 3 and len(legacy_tables) == 0 else "Schema migration incomplete"
+        }, HTTPStatus.OK
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e)
+        }, HTTPStatus.SERVICE_UNAVAILABLE
+
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
 @audit
 @auth(scope='can_admin_task')
 def get_tasks():
     """
-    GET /tasks/ endpoint. Gets the list of tasks
+    GET /tasks/ endpoint. Gets the list of tasks with pagination
     """
-    raise NotImplementedException()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
 
-@bp.route('/<task_id>', methods=['GET'])
+    pagination = Task.query.paginate(page=page, per_page=per_page)
+    tasks = [t.sanitized_dict() if hasattr(t, 'sanitized_dict') else t.__dict__ for t in pagination.items]
+
+    return {
+        "tasks": tasks,
+        "total": pagination.total,
+        "page": page,
+        "per_page": per_page,
+        "pages": pagination.pages
+    }, HTTPStatus.OK
+
+@bp.route('/<int:task_id>', methods=['GET'])
 @audit
 @auth(scope='can_exec_task')
 def get_task_id(task_id):
     """
-    GET /tasks/id endpoint. Gets a single task
+    GET /tasks/id endpoint. Gets a single task with status
     """
-    raise NotImplementedException()
+    task = Task.query.get(task_id)
+    if not task:
+        return {"error": "Task not found"}, HTTPStatus.NOT_FOUND
+
+    does_user_own_task(task)
+
+    task_data = task.sanitized_dict() if hasattr(task, 'sanitized_dict') else task.__dict__
+    return task_data, HTTPStatus.OK
 
 @bp.route('/<task_id>/cancel', methods=['POST'])
 @audit
@@ -83,9 +139,51 @@ def cancel_tasks(task_id):
 @auth(scope='can_exec_task')
 def post_tasks():
     """
-    POST /tasks/ endpoint. Creates a new task
+    POST /tasks/ endpoint. Creates a new task from API request
     """
-    raise NotImplementedException()
+    req_body = request.json or {}
+    project_name = request.headers.get("project-name")
+    req_body["project_name"] = project_name
+
+    # Validate the task spec
+    Task.validate(req_body)
+
+    # Create ApiRequest record
+    kc_client = Keycloak()
+    token = kc_client.get_token_from_headers()
+    dec_token = kc_client.decode_token(token)
+    user_id = kc_client.get_user_by_email(dec_token["email"])["id"]
+
+    project = Project.query.filter_by(name=project_name).first()
+    if not project:
+        return {"error": f"Project '{project_name}' not found"}, HTTPStatus.NOT_FOUND
+
+    api_request = ApiRequest(
+        project_id=project.id,
+        user_id=user_id,
+        payload=req_body
+    )
+    api_request.add(commit=True)
+
+    # Create Task from ApiRequest
+    task = Task(
+        project_id=project.id,
+        api_request_id=api_request.id,
+        requested_by=user_id,
+        trigger_payload=req_body,
+        name=req_body.get("name", "Unnamed Task"),
+        docker_image=req_body.get("executors", {}).get("image", ""),
+        description=req_body.get("description"),
+        **req_body
+    )
+    task.add(commit=True)
+
+    return {
+        "id": task.id,
+        "api_request_id": api_request.id,
+        "status": task.status,
+        "created_at": task.created_at.isoformat() if task.created_at else None
+    }, HTTPStatus.CREATED
 
 @bp.route('/validate', methods=['POST'])
 @audit

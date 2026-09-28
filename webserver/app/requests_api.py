@@ -11,7 +11,7 @@ from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.wrappers import audit, auth
 from app.helpers.base_model import db
 from app.models.dataset import Dataset
-from app.models.request import Request
+from app.models.extras.request import Request
 from app.helpers.query_filters import parse_query_params
 
 bp = Blueprint('requests', __name__, url_prefix='/requests')

@@ -12,7 +12,7 @@ from .helpers.base_model import engine
 from .helpers.exceptions import NotImplementedException
 from .helpers.query_filters import parse_query_params
 from .helpers.wrappers import audit, auth
-from .models.audit import Audit
+from .models.extras.audit import Audit
 
 
 bp = Blueprint('admin', __name__, url_prefix='/')

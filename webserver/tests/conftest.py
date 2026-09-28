@@ -9,11 +9,14 @@ from unittest.mock import Mock
 from app import create_app
 from app.helpers.base_model import db
 from app.models.dataset import Dataset
-from app.models.catalogue import Catalogue
-from app.models.dictionary import Dictionary
+from app.models.extras.catalogue import Catalogue
+from app.models.extras.dictionary import Dictionary
 from app.models.project import Project
-from app.models.request import Request
+from app.models.extras.request import Request
 from app.models.trigger_repository import TriggerRepository
+from app.models.results_repository import ResultsRepository
+from app.models.results_backend import ResultsBackend
+from app.models.api_request import ApiRequest
 from app.helpers.exceptions import KeycloakError
 
 

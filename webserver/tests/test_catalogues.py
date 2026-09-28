@@ -1,4 +1,4 @@
-from app.models.catalogue import Catalogue
+from app.models.extras.catalogue import Catalogue
 from tests.test_datasets import MixinTestDataset
 
 
