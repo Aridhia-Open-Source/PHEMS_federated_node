@@ -1,3 +1,4 @@
+import os
 import base64
 from copy import deepcopy
 from typing import List
@@ -5,6 +6,15 @@ from pytest import fixture
 from datetime import datetime as dt, timedelta
 from sqlalchemy.orm.session import close_all_sessions
 from unittest.mock import Mock
+
+os.environ.setdefault('PGHOST', 'localhost')
+os.environ.setdefault('PGPORT', '5432')
+os.environ.setdefault('PGUSER', 'test')
+os.environ.setdefault('PGPASSWORD', 'test')
+os.environ.setdefault('PGDATABASE', 'test')
+os.environ.setdefault('BACKEND_DB_USER', 'test')
+os.environ.setdefault('BACKEND_DB_PASSWORD', 'test')
+os.environ.setdefault('BACKEND_DB_NAME', 'test')
 
 from app import create_app
 from app.helpers.base_model import db
