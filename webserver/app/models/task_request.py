@@ -23,6 +23,6 @@ class TaskRequest(db.Model, BaseModel):
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
 
-    pull_request = relationship('PullRequest', back_populates='task_requests')
-    api_request = relationship('ApiRequest', back_populates='task_requests')
+    pull_request = relationship('PullRequest', back_populates='task_request')
+    api_request = relationship('ApiRequest', back_populates='task_request')
     project = relationship('Project', back_populates='task_requests')

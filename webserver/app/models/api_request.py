@@ -24,7 +24,7 @@ class ApiRequest(db.Model, BaseModel):
 
     project = relationship('Project', back_populates='api_requests')
     tasks = relationship('Task', back_populates='api_request')
-    task_requests = relationship('TaskRequest', back_populates='api_request')
+    task_request = relationship('TaskRequest', back_populates='api_request', uselist=False)
 
     def __init__(self, user_id: str, project_id: int, payload: dict | None = None, **kwargs):
         self.user_id = user_id
