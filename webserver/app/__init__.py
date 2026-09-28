@@ -15,9 +15,6 @@ from app import (
     main, admin_api, datasets_api, tasks_api, requests_api, projects_api,
     whitelisted_images_api, registries_api, users_api, trigger_repositories_api
 )
-# Project declares relationships to these by name and no blueprint imports them, so the
-# mapper cannot resolve "DeliveryTarget"/"TaskDelivery" unless they are registered here.
-from app.models import delivery_target, task_delivery  # noqa: F401  pylint: disable=unused-import
 from app.helpers.base_model import build_sql_uri, db
 from app.helpers.exceptions import LogAndException
 from app.fn_flask import FNFlask

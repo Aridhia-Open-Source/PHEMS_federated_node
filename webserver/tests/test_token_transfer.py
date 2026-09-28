@@ -3,7 +3,7 @@ import pytest
 from datetime import datetime, timedelta
 import json
 from unittest import mock
-from app.models.request import Request
+from app.models.extras.request import Request
 from app.helpers.exceptions import KeycloakError
 
 @pytest.fixture

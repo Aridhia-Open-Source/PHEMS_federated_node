@@ -22,11 +22,18 @@ fi
 
 echo
 echo "=== Uninstalling deployment =================================================="
-if helm uninstall $RELEASE_NAME -n $NAMESPACE 2>/dev/null; then
-  echo "Uninstalled existing release: $RELEASE_NAME"
-else
-  echo "Release '$RELEASE_NAME' not found, skipping uninstall"
-fi
+helm uninstall $RELEASE_NAME -n $NAMESPACE --ignore-not-found 2>/dev/null || true
+echo "Release uninstalled (or didn't exist)"
+
+# Wait for release to be fully deleted from helm state
+deadline=$((SECONDS + 30))
+while helm list -n $NAMESPACE 2>/dev/null | grep -q "$RELEASE_NAME"; do
+  if (( SECONDS >= deadline )); then
+    echo "WARNING: Release still in helm state after 30s"
+    break
+  fi
+  sleep 1
+done
 
 echo
 echo "=== Releasing PVCs held by leftover pods ======================================"
@@ -189,6 +196,28 @@ for pv in $(kubectl get pv -o jsonpath='{range .items[?(@.status.phase=="Release
 done
 
 echo "Persistent volumes cleared"
+
+echo
+echo "=== Forcefully deleting namespace ==========================================="
+# Namespace may have lingering resources preventing deletion. Force delete with
+# grace period 0 to ensure complete cleanup before the next deploy.
+for ns in "$NAMESPACE"; do
+  if kubectl get namespace "$ns" >/dev/null 2>&1; then
+    echo "Force deleting namespace: $ns"
+    kubectl delete namespace "$ns" --grace-period=0 --force 2>/dev/null || true
+
+    # Wait for namespace to actually be deleted (up to 30s)
+    deadline=$((SECONDS + 30))
+    while kubectl get namespace "$ns" >/dev/null 2>&1; do
+      if (( SECONDS >= deadline )); then
+        echo "WARNING: Namespace $ns still exists after 30s force delete"
+        break
+      fi
+      sleep 1
+    done
+  fi
+done
+echo "Namespace cleanup complete"
 
 echo
 echo "=== Teardown Complete ======================================================="

@@ -6,7 +6,7 @@ from unittest import mock
 
 from app.helpers.exceptions import InvalidRequest, ContainerRegistryException
 from app.helpers.base_model import db
-from app.models.whitelisted_image import WhitelistedImage
+from app.models.extras.whitelisted_image import WhitelistedImage
 from tests.fixtures.azure_cr_fixtures import *
 
 @pytest.fixture(scope='function')

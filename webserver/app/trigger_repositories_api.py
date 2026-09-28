@@ -12,14 +12,16 @@ trigger repository endpoints (used by dagster for polling state):
 - PATCH /trigger_repositories/<repo_id>/pull_requests/<number>
 """
 from http import HTTPStatus
+
 from flask import Blueprint, request
+
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.wrappers import auth
-from app.models.trigger_repository import TriggerRepository
 from app.models.project import Project
 from app.models.pull_request import PullRequest
 from app.models.pull_request_status import PullRequestStatus
+from app.models.trigger_repository import TriggerRepository
 
 bp = Blueprint('trigger_repositories', __name__, url_prefix='/trigger_repositories')
 session = db.session

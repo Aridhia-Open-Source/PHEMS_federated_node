@@ -6,8 +6,8 @@ from unittest.mock import Mock
 
 from app.helpers.keycloak import KEYCLOAK_URL
 from app.helpers.container_registries import AzureRegistry
-from app.models.whitelisted_image import WhitelistedImage
-from app.models.registry import Registry
+from app.models.extras.whitelisted_image import WhitelistedImage
+from app.models.extras.registry import Registry
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def expected_digest_list():
 @pytest.fixture
 def registry_client(mocker):
     mocker.patch(
-        'app.models.registry.AzureRegistry',
+        'app.models.extras.registry.AzureRegistry',
         return_value=Mock()
     )
 
@@ -91,7 +91,7 @@ def cr_client(mocker, reg_k8s_client):
 @pytest.fixture
 def cr_client_404(mocker):
     mocker.patch(
-        'app.models.registry.AzureRegistry',
+        'app.models.extras.registry.AzureRegistry',
         return_value=Mock(
             login=Mock(return_value="access_token"),
             has_image_tag_or_sha=Mock(return_value=False)

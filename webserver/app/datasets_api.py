@@ -10,8 +10,9 @@ datasets-related endpoints:
 - POST /datasets/token_transfer
 """
 import logging
-from http import HTTPStatus
 from datetime import datetime
+from http import HTTPStatus
+
 from flask import Blueprint, request
 from kubernetes.client import ApiException
 
@@ -21,11 +22,11 @@ from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from .helpers.keycloak import Keycloak
 from .helpers.kubernetes import KubernetesClient
 from .helpers.query_validator import validate
-from .helpers.wrappers import auth, audit
+from .helpers.wrappers import audit, auth
 from .models.dataset import Dataset
-from .models.catalogue import Catalogue
-from .models.dictionary import Dictionary
-from .models.request import Request
+from .models.extras.catalogue import Catalogue
+from .models.extras.dictionary import Dictionary
+from .models.extras.request import Request
 
 
 bp = Blueprint('datasets', __name__, url_prefix='/datasets')

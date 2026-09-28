@@ -372,3 +372,35 @@ dagster:
     # this chart provides the code server. `deployments` is not read in this mode.
     enabled: true
     enableSubchart: false
+
+### Gitea Git Server (Custom, uses shared Postgres)
+gitea:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: gitea/gitea
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  service:
+    http:
+      type: ClusterIP
+      port: 3000
+    ssh:
+      type: ClusterIP
+      port: 22
+
+  persistence:
+    enabled: true
+    storageClass: local-path
+    size: 10Gi
+    mountPath: /data
+
+  # Uses shared Postgres database (db.host, db.port, db.secret)
+  # Gitea role/database created by gitea-db-init Job
+  db:
+    name: gitea
+    user: gitea
+    secret:
+      name: gitea-db
+      key: password

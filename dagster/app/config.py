@@ -45,6 +45,14 @@ class GithubTransferConfig(EnvConfig):
     artifact_mount_path: str = Field(default="", alias="DAGSTER_ARTIFACT_MOUNT_PATH")
 
 
+class GiteaConfig(EnvConfig):
+    token: str = Field(default="", alias="GITEA_TOKEN")
+    base_uri: str = Field(
+        default="http://gitea.fn.svc:3000/api/v1",
+        alias="GITEA_API_URI",
+    )
+
+
 class PipesSecurityContextConfig(BaseSettings):
     """
     Optional pod securityContext for pipes task pods.

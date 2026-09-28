@@ -7,13 +7,21 @@ services:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: test_app
     volumes:
-      - data:/var/lib/postgresql/data
+      - federated_node_tests_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 1s
+      timeout: 5s
+      retries: 10
   app:
     container_name: flask_app_test
     image: federated_node_app_test
     build:
       context: .
       dockerfile: build/test.Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
     links:
       - db
     environment:
@@ -38,4 +46,4 @@ services:
       KEYCLOAK_NAMESPACE:
       FLASK_APP: .
 volumes:
-  data:
+  federated_node_tests_data:

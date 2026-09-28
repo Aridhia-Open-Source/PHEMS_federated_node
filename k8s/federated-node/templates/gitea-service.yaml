@@ -1,0 +1,23 @@
+{{- if .Values.gitea.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitea
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: gitea
+    release: {{ .Release.Name }}
+spec:
+  type: {{ .Values.gitea.service.http.type | default "ClusterIP" }}
+  ports:
+  - name: http
+    port: {{ .Values.gitea.service.http.port | default 3000 }}
+    targetPort: http
+    protocol: TCP
+  - name: ssh
+    port: {{ .Values.gitea.service.ssh.port | default 22 }}
+    targetPort: ssh
+    protocol: TCP
+  selector:
+    app: gitea
+{{- end }}

@@ -1,4 +1,4 @@
-from app.models.dictionary import Dictionary
+from app.models.extras.dictionary import Dictionary
 from tests.test_datasets import MixinTestDataset
 
 

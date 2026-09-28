@@ -1,9 +1,11 @@
-from datetime import datetime
 import logging
-from sqlalchemy import Column, Integer, DateTime, String, ForeignKey, update
+from datetime import datetime as dt
+
+import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.exc import IntegrityError
+
 from app.helpers.base_model import BaseModel, db
 from app.models.dataset import Dataset
 from app.models.project import Project
@@ -17,25 +19,25 @@ logger.setLevel(logging.INFO)
 
 class Request(db.Model, BaseModel):
     __tablename__ = 'requests'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    title = Column(String(256), nullable=False)
-    description = Column(String(4096))
-    requested_by = Column(String(256), nullable=False)
-    project_name = Column(String(256), nullable=False)
-    status = Column(String(256), default='pending')
-    proj_start = Column(DateTime(timezone=False), nullable=False)
-    proj_end = Column(DateTime(timezone=False), nullable=False)
-    created_at = Column(DateTime(timezone=False), nullable=False, server_default=func.now())
-    updated_at = Column(
-        DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    dataset_id = sa.Column(sa.Integer, sa.ForeignKey('datasets.id', ondelete='CASCADE'), nullable=True)
+    project_id = sa.Column(sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=True)
+
+    title = sa.Column(sa.String(256), nullable=False)
+    description = sa.Column(sa.String(4096), nullable=True)
+    requested_by = sa.Column(sa.String(256), nullable=False)
+    project_name = sa.Column(sa.String(256), nullable=False)
+    status = sa.Column(sa.String(256), default='pending')
+
+    proj_start = sa.Column(sa.DateTime(timezone=False), nullable=False)
+    proj_end = sa.Column(sa.DateTime(timezone=False), nullable=False)
+    created_at = sa.Column(sa.DateTime(timezone=False), nullable=False, server_default=func.now())
+    updated_at = sa.Column(
+        sa.DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
-    dataset_id = Column(Integer, ForeignKey(Dataset.id, ondelete='CASCADE'))
     dataset = relationship("Dataset")
-
-    # The dataset determines the project, so this is derived rather than submitted. It is
-    # nullable only because project_name predates it and old rows are backfilled.
-    project_id = Column(Integer, ForeignKey(Project.id, ondelete='RESTRICT'), nullable=True)
     project = relationship("Project", back_populates="requests")
     STATUSES = {
         'approved': 'approved',
@@ -49,8 +51,8 @@ class Request(db.Model, BaseModel):
         project_name: str,
         dataset: Dataset,
         requested_by: str,
-        proj_start: datetime,
-        proj_end: datetime,
+        proj_start: dt,
+        proj_end: dt,
         description: str = '',
         **kwargs
     ):
@@ -65,8 +67,8 @@ class Request(db.Model, BaseModel):
         self.requested_by = requested_by
         self.proj_start = proj_start
         self.proj_end = proj_end
-        self.created_at = datetime.now()
-        self.updated_at = datetime.now()
+        self.created_at = dt.now()
+        self.updated_at = dt.now()
 
     def _get_client_name(self, user_id:str):
         # Built from the project the dataset belongs to. Falls back to the submitted string

@@ -1,9 +1,12 @@
 import re
-from sqlalchemy import Column, Integer, String, ForeignKey, or_, and_
+
+import sqlalchemy as sa
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import relationship
+
 from app.helpers.base_model import BaseModel, db
 from app.models import Models
-from app.models.registry import Registry
+from app.models.extras.registry import Registry
 from app.helpers.exceptions import ContainerRegistryException, InvalidRequest
 
 
@@ -14,27 +17,27 @@ class WhitelistedImage(db.Model, BaseModel):
 
     __tablename__ = 'whitelisted_images'
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(256), nullable=False)
-    tag = Column(String(256), nullable=True)
-    sha = Column(String(256), nullable=True)
-
-    registry_id = Column(Integer, ForeignKey(Registry.id, ondelete='CASCADE'))
-    registry = relationship("Registry")
-
-    project_id = Column(
-        Integer, ForeignKey('projects.id', ondelete='CASCADE'), nullable=False
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    registry_id = sa.Column(sa.Integer, sa.ForeignKey('registries.id', ondelete='CASCADE'), nullable=True)
+    project_id = sa.Column(
+        sa.Integer, sa.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False
     )
+
+    name = sa.Column(sa.String(256), nullable=False)
+    tag = sa.Column(sa.String(256), nullable=True)
+    sha = sa.Column(sa.String(256), nullable=True)
+
+    registry = relationship("Registry")
     project = relationship("Project", back_populates="whitelisted_images")
 
     def __init__(
-            self,
-            name:str,
-            registry:Registry,
-            project_id:int,
-            tag:str=None,
-            sha:str=None
-        ):
+        self,
+        name: str,
+        registry: Registry,
+        project_id: int,
+        tag: str | None = None,
+        sha: str | None = None
+    ):
         self.name = name
         self.registry = registry
         self.project_id = project_id

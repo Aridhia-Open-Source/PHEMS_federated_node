@@ -10,9 +10,9 @@ echo "=== NUKING CLUSTER =======================================================
 echo "This will delete the cluster, registries, and redeploy everything"
 echo
 
-./scripts/cluster.sh down
-
 ./scripts/teardown.sh
+
+./scripts/cluster.sh down
 
 echo
 echo "=== BRINGING CLUSTER BACK UP =============================================="

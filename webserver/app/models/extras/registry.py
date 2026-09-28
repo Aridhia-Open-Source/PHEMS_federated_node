@@ -2,8 +2,9 @@ import base64
 import json
 import logging
 import re
+
+import sqlalchemy as sa
 from kubernetes.client.exceptions import ApiException
-from sqlalchemy import Column, Integer, String, Boolean
 
 from app.helpers.const import TASK_NAMESPACE
 from app.helpers.container_registries import AzureRegistry, BaseRegistry, DockerRegistry, GitHubRegistry
@@ -18,19 +19,19 @@ logger.setLevel(logging.INFO)
 class Registry(db.Model, BaseModel):
     __tablename__ = 'registries'
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    url = Column(String(256), nullable=False)
-    needs_auth = Column(Boolean, default=True)
-    active = Column(Boolean, default=True)
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    url = sa.Column(sa.String(256), nullable=False)
+    needs_auth = sa.Column(sa.Boolean, default=True)
+    active = sa.Column(sa.Boolean, default=True)
 
     def __init__(
-            self,
-            url: str,
-            username: str,
-            password: str,
-            needs_auth:bool=True,
-            active:bool=True
-        ):
+        self,
+        url: str,
+        username: str,
+        password: str,
+        needs_auth: bool = True,
+        active: bool = True
+    ):
         self.url = url
         self.needs_auth = needs_auth
         self.active = active

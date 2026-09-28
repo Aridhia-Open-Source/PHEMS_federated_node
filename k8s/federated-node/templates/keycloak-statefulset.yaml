@@ -29,7 +29,7 @@ spec:
             "start",
             "--import-realm",
             "--http-enabled=true",
-            "--optimized"
+            "--health-enabled=true"
           ]
           name: keycloak
           imagePullPolicy: {{ .Values.pullPolicy }}
