@@ -1,0 +1,132 @@
+{{- if .Values.gitea.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: gitea
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.gitea.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: gitea
+  template:
+    metadata:
+      labels:
+        app: gitea
+    spec:
+      initContainers:
+      {{- include "pgWaitContainer" (dict "ctx" . "host" (include "dbHost" .) "port" (include "dbPort" .)) | nindent 6 }}
+      - name: gitea-init
+        image: "{{ .Values.gitea.image.repository }}:{{ .Values.gitea.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.gitea.image.pullPolicy | default "IfNotPresent" }}
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop: ["ALL"]
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          mkdir -p /data/gitea/conf
+          if [ ! -f /data/gitea/conf/app.ini ]; then
+            cat > /data/gitea/conf/app.ini <<INIEOF
+          APP_NAME = Gitea
+          RUN_MODE = prod
+          [server]
+          PROTOCOL = http
+          DOMAIN = gitea.{{ .Release.Namespace }}.svc
+          ROOT_URL = http://gitea.{{ .Release.Namespace }}.svc:3000/
+          HTTP_ADDR = 0.0.0.0
+          HTTP_PORT = 3000
+          [database]
+          DB_TYPE = postgres
+          HOST = {{ .Values.db.host | default (printf "db.%s.svc" .Release.Namespace) }}:{{ .Values.db.port | default 5432 }}
+          NAME = {{ .Values.gitea.db.name }}
+          USER = {{ .Values.gitea.db.user }}
+          PASSWD = ${DB_PASSWORD}
+          [security]
+          INSTALL_LOCK = true
+          INIEOF
+          fi
+        env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.gitea.db.secret.name | default "gitea-db" }}
+              key: {{ .Values.gitea.db.secret.key | default "password" }}
+        volumeMounts:
+        - name: gitea-data
+          mountPath: /data
+      containers:
+      - name: gitea
+        image: "{{ .Values.gitea.image.repository }}:{{ .Values.gitea.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.gitea.image.pullPolicy | default "IfNotPresent" }}
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        - name: ssh
+          containerPort: 22
+          protocol: TCP
+        env:
+        - name: GITEA_DATABASE_TYPE
+          value: postgres
+        - name: GITEA_DATABASE_HOST
+          value: "{{ .Values.db.host | default (printf "db.%s.svc" .Release.Namespace) }}"
+        - name: GITEA_DATABASE_PORT
+          value: "{{ .Values.db.port | default 5432 }}"
+        - name: GITEA_DATABASE_NAME
+          value: {{ .Values.gitea.db.name }}
+        - name: GITEA_DATABASE_USER
+          value: {{ .Values.gitea.db.user }}
+        - name: GITEA_DATABASE_PASSWD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.gitea.db.secret.name | default "gitea-db" }}
+              key: {{ .Values.gitea.db.secret.key | default "password" }}
+        - name: GITEA_SECURITY_INSTALL_LOCK
+          value: "true"
+        - name: GITEA_LOG_LEVEL
+          value: info
+        - name: GITEA_SERVICE_DISABLE_REGISTRATION
+          value: "false"
+        - name: GITEA_SERVICE_ALLOW_ONLY_EXTERNAL_REGISTRATION
+          value: "false"
+        - name: ROOT_URL
+          value: "http://gitea.{{ .Release.Namespace }}.svc:3000"
+        volumeMounts:
+        - name: gitea-data
+          mountPath: /data
+        livenessProbe:
+          httpGet:
+            path: /api/v1/version
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: gitea-data
+        persistentVolumeClaim:
+          claimName: gitea-pvc
+{{- end }}

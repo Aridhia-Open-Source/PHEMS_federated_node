@@ -129,6 +129,12 @@ local_resource(
 )
 
 local_resource(
+  'gitea-port-forward',
+  serve_cmd='kubectl port-forward svc/gitea -n {ns} 4000:3000'.format(ns=NAMESPACE),
+  labels=['infrastructure'],
+)
+
+local_resource(
   'db-datasets-port-forward',
   serve_cmd='kubectl port-forward svc/db-datasets -n {ns} 5433:5432'.format(ns=NAMESPACE),
   labels=['infrastructure'],

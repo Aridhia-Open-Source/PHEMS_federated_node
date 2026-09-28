@@ -17,6 +17,21 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Create audit table (no dependencies)
+    op.create_table(
+        'audit',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('ip_address', sa.String(length=256), nullable=False),
+        sa.Column('http_method', sa.String(length=256), nullable=False),
+        sa.Column('endpoint', sa.String(length=256), nullable=False),
+        sa.Column('requested_by', sa.String(length=256), nullable=False),
+        sa.Column('status_code', sa.Integer(), nullable=True),
+        sa.Column('api_function', sa.String(length=256), nullable=True),
+        sa.Column('details', sa.String(length=4096), nullable=True),
+        sa.Column('event_time', sa.DateTime(timezone=False), nullable=True, server_default=sa.func.now()),
+        sa.PrimaryKeyConstraint('id'),
+    )
+
     # Create results_repositories table first (no dependencies)
     op.create_table(
         'results_repositories',
@@ -102,6 +117,7 @@ def upgrade() -> None:
         sa.Column('merged_at', sa.DateTime(), nullable=True),
         sa.Column('merge_commit_sha', sa.String(length=40), nullable=True),
         sa.Column('raised_by', sa.String(length=256), nullable=False),
+        sa.Column('saved_at', sa.DateTime(timezone=False), nullable=True, server_default=sa.func.now()),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['trigger_repository_id'], ['trigger_repositories.id'], ondelete='CASCADE'),
@@ -295,3 +311,4 @@ def downgrade() -> None:
     op.drop_index('ix_projects_id', 'projects')
     op.drop_table('projects')
     op.drop_table('results_repositories')
+    op.drop_table('audit')

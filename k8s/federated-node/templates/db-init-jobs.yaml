@@ -194,6 +194,22 @@ spec:
         "dbname" (include "dagsterDbName" .)
         "secret" (dict "name" (include "dagsterDbSecretName" .) "key" (include "dagsterDbSecretKey" .))))) }}
 {{- end }}
+{{- if .Values.gitea.enabled }}
+---
+{{ include "fn.dbInitJob" (dict
+      "ctx" .
+      "jobName" "gitea-db-init"
+      "namespace" .Release.Namespace
+      "inCluster" .Values.create_db_deployment
+      "host" (include "dbHost" .)
+      "port" (include "dbPort" .)
+      "superuser" .Values.db.superuser
+      "superuserSecret" $superuserSecret
+      "roles" (list (dict
+        "user" .Values.gitea.db.user
+        "dbname" .Values.gitea.db.name
+        "secret" .Values.gitea.db.secret))) }}
+{{- end }}
 {{- else }}
 {{- /* Nothing to create, so verify what the DBA created instead. */}}
 {{- $checkRoles := list
@@ -206,6 +222,12 @@ spec:
       "host" (include "dagsterDbHost" .)
       "port" (((.Values.dagster.postgresql).service).port | default (include "dbPort" .))
       "secret" (dict "name" (include "dagsterDbSecretName" .) "key" (include "dagsterDbSecretKey" .))) -}}
+{{- end -}}
+{{- if .Values.gitea.enabled -}}
+{{- $checkRoles = append $checkRoles (dict
+      "user" .Values.gitea.db.user
+      "dbname" .Values.gitea.db.name
+      "secret" .Values.gitea.db.secret) -}}
 {{- end }}
 {{- include "fn.dbCheckJob" (dict
       "ctx" .

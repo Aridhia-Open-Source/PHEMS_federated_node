@@ -7,6 +7,11 @@ set -euo pipefail
 
 source .dev.env
 
+echo
+echo "=== Validating Helm templates ==========================================="
+
+(cd k8s/federated-node && helm template "$RELEASE_NAME" . -f "$VALUES_FILE" --namespace "$NAMESPACE" > /dev/null)
+
 # Host directory backing the cluster's local PVs. cluster.sh bind-mounts it to /data
 # in the kind node, which is what the chart's storage.local.* values point at. Under
 # $HOME so none of this needs sudo.
@@ -16,6 +21,7 @@ HOST_MOUNT_PATHS=(
   "$FN_DATA_DIR/db"
   "$FN_DATA_DIR/dagster/artifacts"
   "$FN_DATA_DIR/datasets"
+  "$FN_DATA_DIR/gitea"
 )
 
 echo
@@ -97,11 +103,15 @@ echo "=== Deploying Helm Release =============================================="
 
 cd k8s/federated-node
 
-helm upgrade \
-  --install "$RELEASE_NAME" . \
+echo "Helm install command:"
+echo "  helm install $RELEASE_NAME . -f $VALUES_FILE --timeout 10m --namespace $NAMESPACE --debug"
+echo
+
+helm install "$RELEASE_NAME" . \
   -f "$VALUES_FILE" \
   --timeout 10m \
-  --namespace "$NAMESPACE"
+  --namespace "$NAMESPACE" \
+  --debug
 
 cd - > /dev/null
 

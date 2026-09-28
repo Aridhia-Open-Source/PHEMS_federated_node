@@ -20,6 +20,7 @@ if config.config_file_name is not None:
 # add your model's MetaData object here
 # for 'autogenerate' support
 from app.helpers.base_model import Base
+import app.models.extras.audit
 import app.models.dataset
 import app.models.project
 import app.models.pull_request

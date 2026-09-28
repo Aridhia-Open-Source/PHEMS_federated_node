@@ -1,0 +1,72 @@
+{{- if .Values.gitea.enabled }}
+{{- if .Values.create_db_deployment }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Release.Name }}-gitea-pv
+spec:
+  storageClassName: {{ .Release.Name }}-gitea-storage
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: {{ .Values.gitea.persistence.size | default "10Gi" }}
+  {{ if .Values.storage.local }}
+  local:
+    path: {{ .Values.storage.local.gitea | default "/data/gitea" }}
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/os
+          operator: In
+          values:
+          - linux
+  {{ else if .Values.storage.azure }}
+  azureFile:
+    shareName: {{ .Values.storage.azure.shareName }}
+    readOnly: false
+    secretName: {{ .Values.storage.azure.secretName | default "azure-storage-secret" }}
+  {{ else if .Values.storage.aws }}
+  csi:
+    driver: efs.csi.aws.com
+    volumeHandle: {{ include "awsStorageAccount" . }}
+  {{ else if .Values.storage.nfs }}
+  nfs:
+    server: {{ .Values.storage.nfs.url }}
+    path: {{ .Values.storage.nfs.path }}
+    readOnly: false
+  {{ end }}
+---
+{{- end }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitea-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: gitea
+    release: {{ .Release.Name }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  {{- if .Values.create_db_deployment }}
+  storageClassName: {{ .Release.Name }}-gitea-storage
+  volumeName: {{ .Release.Name }}-gitea-pv
+  {{- else }}
+  storageClassName: {{ .Values.gitea.persistence.storageClass | default "local-path" }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.gitea.persistence.size | default "10Gi" }}
+{{- if .Values.create_db_deployment }}
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Release.Name }}-gitea-storage
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+volumeBindingMode: WaitForFirstConsumer
+provisioner: Local
+{{- end }}
+{{- end }}
