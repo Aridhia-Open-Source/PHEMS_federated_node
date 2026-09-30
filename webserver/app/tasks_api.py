@@ -5,6 +5,7 @@ tasks-related endpoints:
 - POST /tasks
 - POST /tasks/validate
 - GET /tasks/id
+- PATCH /tasks/id
 - POST /tasks/id/cancel
 - GET /tasks/id/results
 - POST /tasks/id/results/approve
@@ -12,13 +13,14 @@ tasks-related endpoints:
 - GET /tasks/id/logs
 """
 from copy import deepcopy
+from datetime import datetime as dt
 from http import HTTPStatus
 
 from flask import Blueprint, request
 from sqlalchemy import text
 
 from app.helpers.base_model import db
-from app.helpers.exceptions import NotImplementedException, UnauthorizedError
+from app.helpers.exceptions import InvalidRequest, NotImplementedException, UnauthorizedError
 from app.helpers.keycloak import Keycloak
 from app.helpers.task_spec import TaskSpec
 from app.helpers.wrappers import audit, auth
@@ -27,6 +29,7 @@ from app.models.api_request import ApiRequest
 from app.models.task_request import TaskRequest
 from app.models.project import Project
 from app.models.task import Task
+from app.models.task_status import TaskStatus
 
 bp = Blueprint('tasks', __name__, url_prefix='/tasks')
 
@@ -96,6 +99,50 @@ def get_task_id(task_id):
 
     does_user_own_task(task)
 
+    return TaskDTO.from_model(task).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:task_id>', methods=['PATCH'])
+@audit
+@auth(scope='can_admin_task')
+def patch_task(task_id):
+    """
+    PATCH /tasks/id endpoint. Records the progress of a task's run
+    """
+    task = Task.get_by_id(task_id)
+
+    body = request.json or {}
+    if not body:
+        raise InvalidRequest("No fields provided to update")
+
+    unknown = set(body) - {"status", "dagster_run_id", "exit_code", "started_at", "completed_at"}
+    if unknown:
+        raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
+
+    if 'status' in body:
+        if body['status'] not in [s.value for s in TaskStatus]:
+            valid = ', '.join([s.value for s in TaskStatus])
+            raise InvalidRequest(f"Invalid status: {body['status']}. Must be one of: {valid}")
+        task.status = body['status']
+
+    if 'dagster_run_id' in body:
+        if not isinstance(body['dagster_run_id'], str):
+            raise InvalidRequest("dagster_run_id must be a string")
+        task.dagster_run_id = body['dagster_run_id']
+
+    if 'exit_code' in body:
+        if not isinstance(body['exit_code'], int) or isinstance(body['exit_code'], bool):
+            raise InvalidRequest("exit_code must be an integer")
+        task.exit_code = body['exit_code']
+
+    for field in ('started_at', 'completed_at'):
+        if field in body:
+            try:
+                setattr(task, field, dt.fromisoformat(body[field].rstrip('Z')))
+            except (ValueError, AttributeError):
+                raise InvalidRequest(f"{field} must be a valid ISO 8601 datetime string")
+
+    db.session.commit()
     return TaskDTO.from_model(task).dump(), HTTPStatus.OK
 
 
