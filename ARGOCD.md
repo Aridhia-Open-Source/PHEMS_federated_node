@@ -1,6 +1,6 @@
 # ArgoCD Installation
 
-We do reccommend to install ArgoCD before installing the federated node to keep up-to-date with little effort.
+We do recommend to install ArgoCD before installing the federated node to keep up-to-date with little effort.
 
 The installation needs to be performed with some configuration tweaks, this is why the folder [install_argocd](./install_argocd/) exists.
 
