@@ -4,6 +4,7 @@ from typing import cast
 import dagster as dg
 
 from app.definitions.sensors.gitea.base import GiteaSensor
+from app.definitions.run_config import build_run_config
 from app.models import Registry, TriggerRepository, PullRequest, PullRequestStatus
 
 
@@ -127,20 +128,8 @@ class PullRequestTriggerSensor(GiteaSensor):
         Passes spec to k8s_pipes_op via run_config.
         Injects dataset credentials as mounted secret volume.
         """
-        # Either key, as _validate_spec accepts.
-        image = pr.payload.get("image") or pr.payload.get("docker_image")
-        if not image:
-            raise ValueError(f"PR #{pr.number} spec in repo {repo.path} missing 'image'")
-
         dataset = self.backend_api.get_dataset(repo.dataset_id)
-        op_config = {
-            "env": pr.payload.get("env") or {},
-            "docker_image": image,
-            **dataset.dump_task_fields(),
-        }
-        pull_secret = self._image_pull_secret(image)
-        if pull_secret:
-            op_config["image_pull_secret"] = pull_secret
+        run_config = build_run_config(pr.payload, dataset, self._registries())
 
         return dg.RunRequest(
             run_key=f"{pr.trigger_repository_id}/{pr.number}",
@@ -151,23 +140,16 @@ class PullRequestTriggerSensor(GiteaSensor):
                 "repo_id": str(repo.id),
                 "repo_uri": repo.uri,
             },
-            run_config={
-                "ops": {
-                    "k8s_pipes_op": {
-                        "config": op_config
-                    }
-                }
-            },
+            run_config=run_config,
         )
 
-    def _image_pull_secret(self, image: str) -> str | None:
+    def _registries(self) -> list[Registry]:
         """
-        The regcred secret name for the image's registry, so the task pod can pull
-        from a private one. Public images have no registry configured and need none.
+        The configured registries, so the task pod can pull from a private one. Public
+        images have no registry configured and need none.
         """
         try:
-            registries = self.backend_api.get_registries()
+            return self.backend_api.get_registries()
         except Exception as e:
-            self.log.warning(f"Could not fetch registries for image {image}: {e}")
-            return None
-        return Registry.secret_for_image(image, registries)
+            self.log.warning(f"Could not fetch registries: {e}")
+            return []
