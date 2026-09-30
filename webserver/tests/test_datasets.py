@@ -70,7 +70,9 @@ class TestDatasets(MixinTestDataset):
             "schema": None,
             "schema_write": None,
             "repository": None,
-            "extra_connection_args": None
+            "extra_connection_args": None,
+            "volume_claim": None,
+            "path": None
         }
 
     def test_get_all_datasets(
@@ -351,6 +353,8 @@ class TestPostDataset(MixinTestDataset):
             "schema_write": None,
             "repository": None,
             "extra_connection_args": None,
+            "volume_claim": None,
+            "path": None,
             "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset"
         }
 

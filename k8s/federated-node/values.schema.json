@@ -290,6 +290,133 @@
                 { "required": ["gcp"] }
             ]
         },
+        "datasetVolumes": {
+            "type": "array",
+            "description": "Read only volumes holding file based datasets (duckdb, sqlite), one PV and PVC each in the tasks namespace",
+            "default": [],
+            "items": {
+                "type": "object",
+                "required": [
+                    "name"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "PVC name, used as the dataset's volume_claim"
+                    },
+                    "capacity": {
+                        "type": "string",
+                        "default": "10Gi"
+                    },
+                    "mountOptions": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "local": {
+                        "type": "object",
+                        "description": "Local path on the node",
+                        "required": [
+                            "path"
+                        ],
+                        "properties": {
+                            "path": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "azure": {
+                        "type": "object",
+                        "description": "Azure file share",
+                        "required": [
+                            "shareName"
+                        ],
+                        "properties": {
+                            "shareName": {
+                                "type": "string"
+                            },
+                            "secretName": {
+                                "type": "string"
+                            },
+                            "secretNamespace": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "aws": {
+                        "type": "object",
+                        "description": "EFS file system",
+                        "required": [
+                            "fileSystemId"
+                        ],
+                        "properties": {
+                            "fileSystemId": {
+                                "type": "string"
+                            },
+                            "accessPointId": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "gcp": {
+                        "type": "object",
+                        "description": "GCS bucket mounted with GCS FUSE",
+                        "required": [
+                            "bucketName"
+                        ],
+                        "properties": {
+                            "bucketName": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "nfs": {
+                        "type": "object",
+                        "description": "NFS export",
+                        "required": [
+                            "url",
+                            "path"
+                        ],
+                        "properties": {
+                            "url": {
+                                "type": "string"
+                            },
+                            "path": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "oneOf": [
+                    {
+                        "required": [
+                            "local"
+                        ]
+                    },
+                    {
+                        "required": [
+                            "azure"
+                        ]
+                    },
+                    {
+                        "required": [
+                            "aws"
+                        ]
+                    },
+                    {
+                        "required": [
+                            "gcp"
+                        ]
+                    },
+                    {
+                        "required": [
+                            "nfs"
+                        ]
+                    }
+                ]
+            }
+        },
         "pullPolicy": {
             "type": "string",
             "enum": [

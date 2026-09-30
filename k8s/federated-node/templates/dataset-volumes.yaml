@@ -1,0 +1,82 @@
+{{- /*
+Read only volumes holding file based datasets (duckdb, sqlite). Each entry
+gets a static PV and a ReadOnlyMany PVC in the tasks namespace, which a
+dataset then references with source: volume and volume_claim: <name>.
+*/}}
+{{- range .Values.datasetVolumes }}
+{{- $pvName := printf "%s-dataset-%s" $.Release.Name .name }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ $pvName }}
+spec:
+  storageClassName: ""
+  accessModes:
+    - ReadOnlyMany
+  capacity:
+    storage: {{ .capacity | default "10Gi" }}
+  persistentVolumeReclaimPolicy: Retain
+  claimRef:
+    name: {{ .name }}
+    namespace: {{ include "tasks_namespace" $ }}
+  {{- with .mountOptions }}
+  mountOptions:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if .local }}
+  local:
+    path: {{ .local.path }}
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/os
+          operator: In
+          values:
+          - linux
+  {{- else if .azure }}
+  azureFile:
+    shareName: {{ .azure.shareName }}
+    secretName: {{ .azure.secretName | default "azure-storage-secret" }}
+    {{- with .azure.secretNamespace }}
+    secretNamespace: {{ . }}
+    {{- end }}
+    readOnly: true
+  {{- else if .aws }}
+  csi:
+    driver: efs.csi.aws.com
+    {{- if .aws.accessPointId }}
+    volumeHandle: {{ printf "%s::%s" .aws.fileSystemId .aws.accessPointId | quote }}
+    {{- else }}
+    volumeHandle: {{ .aws.fileSystemId | quote }}
+    {{- end }}
+    readOnly: true
+  {{- else if .gcp }}
+  csi:
+    driver: gcsfuse.csi.storage.gke.io
+    volumeHandle: {{ .gcp.bucketName }}
+    readOnly: true
+  {{- else if .nfs }}
+  nfs:
+    server: {{ .nfs.url }}
+    path: {{ .nfs.path }}
+    readOnly: true
+  {{- else }}
+  {{- fail (printf "datasetVolumes %s needs one of local, azure, aws, gcp or nfs" .name) }}
+  {{- end }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .name }}
+  namespace: {{ include "tasks_namespace" $ }}
+spec:
+  storageClassName: ""
+  volumeName: {{ $pvName }}
+  accessModes:
+    - ReadOnlyMany
+  resources:
+    requests:
+      storage: {{ .capacity | default "10Gi" }}
+---
+{{- end }}
