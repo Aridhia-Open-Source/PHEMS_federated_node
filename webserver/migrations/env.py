@@ -27,6 +27,8 @@ import app.models.pull_request
 import app.models.pull_request_status
 import app.models.task
 import app.models.task_status
+import app.models.task_result
+import app.models.task_result_status
 import app.models.trigger_repository
 import app.models.results_repository
 import app.models.results_backend

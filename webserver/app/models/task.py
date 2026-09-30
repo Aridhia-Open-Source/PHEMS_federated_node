@@ -54,6 +54,7 @@ class Task(db.Model, BaseModel):
     project = relationship("Project")
     api_request = relationship("ApiRequest", back_populates="tasks")
     task_request = relationship("TaskRequest", back_populates="task")
+    results = relationship("TaskResult", back_populates="task", cascade="all, delete-orphan", passive_deletes=True)
 
     __table_args__ = (
         sa.UniqueConstraint('task_request_id', name='uq_tasks_task_request'),
