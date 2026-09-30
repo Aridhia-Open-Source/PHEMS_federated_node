@@ -13,7 +13,7 @@ class TriggerRepository(BaseModel):
 
     id: int
     uri: str
-    path: str
+    repo_path: str
     provider: str
     api_uri: str
     # The Kubernetes secret holding the git token, under the key TOKEN.

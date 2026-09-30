@@ -221,6 +221,7 @@ class BackendAPI:
         watch_dir: str,
         base_branch: str,
         project_id: int,
+        repo_path: str,
         initial_cursor: str | None = None,
     ) -> TriggerRepository:
         """Create a repository"""
@@ -234,6 +235,7 @@ class BackendAPI:
             "base_branch": base_branch,
             "initial_cursor": initial_cursor,
             "project_id": project_id,
+            "repo_path": repo_path,
         }
         response = self.session.post("/trigger_repositories", json=data)
         return TriggerRepository(**response.json())
@@ -326,13 +328,13 @@ class BackendAPI:
             )
         return response.json()
 
-    def get_or_create_repository(self, uri: str, **kwargs) -> TriggerRepository:
-        """Reuse the repository with that uri if there is one, else create it from kwargs"""
+    def get_or_create_repository(self, uri: str, project_id: int, **kwargs) -> TriggerRepository:
+        """Reuse the project's repository with that uri if there is one, else create it from kwargs"""
         # The backend stores the host and path only, with the scheme stripped
         parsed = urlparse(uri)
         stored_uri = (parsed.netloc + parsed.path).lower().rstrip("/")
         for repo in self.get_repositories():
-            if repo.uri == stored_uri:
+            if repo.project_id == project_id and repo.uri == stored_uri:
                 self.logger.info(f"Reusing existing repository {repo.uri} ({repo.id})")
                 return repo
-        return self.create_repository(uri=uri, **kwargs)
+        return self.create_repository(uri=uri, project_id=project_id, **kwargs)

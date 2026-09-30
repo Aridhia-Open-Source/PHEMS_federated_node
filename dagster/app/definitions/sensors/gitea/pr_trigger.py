@@ -62,10 +62,10 @@ class PullRequestTriggerSensor(GiteaSensor):
 
     def _setup_pull_request(self, repo: TriggerRepository, pr: PullRequest) -> tuple[str, dict]:
         spec = {}
-        self.log.info(f"=== SETUP PR #{pr.number} in repo {repo.path} ===")
+        self.log.info(f"=== SETUP PR #{pr.number} in repo {repo.repo_path} ===")
         self.log.info(f"Watch dir: {repo.watch_dir}")
 
-        pr_files = self.gitea_api.get_pull_request_files(repo.path, pr.number)
+        pr_files = self.gitea_api.get_pull_request_files(repo.repo_path, pr.number)
         self.log.info(f"Files in PR: {[f['filename'] for f in pr_files]}")
 
         watched_files = self._filter_watched_files(repo.watch_dir, pr_files)
@@ -104,7 +104,7 @@ class PullRequestTriggerSensor(GiteaSensor):
 
     def _get_spec_data(self, repo: TriggerRepository, filepath: str, ref: str):
         contents = self.gitea_api.get_file_contents(
-            repo_path=repo.path,
+            repo_path=repo.repo_path,
             file_path=filepath,
             ref=ref,
         )
@@ -130,7 +130,7 @@ class PullRequestTriggerSensor(GiteaSensor):
         # Either key, as _validate_spec accepts.
         image = pr.payload.get("image") or pr.payload.get("docker_image")
         if not image:
-            raise ValueError(f"PR #{pr.number} spec in repo {repo.path} missing 'image'")
+            raise ValueError(f"PR #{pr.number} spec in repo {repo.repo_path} missing 'image'")
 
         dataset = self.backend_api.get_dataset(repo.dataset_id)
         op_config = {

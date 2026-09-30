@@ -40,7 +40,7 @@ class TestPullRequestIngestSensor:
         """Sensor should skip if no new PRs are found."""
         repo = MagicMock()
         repo.id = SAMPLE_REPO["id"]
-        repo.path = SAMPLE_REPO["path"]
+        repo.repo_path = SAMPLE_REPO["repo_path"]
         repo.base_branch = SAMPLE_REPO["base_branch"]
         repo.pr_cursor = "2026-01-01T00:00:00Z"
 

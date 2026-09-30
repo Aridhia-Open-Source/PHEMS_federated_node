@@ -20,19 +20,19 @@ class PullRequestIngestSensor(GithubSensor):
 
         prs_found = []
         for repo in repositories:
-            self.log.info(f"Fetching PRs for {repo.path} since {repo.pr_cursor}")
+            self.log.info(f"Fetching PRs for {repo.repo_path} since {repo.pr_cursor}")
             pull_reqs = self.github_api.get_new_merged_pulls(
-                repo_path=repo.path,
+                repo_path=repo.repo_path,
                 base_branch=repo.base_branch,
                 merged_after=repo.pr_cursor
             )
-            self.log.info(f"GitHub returned {len(pull_reqs)} PRs for {repo.path}")
+            self.log.info(f"GitHub returned {len(pull_reqs)} PRs for {repo.repo_path}")
 
             for pr_data in pull_reqs:
                 pr = self._fetch_pr(repo, pr_data["number"])
                 repo.pull_requests.append(pr)
 
-            self.log.info(f"Ingested {len(repo.pull_requests)}/{len(pull_reqs)} PRs for {repo.path}")
+            self.log.info(f"Ingested {len(repo.pull_requests)}/{len(pull_reqs)} PRs for {repo.repo_path}")
 
             if repo.pull_requests:
                 self.log.info(f"Saving batch of {len(repo.pull_requests)} PRs for repo {repo.id}")
@@ -47,7 +47,7 @@ class PullRequestIngestSensor(GithubSensor):
         yield dg.SkipReason(f"Saved {len(prs_found)} new pull requests to database.")
 
     def _fetch_pr(self, repo: TriggerRepository, pr_number: int) -> PullRequest:
-        pr = self.github_api.get_pull_request(repo.path, pr_number)
+        pr = self.github_api.get_pull_request(repo.repo_path, pr_number)
         return PullRequest(
             trigger_repository_id=repo.id,
             number=pr['number'],
