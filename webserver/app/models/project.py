@@ -23,9 +23,6 @@ class Project(db.Model, BaseModel):
                       name='fk_projects_default_dataset'),
         nullable=True,
     )
-    results_repository_id = sa.Column(
-        sa.Integer, sa.ForeignKey('results_repositories.id', ondelete='RESTRICT'), nullable=True
-    )
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
 
@@ -36,7 +33,7 @@ class Project(db.Model, BaseModel):
     requests = relationship("Request", back_populates="project")
     trigger_repositories = relationship("TriggerRepository", back_populates="project")
     whitelisted_images = relationship("WhitelistedImage", back_populates="project")
-    results_repository = relationship("ResultsRepository", back_populates="projects")
+    results_repositories = relationship("ResultsRepository", back_populates="project")
     results_backend = relationship("ResultsBackend", back_populates="project", uselist=False)
     api_requests = relationship("ApiRequest", back_populates="project")
     task_requests = relationship("TaskRequest", back_populates="project")
@@ -45,6 +42,13 @@ class Project(db.Model, BaseModel):
         self.name = name
         self.description = description
         self.enabled = enabled
+
+    def get_results_repository(self):
+        """
+        The project's results repository, or None. One per project for now: the only place
+        that assumes it.
+        """
+        return self.results_repositories[0] if self.results_repositories else None
 
     def __repr__(self):
         return f'<Project {self.name}>'
