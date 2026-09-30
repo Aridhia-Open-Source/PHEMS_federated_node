@@ -7,6 +7,12 @@ from app.models import sqla_column
 
 
 class TaskRequest(db.Model, BaseModel):
+    """
+    A request to run a task, from a pull request or an API call, holding the normalised TaskSpec.
+
+    `queued`: True means the request is waiting to be launched. The launcher sets it False
+    once a run has been started.
+    """
     __tablename__ = 'task_requests'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)

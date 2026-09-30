@@ -519,7 +519,7 @@ class TestPostTaskRequest:
         assert response.json["payload"]["image"] == "example:latest"
         assert response.json["payload"]["env"] == {"KEY": "value"}
         assert response.json["project_id"] == repository.project_id
-        assert response.json["queued"] is False
+        assert response.json["queued"] is True
 
     def test_create_links_to_pull_request(self, client, post_json_admin_header, repository, pull_request):
         client.post(

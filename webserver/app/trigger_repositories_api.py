@@ -347,7 +347,9 @@ def post_task_request(repo_id, number):
     # A bad dataset override fails now, not when the task is created
     repo.project.resolve_dataset(spec.dataset)
 
-    task_request = TaskRequest(pull_request_id=pr.id, project_id=repo.project_id, payload=spec.model_dump())
+    task_request = TaskRequest(
+        pull_request_id=pr.id, project_id=repo.project_id, payload=spec.model_dump(), queued=True
+    )
     task_request.add()
 
     return TaskRequestDTO.from_model(task_request).dump(), HTTPStatus.CREATED
