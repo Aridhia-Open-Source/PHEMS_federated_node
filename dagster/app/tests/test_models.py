@@ -9,8 +9,9 @@ SAMPLE_DATASET = {
     "name": "My Dataset",
     "host": "https://db.host",
     "port": 5432,
-    "schema": "cdm",
-    "schema_write": "results",
+    "k8s_secret_name": "my-dataset-creds",
+    "read_schema": "cdm",
+    "write_schema": "results",
     "type": "postgres",
     "slug": "my-dataset",
     "url": "https://db.host/my-dataset",
@@ -18,24 +19,6 @@ SAMPLE_DATASET = {
 
 
 class TestDataset:
-    def test_secret_name_matches_the_backend_naming(self):
-        """Dataset.get_creds_secret_name on the backend produces this name."""
-        assert Dataset(**SAMPLE_DATASET).secret_name == "db.host-my-dataset-creds"
-
-    @pytest.mark.parametrize("name,expected", [
-        ("My Dataset", "db.host-my-dataset-creds"),
-        ("my_dataset", "db.host-my-dataset-creds"),
-        ("my#dataset", "db.host-my-dataset-creds"),
-        ("UPPER", "db.host-upper-creds"),
-    ])
-    def test_secret_name_normalises_the_dataset_name(self, name, expected):
-        assert Dataset(**{**SAMPLE_DATASET, "name": name}).secret_name == expected
-
-    def test_secret_name_strips_the_scheme_from_the_host(self):
-        dataset = Dataset(**{**SAMPLE_DATASET, "host": "http://db.host"})
-
-        assert dataset.secret_name.startswith("db.host-")
-
     def test_dump_task_fields_are_prefixed(self):
         fields = Dataset(**SAMPLE_DATASET).dump_task_fields()
 
@@ -44,9 +27,9 @@ class TestDataset:
             "dataset_host": "https://db.host",
             "dataset_port": 5432,
             "dataset_type": "postgres",
-            "dataset_schema": "cdm",
-            "dataset_schema_write": "results",
-            "dataset_secret_name": "db.host-my-dataset-creds",
+            "dataset_read_schema": "cdm",
+            "dataset_write_schema": "results",
+            "dataset_k8s_secret_name": "my-dataset-creds",
         }
 
     def test_dump_task_fields_feed_the_pipes_op_config(self):
@@ -136,6 +119,9 @@ class TestTriggerRepository:
             id=1,
             uri="github.com/org/repo",
             path="org/repo",
+            provider="github",
+            api_uri="https://api.github.com",
+            k8s_secret_name="org-repo-token",
             watch_dir="specs/",
             base_branch="main",
             project_id=1,
@@ -151,6 +137,9 @@ class TestTriggerRepository:
             id=1,
             uri="github.com/org/repo",
             path="org/repo",
+            provider="github",
+            api_uri="https://api.github.com",
+            k8s_secret_name="org-repo-token",
             watch_dir="specs/",
             base_branch="main",
             project_id=1,

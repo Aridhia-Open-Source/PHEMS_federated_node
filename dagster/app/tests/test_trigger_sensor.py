@@ -142,8 +142,9 @@ SPEC_DATASET = {
     "name": "cdm",
     "host": "db.host",
     "port": 5432,
-    "schema": "cdm",
-    "schema_write": "results",
+    "k8s_secret_name": "db.host-cdm-creds",
+    "read_schema": "cdm",
+    "write_schema": "results",
     "type": "postgres",
     "slug": "cdm",
     "url": "https://db.host/cdm",
@@ -289,7 +290,7 @@ class TestRunRequestConfig:
 
         config = request.run_config["ops"]["k8s_pipes_op"]["config"]
         assert config["dataset_name"] == "cdm"
-        assert config["dataset_secret_name"] == "db.host-cdm-creds"
+        assert config["dataset_k8s_secret_name"] == "db.host-cdm-creds"
         assert config["docker_image"] == "ghcr.io/org/img:1"
 
     def test_the_docker_image_key_is_accepted(self):
