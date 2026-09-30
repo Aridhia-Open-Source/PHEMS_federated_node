@@ -83,6 +83,11 @@ class ModelRegistry:
         return TaskRequest
 
     @cached_property
+    def TaskResult(self):
+        from app.models.task_result import TaskResult
+        return TaskResult
+
+    @cached_property
     def K8sSecret(self):
         from app.models.k8s_secret import K8sSecret
         return K8sSecret
@@ -132,5 +137,6 @@ _ = (
     Models.ResultsBackend,
     Models.ApiRequest,
     Models.TaskRequest,
+    Models.TaskResult,
     Models.K8sSecret,
 )
