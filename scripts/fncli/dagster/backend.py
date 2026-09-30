@@ -303,16 +303,28 @@ class BackendAPI:
         response = self.session.patch(f"/projects/{project_id}", json=data)
         return Project(**response.json())
 
-    def upsert_k8s_secret(self, name: str, values: dict[str, str]) -> None:
-        """The backend keeps only the name, so a re-run rotates the values in the cluster"""
-        response = self.session.get("/k8s_secrets")
-        existing = {secret["name"]: secret for secret in response.json()}
-        if name in existing:
-            self.logger.info(f"Updating k8s secret {name}")
-            self.session.patch(f"/k8s_secrets/{existing[name]['id']}", json={"values": values})
+    def get_k8s_secret(self, project_id: int, name: str) -> dict | None:
+        """The project's secret with that project-local name, if there is one"""
+        response = self.session.get("/k8s_secrets", params={"project_id": project_id})
+        return next((secret for secret in response.json() if secret["name"] == name), None)
+
+    def upsert_k8s_secret(self, project_id: int, name: str, values: dict[str, str]) -> dict:
+        """
+        The backend keeps only the name, so a re-run rotates the values in the cluster.
+        Returns the secret, whose k8s_name is what it is called in the cluster.
+        """
+        existing = self.get_k8s_secret(project_id, name)
+        if existing:
+            self.logger.info(f"Updating k8s secret {name} of project {project_id}")
+            response = self.session.patch(
+                f"/k8s_secrets/{existing['id']}", json={"values": values}
+            )
         else:
-            self.logger.info(f"Creating k8s secret {name}")
-            self.session.post("/k8s_secrets", json={"name": name, "values": values})
+            self.logger.info(f"Creating k8s secret {name} in project {project_id}")
+            response = self.session.post(
+                "/k8s_secrets", json={"project_id": project_id, "name": name, "values": values}
+            )
+        return response.json()
 
     def get_or_create_repository(self, uri: str, **kwargs) -> TriggerRepository:
         """Reuse the repository with that uri if there is one, else create it from kwargs"""

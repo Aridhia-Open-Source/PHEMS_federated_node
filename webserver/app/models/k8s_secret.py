@@ -37,9 +37,9 @@ class K8sSecret(db.Model, BaseModel):
     updated_at = sqla_column.updated_at()
 
     trigger_repositories = relationship(
-        "TriggerRepository", back_populates="k8s_secret", overlaps="project"
+        "TriggerRepository", back_populates="k8s_secret", overlaps="trigger_repositories,project"
     )
-    datasets = relationship("Dataset", back_populates="k8s_secret", overlaps="project")
+    datasets = relationship("Dataset", back_populates="k8s_secret", overlaps="datasets,project")
 
     @classmethod
     def get_in_project(cls, project_id: int, name: str) -> "K8sSecret":

@@ -52,7 +52,7 @@ class Dataset(db.Model, BaseModel):
     project = relationship(
         "Project", back_populates="datasets", foreign_keys=[project_id]
     )
-    k8s_secret = relationship("K8sSecret", back_populates="datasets", overlaps="project")
+    k8s_secret = relationship("K8sSecret", back_populates="datasets", overlaps="datasets,project")
 
     def __init__(
         self,

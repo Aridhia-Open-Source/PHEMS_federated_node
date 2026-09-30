@@ -23,7 +23,7 @@ TERMINATION_GRACE_PERIOD_SECONDS = 300
         "docker_image": dg.Field(str),
         "env": dg.Field(dict, default_value={}, is_required=False),
         "image_pull_secret": dg.Field(str, is_required=False),
-        "dataset_k8s_secret_name": dg.Field(str, is_required=False),
+        "dataset_k8s_secret_k8s_name": dg.Field(str, is_required=False),
         "dataset_name": dg.Field(str, is_required=False),
         "dataset_host": dg.Field(str, is_required=False),
         "dataset_port": dg.Field(int, is_required=False),
@@ -61,7 +61,7 @@ class K8sPipe:
         if not self.config.get('dataset_name'):
             return {}
 
-        keys = ['k8s_secret_name', 'name', 'host', 'port', 'type', 'read_schema', 'write_schema']
+        keys = ['k8s_secret_k8s_name', 'name', 'host', 'port', 'type', 'read_schema', 'write_schema']
         dataset = {k: self.config.get(f'dataset_{k}') for k in keys}
 
         if not all(dataset.values()):
@@ -215,7 +215,7 @@ class K8sPipe:
         return {'username': username, 'password': password}
 
     def _get_k8s_dataset_secret(self, key: str) -> str:
-        return _get_k8s_secret(self.dataset['k8s_secret_name'], self.namespace, key)
+        return _get_k8s_secret(self.dataset['k8s_secret_k8s_name'], self.namespace, key)
 
 
 class K8sPipesResponse:

@@ -18,6 +18,8 @@ class TriggerRepository(BaseModel):
     api_uri: str
     # The Kubernetes secret holding the git token, under the key TOKEN.
     k8s_secret_name: str
+    # What the secret is called in the cluster: the name is local to the project.
+    k8s_secret_k8s_name: str
     watch_dir: str
     base_branch: str
     project_id: int

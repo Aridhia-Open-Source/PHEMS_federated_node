@@ -60,7 +60,7 @@ class TriggerRepository(db.Model, BaseModel):
 
     project = relationship("Project", back_populates="trigger_repositories")
     k8s_secret = relationship(
-        "K8sSecret", back_populates="trigger_repositories", overlaps="project"
+        "K8sSecret", back_populates="trigger_repositories", overlaps="trigger_repositories,project"
     )
     pull_requests = relationship(
         "PullRequest", back_populates="trigger_repository", cascade="all, delete"

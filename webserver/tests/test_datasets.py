@@ -82,6 +82,7 @@ class TestDatasets(MixinTestDataset):
             "extra_connection_args": None,
             "project_id": dataset.project_id,
             "k8s_secret_name": dataset.k8s_secret_name,
+            "k8s_secret_k8s_name": dataset.k8s_secret_k8s_name,
             "created_at": dataset.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             "updated_at": dataset.updated_at.strftime("%Y-%m-%d %H:%M:%S")
         }
@@ -366,6 +367,7 @@ class TestPostDataset(MixinTestDataset):
             "read_schema": None,
             "write_schema": None,
             "k8s_secret_name": data_body["k8s_secret_name"],
+            "k8s_secret_k8s_name": f"{new_ds['project_id']}-{data_body['k8s_secret_name']}",
             "extra_connection_args": None,
             "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset",
             "project_id": new_ds["project_id"],
