@@ -21,6 +21,12 @@ class GitAPI(Protocol):
 
     def get_file_contents(self, repo_path: str, file_path: str, ref: str) -> str: ...
 
+    def find_pull_request_by_branch(self, repo_path: str, head_branch: str, base_branch: str) -> dict | None: ...
+
+    def create_pull_request(
+        self, repo_path: str, head_branch: str, base_branch: str, title: str, body: str
+    ) -> dict: ...
+
 
 class GitAPIFactory:
     """
