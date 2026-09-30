@@ -42,8 +42,9 @@ class MixinTestDataset:
         A dataset references its credentials secret by name, so it has to exist first
         """
         name = data_body.get("k8s_secret_name")
-        if name and not K8sSecret.query.filter_by(name=name).one_or_none():
-            K8sSecret(name=name).add()
+        project_id = data_body.get("project_id")
+        if name and not K8sSecret.query.filter_by(project_id=project_id, name=name).one_or_none():
+            K8sSecret(project_id=project_id, name=name).add()
 
     def post_dataset(
             self,
@@ -826,14 +827,14 @@ class TestDeleteDataset(MixinTestDataset):
         its own lifecycle and other datasets may share it
         """
         ds_id = dataset.id
-        secret_name = dataset.k8s_secret_name
+        secret_id = dataset.k8s_secret_id
         response = client.delete(
             f"/datasets/{ds_id}",
             headers=post_json_admin_header
         )
         assert response.status_code == 204
         assert not Dataset.query.filter_by(id=ds_id).one_or_none()
-        assert K8sSecret.query.filter_by(name=secret_name).one_or_none()
+        assert K8sSecret.query.filter_by(id=secret_id).one_or_none()
         k8s_client["delete_namespaced_secret_mock"].assert_not_called()
 
     def test_delete_dataset_not_found(
