@@ -53,6 +53,10 @@ class GiteaConfig(EnvConfig):
     )
 
 
+class KubernetesConfig(EnvConfig):
+    namespace: str = Field(default="", alias="DAGSTER_DEPLOYMENT_NAMESPACE")
+
+
 class PipesSecurityContextConfig(BaseSettings):
     """
     Optional pod securityContext for pipes task pods.

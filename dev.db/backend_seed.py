@@ -5,6 +5,7 @@ Creates test dataset, repository, and request for manual testing.
 """
 
 import os
+import re
 import sys
 import logging
 
@@ -36,6 +37,8 @@ DATASET_PASSWORD = os.environ['DATASET_PASSWORD']
 DATASET_SCHEMA = os.environ['DATASET_SCHEMA']
 DATASET_SCHEMA_WRITE = os.environ['DATASET_SCHEMA_WRITE']
 DATASET_TYPE = os.environ['DATASET_TYPE']
+# A DNS-safe name for the secret holding the dataset's credentials
+DATASET_SECRET_NAME = re.sub(r'[^a-z0-9.-]+', '-', DATASET_NAME.lower()).strip('-.') + '-creds'
 
 # Data Access Request
 REQUEST_USER_ID = os.environ['REQUEST_USER_ID']
@@ -87,16 +90,21 @@ def seed():
     logger.info("Ensuring project exists...")
     project = api.get_or_create_project(REQUEST_PROJECT_NAME)
 
+    logger.info("Ensuring the dataset credentials secret exists...")
+    secret = api.get_or_create_k8s_secret(
+        name=DATASET_SECRET_NAME,
+        values={"USERNAME": DATASET_USERNAME, "PASSWORD": DATASET_PASSWORD},
+    )
+
     logger.info("Creating new dataset...")
     dataset = api.create_dataset(
         name=DATASET_NAME,
         host=CLUSTER_DATASET_HOST,
         port=DATASET_PORT,
-        username=DATASET_USERNAME,
-        password=DATASET_PASSWORD,
-        schema=DATASET_SCHEMA,
+        k8s_secret_name=secret.name,
+        read_schema=DATASET_SCHEMA,
         db_type=DATASET_TYPE,
-        schema_write=DATASET_SCHEMA_WRITE,
+        write_schema=DATASET_SCHEMA_WRITE,
         project_id=project.id,
     )
 

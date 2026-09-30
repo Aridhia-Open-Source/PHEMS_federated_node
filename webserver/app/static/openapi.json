@@ -1560,6 +1560,84 @@
             "description": "Project not found"
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Enable or disable a project",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectPatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "enabled missing or not a boolean"
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/healthcheck": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Check the project's trigger repositories can be reached",
+        "description": "Reads each repository's token from its cluster secret and calls the git provider's API with it. A failed check is reported in the body, with a 200.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The health of the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectHealthObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        }
       }
     }
   },
@@ -2263,26 +2341,21 @@
             "description": "Port for the host field",
             "example": 5432
           },
-          "username": {
+          "k8s_secret_name": {
             "type": "string",
-            "description": "Username for the Federated Node to access the DB",
-            "example": "usernameDB"
-          },
-          "password": {
-            "type": "string",
-            "description": "Password for the Federated Node to access the DB",
-            "example": "password"
+            "description": "Name of an existing k8s secret (see POST /k8s_secrets) holding the credentials the Federated Node uses to access the DB, under the keys USERNAME and PASSWORD",
+            "example": "my-dataset-creds"
           },
           "extra_connection_args": {
             "type": "string",
             "description": "Extra argument to use for connecting to the DB. Eventually this is passed to the tasks' pod as environment variable",
             "example": "TrustServerCertificate=Yes"
           },
-          "schema": {
+          "read_schema": {
             "type": "string",
             "description": "Read from DB schema"
           },
-          "schema_write": {
+          "write_schema": {
             "type": "string",
             "description": "DB schema to write to in case is needed"
           },
@@ -2313,8 +2386,7 @@
         },
         "required": [
           "name",
-          "username",
-          "password",
+          "k8s_secret_name",
           "host",
           "project_id"
         ]
@@ -2342,11 +2414,11 @@
             "type": "string",
             "example": "blood_cancer_database"
           },
-          "schema": {
+          "read_schema": {
             "type": "string",
             "example": "readSchema"
           },
-          "schema_write": {
+          "write_schema": {
             "type": "string",
             "example": "writeSchema"
           },
@@ -2924,6 +2996,11 @@
             "type": "string",
             "example": "Cardiac benchmarking"
           },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether sensors act on this project's repositories",
+            "example": false
+          },
           "default_dataset_id": {
             "type": "integer",
             "description": "Dataset a task runs against when it names only this project",
@@ -2952,6 +3029,126 @@
           "description": {
             "type": "string",
             "example": "Cardiac benchmarking"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether sensors act on this project's repositories. Defaults to false",
+            "example": false
+          }
+        }
+      },
+      "ProjectHealthObject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "cardio"
+          },
+          "enabled": {
+            "type": "boolean",
+            "example": true
+          },
+          "status": {
+            "type": "string",
+            "description": "ok only when there is at least one repository and all of them are reachable",
+            "enum": [
+              "ok",
+              "error"
+            ]
+          },
+          "results_repository": {
+            "type": "object",
+            "nullable": true,
+            "description": "Where the project's results go, or null if it has none",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "example": 1
+              },
+              "uri": {
+                "type": "string",
+                "example": "github.com/org/results"
+              },
+              "owned_by_federated_node": {
+                "type": "boolean",
+                "example": true
+              }
+            }
+          },
+          "trigger_repositories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "uri": {
+                  "type": "string",
+                  "example": "github.com/org/repo"
+                },
+                "provider": {
+                  "type": "string",
+                  "example": "github"
+                },
+                "pr_count": {
+                  "type": "integer",
+                  "description": "Pull requests the backend has ingested for the repository",
+                  "example": 3
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "unauthorized",
+                    "not_found",
+                    "unreachable",
+                    "secret_missing",
+                    "error"
+                  ]
+                },
+                "health_check": {
+                  "type": "object",
+                  "description": "What calling the provider's API for the repository returned",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "description": "The provider's own message on an error, else the HTTP reason. If no request was made, why not",
+                      "example": "OK"
+                    },
+                    "status_code": {
+                      "type": "integer",
+                      "nullable": true,
+                      "description": "The provider's HTTP status, or null if it could not be reached or no request was made",
+                      "example": 200
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "nullable": true,
+                      "description": "How long the provider took to respond, or to fail. Null if no request was made",
+                      "example": 42
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "ProjectPatchBody": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "example": true
           }
         }
       }

@@ -12,7 +12,7 @@ from app.models.pull_request_status import PullRequestStatus
 class PullRequest(db.Model, BaseModel):
     """
     A GitHub pull request merged to a watched repository.
-    Stores PR metadata and spec for async processing by Dagster sensors.
+    Stores PR metadata and payload for async processing by Dagster sensors.
     """
     __tablename__ = 'pull_requests'
     __table_args__ = (
@@ -26,7 +26,7 @@ class PullRequest(db.Model, BaseModel):
     merge_commit_sha = sa.Column(sa.String(40), nullable=False)
     merged_at = sa.Column(sa.DateTime(timezone=False), nullable=False)
     saved_at = sa.Column(sa.DateTime(timezone=False), server_default=func.now())
-    spec = sa.Column(sa.JSON, nullable=False, default={})
+    payload = sa.Column(sa.JSON, nullable=False, default={})
 
     status = sa.Column(
         sa.String(32),
@@ -62,14 +62,14 @@ class PullRequest(db.Model, BaseModel):
         merged_at: dt,
         merge_commit_sha: str,
         status: str = PullRequestStatus.UNKNOWN.value,
-        spec: dict | None = None,
+        payload: dict | None = None,
     ):
         self.trigger_repository_id = trigger_repository_id
         self.number = number
         self.title = title
         self.raised_by = raised_by
         self.merged_at = merged_at
-        self.spec = spec or {}
+        self.payload = payload or {}
         self.merge_commit_sha = merge_commit_sha
         self.status = status
 

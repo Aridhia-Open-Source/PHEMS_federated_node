@@ -11,6 +11,7 @@ from flask import Blueprint, request
 
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
+from app.dtos.request import RequestDTO
 from app.helpers.query_filters import parse_query_params
 from app.helpers.wrappers import audit, auth
 from app.models.dataset import Dataset
@@ -29,7 +30,7 @@ def get_requests():
     GET /requests/ endpoint. Gets a list of Data Access Request
     """
     paginated = parse_query_params(Request, request.args.copy())
-    res = [r.sanitized_dict() for r in paginated.items]
+    res = [RequestDTO.from_model(r).dump() for r in paginated.items]
     return res, HTTPStatus.OK
 
 # Disabled for the time being, also disable the pylint rule for duplicated code

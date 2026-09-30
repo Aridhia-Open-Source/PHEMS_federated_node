@@ -40,11 +40,11 @@ class PullRequestTriggerSensor(GithubSensor):
 
             for pr in unknown_prs:
                 try:
-                    pr.status, pr.spec = self._setup_pull_request(repo, pr)
+                    pr.status, pr.payload = self._setup_pull_request(repo, pr)
                     if pr.status == PullRequestStatus.READY.value:
                         yield self._make_run_request(repo, pr)
 
-                    patch_data = {'status': pr.status, 'spec': pr.spec}
+                    patch_data = {'status': pr.status, 'payload': pr.payload}
                     self.backend_api.patch_pull_request(repo.id, pr.number, patch_data)
                     pr_count += 1
                 except Exception as e:
@@ -90,7 +90,7 @@ class PullRequestTriggerSensor(GithubSensor):
             return PullRequestStatus.READY.value, spec
         except Exception as e:
             self.log.error(f"EXCEPTION in _setup_pull_request PR #{pr.number}: {type(e).__name__}: {e}", exc_info=True)
-            pr.spec = {}
+            pr.payload = {}
             return PullRequestStatus.INVALID.value, spec
 
     def _validate_spec(self, data: dict):
@@ -128,13 +128,13 @@ class PullRequestTriggerSensor(GithubSensor):
         Injects dataset credentials as mounted secret volume.
         """
         # Either key, as _validate_spec accepts.
-        image = pr.spec.get("image") or pr.spec.get("docker_image")
+        image = pr.payload.get("image") or pr.payload.get("docker_image")
         if not image:
             raise ValueError(f"PR #{pr.number} spec in repo {repo.path} missing 'image'")
 
         dataset = self.backend_api.get_dataset(repo.dataset_id)
         op_config = {
-            "env": pr.spec.get("env") or {},
+            "env": pr.payload.get("env") or {},
             "docker_image": image,
             **dataset.dump_task_fields(),
         }

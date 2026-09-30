@@ -1,27 +1,33 @@
 import json
 import pytest
+from app.dtos.trigger_repository import TriggerRepositoryDTO
+from app.models.pull_request import PullRequest
 from app.models.trigger_repository import TriggerRepository
 from app.models.dataset import Dataset
+from app.models.k8s_secret import K8sSecret
+
+# What a repository needs to say about its git host. The secret is the conftest k8s_secret.
+REPO_FIELDS = {"provider": "github", "api_uri": "https://api.github.com", "k8s_secret_name": "test-creds"}
 
 
 @pytest.fixture
-def test_dataset(client, user_uuid, k8s_client, mock_kc_client, project):
+def test_dataset(client, user_uuid, k8s_client, mock_kc_client, project, k8s_secret):
     """Create a test dataset for repository tests"""
-    dataset = Dataset(name="TestDatasetForRepo", host="example.com", password='pass', username='user', project_id=project.id)
+    dataset = Dataset(name="TestDatasetForRepo", host="example.com", k8s_secret_name=k8s_secret.name, project_id=project.id)
     dataset.add(user_id=user_uuid)
     return dataset
 
 
 @pytest.fixture
 def repository(client, test_dataset):
-    repo = TriggerRepository(uri="github.com/org/repo", watch_dir="", project_id=test_dataset.project_id)
+    repo = TriggerRepository(uri="github.com/org/repo", watch_dir="", project_id=test_dataset.project_id, **REPO_FIELDS)
     repo.add()
     return repo
 
 
 @pytest.fixture
 def repo_post_body(test_dataset):
-    return {"uri": "github.com/org/another-repo", "project_id": test_dataset.project_id}
+    return {**REPO_FIELDS, "uri": "github.com/org/another-repo", "project_id": test_dataset.project_id}
 
 
 class TestGetRepositories:
@@ -69,21 +75,21 @@ class TestPostRepository:
         assert isinstance(response.json["pr_cursor"], str)
 
     def test_create_with_custom_base_branch(self, client, post_json_admin_header, test_dataset):
-        body = {"uri": "github.com/org/repo", "base_branch": "develop", "project_id": test_dataset.project_id}
+        body = {**REPO_FIELDS, "uri": "github.com/org/repo", "base_branch": "develop", "project_id": test_dataset.project_id}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
         assert response.status_code == 201
         assert response.json["base_branch"] == "develop"
         assert response.json["dataset_id"] == test_dataset.id
 
     def test_create_normalises_uri(self, client, post_json_admin_header, test_dataset):
-        body = {"uri": "GitHub.com/Org/Repo/", "project_id": test_dataset.project_id}
+        body = {**REPO_FIELDS, "uri": "GitHub.com/Org/Repo/", "project_id": test_dataset.project_id}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
         assert response.status_code == 201
         assert response.json["uri"] == "github.com/org/repo"
         assert response.json["dataset_id"] == test_dataset.id
 
     def test_create_duplicate_uri_fails(self, client, post_json_admin_header, repository):
-        body = {"uri": repository.uri, "project_id": repository.project_id}
+        body = {**REPO_FIELDS, "uri": repository.uri, "project_id": repository.project_id}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
         assert response.status_code == 400
 
@@ -97,15 +103,35 @@ class TestPostRepository:
         assert "project_id is required" in response.json.get("error", "")
 
     def test_create_invalid_project_id_fails(self, client, post_json_admin_header):
-        response = client.post("/trigger_repositories/", data=json.dumps({"uri": "github.com/org/new-repo", "project_id": 9999}), headers=post_json_admin_header)
+        response = client.post("/trigger_repositories/", data=json.dumps({**REPO_FIELDS, "uri": "github.com/org/new-repo", "project_id": 9999}), headers=post_json_admin_header)
         assert response.status_code == 404
 
     def test_create_includes_dataset_id_in_response(self, client, post_json_admin_header, test_dataset):
-        body = {"uri": "github.com/org/test-repo", "project_id": test_dataset.project_id}
+        body = {**REPO_FIELDS, "uri": "github.com/org/test-repo", "project_id": test_dataset.project_id}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
         assert response.status_code == 201
         assert "dataset_id" in response.json
         assert response.json["dataset_id"] == test_dataset.id
+
+    def test_create_returns_the_git_host_and_secret(self, client, post_json_admin_header, repo_post_body):
+        response = client.post("/trigger_repositories/", data=json.dumps(repo_post_body), headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["provider"] == "github"
+        assert response.json["api_uri"] == "https://api.github.com"
+        assert response.json["k8s_secret_name"] == "test-creds"
+
+    @pytest.mark.parametrize("field", ["provider", "api_uri", "k8s_secret_name"])
+    def test_create_requires_the_git_host_and_secret(self, client, post_json_admin_header, repo_post_body, field):
+        del repo_post_body[field]
+        response = client.post("/trigger_repositories/", data=json.dumps(repo_post_body), headers=post_json_admin_header)
+        assert response.status_code == 400
+        assert f"{field} is required" in response.json["error"]
+
+    def test_create_rejects_an_unknown_provider(self, client, post_json_admin_header, repo_post_body):
+        repo_post_body["provider"] = "gitlab"
+        response = client.post("/trigger_repositories/", data=json.dumps(repo_post_body), headers=post_json_admin_header)
+        assert response.status_code == 400
+        assert "provider must be one of" in response.json["error"]
 
     def test_requires_auth(self, client, test_dataset):
         response = client.post("/trigger_repositories/", data=json.dumps({"uri": "x", "project_id": test_dataset.project_id}))
@@ -122,9 +148,44 @@ class TestPatchRepository:
         assert response.status_code == 200
         assert response.json["base_branch"] == "develop"
 
+    def patch(self, client, headers, repository, body):
+        return client.patch(f"/trigger_repositories/{repository.id}", data=json.dumps(body), headers=headers)
+
+    def test_update_provider_and_api_uri(self, client, post_json_admin_header, repository):
+        response = self.patch(
+            client, post_json_admin_header, repository,
+            {"provider": "gitea", "api_uri": "http://gitea.fn.svc:3000/api/v1"}
+        )
+        assert response.status_code == 200
+        assert response.json["provider"] == "gitea"
+        assert response.json["api_uri"] == "http://gitea.fn.svc:3000/api/v1"
+
+    def test_update_rejects_an_unknown_provider(self, client, post_json_admin_header, repository):
+        response = self.patch(client, post_json_admin_header, repository, {"provider": "gitlab"})
+        assert response.status_code == 400
+        assert repository.provider == "github"
+
+    def test_update_to_another_secret(self, client, post_json_admin_header, repository):
+        K8sSecret(name="other-creds").add()
+        response = self.patch(client, post_json_admin_header, repository, {"k8s_secret_name": "other-creds"})
+        assert response.status_code == 200
+        assert response.json["k8s_secret_name"] == "other-creds"
+
+    def test_update_to_a_missing_secret_fails(self, client, post_json_admin_header, repository):
+        response = self.patch(client, post_json_admin_header, repository, {"k8s_secret_name": "missing"})
+        assert response.status_code == 400
+        assert "does not exist" in response.json["error"]
+        assert repository.k8s_secret_name == "test-creds"
+
+    @pytest.mark.parametrize("field", ["provider", "api_uri", "k8s_secret_name"])
+    def test_git_host_fields_cannot_be_emptied(self, client, post_json_admin_header, repository, field):
+        response = self.patch(client, post_json_admin_header, repository, {field: ""})
+        assert response.status_code == 400
+        assert f"{field} cannot be empty" in response.json["error"]
+
     def test_update_project_id(self, client, post_json_admin_header, repository, user_uuid, k8s_client, mock_kc_client, project):
         # Create a new dataset
-        new_dataset = Dataset(name="NewDatasetForRepo", host="example.com", password='pass', username='user', project_id=project.id)
+        new_dataset = Dataset(name="NewDatasetForRepo", host="example.com", k8s_secret_name="test-creds", project_id=project.id)
         new_dataset.add(user_id=user_uuid)
 
         response = client.patch(
@@ -177,7 +238,7 @@ class TestInitialCursor:
         """initial_cursor should be set to current time when creating a repository"""
         response = client.post(
             "/trigger_repositories/",
-            data=json.dumps({"uri": "github.com/org/test-repo", "project_id": test_dataset.project_id}),
+            data=json.dumps({**REPO_FIELDS, "uri": "github.com/org/test-repo", "project_id": test_dataset.project_id}),
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -189,7 +250,7 @@ class TestInitialCursor:
         custom_cursor = "2026-01-01T00:00:00"
         response = client.post(
             "/trigger_repositories/",
-            data=json.dumps({"uri": "github.com/org/test-repo", "project_id": test_dataset.project_id, "initial_cursor": custom_cursor}),
+            data=json.dumps({**REPO_FIELDS, "uri": "github.com/org/test-repo", "project_id": test_dataset.project_id, "initial_cursor": custom_cursor}),
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -214,7 +275,7 @@ class TestPostPullRequestsBatch:
                 "raised_by": "user1",
                 "merged_at": "2026-01-01T10:00:00Z",
                 "merge_commit_sha": "abc123",
-                "spec": {"key": "value1"}
+                "payload": {"key": "value1"}
             },
             {
                 "number": 2,
@@ -222,7 +283,7 @@ class TestPostPullRequestsBatch:
                 "raised_by": "user2",
                 "merged_at": "2026-01-02T10:00:00Z",
                 "merge_commit_sha": "def456",
-                "spec": {"key": "value2"}
+                "payload": {"key": "value2"}
             }
         ]
         response = client.post(
@@ -254,7 +315,7 @@ class TestPostPullRequestsBatch:
                 "raised_by": "user",
                 "merged_at": "2026-01-01T10:00:00Z",
                 "merge_commit_sha": f"sha{i}",
-                "spec": {}
+                "payload": {}
             }
             for i in range(101)
         ]
@@ -272,8 +333,8 @@ class TestPostPullRequestsBatch:
             {
                 "number": 1,
                 "title": "PR without raised_by",
-                # Missing 'raised_by', 'merged_at', 'merge_commit_sha', 'spec'
-                "spec": {}
+                # Missing 'raised_by', 'merged_at', 'merge_commit_sha', 'payload'
+                "payload": {}
             }
         ]
         response = client.post(
@@ -292,7 +353,7 @@ class TestPostPullRequestsBatch:
                 "raised_by": "user",
                 "merged_at": "2026-01-01T10:00:00Z",
                 "merge_commit_sha": "sha1",
-                "spec": {},
+                "payload": {},
                 "status": "INVALID_STATUS"
             }
         ]
@@ -312,7 +373,7 @@ class TestPostPullRequestsBatch:
                 "raised_by": "user",
                 "merged_at": "2026-01-01T10:00:00Z",
                 "merge_commit_sha": "sha1",
-                "spec": {},
+                "payload": {},
                 "dataset_id": 999  # This should be ignored
             }
         ]
@@ -337,7 +398,7 @@ class TestPostPullRequestsBatch:
                 "raised_by": "user",
                 "merged_at": "2026-01-01T10:00:00Z",
                 "merge_commit_sha": "sha1",
-                "spec": {}
+                "payload": {}
             }
         ]
         response = client.post(
@@ -358,28 +419,28 @@ class TestPostPullRequestsBatch:
         assert "must be a list" in response.json.get("error", "")
 
 
-class TestRepositorySanitizedDict:
-    def test_sanitized_dict_contains_dataset_id(self, repository):
+class TestTriggerRepositoryDTO:
+    def test_contains_dataset_id(self, repository):
         """
         dataset_id is derived from the project's default rather than stored, because the
         Dagster sensor reads it to pick the database a task pod connects to.
         """
-        sanitized = repository.sanitized_dict()
+        sanitized = TriggerRepositoryDTO.from_model(repository).dump()
         assert "dataset_id" in sanitized
         assert sanitized["dataset_id"] == repository.project.default_dataset_id
         assert isinstance(sanitized["dataset_id"], int)
 
-    def test_sanitized_dict_contains_project_id(self, repository):
-        sanitized = repository.sanitized_dict()
+    def test_contains_project_id(self, repository):
+        sanitized = TriggerRepositoryDTO.from_model(repository).dump()
         assert sanitized["project_id"] == repository.project_id
 
-    def test_sanitized_dict_fields(self, repository):
-        """Test that sanitized_dict() contains all expected fields"""
-        sanitized = repository.sanitized_dict()
-        expected_fields = ['id', 'uri', 'path', 'watch_dir', 'base_branch', 'project_id',
-                           'dataset_id', 'pr_cursor', 'pr_count']
+    def test_fields(self, repository):
+        """Test that the DTO contains all expected fields"""
+        sanitized = TriggerRepositoryDTO.from_model(repository).dump()
+        expected_fields = ['id', 'uri', 'path', 'provider', 'api_uri', 'k8s_secret_name', 'watch_dir',
+                           'base_branch', 'project_id', 'dataset_id', 'pr_cursor', 'pr_count']
         for field in expected_fields:
-            assert field in sanitized, f"Field '{field}' missing from sanitized_dict()"
+            assert field in sanitized, f"Field '{field}' missing from the DTO"
 
     def test_get_repository_includes_dataset_id(self, client, simple_admin_header, repository):
         """Test that GET /trigger_repositories/{id} response includes dataset_id"""
@@ -397,24 +458,25 @@ class TestRepositorySanitizedDict:
         assert response.json[0]["dataset_id"] == repository.project.default_dataset_id
 
 
-class TestPatchPullRequest:
-    @pytest.fixture
-    def pull_request(self, client, post_json_admin_header, repository):
-        response = client.post(
-            f"/trigger_repositories/{repository.id}/pull_requests/batch",
-            data=json.dumps([{
-                "number": 1,
-                "title": "A PR",
-                "raised_by": "user1",
-                "merged_at": "2026-01-01T10:00:00Z",
-                "merge_commit_sha": "a" * 40,
-                "spec": {"image": "example:latest"},
-            }]),
-            headers=post_json_admin_header
-        )
-        assert response.status_code == 201
-        return response.json[0]
+@pytest.fixture
+def pull_request(client, post_json_admin_header, repository):
+    response = client.post(
+        f"/trigger_repositories/{repository.id}/pull_requests/batch",
+        data=json.dumps([{
+            "number": 1,
+            "title": "A PR",
+            "raised_by": "user1",
+            "merged_at": "2026-01-01T10:00:00Z",
+            "merge_commit_sha": "a" * 40,
+            "payload": {"image": "example:latest"},
+        }]),
+        headers=post_json_admin_header
+    )
+    assert response.status_code == 201
+    return response.json[0]
 
+
+class TestPatchPullRequest:
     @pytest.mark.parametrize("status", ["READY", "QUEUED", "STARTED", "SUCCESS", "FAILURE", "CANCELLED"])
     def test_accepts_job_statuses(
         self, client, post_json_admin_header, repository, pull_request, status
@@ -431,3 +493,110 @@ class TestPatchPullRequest:
         assert response.status_code == 200
         assert response.json["status"] == status
         assert response.json["trigger_repository_id"] == repository.id
+
+    def test_patch_payload(self, client, post_json_admin_header, repository, pull_request):
+        response = client.patch(
+            f"/trigger_repositories/{repository.id}/pull_requests/{pull_request['number']}",
+            data=json.dumps({"payload": {"image": "other:latest"}}),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 200
+        assert response.json["payload"] == {"image": "other:latest"}
+
+
+class TestPostTaskRequest:
+    def url(self, repository, pull_request):
+        return f"/trigger_repositories/{repository.id}/pull_requests/{pull_request['number']}/task_request"
+
+    def test_create(self, client, post_json_admin_header, repository, pull_request):
+        payload = {"image": "example:latest", "env": {"KEY": "value"}}
+        response = client.post(
+            self.url(repository, pull_request),
+            data=json.dumps({"payload": payload}),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        assert response.json["payload"] == payload
+        assert response.json["project_id"] == repository.project_id
+        assert response.json["queued"] is False
+
+    def test_create_links_to_pull_request(self, client, post_json_admin_header, repository, pull_request):
+        client.post(
+            self.url(repository, pull_request),
+            data=json.dumps({"payload": {}}),
+            headers=post_json_admin_header
+        )
+        pr = PullRequest.query.filter_by(trigger_repository_id=repository.id, number=pull_request["number"]).one()
+        assert pr.task_request is not None
+        assert pr.task_request.project_id == repository.project_id
+
+    def test_create_twice_conflicts(self, client, post_json_admin_header, repository, pull_request):
+        url = self.url(repository, pull_request)
+        body = json.dumps({"payload": {}})
+        assert client.post(url, data=body, headers=post_json_admin_header).status_code == 201
+        assert client.post(url, data=body, headers=post_json_admin_header).status_code == 409
+
+    @pytest.mark.parametrize("body", [{}, {"payload": None}, {"payload": "not-an-object"}, {"payload": []}])
+    def test_create_invalid_payload_fails(self, client, post_json_admin_header, repository, pull_request, body):
+        response = client.post(
+            self.url(repository, pull_request),
+            data=json.dumps(body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+
+    def test_create_pull_request_not_found(self, client, post_json_admin_header, repository):
+        response = client.post(
+            f"/trigger_repositories/{repository.id}/pull_requests/999/task_request",
+            data=json.dumps({"payload": {}}),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 404
+
+    def test_create_repository_not_found(self, client, post_json_admin_header):
+        response = client.post(
+            "/trigger_repositories/999/pull_requests/1/task_request",
+            data=json.dumps({"payload": {}}),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 404
+
+    def test_requires_auth(self, client, repository, pull_request):
+        response = client.post(
+            self.url(repository, pull_request),
+            data=json.dumps({"payload": {}}),
+            headers={"Content-Type": "application/json"}
+        )
+        assert response.status_code == 401
+
+
+class TestPullRequestDTO:
+    def test_fields(self, pull_request):
+        """Dagster's PullRequest wire model requires these"""
+        expected_fields = ['trigger_repository_id', 'number', 'title', 'raised_by', 'merged_at',
+                           'payload', 'merge_commit_sha', 'status']
+        for field in expected_fields:
+            assert field in pull_request, f"Field '{field}' missing from the DTO"
+
+    def test_values(self, repository, pull_request):
+        assert pull_request["trigger_repository_id"] == repository.id
+        assert pull_request["payload"] == {"image": "example:latest"}
+        assert pull_request["status"] == "UNKNOWN"
+
+    def test_datetimes_are_iso_strings(self, pull_request):
+        assert pull_request["merged_at"] == "2026-01-01T10:00:00"
+        assert isinstance(pull_request["saved_at"], str)
+
+
+class TestTaskRequestDTO:
+    def test_fields(self, client, post_json_admin_header, repository, pull_request):
+        response = client.post(
+            f"/trigger_repositories/{repository.id}/pull_requests/{pull_request['number']}/task_request",
+            data=json.dumps({"payload": {"image": "example:latest"}}),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201
+        assert set(response.json) == {
+            'id', 'pull_request_id', 'api_request_id', 'project_id', 'queued', 'payload'
+        }
+        assert response.json["api_request_id"] is None

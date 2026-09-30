@@ -1,18 +1,14 @@
 import os
 import logging
-import base64
 from pathlib import Path
-from typing import cast
 
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx
 from dagster_k8s import PipesK8sClient
 from dagster._core.pipes.client import PipesClientCompletedInvocation
-from kubernetes import client
-from kubernetes.client import V1Secret
-from kubernetes.config import load_incluster_config
 
 from app.config import PipesSecurityContextConfig
+from app.k8s import get_k8s_secret as _get_k8s_secret
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,13 +23,13 @@ TERMINATION_GRACE_PERIOD_SECONDS = 300
         "docker_image": dg.Field(str),
         "env": dg.Field(dict, default_value={}, is_required=False),
         "image_pull_secret": dg.Field(str, is_required=False),
-        "dataset_secret_name": dg.Field(str, is_required=False),
+        "dataset_k8s_secret_name": dg.Field(str, is_required=False),
         "dataset_name": dg.Field(str, is_required=False),
         "dataset_host": dg.Field(str, is_required=False),
         "dataset_port": dg.Field(int, is_required=False),
         "dataset_type": dg.Field(str, is_required=False),
-        "dataset_schema": dg.Field(str, is_required=False),
-        "dataset_schema_write": dg.Field(str, is_required=False),
+        "dataset_read_schema": dg.Field(str, is_required=False),
+        "dataset_write_schema": dg.Field(str, is_required=False),
     }
 )
 def k8s_pipes_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> dg.Output:
@@ -65,7 +61,7 @@ class K8sPipe:
         if not self.config.get('dataset_name'):
             return {}
 
-        keys = ['secret_name', 'name', 'host', 'port', 'type', 'schema', 'schema_write']
+        keys = ['k8s_secret_name', 'name', 'host', 'port', 'type', 'read_schema', 'write_schema']
         dataset = {k: self.config.get(f'dataset_{k}') for k in keys}
 
         if not all(dataset.values()):
@@ -79,8 +75,8 @@ class K8sPipe:
             'ARTIFACT_PATH': self.artifact_path,
         }
         if self.dataset:
-            env['CDM_SCHEMA'] = self.dataset['schema']
-            env['WRITE_SCHEMA'] = self.dataset['schema_write']
+            env['CDM_SCHEMA'] = self.dataset['read_schema']
+            env['WRITE_SCHEMA'] = self.dataset['write_schema']
         return env
 
     def __call__(self):
@@ -219,7 +215,7 @@ class K8sPipe:
         return {'username': username, 'password': password}
 
     def _get_k8s_dataset_secret(self, key: str) -> str:
-        return _get_k8s_secret(self.dataset['secret_name'], self.namespace, key)
+        return _get_k8s_secret(self.dataset['k8s_secret_name'], self.namespace, key)
 
 
 class K8sPipesResponse:
@@ -240,15 +236,6 @@ class K8sPipesResponse:
                 "artifacts_path": artifact_path,
             },
         )
-
-
-def _get_k8s_secret(secret_name: str, namespace: str, key: str) -> str:
-    load_incluster_config()
-    v1 = client.CoreV1Api()
-    secret = cast(V1Secret, v1.read_namespaced_secret(secret_name, namespace))
-    if secret.data is None:
-        raise ValueError(f"Secret {secret_name} has no data")
-    return base64.b64decode(secret.data[key].encode()).decode()
 
 
 def _dict_to_pod_env(env: dict):

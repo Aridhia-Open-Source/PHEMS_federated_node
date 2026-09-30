@@ -5,6 +5,7 @@ from app.models import Dataset, PullRequest, PullRequestStatus, Registry, Trigge
 
 SAMPLE_DATASET = {
     "id": 1,
+    "project_id": 1,
     "name": "My Dataset",
     "host": "https://db.host",
     "port": 5432,
@@ -137,6 +138,7 @@ class TestTriggerRepository:
             path="org/repo",
             watch_dir="specs/",
             base_branch="main",
+            project_id=1,
             dataset_id=1,
             pr_cursor="2026-01-01T00:00:00Z",
         )
@@ -151,6 +153,7 @@ class TestTriggerRepository:
             path="org/repo",
             watch_dir="specs/",
             base_branch="main",
+            project_id=1,
             dataset_id=1,
             pr_cursor="2026-01-01T00:00:00Z",
             pull_requests=[{
@@ -160,7 +163,7 @@ class TestTriggerRepository:
                 "raised_by": "dev",
                 "merged_at": "2026-06-26T10:00:00Z",
                 "merge_commit_sha": "abc",
-                "spec": {},
+                "payload": {},
                 "status": "UNKNOWN",
             }],
         )

@@ -74,7 +74,7 @@ class TestPullRequestTriggerSensor:
         pr.number = SAMPLE_PR["number"]
         pr.title = SAMPLE_PR["title"]
         pr.trigger_repository_id = SAMPLE_REPO["id"]
-        pr.spec = SAMPLE_PR["spec"]
+        pr.payload = SAMPLE_PR["payload"]
         pr.merge_commit_sha = SAMPLE_PR["merge_commit_sha"]
 
         mock_backend_api = MagicMock()
@@ -138,6 +138,7 @@ class TestPullRequestTriggerSensor:
 
 SPEC_DATASET = {
     "id": 1,
+    "project_id": 1,
     "name": "cdm",
     "host": "db.host",
     "port": 5432,
@@ -172,7 +173,7 @@ def make_pr(spec, number=5):
     pr.number = number
     pr.title = "Add experiment spec"
     pr.trigger_repository_id = 1
-    pr.spec = spec
+    pr.payload = spec
     pr.merge_commit_sha = "abc123"
     return pr
 

@@ -1,7 +1,7 @@
 import logging
 
 from app.utils import BackendSession
-from app.models import TriggerRepository, PullRequest, Dataset, Registry, Request
+from app.models import TriggerRepository, PullRequest, TaskRequest, Dataset, Registry, Request
 
 default_logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ class BackendAPI:
         raised_by: str,
         merged_at: str,
         merge_commit_sha: str,
-        spec: dict,
+        payload: dict,
         status: str = "UNKNOWN",
     ) -> PullRequest:
         """Create a pull request"""
@@ -96,7 +96,7 @@ class BackendAPI:
             "raised_by": raised_by,
             "merged_at": merged_at,
             "merge_commit_sha": merge_commit_sha,
-            "spec": spec,
+            "payload": payload,
             "status": status,
         }
         response = self.session.post("/trigger_repositories/pull_requests", json=data)
@@ -139,6 +139,20 @@ class BackendAPI:
         )
         return PullRequest(**response.json())
 
+    def create_task_request(
+        self,
+        repo_id: int,
+        number: int,
+        payload: dict,
+    ) -> TaskRequest:
+        """Create the task request for a pull request"""
+        self.logger.info(f"Creating task request for PR #{number} in repo {repo_id}")
+        response = self.session.post(
+            f"/trigger_repositories/{repo_id}/pull_requests/{number}/task_request",
+            json={"payload": payload},
+        )
+        return TaskRequest(**response.json())
+
     def get_dataset_by_name(self, name: str) -> Dataset | None:
         """Get dataset by name"""
         try:
@@ -153,9 +167,8 @@ class BackendAPI:
         name: str,
         host: str,
         port: int,
-        username: str,
-        password: str,
-        schema: str,
+        k8s_secret_name: str,
+        read_schema: str,
         db_type: str,
     ) -> Dataset:
         """Create a dataset"""
@@ -164,9 +177,8 @@ class BackendAPI:
             "name": name,
             "host": host,
             "port": port,
-            "username": username,
-            "password": password,
-            "schema": schema,
+            "k8s_secret_name": k8s_secret_name,
+            "read_schema": read_schema,
             "type": db_type,
         }
         response = self.session.post("/datasets", json=data)
@@ -202,19 +214,25 @@ class BackendAPI:
     def create_repository(
         self,
         uri: str,
+        provider: str,
+        api_uri: str,
+        k8s_secret_name: str,
         watch_dir: str,
         base_branch: str,
-        initial_cursor: str,
-        dataset_id: int,
+        project_id: int,
+        initial_cursor: str | None = None,
     ) -> TriggerRepository:
         """Create a repository"""
         self.logger.info(f"Creating repository {uri}")
         data = {
             "uri": uri,
+            "provider": provider,
+            "api_uri": api_uri,
+            "k8s_secret_name": k8s_secret_name,
             "watch_dir": watch_dir,
             "base_branch": base_branch,
             "initial_cursor": initial_cursor,
-            "dataset_id": dataset_id,
+            "project_id": project_id,
         }
         response = self.session.post("/trigger_repositories", json=data)
         return TriggerRepository(**response.json())

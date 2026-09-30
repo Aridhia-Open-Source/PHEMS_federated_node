@@ -22,7 +22,8 @@ RELEASE_NAME = os.getenv('RELEASE_NAME', 'fn-dev')
 # The code server is part of the Federated Node chart (templates/dagster-code-server.yaml),
 # so it is <release>-<fnDagster.codeServer.name>, not the dagster subchart's
 # <release>-dagster-user-deployments-dagster-<name>.
-DAGSTER_DEPLOYMENT = RELEASE_NAME + '-' + os.getenv('DAGSTER_USER_DEPLOYMENT', 'dagster-fn')
+DAGSTER_LOCATION = os.getenv('DAGSTER_USER_DEPLOYMENT', 'dagster-fn')
+DAGSTER_DEPLOYMENT = RELEASE_NAME + '-' + DAGSTER_LOCATION
 
 # Full entrypoint from dev.values.yaml dagsterApiGrpcArgs
 DAGSTER_FULL_ENTRYPOINT = [
@@ -103,10 +104,13 @@ docker_build_with_restart(
 # STATUS HELPERS
 # ==============================================================================
 
-# Watch for dagster code changes, restart the pod, and reload workspace
+# Watch for dagster code changes, restart the pod, then reload the code location
+# via the Dagster GraphQL API so the UI updates immediately.
 local_resource(
   'dagster-reload',
-  serve_cmd='bash -c \'while inotifywait -r -e modify dagster/app; do echo "Restarting dagster pod..."; kubectl rollout restart deployment/{} -n {}; kubectl rollout status deployment/{} -n {} --timeout=60s >/dev/null 2>&1; echo "Pod restarted, refresh the UI to see changes"; done\''.format(DAGSTER_DEPLOYMENT, NAMESPACE, DAGSTER_DEPLOYMENT, NAMESPACE),
+  serve_cmd='bash scripts/dagster_reload.sh {location}'.format(
+    location=DAGSTER_LOCATION,
+  ),
   labels=['dev'],
 )
 

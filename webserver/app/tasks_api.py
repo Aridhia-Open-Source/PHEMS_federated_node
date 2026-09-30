@@ -20,7 +20,9 @@ from app.helpers.base_model import db
 from app.helpers.exceptions import NotImplementedException, UnauthorizedError
 from app.helpers.keycloak import Keycloak
 from app.helpers.wrappers import audit, auth
+from app.dtos.task import TaskDTO
 from app.models.api_request import ApiRequest
+from app.models.task_request import TaskRequest
 from app.models.project import Project
 from app.models.task import Task
 
@@ -56,38 +58,6 @@ def get_service_info():
     }, HTTPStatus.OK
 
 
-@bp.route('/health', methods=['GET'])
-def get_health():
-    """
-    GET /tasks/health endpoint. Integration test - checks DB connectivity and schema
-    """
-    try:
-        # Test database connection
-        db.session.execute(text("SELECT 1"))
-
-        # Get list of tables
-        inspector = db.inspect(db.engine)
-        tables = inspector.get_table_names()
-
-        # Check for new tables
-        new_tables = [t for t in ['results_repositories', 'results_backends', 'api_requests'] if t in tables]
-        legacy_tables = [t for t in ['delivery_targets', 'task_deliveries'] if t in tables]
-
-        return {
-            "status": "healthy",
-            "database": "connected",
-            "tables": len(tables),
-            "new_tables": new_tables,
-            "legacy_tables_found": legacy_tables,
-            "schema_version": "baseline",
-            "message": "DB schema migrated successfully" if len(new_tables) == 3 and len(legacy_tables) == 0 else "Schema migration incomplete"
-        }, HTTPStatus.OK
-    except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e)
-        }, HTTPStatus.SERVICE_UNAVAILABLE
-
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
 @audit
@@ -100,7 +70,7 @@ def get_tasks():
     per_page = request.args.get('per_page', 10, type=int)
 
     pagination = Task.query.paginate(page=page, per_page=per_page)
-    tasks = [t.sanitized_dict() if hasattr(t, 'sanitized_dict') else t.__dict__ for t in pagination.items]
+    tasks = [TaskDTO.from_model(t).dump() for t in pagination.items]
 
     return {
         "tasks": tasks,
@@ -124,8 +94,7 @@ def get_task_id(task_id):
 
     does_user_own_task(task)
 
-    task_data = task.sanitized_dict() if hasattr(task, 'sanitized_dict') else task.__dict__
-    return task_data, HTTPStatus.OK
+    return TaskDTO.from_model(task).dump(), HTTPStatus.OK
 
 
 @bp.route('/<task_id>/cancel', methods=['POST'])
@@ -170,15 +139,23 @@ def post_tasks():
     )
     api_request.add(commit=True)
 
-    # Create Task from ApiRequest
+    task_request = TaskRequest(
+        api_request_id=api_request.id,
+        project_id=project.id,
+        payload=req_body,
+        queued=True,
+    )
+    task_request.add(commit=True)
+
+    # Create Task from TaskRequest
     task = Task(
         project_id=project.id,
         api_request_id=api_request.id,
+        task_request_id=task_request.id,
         requested_by=user_id,
         trigger_payload=req_body,
         name=req_body.get("name", "Unnamed Task"),
         docker_image=req_body.get("executors", {}).get("image", ""),
-        description=req_body.get("description"),
         **req_body
     )
     task.add(commit=True)
@@ -186,6 +163,7 @@ def post_tasks():
     return {
         "id": task.id,
         "api_request_id": api_request.id,
+        "task_request_id": task_request.id,
         "status": task.status,
         "created_at": task.created_at.isoformat() if task.created_at else None
     }, HTTPStatus.CREATED

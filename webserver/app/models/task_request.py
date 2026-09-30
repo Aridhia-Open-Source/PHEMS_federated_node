@@ -18,7 +18,7 @@ class TaskRequest(db.Model, BaseModel):
     project_id = sa.Column(
         sa.Integer, sa.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False
     )
-    status = sa.Column(sa.String(32), nullable=False, default='UNKNOWN')
+    queued = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
     payload = sa.Column(sa.JSON, nullable=False, default=dict)
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
@@ -26,3 +26,4 @@ class TaskRequest(db.Model, BaseModel):
     pull_request = relationship('PullRequest', back_populates='task_request')
     api_request = relationship('ApiRequest', back_populates='task_request')
     project = relationship('Project', back_populates='task_requests')
+    task = relationship('Task', back_populates='task_request', uselist=False)
