@@ -3054,7 +3054,7 @@
           },
           "status": {
             "type": "string",
-            "description": "ok only when there is at least one repository and all of them are reachable",
+            "description": "ok only when there is at least one trigger repository and all repositories, the results one included, are reachable",
             "enum": [
               "ok",
               "error"
@@ -3063,7 +3063,7 @@
           "results_repository": {
             "type": "object",
             "nullable": true,
-            "description": "Where the project's results go, or null if it has none",
+            "description": "Where the project's results go, or null if it has none. Its status counts towards the project's",
             "properties": {
               "id": {
                 "type": "integer",
@@ -3076,6 +3076,44 @@
               "owned_by_federated_node": {
                 "type": "boolean",
                 "example": true
+              },
+              "target_dir": {
+                "type": "string",
+                "example": "results"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "unauthorized",
+                  "not_found",
+                  "unreachable",
+                  "secret_missing",
+                  "error"
+                ]
+              },
+              "health_check": {
+                "type": "object",
+                "description": "What calling the provider's API for the repository returned",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "The provider's own message on an error, else the HTTP reason. If no request was made, why not",
+                    "example": "OK"
+                  },
+                  "status_code": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "The provider's HTTP status, or null if it could not be reached or no request was made",
+                    "example": 200
+                  },
+                  "latency_ms": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "How long the provider took to respond, or to fail. Null if no request was made",
+                    "example": 42
+                  }
+                }
               }
             }
           },
