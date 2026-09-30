@@ -191,6 +191,21 @@ class TestPostTask:
         assert second.json["id"] == first.json["id"]
         assert Task.query.count() == 1
 
+    def test_concurrent_create_returns_existing(
+        self, client, mocker, post_json_admin_header, pr_task_request
+    ):
+        """
+        Another call inserts the task after this call found none: the unique
+        task_request_id makes the insert fail, and the existing task is returned.
+        """
+        existing = Task.from_task_request(pr_task_request)
+        existing.add()
+        mocker.patch.object(TaskRequest, "task", None)
+        response = client.post(f"/task_requests/{pr_task_request.id}/task", headers=post_json_admin_header)
+        assert response.status_code == 200
+        assert response.json["id"] == existing.id
+        assert Task.query.count() == 1
+
     def test_no_dataset_fails(self, client, post_json_admin_header, pr_task_request, project):
         project.default_dataset_id = None
         project.add()

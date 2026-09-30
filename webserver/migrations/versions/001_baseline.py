@@ -226,7 +226,7 @@ def upgrade() -> None:
         sa.Column('dataset_id', sa.Integer(), nullable=True),
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('docker_image', sa.String(length=256), nullable=False),
-        sa.Column('status', sa.String(length=256), nullable=False, server_default='scheduled'),
+        sa.Column('status', sa.String(length=256), nullable=False, server_default='PENDING'),
         sa.Column('requested_by', sa.String(length=256), nullable=False),
         sa.Column('dagster_run_id', sa.String(length=64), nullable=True),
         sa.Column('started_at', sa.DateTime(), nullable=True),

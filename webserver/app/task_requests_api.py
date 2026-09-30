@@ -8,6 +8,7 @@ task request endpoints (used by dagster to launch queued task requests):
 from http import HTTPStatus
 
 from flask import Blueprint, request
+from sqlalchemy.exc import IntegrityError
 
 from app.dtos.base import page_of
 from app.dtos.task import TaskDTO
@@ -96,11 +97,12 @@ def post_task(task_request_id):
     if task_request.task:
         return TaskDTO.from_model(task_request.task).dump(), HTTPStatus.OK
 
-    if task_request.pull_request:
-        requested_by = task_request.pull_request.raised_by
-    else:
-        requested_by = task_request.api_request.user_id
-
-    task = Task.from_task_request(task_request, requested_by=requested_by)
-    task.add()
+    task = Task.from_task_request(task_request)
+    try:
+        task.add()
+    except IntegrityError:
+        # Another call created the task between the check above and this insert
+        session.rollback()
+        task = Task.query.filter(Task.task_request_id == task_request_id).one()
+        return TaskDTO.from_model(task).dump(), HTTPStatus.OK
     return TaskDTO.from_model(task).dump(), HTTPStatus.CREATED

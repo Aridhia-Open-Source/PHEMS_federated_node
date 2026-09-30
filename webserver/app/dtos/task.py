@@ -11,3 +11,7 @@ class TaskDTO(DTO):
     requested_by: str
     dataset_id: int | None
     project_id: int
+    dagster_run_id: str | None
+    exit_code: int | None
+    started_at: WireDatetime | None
+    completed_at: WireDatetime | None

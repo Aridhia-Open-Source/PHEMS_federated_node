@@ -19,7 +19,7 @@ SPEC = {
 
 @pytest.fixture
 def api_task_request(client, project, dataset):
-    api_request = ApiRequest(project_id=project.id, user_id="user", payload={"raw": True})
+    api_request = ApiRequest(project_id=project.id, user_id="api-user", payload={"raw": True})
     api_request.add()
     task_request = TaskRequest(api_request_id=api_request.id, project_id=project.id, payload=dict(SPEC))
     task_request.add()
@@ -29,7 +29,7 @@ def api_task_request(client, project, dataset):
 @pytest.fixture
 def pr_task_request(client, project, dataset, default_repo):
     pull_request = PullRequest(
-        trigger_repository_id=default_repo.id, number=7, title="PR title", raised_by="user",
+        trigger_repository_id=default_repo.id, number=7, title="PR title", raised_by="pr-user",
         merged_at="2026-01-01T10:00:00", merge_commit_sha="a" * 40, payload={"image": "img:1"},
     )
     pull_request.add()
@@ -56,20 +56,21 @@ def other_project_dataset(client, user_uuid, other_project, k8s_secret):
 
 class TestTaskFromTaskRequest:
     def test_api_task_derived_from_spec(self, api_task_request, dataset):
-        task = Task.from_task_request(api_task_request, requested_by="user")
+        task = Task.from_task_request(api_task_request)
         assert task.name == "TestTask"
         assert task.docker_image == "img:1"
         assert task.params == {"p": 1}
         assert task.dataset is dataset
         assert task.project_id == api_task_request.project_id
-        assert task.requested_by == "user"
+        assert task.requested_by == "api-user"
         assert task.task_request_id == api_task_request.id
         assert task.api_request_id == api_task_request.api_request_id
         assert task.pr_number is None
 
     def test_pr_task_derived_from_spec(self, pr_task_request, default_repo):
-        task = Task.from_task_request(pr_task_request, requested_by="user")
+        task = Task.from_task_request(pr_task_request)
         assert task.name == "PR title"
+        assert task.requested_by == "pr-user"
         assert task.pr_repository_id == default_repo.id
         assert task.pr_number == 7
         assert task.api_request_id is None
@@ -79,18 +80,18 @@ class TestTaskFromTaskRequest:
 
     def test_dataset_override_in_same_project(self, api_task_request, second_dataset):
         api_task_request.payload = {**SPEC, "dataset": second_dataset.name}
-        task = Task.from_task_request(api_task_request, requested_by="user")
+        task = Task.from_task_request(api_task_request)
         assert task.dataset is second_dataset
 
     def test_dataset_override_in_other_project_fails(self, api_task_request, other_project_dataset):
         api_task_request.payload = {**SPEC, "dataset": other_project_dataset.name}
         with pytest.raises(InvalidRequest, match="does not belong to project"):
-            Task.from_task_request(api_task_request, requested_by="user")
+            Task.from_task_request(api_task_request)
 
     def test_no_dataset_and_no_default_fails(self, api_task_request, project):
         project.default_dataset_id = None
         with pytest.raises(InvalidRequest, match="has no default dataset"):
-            Task.from_task_request(api_task_request, requested_by="user")
+            Task.from_task_request(api_task_request)
 
 
 class TestTaskRequestSource:
@@ -144,4 +145,27 @@ class TestPostTasks:
         response = self.post(client, post_json_admin_header, project, task_body)
         assert response.status_code == 400
         assert Task.query.count() == 0
+        assert TaskRequest.query.count() == 0
+
+    def test_failed_task_creation_creates_nothing(
+            self, client, cr_client, registry_client, post_json_admin_header, task_body, project,
+            other_project
+        ):
+        # The body's project owns the dataset, the header's project does not
+        response = self.post(client, post_json_admin_header, other_project, task_body)
+        assert response.status_code == 400, response.json
+        assert "does not belong to project" in response.json["error"]
+        assert ApiRequest.query.count() == 0
+        assert TaskRequest.query.count() == 0
+        assert Task.query.count() == 0
+
+    @pytest.mark.parametrize("executors", ["missing", []])
+    def test_no_executors_fails(self, client, post_json_admin_header, task_body, project, executors):
+        if executors == "missing":
+            task_body.pop("executors")
+        else:
+            task_body["executors"] = executors
+        response = self.post(client, post_json_admin_header, project, task_body)
+        assert response.status_code == 400
+        assert response.json["error"] == "executors must be a non-empty list of objects"
         assert TaskRequest.query.count() == 0

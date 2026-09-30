@@ -13,6 +13,7 @@ from app.helpers.base_model import BaseModel, db
 from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import InvalidRequest, NotImplementedException, TaskImageException
 from app.models import Models, sqla_column
+from app.models.task_status import TaskStatus
 
 
 logger = logging.getLogger('task_model')
@@ -37,7 +38,7 @@ class Task(db.Model, BaseModel):
 
     name = sa.Column(sa.String(256), nullable=False)
     docker_image = sa.Column(sa.String(256), nullable=False)
-    status = sa.Column(sa.String(256), default='scheduled')
+    status = sa.Column(sa.String(256), default=TaskStatus.PENDING.value)
     requested_by = sa.Column(sa.String(256), nullable=False)
     dagster_run_id = sa.Column(sa.String(64), nullable=True, unique=True)
     exit_code = sa.Column(sa.Integer, nullable=True)
@@ -84,7 +85,7 @@ class Task(db.Model, BaseModel):
                  params:dict | None = None,
                  ):
         self.name = name
-        self.status = 'scheduled'
+        self.status = TaskStatus.PENDING.value
         self.docker_image = docker_image
         self.requested_by = requested_by
         self.dataset = dataset
@@ -98,7 +99,7 @@ class Task(db.Model, BaseModel):
         self.updated_at = dt.now()
 
     @classmethod
-    def from_task_request(cls, task_request, requested_by:str):
+    def from_task_request(cls, task_request):
         """
         The one place a Task's columns are derived from its TaskRequest's spec.
         """
@@ -108,7 +109,7 @@ class Task(db.Model, BaseModel):
             # A pull request spec has no name of its own
             name=spec["name"] or pull_request.title,
             docker_image=spec["image"],
-            requested_by=requested_by,
+            requested_by=pull_request.raised_by if pull_request else task_request.api_request.user_id,
             dataset=task_request.project.resolve_dataset(spec["dataset"]),
             project_id=task_request.project_id,
             task_request_id=task_request.id,
@@ -130,6 +131,8 @@ class Task(db.Model, BaseModel):
         decoded_token = kc_client.decode_token(user_token)
         data["requested_by"] = kc_client.get_user_by_email(decoded_token["email"])["id"]
         user = kc_client.get_user_by_id(data["requested_by"])
+        if not data.get("executors"):
+            raise InvalidRequest("executors must be a non-empty list of objects")
         # Support only for one image at a time, the standard is executors == list
         executors = data["executors"][0]
         data["docker_image"] = executors["image"]

@@ -22,6 +22,10 @@ class TestPatchTask:
         })
         assert response.status_code == 200
         assert response.json["status"] == "FAILURE"
+        assert response.json["dagster_run_id"] == "run-1"
+        assert response.json["exit_code"] == 2
+        assert response.json["started_at"] == "2026-01-01 10:00:00"
+        assert response.json["completed_at"] == "2026-01-01 10:30:00"
         task = Task.query.get(task.id)
         assert task.status == "FAILURE"
         assert task.dagster_run_id == "run-1"
@@ -50,7 +54,7 @@ class TestPatchTask:
     def test_invalid_body_fails(self, client, post_json_admin_header, task, body):
         response = self.patch(client, post_json_admin_header, task.id, body)
         assert response.status_code == 400
-        assert Task.query.get(task.id).status == "scheduled"
+        assert Task.query.get(task.id).status == "PENDING"
 
     def test_not_found(self, client, post_json_admin_header):
         response = self.patch(client, post_json_admin_header, 999, {"status": "RUNNING"})
@@ -66,4 +70,4 @@ class TestPatchTask:
         is_token_valid.return_value = False
         response = self.patch(client, post_json_user_header, task.id, {"status": "RUNNING"})
         assert response.status_code == 403
-        assert Task.query.get(task.id).status == "scheduled"
+        assert Task.query.get(task.id).status == "PENDING"
