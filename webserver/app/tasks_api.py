@@ -185,24 +185,32 @@ def post_tasks():
     if not project:
         return {"error": f"Project '{project_name}' not found"}, HTTPStatus.NOT_FOUND
 
-    api_request = ApiRequest(
-        project_id=project.id,
-        user_id=user_id,
-        payload=raw_body
-    )
-    api_request.add(commit=True)
+    # The three rows are one transaction: a failure creates none of them
+    session = db.session
+    try:
+        api_request = ApiRequest(
+            project_id=project.id,
+            user_id=user_id,
+            payload=raw_body
+        )
+        api_request.add(commit=False)
 
-    task_request = TaskRequest(
-        api_request_id=api_request.id,
-        project_id=project.id,
-        payload=spec.model_dump(),
-        queued=True,
-    )
-    task_request.add(commit=True)
+        task_request = TaskRequest(
+            api_request_id=api_request.id,
+            project_id=project.id,
+            payload=spec.model_dump(),
+            queued=True,
+        )
+        task_request.add(commit=False)
 
-    # Create Task from TaskRequest
-    task = Task.from_task_request(task_request, requested_by=user_id)
-    task.add(commit=True)
+        # Create Task from TaskRequest
+        task = Task.from_task_request(task_request)
+        task.add(commit=False)
+
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
 
     return {
         "id": task.id,

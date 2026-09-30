@@ -1,7 +1,6 @@
-from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from app.helpers.exceptions import InvalidRequest
-from app.models.task import Task
 
 
 class TaskSpec(BaseModel):
@@ -22,14 +21,6 @@ class TaskSpec(BaseModel):
     tags: dict = {}
     resources: dict = {}
     repository: str | None = None
-
-    @model_validator(mode="after")
-    def validate_resources(self):
-        limits = self.resources.get("limits", {})
-        requests = self.resources.get("requests", {})
-        Task.validate_cpu_resources(limits.get("cpu"), requests.get("cpu"))
-        Task.validate_memory_resources(limits.get("memory"), requests.get("memory"))
-        return self
 
     @classmethod
     def build(cls, **fields) -> "TaskSpec":

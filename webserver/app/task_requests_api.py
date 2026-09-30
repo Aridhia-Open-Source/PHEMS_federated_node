@@ -96,11 +96,6 @@ def post_task(task_request_id):
     if task_request.task:
         return TaskDTO.from_model(task_request.task).dump(), HTTPStatus.OK
 
-    if task_request.pull_request:
-        requested_by = task_request.pull_request.raised_by
-    else:
-        requested_by = task_request.api_request.user_id
-
-    task = Task.from_task_request(task_request, requested_by=requested_by)
+    task = Task.from_task_request(task_request)
     task.add()
     return TaskDTO.from_model(task).dump(), HTTPStatus.CREATED
