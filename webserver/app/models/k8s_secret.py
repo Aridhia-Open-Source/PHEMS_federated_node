@@ -39,6 +39,9 @@ class K8sSecret(db.Model, BaseModel):
     trigger_repositories = relationship(
         "TriggerRepository", back_populates="k8s_secret", overlaps="trigger_repositories,project"
     )
+    results_repositories = relationship(
+        "ResultsRepository", back_populates="k8s_secret", overlaps="results_repositories,project"
+    )
     datasets = relationship("Dataset", back_populates="k8s_secret", overlaps="datasets,project")
 
     @classmethod

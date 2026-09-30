@@ -153,7 +153,7 @@ def delete_k8s_secret(secret_id):
     Refused while a repository still uses it.
     """
     secret = K8sSecret.get_by_id(secret_id)
-    users = len(secret.trigger_repositories) + len(secret.datasets)
+    users = len(secret.trigger_repositories) + len(secret.results_repositories) + len(secret.datasets)
     if users:
         raise InvalidRequest(
             f"K8s secret {secret.name} is still used by {users} repositories or datasets",

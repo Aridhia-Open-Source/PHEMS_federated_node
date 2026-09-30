@@ -1,5 +1,4 @@
 from app.dtos.base import DTO, WireDatetime
-from app.dtos.results_repository import ResultsRepositoryDTO
 
 
 class ProjectDTO(DTO):
@@ -8,7 +7,6 @@ class ProjectDTO(DTO):
     description: str | None
     enabled: bool
     default_dataset_id: int | None
-    results_repository_id: int | None
     created_at: WireDatetime
     updated_at: WireDatetime
 
@@ -28,11 +26,21 @@ class RepositoryHealthDTO(DTO):
     health_check: HealthCheckDTO
 
 
+class ResultsRepositoryHealthDTO(DTO):
+    id: int
+    uri: str
+    owned_by_federated_node: bool
+    target_dir: str
+    status: str
+    health_check: HealthCheckDTO
+
+
 class ProjectHealthDTO(DTO):
     id: int
     name: str
     enabled: bool
-    # ok only when there is at least one repository and every one of them is reachable
+    # ok only when there is at least one trigger repository and every repository, the
+    # results one (if the project has one) included, is reachable
     status: str
-    results_repository: ResultsRepositoryDTO | None
+    results_repository: ResultsRepositoryHealthDTO | None
     trigger_repositories: list[RepositoryHealthDTO]

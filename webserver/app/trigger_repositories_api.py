@@ -19,6 +19,7 @@ from flask import Blueprint, request
 from app.dtos.trigger_repository import PullRequestDTO, TaskRequestDTO, TriggerRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
+from app.helpers.repository_loop import check_no_loop
 from app.helpers.wrappers import auth
 from app.models.k8s_secret import K8sSecret
 from app.models.project import Project
@@ -103,7 +104,13 @@ def post_repository():
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
-    repo.add()
+    repo.add(commit=False)
+    try:
+        check_no_loop(repo.project_id, repo.uri)
+    except InvalidRequest:
+        session.rollback()
+        raise
+    session.commit()
 
     return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.CREATED
 
@@ -150,6 +157,12 @@ def patch_repository(repo_id):
     if 'initial_cursor' in body:
         repo.initial_cursor = body['initial_cursor']
 
+    session.flush()
+    try:
+        check_no_loop(repo.project_id, repo.uri)
+    except InvalidRequest:
+        session.rollback()
+        raise
     session.commit()
     return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK
 
