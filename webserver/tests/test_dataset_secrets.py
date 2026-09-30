@@ -18,8 +18,8 @@ def audited(mock_kc_client, admin_user_uuid):
 
 
 @pytest.fixture
-def k8s_secret(client, k8s_client):
-    secret = K8sSecret(name="cdm-creds")
+def k8s_secret(client, k8s_client, project):
+    secret = K8sSecret(project_id=project.id, name="cdm-creds")
     secret.add()
     return secret
 
@@ -74,6 +74,19 @@ class TestPostDataset:
         post_dataset(client, post_json_admin_header, body, code=400)
         assert Dataset.query.count() == 0
 
+    def test_another_projects_secret_is_rejected(
+        self, client, k8s_client, audited, post_json_admin_header, body, other_project
+    ):
+        K8sSecret(project_id=other_project.id, name="foreign-creds").add()
+        body["k8s_secret_name"] = "foreign-creds"
+        response = post_dataset(client, post_json_admin_header, body, code=400)
+        assert "does not exist" in response["error"]
+        assert Dataset.query.count() == 0
+
+    def test_the_response_names_the_cluster_secret(self, client, k8s_client, audited, post_json_admin_header, body, project):
+        created = post_dataset(client, post_json_admin_header, body)
+        assert created["k8s_secret_k8s_name"] == f"{project.id}-cdm-creds"
+
     @pytest.mark.parametrize("credentials", [{"username": "u"}, {"password": "p"}, {"username": "u", "password": "p"}])
     def test_credentials_are_rejected(self, client, k8s_client, audited, post_json_admin_header, body, credentials):
         response = post_dataset(client, post_json_admin_header, {**body, **credentials}, code=400)
@@ -83,16 +96,16 @@ class TestPostDataset:
     def test_datasets_can_share_a_secret(self, client, k8s_client, audited, post_json_admin_header, body):
         post_dataset(client, post_json_admin_header, body)
         post_dataset(client, post_json_admin_header, {**body, "name": "other"})
-        assert Dataset.query.filter_by(k8s_secret_name="cdm-creds").count() == 2
+        assert Dataset.query.filter_by(k8s_secret_id=Dataset.query.first().k8s_secret_id).count() == 2
 
 
 class TestPatchDataset:
     def create(self, client, headers, body):
         return post_dataset(client, headers, body)
 
-    def test_repoint_to_another_secret(self, client, k8s_client, audited, post_json_admin_header, body):
+    def test_repoint_to_another_secret(self, client, k8s_client, audited, post_json_admin_header, body, project):
         created = self.create(client, post_json_admin_header, body)
-        K8sSecret(name="other-creds").add()
+        K8sSecret(project_id=project.id, name="other-creds").add()
 
         response = client.patch(
             f"/datasets/{created['id']}",
@@ -121,6 +134,20 @@ class TestPatchDataset:
             headers=post_json_admin_header
         )
         assert response.status_code == 400
+        assert Dataset.query.one().k8s_secret_name == "cdm-creds"
+
+    def test_another_projects_secret_is_rejected(
+        self, client, k8s_client, audited, post_json_admin_header, body, other_project
+    ):
+        created = self.create(client, post_json_admin_header, body)
+        K8sSecret(project_id=other_project.id, name="foreign-creds").add()
+        response = client.patch(
+            f"/datasets/{created['id']}",
+            data=json.dumps({"k8s_secret_name": "foreign-creds"}),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert "does not exist" in response.json["error"]
         assert Dataset.query.one().k8s_secret_name == "cdm-creds"
 
     @pytest.mark.parametrize("field", ["username", "password"])
@@ -159,17 +186,17 @@ class TestDeleteDataset:
 
 
 class TestGetCredentials:
-    def test_reads_the_named_secret(self, client, k8s_client, audited, post_json_admin_header, body):
+    def test_reads_the_named_secret(self, client, k8s_client, audited, post_json_admin_header, body, project):
         created = post_dataset(client, post_json_admin_header, body)
         dataset = Dataset.get_by_id(created["id"])
 
         user, password = dataset.get_credentials()
 
         read = k8s_client["read_namespaced_secret_mock"]
-        read.assert_called_once_with("cdm-creds", DEFAULT_NAMESPACE)
+        read.assert_called_once_with(f"{project.id}-cdm-creds", DEFAULT_NAMESPACE)
         assert (user, password) == ("abc123", "abc123")
 
-    def test_two_datasets_sharing_a_secret_read_the_same_one(self, client, k8s_client, audited, post_json_admin_header, body):
+    def test_two_datasets_sharing_a_secret_read_the_same_one(self, client, k8s_client, audited, post_json_admin_header, body, project):
         first = Dataset.get_by_id(post_dataset(client, post_json_admin_header, body)["id"])
         second = Dataset.get_by_id(post_dataset(client, post_json_admin_header, {**body, "name": "other"})["id"])
 
@@ -177,4 +204,4 @@ class TestGetCredentials:
         second.get_credentials()
 
         names = {call.args[0] for call in k8s_client["read_namespaced_secret_mock"].call_args_list}
-        assert names == {"cdm-creds"}
+        assert names == {f"{project.id}-cdm-creds"}

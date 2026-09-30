@@ -2343,7 +2343,7 @@
           },
           "k8s_secret_name": {
             "type": "string",
-            "description": "Name of an existing k8s secret (see POST /k8s_secrets) holding the credentials the Federated Node uses to access the DB, under the keys USERNAME and PASSWORD",
+            "description": "Name of an existing k8s secret of the same project (see POST /k8s_secrets; the name is local to the project) holding the credentials the Federated Node uses to access the DB, under the keys USERNAME and PASSWORD",
             "example": "my-dataset-creds"
           },
           "extra_connection_args": {

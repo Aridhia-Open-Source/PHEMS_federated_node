@@ -1,7 +1,7 @@
 """
 k8s secret endpoints. The values only ever go to the cluster; the database keeps a
-reference so that repositories can share a secret:
-- GET /k8s_secrets
+reference so that repositories can share a secret. A secret belongs to a project:
+- GET /k8s_secrets?project_id=
 - GET /k8s_secrets/<id>
 - POST /k8s_secrets
 - PATCH /k8s_secrets/<id>
@@ -22,6 +22,7 @@ from app.helpers.exceptions import InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.wrappers import audit, auth
 from app.models.k8s_secret import K8sSecret
+from app.models.project import Project
 
 logger = logging.getLogger('k8s_secrets_api')
 bp = Blueprint('k8s_secrets', __name__, url_prefix='/k8s_secrets')
@@ -74,9 +75,13 @@ def _delete_cluster_secret(name: str):
 @bp.route('', methods=['GET'])
 def get_k8s_secrets():
     """
-    GET /k8s_secrets — list the secrets. The values are never returned.
+    GET /k8s_secrets — list the secrets, optionally of one project (?project_id=).
+    The values are never returned.
     """
-    return [K8sSecretDTO.from_model(s).dump() for s in K8sSecret.query.all()], HTTPStatus.OK
+    query = K8sSecret.query
+    if 'project_id' in request.args:
+        query = query.filter(K8sSecret.project_id == request.args.get('project_id', type=int))
+    return [K8sSecretDTO.from_model(s).dump() for s in query.all()], HTTPStatus.OK
 
 
 @bp.route('/<int:secret_id>', methods=['GET'])
@@ -92,25 +97,31 @@ def get_k8s_secret(secret_id):
 @audit
 def post_k8s_secret():
     """
-    POST /k8s_secrets — create the cluster secret and the reference to it
-    Body: {"name": "...", "values": {"KEY": "value", ...}}
+    POST /k8s_secrets — create the cluster secret and the reference to it. The cluster
+    secret is named "<project_id>-<name>".
+    Body: {"project_id": 1, "name": "...", "values": {"KEY": "value", ...}}
     """
     body = request.json or {}
+    if not body.get('project_id'):
+        raise InvalidRequest("project_id is required")
     if not body.get('name'):
         raise InvalidRequest("name is required")
     values = _get_values(body)
 
-    if K8sSecret.query.filter(K8sSecret.name == body['name']).one_or_none():
+    Project.get_by_id(body['project_id'])
+    if K8sSecret.query.filter(
+        K8sSecret.project_id == body['project_id'], K8sSecret.name == body['name']
+    ).one_or_none():
         raise InvalidRequest(f"K8s secret {body['name']} already exists", code=HTTPStatus.CONFLICT)
 
     try:
-        secret = K8sSecret(name=body['name'])
+        secret = K8sSecret(project_id=body['project_id'], name=body['name'])
     except ValueError as e:
         raise InvalidRequest(str(e))
 
     # The cluster first, so a failure there leaves no row pointing at nothing. If the row
     # then fails, the cluster secret is left for a retry to adopt: writing it overwrites.
-    _write_cluster_secret(secret.name, values)
+    _write_cluster_secret(secret.k8s_name, values)
     secret.add()
 
     return K8sSecretDTO.from_model(secret).dump(), HTTPStatus.CREATED
@@ -127,7 +138,7 @@ def patch_k8s_secret(secret_id):
     secret = K8sSecret.get_by_id(secret_id)
     values = _get_values(request.json or {})
 
-    _write_cluster_secret(secret.name, values)
+    _write_cluster_secret(secret.k8s_name, values)
     secret.updated_at = dt.now()
     session.commit()
 
@@ -158,7 +169,7 @@ def delete_k8s_secret(secret_id):
         raise InvalidRequest("Error while deleting the record") from exc
 
     try:
-        _delete_cluster_secret(secret.name)
+        _delete_cluster_secret(secret.k8s_name)
     except InvalidRequest:
         session.rollback()
         raise

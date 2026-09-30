@@ -7,6 +7,7 @@ class DatasetDTO(DTO):
     id: int
     project_id: int
     k8s_secret_name: str
+    k8s_secret_k8s_name: str
     name: str
     host: str
     port: int | None
@@ -26,6 +27,7 @@ class DatasetDTO(DTO):
             id=obj.id,
             project_id=obj.project_id,
             k8s_secret_name=obj.k8s_secret_name,
+            k8s_secret_k8s_name=obj.k8s_secret_k8s_name,
             name=obj.name,
             host=obj.host,
             port=obj.port,

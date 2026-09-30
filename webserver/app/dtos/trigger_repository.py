@@ -11,6 +11,7 @@ class TriggerRepositoryDTO(DTO):
     provider: str
     api_uri: str
     k8s_secret_name: str
+    k8s_secret_k8s_name: str
     watch_dir: str
     base_branch: str
     project_id: int
@@ -28,6 +29,7 @@ class TriggerRepositoryDTO(DTO):
             provider=obj.provider,
             api_uri=obj.api_uri,
             k8s_secret_name=obj.k8s_secret_name,
+            k8s_secret_k8s_name=obj.k8s_secret_k8s_name,
             watch_dir=obj.watch_dir,
             base_branch=obj.base_branch,
             project_id=obj.project_id,
