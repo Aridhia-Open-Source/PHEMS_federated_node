@@ -65,8 +65,8 @@ def test_launches_a_queued_request():
     assert config["dataset_name"] == "cdm"
     backend_api.create_task.assert_called_once_with(3)
     backend_api.get_dataset.assert_called_once_with(7)
-    backend_api.patch_task.assert_called_once_with(103, {"status": "QUEUED"})
-    backend_api.patch_task_request.assert_called_once_with(3, {"queued": False})
+    backend_api.patch_task.assert_not_called()
+    backend_api.patch_task_request.assert_not_called()
     backend_api.get_task_requests.assert_called_once_with(queued=True, project_id=1)
 
 
@@ -98,7 +98,6 @@ def test_a_failing_request_does_not_stop_the_others_and_stays_queued():
     result = run(backend_api)
 
     assert [r.run_key for r in result] == ["task_request/4"]
-    backend_api.patch_task_request.assert_called_once_with(4, {"queued": False})
 
 
 def test_a_failing_project_does_not_stop_the_others():
@@ -118,3 +117,15 @@ def test_a_request_is_not_marked_when_the_run_config_cannot_be_built():
     assert len(result) == 1 and isinstance(result[0], SkipReason)
     backend_api.patch_task_request.assert_not_called()
     backend_api.patch_task.assert_not_called()
+
+
+def test_the_request_stays_queued_and_the_same_run_key_is_yielded_until_a_run_starts():
+    backend_api = make_backend([project()], {1: [task_request(3)]})
+
+    first = run(backend_api)
+    second = run(backend_api)
+
+    assert [r.run_key for r in first] == [r.run_key for r in second] == ["task_request/3"]
+    assert first[0].tags == second[0].tags
+    backend_api.patch_task.assert_not_called()
+    backend_api.patch_task_request.assert_not_called()

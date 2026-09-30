@@ -21,7 +21,10 @@ class TaskRequestLauncherSensor(BaseSensor):
         1. Fetch the enabled projects
         2. For each, fetch its queued task requests
         3. Ensure the task exists, build the run config for its dataset and yield the run
-        4. Mark the task as QUEUED and the task request as no longer queued
+
+        The launcher marks nothing: code after a yield still runs before Dagster creates
+        the run, so the request stays queued and its run key de-duplicates the re-yield
+        until the run-status sensors see the run start.
         """
         projects = [p for p in self.backend_api.get_projects() if p.enabled]
         launched = 0
@@ -46,7 +49,7 @@ class TaskRequestLauncherSensor(BaseSensor):
         task = self.backend_api.create_task(task_request.id)
         dataset = self.backend_api.get_dataset(task.dataset_id)
         run_config = build_run_config(task_request.payload, dataset, self._registries())
-        run_request = dg.RunRequest(
+        return dg.RunRequest(
             run_key=f"task_request/{task_request.id}",
             tags={
                 "trigger": "task_request",
@@ -57,10 +60,6 @@ class TaskRequestLauncherSensor(BaseSensor):
             },
             run_config=run_config,
         )
-        # The request stays queued until the task is marked, and the run key makes a retry safe
-        self.backend_api.patch_task(task.id, {"status": "QUEUED"})
-        self.backend_api.patch_task_request(task_request.id, {"queued": False})
-        return run_request
 
     def _registries(self) -> list[Registry]:
         """
