@@ -81,9 +81,9 @@ def post_repository():
         if not body.get(field):
             raise InvalidRequest(f"{field} is required")
 
-    uri = body['uri'].lower().rstrip('/')
-    if TriggerRepository.query.filter(TriggerRepository.uri == uri).one_or_none():
-        raise InvalidRequest(f"Repository {uri} already exists")
+    uri = TriggerRepository.parse_repo_uri(body['uri'])
+    if TriggerRepository.query.filter_by(project_id=body['project_id'], uri=uri).one_or_none():
+        raise InvalidRequest(f"Repository {uri} already exists in project {body['project_id']}")
 
     # Validate project and secret exist
     Project.get_by_id(body['project_id'])
@@ -99,6 +99,7 @@ def post_repository():
             project_id=body['project_id'],
             base_branch=body.get('base_branch', 'main'),
             initial_cursor=body.get('initial_cursor'),
+            repo_path=body.get('repo_path'),
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
