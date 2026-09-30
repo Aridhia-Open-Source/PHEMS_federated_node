@@ -3073,6 +3073,26 @@
           "project_id": {
             "type": "integer",
             "example": 1
+          },
+          "dagster_run_id": {
+            "type": "string",
+            "nullable": true,
+            "example": "8c6f2a52-5d1c-4e0b-9d57-3f0e8a1c2b44"
+          },
+          "exit_code": {
+            "type": "integer",
+            "nullable": true,
+            "example": 0
+          },
+          "started_at": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-01-01 10:00:00"
+          },
+          "completed_at": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-01-01 10:30:00"
           }
         }
       },

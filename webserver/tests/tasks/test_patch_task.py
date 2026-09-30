@@ -22,6 +22,10 @@ class TestPatchTask:
         })
         assert response.status_code == 200
         assert response.json["status"] == "FAILURE"
+        assert response.json["dagster_run_id"] == "run-1"
+        assert response.json["exit_code"] == 2
+        assert response.json["started_at"] == "2026-01-01 10:00:00"
+        assert response.json["completed_at"] == "2026-01-01 10:30:00"
         task = Task.query.get(task.id)
         assert task.status == "FAILURE"
         assert task.dagster_run_id == "run-1"

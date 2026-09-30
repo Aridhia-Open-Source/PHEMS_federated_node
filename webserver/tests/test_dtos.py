@@ -152,6 +152,7 @@ class TestTaskDTO:
         assert set(dumped) == {
             "id", "name", "docker_image", "status", "created_at", "updated_at",
             "requested_by", "dataset_id", "project_id",
+            "dagster_run_id", "exit_code", "started_at", "completed_at",
         }
         assert dumped["status"] == "PENDING"
         assert WIRE_DATETIME.match(dumped["created_at"])
