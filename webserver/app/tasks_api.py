@@ -104,7 +104,7 @@ def get_task_id(task_id):
 
 @bp.route('/<int:task_id>', methods=['PATCH'])
 @audit
-@auth(scope='can_admin_task')
+@auth(scope='can_admin_dataset')
 def patch_task(task_id):
     """
     PATCH /tasks/id endpoint. Records the progress of a task's run
