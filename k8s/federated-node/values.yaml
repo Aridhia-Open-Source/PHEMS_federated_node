@@ -88,6 +88,28 @@ storage:
     # Local storage that will be shared with the db
     # dbpath: /data/db
 
+# Read only volumes holding file based datasets. Each one gets a PV and a
+# ReadOnlyMany PVC named after it in the tasks namespace, to use as the
+# dataset's volume_claim. Set exactly one backend per entry.
+datasetVolumes: []
+  # - name: clinic-files
+  #   capacity: 10Gi
+  #   mountOptions: []
+  #   local:
+  #     path: /data/datasets
+  #   azure:
+  #     shareName: datasets
+  #     secretName: azure-storage-secret
+  #     secretNamespace: tasks
+  #   aws:
+  #     fileSystemId: fs-xxxxxxxx
+  #     accessPointId: fsap-xxxxxxxx
+  #   gcp:
+  #     bucketName: my-datasets-bucket
+  #   nfs:
+  #     url: nfs.example.com
+  #     path: /exports/datasets
+
 pullPolicy: Always
 
 # If using a reverse proxy, or ssl certificates, this will set the hostname

@@ -121,6 +121,9 @@ class Task(db.Model, BaseModel):
                 user["id"]
             ).dataset
 
+        if data["dataset"].is_file_based:
+            data["dataset"].get_volume_claim()
+
         # Docker image validation
         Container.validate_image_format(data["docker_image"], data["docker_image"])
 
