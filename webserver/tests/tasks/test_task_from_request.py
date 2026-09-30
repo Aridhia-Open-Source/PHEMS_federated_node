@@ -145,3 +145,15 @@ class TestPostTasks:
         assert response.status_code == 400
         assert Task.query.count() == 0
         assert TaskRequest.query.count() == 0
+
+    def test_failed_task_creation_creates_nothing(
+            self, client, cr_client, registry_client, post_json_admin_header, task_body, project,
+            other_project
+        ):
+        # The body's project owns the dataset, the header's project does not
+        response = self.post(client, post_json_admin_header, other_project, task_body)
+        assert response.status_code == 400, response.json
+        assert "does not belong to project" in response.json["error"]
+        assert ApiRequest.query.count() == 0
+        assert TaskRequest.query.count() == 0
+        assert Task.query.count() == 0
