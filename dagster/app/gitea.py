@@ -98,3 +98,26 @@ class GiteaAPI:
         if "content" in data:
             return base64.b64decode(data["content"]).decode("utf-8")
         return data.get("content", "")
+
+    def find_pull_request_by_branch(self, repo_path: str, head_branch: str, base_branch: str) -> dict | None:
+        """Fetch the open or closed PR from head_branch into base_branch, or None if there is none."""
+        self.logger.info(f"Looking up PR {head_branch} -> {base_branch} in {repo_path}")
+        response = self.client.request(
+            "GET", f"repos/{repo_path}/pulls/{base_branch}/{head_branch}", raise_for_status=False
+        )
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        return response.json()
+
+    def create_pull_request(
+        self, repo_path: str, head_branch: str, base_branch: str, title: str, body: str
+    ) -> dict:
+        """Create a pull request from head_branch into base_branch."""
+        self.logger.info(f"Creating PR {head_branch} -> {base_branch} in {repo_path}")
+        response = self.client.request(
+            "POST",
+            f"repos/{repo_path}/pulls",
+            json={"title": title, "body": body, "head": head_branch, "base": base_branch},
+        )
+        return response.json()
