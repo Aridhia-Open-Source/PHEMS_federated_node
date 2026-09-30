@@ -98,7 +98,7 @@ class Task(db.Model, BaseModel):
         self.updated_at = dt.now()
 
     @classmethod
-    def from_task_request(cls, task_request, requested_by:str):
+    def from_task_request(cls, task_request):
         """
         The one place a Task's columns are derived from its TaskRequest's spec.
         """
@@ -108,7 +108,7 @@ class Task(db.Model, BaseModel):
             # A pull request spec has no name of its own
             name=spec["name"] or pull_request.title,
             docker_image=spec["image"],
-            requested_by=requested_by,
+            requested_by=pull_request.raised_by if pull_request else task_request.api_request.user_id,
             dataset=task_request.project.resolve_dataset(spec["dataset"]),
             project_id=task_request.project_id,
             task_request_id=task_request.id,

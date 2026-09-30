@@ -157,7 +157,7 @@ def post_tasks():
         task_request.add(commit=False)
 
         # Create Task from TaskRequest
-        task = Task.from_task_request(task_request, requested_by=user_id)
+        task = Task.from_task_request(task_request)
         task.add(commit=False)
 
         session.commit()
