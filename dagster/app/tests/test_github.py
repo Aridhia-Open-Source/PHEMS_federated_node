@@ -159,14 +159,14 @@ class TestWrites:
         assert api.branch_exists("org/repo", "results/pr-5") is False
         assert client.request.call_args.kwargs["raise_for_status"] is False
 
-    def test_create_pull_request_returns_the_url(self, api, client):
+    def test_create_pull_request_returns_the_pr(self, api, client):
         client.request.return_value = response({"html_url": "https://github.com/org/repo/pull/6"})
 
-        url = api.create_pull_request(
-            "org/repo", head="results/pr-5", base="main", title="t", body="b"
+        pr = api.create_pull_request(
+            "org/repo", head_branch="results/pr-5", base_branch="main", title="t", body="b"
         )
 
-        assert url == "https://github.com/org/repo/pull/6"
+        assert pr["html_url"] == "https://github.com/org/repo/pull/6"
         assert client.request.call_args.kwargs["json"] == {
             "title": "t", "body": "b", "head": "results/pr-5", "base": "main",
         }
