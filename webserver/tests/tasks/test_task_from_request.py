@@ -158,3 +158,14 @@ class TestPostTasks:
         assert ApiRequest.query.count() == 0
         assert TaskRequest.query.count() == 0
         assert Task.query.count() == 0
+
+    @pytest.mark.parametrize("executors", ["missing", []])
+    def test_no_executors_fails(self, client, post_json_admin_header, task_body, project, executors):
+        if executors == "missing":
+            task_body.pop("executors")
+        else:
+            task_body["executors"] = executors
+        response = self.post(client, post_json_admin_header, project, task_body)
+        assert response.status_code == 400
+        assert response.json["error"] == "executors must be a non-empty list of objects"
+        assert TaskRequest.query.count() == 0
