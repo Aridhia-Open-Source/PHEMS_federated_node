@@ -56,6 +56,14 @@ def _reject_credentials(body: dict | None):
         )
 
 
+def _resolve_secret(body: dict, project_id: int) -> dict:
+    """Swaps the project-local k8s_secret_name a request carries for the secret's id."""
+    if not body.get("k8s_secret_name"):
+        raise InvalidRequest("k8s_secret_name is required")
+    body["k8s_secret_id"] = K8sSecret.get_in_project(project_id, body.pop("k8s_secret_name")).id
+    return body
+
+
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
 @audit
@@ -66,8 +74,9 @@ def post_datasets():
     """
     try:
         _reject_credentials(request.json)
-        body = Dataset.validate(request.json)
-        K8sSecret.check_exists(body["k8s_secret_name"])
+        if not request.json.get("project_id"):
+            raise InvalidRequest("project_id is required")
+        body = Dataset.validate(_resolve_secret(dict(request.json), request.json["project_id"]))
         cata_body = body.pop("catalogue", {})
         dict_body = body.pop("dictionaries", [])
         dataset = Dataset(**body)
@@ -171,7 +180,7 @@ def patch_datasets_by_id_or_name(
             raise InvalidRequest(f"Field {k} is not a valid one")
 
     if "k8s_secret_name" in body:
-        K8sSecret.check_exists(body["k8s_secret_name"])
+        _resolve_secret(body, body.get("project_id", ds.project_id))
 
     try:
         ds.update(**body)

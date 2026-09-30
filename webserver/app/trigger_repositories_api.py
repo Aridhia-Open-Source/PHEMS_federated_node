@@ -87,14 +87,14 @@ def post_repository():
 
     # Validate project and secret exist
     Project.get_by_id(body['project_id'])
-    K8sSecret.check_exists(body['k8s_secret_name'])
+    secret = K8sSecret.get_in_project(body['project_id'], body['k8s_secret_name'])
 
     try:
         repo = TriggerRepository(
             uri=uri,
             provider=body['provider'],
             api_uri=body['api_uri'],
-            k8s_secret_name=body['k8s_secret_name'],
+            k8s_secret_id=secret.id,
             watch_dir=body.get('watch_dir', ''),
             project_id=body['project_id'],
             base_branch=body.get('base_branch', 'main'),
@@ -132,12 +132,15 @@ def patch_repository(repo_id):
             raise InvalidRequest("watch_dir cannot be empty")
         repo.watch_dir = body['watch_dir']
 
-    for field in ('provider', 'api_uri', 'k8s_secret_name'):
+    if 'k8s_secret_name' in body:
+        if not body['k8s_secret_name']:
+            raise InvalidRequest("k8s_secret_name cannot be empty")
+        repo.k8s_secret_id = K8sSecret.get_in_project(repo.project_id, body['k8s_secret_name']).id
+
+    for field in ('provider', 'api_uri'):
         if field in body:
             if not body[field]:
                 raise InvalidRequest(f"{field} cannot be empty")
-            if field == 'k8s_secret_name':
-                K8sSecret.check_exists(body[field])
             try:
                 setattr(repo, field, body[field])
             except ValueError as e:

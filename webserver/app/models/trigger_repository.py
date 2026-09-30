@@ -38,11 +38,10 @@ class TriggerRepository(db.Model, BaseModel):
     provider = sa.Column(sa.String(16), nullable=False)
     # The scheme is stripped from uri, so the provider's API base URL is kept explicitly.
     api_uri = sa.Column(sa.String(4096), nullable=False)
-    # The Kubernetes secret holding the git token (under the key TOKEN), by name. Set
-    # explicitly rather than derived from uri, so repositories can share one credential.
-    k8s_secret_name = sa.Column(
-        sa.String(253), sa.ForeignKey('k8s_secrets.name', ondelete='RESTRICT'), nullable=False
-    )
+    # The secret holding the git token (under the key TOKEN). Set explicitly rather than
+    # derived from uri, so repositories can share one credential. The composite foreign
+    # key below keeps it to a secret of this repository's own project.
+    k8s_secret_id = sa.Column(sa.Integer, nullable=False)
     watch_dir = sa.Column(sa.String(4096), nullable=False)
     base_branch = sa.Column(sa.String(256), nullable=False, default='main')
     initial_cursor = sa.Column(
@@ -52,8 +51,17 @@ class TriggerRepository(db.Model, BaseModel):
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
 
+    __table_args__ = (
+        sa.ForeignKeyConstraint(
+            ['project_id', 'k8s_secret_id'], ['k8s_secrets.project_id', 'k8s_secrets.id'],
+            ondelete='RESTRICT'
+        ),
+    )
+
     project = relationship("Project", back_populates="trigger_repositories")
-    k8s_secret = relationship("K8sSecret", back_populates="trigger_repositories")
+    k8s_secret = relationship(
+        "K8sSecret", back_populates="trigger_repositories", overlaps="project"
+    )
     pull_requests = relationship(
         "PullRequest", back_populates="trigger_repository", cascade="all, delete"
     )
@@ -99,6 +107,14 @@ class TriggerRepository(db.Model, BaseModel):
         return self.project.default_dataset
 
     @property
+    def k8s_secret_name(self) -> str:
+        return self.k8s_secret.name
+
+    @property
+    def k8s_secret_k8s_name(self) -> str:
+        return self.k8s_secret.k8s_name
+
+    @property
     def path(self):
         return '/'.join(self.uri.split('/')[1:])
 
@@ -114,7 +130,7 @@ class TriggerRepository(db.Model, BaseModel):
         """
         The git token, read from the cluster secret this repository names.
         """
-        secret = KubernetesClient().read_namespaced_secret(self.k8s_secret_name, DEFAULT_NAMESPACE)
+        secret = KubernetesClient().read_namespaced_secret(self.k8s_secret_k8s_name, DEFAULT_NAMESPACE)
         if secret.data is None:
             raise KeyError("TOKEN")
         return KubernetesClient.decode_secret_value(secret.data['TOKEN'])
@@ -196,7 +212,7 @@ class TriggerRepository(db.Model, BaseModel):
         uri: str,
         provider: str,
         api_uri: str,
-        k8s_secret_name: str,
+        k8s_secret_id: int,
         watch_dir: str,
         project_id: int,
         base_branch: str = 'main',
@@ -205,7 +221,7 @@ class TriggerRepository(db.Model, BaseModel):
         self.uri = uri
         self.provider = provider
         self.api_uri = api_uri
-        self.k8s_secret_name = k8s_secret_name
+        self.k8s_secret_id = k8s_secret_id
         self.watch_dir = watch_dir
         self.project_id = project_id
         self.base_branch = base_branch
