@@ -48,7 +48,6 @@ class Task(db.Model, BaseModel):
     completed_at = sa.Column(sa.DateTime(timezone=False), nullable=True)
 
     params = sa.Column(sa.JSON, nullable=False, server_default='{}')
-    trigger_payload = sa.Column(sa.JSON, nullable=True)
 
     dataset = relationship("Dataset")
     project = relationship("Project")
@@ -79,10 +78,10 @@ class Task(db.Model, BaseModel):
                  dataset,
                  project_id:int,
                  task_request_id:int | None = None,
-                 executors:list[dict] = [],
-                 tags:dict = {},
-                 resources:dict = {},
-                 **kwargs
+                 api_request_id:int | None = None,
+                 pr_repository_id:int | None = None,
+                 pr_number:int | None = None,
+                 params:dict | None = None,
                  ):
         self.name = name
         self.status = 'scheduled'
@@ -91,11 +90,33 @@ class Task(db.Model, BaseModel):
         self.dataset = dataset
         self.project_id = project_id
         self.task_request_id = task_request_id
+        self.api_request_id = api_request_id
+        self.pr_repository_id = pr_repository_id
+        self.pr_number = pr_number
+        self.params = params or {}
         self.created_at = dt.now()
         self.updated_at = dt.now()
-        self.tags = tags
-        self.executors = executors
-        self.resources = resources
+
+    @classmethod
+    def from_task_request(cls, task_request, requested_by:str):
+        """
+        The one place a Task's columns are derived from its TaskRequest's spec.
+        """
+        spec = task_request.payload
+        pull_request = task_request.pull_request
+        return cls(
+            # A pull request spec has no name of its own
+            name=spec["name"] or pull_request.title,
+            docker_image=spec["image"],
+            requested_by=requested_by,
+            dataset=task_request.project.resolve_dataset(spec["dataset"]),
+            project_id=task_request.project_id,
+            task_request_id=task_request.id,
+            api_request_id=task_request.api_request_id,
+            pr_repository_id=pull_request.trigger_repository_id if pull_request else None,
+            pr_number=pull_request.number if pull_request else None,
+            params=spec["params"],
+        )
 
     @classmethod
     def validate(cls, data:dict):
@@ -112,7 +133,7 @@ class Task(db.Model, BaseModel):
         # Support only for one image at a time, the standard is executors == list
         executors = data["executors"][0]
         data["docker_image"] = executors["image"]
-        repository = data.pop("repository", None)
+        repository = data.get("repository")
 
         data = super().validate(data)
 

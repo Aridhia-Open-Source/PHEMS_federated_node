@@ -516,14 +516,15 @@ class TestPostTaskRequest:
             headers=post_json_admin_header
         )
         assert response.status_code == 201
-        assert response.json["payload"] == payload
+        assert response.json["payload"]["image"] == "example:latest"
+        assert response.json["payload"]["env"] == {"KEY": "value"}
         assert response.json["project_id"] == repository.project_id
         assert response.json["queued"] is False
 
     def test_create_links_to_pull_request(self, client, post_json_admin_header, repository, pull_request):
         client.post(
             self.url(repository, pull_request),
-            data=json.dumps({"payload": {}}),
+            data=json.dumps({"payload": {"image": "example:latest"}}),
             headers=post_json_admin_header
         )
         pr = PullRequest.query.filter_by(trigger_repository_id=repository.id, number=pull_request["number"]).one()
@@ -532,7 +533,7 @@ class TestPostTaskRequest:
 
     def test_create_twice_conflicts(self, client, post_json_admin_header, repository, pull_request):
         url = self.url(repository, pull_request)
-        body = json.dumps({"payload": {}})
+        body = json.dumps({"payload": {"image": "example:latest"}})
         assert client.post(url, data=body, headers=post_json_admin_header).status_code == 201
         assert client.post(url, data=body, headers=post_json_admin_header).status_code == 409
 
@@ -568,6 +569,80 @@ class TestPostTaskRequest:
             headers={"Content-Type": "application/json"}
         )
         assert response.status_code == 401
+
+
+class TestPostTaskRequestSpec:
+    def url(self, repository, pull_request):
+        return f"/trigger_repositories/{repository.id}/pull_requests/{pull_request['number']}/task_request"
+
+    def post(self, client, headers, repository, pull_request, payload):
+        return client.post(
+            self.url(repository, pull_request),
+            data=json.dumps({"payload": payload}),
+            headers=headers
+        )
+
+    def test_payload_is_normalised(self, client, post_json_admin_header, repository, pull_request):
+        response = self.post(
+            client, post_json_admin_header, repository, pull_request, {"docker_image": "example:latest"}
+        )
+        assert response.status_code == 201
+        assert response.json["payload"]["image"] == "example:latest"
+        assert "docker_image" not in response.json["payload"]
+
+    def test_pull_request_payload_is_untouched(self, client, post_json_admin_header, repository, pull_request):
+        self.post(client, post_json_admin_header, repository, pull_request, {"docker_image": "example:latest"})
+        pr = PullRequest.query.filter_by(trigger_repository_id=repository.id, number=pull_request["number"]).one()
+        assert pr.payload == {"image": "example:latest"}
+
+    @pytest.mark.parametrize("payload", [
+        {},
+        {"env": {"A": "b"}},
+        {"image": "example:latest", "unknown_field": 1},
+        {"image": "example:latest", "env": "not-a-dict"},
+        {"image": "example:latest", "resources": {"limits": {"cpu": "abc"}}},
+    ])
+    def test_invalid_spec_fails(self, client, post_json_admin_header, repository, pull_request, payload):
+        response = self.post(client, post_json_admin_header, repository, pull_request, payload)
+        assert response.status_code == 400
+
+    def test_dataset_default_is_used(self, client, post_json_admin_header, repository, pull_request):
+        response = self.post(client, post_json_admin_header, repository, pull_request, {"image": "example:latest"})
+        assert response.status_code == 201
+        assert response.json["payload"]["dataset"] is None
+
+    def test_dataset_override_in_same_project(
+            self, client, post_json_admin_header, repository, pull_request, project, k8s_secret, user_uuid
+        ):
+        second_ds = Dataset(
+            name="SecondDs", host="example.com", k8s_secret_name=k8s_secret.name, project_id=project.id
+        )
+        second_ds.add(user_id=user_uuid)
+        payload = {"image": "example:latest", "dataset": second_ds.name}
+        response = self.post(client, post_json_admin_header, repository, pull_request, payload)
+        assert response.status_code == 201
+        assert response.json["payload"]["dataset"] == second_ds.name
+
+    def test_dataset_override_in_other_project_fails(
+            self, client, post_json_admin_header, repository, pull_request, other_project, k8s_secret, user_uuid
+        ):
+        other_ds = Dataset(
+            name="OtherDs", host="example.com", k8s_secret_name=k8s_secret.name, project_id=other_project.id
+        )
+        other_ds.add(user_id=user_uuid)
+        payload = {"image": "example:latest", "dataset": other_ds.name}
+        response = self.post(client, post_json_admin_header, repository, pull_request, payload)
+        assert response.status_code == 400
+        assert "does not belong to project" in response.json["error"]
+
+    def test_no_dataset_and_no_default_fails(
+            self, client, post_json_admin_header, repository, pull_request, project
+        ):
+        project.default_dataset_id = None
+        project.add()
+        response = self.post(client, post_json_admin_header, repository, pull_request, {"image": "example:latest"})
+        assert response.status_code == 400
+        assert "has no default dataset" in response.json["error"]
 
 
 class TestPullRequestDTO:

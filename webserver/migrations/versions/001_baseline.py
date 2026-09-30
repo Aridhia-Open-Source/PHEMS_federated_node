@@ -206,6 +206,10 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['pull_request_id'], ['pull_requests.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['api_request_id'], ['api_requests.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
+        sa.CheckConstraint(
+            '(pull_request_id IS NULL) <> (api_request_id IS NULL)',
+            name='ck_task_requests_one_source',
+        ),
         sa.PrimaryKeyConstraint('id'),
     )
 
@@ -229,7 +233,6 @@ def upgrade() -> None:
         sa.Column('completed_at', sa.DateTime(), nullable=True),
         sa.Column('exit_code', sa.Integer(), nullable=True),
         sa.Column('params', sa.JSON(), nullable=False, server_default='{}'),
-        sa.Column('trigger_payload', sa.JSON(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['api_request_id'], ['api_requests.id'], ondelete='SET NULL'),

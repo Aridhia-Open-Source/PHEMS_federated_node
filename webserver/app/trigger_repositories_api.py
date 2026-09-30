@@ -19,6 +19,7 @@ from flask import Blueprint, request
 from app.dtos.trigger_repository import PullRequestDTO, TaskRequestDTO, TriggerRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
+from app.helpers.task_spec import TaskSpec
 from app.helpers.wrappers import auth
 from app.models.k8s_secret import K8sSecret
 from app.models.project import Project
@@ -323,7 +324,7 @@ def post_task_request(repo_id, number):
     """
     POST /trigger_repositories/<repo_id>/pull_requests/<number>/task_request — create the
     task request for a pull request. The project comes from the repository.
-    Body: {"payload": {...}}
+    Body: {"payload": {...}}, the pull request's flat task spec, stored normalised.
     """
     repo = TriggerRepository.get_by_id(repo_id)
     pr = PullRequest.query.filter(
@@ -342,7 +343,11 @@ def post_task_request(repo_id, number):
     if not isinstance(payload, dict):
         raise InvalidRequest("payload is required and must be an object")
 
-    task_request = TaskRequest(pull_request_id=pr.id, project_id=repo.project_id, payload=payload)
+    spec = TaskSpec.from_pr_spec(payload)
+    # A bad dataset override fails now, not when the task is created
+    repo.project.resolve_dataset(spec.dataset)
+
+    task_request = TaskRequest(pull_request_id=pr.id, project_id=repo.project_id, payload=spec.model_dump())
     task_request.add()
 
     return TaskRequestDTO.from_model(task_request).dump(), HTTPStatus.CREATED

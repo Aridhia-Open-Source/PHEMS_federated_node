@@ -11,6 +11,7 @@ tasks-related endpoints:
 - POST /tasks/id/results/block
 - GET /tasks/id/logs
 """
+from copy import deepcopy
 from http import HTTPStatus
 
 from flask import Blueprint, request
@@ -19,6 +20,7 @@ from sqlalchemy import text
 from app.helpers.base_model import db
 from app.helpers.exceptions import NotImplementedException, UnauthorizedError
 from app.helpers.keycloak import Keycloak
+from app.helpers.task_spec import TaskSpec
 from app.helpers.wrappers import audit, auth
 from app.dtos.task import TaskDTO
 from app.models.api_request import ApiRequest
@@ -116,11 +118,15 @@ def post_tasks():
     POST /tasks/ endpoint. Creates a new task from API request
     """
     req_body = request.json or {}
+    raw_body = deepcopy(req_body)
     project_name = request.headers.get("project-name")
     req_body["project_name"] = project_name
 
-    # Validate the task spec
-    Task.validate(req_body)
+    # Validate the task spec, and normalise it. The dataset it was validated
+    # against is the one the task runs on.
+    validated = Task.validate(req_body)
+    spec = TaskSpec.from_api_body(req_body)
+    spec.dataset = validated["dataset"].name
 
     # Create ApiRequest record
     kc_client = Keycloak()
@@ -135,29 +141,20 @@ def post_tasks():
     api_request = ApiRequest(
         project_id=project.id,
         user_id=user_id,
-        payload=req_body
+        payload=raw_body
     )
     api_request.add(commit=True)
 
     task_request = TaskRequest(
         api_request_id=api_request.id,
         project_id=project.id,
-        payload=req_body,
+        payload=spec.model_dump(),
         queued=True,
     )
     task_request.add(commit=True)
 
     # Create Task from TaskRequest
-    task = Task(
-        project_id=project.id,
-        api_request_id=api_request.id,
-        task_request_id=task_request.id,
-        requested_by=user_id,
-        trigger_payload=req_body,
-        name=req_body.get("name", "Unnamed Task"),
-        docker_image=req_body.get("executors", {}).get("image", ""),
-        **req_body
-    )
+    task = Task.from_task_request(task_request, requested_by=user_id)
     task.add(commit=True)
 
     return {
@@ -180,6 +177,7 @@ def post_tasks_validate():
     req_body = request.json
     req_body["project_name"] = request.headers.get("project-name")
     Task.validate(req_body)
+    TaskSpec.from_api_body(req_body)
     return "Ok", 200
 
 
