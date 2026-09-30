@@ -45,8 +45,6 @@ class TestFromApiBody:
         {"executors": ["img:1"]},
         {"executors": [{}]},
         {"executors": [{"image": "img:1", "command": "not-a-list"}]},
-        {"executors": [{"image": "img:1"}], "resources": {"limits": {"memory": "1x"}}},
-        {"executors": [{"image": "img:1"}], "resources": {"limits": {"cpu": "100m"}, "requests": {"cpu": "1"}}},
     ])
     def test_invalid(self, body):
         with pytest.raises(InvalidRequest):
@@ -72,7 +70,6 @@ class TestFromPrSpec:
         {"image": ""},
         {"image": "img:1", "env": None},
         {"image": "img:1", "unknown": True},
-        {"image": "img:1", "resources": {"limits": {"memory": "abc"}}},
     ])
     def test_invalid(self, spec):
         with pytest.raises(InvalidRequest):

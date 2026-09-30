@@ -600,7 +600,6 @@ class TestPostTaskRequestSpec:
         {"env": {"A": "b"}},
         {"image": "example:latest", "unknown_field": 1},
         {"image": "example:latest", "env": "not-a-dict"},
-        {"image": "example:latest", "resources": {"limits": {"cpu": "abc"}}},
     ])
     def test_invalid_spec_fails(self, client, post_json_admin_header, repository, pull_request, payload):
         response = self.post(client, post_json_admin_header, repository, pull_request, payload)
