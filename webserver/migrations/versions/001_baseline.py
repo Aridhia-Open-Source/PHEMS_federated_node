@@ -108,6 +108,7 @@ def upgrade() -> None:
         sa.Column('uri', sa.String(length=4096), nullable=False),
         sa.Column('provider', sa.String(length=16), nullable=False),
         sa.Column('api_uri', sa.String(length=4096), nullable=False),
+        sa.Column('repo_path', sa.String(length=4096), nullable=False),
         sa.Column('k8s_secret_id', sa.Integer(), nullable=False),
         sa.Column('watch_dir', sa.String(length=4096), nullable=False),
         sa.Column('base_branch', sa.String(length=256), nullable=False, server_default='main'),
@@ -119,7 +120,7 @@ def upgrade() -> None:
             ['project_id', 'k8s_secret_id'], ['k8s_secrets.project_id', 'k8s_secrets.id'], ondelete='RESTRICT'
         ),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('uri'),
+        sa.UniqueConstraint('project_id', 'uri', name='uq_trigger_repositories_project_uri'),
     )
 
     # Create pull_request_status enum table (if needed)

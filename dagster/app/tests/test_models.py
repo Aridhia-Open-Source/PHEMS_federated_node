@@ -135,7 +135,7 @@ class TestTriggerRepository:
         repo = TriggerRepository(
             id=1,
             uri="github.com/org/repo",
-            path="org/repo",
+            repo_path="org/repo",
             watch_dir="specs/",
             base_branch="main",
             project_id=1,
@@ -150,7 +150,7 @@ class TestTriggerRepository:
         repo = TriggerRepository(
             id=1,
             uri="github.com/org/repo",
-            path="org/repo",
+            repo_path="org/repo",
             watch_dir="specs/",
             base_branch="main",
             project_id=1,

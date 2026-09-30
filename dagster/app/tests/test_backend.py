@@ -66,7 +66,7 @@ class TestRepositories:
         repos = api.get_repositories()
 
         assert [type(r) for r in repos] == [TriggerRepository]
-        assert repos[0].path == "org/repo"
+        assert repos[0].repo_path == "org/repo"
 
     def test_get_repository(self, api, session):
         session.get.return_value = make_response(SAMPLE_REPOSITORY_OBJ)

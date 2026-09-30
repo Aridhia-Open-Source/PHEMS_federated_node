@@ -202,7 +202,7 @@ class TestProjectHealthcheck:
     @pytest.fixture
     def git_api(self, mocker):
         return mocker.patch(
-            "app.models.trigger_repository.requests.get",
+            "app.models.git_repository.requests.get",
             return_value=Mock(status_code=200, ok=True, reason="OK"),
         )
 
@@ -230,6 +230,19 @@ class TestProjectHealthcheck:
         self.get(client, project, simple_admin_header)
         git_api.assert_called_once_with(
             self.URL, headers={"Authorization": "Bearer abc123"}, timeout=5
+        )
+
+    def test_checks_the_explicit_repo_path_of_a_sub_path_install(
+        self, client, k8s_client, project, k8s_secret, git_api, simple_admin_header
+    ):
+        TriggerRepository(
+            uri="host/gitea/owner/repo", provider="gitea", api_uri="https://host/gitea/api/v1",
+            k8s_secret_id=k8s_secret.id, watch_dir="", project_id=project.id, repo_path="owner/repo"
+        ).add()
+        self.get(client, project, simple_admin_header)
+        git_api.assert_called_once_with(
+            "https://host/gitea/api/v1/repos/owner/repo",
+            headers={"Authorization": "Bearer abc123"}, timeout=5,
         )
 
     def test_response_never_contains_the_token(self, client, project, default_repo, git_api, simple_admin_header):

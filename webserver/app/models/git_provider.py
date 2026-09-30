@@ -16,6 +16,10 @@ class GitProvider(str, Enum):
     def __str__(self):
         return self.value
 
+    def repo_api_path(self, repo_path: str) -> str:
+        """The path, under the provider's API base URL, of the repository itself."""
+        return f"repos/{repo_path}"
+
 
 class ConnectionStatus(str, Enum):
     """The outcome of checking that a trigger repository can be reached with its token."""

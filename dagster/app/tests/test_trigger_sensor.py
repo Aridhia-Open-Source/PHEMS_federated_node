@@ -67,7 +67,7 @@ class TestPullRequestTriggerSensor:
         repo = MagicMock()
         repo.id = SAMPLE_REPO["id"]
         repo.uri = SAMPLE_REPO["uri"]
-        repo.path = SAMPLE_REPO["path"]
+        repo.repo_path = SAMPLE_REPO["repo_path"]
         repo.watch_dir = SAMPLE_REPO["watch_dir"]
 
         pr = MagicMock(spec=PullRequest)
@@ -162,7 +162,7 @@ def make_repo():
     repo = MagicMock()
     repo.id = 1
     repo.uri = "github.com/org/repo"
-    repo.path = "org/repo"
+    repo.repo_path = "org/repo"
     repo.watch_dir = "specs/"
     repo.dataset_id = 1
     return repo

@@ -1,5 +1,6 @@
 import json
 import pytest
+from sqlalchemy.exc import IntegrityError
 from app.dtos.trigger_repository import TriggerRepositoryDTO
 from app.models.pull_request import PullRequest
 from app.models.trigger_repository import TriggerRepository
@@ -95,6 +96,41 @@ class TestPostRepository:
         body = {**REPO_FIELDS, "uri": repository.uri, "project_id": repository.project_id}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
         assert response.status_code == 400
+
+    def test_create_duplicate_uri_differing_in_form_fails(self, client, post_json_admin_header, repository):
+        body = {**REPO_FIELDS, "uri": "https://GitHub.com/Org/Repo/", "project_id": repository.project_id}
+        response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
+        assert response.status_code == 400
+
+    def test_create_same_uri_in_another_project(self, client, post_json_admin_header, repository, other_project):
+        secret = K8sSecret(project_id=other_project.id, name="test-creds")
+        secret.add()
+        body = {**REPO_FIELDS, "uri": repository.uri, "project_id": other_project.id}
+        response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["id"] != repository.id
+
+    def test_create_derives_repo_path_from_uri(self, client, post_json_admin_header, repo_post_body):
+        body = {**repo_post_body, "uri": "https://GitHub.com/Org/Another-Repo/"}
+        response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["repo_path"] == "org/another-repo"
+        assert TriggerRepository.get_by_id(response.json["id"]).repo_path == "org/another-repo"
+
+    def test_create_stores_explicit_repo_path(self, client, post_json_admin_header, repo_post_body):
+        body = {**repo_post_body, "uri": "host/gitea/owner/repo", "repo_path": "owner/repo"}
+        response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["uri"] == "host/gitea/owner/repo"
+        assert response.json["repo_path"] == "owner/repo"
+
+    def test_database_rejects_duplicate_uri_in_a_project(self, repository, k8s_secret):
+        duplicate = TriggerRepository(
+            uri=repository.uri, provider="github", api_uri="https://api.github.com",
+            k8s_secret_id=k8s_secret.id, watch_dir="", project_id=repository.project_id
+        )
+        with pytest.raises(IntegrityError):
+            duplicate.add()
 
     def test_create_missing_uri_fails(self, client, post_json_admin_header, test_dataset):
         response = client.post("/trigger_repositories/", data=json.dumps({"project_id": test_dataset.project_id}), headers=post_json_admin_header)
@@ -454,7 +490,7 @@ class TestTriggerRepositoryDTO:
     def test_fields(self, repository):
         """Test that the DTO contains all expected fields"""
         sanitized = TriggerRepositoryDTO.from_model(repository).dump()
-        expected_fields = ['id', 'uri', 'path', 'provider', 'api_uri', 'k8s_secret_name', 'k8s_secret_k8s_name', 'watch_dir',
+        expected_fields = ['id', 'uri', 'repo_path', 'provider', 'api_uri', 'k8s_secret_name', 'k8s_secret_k8s_name', 'watch_dir',
                            'base_branch', 'project_id', 'dataset_id', 'pr_cursor', 'pr_count']
         for field in expected_fields:
             assert field in sanitized, f"Field '{field}' missing from the DTO"
