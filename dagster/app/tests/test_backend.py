@@ -232,3 +232,72 @@ class TestRequests:
         assert api.approve_request(7) is True
         assert session.patch.call_args.args[0] == "/requests/7"
         assert session.patch.call_args.kwargs["json"] == {"status": "approved"}
+
+
+SAMPLE_PROJECT = {"id": 1, "name": "proj", "enabled": True, "default_dataset_id": 1}
+SAMPLE_TASK_REQUEST = {"id": 3, "pull_request_id": 1, "api_request_id": None, "project_id": 1, "queued": True, "payload": {"image": "a/b:1"}}
+SAMPLE_TASK = {
+    "id": 9, "name": "t", "docker_image": "a/b:1", "status": "PENDING", "requested_by": "u",
+    "dataset_id": 1, "project_id": 1, "dagster_run_id": None, "exit_code": None,
+    "started_at": None, "completed_at": None,
+}
+
+
+def page(items, pages):
+    return make_response({"items": items, "page": 1, "per_page": 100, "total": len(items), "pages": pages})
+
+
+class TestProjects:
+    def test_get_projects_follows_the_pages(self, api, session):
+        second = {**SAMPLE_PROJECT, "id": 2, "enabled": False}
+        session.get.side_effect = [page([SAMPLE_PROJECT], 2), page([second], 2)]
+
+        projects = api.get_projects()
+
+        assert [(p.id, p.enabled) for p in projects] == [(1, True), (2, False)]
+        assert session.get.call_args_list[1].kwargs["params"]["page"] == 2
+
+    def test_no_projects(self, api, session):
+        session.get.return_value = page([], 0)
+
+        assert api.get_projects() == []
+
+
+class TestTaskRequests:
+    def test_get_task_requests_filters_by_queued_and_project(self, api, session):
+        session.get.return_value = page([SAMPLE_TASK_REQUEST], 1)
+
+        task_requests = api.get_task_requests(queued=True, project_id=1)
+
+        assert [tr.id for tr in task_requests] == [3]
+        assert session.get.call_args.args == ("/task_requests",)
+        params = session.get.call_args.kwargs["params"]
+        assert (params["queued"], params["project_id"]) == ("true", 1)
+
+    def test_patch_task_request(self, api, session):
+        session.patch.return_value = make_response({**SAMPLE_TASK_REQUEST, "queued": False})
+
+        task_request = api.patch_task_request(3, {"queued": False})
+
+        assert task_request.queued is False
+        assert session.patch.call_args.args == ("/task_requests/3",)
+        assert session.patch.call_args.kwargs["json"] == {"queued": False}
+
+
+class TestTasks:
+    def test_create_task(self, api, session):
+        session.post.return_value = make_response(SAMPLE_TASK)
+
+        task = api.create_task(3)
+
+        assert task.id == 9
+        assert session.post.call_args.args == ("/task_requests/3/task",)
+
+    def test_patch_task_reads_the_run_fields(self, api, session):
+        session.patch.return_value = make_response({**SAMPLE_TASK, "dagster_run_id": "r1", "exit_code": 0})
+
+        task = api.patch_task(9, {"status": "QUEUED"})
+
+        assert (task.dagster_run_id, task.exit_code) == ("r1", 0)
+        assert session.patch.call_args.args == ("/tasks/9",)
+        assert session.patch.call_args.kwargs["json"] == {"status": "QUEUED"}

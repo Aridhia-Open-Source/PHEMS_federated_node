@@ -1,7 +1,7 @@
 import logging
 
 from app.utils import BackendSession
-from app.models import TriggerRepository, PullRequest, TaskRequest, Dataset, Registry, Request
+from app.models import TriggerRepository, PullRequest, Project, Task, TaskRequest, Dataset, Registry, Request
 
 default_logger = logging.getLogger(__name__)
 
@@ -25,6 +25,19 @@ class BackendAPI:
         if token:
             self.session.adapter.access_token = token
         return data
+
+    def get_projects(self) -> list[Project]:
+        """Get all projects, automatically handling pagination"""
+        self.logger.info("Fetching projects")
+        projects = []
+        page = 1
+        while True:
+            response = self.session.get("/projects", params={"page": page, "per_page": 100})
+            data = response.json()
+            projects.extend(Project(**project) for project in data["items"])
+            if page >= data["pages"]:
+                return projects
+            page += 1
 
     def get_repositories(self) -> list[TriggerRepository]:
         """Get all repositories"""
@@ -152,6 +165,38 @@ class BackendAPI:
             json={"payload": payload},
         )
         return TaskRequest(**response.json())
+
+    def get_task_requests(self, queued: bool, project_id: int) -> list[TaskRequest]:
+        """Get all task requests of a project, queued or not, automatically handling pagination"""
+        self.logger.info(f"Fetching task requests of project {project_id} (queued={queued})")
+        task_requests = []
+        page = 1
+        while True:
+            params = {"queued": str(queued).lower(), "project_id": project_id, "page": page, "per_page": 100}
+            response = self.session.get("/task_requests", params=params)
+            data = response.json()
+            task_requests.extend(TaskRequest(**tr) for tr in data["items"])
+            if page >= data["pages"]:
+                return task_requests
+            page += 1
+
+    def patch_task_request(self, task_request_id: int, data: dict) -> TaskRequest:
+        """Update task request"""
+        self.logger.info(f"Updating task request {task_request_id}")
+        response = self.session.patch(f"/task_requests/{task_request_id}", json=data)
+        return TaskRequest(**response.json())
+
+    def create_task(self, task_request_id: int) -> Task:
+        """Create the task for a task request. Returns the existing task if there is one"""
+        self.logger.info(f"Creating task for task request {task_request_id}")
+        response = self.session.post(f"/task_requests/{task_request_id}/task")
+        return Task(**response.json())
+
+    def patch_task(self, task_id: int, data: dict) -> Task:
+        """Update task"""
+        self.logger.info(f"Updating task {task_id}")
+        response = self.session.patch(f"/tasks/{task_id}", json=data)
+        return Task(**response.json())
 
     def get_dataset_by_name(self, name: str) -> Dataset | None:
         """Get dataset by name"""

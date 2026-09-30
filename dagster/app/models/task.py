@@ -14,3 +14,7 @@ class Task(BaseModel):
     requested_by: str
     dataset_id: int | None = None
     project_id: int
+    dagster_run_id: str | None = None
+    exit_code: int | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
