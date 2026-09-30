@@ -50,7 +50,7 @@ class TestPatchTask:
     def test_invalid_body_fails(self, client, post_json_admin_header, task, body):
         response = self.patch(client, post_json_admin_header, task.id, body)
         assert response.status_code == 400
-        assert Task.query.get(task.id).status == "scheduled"
+        assert Task.query.get(task.id).status == "PENDING"
 
     def test_not_found(self, client, post_json_admin_header):
         response = self.patch(client, post_json_admin_header, 999, {"status": "RUNNING"})
@@ -66,4 +66,4 @@ class TestPatchTask:
         is_token_valid.return_value = False
         response = self.patch(client, post_json_user_header, task.id, {"status": "RUNNING"})
         assert response.status_code == 403
-        assert Task.query.get(task.id).status == "scheduled"
+        assert Task.query.get(task.id).status == "PENDING"

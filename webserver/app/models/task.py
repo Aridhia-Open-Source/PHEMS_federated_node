@@ -13,6 +13,7 @@ from app.helpers.base_model import BaseModel, db
 from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import InvalidRequest, NotImplementedException, TaskImageException
 from app.models import Models, sqla_column
+from app.models.task_status import TaskStatus
 
 
 logger = logging.getLogger('task_model')
@@ -37,7 +38,7 @@ class Task(db.Model, BaseModel):
 
     name = sa.Column(sa.String(256), nullable=False)
     docker_image = sa.Column(sa.String(256), nullable=False)
-    status = sa.Column(sa.String(256), default='scheduled')
+    status = sa.Column(sa.String(256), default=TaskStatus.PENDING.value)
     requested_by = sa.Column(sa.String(256), nullable=False)
     dagster_run_id = sa.Column(sa.String(64), nullable=True, unique=True)
     exit_code = sa.Column(sa.Integer, nullable=True)
@@ -84,7 +85,7 @@ class Task(db.Model, BaseModel):
                  params:dict | None = None,
                  ):
         self.name = name
-        self.status = 'scheduled'
+        self.status = TaskStatus.PENDING.value
         self.docker_image = docker_image
         self.requested_by = requested_by
         self.dataset = dataset
