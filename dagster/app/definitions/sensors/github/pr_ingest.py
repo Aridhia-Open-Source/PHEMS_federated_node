@@ -56,7 +56,7 @@ class PullRequestIngestSensor(GithubSensor):
             merged_at=pr['merged_at'],
             merge_commit_sha=pr['merge_commit_sha'],
             status=PullRequestStatus.UNKNOWN.value,
-            spec={},
+            payload={},
         )
 
     def _save_prs(self, repo: TriggerRepository, pull_reqs: list[PullRequest]) -> None:

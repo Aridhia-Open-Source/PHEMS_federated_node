@@ -1,5 +1,6 @@
+import base64
 import logging
-import requests as req
+from datetime import datetime as dt
 
 from app.utils import HttpClient
 
@@ -33,7 +34,6 @@ class GiteaAPI:
         page = 1
         per_page = 100
         results = []
-        from datetime import datetime as dt
 
         merged_after_dt = dt.fromisoformat(merged_after.replace('Z', '+00:00')) if merged_after else None
 
@@ -95,7 +95,6 @@ class GiteaAPI:
             params={"ref": ref}
         )
         data = response.json()
-        import base64
         if "content" in data:
             return base64.b64decode(data["content"]).decode("utf-8")
         return data.get("content", "")

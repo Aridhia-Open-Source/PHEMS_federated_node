@@ -16,6 +16,7 @@ SAMPLE_REPO = {
     "path": "org/repo",
     "base_branch": "main",
     "watch_dir": "specs/",
+    "project_id": 1,
     "dataset_id": 1,
     "pr_cursor": "2026-01-01T00:00:00Z",
 }
@@ -26,6 +27,7 @@ SAMPLE_REPOSITORY_OBJ = {
     "path": "org/repo",
     "base_branch": "main",
     "watch_dir": "specs/",
+    "project_id": 1,
     "dataset_id": 1,
     "initial_cursor": "2026-01-01T00:00:00Z",
     "pr_cursor": "2026-01-01T00:00:00Z",
@@ -41,7 +43,7 @@ SAMPLE_PR = {
     "merge_commit_sha": "abc123def456",
     "saved_at": "2026-06-26T10:05:00Z",
     "status": "unprocessed",
-    "spec": {
+    "payload": {
         "docker_image": "ghcr.io/org/experiment:latest",
         "env": {"KEY": "value"},
     },
@@ -56,7 +58,7 @@ SAMPLE_INVALID_PR = {
     "merge_commit_sha": "xyz789abc123",
     "saved_at": "2026-06-27T10:05:00Z",
     "status": "unprocessed",
-    "spec": {},
+    "payload": {},
 }
 
 SAMPLE_IN_PROGRESS_PR = {
@@ -68,7 +70,7 @@ SAMPLE_IN_PROGRESS_PR = {
     "merge_commit_sha": "pqr456xyz789",
     "saved_at": "2026-06-28T10:05:00Z",
     "status": "in_progress",
-    "spec": {
+    "payload": {
         "docker_image": "ghcr.io/org/experiment:v2",
         "env": {"KEY": "value2"},
     },
@@ -168,7 +170,7 @@ def mock_pr_files():
 
 @pytest.fixture
 def mock_spec_content():
-    return json.dumps(SAMPLE_PR["spec"])
+    return json.dumps(SAMPLE_PR["payload"])
 
 
 def make_github_search_response(prs):

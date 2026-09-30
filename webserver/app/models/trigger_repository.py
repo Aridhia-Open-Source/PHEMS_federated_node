@@ -3,12 +3,23 @@ from datetime import datetime as dt
 from datetime import timezone as tz
 from typing import cast
 
+import time
+
+import requests
 import sqlalchemy as sa
+from kubernetes.client.exceptions import ApiException
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.sql import func
 
 from app.helpers.base_model import BaseModel, db
-from app.models import Models
+from app.helpers.const import DEFAULT_NAMESPACE
+from app.helpers.kubernetes import KubernetesClient
+from app.models import Models, sqla_column
+from app.models.git_provider import ConnectionCheck, ConnectionStatus, GitProvider
+
+
+CONNECTION_TIMEOUT = 5
+MAX_MESSAGE_LENGTH = 200
 
 
 def now_ts():
@@ -24,16 +35,25 @@ class TriggerRepository(db.Model, BaseModel):
     )
 
     uri = sa.Column(sa.String(4096), unique=True, nullable=False)
+    provider = sa.Column(sa.String(16), nullable=False)
+    # The scheme is stripped from uri, so the provider's API base URL is kept explicitly.
+    api_uri = sa.Column(sa.String(4096), nullable=False)
+    # The Kubernetes secret holding the git token (under the key TOKEN), by name. Set
+    # explicitly rather than derived from uri, so repositories can share one credential.
+    k8s_secret_name = sa.Column(
+        sa.String(253), sa.ForeignKey('k8s_secrets.name', ondelete='RESTRICT'), nullable=False
+    )
     watch_dir = sa.Column(sa.String(4096), nullable=False)
     base_branch = sa.Column(sa.String(256), nullable=False, default='main')
     initial_cursor = sa.Column(
         sa.DateTime, nullable=False, server_default=func.now(), default=now_ts
     )
 
-    created_at = sa.Column(sa.DateTime(timezone=False), server_default=func.now(), nullable=True)
-    updated_at = sa.Column(sa.DateTime(timezone=False), onupdate=func.now(), nullable=True)
+    created_at = sqla_column.created_at()
+    updated_at = sqla_column.updated_at()
 
     project = relationship("Project", back_populates="trigger_repositories")
+    k8s_secret = relationship("K8sSecret", back_populates="trigger_repositories")
     pull_requests = relationship(
         "PullRequest", back_populates="trigger_repository", cascade="all, delete"
     )
@@ -44,6 +64,15 @@ class TriggerRepository(db.Model, BaseModel):
         if value:
             value = self.parse_repo_uri(value)
         return value
+
+    @validates('provider')
+    def validate_provider(self, key, value):
+        """Only providers the Dagster side has an API client for."""
+        try:
+            return GitProvider(value).value
+        except ValueError:
+            valid = ', '.join(p.value for p in GitProvider)
+            raise ValueError(f"provider must be one of: {valid}")
 
     @validates('initial_cursor')
     def validate_initial_cursor(self, key, value):
@@ -81,6 +110,74 @@ class TriggerRepository(db.Model, BaseModel):
         parsed = urllib.parse.urlparse(uri)
         return (parsed.netloc + parsed.path).lower().rstrip('/')
 
+    def get_token(self) -> str:
+        """
+        The git token, read from the cluster secret this repository names.
+        """
+        secret = KubernetesClient().read_namespaced_secret(self.k8s_secret_name, DEFAULT_NAMESPACE)
+        if secret.data is None:
+            raise KeyError("TOKEN")
+        return KubernetesClient.decode_secret_value(secret.data['TOKEN'])
+
+    def check_connection(self) -> ConnectionCheck:
+        """
+        Whether the repository can be reached with its token, the way the sensors reach it:
+        through api_uri (not uri, which is the address people use), authenticating as a
+        bearer token. Nothing returned includes the token.
+        """
+        try:
+            token = self.get_token()
+        except KeyError:
+            return ConnectionCheck(
+                ConnectionStatus.SECRET_MISSING, f"Secret {self.k8s_secret_name} has no TOKEN"
+            )
+        except ApiException as e:
+            if e.status != 404:
+                raise
+            return ConnectionCheck(
+                ConnectionStatus.SECRET_MISSING, f"Secret {self.k8s_secret_name} not found"
+            )
+
+        url = f"{self.api_uri.rstrip('/')}/repos/{self.path}"
+        started = time.perf_counter()
+        try:
+            response = requests.get(
+                url, headers={"Authorization": f"Bearer {token}"}, timeout=CONNECTION_TIMEOUT
+            )
+        except requests.RequestException as e:
+            latency_ms = round((time.perf_counter() - started) * 1000)
+            return ConnectionCheck(
+                ConnectionStatus.UNREACHABLE, type(e).__name__, latency_ms=latency_ms
+            )
+        latency_ms = round((time.perf_counter() - started) * 1000)
+
+        return ConnectionCheck(
+            self._status_of(response.status_code, response.ok),
+            self._message_of(response),
+            status_code=response.status_code,
+            latency_ms=latency_ms,
+        )
+
+    @staticmethod
+    def _status_of(status_code: int, ok: bool) -> ConnectionStatus:
+        if ok:
+            return ConnectionStatus.OK
+        if status_code in (401, 403):
+            return ConnectionStatus.UNAUTHORIZED
+        if status_code == 404:
+            return ConnectionStatus.NOT_FOUND
+        return ConnectionStatus.ERROR
+
+    @staticmethod
+    def _message_of(response) -> str:
+        """The provider's own message on an error ("Bad credentials"), else the HTTP reason."""
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
+        message = body.get("message") if isinstance(body, dict) else None
+        return str(message or response.reason)[:MAX_MESSAGE_LENGTH]
+
     def get_pull_request_cursor(self) -> str:
         """
         Get latest PR merge time from all ingested pull requests.
@@ -94,29 +191,21 @@ class TriggerRepository(db.Model, BaseModel):
 
         return (pr_cursor or initial_cursor).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    def sanitized_dict(self):
-        return {
-            'id': self.id,
-            'uri': self.uri,
-            'path': self.path,
-            'watch_dir': self.watch_dir,
-            'base_branch': self.base_branch,
-            'project_id': self.project_id,
-            'dataset_id': self.dataset.id if self.dataset else None,
-            'initial_cursor': self.initial_cursor.isoformat() if self.initial_cursor else None,
-            'pr_cursor': self.get_pull_request_cursor(),
-            'pr_count': len(self.pull_requests)
-        }
-
     def __init__(
         self,
         uri: str,
+        provider: str,
+        api_uri: str,
+        k8s_secret_name: str,
         watch_dir: str,
         project_id: int,
         base_branch: str = 'main',
         initial_cursor: dt | None = None,
     ):
         self.uri = uri
+        self.provider = provider
+        self.api_uri = api_uri
+        self.k8s_secret_name = k8s_secret_name
         self.watch_dir = watch_dir
         self.project_id = project_id
         self.base_branch = base_branch

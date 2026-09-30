@@ -35,7 +35,7 @@ def gitea_pull_request_ingest_sensor(context: OpExecCtx):
 
 @dg.sensor(
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
-    default_status=dg.DefaultSensorStatus.RUNNING,
+    default_status=dg.DefaultSensorStatus.STOPPED,
     required_resource_keys={"backend_api", "gitea_api"},
     job_name="k8s_pipes_job",
 )
@@ -51,7 +51,7 @@ def gitea_pull_request_trigger_sensor(context: OpExecCtx):
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.QUEUED,
-    default_status=dg.DefaultSensorStatus.RUNNING,
+    default_status=dg.DefaultSensorStatus.STOPPED,
     monitored_jobs=[k8s_pipes_job],
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )
@@ -79,7 +79,7 @@ def gitea_task_queued_sensor(context: RunStatusSensorContext):
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.STARTED,
-    default_status=dg.DefaultSensorStatus.RUNNING,
+    default_status=dg.DefaultSensorStatus.STOPPED,
     monitored_jobs=[k8s_pipes_job],
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )
@@ -107,7 +107,7 @@ def gitea_task_started_sensor(context: RunStatusSensorContext):
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.SUCCESS,
-    default_status=dg.DefaultSensorStatus.RUNNING,
+    default_status=dg.DefaultSensorStatus.STOPPED,
     monitored_jobs=[k8s_pipes_job],
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )
@@ -135,7 +135,7 @@ def gitea_task_success_sensor(context: RunStatusSensorContext):
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.FAILURE,
-    default_status=dg.DefaultSensorStatus.RUNNING,
+    default_status=dg.DefaultSensorStatus.STOPPED,
     monitored_jobs=[k8s_pipes_job],
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )
@@ -163,7 +163,7 @@ def gitea_task_failure_sensor(context: RunStatusSensorContext):
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.CANCELED,
-    default_status=dg.DefaultSensorStatus.RUNNING,
+    default_status=dg.DefaultSensorStatus.STOPPED,
     monitored_jobs=[k8s_pipes_job],
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )

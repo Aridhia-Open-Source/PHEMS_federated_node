@@ -8,7 +8,7 @@ import requests
 from requests import Session
 from requests.adapters import HTTPAdapter
 
-from models import TriggerRepository, PullRequest, Dataset, Request, Project
+from models import TriggerRepository, PullRequest, Dataset, K8sSecret, Request, Project
 
 logger = logging.getLogger(__name__)
 
@@ -324,6 +324,26 @@ class BackendAPI:
         items = data.get("items", data) if isinstance(data, dict) else data
         return [Project(**p) for p in items]
 
+    def get_k8s_secrets(self) -> list[K8sSecret]:
+        """Get all k8s secret references"""
+        response = self.session.get("/k8s_secrets")
+        return [K8sSecret(**secret) for secret in response.json()]
+
+    def get_or_create_k8s_secret(self, name: str, values: dict[str, str]) -> K8sSecret:
+        """
+        Datasets and repositories reference a secret by name, so it has to exist first.
+        Re-running the seed should reuse it, and rewrite its values in case they changed.
+        """
+        for secret in self.get_k8s_secrets():
+            if secret.name == name:
+                self.logger.info(f"Reusing existing k8s secret {name} ({secret.id})")
+                response = self.session.patch(f"/k8s_secrets/{secret.id}", json={"values": values})
+                return K8sSecret(**response.json())
+
+        self.logger.info(f"Creating k8s secret {name}")
+        response = self.session.post("/k8s_secrets", json={"name": name, "values": values})
+        return K8sSecret(**response.json())
+
     def get_or_create_project(self, name: str, description: str | None = None) -> Project:
         """
         A project owns the datasets, so one has to exist before a dataset can be created.
@@ -351,12 +371,11 @@ class BackendAPI:
         name: str,
         host: str,
         port: int,
-        username: str,
-        password: str,
-        schema: str,
+        k8s_secret_name: str,
+        read_schema: str,
         db_type: str,
         project_id: int,
-        schema_write: str | None = None,
+        write_schema: str | None = None,
     ) -> Dataset:
         """Create a dataset"""
         self.logger.info(f"Creating dataset {name}")
@@ -364,14 +383,13 @@ class BackendAPI:
             "name": name,
             "host": host,
             "port": port,
-            "username": username,
-            "password": password,
-            "schema": schema,
+            "k8s_secret_name": k8s_secret_name,
+            "read_schema": read_schema,
             "type": db_type,
             "project_id": project_id,
         }
-        if schema_write:
-            data["schema_write"] = schema_write
+        if write_schema:
+            data["write_schema"] = write_schema
         response = self.session.post("/datasets", json=data)
         return Dataset(**response.json())
 

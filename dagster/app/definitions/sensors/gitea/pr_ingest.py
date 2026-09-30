@@ -56,5 +56,5 @@ class PullRequestIngestSensor(GiteaSensor):
             merged_at=pr['merged_at'],
             merge_commit_sha=pr['merge_base_sha'],
             status=PullRequestStatus.UNKNOWN.value,
-            spec={},
+            payload={},
         )

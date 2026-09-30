@@ -4,21 +4,6 @@ from sqlalchemy import Column, DateTime
 from sqlalchemy.sql import func
 
 
-class SqlaColumn:
-    """Factory for standardized column definitions shared across models."""
-
-    def created_at(self, **kwargs) -> Column:
-        return Column(DateTime(timezone=False), nullable=False, server_default=func.now(), **kwargs)
-
-    def updated_at(self, **kwargs) -> Column:
-        return Column(DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now(), **kwargs)
-
-
-sqla_column = SqlaColumn()
-
-__all__ = ['sqla_column', 'SqlaColumn', 'ModelRegistry', 'Models']
-
-
 class ModelRegistry:
     """Registry of all app models. Cached on first access."""
 
@@ -97,11 +82,40 @@ class ModelRegistry:
         from app.models.task_request import TaskRequest
         return TaskRequest
 
+    @cached_property
+    def K8sSecret(self):
+        from app.models.k8s_secret import K8sSecret
+        return K8sSecret
+
+
+class SqlaColumn:
+    """Factory for standardized column definitions shared across models."""
+
+    def created_at(self, **kwargs) -> Column:
+        return Column(
+            DateTime(timezone=False),
+            nullable=False,
+            server_default=func.now(),
+            **kwargs
+        )
+
+    def updated_at(self, **kwargs) -> Column:
+        return Column(
+            DateTime(timezone=False),
+            nullable=False,
+            server_default=func.now(),
+            onupdate=func.now(),
+            **kwargs
+        )
+
 
 Models = ModelRegistry()
+sqla_column = SqlaColumn()
+__all__ = ['sqla_column', 'SqlaColumn', 'ModelRegistry', 'Models']
 
-# Force eager import of all models to register them with SQLAlchemy before mapper configuration
-# This ensures string-based relationships can be resolved
+
+# Force eager import of all models to register them with SQLA before mapper configuration
+# This ensures string-based relationships can be resolved to avoid circular dependencies.
 _ = (
     Models.Audit,
     Models.Catalogue,
@@ -118,4 +132,5 @@ _ = (
     Models.ResultsBackend,
     Models.ApiRequest,
     Models.TaskRequest,
+    Models.K8sSecret,
 )

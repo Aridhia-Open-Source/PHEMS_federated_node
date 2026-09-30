@@ -10,17 +10,21 @@ trigger repository endpoints (used by dagster for polling state):
 - GET /trigger_repositories/<repo_id>/pull_requests
 - GET /trigger_repositories/<repo_id>/pull_requests/<number>
 - PATCH /trigger_repositories/<repo_id>/pull_requests/<number>
+- POST /trigger_repositories/<repo_id>/pull_requests/<number>/task_request
 """
 from http import HTTPStatus
 
 from flask import Blueprint, request
 
+from app.dtos.trigger_repository import PullRequestDTO, TaskRequestDTO, TriggerRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.wrappers import auth
+from app.models.k8s_secret import K8sSecret
 from app.models.project import Project
 from app.models.pull_request import PullRequest
 from app.models.pull_request_status import PullRequestStatus
+from app.models.task_request import TaskRequest
 from app.models.trigger_repository import TriggerRepository
 
 bp = Blueprint('trigger_repositories', __name__, url_prefix='/trigger_repositories')
@@ -40,7 +44,7 @@ def get_repositories():
     GET /trigger_repositories/ — list all repositories with their polling state
     """
     repos = TriggerRepository.query.all()
-    return [r.sanitized_dict() for r in repos], HTTPStatus.OK
+    return [TriggerRepositoryDTO.from_model(r).dump() for r in repos], HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['GET'])
@@ -49,7 +53,7 @@ def get_repository(repo_id):
     GET /trigger_repositories/<id> — get a single repository
     """
     repo = TriggerRepository.get_by_id(repo_id)
-    return repo.sanitized_dict(), HTTPStatus.OK
+    return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['DELETE'])
@@ -73,24 +77,34 @@ def post_repository():
         raise InvalidRequest("uri is required")
     if not body.get('project_id'):
         raise InvalidRequest("project_id is required")
+    for field in ('provider', 'api_uri', 'k8s_secret_name'):
+        if not body.get(field):
+            raise InvalidRequest(f"{field} is required")
 
     uri = body['uri'].lower().rstrip('/')
     if TriggerRepository.query.filter(TriggerRepository.uri == uri).one_or_none():
         raise InvalidRequest(f"Repository {uri} already exists")
 
-    # Validate project exists
+    # Validate project and secret exist
     Project.get_by_id(body['project_id'])
+    K8sSecret.check_exists(body['k8s_secret_name'])
 
-    repo = TriggerRepository(
-        uri=uri,
-        watch_dir=body.get('watch_dir', ''),
-        project_id=body['project_id'],
-        base_branch=body.get('base_branch', 'main'),
-        initial_cursor=body.get('initial_cursor'),
-    )
+    try:
+        repo = TriggerRepository(
+            uri=uri,
+            provider=body['provider'],
+            api_uri=body['api_uri'],
+            k8s_secret_name=body['k8s_secret_name'],
+            watch_dir=body.get('watch_dir', ''),
+            project_id=body['project_id'],
+            base_branch=body.get('base_branch', 'main'),
+            initial_cursor=body.get('initial_cursor'),
+        )
+    except ValueError as e:
+        raise InvalidRequest(str(e))
     repo.add()
 
-    return repo.sanitized_dict(), HTTPStatus.CREATED
+    return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.CREATED
 
 
 @bp.route('/<int:repo_id>', methods=['PATCH'])
@@ -118,11 +132,22 @@ def patch_repository(repo_id):
             raise InvalidRequest("watch_dir cannot be empty")
         repo.watch_dir = body['watch_dir']
 
+    for field in ('provider', 'api_uri', 'k8s_secret_name'):
+        if field in body:
+            if not body[field]:
+                raise InvalidRequest(f"{field} cannot be empty")
+            if field == 'k8s_secret_name':
+                K8sSecret.check_exists(body[field])
+            try:
+                setattr(repo, field, body[field])
+            except ValueError as e:
+                raise InvalidRequest(str(e))
+
     if 'initial_cursor' in body:
         repo.initial_cursor = body['initial_cursor']
 
     session.commit()
-    return repo.sanitized_dict(), HTTPStatus.OK
+    return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK
 
 
 @bp.route('/pull_requests', methods=['POST'])
@@ -131,7 +156,7 @@ def post_pull_request():
     POST /trigger_repositories/pull_requests — create a new pull request
     """
     body = request.json or {}
-    required = ['trigger_repository_id', 'number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha', 'spec']
+    required = ['trigger_repository_id', 'number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha', 'payload']
     missing = [f for f in required if f not in body]
     if missing:
         raise InvalidRequest(f"Missing required fields: {', '.join(missing)}")
@@ -145,12 +170,12 @@ def post_pull_request():
         raised_by=body['raised_by'],
         merged_at=body['merged_at'],
         merge_commit_sha=body['merge_commit_sha'],
-        spec=body.get('spec', {}),
+        payload=body.get('payload', {}),
         status=status,
     )
     pr.add()
 
-    return _pr_to_dict(pr), HTTPStatus.CREATED
+    return PullRequestDTO.from_model(pr).dump(), HTTPStatus.CREATED
 
 
 @bp.route('/<int:repo_id>/pull_requests/batch', methods=['POST'])
@@ -176,7 +201,7 @@ def post_pull_requests_batch(repo_id):
     for pr_data in body:
         try:
             # Validate required fields
-            required = ['number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha', 'spec']
+            required = ['number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha', 'payload']
             missing = [f for f in required if f not in pr_data]
             if missing:
                 raise InvalidRequest(f"Missing required fields in PR: {', '.join(missing)}")
@@ -195,7 +220,7 @@ def post_pull_requests_batch(repo_id):
                 raised_by=pr_data['raised_by'],
                 merged_at=pr_data['merged_at'],
                 merge_commit_sha=pr_data['merge_commit_sha'],
-                spec=pr_data.get('spec', {}),
+                payload=pr_data.get('payload', {}),
                 status=status,
             )
             pr.add(commit=False)  # Don't commit yet, batch commit at end
@@ -207,7 +232,7 @@ def post_pull_requests_batch(repo_id):
     # Batch commit all PRs
     session.commit()
 
-    return [_pr_to_dict(pr) for pr in created_prs], HTTPStatus.CREATED
+    return [PullRequestDTO.from_model(pr).dump() for pr in created_prs], HTTPStatus.CREATED
 
 
 @bp.route('/<int:repo_id>/pull_requests', methods=['GET'])
@@ -239,7 +264,7 @@ def get_pull_requests(repo_id):
     paginated = query.paginate(page=page, per_page=per_page, error_out=False)
 
     return {
-        'items': [_pr_to_dict(pr) for pr in paginated.items],
+        'items': [PullRequestDTO.from_model(pr).dump() for pr in paginated.items],
         'page': page,
         'per_page': per_page,
         'total': paginated.total,
@@ -260,7 +285,7 @@ def get_pull_request(repo_id, number):
     if not pr:
         raise InvalidRequest(f"PR #{number} not found in repository {repo_id}", code=HTTPStatus.NOT_FOUND)
 
-    return _pr_to_dict(pr), HTTPStatus.OK
+    return PullRequestDTO.from_model(pr).dump(), HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>/pull_requests/<int:number>', methods=['PATCH'])
@@ -286,23 +311,38 @@ def patch_pull_request(repo_id, number):
             raise InvalidRequest(f"Invalid status: {status_value}. Must be one of: {valid}")
         pr.status = status_value
 
-    if 'spec' in body:
-        pr.spec = body['spec']
+    if 'payload' in body:
+        pr.payload = body['payload']
 
     session.commit()
-    return _pr_to_dict(pr), HTTPStatus.OK
+    return PullRequestDTO.from_model(pr).dump(), HTTPStatus.OK
 
 
-def _pr_to_dict(pr: PullRequest) -> dict:
-    """Convert PR to dict for serialization"""
-    return {
-        'trigger_repository_id': pr.trigger_repository_id,
-        'number': pr.number,
-        'title': pr.title,
-        'raised_by': pr.raised_by,
-        'merge_commit_sha': pr.merge_commit_sha,
-        'merged_at': pr.merged_at.isoformat() if pr.merged_at else None,
-        'saved_at': pr.saved_at.isoformat() if pr.saved_at else None,
-        'status': pr.status,
-        'spec': pr.spec,
-    }
+@bp.route('/<int:repo_id>/pull_requests/<int:number>/task_request', methods=['POST'])
+def post_task_request(repo_id, number):
+    """
+    POST /trigger_repositories/<repo_id>/pull_requests/<number>/task_request — create the
+    task request for a pull request. The project comes from the repository.
+    Body: {"payload": {...}}
+    """
+    repo = TriggerRepository.get_by_id(repo_id)
+    pr = PullRequest.query.filter(
+        PullRequest.trigger_repository_id == repo_id,
+        PullRequest.number == number
+    ).one_or_none()
+
+    if not pr:
+        raise InvalidRequest(f"PR #{number} not found in repository {repo_id}", code=HTTPStatus.NOT_FOUND)
+
+    if pr.task_request:
+        raise InvalidRequest(f"PR #{number} in repository {repo_id} already has a task request", code=HTTPStatus.CONFLICT)
+
+    body = request.json or {}
+    payload = body.get('payload')
+    if not isinstance(payload, dict):
+        raise InvalidRequest("payload is required and must be an object")
+
+    task_request = TaskRequest(pull_request_id=pr.id, project_id=repo.project_id, payload=payload)
+    task_request.add()
+
+    return TaskRequestDTO.from_model(task_request).dump(), HTTPStatus.CREATED

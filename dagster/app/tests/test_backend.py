@@ -9,6 +9,7 @@ from app.tests.conftest import SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, make_response
 
 SAMPLE_DATASET = {
     "id": 1,
+    "project_id": 1,
     "name": "cdm",
     "host": "db.host",
     "port": 5432,
@@ -132,7 +133,7 @@ class TestPullRequests:
             raised_by="dev",
             merged_at="2026-06-26T10:00:00Z",
             merge_commit_sha="abc",
-            spec={},
+            payload={},
         )
 
         body = session.post.call_args.kwargs["json"]

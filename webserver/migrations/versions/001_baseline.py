@@ -50,6 +50,7 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('description', sa.String(length=4096), nullable=True),
+        sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column('default_dataset_id', sa.Integer(), nullable=True),
         sa.Column('results_repository_id', sa.Integer(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
@@ -60,21 +61,34 @@ def upgrade() -> None:
     )
     op.create_index('ix_projects_id', 'projects', ['id'])
 
+    # Create k8s_secrets table (references to secrets that live in the cluster)
+    op.create_table(
+        'k8s_secrets',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('name', sa.String(length=253), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('name'),
+    )
+
     # Create datasets table
     op.create_table(
         'datasets',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=False),
+        sa.Column('k8s_secret_name', sa.String(length=253), nullable=False),
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('host', sa.String(length=256), nullable=False),
         sa.Column('port', sa.Integer(), nullable=False, server_default=sa.literal_column('5432')),
-        sa.Column('schema', sa.String(length=256), nullable=True),
-        sa.Column('schema_write', sa.String(length=256), nullable=True),
+        sa.Column('read_schema', sa.String(length=256), nullable=True),
+        sa.Column('write_schema', sa.String(length=256), nullable=True),
         sa.Column('type', sa.String(length=256), nullable=False, server_default='postgres'),
         sa.Column('extra_connection_args', sa.String(length=4096), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
+        sa.ForeignKeyConstraint(['k8s_secret_name'], ['k8s_secrets.name'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('name'),
     )
@@ -85,12 +99,16 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=False),
         sa.Column('uri', sa.String(length=4096), nullable=False),
+        sa.Column('provider', sa.String(length=16), nullable=False),
+        sa.Column('api_uri', sa.String(length=4096), nullable=False),
+        sa.Column('k8s_secret_name', sa.String(length=253), nullable=False),
         sa.Column('watch_dir', sa.String(length=4096), nullable=False),
         sa.Column('base_branch', sa.String(length=256), nullable=False, server_default='main'),
         sa.Column('initial_cursor', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.Column('created_at', sa.DateTime(timezone=False), nullable=True),
-        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
+        sa.ForeignKeyConstraint(['k8s_secret_name'], ['k8s_secrets.name'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('uri'),
     )
@@ -112,7 +130,7 @@ def upgrade() -> None:
         sa.Column('title', sa.String(length=512), nullable=False),
         sa.Column('description', sa.String(length=4096), nullable=True),
         sa.Column('author', sa.String(length=256), nullable=False),
-        sa.Column('spec', sa.JSON(), nullable=False, server_default='{}'),
+        sa.Column('payload', sa.JSON(), nullable=False, server_default='{}'),
         sa.Column('status', sa.String(256), nullable=False, server_default='UNKNOWN'),
         sa.Column('merged_at', sa.DateTime(), nullable=True),
         sa.Column('merge_commit_sha', sa.String(length=40), nullable=True),
@@ -181,7 +199,7 @@ def upgrade() -> None:
         sa.Column('pull_request_id', sa.Integer(), nullable=True),
         sa.Column('api_request_id', sa.Integer(), nullable=True),
         sa.Column('project_id', sa.Integer(), nullable=False),
-        sa.Column('status', sa.String(length=32), nullable=False, server_default='UNKNOWN'),
+        sa.Column('queued', sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column('payload', sa.JSON(), nullable=False, server_default='{}'),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
@@ -200,25 +218,17 @@ def upgrade() -> None:
         sa.Column('pr_number', sa.Integer(), nullable=True),
         sa.Column('api_request_id', sa.Integer(), nullable=True),
         sa.Column('request_id', sa.Integer(), nullable=True),
+        sa.Column('task_request_id', sa.Integer(), nullable=True),
         sa.Column('dataset_id', sa.Integer(), nullable=True),
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('docker_image', sa.String(length=256), nullable=False),
-        sa.Column('description', sa.String(length=4096), nullable=True),
         sa.Column('status', sa.String(length=256), nullable=False, server_default='scheduled'),
         sa.Column('requested_by', sa.String(length=256), nullable=False),
-        sa.Column('review_status', sa.Boolean(), nullable=True),
-        sa.Column('trigger_source', sa.String(length=16), nullable=False, server_default='API'),
         sa.Column('dagster_run_id', sa.String(length=64), nullable=True),
         sa.Column('started_at', sa.DateTime(), nullable=True),
         sa.Column('completed_at', sa.DateTime(), nullable=True),
         sa.Column('exit_code', sa.Integer(), nullable=True),
-        sa.Column('reason', sa.String(length=256), nullable=True),
-        sa.Column('artifact_key', sa.String(length=512), nullable=True),
         sa.Column('params', sa.JSON(), nullable=False, server_default='{}'),
-        sa.Column('reviewed_by', sa.String(length=256), nullable=True),
-        sa.Column('reviewed_at', sa.DateTime(), nullable=True),
-        sa.Column('git_commit_sha', sa.String(length=40), nullable=True),
-        sa.Column('results_path', sa.String(length=512), nullable=True),
         sa.Column('trigger_payload', sa.JSON(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
@@ -226,8 +236,10 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['request_id'], ['requests.id'], ondelete='SET NULL'),
+        sa.ForeignKeyConstraint(['task_request_id'], ['task_requests.id'], ondelete='RESTRICT', name='fk_tasks_task_request'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('dagster_run_id'),
+        sa.UniqueConstraint('task_request_id', name='uq_tasks_task_request'),
     )
     op.create_index('ix_tasks_project_id', 'tasks', ['project_id'])
 
@@ -308,6 +320,7 @@ def downgrade() -> None:
     op.drop_table('pull_request_statuses')
     op.drop_table('trigger_repositories')
     op.drop_table('datasets')
+    op.drop_table('k8s_secrets')
     op.drop_index('ix_projects_id', 'projects')
     op.drop_table('projects')
     op.drop_table('results_repositories')

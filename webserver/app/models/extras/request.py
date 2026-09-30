@@ -7,6 +7,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.exc import IntegrityError
 
 from app.helpers.base_model import BaseModel, db
+from app.models import sqla_column
 from app.models.dataset import Dataset
 from app.models.project import Project
 from app.helpers.keycloak import Keycloak
@@ -32,10 +33,8 @@ class Request(db.Model, BaseModel):
 
     proj_start = sa.Column(sa.DateTime(timezone=False), nullable=False)
     proj_end = sa.Column(sa.DateTime(timezone=False), nullable=False)
-    created_at = sa.Column(sa.DateTime(timezone=False), nullable=False, server_default=func.now())
-    updated_at = sa.Column(
-        sa.DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
-    )
+    created_at = sqla_column.created_at()
+    updated_at = sqla_column.updated_at()
 
     dataset = relationship("Dataset")
     project = relationship("Project", back_populates="requests")

@@ -15,6 +15,8 @@ class Project(db.Model, BaseModel):
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     name = sa.Column(sa.String(256), unique=True, nullable=False)
     description = sa.Column(sa.String(4096), nullable=True)
+    # Sensors only act on the repositories of enabled projects.
+    enabled = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
     default_dataset_id = sa.Column(
         sa.Integer,
         sa.ForeignKey('datasets.id', ondelete='SET NULL', use_alter=True,
@@ -39,9 +41,10 @@ class Project(db.Model, BaseModel):
     api_requests = relationship("ApiRequest", back_populates="project")
     task_requests = relationship("TaskRequest", back_populates="project")
 
-    def __init__(self, name: str, description: str | None = None, **kwargs):
+    def __init__(self, name: str, description: str | None = None, enabled: bool = False, **kwargs):
         self.name = name
         self.description = description
+        self.enabled = enabled
 
     def __repr__(self):
         return f'<Project {self.name}>'
