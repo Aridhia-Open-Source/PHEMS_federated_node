@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm-config
+  namespace: {{ include "kc_namespace" . }}
+  labels:
+    {{ include "defaultLabels" . }}
+  annotations:
+    {{ template "defaultAnnotations" . }}
+data:
+  realms.json: |-
+{{ .Files.Get "scripts/realms.json" | indent 4 }}
