@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 from dagster import SkipReason, RunRequest
 
 from app.definitions.sensors.github.pr_trigger import PullRequestTriggerSensor
-from app.models import Dataset, PullRequest, PullRequestStatus, Registry
+from app.models import Dataset, PullRequest, PullRequestStatus
 from app.tests.conftest import SAMPLE_REPO, SAMPLE_PR
 
 
@@ -274,10 +274,9 @@ class TestPullRequestSetup:
 
 
 class TestRunRequestConfig:
-    def _backend_api(self, registries=()):
+    def _backend_api(self):
         api = MagicMock()
         api.get_dataset.return_value = Dataset(**SPEC_DATASET)
-        api.get_registries.return_value = list(registries)
         return api
 
     def test_dataset_fields_are_passed_to_the_op(self):
@@ -303,37 +302,8 @@ class TestRunRequestConfig:
         assert config["docker_image"] == "ghcr.io/org/img:1"
 
     def test_a_spec_without_an_image_raises(self):
-        with pytest.raises(ValueError, match="missing 'image'"):
+        with pytest.raises(ValueError, match="image"):
             make_sensor(self._backend_api())._make_run_request(make_repo(), make_pr({}))
-
-    def test_a_private_registry_image_carries_its_pull_secret(self):
-        backend_api = self._backend_api([Registry(id=1, url="ghcr.io")])
-
-        request = make_sensor(backend_api)._make_run_request(
-            make_repo(), make_pr({"image": "ghcr.io/org/img:1"})
-        )
-
-        config = request.run_config["ops"]["k8s_pipes_op"]["config"]
-        assert config["image_pull_secret"] == "ghcr-io"
-
-    def test_an_unconfigured_registry_leaves_the_key_out(self):
-        backend_api = self._backend_api([Registry(id=1, url="ghcr.io")])
-
-        request = make_sensor(backend_api)._make_run_request(
-            make_repo(), make_pr({"image": "docker.io/library/alpine:3"})
-        )
-
-        assert "image_pull_secret" not in request.run_config["ops"]["k8s_pipes_op"]["config"]
-
-    def test_a_registry_lookup_failure_does_not_stop_the_run(self):
-        backend_api = self._backend_api()
-        backend_api.get_registries.side_effect = requests.HTTPError("500")
-        sensor = make_sensor(backend_api)
-
-        request = sensor._make_run_request(make_repo(), make_pr({"image": "ghcr.io/org/img:1"}))
-
-        assert "image_pull_secret" not in request.run_config["ops"]["k8s_pipes_op"]["config"]
-        sensor.log.warning.assert_called_once()
 
     def test_the_run_key_is_the_pr(self):
         request = make_sensor(self._backend_api())._make_run_request(

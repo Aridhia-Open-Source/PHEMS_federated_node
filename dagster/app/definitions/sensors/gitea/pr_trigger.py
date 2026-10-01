@@ -5,7 +5,7 @@ import dagster as dg
 
 from app.definitions.sensors.gitea.base import GiteaSensor
 from app.definitions.run_config import build_run_config
-from app.models import Registry, TriggerRepository, PullRequest, PullRequestStatus
+from app.models import TriggerRepository, PullRequest, PullRequestSpec, PullRequestStatus
 
 
 class PullRequestTriggerSensor(GiteaSensor):
@@ -129,7 +129,8 @@ class PullRequestTriggerSensor(GiteaSensor):
         Injects dataset credentials as mounted secret volume.
         """
         dataset = self.backend_api.get_dataset(repo.dataset_id)
-        run_config = build_run_config(pr.payload, dataset, self._registries())
+        spec = PullRequestSpec.model_validate(pr.payload)
+        run_config = build_run_config(spec.model_dump(), dataset)
 
         return dg.RunRequest(
             run_key=f"{pr.trigger_repository_id}/{pr.number}",
@@ -142,14 +143,3 @@ class PullRequestTriggerSensor(GiteaSensor):
             },
             run_config=run_config,
         )
-
-    def _registries(self) -> list[Registry]:
-        """
-        The configured registries, so the task pod can pull from a private one. Public
-        images have no registry configured and need none.
-        """
-        try:
-            return self.backend_api.get_registries()
-        except Exception as e:
-            self.log.warning(f"Could not fetch registries: {e}")
-            return []

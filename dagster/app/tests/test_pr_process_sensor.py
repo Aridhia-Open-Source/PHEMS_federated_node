@@ -6,7 +6,7 @@ import requests
 from dagster import SkipReason
 
 from app.definitions.sensors.git.pr_process import PullRequestProcessSensor
-from app.models import Project, PullRequest
+from app.models import Project, PullRequest, PullRequestSpec
 
 
 def repo(id=1, project_id=1):
@@ -54,7 +54,7 @@ def test_a_valid_spec_creates_the_task_request_and_is_ready():
 
     result = list(sensor())
 
-    spec = {"image": "a/b:1", "env": {"K": "v"}}
+    spec = PullRequestSpec(image="a/b:1", env={"K": "v"}).model_dump()
     backend_api.create_task_request.assert_called_once_with(1, 5, spec)
     assert backend_api.patch_pull_request.call_args.args[:2] == (1, 5)
     assert patched(backend_api) == {"status": "READY", "payload": spec}
@@ -121,13 +121,23 @@ def test_a_bad_spec_is_invalid(contents):
 
 
 def test_a_spec_the_backend_rejects_is_invalid():
-    files, contents = spec_file({"spec": {"image": "a/b:1", "bogus": 1}})
+    files, contents = spec_file({"spec": {"image": "a/b:1"}})
     sensor, backend_api, _ = make_sensor(files=files, contents=contents)
     backend_api.create_task_request.side_effect = http_error(400)
 
     list(sensor())
 
     assert patched(backend_api) == {"status": "INVALID", "payload": {}}
+
+
+def test_a_spec_with_unknown_fields_is_invalid():
+    files, contents = spec_file({"spec": {"image": "a/b:1", "bogus": 1}})
+    sensor, backend_api, _ = make_sensor(files=files, contents=contents)
+
+    list(sensor())
+
+    assert patched(backend_api) == {"status": "INVALID", "payload": {}}
+    backend_api.create_task_request.assert_not_called()
 
 
 def test_a_backend_failure_leaves_the_pr_unknown_and_carries_on():

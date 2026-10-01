@@ -1,7 +1,7 @@
-from app.models import Dataset, Registry
+from app.models import Dataset
 
 
-def build_run_config(spec: dict, dataset: Dataset, registries: list[Registry]) -> dict:
+def build_run_config(spec: dict, dataset: Dataset) -> dict:
     """
     The run config for k8s_pipes_job, from a task spec and the dataset it runs against.
     The spec names its image as `image`, or `docker_image` as pull request specs may.
@@ -15,8 +15,5 @@ def build_run_config(spec: dict, dataset: Dataset, registries: list[Registry]) -
         "docker_image": image,
         **dataset.dump_task_fields(),
     }
-    pull_secret = Registry.secret_for_image(image, registries)
-    if pull_secret:
-        op_config["image_pull_secret"] = pull_secret
 
     return {"ops": {"k8s_pipes_op": {"config": op_config}}}

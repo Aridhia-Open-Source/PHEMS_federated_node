@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 from dagster import RunRequest, SkipReason
 
 from app.definitions.sensors.task_request.launcher import TaskRequestLauncherSensor
-from app.models import Dataset, Project, Registry, Task, TaskRequest
+from app.models import Dataset, Project, Task, TaskRequest
 
 DATASET = Dataset(
     id=7, project_id=1, k8s_secret_name="cdm-creds", name="cdm", host="db.host", port=5432,
@@ -32,7 +32,6 @@ def make_backend(projects, task_requests_by_project):
     backend_api.get_task_requests.side_effect = lambda queued, project_id: task_requests_by_project[project_id]
     backend_api.create_task.side_effect = lambda tr_id: task(id=tr_id + 100)
     backend_api.get_dataset.return_value = DATASET
-    backend_api.get_registries.return_value = []
     return backend_api
 
 
@@ -80,15 +79,6 @@ def test_only_enabled_projects_are_acted_on():
 
     assert [r.run_key for r in result] == ["task_request/4"]
     backend_api.get_task_requests.assert_called_once_with(queued=True, project_id=2)
-
-
-def test_the_pull_secret_comes_from_the_registries():
-    backend_api = make_backend([project()], {1: [task_request()]})
-    backend_api.get_registries.return_value = [Registry(id=1, url="ghcr.io")]
-
-    result = run(backend_api)
-
-    assert result[0].run_config["ops"]["k8s_pipes_op"]["config"]["image_pull_secret"] == "ghcr-io"
 
 
 def test_a_failing_request_does_not_stop_the_others_and_stays_queued():

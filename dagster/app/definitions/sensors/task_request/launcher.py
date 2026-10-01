@@ -3,7 +3,7 @@ import dagster as dg
 from app.backend import BackendAPI
 from app.definitions.run_config import build_run_config
 from app.definitions.sensors.base import BaseSensor
-from app.models import Project, Registry, TaskRequest
+from app.models import Project, TaskRequest
 
 
 class TaskRequestLauncherSensor(BaseSensor):
@@ -48,7 +48,7 @@ class TaskRequestLauncherSensor(BaseSensor):
     def _launch(self, project: Project, task_request: TaskRequest) -> dg.RunRequest:
         task = self.backend_api.create_task(task_request.id)
         dataset = self.backend_api.get_dataset(task.dataset_id)
-        run_config = build_run_config(task_request.payload, dataset, self._registries())
+        run_config = build_run_config(task_request.payload, dataset)
         return dg.RunRequest(
             run_key=f"task_request/{task_request.id}",
             tags={
@@ -60,14 +60,3 @@ class TaskRequestLauncherSensor(BaseSensor):
             },
             run_config=run_config,
         )
-
-    def _registries(self) -> list[Registry]:
-        """
-        The configured registries, so the task pod can pull from a private one. Public
-        images have no registry configured and need none.
-        """
-        try:
-            return self.backend_api.get_registries()
-        except Exception as e:
-            self.log.warning(f"Could not fetch registries: {e}")
-            return []

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.backend import BackendAPI
-from app.models import Dataset, PullRequest, Registry, TriggerRepository
+from app.models import Dataset, PullRequest, TriggerRepository
 from app.tests.conftest import SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, make_response
 
 
@@ -20,7 +20,6 @@ SAMPLE_DATASET = {
     "url": "https://db.host/cdm",
 }
 
-SAMPLE_REGISTRY = {"id": 1, "url": "ghcr.io", "active": True, "needs_auth": True}
 
 
 @pytest.fixture
@@ -194,27 +193,6 @@ class TestDatasets:
         )
 
         assert session.post.call_args.kwargs["json"]["type"] == "postgres"
-
-
-class TestRegistries:
-    def test_get_registries_unwraps_pagination(self, api, session):
-        session.get.return_value = make_response({"items": [SAMPLE_REGISTRY]})
-
-        registries = api.get_registries()
-
-        assert [type(r) for r in registries] == [Registry]
-        assert registries[0].secret_name == "ghcr-io"
-        session.get.assert_called_once_with("/registries")
-
-    def test_get_registries_accepts_a_bare_list(self, api, session):
-        session.get.return_value = make_response([SAMPLE_REGISTRY])
-
-        assert len(api.get_registries()) == 1
-
-    def test_no_registries_configured(self, api, session):
-        session.get.return_value = make_response({"items": []})
-
-        assert api.get_registries() == []
 
 
 class TestRequests:
