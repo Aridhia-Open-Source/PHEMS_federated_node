@@ -6,13 +6,14 @@ from app.helpers.exceptions import InvalidDBEntry, InvalidRequest
 from app.models.api_request import ApiRequest
 from app.models.dataset import Dataset
 from app.models.pull_request import PullRequest
+from app.dtos.task import NewTaskDTO
 from app.models.task import Task
 from app.models.task_request import TaskRequest
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
 
 SPEC = {
-    "name": "TestTask", "description": None, "image": "img:1", "command": None, "env": {"K": "v"},
+    "name": "TestTask", "image": "img:1", "env": {"K": "v"},
     "params": {"p": 1}, "dataset": None, "tags": {}, "resources": {}, "repository": None,
 }
 
@@ -54,13 +55,13 @@ def other_project_dataset(client, user_uuid, other_project, k8s_secret):
     return ds
 
 
-class TestTaskFromTaskRequest:
+class TestNewTaskDTOFromTaskRequest:
     def test_api_task_derived_from_spec(self, api_task_request, dataset):
-        task = Task.from_task_request(api_task_request)
+        task = NewTaskDTO.from_task_request(api_task_request)
         assert task.name == "TestTask"
         assert task.docker_image == "img:1"
         assert task.params == {"p": 1}
-        assert task.dataset is dataset
+        assert task.dataset_id == dataset.id
         assert task.project_id == api_task_request.project_id
         assert task.requested_by == "api-user"
         assert task.task_request_id == api_task_request.id
@@ -68,30 +69,34 @@ class TestTaskFromTaskRequest:
         assert task.pr_number is None
 
     def test_pr_task_derived_from_spec(self, pr_task_request, default_repo):
-        task = Task.from_task_request(pr_task_request)
+        task = NewTaskDTO.from_task_request(pr_task_request)
         assert task.name == "PR title"
         assert task.requested_by == "pr-user"
         assert task.pr_repository_id == default_repo.id
         assert task.pr_number == 7
         assert task.api_request_id is None
 
-    def test_no_trigger_payload(self):
-        assert "trigger_payload" not in Task.__table__.columns
-
     def test_dataset_override_in_same_project(self, api_task_request, second_dataset):
         api_task_request.payload = {**SPEC, "dataset": second_dataset.name}
-        task = Task.from_task_request(api_task_request)
-        assert task.dataset is second_dataset
+        task = NewTaskDTO.from_task_request(api_task_request)
+        assert task.dataset_id == second_dataset.id
+
+    def test_dataset_name_is_matched_exactly_within_the_project(self, api_task_request, second_dataset):
+        api_task_request.payload = {**SPEC, "dataset": second_dataset.name.upper()}
+        assert NewTaskDTO.from_task_request(api_task_request).dataset_id == second_dataset.id
+        api_task_request.payload = {**SPEC, "dataset": second_dataset.name[:-1]}
+        with pytest.raises(InvalidRequest, match="does not belong to project"):
+            NewTaskDTO.from_task_request(api_task_request)
 
     def test_dataset_override_in_other_project_fails(self, api_task_request, other_project_dataset):
         api_task_request.payload = {**SPEC, "dataset": other_project_dataset.name}
         with pytest.raises(InvalidRequest, match="does not belong to project"):
-            Task.from_task_request(api_task_request)
+            NewTaskDTO.from_task_request(api_task_request)
 
-    def test_no_dataset_and_no_default_fails(self, api_task_request, project):
+    def test_no_dataset_and_no_default_is_allowed(self, api_task_request, project):
         project.default_dataset_id = None
-        with pytest.raises(InvalidRequest, match="has no default dataset"):
-            Task.from_task_request(api_task_request)
+        project.default_dataset = None
+        assert NewTaskDTO.from_task_request(api_task_request).dataset_id is None
 
 
 class TestTaskRequestSource:

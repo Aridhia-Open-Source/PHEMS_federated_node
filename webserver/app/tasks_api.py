@@ -20,9 +20,9 @@ from sqlalchemy import text
 from app.helpers.base_model import db
 from app.helpers.exceptions import NotImplementedException, UnauthorizedError
 from app.helpers.keycloak import Keycloak
-from app.helpers.task_spec import TaskSpec
+from app.dtos.task_spec import TaskSpec
 from app.helpers.wrappers import audit, auth
-from app.dtos.task import TaskDTO
+from app.dtos.task import NewTaskDTO, TaskDTO
 from app.models.api_request import ApiRequest
 from app.models.task_request import TaskRequest
 from app.models.project import Project
@@ -124,8 +124,9 @@ def post_tasks():
 
     # Validate the task spec, and normalise it. The dataset it was validated
     # against is the one the task runs on.
-    validated = Task.validate(req_body)
     spec = TaskSpec.from_api_body(req_body)
+    req_body["docker_image"] = spec.image
+    validated = Task.validate(req_body)
     spec.dataset = validated["dataset"].name
 
     # Create ApiRequest record
@@ -157,7 +158,7 @@ def post_tasks():
         task_request.add(commit=False)
 
         # Create Task from TaskRequest
-        task = Task.from_task_request(task_request)
+        task = Task(**NewTaskDTO.from_task_request(task_request).model_dump())
         task.add(commit=False)
 
         session.commit()
@@ -184,8 +185,9 @@ def post_tasks_validate():
     """
     req_body = request.json
     req_body["project_name"] = request.headers.get("project-name")
+    spec = TaskSpec.from_api_body(req_body)
+    req_body["docker_image"] = spec.image
     Task.validate(req_body)
-    TaskSpec.from_api_body(req_body)
     return "Ok", 200
 
 

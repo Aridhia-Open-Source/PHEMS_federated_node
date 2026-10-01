@@ -634,14 +634,13 @@ class TestPostTaskRequestSpec:
         assert response.status_code == 400
         assert "does not belong to project" in response.json["error"]
 
-    def test_no_dataset_and_no_default_fails(
+    def test_no_dataset_and_no_default_is_allowed(
             self, client, post_json_admin_header, repository, pull_request, project
         ):
         project.default_dataset_id = None
         project.add()
         response = self.post(client, post_json_admin_header, repository, pull_request, {"image": "example:latest"})
-        assert response.status_code == 400
-        assert "has no default dataset" in response.json["error"]
+        assert response.status_code == 201
 
 
 class TestPullRequestDTO:
