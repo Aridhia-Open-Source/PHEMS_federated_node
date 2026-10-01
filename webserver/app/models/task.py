@@ -76,7 +76,7 @@ class Task(db.Model, BaseModel):
                  name:str,
                  docker_image:str,
                  requested_by:str,
-                 dataset,
+                 dataset_id:int | None,
                  project_id:int,
                  task_request_id:int | None = None,
                  api_request_id:int | None = None,
@@ -88,7 +88,7 @@ class Task(db.Model, BaseModel):
         self.status = TaskStatus.PENDING.value
         self.docker_image = docker_image
         self.requested_by = requested_by
-        self.dataset = dataset
+        self.dataset_id = dataset_id
         self.project_id = project_id
         self.task_request_id = task_request_id
         self.api_request_id = api_request_id
@@ -97,27 +97,6 @@ class Task(db.Model, BaseModel):
         self.params = params or {}
         self.created_at = dt.now()
         self.updated_at = dt.now()
-
-    @classmethod
-    def from_task_request(cls, task_request):
-        """
-        The one place a Task's columns are derived from its TaskRequest's spec.
-        """
-        spec = task_request.payload
-        pull_request = task_request.pull_request
-        return cls(
-            # A pull request spec has no name of its own
-            name=spec["name"] or pull_request.title,
-            docker_image=spec["image"],
-            requested_by=pull_request.raised_by if pull_request else task_request.api_request.user_id,
-            dataset=task_request.project.resolve_dataset(spec["dataset"]),
-            project_id=task_request.project_id,
-            task_request_id=task_request.id,
-            api_request_id=task_request.api_request_id,
-            pr_repository_id=pull_request.trigger_repository_id if pull_request else None,
-            pr_number=pull_request.number if pull_request else None,
-            params=spec["params"],
-        )
 
     @classmethod
     def validate(cls, data:dict):
@@ -131,11 +110,6 @@ class Task(db.Model, BaseModel):
         decoded_token = kc_client.decode_token(user_token)
         data["requested_by"] = kc_client.get_user_by_email(decoded_token["email"])["id"]
         user = kc_client.get_user_by_id(data["requested_by"])
-        if not data.get("executors"):
-            raise InvalidRequest("executors must be a non-empty list of objects")
-        # Support only for one image at a time, the standard is executors == list
-        executors = data["executors"][0]
-        data["docker_image"] = executors["image"]
         repository = data.get("repository")
 
         data = super().validate(data)

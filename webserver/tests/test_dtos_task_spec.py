@@ -1,10 +1,10 @@
 import pytest
 
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.task_spec import TaskSpec
+from app.dtos.task_spec import TaskSpec
 
 EXPECTED_DEFAULTS = {
-    "name": None, "description": None, "command": None, "env": {}, "params": {},
+    "name": None, "env": {}, "params": {},
     "dataset": None, "tags": {}, "resources": {}, "repository": None,
 }
 
@@ -17,14 +17,14 @@ class TestFromApiBody:
         ),
         (
             {
-                "name": "t", "description": "d", "repository": "org/repo",
-                "executors": [{"image": "img:1", "command": ["a", "b"], "env": {"K": 1}}],
+                "name": "t", "repository": "org/repo",
+                "executors": [{"image": "img:1", "env": {"K": 1}}],
                 "tags": {"dataset_name": "ds", "other": "x"},
                 "resources": {"limits": {"cpu": "1"}, "requests": {"cpu": "100m"}},
             },
             {
-                "name": "t", "description": "d", "repository": "org/repo", "image": "img:1",
-                "command": ["a", "b"], "env": {"K": 1}, "dataset": "ds",
+                "name": "t", "repository": "org/repo", "image": "img:1",
+                "env": {"K": 1}, "dataset": "ds",
                 "tags": {"dataset_name": "ds", "other": "x"},
                 "resources": {"limits": {"cpu": "1"}, "requests": {"cpu": "100m"}},
             },
@@ -44,7 +44,7 @@ class TestFromApiBody:
         {"executors": {"image": "img:1"}},
         {"executors": ["img:1"]},
         {"executors": [{}]},
-        {"executors": [{"image": "img:1", "command": "not-a-list"}]},
+        {"executors": [{"image": 1}]},
     ])
     def test_invalid(self, body):
         with pytest.raises(InvalidRequest):

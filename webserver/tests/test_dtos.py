@@ -145,7 +145,7 @@ class TestAuditDTO:
 class TestTaskDTO:
     def test_fields(self):
         task = Task(
-            name="task", docker_image="alpine:latest", requested_by="user", dataset=None, project_id=1
+            name="task", docker_image="alpine:latest", requested_by="user", dataset_id=None, project_id=1
         )
         task.id = 1
         dumped = TaskDTO.from_model(task).dump()

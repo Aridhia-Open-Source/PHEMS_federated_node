@@ -6,7 +6,7 @@ from app.models.task import Task
 
 @pytest.fixture
 def task(client, project, dataset):
-    task = Task(name="task", docker_image="img:1", requested_by="user", dataset=dataset, project_id=project.id)
+    task = Task(name="task", docker_image="img:1", requested_by="user", dataset_id=dataset.id, project_id=project.id)
     task.add()
     return task
 

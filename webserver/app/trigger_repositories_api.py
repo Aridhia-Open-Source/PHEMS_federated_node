@@ -19,7 +19,7 @@ from flask import Blueprint, request
 from app.dtos.trigger_repository import PullRequestDTO, TaskRequestDTO, TriggerRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.task_spec import TaskSpec
+from app.dtos.task_spec import TaskSpec
 from app.helpers.wrappers import auth
 from app.models.k8s_secret import K8sSecret
 from app.models.project import Project
@@ -28,6 +28,8 @@ from app.models.pull_request_status import PullRequestStatus
 from app.models.task_request import TaskRequest
 from app.models.trigger_repository import TriggerRepository
 
+# TODO: the pull_requests routes below are called by Dagster only. No user or admin is
+# expected to touch them, so they should be restricted to internal callers.
 bp = Blueprint('trigger_repositories', __name__, url_prefix='/trigger_repositories')
 session = db.session
 
@@ -151,6 +153,7 @@ def patch_repository(repo_id):
     return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK
 
 
+# TODO: internal, called by Dagster only. Restrict to internal callers.
 @bp.route('/pull_requests', methods=['POST'])
 def post_pull_request():
     """
@@ -179,6 +182,7 @@ def post_pull_request():
     return PullRequestDTO.from_model(pr).dump(), HTTPStatus.CREATED
 
 
+# TODO: internal, called by Dagster only. Restrict to internal callers.
 @bp.route('/<int:repo_id>/pull_requests/batch', methods=['POST'])
 def post_pull_requests_batch(repo_id):
     """
@@ -236,6 +240,7 @@ def post_pull_requests_batch(repo_id):
     return [PullRequestDTO.from_model(pr).dump() for pr in created_prs], HTTPStatus.CREATED
 
 
+# TODO: internal, called by Dagster only. Restrict to internal callers.
 @bp.route('/<int:repo_id>/pull_requests', methods=['GET'])
 def get_pull_requests(repo_id):
     """
@@ -272,6 +277,7 @@ def get_pull_requests(repo_id):
     }, HTTPStatus.OK
 
 
+# TODO: internal, called by Dagster only. Restrict to internal callers.
 @bp.route('/<int:repo_id>/pull_requests/<int:number>', methods=['GET'])
 def get_pull_request(repo_id, number):
     """
@@ -289,6 +295,7 @@ def get_pull_request(repo_id, number):
     return PullRequestDTO.from_model(pr).dump(), HTTPStatus.OK
 
 
+# TODO: internal, called by Dagster only. Restrict to internal callers.
 @bp.route('/<int:repo_id>/pull_requests/<int:number>', methods=['PATCH'])
 def patch_pull_request(repo_id, number):
     """
@@ -319,6 +326,7 @@ def patch_pull_request(repo_id, number):
     return PullRequestDTO.from_model(pr).dump(), HTTPStatus.OK
 
 
+# TODO: internal, called by Dagster only. Restrict to internal callers.
 @bp.route('/<int:repo_id>/pull_requests/<int:number>/task_request', methods=['POST'])
 def post_task_request(repo_id, number):
     """

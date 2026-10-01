@@ -1,6 +1,7 @@
 import json
 import pytest
 
+from app.dtos.task import NewTaskDTO
 from app.models.api_request import ApiRequest
 from app.models.pull_request import PullRequest
 from app.models.task import Task
@@ -198,7 +199,7 @@ class TestPostTask:
         Another call inserts the task after this call found none: the unique
         task_request_id makes the insert fail, and the existing task is returned.
         """
-        existing = Task.from_task_request(pr_task_request)
+        existing = Task(**NewTaskDTO.from_task_request(pr_task_request).model_dump())
         existing.add()
         mocker.patch.object(TaskRequest, "task", None)
         response = client.post(f"/task_requests/{pr_task_request.id}/task", headers=post_json_admin_header)
@@ -206,12 +207,12 @@ class TestPostTask:
         assert response.json["id"] == existing.id
         assert Task.query.count() == 1
 
-    def test_no_dataset_fails(self, client, post_json_admin_header, pr_task_request, project):
+    def test_no_dataset_is_allowed(self, client, post_json_admin_header, pr_task_request, project):
         project.default_dataset_id = None
         project.add()
         response = client.post(f"/task_requests/{pr_task_request.id}/task", headers=post_json_admin_header)
-        assert response.status_code == 400
-        assert Task.query.count() == 0
+        assert response.status_code == 201
+        assert response.json["dataset_id"] is None
 
     def test_not_found(self, client, post_json_admin_header):
         response = client.post("/task_requests/999/task", headers=post_json_admin_header)

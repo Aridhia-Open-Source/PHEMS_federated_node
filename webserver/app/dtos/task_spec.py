@@ -11,9 +11,7 @@ class TaskSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str | None = None
-    description: str | None = None
     image: str
-    command: list[str] | None = None
     env: dict = {}
     params: dict = {}
     # Dataset name. Resolved against the project when the task is created.
@@ -32,7 +30,7 @@ class TaskSpec(BaseModel):
     @classmethod
     def from_api_body(cls, body: dict) -> "TaskSpec":
         """
-        The API shape is TES-like: the image, command and env sit on the first executor.
+        The API shape is TES-like: the image and env sit on the first executor.
         """
         executors = body.get("executors")
         if not isinstance(executors, list) or not executors or not isinstance(executors[0], dict):
@@ -41,10 +39,9 @@ class TaskSpec(BaseModel):
         executor = executors[0]
         tags = body.get("tags") or {}
         return cls.build(
-            name=body.get("name"),
-            description=body.get("description"),
+            # The API strips spaces from a task name
+            name=(body.get("name") or "").replace(" ", "") or None,
             image=executor.get("image"),
-            command=executor.get("command"),
             env=executor.get("env") or {},
             dataset=tags.get("dataset_name"),
             tags=tags,

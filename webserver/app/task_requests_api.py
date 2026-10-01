@@ -11,7 +11,7 @@ from flask import Blueprint, request
 from sqlalchemy.exc import IntegrityError
 
 from app.dtos.base import page_of
-from app.dtos.task import TaskDTO
+from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.trigger_repository import TaskRequestDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
@@ -97,7 +97,7 @@ def post_task(task_request_id):
     if task_request.task:
         return TaskDTO.from_model(task_request.task).dump(), HTTPStatus.OK
 
-    task = Task.from_task_request(task_request)
+    task = Task(**NewTaskDTO.from_task_request(task_request).model_dump())
     try:
         task.add()
     except IntegrityError:
