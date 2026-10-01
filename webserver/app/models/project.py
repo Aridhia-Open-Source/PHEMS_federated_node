@@ -50,17 +50,15 @@ class Project(db.Model, BaseModel):
     def resolve_dataset(self, name: str | None):
         """
         The dataset a task in this project runs against: the one named, which has to belong
-        to the project, otherwise the project's default.
+        to the project, otherwise the project's default. A task may have none.
         """
         if name:
             dataset = Models.Dataset.query.filter(
-                Models.Dataset.project_id == self.id, Models.Dataset.name.ilike(name)
+                Models.Dataset.project_id == self.id, Models.Dataset.name == name.lower()
             ).one_or_none()
             if dataset is None:
                 raise InvalidRequest(f"Dataset {name} does not belong to project {self.name}")
             return dataset
-        if self.default_dataset is None:
-            raise InvalidRequest(f"Project {self.name} has no default dataset. Provide `dataset`")
         return self.default_dataset
 
     def __repr__(self):
