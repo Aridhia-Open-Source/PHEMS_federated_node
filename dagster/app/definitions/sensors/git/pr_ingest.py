@@ -1,11 +1,14 @@
 import dagster as dg
 
 from app.definitions.sensors.git.base import GitAPI, GitSensor
-from app.models import PullRequest, PullRequestStatus, TriggerRepository
+from app.models import PullRequest, TriggerRepository, TriggerState
 
 
 class PullRequestIngestSensor(GitSensor):
     """Polls the git provider for new merged PRs and saves them to the database."""
+
+    # The server owns these: it records a new PR as UNKNOWN
+    SERVER_FIELDS = {"trigger_repository_id", "state", "reason", "task_id"}
 
     def __call__(self):
         """Execute the sensor. Yields a SkipReason summarising what was saved."""
@@ -31,7 +34,7 @@ class PullRequestIngestSensor(GitSensor):
             self.log.info(f"Saving batch of {len(pull_requests)} PRs for repo {repo.id}")
             self.backend_api.create_pull_requests_batch(
                 repo.id,
-                [pr.model_dump(exclude={"trigger_repository_id"}) for pr in pull_requests],
+                [pr.model_dump(exclude=self.SERVER_FIELDS) for pr in pull_requests],
             )
             saved += len(pull_requests)
 
@@ -50,6 +53,6 @@ class PullRequestIngestSensor(GitSensor):
             raised_by=pr["user"]["login"],
             merged_at=pr["merged_at"],
             merge_commit_sha=pr["merge_commit_sha"],
-            status=PullRequestStatus.UNKNOWN.value,
+            state=TriggerState.UNKNOWN,
             payload={},
         )
