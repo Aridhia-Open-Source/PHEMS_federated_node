@@ -1,7 +1,7 @@
-from app.definitions.sensors import git, gitea, github, task_request
+from app.definitions.sensors import git, github, task
 
-SENSORS = [*git.SENSORS, *gitea.SENSORS, *github.SENSORS, *task_request.SENSORS]
-JOBS = [*git.JOBS, *gitea.JOBS, *github.JOBS, *task_request.JOBS]
+SENSORS = [*git.SENSORS, *github.SENSORS, *task.SENSORS]
+JOBS = [*git.JOBS, *github.JOBS, *task.JOBS]
 
 __all__ = [
     "SENSORS",
