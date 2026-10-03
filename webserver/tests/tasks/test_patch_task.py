@@ -5,10 +5,8 @@ from app.models.task import Task
 
 
 @pytest.fixture
-def task(client, project, dataset):
-    task = Task(name="task", docker_image="img:1", requested_by="user", dataset_id=dataset.id, project_id=project.id)
-    task.add()
-    return task
+def task(make_task, dataset):
+    return make_task(dataset_id=dataset.id)
 
 
 class TestPatchTask:
@@ -17,17 +15,17 @@ class TestPatchTask:
 
     def test_update_all_fields(self, client, post_json_admin_header, task):
         response = self.patch(client, post_json_admin_header, task.id, {
-            "status": "FAILURE", "dagster_run_id": "run-1", "exit_code": 2,
+            "status": "FAILED", "dagster_run_id": "run-1", "exit_code": 2,
             "started_at": "2026-01-01T10:00:00Z", "completed_at": "2026-01-01T10:30:00",
         })
         assert response.status_code == 200
-        assert response.json["status"] == "FAILURE"
+        assert response.json["status"] == "FAILED"
         assert response.json["dagster_run_id"] == "run-1"
         assert response.json["exit_code"] == 2
         assert response.json["started_at"] == "2026-01-01 10:00:00"
         assert response.json["completed_at"] == "2026-01-01 10:30:00"
         task = Task.query.get(task.id)
-        assert task.status == "FAILURE"
+        assert task.status == "FAILED"
         assert task.dagster_run_id == "run-1"
         assert task.exit_code == 2
         assert task.started_at.isoformat() == "2026-01-01T10:00:00"
