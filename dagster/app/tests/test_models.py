@@ -1,6 +1,6 @@
 import pytest
 
-from app.models import Dataset, PullRequest, PullRequestStatus, TriggerRepository
+from app.models import Dataset, PullRequest, TriggerRepository
 
 
 SAMPLE_DATASET = {
@@ -63,14 +63,6 @@ class TestDataset:
         assert dataset.extra_field == "value"
 
 
-class TestPullRequestStatus:
-    def test_str_is_the_value(self):
-        assert str(PullRequestStatus.READY) == "READY"
-
-    def test_status_is_a_string_enum(self):
-        assert PullRequestStatus.SUCCESS == "SUCCESS"
-
-
 class TestTriggerRepository:
     def test_pull_requests_default_to_empty(self):
         repo = TriggerRepository(
@@ -105,7 +97,7 @@ class TestTriggerRepository:
                 "merged_at": "2026-06-26T10:00:00Z",
                 "merge_commit_sha": "abc",
                 "payload": {},
-                "status": "UNKNOWN",
+                "state": "UNKNOWN",
             }],
         )
 
