@@ -1,8 +1,28 @@
 import json
-from typing import cast
+from enum import Enum
+
+from pydantic import BaseModel
 
 from app.definitions.sensors.git.base import GitAPI
-from app.models import PullRequest, PullRequestSpec, PullRequestStatus, TriggerRepository
+from app.models import PullRequest, PullRequestSpec, TriggerRepository
+
+
+class PullRequestOutcome(str, Enum):
+    """
+    What evaluating a pull request found. Never persisted: it maps onto the PR's state
+    (READY becomes a task and so YIELDED, IGNORED and REJECTED are stored with the reason).
+    """
+
+    READY = "READY"
+    IGNORED = "IGNORED"
+    REJECTED = "REJECTED"
+
+
+class ParsedPullRequest(BaseModel):
+    outcome: PullRequestOutcome
+    spec: PullRequestSpec | None = None
+    # Why the PR is IGNORED or REJECTED
+    reason: str | None = None
 
 
 class PullRequestParser:
@@ -16,10 +36,10 @@ class PullRequestParser:
         self.repo = repo
         self.log = log
 
-    def parse(self, pr: PullRequest) -> tuple[PullRequestStatus, PullRequestSpec | None]:
+    def parse(self, pr: PullRequest) -> ParsedPullRequest:
         """
-        IGNORED if the PR has no watched file, INVALID if it has several or its spec is
-        invalid, else READY with the spec.
+        IGNORED if the PR has no watched file, REJECTED if it has several or its spec is
+        invalid, else READY with the spec. A git provider failure raises: it is not an outcome.
         """
         pr_files = self.git_api.get_pull_request_files(self.repo.path, pr.number)
         watched_files = self._filter_watched_files(pr_files)
@@ -27,27 +47,31 @@ class PullRequestParser:
         self.log.info(f"PR #{pr.number} in {self.repo.path}: watched files {watched_file_names}")
 
         if not watched_file_names:
-            self.log.warning("No watched files - marking IGNORED")
-            return PullRequestStatus.IGNORED, None
+            return ParsedPullRequest(
+                outcome=PullRequestOutcome.IGNORED,
+                reason=f"No new spec file under {self.repo.watch_dir}",
+            )
         if len(watched_file_names) > 1:
-            self.log.warning(f"Multiple watched files ({len(watched_file_names)}) - marking INVALID")
-            return PullRequestStatus.INVALID, None
+            return ParsedPullRequest(
+                outcome=PullRequestOutcome.REJECTED,
+                reason=f"Several new spec files under {self.repo.watch_dir}: {', '.join(watched_file_names)}",
+            )
 
-        try:
-            data = self._get_spec_data(cast(str, watched_file_names[0]), pr.merge_commit_sha)
-            spec = PullRequestSpec.model_validate(data["spec"])
-        except Exception as e:
-            self.log.error(f"PR #{pr.number} spec is invalid: {type(e).__name__}: {e}")
-            return PullRequestStatus.INVALID, None
-        return PullRequestStatus.READY, spec
-
-    def _get_spec_data(self, filepath: str, ref: str):
         contents = self.git_api.get_file_contents(
             repo_path=self.repo.path,
-            file_path=filepath,
-            ref=ref,
+            file_path=watched_file_names[0],
+            ref=pr.merge_commit_sha,
         )
-        return json.loads(contents)
+        try:
+            spec = PullRequestSpec.model_validate(json.loads(contents)["spec"])
+        except (ValueError, KeyError, TypeError) as e:
+            # ValueError covers bad JSON and pydantic's ValidationError
+            self.log.error(f"PR #{pr.number} spec is invalid: {type(e).__name__}: {e}")
+            return ParsedPullRequest(
+                outcome=PullRequestOutcome.REJECTED,
+                reason=f"Invalid spec file {watched_file_names[0]}: {type(e).__name__}: {e}",
+            )
+        return ParsedPullRequest(outcome=PullRequestOutcome.READY, spec=spec)
 
     def _filter_watched_files(self, pr_files: list[dict]):
         def _is_watched_json_file(f):
