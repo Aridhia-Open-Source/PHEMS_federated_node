@@ -6,7 +6,7 @@ from app.helpers.exceptions import InvalidRequest
 class TaskSpec(BaseModel):
     """
     The one normalised description of a task, whichever way it was requested.
-    It is stored once, on TaskRequest.payload.
+    It is stored once, on Task.spec.
     """
     model_config = ConfigDict(extra="forbid")
 
