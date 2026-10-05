@@ -1,35 +1,30 @@
 """API request model for task trigger payloads."""
 import sqlalchemy as sa
-from sqlalchemy.orm import relationship
 
-from app.helpers.base_model import BaseModel, db
-from app.models import sqla_column
-from app.models.pull_request_status import PullRequestStatus
+from app.models.trigger import Trigger
 
 
-class ApiRequest(db.Model, BaseModel):
+class ApiRequest(Trigger):
+    """
+    A task requested through POST /tasks. `payload` is the raw request body.
+    """
     __tablename__ = 'api_requests'
+    __mapper_args__ = {'polymorphic_identity': 'API'}
 
-    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    project_id = sa.Column(sa.Integer, sa.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False)
-    user_id = sa.Column(sa.String(256), nullable=False)
-    status = sa.Column(
-        sa.String(32),
-        nullable=False,
-        default=PullRequestStatus.UNKNOWN.value,
-        server_default=PullRequestStatus.UNKNOWN.value,
+    trigger_id = sa.Column(
+        sa.Integer, sa.ForeignKey('triggers.id', ondelete='CASCADE'), primary_key=True
     )
+    user_id = sa.Column(sa.String(256), nullable=False)
     payload = sa.Column(sa.JSON, nullable=False, default=dict, server_default='{}')
-    created_at = sqla_column.created_at()
-
-    project = relationship('Project', back_populates='api_requests')
-    tasks = relationship('Task', back_populates='api_request')
-    task_request = relationship('TaskRequest', back_populates='api_request', uselist=False)
 
     def __init__(self, user_id: str, project_id: int, payload: dict | None = None, **kwargs):
+        super().__init__(project_id)
         self.user_id = user_id
-        self.project_id = project_id
         self.payload = payload or {}
+
+    @property
+    def requested_by(self) -> str:
+        return self.user_id
 
     def __repr__(self):
         return f'<ApiRequest (id={self.id}, project_id={self.project_id})>'

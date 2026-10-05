@@ -47,6 +47,10 @@
     {
       "name": "Users",
       "description": "Endpoints related to user management"
+    },
+    {
+      "name": "Task Requests",
+      "description": "Endpoints used by Dagster to launch task requests"
     }
   ],
   "paths": {
@@ -407,6 +411,61 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patch_task",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Record the progress of a task's run",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskPatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskById"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
@@ -1639,6 +1698,243 @@
           }
         }
       }
+    },
+    "/task_requests": {
+      "get": {
+        "operationId": "get_task_requests",
+        "tags": [
+          "Task Requests"
+        ],
+        "summary": "List task requests",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          },
+          {
+            "in": "query",
+            "name": "queued",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Only task requests waiting (true) or not waiting (false) to be launched"
+          },
+          {
+            "in": "query",
+            "name": "project_id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Only task requests of this project"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of task requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TaskRequestObject"
+                      }
+                    },
+                    "page": {
+                      "type": "integer",
+                      "example": 1
+                    },
+                    "per_page": {
+                      "type": "integer",
+                      "example": 25
+                    },
+                    "total": {
+                      "type": "integer",
+                      "example": 100
+                    },
+                    "pages": {
+                      "type": "integer",
+                      "example": 4
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/task_requests/{id}": {
+      "get": {
+        "operationId": "get_task_request",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task request identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Task Requests"
+        ],
+        "summary": "Get a single task request",
+        "responses": {
+          "200": {
+            "description": "A task request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskRequestObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patch_task_request",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task request identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Task Requests"
+        ],
+        "summary": "Set whether a task request is waiting to be launched",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskRequestPatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated task request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskRequestObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/task_requests/{id}/task": {
+      "post": {
+        "operationId": "create_task_from_request",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task request identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Task Requests"
+        ],
+        "summary": "Create the task for a task request. Returns the existing task if there is one",
+        "responses": {
+          "200": {
+            "description": "The task already created for this request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskById"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Task created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskById"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
     }
   },
   "security": [
@@ -2777,6 +3073,26 @@
           "project_id": {
             "type": "integer",
             "example": 1
+          },
+          "dagster_run_id": {
+            "type": "string",
+            "nullable": true,
+            "example": "8c6f2a52-5d1c-4e0b-9d57-3f0e8a1c2b44"
+          },
+          "exit_code": {
+            "type": "integer",
+            "nullable": true,
+            "example": 0
+          },
+          "started_at": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-01-01 10:00:00"
+          },
+          "completed_at": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-01-01 10:30:00"
           }
         }
       },
@@ -3187,6 +3503,83 @@
           "enabled": {
             "type": "boolean",
             "example": true
+          }
+        }
+      },
+      "TaskRequestObject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "pull_request_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1
+          },
+          "api_request_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": null
+          },
+          "project_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "queued": {
+            "type": "boolean",
+            "example": true
+          },
+          "payload": {
+            "type": "object",
+            "description": "The normalised task spec"
+          }
+        }
+      },
+      "TaskRequestPatchBody": {
+        "type": "object",
+        "required": [
+          "queued"
+        ],
+        "properties": {
+          "queued": {
+            "type": "boolean",
+            "example": false
+          }
+        }
+      },
+      "TaskPatchBody": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "QUEUED",
+              "RUNNING",
+              "SUCCESS",
+              "FAILURE",
+              "CANCELLED"
+            ]
+          },
+          "dagster_run_id": {
+            "type": "string",
+            "example": "8c6f2a52-5d1c-4e0b-9d57-3f0e8a1c2b44"
+          },
+          "exit_code": {
+            "type": "integer",
+            "example": 0
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-01-01T10:00:00"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-01-01T10:30:00"
           }
         }
       }

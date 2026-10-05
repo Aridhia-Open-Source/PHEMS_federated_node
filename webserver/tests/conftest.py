@@ -15,6 +15,7 @@ from app.models.dataset import Dataset
 from app.models.extras.catalogue import Catalogue
 from app.models.extras.dictionary import Dictionary
 from app.models.project import Project
+from app.models.task import Task
 from app.models.extras.request import Request
 from app.models.trigger_repository import TriggerRepository
 from app.models.k8s_secret import K8sSecret
@@ -198,6 +199,23 @@ def project(client) -> Project:
     project = Project(name="TestProject")
     project.add()
     return project
+
+
+@fixture
+def make_task(client, project):
+    """Factory for a task with its own ApiRequest trigger"""
+    def _make(project=project, **fields) -> Task:
+        api_request = ApiRequest(project_id=project.id, user_id="user", payload={})
+        api_request.add()
+        task = Task(
+            name="task", docker_image="img:1", requested_by="user", dataset_id=None,
+            project_id=project.id, trigger_id=api_request.id, spec={"image": "img:1"}
+        )
+        for field, value in fields.items():
+            setattr(task, field, value)
+        task.add()
+        return task
+    return _make
 
 
 @fixture

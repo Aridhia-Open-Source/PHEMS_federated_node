@@ -6,7 +6,8 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.helpers.base_model import BaseModel, db
-from app.models import sqla_column
+from app.helpers.exceptions import InvalidRequest
+from app.models import Models, sqla_column
 
 
 class Project(db.Model, BaseModel):
@@ -35,8 +36,7 @@ class Project(db.Model, BaseModel):
     whitelisted_images = relationship("WhitelistedImage", back_populates="project")
     results_repositories = relationship("ResultsRepository", back_populates="project")
     results_backend = relationship("ResultsBackend", back_populates="project", uselist=False)
-    api_requests = relationship("ApiRequest", back_populates="project")
-    task_requests = relationship("TaskRequest", back_populates="project")
+    triggers = relationship("Trigger", back_populates="project")
 
     def __init__(self, name: str, description: str | None = None, enabled: bool = False, **kwargs):
         self.name = name
@@ -49,6 +49,20 @@ class Project(db.Model, BaseModel):
         that assumes it.
         """
         return self.results_repositories[0] if self.results_repositories else None
+
+    def resolve_dataset(self, name: str | None):
+        """
+        The dataset a task in this project runs against: the one named, which has to belong
+        to the project, otherwise the project's default. A task may have none.
+        """
+        if name:
+            dataset = Models.Dataset.query.filter(
+                Models.Dataset.project_id == self.id, Models.Dataset.name == name.lower()
+            ).one_or_none()
+            if dataset is None:
+                raise InvalidRequest(f"Dataset {name} does not belong to project {self.name}")
+            return dataset
+        return self.default_dataset
 
     def __repr__(self):
         return f'<Project {self.name}>'
