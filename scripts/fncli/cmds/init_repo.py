@@ -135,7 +135,7 @@ def init_backend_trigger_repo(
         uri=config.trigger_repo_uri,
         provider="gitea",
         api_uri=config.gitea_api_uri,
-        secret_name=config.git_secret_label,
+        secret_label=config.git_secret_label,
         watch_dir=config.trigger_repo_watch_dir,
         base_branch=gitea_repo["default_branch"],
         project_id=project.id,

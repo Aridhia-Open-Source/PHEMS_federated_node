@@ -1,7 +1,7 @@
 """
 Federated node dev tooling. `.dev.env` is found by searching up from the current directory:
 
-    python -m scripts.fncli --help
+    fncli --help
 """
 
 import logging

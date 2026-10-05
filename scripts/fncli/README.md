@@ -91,12 +91,6 @@ fncli init-repo           # run every init step, in order
 
 Every step is idempotent and can be run on its own or re-run after a failure.
 
-Without installing, you can also run it with any Python that has the dependencies:
-
-```bash
-python -m scripts.fncli --help
-```
-
 ## Maintenance
 
 ```bash
