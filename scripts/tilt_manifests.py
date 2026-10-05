@@ -15,9 +15,8 @@ Transformations applied for dev workflow:
         already ran during the initial `make deploy`, and the DB + results PV
         persist, so the dev pod only needs the long-running server.
 
-  For the dagster user-deployment:
-      - Clear args field so the Kubernetes container won't append them to the
-        injected entrypoint (which already includes the args from Helm).
+  The dagster user-deployment keeps the args Helm gave it: the image has no
+  entrypoint, so they are the command that Tilt's restart wrapper runs.
 
 Usage: tilt_manifests.py <namespace> <backend-deploy> <dagster-deploy>
 """
@@ -51,10 +50,6 @@ def main():
 
         if name == backend:
             spec.pop("initContainers", None)
-
-        if name == dagster:
-            for container in spec.get("containers", []):
-                container["args"] = []
 
     print(json.dumps({"apiVersion": "v1", "kind": "List", "items": items}))
 

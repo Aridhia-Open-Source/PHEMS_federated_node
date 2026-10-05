@@ -71,17 +71,15 @@ docker_build_with_restart(
 # ==============================================================================
 # DAGSTER USER CODE DEPLOYMENT
 # ==============================================================================
-# The image has no ENTRYPOINT or CMD: the chart passes the gRPC command as the container
-# args (templates/dagster-code-server.yaml), which tilt_manifests.py clears so they don't
-# get appended to the restart wrapper. The command is therefore set here, and must match
-# the chart's (fnDagster.codeServer.port and .module, 3030 and app.definitions by default).
+# The image has no ENTRYPOINT or CMD: the chart passes the whole gRPC command as the
+# container args (templates/dagster-code-server.yaml). With an empty entrypoint Tilt's
+# command is just the restart wrapper, and Kubernetes appends those args to it, so the
+# wrapper runs the chart's own command. Don't set an entrypoint here and don't clear the
+# args: either one doubles the command or leaves the wrapper with nothing to run.
 docker_build_with_restart(
   '{}/dagster-fn'.format(DOCKER_REGISTRY),
   'dagster',
-  entrypoint=[
-    'dagster', 'api', 'grpc',
-    '-h', '0.0.0.0', '-p', '3030', '-m', 'app.definitions',
-  ],
+  entrypoint=[],
   only=[
     'app',
     'requirements.txt',
