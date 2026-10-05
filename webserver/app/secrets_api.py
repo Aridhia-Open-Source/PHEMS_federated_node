@@ -179,7 +179,9 @@ def patch_secret(project_id, label):
     secret = _get_secret(project_id, label)
     values = _get_values(request.json or {})
 
-    SecretProvider(secret.provider).set(secret.key, secret.namespace, values)
+    store = SecretProvider(secret.provider)
+    store.set(secret.key, store.namespace, values)
+    secret.namespace = store.namespace
     secret.updated_at = dt.now()
     session.commit()
 
