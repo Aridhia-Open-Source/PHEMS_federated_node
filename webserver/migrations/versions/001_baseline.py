@@ -45,7 +45,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('name'),
     )
-    op.create_index('ix_projects_id', 'projects', ['id'])
 
     # Create secrets table (references to secrets that live in a secret store)
     op.create_table(
@@ -74,7 +73,7 @@ def upgrade() -> None:
         sa.Column('secret_id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('host', sa.String(length=256), nullable=False),
-        sa.Column('port', sa.Integer(), nullable=False, server_default=sa.literal_column('5432')),
+        sa.Column('port', sa.Integer(), nullable=True),
         sa.Column('read_schema', sa.String(length=256), nullable=True),
         sa.Column('write_schema', sa.String(length=256), nullable=True),
         sa.Column('type', sa.String(length=256), nullable=False, server_default='postgres'),
@@ -133,14 +132,6 @@ def upgrade() -> None:
         sa.UniqueConstraint('project_id', 'uri', name='uq_results_repositories_project_uri'),
     )
 
-    # Create task_status enum table (if needed)
-    op.create_table(
-        'task_statuses',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('status', sa.String(256), nullable=False),
-        sa.PrimaryKeyConstraint('id'),
-    )
-
     # Create dars table (Data Access Requests - separate from the api_requests trigger)
     op.create_table(
         'dars',
@@ -151,7 +142,7 @@ def upgrade() -> None:
         sa.Column('description', sa.String(length=4096), nullable=True),
         sa.Column('requested_by', sa.String(length=256), nullable=False),
         sa.Column('project_name', sa.String(length=256), nullable=False),
-        sa.Column('status', sa.String(length=256), nullable=True, server_default='pending'),
+        sa.Column('status', sa.String(length=256), nullable=True),
         sa.Column('proj_start', sa.DateTime(timezone=False), nullable=False),
         sa.Column('proj_end', sa.DateTime(timezone=False), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
@@ -230,7 +221,7 @@ def upgrade() -> None:
         sa.Column('dataset_id', sa.Integer(), nullable=True),
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('docker_image', sa.String(length=256), nullable=False),
-        sa.Column('status', sa.String(length=256), nullable=False, server_default='PENDING'),
+        sa.Column('status', sa.String(length=256), nullable=True),
         sa.Column('attempt', sa.Integer(), nullable=False, server_default='1'),
         sa.Column('requested_by', sa.String(length=256), nullable=False),
         sa.Column('dagster_run_id', sa.String(length=64), nullable=True),
@@ -275,87 +266,85 @@ def upgrade() -> None:
         sa.UniqueConstraint('task_id', 'results_repository_id', name='uq_task_results_task_repository'),
     )
 
+    # Create registries table
+    op.create_table(
+        'registries',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('url', sa.String(length=256), nullable=False),
+        sa.Column('needs_auth', sa.Boolean(), nullable=True),
+        sa.Column('active', sa.Boolean(), nullable=True),
+        sa.PrimaryKeyConstraint('id'),
+    )
+
     # Create whitelisted_images table
     op.create_table(
         'whitelisted_images',
         sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('registry_id', sa.Integer(), nullable=True),
         sa.Column('project_id', sa.Integer(), nullable=False),
-        sa.Column('image', sa.String(length=512), nullable=False),
-        sa.Column('active', sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('name', sa.String(length=256), nullable=False),
+        sa.Column('tag', sa.String(length=256), nullable=True),
+        sa.Column('sha', sa.String(length=256), nullable=True),
+        sa.ForeignKeyConstraint(['registry_id'], ['registries.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('project_id', 'image'),
     )
 
     # Create catalogues table
     op.create_table(
         'catalogues',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('dataset_id', sa.Integer(), nullable=False),
-        sa.Column('field_name', sa.String(length=256), nullable=False),
+        sa.Column('dataset_id', sa.Integer(), nullable=True),
+        sa.Column('version', sa.String(length=256), nullable=True),
+        sa.Column('title', sa.String(length=256), nullable=False),
+        sa.Column('description', sa.String(length=4096), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('dataset_id', 'field_name'),
+        sa.UniqueConstraint('title', 'dataset_id'),
     )
 
     # Create dictionaries table
     op.create_table(
         'dictionaries',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('dataset_id', sa.Integer(), nullable=False),
+        sa.Column('dataset_id', sa.Integer(), nullable=True),
+        sa.Column('table_name', sa.String(length=256), nullable=False),
         sa.Column('field_name', sa.String(length=256), nullable=False),
-        sa.Column('definition', sa.String(length=4096), nullable=False),
+        sa.Column('label', sa.String(length=256), nullable=True),
+        sa.Column('description', sa.String(length=4096), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('dataset_id', 'field_name'),
+        sa.UniqueConstraint('table_name', 'dataset_id', 'field_name'),
     )
 
-    # Create registries table
-    op.create_table(
-        'registries',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('project_id', sa.Integer(), nullable=False),
-        sa.Column('name', sa.String(length=256), nullable=False),
-        sa.Column('url', sa.String(length=512), nullable=False),
-        sa.Column('active', sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id'),
-    )
-
-    # Add deferred FK for default_dataset_id (circular dependency)
-    op.create_foreign_key('fk_projects_default_dataset_id', 'projects', 'datasets',
-                         ['default_dataset_id'], ['id'], ondelete='RESTRICT', deferrable=True, initially='DEFERRED')
+    # Add the circular FK from projects to datasets, as the model declares it
+    op.create_foreign_key('fk_projects_default_dataset', 'projects', 'datasets',
+                          ['default_dataset_id'], ['id'], ondelete='SET NULL')
 
 
 def downgrade() -> None:
-    # Drop tables in reverse order
-    op.drop_table('registries')
+    # The projects <-> datasets cycle first, then the tables in reverse order
+    op.drop_constraint('fk_projects_default_dataset', 'projects', type_='foreignkey')
     op.drop_table('dictionaries')
     op.drop_table('catalogues')
     op.drop_table('whitelisted_images')
+    op.drop_table('registries')
     op.drop_table('task_results')
-    op.drop_index('ix_tasks_project_id', 'tasks')
     op.drop_table('tasks')
-    op.drop_table('results_backends')
-    op.drop_table('dars')
-    op.drop_table('task_statuses')
     op.drop_table('api_requests')
     op.drop_table('pull_requests')
     op.drop_index('ix_triggers_state', 'triggers')
     op.drop_table('triggers')
+    op.drop_table('results_backends')
+    op.drop_table('dars')
     op.drop_table('results_repositories')
     op.drop_table('trigger_repositories')
     op.drop_table('datasets')
     op.drop_table('secrets')
     sa.Enum(name='secretprovidertype').drop(op.get_bind())
-    op.drop_index('ix_projects_id', 'projects')
     op.drop_table('projects')
     op.drop_table('audit')
