@@ -19,7 +19,7 @@ from app.models.task import Task
 from app.models.extras.dar import DAR
 from app.models.trigger_repository import TriggerRepository
 from app.models.secret import Secret
-from app.models.secret_type import SecretType
+from app.models.secret_provider_type import SecretProviderType
 from app.models.results_repository import ResultsRepository
 from app.models.results_backend import ResultsBackend
 from app.models.api_request import ApiRequest
@@ -52,7 +52,7 @@ sample_ds_body = {
     "name": "TestDs",
     "host": "db",
     "port": 5432,
-    "secret_name": "test-creds",
+    "secret_label": "test-creds",
     "repository": sample_repo_uri,
     "catalogue": {
         "title": "test",
@@ -230,7 +230,7 @@ def other_project(client) -> Project:
 # The secret the dataset and repository fixtures reference. sample_ds_body names it too.
 @fixture
 def secret(client, project) -> Secret:
-    secret = Secret(project_id=project.id, name="test-creds", secret_type=SecretType.K8S)
+    secret = Secret(project_id=project.id, label="test-creds", provider=SecretProviderType.K8S)
     secret.add()
     return secret
 

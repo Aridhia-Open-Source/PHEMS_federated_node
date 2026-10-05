@@ -232,12 +232,12 @@ class TestProjectHealthcheck:
             self.URL, headers={"Authorization": "Bearer abc123"}, timeout=5
         )
 
-    def test_checks_the_explicit_repo_path_of_a_sub_path_install(
+    def test_checks_the_repo_path_derived_from_a_sub_path_uri(
         self, client, k8s_client, project, secret, git_api, simple_admin_header
     ):
         TriggerRepository(
             uri="host/gitea/owner/repo", provider="gitea", api_uri="https://host/gitea/api/v1",
-            secret_id=secret.id, watch_dir="", project_id=project.id, repo_path="owner/repo"
+            secret_id=secret.id, watch_dir="", project_id=project.id
         ).add()
         self.get(client, project, simple_admin_header)
         git_api.assert_called_once_with(

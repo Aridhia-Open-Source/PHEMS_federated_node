@@ -7,10 +7,10 @@ from app.models.task import Task
 from app.models.trigger_repository import TriggerRepository
 from app.models.dataset import Dataset
 from app.models.secret import Secret
-from app.models.secret_type import SecretType
+from app.models.secret_provider_type import SecretProviderType
 
 # What a repository needs to say about its git host. The secret is the conftest secret.
-REPO_FIELDS = {"provider": "github", "api_uri": "https://api.github.com", "secret_name": "test-creds"}
+REPO_FIELDS = {"provider": "github", "api_uri": "https://api.github.com", "secret_label": "test-creds"}
 
 
 @pytest.fixture
@@ -105,26 +105,27 @@ class TestPostRepository:
         assert response.status_code == 400
 
     def test_create_same_uri_in_another_project(self, client, post_json_admin_header, repository, other_project):
-        secret = Secret(project_id=other_project.id, name="test-creds", secret_type=SecretType.K8S)
+        secret = Secret(project_id=other_project.id, label="test-creds", provider=SecretProviderType.K8S)
         secret.add()
         body = {**REPO_FIELDS, "uri": repository.uri, "project_id": other_project.id}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
         assert response.status_code == 201
         assert response.json["id"] != repository.id
 
-    def test_create_derives_repo_path_from_uri(self, client, post_json_admin_header, repo_post_body):
+    def test_create_normalises_the_uri_and_derives_repo_path(self, client, post_json_admin_header, repo_post_body):
         body = {**repo_post_body, "uri": "https://GitHub.com/Org/Another-Repo/"}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
         assert response.status_code == 201
-        assert response.json["repo_path"] == "org/another-repo"
+        assert response.json["uri"] == "github.com/org/another-repo"
+        assert "repo_path" not in response.json
         assert TriggerRepository.get_by_id(response.json["id"]).repo_path == "org/another-repo"
 
-    def test_create_stores_explicit_repo_path(self, client, post_json_admin_header, repo_post_body):
-        body = {**repo_post_body, "uri": "host/gitea/owner/repo", "repo_path": "owner/repo"}
+    def test_repo_path_is_the_last_two_segments_of_a_sub_path_uri(self, client, post_json_admin_header, repo_post_body):
+        body = {**repo_post_body, "uri": "host/gitea/owner/repo"}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
         assert response.status_code == 201
         assert response.json["uri"] == "host/gitea/owner/repo"
-        assert response.json["repo_path"] == "owner/repo"
+        assert TriggerRepository.get_by_id(response.json["id"]).repo_path == "owner/repo"
 
     def test_database_rejects_duplicate_uri_in_a_project(self, repository, secret):
         duplicate = TriggerRepository(
@@ -159,9 +160,11 @@ class TestPostRepository:
         assert response.status_code == 201
         assert response.json["provider"] == "github"
         assert response.json["api_uri"] == "https://api.github.com"
-        assert response.json["secret_name"] == "test-creds"
+        assert response.json["secret"]["label"] == "test-creds"
+        assert response.json["secret"]["key"] == f"{response.json['project_id']}-test-creds"
+        assert "secret_label" not in response.json
 
-    @pytest.mark.parametrize("field", ["provider", "api_uri", "secret_name"])
+    @pytest.mark.parametrize("field", ["provider", "api_uri", "secret_label"])
     def test_create_requires_the_git_host_and_secret(self, client, post_json_admin_header, repo_post_body, field):
         del repo_post_body[field]
         response = client.post("/trigger_repositories/", data=json.dumps(repo_post_body), headers=post_json_admin_header)
@@ -207,32 +210,32 @@ class TestPatchRepository:
         assert repository.provider == "github"
 
     def test_update_to_another_secret(self, client, post_json_admin_header, repository):
-        Secret(project_id=repository.project_id, name="other-creds", secret_type=SecretType.K8S).add()
-        response = self.patch(client, post_json_admin_header, repository, {"secret_name": "other-creds"})
+        Secret(project_id=repository.project_id, label="other-creds", provider=SecretProviderType.K8S).add()
+        response = self.patch(client, post_json_admin_header, repository, {"secret_label": "other-creds"})
         assert response.status_code == 200
-        assert response.json["secret_name"] == "other-creds"
+        assert response.json["secret"]["label"] == "other-creds"
 
     def test_update_to_another_projects_secret_fails(self, client, post_json_admin_header, repository, other_project):
-        Secret(project_id=other_project.id, name="foreign-creds", secret_type=SecretType.K8S).add()
-        response = self.patch(client, post_json_admin_header, repository, {"secret_name": "foreign-creds"})
+        Secret(project_id=other_project.id, label="foreign-creds", provider=SecretProviderType.K8S).add()
+        response = self.patch(client, post_json_admin_header, repository, {"secret_label": "foreign-creds"})
         assert response.status_code == 400
         assert "does not exist" in response.json["error"]
-        assert repository.secret_name == "test-creds"
+        assert repository.secret.label == "test-creds"
 
     def test_create_with_another_projects_secret_fails(self, client, post_json_admin_header, repo_post_body, other_project):
-        Secret(project_id=other_project.id, name="foreign-creds", secret_type=SecretType.K8S).add()
-        repo_post_body["secret_name"] = "foreign-creds"
+        Secret(project_id=other_project.id, label="foreign-creds", provider=SecretProviderType.K8S).add()
+        repo_post_body["secret_label"] = "foreign-creds"
         response = client.post("/trigger_repositories/", data=json.dumps(repo_post_body), headers=post_json_admin_header)
         assert response.status_code == 400
         assert "does not exist" in response.json["error"]
 
     def test_update_to_a_missing_secret_fails(self, client, post_json_admin_header, repository):
-        response = self.patch(client, post_json_admin_header, repository, {"secret_name": "missing"})
+        response = self.patch(client, post_json_admin_header, repository, {"secret_label": "missing"})
         assert response.status_code == 400
         assert "does not exist" in response.json["error"]
-        assert repository.secret_name == "test-creds"
+        assert repository.secret.label == "test-creds"
 
-    @pytest.mark.parametrize("field", ["provider", "api_uri", "secret_name"])
+    @pytest.mark.parametrize("field", ["provider", "api_uri", "secret_label"])
     def test_git_host_fields_cannot_be_emptied(self, client, post_json_admin_header, repository, field):
         response = self.patch(client, post_json_admin_header, repository, {field: ""})
         assert response.status_code == 400
@@ -472,7 +475,7 @@ class TestTriggerRepositoryDTO:
     def test_fields(self, repository):
         """Test that the DTO contains all expected fields"""
         sanitized = TriggerRepositoryDTO.from_model(repository).dump()
-        expected_fields = ['id', 'uri', 'repo_path', 'provider', 'api_uri', 'secret_name', 'secret_store_name', 'watch_dir',
+        expected_fields = ['id', 'uri', 'provider', 'api_uri', 'secret', 'watch_dir',
                            'base_branch', 'project_id', 'dataset_id', 'pr_cursor', 'pr_count']
         for field in expected_fields:
             assert field in sanitized, f"Field '{field}' missing from the DTO"
@@ -627,7 +630,7 @@ class TestPostPullRequestTask:
     def test_dataset_override_in_other_project_fails(
             self, client, post_json_admin_header, repository, pull_request, other_project, user_uuid
         ):
-        other_secret = Secret(project_id=other_project.id, name="test-creds", secret_type=SecretType.K8S)
+        other_secret = Secret(project_id=other_project.id, label="test-creds", provider=SecretProviderType.K8S)
         other_secret.add()
         other_ds = Dataset(
             name="OtherDs", host="example.com", secret_id=other_secret.id, project_id=other_project.id

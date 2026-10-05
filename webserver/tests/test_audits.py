@@ -110,4 +110,4 @@ class TestAudits:
         assert details["dictionaries"][0]["password"] == '*****'
         # A dataset no longer carries credentials, only the name of the secret holding them
         assert "username" not in details
-        assert details["secret_name"] == "test-creds"
+        assert details["secret_label"] == "test-creds"

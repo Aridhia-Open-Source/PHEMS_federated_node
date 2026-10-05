@@ -3,13 +3,13 @@ from sqlalchemy.exc import IntegrityError
 
 from app.dtos.results_repository import ResultsRepositoryDTO
 from app.models.secret import Secret
-from app.models.secret_type import SecretType
+from app.models.secret_provider_type import SecretProviderType
 from app.models.project import Project
 from app.models.results_repository import ResultsRepository
 from app.models.trigger_repository import TriggerRepository
 
 # What a repository needs to say about its git host. The secret is the conftest secret.
-REPO_FIELDS = {"provider": "github", "api_uri": "https://api.github.com", "secret_name": "test-creds"}
+REPO_FIELDS = {"provider": "github", "api_uri": "https://api.github.com", "secret_label": "test-creds"}
 
 
 @pytest.fixture
@@ -53,8 +53,7 @@ class TestGetResultsRepositories:
         assert response.status_code == 200
         assert response.json == ResultsRepositoryDTO.from_model(results_repo).dump()
         assert response.json["target_dir"] == "results"
-        assert response.json["repo_path"] == "org/results"
-        assert response.json["secret_name"] == "test-creds"
+        assert response.json["secret"]["label"] == "test-creds"
         assert response.json["owned_by_federated_node"] is True
 
     def test_get_by_id_not_found(self, client, simple_admin_header):
@@ -76,7 +75,7 @@ class TestPostResultsRepository:
         assert response.status_code == 201
         assert response.json["uri"] == "github.com/org/results"
 
-    @pytest.mark.parametrize("field", ["uri", "project_id", "provider", "api_uri", "secret_name", "target_dir"])
+    @pytest.mark.parametrize("field", ["uri", "project_id", "provider", "api_uri", "secret_label", "target_dir"])
     def test_create_requires_field(self, client, post_json_admin_header, results_post_body, field):
         del results_post_body[field]
         response = client.post("/results_repositories", json=results_post_body, headers=post_json_admin_header)
@@ -91,14 +90,14 @@ class TestPostResultsRepository:
         assert ResultsRepository.query.count() == 1
 
     def test_another_project_can_have_its_own(self, client, post_json_admin_header, results_repo, results_post_body, other_project):
-        Secret(project_id=other_project.id, name="test-creds", secret_type=SecretType.K8S).add()
+        Secret(project_id=other_project.id, label="test-creds", provider=SecretProviderType.K8S).add()
         body = {**results_post_body, "project_id": other_project.id}
         response = client.post("/results_repositories", json=body, headers=post_json_admin_header)
         assert response.status_code == 201
 
     def test_create_with_another_projects_secret_fails(self, client, post_json_admin_header, results_post_body, other_project):
-        Secret(project_id=other_project.id, name="foreign-creds", secret_type=SecretType.K8S).add()
-        body = {**results_post_body, "secret_name": "foreign-creds"}
+        Secret(project_id=other_project.id, label="foreign-creds", provider=SecretProviderType.K8S).add()
+        body = {**results_post_body, "secret_label": "foreign-creds"}
         response = client.post("/results_repositories", json=body, headers=post_json_admin_header)
         assert response.status_code == 400
         assert ResultsRepository.query.count() == 0
@@ -141,9 +140,9 @@ class TestPatchResultsRepository:
         assert response.status_code == 400
 
     def test_update_to_another_projects_secret_fails(self, client, post_json_admin_header, results_repo, other_project):
-        Secret(project_id=other_project.id, name="foreign-creds", secret_type=SecretType.K8S).add()
+        Secret(project_id=other_project.id, label="foreign-creds", provider=SecretProviderType.K8S).add()
         response = client.patch(
-            f"/results_repositories/{results_repo.id}", json={"secret_name": "foreign-creds"},
+            f"/results_repositories/{results_repo.id}", json={"secret_label": "foreign-creds"},
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -160,7 +159,7 @@ class TestDeleteResultsRepository:
         assert ResultsRepository.query.count() == 0
 
     def test_secret_in_use_cannot_be_deleted(self, client, simple_admin_header, results_repo, secret):
-        response = client.delete(f"/projects/{secret.project_id}/secrets/{secret.name}", headers=simple_admin_header)
+        response = client.delete(f"/projects/{secret.project_id}/secrets/{secret.label}", headers=simple_admin_header)
         assert response.status_code == 409
 
     def test_project_reaches_its_repository_through_one_accessor(self, project, results_repo):
@@ -219,7 +218,7 @@ class TestLoopGuard:
         assert response.status_code == 201
 
     def test_different_projects_are_fine(self, client, post_json_admin_header, project, results_repo, other_project):
-        Secret(project_id=other_project.id, name="test-creds", secret_type=SecretType.K8S).add()
+        Secret(project_id=other_project.id, label="test-creds", provider=SecretProviderType.K8S).add()
         response = self.create_trigger(client, post_json_admin_header, other_project, watch_dir="results")
         assert response.status_code == 201
 

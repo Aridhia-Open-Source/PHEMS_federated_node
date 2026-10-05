@@ -15,7 +15,7 @@ from app.models.extras.catalogue import Catalogue
 from app.models.extras.dictionary import Dictionary
 from app.models.extras.dar import DAR
 from app.models.secret import Secret
-from app.models.secret_type import SecretType
+from app.models.secret_provider_type import SecretProviderType
 from tests.conftest import sample_ds_body
 from app.helpers.exceptions import KeycloakError
 
@@ -42,10 +42,10 @@ class MixinTestDataset:
         """
         A dataset references its credentials secret by name, so it has to exist first
         """
-        name = data_body.get("secret_name")
+        name = data_body.get("secret_label")
         project_id = data_body.get("project_id")
-        if name and not Secret.query.filter_by(project_id=project_id, name=name).one_or_none():
-            Secret(project_id=project_id, name=name, secret_type=SecretType.K8S).add()
+        if name and not Secret.query.filter_by(project_id=project_id, label=name).one_or_none():
+            Secret(project_id=project_id, label=name, provider=SecretProviderType.K8S).add()
 
     def post_dataset(
             self,
@@ -82,9 +82,17 @@ class TestDatasets(MixinTestDataset):
             "write_schema": None,
             "extra_connection_args": None,
             "project_id": dataset.project_id,
-            "secret_name": dataset.secret_name,
-            "secret_type": "K8S",
-            "secret_store_name": dataset.secret_store_name,
+            "secret": {
+                "id": dataset.secret.id,
+                "project_id": dataset.project_id,
+                "label": dataset.secret.label,
+                "description": None,
+                "provider": "K8S",
+                "key": dataset.secret.key,
+                "namespace": None,
+                "created_at": dataset.secret.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                "updated_at": dataset.secret.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+            },
             "created_at": dataset.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             "updated_at": dataset.updated_at.strftime("%Y-%m-%d %H:%M:%S")
         }
@@ -369,9 +377,7 @@ class TestPostDataset(MixinTestDataset):
             "slug": "test-dataset",
             "read_schema": None,
             "write_schema": None,
-            "secret_name": data_body["secret_name"],
-            "secret_type": "K8S",
-            "secret_store_name": f"{new_ds['project_id']}-{data_body['secret_name']}",
+            "secret": new_ds["secret"],
             "extra_connection_args": None,
             "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset",
             "project_id": new_ds["project_id"],
@@ -708,11 +714,6 @@ class TestPatchDataset(MixinTestDataset):
         k8s_client["create_namespaced_secret_mock"].assert_not_called()
         k8s_client["delete_namespaced_secret_mock"].assert_not_called()
 
-        mock_kc_client["dataset_kc"].return_value.patch_resource.assert_called_with(
-            f'{dataset.id}-{ds_old_name}',
-            **{'displayName': f'{dataset.id} - new_name','name': f'{dataset.id}-new_name'}
-        )
-
     @pytest.mark.skip(reason="DAR disconnected for now, see TODO(DAR)")
     def test_patch_dataset_name_with_dars(
             self,
@@ -746,17 +747,13 @@ class TestPatchDataset(MixinTestDataset):
         assert response.status_code == 202
         ds = Dataset.query.filter(Dataset.id == dataset.id).one_or_none()
         assert ds.name == "new_name"
-
-        mock_kc_client["dataset_kc"].return_value.patch_resource.assert_called_with(
-            f'{dataset.id}-{ds_old_name}',
-            **{'displayName': f'{dataset.id} - new_name','name': f'{dataset.id}-new_name'}
-        )
         mock_kc_client["datasets_api_kc"].assert_any_call(**{'client':expected_client})
         mock_kc_client["datasets_api_kc"].return_value.patch_resource.assert_called_with(
             f'{dataset.id}-{ds_old_name}',
             **{'displayName': f'{dataset.id} - new_name','name': f'{dataset.id}-new_name'}
         )
 
+    @pytest.mark.skip(reason="Keycloak is detached from dataset update, see TODO(DAR)")
     def test_patch_dataset_fails_on_keycloak_update(
             self,
             dataset,
