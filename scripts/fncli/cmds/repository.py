@@ -9,6 +9,7 @@ import click
 
 from fncli.cmds.common import (
     ENTITY_CONFIGS,
+    ProjectConfig,
     RepoConfig,
     ResultsRepoConfig,
     TriggerRepoConfig,
@@ -31,7 +32,7 @@ def init_gitea_repo(config: RepoConfig, gitea_api: GiteaAdminAPI) -> dict:
 
 
 def init_backend_trigger_repo(
-    config: TriggerRepoConfig, backend_api: BackendAPI, project: Project, gitea_repo: dict
+    config: TriggerRepoConfig, backend_api: BackendAPI, project: Project, base_branch: str
 ) -> TriggerRepository:
     repo = backend_api.get_or_create_repository(
         uri=config.repo_uri,
@@ -39,7 +40,7 @@ def init_backend_trigger_repo(
         api_uri=config.gitea_api_uri,
         secret_label=config.secret_label,
         watch_dir=config.watch_dir,
-        base_branch=gitea_repo["default_branch"],
+        base_branch=base_branch,
         project_id=project.id,
     )
     logger.info(
@@ -70,26 +71,100 @@ def init_backend_results_repo(
     return repo
 
 
+def backend_source_options(command):
+    """Where the repo comes from: the env vars, or the backend project's own records."""
+    command = click.option(
+        "--project",
+        default=None,
+        help="Backend project name. Default: TEST_PROJECT_NAME.",
+    )(command)
+    return click.option(
+        "--from-backend",
+        is_flag=True,
+        help="Take the repo and its secret from the project's backend record, not the env.",
+    )(command)
+
+
+def get_backend_repo_record(entity: str, backend_api: BackendAPI, project: Project):
+    """The project's one trigger or results repository record."""
+    if entity == "trigger":
+        records = [r for r in backend_api.get_repositories() if r.project_id == project.id]
+    else:
+        records = backend_api.get_results_repositories(project.id)
+    if len(records) != 1:
+        raise click.ClickException(
+            f"Project {project.name} has {len(records)} backend {entity} repositories, "
+            f"expected 1 (run setup-backend first)"
+        )
+    return records[0]
+
+
+def load_repo_config(entity: str, from_backend: bool, project: str | None) -> RepoConfig:
+    """
+    The config of a repo. With from_backend the repo is named by the project's backend
+    record (the last uri segment, which must be under the Gitea admin user) instead of the
+    TEST_*_REPO env vars.
+    """
+    config_class = ENTITY_CONFIGS[entity]
+    project_args = {"project_name": project} if project else {}
+    if not from_backend:
+        return config_class(**project_args)
+    project_config = ProjectConfig(**project_args)
+    backend_api = build_backend_api(project_config)
+    backend_project = find_project(project_config, backend_api)
+    if backend_project is None:
+        raise click.ClickException(
+            f"Project {project_config.project_name} not found in the backend "
+            f"(run setup-backend first)"
+        )
+    record = get_backend_repo_record(entity, backend_api, backend_project)
+    owner, name = record.uri.rstrip("/").split("/")[-2:]
+    # The configs insist on every field, so carry over the one only this entity has.
+    own_field = {"watch_dir": record.watch_dir} if entity == "trigger" else {"target_dir": record.target_dir}
+    config = config_class(
+        **own_field,
+        project_name=backend_project.name,
+        repo=name,
+        repo_uri=record.uri,
+        gitea_api_uri=record.api_uri,
+        backend_secret_label=record.secret.label,
+    )
+    if owner != config.gitea_admin_user:
+        raise click.ClickException(
+            f"Backend {entity} repository {record.uri} is owned by {owner}, not the Gitea "
+            f"admin user {config.gitea_admin_user}: it is not a repo this tool can manage"
+        )
+    return config
+
+
 @click.command("init-gitea-repo")
 @entity_option
-def init_gitea_repo_command(entity):
+@backend_source_options
+def init_gitea_repo_command(entity, from_backend, project):
     """Find or create a repo in Gitea."""
-    config = ENTITY_CONFIGS[entity]()
+    config = load_repo_config(entity, from_backend, project)
     init_gitea_repo(config, build_gitea_api(config))
 
 
 @click.command("init-backend-trigger-repo")
-def init_backend_trigger_repo_command():
+@click.option(
+    "--base-branch",
+    default=None,
+    help="The branch to watch. Default: the default branch of the repo in Gitea.",
+)
+def init_backend_trigger_repo_command(base_branch):
     """Register the trigger repo with the backend so the sensor polls it."""
     config = TriggerRepoConfig()
     backend_api = build_backend_api(config)
-    gitea_repo = init_gitea_repo(config, build_gitea_api(config))
+    if base_branch is None:
+        gitea_repo = init_gitea_repo(config, build_gitea_api(config))
+        base_branch = gitea_repo["default_branch"]
     project = init_backend_project(config, backend_api)
     init_backend_trigger_repo(
         config=config,
         backend_api=backend_api,
         project=project,
-        gitea_repo=gitea_repo,
+        base_branch=base_branch,
     )
 
 
@@ -137,9 +212,10 @@ def delete_backend_results_repo_command():
 @click.command("delete-gitea-repo")
 @entity_option
 @click.confirmation_option("-y", "--yes", prompt="Delete the Gitea repo and all its pull requests?")
-def delete_gitea_repo_command(entity):
+@backend_source_options
+def delete_gitea_repo_command(entity, from_backend, project):
     """Delete a repo from Gitea. The backend's records of it are left alone."""
-    config = ENTITY_CONFIGS[entity]()
+    config = load_repo_config(entity, from_backend, project)
     if build_gitea_api(config).delete_repo(config.repo):
         logger.info(f"Deleted Gitea repo {config.gitea_admin_user}/{config.repo}")
     else:

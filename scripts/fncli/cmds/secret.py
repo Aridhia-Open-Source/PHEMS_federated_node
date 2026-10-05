@@ -8,7 +8,6 @@ import logging
 import click
 
 from fncli.cmds.common import (
-    ENTITY_CONFIGS,
     SECRET_CONFIGS,
     DatasetConfig,
     RepoConfig,
@@ -17,7 +16,7 @@ from fncli.cmds.common import (
     entity_option,
 )
 from fncli.cmds.project import find_project, init_backend_project
-from fncli.cmds.repository import init_gitea_repo
+from fncli.cmds.repository import backend_source_options, init_gitea_repo, load_repo_config
 from fncli.dagster.backend import BackendAPI
 from fncli.dagster.gitea import GiteaAdminAPI, GiteaAPI, GiteaClient
 from fncli.dagster.k8s import get_k8s_secret
@@ -27,6 +26,8 @@ logger = logging.getLogger("secret")
 
 # The dataset is a stand-in: nothing connects to it, so its credentials are dummies.
 DATASET_DUMMY_CREDENTIALS = {"USERNAME": "dummy", "PASSWORD": "dummy"}
+# What a git secret holds until init-git-secret writes a real token into it.
+GIT_PLACEHOLDER = {"TOKEN": "unset"}
 
 
 def init_git_secret(
@@ -76,9 +77,10 @@ def init_dataset_secret(config: DatasetConfig, backend_api: BackendAPI, project:
 
 @click.command("init-git-secret")
 @entity_option
-def init_git_secret_command(entity):
+@backend_source_options
+def init_git_secret_command(entity, from_backend, project):
     """Store a fresh Gitea token in the K8s secret of a repo (read for trigger, write for results)."""
-    config = ENTITY_CONFIGS[entity]()
+    config = load_repo_config(entity, from_backend, project)
     backend_api = build_backend_api(config)
     project = init_backend_project(config, backend_api)
     init_git_secret(
@@ -98,11 +100,39 @@ def init_dataset_secret_command():
     init_dataset_secret(config, backend_api, project)
 
 
+def init_backend_secret(config: RepoConfig | DatasetConfig, backend_api: BackendAPI, project: Project):
+    """Create the secret with placeholder values unless it exists, so a real token is kept."""
+    label = config.secret_label
+    if any(secret["label"] == label for secret in backend_api.get_secrets(project.id)):
+        logger.info(f"Secret {label} of project {project.id} already exists")
+        return
+    values = DATASET_DUMMY_CREDENTIALS if isinstance(config, DatasetConfig) else GIT_PLACEHOLDER
+    secret = backend_api.upsert_secret(project.id, label, values)
+    logger.info(f"Secret {label} of project {project.id} is {secret['key']}, with placeholder values")
+
+
+@click.command("init-backend-secret")
+@click.option(
+    "--entity",
+    type=click.Choice(list(SECRET_CONFIGS)),
+    default="trigger",
+    show_default=True,
+    help="Whose secret: a repo's, or the dataset's.",
+)
+def init_backend_secret_command(entity):
+    """Create a secret in the backend with placeholder values, with no Gitea call (see init-git-secret)."""
+    config = SECRET_CONFIGS[entity]()
+    backend_api = build_backend_api(config)
+    project = init_backend_project(config, backend_api)
+    init_backend_secret(config, backend_api, project)
+
+
 @click.command("verify-git-secret")
 @entity_option
-def verify_git_secret_command(entity):
+@backend_source_options
+def verify_git_secret_command(entity, from_backend, project):
     """Check Gitea accepts the token currently stored in a repo's secret."""
-    config = ENTITY_CONFIGS[entity]()
+    config = load_repo_config(entity, from_backend, project)
     gitea_repo = init_gitea_repo(config, build_gitea_api(config))
     backend_api = build_backend_api(config)
     project = init_backend_project(config, backend_api)
@@ -136,9 +166,10 @@ def delete_secret_command(entity):
 
 @click.command("delete-gitea-token")
 @entity_option
-def delete_gitea_token_command(entity):
+@backend_source_options
+def delete_gitea_token_command(entity, from_backend, project):
     """Delete the Gitea token that init-git-secret created for a repo."""
-    config = ENTITY_CONFIGS[entity]()
+    config = load_repo_config(entity, from_backend, project)
     if build_gitea_api(config).delete_token(config.token_name):
         logger.info(f"Deleted Gitea token {config.token_name!r}")
     else:
@@ -148,6 +179,7 @@ def delete_gitea_token_command(entity):
 COMMANDS = [
     init_git_secret_command,
     init_dataset_secret_command,
+    init_backend_secret_command,
     verify_git_secret_command,
     delete_secret_command,
     delete_gitea_token_command,

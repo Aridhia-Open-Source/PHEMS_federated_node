@@ -33,6 +33,7 @@ from fncli.cmds.repository import (
 from fncli.cmds.secret import (
     delete_gitea_token_command,
     delete_secret_command,
+    init_backend_secret_command,
     init_dataset_secret_command,
     init_git_secret_command,
     verify_git_secret_command,
@@ -97,6 +98,97 @@ def teardown_project_command(ctx):
         ctx.invoke(step, **options)
 
 
+# Backend only: no Gitea call, so the git secrets hold placeholders and the trigger repo
+# watches "main" until setup-gitea issues the tokens.
+BACKEND_SETUP_STEPS = [
+    (init_backend_project_command, {}),
+    (init_backend_secret_command, {"entity": "trigger"}),
+    (init_backend_secret_command, {"entity": "results"}),
+    (init_backend_secret_command, {"entity": "dataset"}),
+    (init_backend_trigger_repo_command, {"base_branch": "main"}),
+    (init_backend_results_repo_command, {}),
+    (init_backend_dataset_command, {}),
+]
+
+BACKEND_TEARDOWN_STEPS = [
+    (delete_backend_dataset_command, {}),
+    (delete_backend_results_repo_command, {}),
+    (delete_backend_trigger_repo_command, {}),
+    (delete_secret_command, {"entity": "trigger"}),
+    (delete_secret_command, {"entity": "results"}),
+    (delete_secret_command, {"entity": "dataset"}),
+    (delete_backend_project_command, {}),
+]
+
+# Gitea only: the repos are the ones the project's backend records name.
+GITEA_SETUP_STEPS = [
+    (init_gitea_repo_command, {"entity": "trigger"}),
+    (init_gitea_repo_command, {"entity": "results"}),
+    (init_git_secret_command, {"entity": "trigger"}),
+    (init_git_secret_command, {"entity": "results"}),
+    (verify_git_secret_command, {"entity": "trigger"}),
+    (verify_git_secret_command, {"entity": "results"}),
+]
+
+GITEA_TEARDOWN_STEPS = [
+    (delete_gitea_token_command, {"entity": "trigger"}),
+    (delete_gitea_token_command, {"entity": "results"}),
+    (delete_gitea_repo_command, {"entity": "trigger"}),
+    (delete_gitea_repo_command, {"entity": "results"}),
+]
+
+project_option = click.option(
+    "--project", default=None, help="Backend project name. Default: TEST_PROJECT_NAME."
+)
+
+
+def run_steps(ctx, steps, extra_options=None):
+    for step, options in steps:
+        step_options = {**options, **(extra_options or {})}
+        logger.info(f"=== {step.name} {step_options or ''} ===")
+        ctx.invoke(step, **step_options)
+
+
+@click.command("setup-backend")
+@click.pass_context
+def setup_backend_command(ctx):
+    """Set up a project in the backend only (no Gitea): project, placeholder secrets, records."""
+    run_steps(ctx, BACKEND_SETUP_STEPS)
+
+
+@click.command("teardown-backend")
+@click.confirmation_option(
+    "-y",
+    "--yes",
+    prompt="Delete the project and its secrets from the backend?",
+)
+@click.pass_context
+def teardown_backend_command(ctx):
+    """Delete a project and its secrets from the backend only, leaving Gitea alone."""
+    run_steps(ctx, BACKEND_TEARDOWN_STEPS)
+
+
+@click.command("setup-gitea")
+@project_option
+@click.pass_context
+def setup_gitea_command(ctx, project):
+    """Set up the Gitea side of a backend project: its repos and tokens, stored in its secrets."""
+    run_steps(ctx, GITEA_SETUP_STEPS, {"from_backend": True, "project": project})
+
+
+@click.command("teardown-gitea")
+@click.confirmation_option(
+    "-y",
+    "--yes",
+    prompt="Delete the Gitea tokens and the repos, with all their pull requests?",
+)
+@project_option
+@click.pass_context
+def teardown_gitea_command(ctx, project):
+    """Delete the Gitea tokens and repos of a backend project, leaving the backend alone."""
+    run_steps(ctx, GITEA_TEARDOWN_STEPS, {"from_backend": True, "project": project})
+
+
 @click.command("open-pr")
 @click.option("--kind", type=click.Choice(KINDS), default="watched", show_default=True)
 @click.option("--merge", is_flag=True, help="Also merge the PR.")
@@ -111,4 +203,12 @@ def open_pr_command(ctx, kind, merge):
         ctx.invoke(merge_gitea_pr_command, number=pr["number"])
 
 
-COMMANDS = [setup_project_command, open_pr_command, teardown_project_command]
+COMMANDS = [
+    setup_project_command,
+    open_pr_command,
+    teardown_project_command,
+    setup_backend_command,
+    teardown_backend_command,
+    setup_gitea_command,
+    teardown_gitea_command,
+]
