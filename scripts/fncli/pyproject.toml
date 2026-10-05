@@ -16,6 +16,11 @@ dependencies = [
 [project.scripts]
 fncli = "fncli.cli:cli"
 
+[project.optional-dependencies]
+dev = [
+    "pytest~=8.3",
+]
+
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
@@ -30,3 +35,6 @@ packages = [
     "fncli.dagster",
     "fncli.dagster.models",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
