@@ -1,5 +1,5 @@
 from app.dtos.base import DTO
-from app.dtos.secret import SecretProviderDTO
+from app.dtos.secret import SecretDTO
 from app.models.results_repository import ResultsRepository
 
 
@@ -8,7 +8,7 @@ class ResultsRepositoryDTO(DTO):
     uri: str
     provider: str
     api_uri: str
-    secret: SecretProviderDTO
+    secret: SecretDTO
     target_dir: str
     project_id: int
     owned_by_federated_node: bool
@@ -20,7 +20,7 @@ class ResultsRepositoryDTO(DTO):
             uri=obj.uri,
             provider=obj.provider,
             api_uri=obj.api_uri,
-            secret=SecretProviderDTO.from_model(obj.secret),
+            secret=SecretDTO.from_model(obj.secret),
             target_dir=obj.target_dir,
             project_id=obj.project_id,
             owned_by_federated_node=obj.owned_by_federated_node,
