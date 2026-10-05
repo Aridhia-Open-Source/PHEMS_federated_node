@@ -29,6 +29,8 @@ class Secret(db.Model, BaseModel):
     provider = sa.Column(sa.Enum(SecretProviderType), nullable=False)
     # What the secret is called in the store, which has no notion of projects.
     key = sa.Column(sa.String(253), unique=True, nullable=False)
+    # Where the store keeps it, for stores that have such a notion. Set by the backend.
+    namespace = sa.Column(sa.String(253), nullable=True)
 
     __table_args__ = (
         sa.UniqueConstraint('project_id', 'label'),
@@ -73,12 +75,13 @@ class Secret(db.Model, BaseModel):
 
     def __init__(
         self, project_id: int, label: str, provider: SecretProviderType,
-        description: str | None = None
+        description: str | None = None, namespace: str | None = None
     ):
         self.project_id = project_id
         self.label = label
         self.description = description
         self.provider = provider
+        self.namespace = namespace
         self.key = f"{self._store_prefix(project_id)}{label}"
 
     def __repr__(self):

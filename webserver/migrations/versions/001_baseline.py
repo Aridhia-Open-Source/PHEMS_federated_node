@@ -56,6 +56,7 @@ def upgrade() -> None:
         sa.Column('description', sa.String(length=4096), nullable=True),
         sa.Column('provider', sa.Enum('K8S', name='secretprovidertype'), nullable=False),
         sa.Column('key', sa.String(length=253), nullable=False),
+        sa.Column('namespace', sa.String(length=253), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),

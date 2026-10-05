@@ -33,7 +33,7 @@ TERMINATION_GRACE_PERIOD_SECONDS = 300
                     "type": str,
                     "read_schema": dg.Noneable(str),
                     "write_schema": dg.Noneable(str),
-                    "secret": dg.Shape({"provider": str, "key": str}),
+                    "secret": dg.Shape({"provider": str, "key": str, "namespace": dg.Noneable(str)}),
                 }
             ),
             is_required=False,
@@ -222,7 +222,8 @@ class K8sPipe:
 
     def _get_dataset_secret(self, key: str) -> str:
         provider = SecretProvider(SecretProviderType(self.dataset['secret']['provider']))
-        return provider.get(self.dataset['secret']['key'], self.namespace, key)
+        secret = self.dataset['secret']
+        return provider.get(secret['key'], secret['namespace'], key)
 
 
 class K8sPipesResponse:

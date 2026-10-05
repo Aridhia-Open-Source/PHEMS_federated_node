@@ -56,19 +56,21 @@ def _get_values(body: dict) -> dict[str, str]:
 class K8sSecretProvider:
     """Writes and deletes secrets in Kubernetes."""
 
-    def set(self, key: str, values: dict[str, str]):
+    namespace = DEFAULT_NAMESPACE
+
+    def set(self, key: str, namespace: str, values: dict[str, str]):
         """The caller is the authority on the content, so it overwrites what is there."""
         KubernetesClient().create_secret(
             name=key,
             values=values,
-            namespaces=[DEFAULT_NAMESPACE],
+            namespaces=[namespace],
             labels=SECRET_LABELS,
             overwrite=True,
         )
 
-    def delete(self, key: str):
+    def delete(self, key: str, namespace: str):
         try:
-            KubernetesClient().delete_namespaced_secret(key, DEFAULT_NAMESPACE)
+            KubernetesClient().delete_namespaced_secret(key, namespace)
         except ApiException as apie:
             if apie.status != 404:
                 logger.error(apie)
@@ -83,11 +85,15 @@ class SecretProvider:
     def __init__(self, name: SecretProviderType):
         self.provider = self.PROVIDERS[name]()
 
-    def set(self, key: str, values: dict[str, str]):
-        self.provider.set(key, values)
+    @property
+    def namespace(self) -> str | None:
+        return self.provider.namespace
 
-    def delete(self, key: str):
-        self.provider.delete(key)
+    def set(self, key: str, namespace: str, values: dict[str, str]):
+        self.provider.set(key, namespace, values)
+
+    def delete(self, key: str, namespace: str):
+        self.provider.delete(key, namespace)
 
 
 def _get_secret(project_id: int, label: str) -> Secret:
@@ -149,13 +155,14 @@ def post_secret(project_id):
             label=body['label'],
             provider=provider,
             description=body.get('description'),
+            namespace=SecretProvider(provider).namespace,
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
 
     # The store first, so a failure there leaves no row pointing at nothing. If the row
     # then fails, the stored secret is left for a retry to adopt: writing it overwrites.
-    SecretProvider(secret.provider).set(secret.key, values)
+    SecretProvider(secret.provider).set(secret.key, secret.namespace, values)
     secret.add()
 
     return SecretDTO.from_model(secret).dump(), HTTPStatus.CREATED
@@ -172,7 +179,7 @@ def patch_secret(project_id, label):
     secret = _get_secret(project_id, label)
     values = _get_values(request.json or {})
 
-    SecretProvider(secret.provider).set(secret.key, values)
+    SecretProvider(secret.provider).set(secret.key, secret.namespace, values)
     secret.updated_at = dt.now()
     session.commit()
 
@@ -203,7 +210,7 @@ def delete_secret(project_id, label):
         raise InvalidRequest("Error while deleting the record") from exc
 
     try:
-        SecretProvider(secret.provider).delete(secret.key)
+        SecretProvider(secret.provider).delete(secret.key, secret.namespace)
     except InvalidRequest:
         session.rollback()
         raise

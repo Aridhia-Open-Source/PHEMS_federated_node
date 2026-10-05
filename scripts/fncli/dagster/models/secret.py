@@ -14,6 +14,7 @@ class Secret(BaseModel):
     - provider: which secret store holds it.
     - key: what the secret is called in that store: the label is local to the project, the
       store's name is not. The backend generates it; nothing here derives it.
+    - namespace: where the store keeps it, for stores that have such a notion.
     - created_at: when the secret was created.
     - updated_at: when the secret was last updated.
     """
@@ -25,5 +26,6 @@ class Secret(BaseModel):
     description: str | None = None
     provider: SecretProviderType
     key: str
+    namespace: str | None = None
     created_at: str | None = None
     updated_at: str | None = None

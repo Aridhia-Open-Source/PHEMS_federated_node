@@ -99,15 +99,15 @@ def init_git_secret(
     token = gitea_api.replace_token(config.gitea_token_name, ["read:repository"])
     secret = backend_api.upsert_secret(project.id, config.git_secret_label, {"TOKEN": token})
     stored = get_k8s_secret(
-        secret_name=secret["key"], namespace=config.namespace, key="TOKEN"
+        secret_name=secret["key"], namespace=secret["namespace"], key="TOKEN"
     )
     if stored != token:
         raise RuntimeError(
-            f"Secret {secret['key']} in {config.namespace} does not hold the new token"
+            f"Secret {secret['key']} in {secret['namespace']} does not hold the new token"
         )
     logger.info(
         f"Secret {config.git_secret_label} of project {project.id} is {secret['key']} "
-        f"in namespace {config.namespace} and holds the new token "
+        f"in namespace {secret['namespace']} and holds the new token "
         f"(Gitea token {config.gitea_token_name!r})"
     )
     return token
@@ -186,7 +186,7 @@ def verify_git_secret_command():
     project = init_backend_project(config, backend_api)
     secret = backend_api.get_secret(project.id, config.git_secret_label)
     token = get_k8s_secret(
-        secret_name=secret["key"], namespace=config.namespace, key="TOKEN"
+        secret_name=secret["key"], namespace=secret["namespace"], key="TOKEN"
     )
     verify_gitea_accepts_bearer_token(config=config, token=token, gitea_repo=gitea_repo)
 

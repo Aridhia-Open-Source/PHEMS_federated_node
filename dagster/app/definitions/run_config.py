@@ -8,6 +8,7 @@ class PipesSecretConfig(BaseModel):
 
     provider: SecretProviderType
     key: str
+    namespace: str | None
 
 
 class PipesDatasetConfig(BaseModel):

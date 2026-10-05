@@ -10,5 +10,6 @@ class SecretDTO(DTO):
     description: str | None
     provider: SecretProviderType
     key: str
+    namespace: str | None
     created_at: WireDatetime
     updated_at: WireDatetime

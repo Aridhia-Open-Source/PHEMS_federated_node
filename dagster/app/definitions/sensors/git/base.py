@@ -28,11 +28,8 @@ class GitAPIFactory:
     the secret it names, so every repository authenticates as itself.
     """
 
-    def __init__(self, namespace: str):
-        self.namespace = namespace
-
     def for_repository(self, repo: TriggerRepository) -> GitAPI:
-        token = SecretProvider(repo.secret.provider).get(repo.secret.key, self.namespace, "TOKEN")
+        token = SecretProvider(repo.secret.provider).get(repo.secret.key, repo.secret.namespace, "TOKEN")
         match repo.provider:
             case "github":
                 return GithubAPI(GithubClient(token=token, base_uri=repo.api_uri))
