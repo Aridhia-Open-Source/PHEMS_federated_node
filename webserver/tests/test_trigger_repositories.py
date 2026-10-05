@@ -588,10 +588,12 @@ class TestPostPullRequestTask:
         assert Task.query.count() == 0
 
     def test_dataset_override_in_other_project_fails(
-            self, client, post_json_admin_header, repository, pull_request, other_project, k8s_secret, user_uuid
+            self, client, post_json_admin_header, repository, pull_request, other_project, user_uuid
         ):
+        other_secret = K8sSecret(project_id=other_project.id, name="test-creds")
+        other_secret.add()
         other_ds = Dataset(
-            name="OtherDs", host="example.com", k8s_secret_name=k8s_secret.name, project_id=other_project.id
+            name="OtherDs", host="example.com", k8s_secret_id=other_secret.id, project_id=other_project.id
         )
         other_ds.add(user_id=user_uuid)
         response = self.post(

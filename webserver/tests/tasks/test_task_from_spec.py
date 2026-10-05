@@ -5,6 +5,7 @@ from app.dtos.task_spec import TaskSpec
 from app.helpers.exceptions import InvalidRequest
 from app.models.api_request import ApiRequest
 from app.models.dataset import Dataset
+from app.models.k8s_secret import K8sSecret
 from app.models.pull_request import PullRequest
 from app.models.task import Task
 from app.models.trigger_state import TriggerState
@@ -34,14 +35,16 @@ def pull_request(client, project, dataset, default_repo):
 
 @pytest.fixture
 def second_dataset(client, user_uuid, project, k8s_secret):
-    ds = Dataset(name="SecondDs", host="example.com", k8s_secret_name=k8s_secret.name, project_id=project.id)
+    ds = Dataset(name="SecondDs", host="example.com", k8s_secret_id=k8s_secret.id, project_id=project.id)
     ds.add(user_id=user_uuid)
     return ds
 
 
 @pytest.fixture
-def other_project_dataset(client, user_uuid, other_project, k8s_secret):
-    ds = Dataset(name="OtherDs", host="example.com", k8s_secret_name=k8s_secret.name, project_id=other_project.id)
+def other_project_dataset(client, user_uuid, other_project):
+    secret = K8sSecret(project_id=other_project.id, name="test-creds")
+    secret.add()
+    ds = Dataset(name="OtherDs", host="example.com", k8s_secret_id=secret.id, project_id=other_project.id)
     ds.add(user_id=user_uuid)
     return ds
 
