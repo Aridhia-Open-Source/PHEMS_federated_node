@@ -179,6 +179,9 @@ def patch_secret(project_id, label):
     secret = _get_secret(project_id, label)
     values = _get_values(request.json or {})
 
+    # Written to the provider's current namespace, which the row then records. If that has
+    # changed since the secret was created, only these values move: the old copy and any
+    # keys not in this request are left behind, so a namespace move means re-creating it.
     store = SecretProvider(secret.provider)
     store.set(secret.key, store.namespace, values)
     secret.namespace = store.namespace
