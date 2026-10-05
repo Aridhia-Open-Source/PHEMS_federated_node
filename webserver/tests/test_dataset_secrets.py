@@ -8,7 +8,8 @@ import pytest
 
 from app.helpers.const import DEFAULT_NAMESPACE
 from app.models.dataset import Dataset
-from app.models.k8s_secret import K8sSecret
+from app.models.secret import Secret
+from app.models.secret_type import SecretType
 
 
 @pytest.fixture
@@ -18,18 +19,18 @@ def audited(mock_kc_client, admin_user_uuid):
 
 
 @pytest.fixture
-def k8s_secret(client, k8s_client, project):
-    secret = K8sSecret(project_id=project.id, name="cdm-creds")
+def secret(client, k8s_client, project):
+    secret = Secret(project_id=project.id, name="cdm-creds", secret_type=SecretType.K8S)
     secret.add()
     return secret
 
 
 @pytest.fixture
-def body(project, k8s_secret):
+def body(project, secret):
     return {
         "name": "cdm",
         "host": "db.example.com",
-        "k8s_secret_name": k8s_secret.name,
+        "secret_name": secret.name,
         "read_schema": "cdm",
         "write_schema": "results",
         "project_id": project.id,
@@ -50,9 +51,9 @@ def assert_kubernetes_untouched(k8s_client):
 class TestPostDataset:
     def test_create(self, client, k8s_client, audited, post_json_admin_header, body):
         created = post_dataset(client, post_json_admin_header, body)
-        assert created["k8s_secret_name"] == "cdm-creds"
+        assert created["secret_name"] == "cdm-creds"
         assert created["read_schema"] == "cdm"
-        assert Dataset.query.filter_by(name="cdm").one().k8s_secret_name == "cdm-creds"
+        assert Dataset.query.filter_by(name="cdm").one().secret_name == "cdm-creds"
 
     def test_never_touches_kubernetes(self, client, k8s_client, audited, post_json_admin_header, body):
         post_dataset(client, post_json_admin_header, body)
@@ -64,39 +65,39 @@ class TestPostDataset:
         assert "password" not in created
 
     def test_secret_must_exist(self, client, k8s_client, audited, post_json_admin_header, body):
-        body["k8s_secret_name"] = "missing"
+        body["secret_name"] = "missing"
         response = post_dataset(client, post_json_admin_header, body, code=400)
         assert "does not exist" in response["error"]
         assert Dataset.query.count() == 0
 
     def test_secret_is_required(self, client, k8s_client, audited, post_json_admin_header, body):
-        del body["k8s_secret_name"]
+        del body["secret_name"]
         post_dataset(client, post_json_admin_header, body, code=400)
         assert Dataset.query.count() == 0
 
     def test_another_projects_secret_is_rejected(
         self, client, k8s_client, audited, post_json_admin_header, body, other_project
     ):
-        K8sSecret(project_id=other_project.id, name="foreign-creds").add()
-        body["k8s_secret_name"] = "foreign-creds"
+        Secret(project_id=other_project.id, name="foreign-creds", secret_type=SecretType.K8S).add()
+        body["secret_name"] = "foreign-creds"
         response = post_dataset(client, post_json_admin_header, body, code=400)
         assert "does not exist" in response["error"]
         assert Dataset.query.count() == 0
 
     def test_the_response_names_the_cluster_secret(self, client, k8s_client, audited, post_json_admin_header, body, project):
         created = post_dataset(client, post_json_admin_header, body)
-        assert created["k8s_secret_k8s_name"] == f"{project.id}-cdm-creds"
+        assert created["secret_store_name"] == f"{project.id}-cdm-creds"
 
     @pytest.mark.parametrize("credentials", [{"username": "u"}, {"password": "p"}, {"username": "u", "password": "p"}])
     def test_credentials_are_rejected(self, client, k8s_client, audited, post_json_admin_header, body, credentials):
         response = post_dataset(client, post_json_admin_header, {**body, **credentials}, code=400)
-        assert "k8s_secret_name" in response["error"]
+        assert "secret_name" in response["error"]
         assert Dataset.query.count() == 0
 
     def test_datasets_can_share_a_secret(self, client, k8s_client, audited, post_json_admin_header, body):
         post_dataset(client, post_json_admin_header, body)
         post_dataset(client, post_json_admin_header, {**body, "name": "other"})
-        assert Dataset.query.filter_by(k8s_secret_id=Dataset.query.first().k8s_secret_id).count() == 2
+        assert Dataset.query.filter_by(secret_id=Dataset.query.first().secret_id).count() == 2
 
 
 class TestPatchDataset:
@@ -105,15 +106,15 @@ class TestPatchDataset:
 
     def test_repoint_to_another_secret(self, client, k8s_client, audited, post_json_admin_header, body, project):
         created = self.create(client, post_json_admin_header, body)
-        K8sSecret(project_id=project.id, name="other-creds").add()
+        Secret(project_id=project.id, name="other-creds", secret_type=SecretType.K8S).add()
 
         response = client.patch(
             f"/datasets/{created['id']}",
-            data=json.dumps({"k8s_secret_name": "other-creds"}),
+            data=json.dumps({"secret_name": "other-creds"}),
             headers=post_json_admin_header
         )
         assert response.status_code == 202, response.text
-        assert response.json["k8s_secret_name"] == "other-creds"
+        assert response.json["secret_name"] == "other-creds"
         assert_kubernetes_untouched(k8s_client)
 
     def test_rename_does_not_touch_the_secret(self, client, k8s_client, audited, post_json_admin_header, body):
@@ -123,32 +124,32 @@ class TestPatchDataset:
             f"/datasets/{created['id']}", data=json.dumps({"name": "renamed"}), headers=post_json_admin_header
         )
         assert response.status_code == 202, response.text
-        assert response.json["k8s_secret_name"] == "cdm-creds"
+        assert response.json["secret_name"] == "cdm-creds"
         assert_kubernetes_untouched(k8s_client)
 
     def test_new_secret_must_exist(self, client, k8s_client, audited, post_json_admin_header, body):
         created = self.create(client, post_json_admin_header, body)
         response = client.patch(
             f"/datasets/{created['id']}",
-            data=json.dumps({"k8s_secret_name": "missing"}),
+            data=json.dumps({"secret_name": "missing"}),
             headers=post_json_admin_header
         )
         assert response.status_code == 400
-        assert Dataset.query.one().k8s_secret_name == "cdm-creds"
+        assert Dataset.query.one().secret_name == "cdm-creds"
 
     def test_another_projects_secret_is_rejected(
         self, client, k8s_client, audited, post_json_admin_header, body, other_project
     ):
         created = self.create(client, post_json_admin_header, body)
-        K8sSecret(project_id=other_project.id, name="foreign-creds").add()
+        Secret(project_id=other_project.id, name="foreign-creds", secret_type=SecretType.K8S).add()
         response = client.patch(
             f"/datasets/{created['id']}",
-            data=json.dumps({"k8s_secret_name": "foreign-creds"}),
+            data=json.dumps({"secret_name": "foreign-creds"}),
             headers=post_json_admin_header
         )
         assert response.status_code == 400
         assert "does not exist" in response.json["error"]
-        assert Dataset.query.one().k8s_secret_name == "cdm-creds"
+        assert Dataset.query.one().secret_name == "cdm-creds"
 
     @pytest.mark.parametrize("field", ["username", "password"])
     def test_credentials_are_not_a_field(self, client, k8s_client, audited, post_json_admin_header, body, field):
@@ -166,23 +167,23 @@ class TestDeleteDataset:
         response = client.delete(f"/datasets/{created['id']}", headers=simple_admin_header)
         assert response.status_code == 204
         assert Dataset.query.count() == 0
-        assert K8sSecret.query.filter_by(name="cdm-creds").count() == 1
+        assert Secret.query.filter_by(name="cdm-creds").count() == 1
         assert_kubernetes_untouched(k8s_client)
 
     def test_secret_cannot_be_deleted_while_a_dataset_uses_it(
-        self, client, k8s_client, audited, post_json_admin_header, simple_admin_header, body, k8s_secret
+        self, client, k8s_client, audited, post_json_admin_header, simple_admin_header, body, secret
     ):
         post_dataset(client, post_json_admin_header, body)
-        response = client.delete(f"/k8s_secrets/{k8s_secret.id}", headers=simple_admin_header)
+        response = client.delete(f"/projects/{secret.project_id}/secrets/{secret.name}", headers=simple_admin_header)
         assert response.status_code == 409
         k8s_client["delete_namespaced_secret_mock"].assert_not_called()
 
     def test_secret_can_be_deleted_once_no_dataset_uses_it(
-        self, client, k8s_client, audited, post_json_admin_header, simple_admin_header, body, k8s_secret
+        self, client, k8s_client, audited, post_json_admin_header, simple_admin_header, body, secret
     ):
         created = post_dataset(client, post_json_admin_header, body)
         client.delete(f"/datasets/{created['id']}", headers=simple_admin_header)
-        assert client.delete(f"/k8s_secrets/{k8s_secret.id}", headers=simple_admin_header).status_code == 204
+        assert client.delete(f"/projects/{secret.project_id}/secrets/{secret.name}", headers=simple_admin_header).status_code == 204
 
 
 class TestGetCredentials:

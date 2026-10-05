@@ -1,16 +1,38 @@
 from pydantic import BaseModel, ConfigDict
 
+from app.models.secret_type import SecretType
+
 
 class Dataset(BaseModel):
-    """Dataset data from backend API."""
+    """
+    Dataset data from backend API.
+
+    - id: the dataset's id.
+    - project_id: the project the dataset belongs to.
+    - secret_name: the project-local name of the secret holding the database credentials
+      (USERNAME and PASSWORD).
+    - secret_type: which secret store holds that secret.
+    - secret_store_name: what the secret is called in that store: the name is local to the
+      project, the store's is not.
+    - name: the database name.
+    - host: the database host.
+    - port: the database port.
+    - read_schema: the schema the task reads from (the CDM), if set.
+    - write_schema: the schema the task writes its results to, if set.
+    - type: the database engine, e.g. postgres.
+    - extra_connection_args: extra arguments for the connection string, if any.
+    - created_at: when the dataset was created.
+    - updated_at: when the dataset was last updated.
+    - slug: the dataset name as used in URLs.
+    - url: the dataset's public URL.
+    """
     model_config = ConfigDict(extra="allow")
 
     id: int
     project_id: int
-    # The Kubernetes secret holding the database credentials (USERNAME and PASSWORD).
-    k8s_secret_name: str
-    # What the secret is called in the cluster: the name is local to the project.
-    k8s_secret_k8s_name: str
+    secret_name: str
+    secret_type: SecretType
+    secret_store_name: str
     name: str
     host: str
     port: int
@@ -22,12 +44,6 @@ class Dataset(BaseModel):
     updated_at: str | None = None
     slug: str
     url: str
-
-    def dump_task_fields(self) -> dict:
-        """Return only the fields needed for task configuration with dataset_ prefix."""
-        keys = {"name", "host", "port", "type", "read_schema", "write_schema", "k8s_secret_k8s_name"}
-        fields = self.model_dump(include=keys)
-        return {f"dataset_{k}": v for k, v in fields.items()}
 
 
 class Catalogue(BaseModel):

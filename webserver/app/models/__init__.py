@@ -83,9 +83,9 @@ class ModelRegistry:
         return Trigger
 
     @cached_property
-    def K8sSecret(self):
-        from app.models.k8s_secret import K8sSecret
-        return K8sSecret
+    def Secret(self):
+        from app.models.secret import Secret
+        return Secret
 
 
 class SqlaColumn:
@@ -132,5 +132,5 @@ _ = (
     Models.ResultsBackend,
     Models.ApiRequest,
     Models.Trigger,
-    Models.K8sSecret,
+    Models.Secret,
 )

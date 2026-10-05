@@ -18,7 +18,8 @@ from app.models.project import Project
 from app.models.task import Task
 from app.models.extras.request import Request
 from app.models.trigger_repository import TriggerRepository
-from app.models.k8s_secret import K8sSecret
+from app.models.secret import Secret
+from app.models.secret_type import SecretType
 from app.models.results_repository import ResultsRepository
 from app.models.results_backend import ResultsBackend
 from app.models.api_request import ApiRequest
@@ -51,7 +52,7 @@ sample_ds_body = {
     "name": "TestDs",
     "host": "db",
     "port": 5432,
-    "k8s_secret_name": "test-creds",
+    "secret_name": "test-creds",
     "repository": sample_repo_uri,
     "catalogue": {
         "title": "test",
@@ -228,22 +229,22 @@ def other_project(client) -> Project:
 
 # The secret the dataset and repository fixtures reference. sample_ds_body names it too.
 @fixture
-def k8s_secret(client, project) -> K8sSecret:
-    secret = K8sSecret(project_id=project.id, name="test-creds")
+def secret(client, project) -> Secret:
+    secret = Secret(project_id=project.id, name="test-creds", secret_type=SecretType.K8S)
     secret.add()
     return secret
 
 
 # Trigger repository fixtures
 @fixture
-def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, k8s_secret) -> TriggerRepository:
+def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> TriggerRepository:
     # Create a dataset first (required for TriggerRepository)
-    dataset = Dataset(name="DefaultDatasetForRepo", host="example.com", k8s_secret_id=k8s_secret.id, project_id=project.id)
+    dataset = Dataset(name="DefaultDatasetForRepo", host="example.com", secret_id=secret.id, project_id=project.id)
     dataset.add(user_id=user_uuid)
 
     repo = TriggerRepository(
         uri=sample_repo_uri, provider="github", api_uri="https://api.github.com",
-        k8s_secret_id=k8s_secret.id, watch_dir="", project_id=project.id
+        secret_id=secret.id, watch_dir="", project_id=project.id
     )
     repo.add()
     return repo
@@ -258,23 +259,23 @@ def dataset_post_body(default_repo, project):
 
 
 @fixture
-def dataset(client, user_uuid, k8s_client, mock_kc_client, project, k8s_secret) -> Dataset:
-    dataset = Dataset(name="TestDs", host="example.com", k8s_secret_id=k8s_secret.id, project_id=project.id)
+def dataset(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> Dataset:
+    dataset = Dataset(name="TestDs", host="example.com", secret_id=secret.id, project_id=project.id)
     dataset.add(user_id=user_uuid)
     return dataset
 
 
 @fixture
-def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, k8s_secret) -> Dataset:
+def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> Dataset:
     from app.models.trigger_repository import TriggerRepository
     # Create dataset first
-    dataset = Dataset(name="TestDsRepo", host="example.com", k8s_secret_id=k8s_secret.id, project_id=project.id)
+    dataset = Dataset(name="TestDsRepo", host="example.com", secret_id=secret.id, project_id=project.id)
     dataset.add(user_id=user_uuid)
 
     # Then create repository with the dataset_id
     repo = TriggerRepository(
         uri="organisation/repository", provider="github", api_uri="https://api.github.com",
-        k8s_secret_id=k8s_secret.id, watch_dir="", project_id=project.id
+        secret_id=secret.id, watch_dir="", project_id=project.id
     )
     repo.add()
 
@@ -282,9 +283,9 @@ def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, k8
 
 
 @fixture
-def dataset_oracle(mocker, client, user_uuid, k8s_client, project, k8s_secret)  -> Dataset:
+def dataset_oracle(mocker, client, user_uuid, k8s_client, project, secret)  -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
-    dataset = Dataset(name="AnotherDS", host="example.com", k8s_secret_id=k8s_secret.id, type="oracle", project_id=project.id)
+    dataset = Dataset(name="AnotherDS", host="example.com", secret_id=secret.id, type="oracle", project_id=project.id)
     dataset.add(user_id=user_uuid)
     return dataset
 

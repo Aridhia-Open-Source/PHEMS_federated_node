@@ -1,6 +1,19 @@
 from pydantic import BaseModel
 
-from app.models import Dataset
+from app.models import Dataset, SecretType
+
+
+class PipesDatasetConfig(BaseModel):
+    """The dataset a task runs against, as k8s_pipes_op takes it."""
+
+    name: str
+    host: str
+    port: int
+    type: str
+    read_schema: str | None
+    write_schema: str | None
+    secret_type: SecretType
+    secret_store_name: str
 
 
 class K8sPipesOpConfig(BaseModel):
@@ -8,13 +21,7 @@ class K8sPipesOpConfig(BaseModel):
 
     env: dict
     docker_image: str
-    dataset_name: str
-    dataset_host: str
-    dataset_port: int
-    dataset_type: str
-    dataset_read_schema: str | None
-    dataset_write_schema: str | None
-    dataset_k8s_secret_k8s_name: str
+    dataset: PipesDatasetConfig
 
 
 def build_run_config(spec: dict, dataset: Dataset) -> dict:
@@ -29,7 +36,7 @@ def build_run_config(spec: dict, dataset: Dataset) -> dict:
     op_config = K8sPipesOpConfig(
         env=spec.get("env") or {},
         docker_image=image,
-        **dataset.dump_task_fields(),
+        dataset=PipesDatasetConfig.model_validate(dataset.model_dump()),
     )
 
-    return {"ops": {"k8s_pipes_op": {"config": op_config.model_dump()}}}
+    return {"ops": {"k8s_pipes_op": {"config": op_config.model_dump(mode="json")}}}

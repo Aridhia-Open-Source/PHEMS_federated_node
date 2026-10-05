@@ -108,7 +108,7 @@ docker_build_with_restart(
 # via the Dagster GraphQL API so the UI updates immediately.
 local_resource(
   'dagster-reload',
-  serve_cmd='bash scripts/dagster_reload.sh {location}'.format(
+  serve_cmd='bash tilt/scripts/dagster_reload.sh {location}'.format(
     location=DAGSTER_LOCATION,
   ),
   labels=['dev'],

@@ -13,6 +13,7 @@ from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
 from app.models import Models, sqla_column
+from app.models.secret_type import SecretType
 
 logger = logging.getLogger("dataset_model")
 logger.setLevel(logging.INFO)
@@ -29,7 +30,7 @@ class Dataset(db.Model, BaseModel):
     )
     # The secret holding the database credentials (USERNAME and PASSWORD). The composite
     # foreign key below keeps it to a secret of this dataset's own project.
-    k8s_secret_id = sa.Column(sa.Integer, nullable=False)
+    secret_id = sa.Column(sa.Integer, nullable=False)
 
     name = sa.Column(sa.String(256), unique=True, nullable=False)
     host = sa.Column(sa.String(256), nullable=False)
@@ -44,7 +45,7 @@ class Dataset(db.Model, BaseModel):
 
     __table_args__ = (
         sa.ForeignKeyConstraint(
-            ['project_id', 'k8s_secret_id'], ['k8s_secrets.project_id', 'k8s_secrets.id'],
+            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'],
             ondelete='RESTRICT'
         ),
     )
@@ -52,13 +53,13 @@ class Dataset(db.Model, BaseModel):
     project = relationship(
         "Project", back_populates="datasets", foreign_keys=[project_id]
     )
-    k8s_secret = relationship("K8sSecret", back_populates="datasets", overlaps="datasets,project")
+    secret = relationship("Secret", back_populates="datasets", overlaps="datasets,project")
 
     def __init__(
         self,
         name: str,
         host: str,
-        k8s_secret_id: int,
+        secret_id: int,
         port: int = 5432,
         read_schema: str | None = None,
         write_schema: str | None = None,
@@ -75,7 +76,7 @@ class Dataset(db.Model, BaseModel):
         self.read_schema = read_schema
         self.write_schema = write_schema
         self.type = type
-        self.k8s_secret_id = k8s_secret_id
+        self.secret_id = secret_id
         self.extra_connection_args = extra_connection_args
         self.project_id = project_id
 
@@ -86,12 +87,16 @@ class Dataset(db.Model, BaseModel):
         return f'<Dataset {self.name}>'
 
     @property
-    def k8s_secret_name(self) -> str:
-        return self.k8s_secret.name
+    def secret_name(self) -> str:
+        return self.secret.name
 
     @property
-    def k8s_secret_k8s_name(self) -> str:
-        return self.k8s_secret.k8s_name
+    def secret_type(self) -> SecretType:
+        return self.secret.secret_type
+
+    @property
+    def secret_store_name(self) -> str:
+        return self.secret.store_name
 
     def add(self, commit=True, user_id=None):
         super().add(commit)
@@ -129,7 +134,7 @@ class Dataset(db.Model, BaseModel):
         Mostly used to create a direct connection to the DB
         This is not involved in the Task Execution Service
         """
-        secret = self._get_secret(self.k8s_secret_k8s_name)
+        secret = self._get_secret(self.secret_store_name)
         if secret.data is None:
             raise ValueError("Secret data is None")
 

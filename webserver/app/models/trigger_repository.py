@@ -31,14 +31,14 @@ class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
     __table_args__ = (
         sa.UniqueConstraint('project_id', 'uri', name='uq_trigger_repositories_project_uri'),
         sa.ForeignKeyConstraint(
-            ['project_id', 'k8s_secret_id'], ['k8s_secrets.project_id', 'k8s_secrets.id'],
+            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'],
             ondelete='RESTRICT'
         ),
     )
 
     project = relationship("Project", back_populates="trigger_repositories")
-    k8s_secret = relationship(
-        "K8sSecret", back_populates="trigger_repositories", overlaps="trigger_repositories,project"
+    secret = relationship(
+        "Secret", back_populates="trigger_repositories", overlaps="trigger_repositories,project"
     )
     pull_requests = relationship(
         "PullRequest", back_populates="trigger_repository", cascade="all, delete"
@@ -86,7 +86,7 @@ class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
         uri: str,
         provider: str,
         api_uri: str,
-        k8s_secret_id: int,
+        secret_id: int,
         watch_dir: str,
         project_id: int,
         base_branch: str = 'main',
@@ -97,7 +97,7 @@ class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
         self.provider = provider
         self.api_uri = api_uri
         self.repo_path = repo_path or self.derive_repo_path(uri)
-        self.k8s_secret_id = k8s_secret_id
+        self.secret_id = secret_id
         self.watch_dir = watch_dir
         self.project_id = project_id
         self.base_branch = base_branch

@@ -5,12 +5,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.definitions import pipes
+from app.k8s import get_k8s_secret
+from app.models import SecretType
 from app.definitions.pipes import (
     K8sPipe,
     K8sPipesResponse,
     TERMINATION_GRACE_PERIOD_SECONDS,
     _dict_to_pod_env,
-    _get_k8s_secret,
 )
 
 
@@ -29,13 +30,16 @@ SECURITY_CONTEXT_ENV = (
 )
 
 DATASET_CONFIG = {
-    "dataset_secret_name": "db-host-cdm-creds",
-    "dataset_name": "cdm",
-    "dataset_host": "db.host",
-    "dataset_port": 5432,
-    "dataset_type": "postgres",
-    "dataset_schema": "cdm_schema",
-    "dataset_schema_write": "results",
+    "dataset": {
+        "name": "cdm",
+        "host": "db.host",
+        "port": 5432,
+        "type": "postgres",
+        "read_schema": "cdm_schema",
+        "write_schema": "results",
+        "secret_type": "K8S",
+        "secret_store_name": "db-host-cdm-creds",
+    }
 }
 
 
@@ -136,22 +140,13 @@ class TestDatasetConfig:
         assert pipe.dataset == {}
         assert "CDM_SCHEMA" not in pipe.env
 
-    def test_dataset_fields_are_unprefixed(self, pipes_env):
+    def test_dataset_config_is_used_as_given(self, pipes_env):
         pipe = make_pipe(**DATASET_CONFIG)
 
-        assert pipe.dataset == {
-            "secret_name": "db-host-cdm-creds",
-            "name": "cdm",
-            "host": "db.host",
-            "port": 5432,
-            "type": "postgres",
-            "schema": "cdm_schema",
-            "schema_write": "results",
-        }
+        assert pipe.dataset == DATASET_CONFIG["dataset"]
 
     def test_incomplete_dataset_is_rejected(self, pipes_env):
-        config = dict(DATASET_CONFIG)
-        config.pop("dataset_host")
+        config = {"dataset": {**DATASET_CONFIG["dataset"], "host": None}}
 
         with pytest.raises(ValueError, match="Incomplete dataset configuration"):
             make_pipe(**config)
@@ -193,24 +188,24 @@ class TestEnvironment:
     def test_connection_string_is_resolved_from_the_secret(self, pipes_env):
         pipe = make_pipe(**DATASET_CONFIG)
 
-        with patch.object(pipes, "_get_k8s_secret", side_effect=["user", "pass"]) as secret:
+        with patch.object(pipes, "get_secret_value", side_effect=["user", "pass"]) as secret:
             env = pipe._pod_env()
 
         connstr = next(e["value"] for e in env if e["name"] == "CONNECTION_STRING")
         assert connstr == (
             "server=db.host;database=cdm;port=5432;uid=user;pwd=pass;"
         )
-        assert secret.call_args_list[0].args == ("db-host-cdm-creds", "fn", "USERNAME")
-        assert secret.call_args_list[1].args == ("db-host-cdm-creds", "fn", "PASSWORD")
+        assert secret.call_args_list[0].args == (SecretType.K8S, "db-host-cdm-creds", "fn", "USERNAME")
+        assert secret.call_args_list[1].args == (SecretType.K8S, "db-host-cdm-creds", "fn", "PASSWORD")
 
     def test_dataset_secret_is_read_from_the_deployment_namespace(self, pipes_env):
         """The task namespace holds no dataset credentials - the run pod reads its own."""
         pipe = make_pipe(**DATASET_CONFIG)
 
-        with patch.object(pipes, "_get_k8s_secret", return_value="x") as secret:
+        with patch.object(pipes, "get_secret_value", return_value="x") as secret:
             pipe._pod_env()
 
-        assert all(call.args[1] == "fn" for call in secret.call_args_list)
+        assert all(call.args[2] == "fn" for call in secret.call_args_list)
 
 
 class TestArtifactDir:
@@ -318,22 +313,22 @@ class TestSecretHelpers:
             {"name": "B", "value": "two"},
         ]
 
-    @patch("app.definitions.pipes.load_incluster_config")
-    @patch("app.definitions.pipes.client.CoreV1Api")
+    @patch("app.k8s.load_incluster_config")
+    @patch("app.k8s.client.CoreV1Api")
     def test_secret_value_is_base64_decoded(self, core_api, _config):
         secret = MagicMock()
         secret.data = {"USERNAME": base64.b64encode(b"admin").decode()}
         core_api.return_value.read_namespaced_secret.return_value = secret
 
-        assert _get_k8s_secret("creds", "fn", "USERNAME") == "admin"
+        assert get_k8s_secret("creds", "fn", "USERNAME") == "admin"
         core_api.return_value.read_namespaced_secret.assert_called_once_with("creds", "fn")
 
-    @patch("app.definitions.pipes.load_incluster_config")
-    @patch("app.definitions.pipes.client.CoreV1Api")
+    @patch("app.k8s.load_incluster_config")
+    @patch("app.k8s.client.CoreV1Api")
     def test_empty_secret_raises(self, core_api, _config):
         secret = MagicMock()
         secret.data = None
         core_api.return_value.read_namespaced_secret.return_value = secret
 
         with pytest.raises(ValueError, match="has no data"):
-            _get_k8s_secret("creds", "fn", "USERNAME")
+            get_k8s_secret("creds", "fn", "USERNAME")

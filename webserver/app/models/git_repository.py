@@ -9,6 +9,7 @@ from sqlalchemy.orm import validates
 from app.helpers.const import DEFAULT_NAMESPACE
 from app.helpers.kubernetes import KubernetesClient
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, GitProvider
+from app.models.secret_type import SecretType
 
 
 CONNECTION_TIMEOUT = 5
@@ -19,7 +20,7 @@ class GitRepositoryMixin:
     """
     What every repository the node reaches over a git host's API has: where it is, which
     provider serves it, and the secret holding its token. A model using it declares the
-    composite foreign key to k8s_secrets (project_id, k8s_secret_id) and the k8s_secret
+    composite foreign key to secrets (project_id, secret_id) and the secret
     relationship itself.
     """
 
@@ -37,7 +38,7 @@ class GitRepositoryMixin:
     # The secret holding the git token (under the key TOKEN). Set explicitly rather than
     # derived from uri, so repositories can share one credential. The composite foreign
     # key keeps it to a secret of this repository's own project.
-    k8s_secret_id = sa.Column(sa.Integer, nullable=False)
+    secret_id = sa.Column(sa.Integer, nullable=False)
 
     @validates('uri')
     def validate_uri(self, key, value):
@@ -56,12 +57,16 @@ class GitRepositoryMixin:
             raise ValueError(f"provider must be one of: {valid}")
 
     @property
-    def k8s_secret_name(self) -> str:
-        return self.k8s_secret.name
+    def secret_name(self) -> str:
+        return self.secret.name
 
     @property
-    def k8s_secret_k8s_name(self) -> str:
-        return self.k8s_secret.k8s_name
+    def secret_type(self) -> SecretType:
+        return self.secret.secret_type
+
+    @property
+    def secret_store_name(self) -> str:
+        return self.secret.store_name
 
     @classmethod
     def parse_repo_uri(cls, uri: str) -> str:
@@ -82,7 +87,7 @@ class GitRepositoryMixin:
         """
         The git token, read from the cluster secret this repository names.
         """
-        secret = KubernetesClient().read_namespaced_secret(self.k8s_secret_k8s_name, DEFAULT_NAMESPACE)
+        secret = KubernetesClient().read_namespaced_secret(self.secret_store_name, DEFAULT_NAMESPACE)
         if secret.data is None:
             raise KeyError("TOKEN")
         return KubernetesClient.decode_secret_value(secret.data['TOKEN'])
@@ -97,13 +102,13 @@ class GitRepositoryMixin:
             token = self.get_token()
         except KeyError:
             return ConnectionCheck(
-                ConnectionStatus.SECRET_MISSING, f"Secret {self.k8s_secret_name} has no TOKEN"
+                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret_name} has no TOKEN"
             )
         except ApiException as e:
             if e.status != 404:
                 raise
             return ConnectionCheck(
-                ConnectionStatus.SECRET_MISSING, f"Secret {self.k8s_secret_name} not found"
+                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret_name} not found"
             )
 
         url = f"{self.api_uri.rstrip('/')}/{GitProvider(self.provider).repo_api_path(self.repo_path)}"
