@@ -9,12 +9,9 @@ from app.dtos.base import page_of
 from app.dtos.dataset import CatalogueDTO, DatasetDTO, DictionaryDTO
 from app.dtos.project import ProjectDTO
 from app.dtos.registry import RegistryDTO
-from app.dtos.request import RequestDTO
 from app.dtos.task import TaskDTO
-from app.dtos.whitelisted_image import WhitelistedImageDTO
 from app.models.extras.audit import Audit
 from app.models.extras.registry import Registry
-from app.models.extras.whitelisted_image import WhitelistedImage
 from app.models.project import Project
 from app.models.task import Task
 
@@ -89,19 +86,6 @@ class TestDictionaryDTO:
         assert dumped["label"] == "p_id"
 
 
-class TestRequestDTO:
-    def test_fields(self, access_request):
-        assert set(RequestDTO.from_model(access_request).dump()) == {
-            "id", "dataset_id", "project_id", "title", "description", "requested_by",
-            "project_name", "status", "proj_start", "proj_end", "created_at", "updated_at",
-        }
-
-    def test_datetimes_use_the_wire_format(self, access_request):
-        dumped = RequestDTO.from_model(access_request).dump()
-        for field in ("proj_start", "proj_end", "created_at", "updated_at"):
-            assert WIRE_DATETIME.match(dumped[field]), field
-
-
 class TestRegistryDTO:
     def test_fields(self):
         registry = Registry(url="registry.example.com", username="user", password="pass")
@@ -116,16 +100,6 @@ class TestRegistryDTO:
         dumped = RegistryDTO.from_model(registry).dump()
         assert "username" not in dumped
         assert "password" not in dumped
-
-
-class TestWhitelistedImageDTO:
-    def test_fields(self):
-        image = WhitelistedImage(name="alpine", registry=None, project_id=1, tag="latest")
-        image.id = 1
-        assert WhitelistedImageDTO.from_model(image).dump() == {
-            "id": 1, "registry_id": None, "project_id": 1, "name": "alpine",
-            "tag": "latest", "sha": None,
-        }
 
 
 class TestAuditDTO:

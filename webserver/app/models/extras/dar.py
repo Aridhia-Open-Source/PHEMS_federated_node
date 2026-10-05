@@ -14,16 +14,18 @@ from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import DBError, InvalidRequest, LogAndException
 
 
-logger = logging.getLogger('request_model')
+logger = logging.getLogger('dar_model')
 logger.setLevel(logging.INFO)
 
 
-class Request(db.Model, BaseModel):
-    __tablename__ = 'requests'
+# TODO(DAR): disconnected from the app for now. approve() uses names that are not
+# imported (datetime, update): fix when this is revisited.
+class DAR(db.Model, BaseModel):
+    __tablename__ = 'dars'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     dataset_id = sa.Column(sa.Integer, sa.ForeignKey('datasets.id', ondelete='CASCADE'), nullable=True)
-    project_id = sa.Column(sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=True)
+    project_id = sa.Column(sa.Integer, sa.ForeignKey('projects.id', ondelete='CASCADE'), nullable=True)
 
     title = sa.Column(sa.String(256), nullable=False)
     description = sa.Column(sa.String(4096), nullable=True)
@@ -37,7 +39,7 @@ class Request(db.Model, BaseModel):
     updated_at = sqla_column.updated_at()
 
     dataset = relationship("Dataset")
-    project = relationship("Project", back_populates="requests")
+    project = relationship("Project")
     STATUSES = {
         'approved': 'approved',
         'pending': 'pending',
@@ -196,8 +198,8 @@ class Request(db.Model, BaseModel):
             ret_response = {"token": kc_client.get_impersonation_token(user["id"])}
 
             logger.info("Updating DB")
-            query = update(Request).\
-                where(Request.id == self.id).\
+            query = update(DAR).\
+                where(DAR.id == self.id).\
                 values(status=self.STATUSES["approved"], requested_by=user["id"])
             session.execute(query)
             session.commit()

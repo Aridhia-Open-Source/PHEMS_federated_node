@@ -28,7 +28,6 @@ class Task(db.Model, BaseModel):
     project_id = sa.Column(
         sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False, index=True
     )
-    request_id = sa.Column(sa.Integer, sa.ForeignKey('requests.id', ondelete='SET NULL'), nullable=True)
     trigger_id = sa.Column(
         sa.Integer, sa.ForeignKey('triggers.id', ondelete='RESTRICT'), nullable=False, unique=True
     )
@@ -102,7 +101,6 @@ class Task(db.Model, BaseModel):
 
         decoded_token = kc_client.decode_token(user_token)
         data["requested_by"] = kc_client.get_user_by_email(decoded_token["email"])["id"]
-        user = kc_client.get_user_by_id(data["requested_by"])
         repository = data.get("repository")
 
         data = super().validate(data)
@@ -138,30 +136,17 @@ class Task(db.Model, BaseModel):
                     f"Dataset {requested_ds.name} does not belong to project {project.name}"
                 )
 
-        if repo:
-            # Same rule as the API path: the named dataset if the spec has one, and it has
-            # already been checked against the project, otherwise the project's default.
-            data["dataset"] = requested_ds or project.default_dataset
-            if data["dataset"] is None:
-                raise InvalidRequest(
-                    f"Project {project.name} has no default dataset. Provide "
-                    "`tags.dataset_id` or `tags.dataset_name`"
-                )
-        elif kc_client.is_user_admin(user_token):
-            data["dataset"] = requested_ds or project.default_dataset
-            if data["dataset"] is None:
-                raise InvalidRequest(
-                    f"Project {project.name} has no default dataset. Provide "
-                    "`tags.dataset_id` or `tags.dataset_name`"
-                )
-        else:
-            # Naming a dataset does not grant it: an active DAR still has to cover it.
-            # Without one, fall back to the single active DAR for the project.
-            data["dataset"] = Models.Request.get_active_project(
-                data["project_name"],
-                user["id"],
-                dataset_id=requested_ds.id if requested_ds else None
-            ).dataset
+        # The named dataset if the spec has one, and it has already been checked against
+        # the project, otherwise the project's default.
+        # TODO(DAR): DAR checking is disconnected for now. A non-admin caller used to need
+        # an active DAR covering the dataset, now they take the same path as admins and
+        # repositories. Revisit with the authorization rework.
+        data["dataset"] = requested_ds or project.default_dataset
+        if data["dataset"] is None:
+            raise InvalidRequest(
+                f"Project {project.name} has no default dataset. Provide "
+                "`tags.dataset_id` or `tags.dataset_name`"
+            )
 
         # Docker image validation
         Models.WhitelistedImage.validate_image_format(data["docker_image"], data["docker_image"])

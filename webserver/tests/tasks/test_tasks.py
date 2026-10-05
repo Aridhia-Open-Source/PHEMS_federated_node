@@ -473,7 +473,7 @@ class TestValidateTask:
         assert response.status_code == 400
         assert "does not belong to project" in response.json["error"]
 
-    @pytest.mark.skip(reason="This test is not working as expected, needs to be fixed")
+    @pytest.mark.skip(reason="DAR disconnected for now, see TODO(DAR)")
     def test_validate_task_basic_user(
             self,
             client,

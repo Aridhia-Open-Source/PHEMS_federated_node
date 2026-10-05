@@ -31,7 +31,6 @@ class Project(db.Model, BaseModel):
         "Dataset", back_populates="project", foreign_keys="Dataset.project_id"
     )
     default_dataset = relationship("Dataset", foreign_keys=[default_dataset_id])
-    requests = relationship("Request", back_populates="project")
     trigger_repositories = relationship("TriggerRepository", back_populates="project")
     whitelisted_images = relationship("WhitelistedImage", back_populates="project")
     results_repositories = relationship("ResultsRepository", back_populates="project")

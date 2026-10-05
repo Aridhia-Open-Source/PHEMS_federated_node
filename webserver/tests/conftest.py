@@ -16,7 +16,7 @@ from app.models.extras.catalogue import Catalogue
 from app.models.extras.dictionary import Dictionary
 from app.models.project import Project
 from app.models.task import Task
-from app.models.extras.request import Request
+from app.models.extras.dar import DAR
 from app.models.trigger_repository import TriggerRepository
 from app.models.secret import Secret
 from app.models.secret_type import SecretType
@@ -313,7 +313,7 @@ def dar_user():
 
 @fixture
 def access_request(dataset, user_uuid, k8s_client):
-    request = Request(
+    request = DAR(
         title="TestRequest",
         project_name="example.com",
         requested_by=user_uuid,
@@ -354,7 +354,7 @@ def request_base_body_name(dataset):
 @fixture
 def approve_request(mocker):
     return mocker.patch(
-        'app.datasets_api.Request.approve',
+        'app.models.extras.dar.DAR.approve',
         return_value={"token": "somejwttoken"}
     )
 
@@ -405,15 +405,7 @@ def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
             has_user_roles=Mock(side_effect=lambda user_id, roles: False),
             is_token_valid=Mock(side_effect=lambda token, scope, *args, **kwargs: token == "admin_token" or scope != 'can_admin_request')
         )),
-        "datasets_api_kc": mocker.patch('app.datasets_api.Keycloak', return_value=Mock(
-            get_token=Mock(return_value={"access_token": "token"}),
-            get_admin_token=Mock(return_value={"access_token": "admin_token"}),
-            decode_token=Mock(return_value=decode_token_return),
-            get_user_by_email=Mock(return_value=basic_user),
-            list_users=Mock(return_value=[basic_user]),
-            create_user=Mock(return_value=create_user_return),
-            get_user_role=Mock(return_value="Users"),
-        )),
+        # TODO(DAR): the datasets_api Keycloak mock went with the DAR code in that module
         "users_api_kc": mocker.patch('app.users_api.Keycloak', return_value=Mock(
             get_token=Mock(return_value={"access_token": "token"}),
             get_admin_token=Mock(return_value={"access_token": "admin_token"}),

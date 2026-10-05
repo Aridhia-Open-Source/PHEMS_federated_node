@@ -464,5 +464,6 @@ class BackendAPI:
     def approve_request(self, request_id: int) -> bool:
         """Approve a Data Access Request"""
         self.logger.info(f"Approving request {request_id}")
+        # TODO(DAR): the /requests routes are not registered, DAR is disconnected for now
         self.session.patch(f"/requests/{request_id}", json={"status": "approved"})
         return True

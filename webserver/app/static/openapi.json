@@ -346,41 +346,6 @@
         }
       }
     },
-    "/datasets/token_transfer": {
-      "post": {
-        "operationId": "post_transfer_token",
-        "tags": [
-          "Tokens"
-        ],
-        "summary": "Endpoint to create a user's permission for a dataset, and returns a token for it",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TokenPostBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "$ref": "#/components/responses/TokenResponse"
-          },
-          "400": {
-            "$ref": "#/components/responses/InvalidBody"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthenticated"
-          },
-          "403": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          }
-        }
-      }
-    },
     "/tasks/{id}": {
       "get": {
         "operationId": "get_task_by_id",

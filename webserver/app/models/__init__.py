@@ -43,11 +43,6 @@ class ModelRegistry:
         return Registry
 
     @cached_property
-    def Request(self):
-        from app.models.extras.request import Request
-        return Request
-
-    @cached_property
     def Task(self):
         from app.models.task import Task
         return Task
@@ -129,7 +124,6 @@ _ = (
     Models.Project,
     Models.PullRequest,
     Models.Registry,
-    Models.Request,
     Models.Task,
     Models.WhitelistedImage,
     Models.TriggerRepository,
