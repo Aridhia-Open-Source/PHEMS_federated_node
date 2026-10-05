@@ -55,9 +55,11 @@ class GitRepositoryMixin:
     @classmethod
     def parse_repo_uri(cls, uri: str) -> str:
         """
-        Parse the repository URI to extract the host and path.
+        Parse the repository URI to extract the host and path. Safe to apply twice: a URI
+        that already lost its scheme ('host:3000/owner/repo') has none to strip, and
+        urlparse alone would read the host as the scheme.
         """
-        parsed = urllib.parse.urlparse(uri)
+        parsed = urllib.parse.urlparse(uri if '://' in uri else f'//{uri}')
         return (parsed.netloc + parsed.path).lower().rstrip('/')
 
     @property
