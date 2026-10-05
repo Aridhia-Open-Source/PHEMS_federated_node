@@ -25,11 +25,6 @@ RELEASE_NAME = os.getenv('RELEASE_NAME', 'fn-dev')
 DAGSTER_LOCATION = os.getenv('DAGSTER_USER_DEPLOYMENT', 'dagster-fn')
 DAGSTER_DEPLOYMENT = RELEASE_NAME + '-' + DAGSTER_LOCATION
 
-# Full entrypoint from dev.values.yaml dagsterApiGrpcArgs
-DAGSTER_FULL_ENTRYPOINT = [
-  'dagster', 'api', 'grpc',
-]
-
 # Allow Tilt to control what K8s cluster to deploy to
 allow_k8s_contexts('kind-fn')
 
@@ -58,7 +53,6 @@ docker_build_with_restart(
   only=[
     'app',
     'requirements.txt',
-    'setup.py',
     'alembic.ini',
     'migrations',
   ],
@@ -66,7 +60,6 @@ docker_build_with_restart(
     # Dependency / packaging changes => full rebuild
     fall_back_on([
       'webserver/requirements.txt',
-      'webserver/setup.py',
       'webserver/alembic.ini',
       'webserver/migrations',
     ]),
@@ -78,23 +71,30 @@ docker_build_with_restart(
 # ==============================================================================
 # DAGSTER USER CODE DEPLOYMENT
 # ==============================================================================
-# Entrypoint combines Tilt's base command with Helm's args.
-# tilt_manifests.py clears the Kubernetes args field so they don't get appended.
+# The image has no ENTRYPOINT or CMD: the chart passes the gRPC command as the container
+# args (templates/dagster-code-server.yaml), which tilt_manifests.py clears so they don't
+# get appended to the restart wrapper. The command is therefore set here, and must match
+# the chart's (fnDagster.codeServer.port and .module, 3030 and app.definitions by default).
 docker_build_with_restart(
   '{}/dagster-fn'.format(DOCKER_REGISTRY),
   'dagster',
-  entrypoint=[],
+  entrypoint=[
+    'dagster', 'api', 'grpc',
+    '-h', '0.0.0.0', '-p', '3030', '-m', 'app.definitions',
+  ],
   only=[
     'app',
     'requirements.txt',
-    'setup.py',
     'pyproject.toml',
+    'dagster.yaml',
+    'workspace.yaml',
   ],
   live_update=[
     fall_back_on([
       'dagster/requirements.txt',
-      'dagster/setup.py',
       'dagster/pyproject.toml',
+      'dagster/dagster.yaml',
+      'dagster/workspace.yaml',
     ]),
     sync('dagster/app', '/opt/dagster/home/app'),
   ],
