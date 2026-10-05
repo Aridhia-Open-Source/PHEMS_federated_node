@@ -11,7 +11,8 @@ from datetime import datetime, timezone
 import click
 from pydantic import Field
 
-from fncli.cmds.init_repo import GiteaConfig, build_gitea_api, init_gitea_repo
+from fncli.cmds.common import GiteaConfig, build_gitea_api
+from fncli.cmds.repository import init_gitea_repo
 
 logger = logging.getLogger("pr")
 
