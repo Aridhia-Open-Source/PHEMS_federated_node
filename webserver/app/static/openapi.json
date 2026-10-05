@@ -1660,6 +1660,31 @@
             "description": "Project not found"
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Delete a project and everything under it",
+        "description": "Hard delete of the project and its tasks, requests, datasets (and their Keycloak entries), trigger and results repositories and secrets, including the stored secret values.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Project deleted"
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        }
       }
     },
     "/projects/{project_id}/healthcheck": {
