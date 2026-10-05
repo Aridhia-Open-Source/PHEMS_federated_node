@@ -78,7 +78,7 @@ Run commands from anywhere inside the repo: `.dev.env` is found by searching up 
 fncli setup-project                 # build a whole dev project
 fncli open-pr [--kind watched|unwatched|invalid] [--merge]
 fncli teardown-project -y           # delete it all again
-fncli sensor-status                 # then start-sensor / stop-sensor [--sensor ingest|evaluate|launcher]
+fncli start-sensor --sensor all     # ingest -> evaluate -> launcher, plus the run-status sensors (fncli sensor-status to watch)
 
 fncli setup-backend                 # or the two halves separately:
 fncli setup-gitea [--project NAME]
@@ -170,9 +170,16 @@ whose spec has an unknown field, so the PR is rejected.
 
 | Command | What it does |
 |---|---|
-| `start-sensor [--sensor]` | Starts a Dagster sensor; `--sensor` is `ingest` (default, `git_pull_request_ingest_sensor`), `evaluate` (`git_pull_request_evaluate_sensor`) or `launcher` (`task_launcher_sensor`) |
-| `stop-sensor [--sensor]` | Stops it |
-| `sensor-status` | Prints all three sensors' status and last 3 ticks (status, skip reason or error) |
+| `start-sensor [--sensor]` | Starts Dagster sensors; `--sensor` is `ingest` (default, `git_pull_request_ingest_sensor`), `evaluate` (`git_pull_request_evaluate_sensor`), `launcher` (`task_launcher_sensor`), `status` (the five run-status sensors) or `all` |
+| `stop-sensor [--sensor]` | Stops them; `all` stops the launcher first |
+| `sensor-status` | Prints every sensor's status and last 3 ticks (status, skip reason or error) |
+
+Everything is STOPPED in Dagster by default. The whole path from a merged PR is: `ingest` saves it
+(UNKNOWN), `evaluate` turns it into a task (YIELDED, or IGNORED / REJECTED with a cause), `launcher`
+starts a Dagster run for each PENDING task, and the run-status sensors copy the run's status onto the
+task. The run-status sensors only see events from the moment they start, so they must be running
+BEFORE the launcher: a run that finishes first leaves its task PENDING for good. `start-sensor
+--sensor all` starts them in the safe order.
 
 `hello-world` prints a greeting, to check the CLI is installed.
 
