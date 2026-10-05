@@ -19,7 +19,6 @@ from app.dtos.project import (
 )
 from app.helpers.query_filters import parse_query_params
 from app.helpers.wrappers import audit, auth
-from app.models.extras.request import Request
 from app.models.git_provider import ConnectionStatus
 from app.models.project import Project
 from app.models.pull_request import PullRequest
@@ -101,7 +100,7 @@ def patch_project(project_id: int):
 def delete_project(project_id: int):
     """
     DELETE /projects/<project_id> endpoint. Deletes the project and everything under it:
-    tasks, requests, datasets, repositories and secrets. The stored secret values go after
+    tasks, datasets, repositories and secrets. The stored secret values go after
     the database commit.
     """
     # Hard delete for now, a soft delete option can come later. Keycloak entries of the
@@ -114,8 +113,6 @@ def delete_project(project_id: int):
     try:
         for task in Task.query.filter_by(project_id=project.id):
             task.delete(False)
-        for request_ in Request.query.filter_by(project_id=project.id):
-            request_.delete(False)
         for dataset in project.datasets:
             dataset.delete(False)
         for repo in project.trigger_repositories:

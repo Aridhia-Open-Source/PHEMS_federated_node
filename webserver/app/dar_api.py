@@ -11,12 +11,13 @@ from flask import Blueprint, request
 
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from app.dtos.request import RequestDTO
+from app.dtos.dar import DARDTO
 from app.helpers.query_filters import parse_query_params
 from app.helpers.wrappers import audit, auth
 from app.models.dataset import Dataset
-from app.models.extras.request import Request
+from app.models.extras.dar import DAR
 
+# TODO(DAR): not registered in app/__init__.py, disconnected for now.
 bp = Blueprint('requests', __name__, url_prefix='/requests')
 session = db.session
 
@@ -29,8 +30,8 @@ def get_requests():
     """
     GET /requests/ endpoint. Gets a list of Data Access Request
     """
-    paginated = parse_query_params(Request, request.args.copy())
-    res = [RequestDTO.from_model(r).dump() for r in paginated.items]
+    paginated = parse_query_params(DAR, request.args.copy())
+    res = [DARDTO.from_model(r).dump() for r in paginated.items]
     return res, HTTPStatus.OK
 
 # Disabled for the time being, also disable the pylint rule for duplicated code
@@ -53,8 +54,8 @@ def post_requests():
         if body["dataset"] is None:
             raise DBRecordNotFoundError(f"Dataset {ds_id} not found")
 
-        req_attributes = Request.validate(body)
-        req = Request(**req_attributes)
+        req_attributes = DAR.validate(body)
+        req = DAR(**req_attributes)
         req.add()
         return {"request_id": req.id}, HTTPStatus.CREATED
     except KeyError as kexc:
@@ -75,7 +76,7 @@ def post_approve_requests(code):
     """
     POST /requests/code/approve endpoint. Approves a pending Data Access Request
     """
-    dar = session.get(Request, code)
+    dar = session.get(DAR, code)
     if dar is None:
         raise DBRecordNotFoundError(f"Data Access Request {code} not found")
 

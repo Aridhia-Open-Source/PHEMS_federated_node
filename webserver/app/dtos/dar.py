@@ -1,7 +1,7 @@
 from app.dtos.base import DTO, WireDatetime
 
 
-class RequestDTO(DTO):
+class DARDTO(DTO):
     id: int
     dataset_id: int | None
     project_id: int | None

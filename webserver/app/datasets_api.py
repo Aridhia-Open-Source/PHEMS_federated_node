@@ -7,10 +7,8 @@ datasets-related endpoints:
 - GET /datasets/id/catalogues
 - GET /datasets/id/dictionaries
 - GET /datasets/id/dictionaries/table_name
-- POST /datasets/token_transfer
 """
 import logging
-from datetime import datetime
 from http import HTTPStatus
 
 from flask import Blueprint, request
@@ -19,14 +17,12 @@ from .dtos.base import page_of
 from .dtos.dataset import CatalogueDTO, DatasetDTO, DictionaryDTO
 from .helpers.base_model import db
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from .helpers.keycloak import Keycloak
 from .helpers.query_validator import validate
 from .helpers.wrappers import audit, auth
 from .models.dataset import Dataset
 from .models.extras.catalogue import Catalogue
 from .models.secret import Secret
 from .models.extras.dictionary import Dictionary
-from .models.extras.request import Request
 
 
 bp = Blueprint('datasets', __name__, url_prefix='/datasets')
@@ -157,7 +153,6 @@ def patch_datasets_by_id_or_name(
     """
     ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
 
-    old_ds_name = ds.name
     # Update validation doesn't have required fields
     body = request.json
     body.pop("id", None)
@@ -178,21 +173,8 @@ def patch_datasets_by_id_or_name(
 
     try:
         ds.update(**body)
-        # Also make sure all the request clients are updated with this
-        if body.get("name", None) is not None and body.get("name", None) != old_ds_name:
-            dars = Request.query.with_entities(Request.requested_by, Request.project_name)\
-                .filter(Request.dataset_id == ds.id, Request.proj_end > datetime.now())\
-                .group_by(Request.requested_by, Request.project_name).all()
-            for dar in dars:
-                update_args = {
-                    "name": f"{ds.id}-{ds.name}",
-                    "displayName": f"{ds.id} - {ds.name}"
-                }
-
-                user = Keycloak().get_user_by_id(dar[0])
-                req_by = user["email"]
-                kc_client = Keycloak(client=f"Request {req_by} - {dar[1]}")
-                kc_client.patch_resource(f"{ds.id}-{old_ds_name}", **update_args)
+        # TODO(DAR): the DAR Keycloak clients are no longer patched on rename, disconnected
+        # for now.
         # Update catalogue and dictionaries
         if cata_body:
             Catalogue.update_or_create(cata_body, ds)
@@ -275,41 +257,3 @@ def get_datasets_dictionaries_table_by_id_or_name(
         )
 
     return [DictionaryDTO.from_model(dc).dump() for dc in dictionary], HTTPStatus.OK
-
-
-@bp.route('/token_transfer', methods=['POST'])
-@audit
-@auth(scope='can_transfer_token', check_dataset=False)
-def post_transfer_token():
-    """
-    POST /datasets/token_transfer endpoint.
-        Returns a user's token based on an approved DAR
-    """
-    try:
-        # Not sure we need all of this in the Request table...
-        body = request.json
-        if 'email' not in body["requested_by"].keys():
-            raise InvalidRequest("Missing email from requested_by field")
-
-        user = Keycloak().get_user_by_email(body["requested_by"]["email"])
-        if not user:
-            user = Keycloak().create_user(**body["requested_by"])
-
-        body["requested_by"] = user["id"]
-        ds_id = body.pop("dataset_id", None)
-        ds_name = body.pop("dataset_name", None)
-        body["dataset"] = Dataset.get_dataset_by_name_or_id(ds_id, ds_name)
-
-        req_attributes = Request.validate(body)
-        req = Request(**req_attributes)
-        req.add()
-        return req.approve(), HTTPStatus.CREATED
-
-    except KeyError as kexc:
-        session.rollback()
-        raise InvalidRequest(
-            f"Missing field. Make sure {"".join(kexc.args)} fields are there"
-        ) from kexc
-    except Exception:
-        session.rollback()
-        raise

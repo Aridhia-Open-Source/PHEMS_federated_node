@@ -141,13 +141,19 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
 
-    # Create requests table (Data Access Requests - separate from the api_requests trigger)
+    # Create dars table (Data Access Requests - separate from the api_requests trigger)
     op.create_table(
-        'requests',
+        'dars',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('dataset_id', sa.Integer(), nullable=False),
-        sa.Column('project_id', sa.Integer(), nullable=False),
+        sa.Column('dataset_id', sa.Integer(), nullable=True),
+        sa.Column('project_id', sa.Integer(), nullable=True),
+        sa.Column('title', sa.String(length=256), nullable=False),
         sa.Column('description', sa.String(length=4096), nullable=True),
+        sa.Column('requested_by', sa.String(length=256), nullable=False),
+        sa.Column('project_name', sa.String(length=256), nullable=False),
+        sa.Column('status', sa.String(length=256), nullable=True, server_default='pending'),
+        sa.Column('proj_start', sa.DateTime(timezone=False), nullable=False),
+        sa.Column('proj_end', sa.DateTime(timezone=False), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
@@ -220,7 +226,6 @@ def upgrade() -> None:
         'tasks',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=False),
-        sa.Column('request_id', sa.Integer(), nullable=True),
         sa.Column('trigger_id', sa.Integer(), nullable=False),
         sa.Column('dataset_id', sa.Integer(), nullable=True),
         sa.Column('name', sa.String(length=256), nullable=False),
@@ -238,7 +243,6 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
-        sa.ForeignKeyConstraint(['request_id'], ['requests.id'], ondelete='SET NULL'),
         sa.ForeignKeyConstraint(['trigger_id'], ['triggers.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('dagster_run_id'),
@@ -341,7 +345,7 @@ def downgrade() -> None:
     op.drop_index('ix_tasks_project_id', 'tasks')
     op.drop_table('tasks')
     op.drop_table('results_backends')
-    op.drop_table('requests')
+    op.drop_table('dars')
     op.drop_table('task_statuses')
     op.drop_table('api_requests')
     op.drop_table('pull_requests')
