@@ -1,27 +1,8 @@
-from enum import Enum
+from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict
 
-
-class PullRequestStatus(str, Enum):
-    """
-    UNKNOWN | IGNORED | INVALID | READY are the ingest lifecycle; the rest are job state,
-    which belongs on tasks.status. They stay here while the sensors still write them.
-    pull_requests.status has no database constraint, so dropping them is a code change.
-    """
-
-    UNKNOWN = "UNKNOWN"
-    IGNORED = "IGNORED"
-    INVALID = "INVALID"
-    READY = "READY"
-    QUEUED = "QUEUED"
-    STARTED = "STARTED"
-    SUCCESS = "SUCCESS"
-    FAILURE = "FAILURE"
-    CANCELLED = "CANCELLED"
-
-    def __str__(self):
-        return self.value
+from app.models.trigger_state import TriggerState
 
 
 class PullRequest(BaseModel):
@@ -35,5 +16,27 @@ class PullRequest(BaseModel):
     merged_at: str
     payload: dict
     merge_commit_sha: str
-    status: str
-    saved_at: str | None = None
+    state: TriggerState
+    state_cause: str | None = None
+    task_id: int | None = None
+
+    # The server owns these: it records a new PR as UNKNOWN
+    SERVER_FIELDS: ClassVar[set[str]] = {"trigger_repository_id", "state", "state_cause", "task_id"}
+
+    @classmethod
+    def from_git(cls, trigger_repository_id: int, pr: dict) -> "PullRequest":
+        """A newly merged pull request, from the git provider's response."""
+        return cls(
+            trigger_repository_id=trigger_repository_id,
+            number=pr["number"],
+            title=pr["title"],
+            raised_by=pr["user"]["login"],
+            merged_at=pr["merged_at"],
+            merge_commit_sha=pr["merge_commit_sha"],
+            state=TriggerState.UNKNOWN,
+            payload={},
+        )
+
+    def dump_new(self) -> dict:
+        """The body to save a new pull request with."""
+        return self.model_dump(exclude=self.SERVER_FIELDS)

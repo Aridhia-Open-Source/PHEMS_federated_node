@@ -41,8 +41,7 @@ SAMPLE_PR = {
     "raised_by": "developer",
     "merged_at": "2026-06-26T10:00:00Z",
     "merge_commit_sha": "abc123def456",
-    "saved_at": "2026-06-26T10:05:00Z",
-    "status": "unprocessed",
+    "state": "UNKNOWN",
     "payload": {
         "docker_image": "ghcr.io/org/experiment:latest",
         "env": {"KEY": "value"},
@@ -56,8 +55,7 @@ SAMPLE_INVALID_PR = {
     "raised_by": "developer",
     "merged_at": "2026-06-27T10:00:00Z",
     "merge_commit_sha": "xyz789abc123",
-    "saved_at": "2026-06-27T10:05:00Z",
-    "status": "unprocessed",
+    "state": "UNKNOWN",
     "payload": {},
 }
 
@@ -68,8 +66,7 @@ SAMPLE_IN_PROGRESS_PR = {
     "raised_by": "developer",
     "merged_at": "2026-06-28T10:00:00Z",
     "merge_commit_sha": "pqr456xyz789",
-    "saved_at": "2026-06-28T10:05:00Z",
-    "status": "in_progress",
+    "state": "UNKNOWN",
     "payload": {
         "docker_image": "ghcr.io/org/experiment:v2",
         "env": {"KEY": "value2"},
