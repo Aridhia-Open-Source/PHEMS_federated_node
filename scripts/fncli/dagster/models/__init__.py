@@ -4,7 +4,7 @@ from fncli.dagster.models.dataset import Catalogue, Dataset, Dictionary
 from fncli.dagster.models.project import Project
 from fncli.dagster.models.pull_request import PullRequest
 from fncli.dagster.models.secret import Secret
-from fncli.dagster.models.secret_provider import SecretProvider
+from fncli.dagster.models.secret_provider_name import SecretProviderName
 from fncli.dagster.models.task import Task
 from fncli.dagster.models.trigger_repository import TriggerRepository
 from fncli.dagster.models.trigger_state import TriggerState
@@ -16,7 +16,7 @@ __all__ = [
     "Project",
     "PullRequest",
     "Secret",
-    "SecretProvider",
+    "SecretProviderName",
     "Task",
     "TriggerRepository",
     "TriggerState",

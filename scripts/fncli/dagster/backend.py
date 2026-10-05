@@ -138,7 +138,7 @@ class BackendAPI:
         name: str,
         host: str,
         port: int,
-        secret_name: str,
+        secret_label: str,
         read_schema: str,
         db_type: str,
     ) -> Dataset:
@@ -148,7 +148,7 @@ class BackendAPI:
             "name": name,
             "host": host,
             "port": port,
-            "secret_name": secret_name,
+            "secret_label": secret_label,
             "read_schema": read_schema,
             "type": db_type,
         }
@@ -179,7 +179,7 @@ class BackendAPI:
         uri: str,
         provider: str,
         api_uri: str,
-        secret_name: str,
+        secret_label: str,
         watch_dir: str,
         base_branch: str,
         project_id: int,
@@ -191,7 +191,7 @@ class BackendAPI:
             "uri": uri,
             "provider": provider,
             "api_uri": api_uri,
-            "secret_name": secret_name,
+            "secret_label": secret_label,
             "watch_dir": watch_dir,
             "base_branch": base_branch,
             "initial_cursor": initial_cursor,
@@ -239,28 +239,28 @@ class BackendAPI:
         """The project's secrets, without their values"""
         return self.session.get(f"/projects/{project_id}/secrets").json()
 
-    def get_secret(self, project_id: int, name: str) -> dict:
-        """The project's secret with that project-local name"""
+    def get_secret(self, project_id: int, label: str) -> dict:
+        """The project's secret with that project-local label"""
         for secret in self.get_secrets(project_id):
-            if secret["name"] == name:
+            if secret["label"] == label:
                 return secret
-        raise ValueError(f"Secret {name} does not exist in project {project_id}")
+        raise ValueError(f"Secret {label} does not exist in project {project_id}")
 
-    def upsert_secret(self, project_id: int, name: str, values: dict[str, str]) -> dict:
+    def upsert_secret(self, project_id: int, label: str, values: dict[str, str]) -> dict:
         """
-        The backend keeps only the name, so a re-run rotates the values in the secret store.
+        The backend keeps only the label, so a re-run rotates the values in the secret store.
         Returns the secret, whose key is what it is called in the store.
         """
-        if any(secret["name"] == name for secret in self.get_secrets(project_id)):
-            self.logger.info(f"Updating secret {name} of project {project_id}")
+        if any(secret["label"] == label for secret in self.get_secrets(project_id)):
+            self.logger.info(f"Updating secret {label} of project {project_id}")
             response = self.session.patch(
-                f"/projects/{project_id}/secrets/{name}", json={"values": values}
+                f"/projects/{project_id}/secrets/{label}", json={"values": values}
             )
         else:
-            self.logger.info(f"Creating secret {name} in project {project_id}")
+            self.logger.info(f"Creating secret {label} in project {project_id}")
             response = self.session.post(
                 f"/projects/{project_id}/secrets",
-                json={"name": name, "provider": "K8S", "values": values},
+                json={"label": label, "provider": "K8S", "values": values},
             )
         return response.json()
 

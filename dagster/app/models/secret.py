@@ -1,19 +1,19 @@
 from pydantic import BaseModel, ConfigDict
 
-from app.models.secret_provider import SecretProvider
+from app.models.secret_provider_name import SecretProviderName
 
 
 class Secret(BaseModel):
     """
     A secret as the backend API nests it in a dataset or repository.
 
-    - name: the project-local name of the secret.
+    - label: the project-local identifier of the secret.
     - provider: which secret store holds it.
-    - key: what the secret is called in that store: the name is local to the project, the
-      store's is not.
+    - key: what the secret is called in that store: the label is local to the project, the
+      store's name is not. The backend generates it; nothing here derives it.
     """
     model_config = ConfigDict(extra="allow")
 
-    name: str
-    provider: SecretProvider
+    label: str
+    provider: SecretProviderName
     key: str

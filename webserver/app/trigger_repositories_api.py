@@ -83,7 +83,7 @@ def post_repository():
         raise InvalidRequest("uri is required")
     if not body.get('project_id'):
         raise InvalidRequest("project_id is required")
-    for field in ('provider', 'api_uri', 'secret_name'):
+    for field in ('provider', 'api_uri', 'secret_label'):
         if not body.get(field):
             raise InvalidRequest(f"{field} is required")
 
@@ -93,7 +93,7 @@ def post_repository():
 
     # Validate project and secret exist
     Project.get_by_id(body['project_id'])
-    secret = Secret.get_in_project(body['project_id'], body['secret_name'])
+    secret = Secret.get_in_project(body['project_id'], body['secret_label'])
 
     try:
         repo = TriggerRepository(
@@ -144,10 +144,10 @@ def patch_repository(repo_id):
             raise InvalidRequest("watch_dir cannot be empty")
         repo.watch_dir = body['watch_dir']
 
-    if 'secret_name' in body:
-        if not body['secret_name']:
-            raise InvalidRequest("secret_name cannot be empty")
-        repo.secret_id = Secret.get_in_project(repo.project_id, body['secret_name']).id
+    if 'secret_label' in body:
+        if not body['secret_label']:
+            raise InvalidRequest("secret_label cannot be empty")
+        repo.secret_id = Secret.get_in_project(repo.project_id, body['secret_label']).id
 
     for field in ('provider', 'api_uri'):
         if field in body:

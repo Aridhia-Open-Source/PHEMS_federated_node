@@ -40,7 +40,7 @@ class InitRepoConfig(EnvConfig):
         return f"{self.gitea_url}/api/v1"
 
     @property
-    def git_secret_name(self) -> str:
+    def git_secret_label(self) -> str:
         return f"{self.trigger_repo}-creds"
 
 
@@ -97,7 +97,7 @@ def init_git_secret(
 ) -> str:
     """Store a fresh Gitea token where the sensor reads it."""
     token = gitea_api.replace_token(config.gitea_token_name, ["read:repository"])
-    secret = backend_api.upsert_secret(project.id, config.git_secret_name, {"TOKEN": token})
+    secret = backend_api.upsert_secret(project.id, config.git_secret_label, {"TOKEN": token})
     stored = get_k8s_secret(
         secret_name=secret["key"], namespace=config.namespace, key="TOKEN"
     )
@@ -106,7 +106,7 @@ def init_git_secret(
             f"Secret {secret['key']} in {config.namespace} does not hold the new token"
         )
     logger.info(
-        f"Secret {config.git_secret_name} of project {project.id} is {secret['key']} "
+        f"Secret {config.git_secret_label} of project {project.id} is {secret['key']} "
         f"in namespace {config.namespace} and holds the new token "
         f"(Gitea token {config.gitea_token_name!r})"
     )
@@ -135,14 +135,14 @@ def init_backend_trigger_repo(
         uri=config.trigger_repo_uri,
         provider="gitea",
         api_uri=config.gitea_api_uri,
-        secret_name=config.git_secret_name,
+        secret_name=config.git_secret_label,
         watch_dir=config.trigger_repo_watch_dir,
         base_branch=gitea_repo["default_branch"],
         project_id=project.id,
     )
     logger.info(
         f"Backend trigger repository {repo.id}: {repo.uri} "
-        f"(provider {repo.provider}, api_uri {repo.api_uri}, secret {repo.secret.name}, "
+        f"(provider {repo.provider}, api_uri {repo.api_uri}, secret {repo.secret.label}, "
         f"branch {repo.base_branch}, watch_dir {repo.watch_dir}, project {repo.project_id}, "
         f"pr_cursor {repo.pr_cursor})"
     )
@@ -184,7 +184,7 @@ def verify_git_secret_command():
     gitea_repo = init_gitea_repo(config, build_gitea_api(config))
     backend_api = build_backend_api(config)
     project = init_backend_project(config, backend_api)
-    secret = backend_api.get_secret(project.id, config.git_secret_name)
+    secret = backend_api.get_secret(project.id, config.git_secret_label)
     token = get_k8s_secret(
         secret_name=secret["key"], namespace=config.namespace, key="TOKEN"
     )

@@ -8,8 +8,8 @@ from dagster_k8s import PipesK8sClient
 from dagster._core.pipes.client import PipesClientCompletedInvocation
 
 from app.config import PipesSecurityContextConfig
-from app.models import SecretProvider
-from app.secrets import get_secret_value
+from app.secrets import SecretProvider
+from app.models import SecretProviderName
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -221,12 +221,8 @@ class K8sPipe:
         return {'username': username, 'password': password}
 
     def _get_dataset_secret(self, key: str) -> str:
-        return get_secret_value(
-            SecretProvider(self.dataset['secret']['provider']),
-            self.dataset['secret']['key'],
-            self.namespace,
-            key,
-        )
+        provider = SecretProvider(SecretProviderName(self.dataset['secret']['provider']))
+        return provider.get(self.dataset['secret']['key'], self.namespace, key)
 
 
 class K8sPipesResponse:

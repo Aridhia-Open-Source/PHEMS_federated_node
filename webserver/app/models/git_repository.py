@@ -88,13 +88,13 @@ class GitRepositoryMixin:
             token = self.get_token()
         except KeyError:
             return ConnectionCheck(
-                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret.name} has no TOKEN"
+                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret.label} has no TOKEN"
             )
         except ApiException as e:
             if e.status != 404:
                 raise
             return ConnectionCheck(
-                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret.name} not found"
+                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret.label} not found"
             )
 
         url = f"{self.api_uri.rstrip('/')}/{GitProvider(self.provider).repo_api_path(self.repo_path)}"

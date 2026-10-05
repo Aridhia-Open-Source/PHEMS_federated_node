@@ -2694,9 +2694,9 @@
             "description": "Port for the host field",
             "example": 5432
           },
-          "secret_name": {
+          "secret_label": {
             "type": "string",
-            "description": "Name of an existing secret of the same project (see POST /projects/{project_id}/secrets; the name is local to the project) holding the credentials the Federated Node uses to access the DB, under the keys USERNAME and PASSWORD",
+            "description": "Label of an existing secret of the same project (see POST /projects/{project_id}/secrets; the label is local to the project) holding the credentials the Federated Node uses to access the DB, under the keys USERNAME and PASSWORD",
             "example": "my-dataset-creds"
           },
           "extra_connection_args": {
@@ -2739,7 +2739,7 @@
         },
         "required": [
           "name",
-          "secret_name",
+          "secret_label",
           "host",
           "project_id"
         ]

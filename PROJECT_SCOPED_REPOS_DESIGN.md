@@ -26,21 +26,24 @@ returns shortly after**, so don't build anything that blocks adding it.
   stripped), `provider`, `api_uri`, secret reference, `check_connection()`.
   `ResultsRepository` mirrors `TriggerRepository`, with its own `/results_repositories`
   endpoints and a `target_dir` (mirrors `watch_dir`).
-- Repo path is stored at creation (`owner/repo`, `group/sub/project`), not derived from `uri`.
+- Repo path (`owner/repo`, `group/sub/project`) is derived from `uri`, not stored.
   API-path building moves onto `GitProvider`.
 - `projects.results_repository_id` is dropped; the repo carries `project_id`.
 
 ### Secrets
-- `Secret` is a generic secret reference: `project_id`, project-local `name`, `provider` (only `K8S`
-  for now; another secret store is another value) and `key`, what the secret is called in its store, derived as `{project_id}-{name}`
-  for `K8S` (the real cluster secret). `UNIQUE(project_id, name)`, `UNIQUE(key)`, `UNIQUE(project_id, id)`.
+- `Secret` is a generic secret reference: `project_id`, a project-local `label`, an optional
+  `description`, `provider` (only `K8S` for now; another secret store is another value) and `key`,
+  what the secret is called in its store. The backend generates the key at creation as
+  `{project_id}-{label}` and it is fixed from then on, so a label can be renamed without touching the
+  stored secret. Clients treat it as opaque. `UNIQUE(project_id, label)`, `UNIQUE(key)`,
+  `UNIQUE(project_id, id)`.
 - Children reference the secret **by id** with a composite FK `(project_id, secret_id)`, so the
   database rejects another project's secret. The neutral column is `key`.
-- Secrets API is nested under the project and addressed by name: `/projects/<project_id>/secrets[/<name>]`
+- Secrets API is nested under the project and addressed by label: `/projects/<project_id>/secrets[/<label>]`
   (decided in review of #429; replaces `project_id` in the body and the `/secrets` path). Keep Kubernetes
-  out of API names: requests carry the project-local `secret_name`; responses nest the secret as
-  `secret: {name, provider, key}`. Dagster picks its reader by `secret.provider` and, for `K8S`, reads
-  the cluster secret directly by `secret.key`; task pods use
+  out of API names: requests carry the project-local `secret_label`; responses nest the secret as
+  `secret: {label, provider, key}`. Dagster derives nothing: a `SecretProvider` picks its store by
+  `secret.provider` (`SecretProviderName`) and, for `K8S`, reads the cluster secret directly by `secret.key`; task pods use
   `envFrom` by that name.
 - Authorization is out of scope: a colleague is reworking Keycloak and the auth decorators. Don't design
   per-project permissions here.
@@ -76,7 +79,7 @@ returns shortly after**, so don't build anything that blocks adding it.
 6. New `task_results` table.
 
 **API**
-1. `/projects/<id>/secrets[/<name>]`: store secret created under `key`, by `provider`;
+1. `/projects/<id>/secrets[/<label>]`: store secret created under `key`, by `provider`;
    409 while referenced.
 2. `/trigger_repositories`: duplicate check on `(project_id, uri)`; resolve secret within the
    project; loop-guard validation.
