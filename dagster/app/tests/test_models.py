@@ -36,27 +36,6 @@ class TestDataset:
 
         assert dataset.secret_name.startswith("db.host-")
 
-    def test_dump_task_fields_are_prefixed(self):
-        fields = Dataset(**SAMPLE_DATASET).dump_task_fields()
-
-        assert fields == {
-            "dataset_name": "My Dataset",
-            "dataset_host": "https://db.host",
-            "dataset_port": 5432,
-            "dataset_type": "postgres",
-            "dataset_schema": "cdm",
-            "dataset_schema_write": "results",
-            "dataset_secret_name": "db.host-my-dataset-creds",
-        }
-
-    def test_dump_task_fields_feed_the_pipes_op_config(self):
-        """Every key has to be a k8s_pipes_op config field."""
-        from app.definitions.pipes import k8s_pipes_op
-
-        config_fields = set(k8s_pipes_op.config_schema.as_field().config_type.fields)
-
-        assert set(Dataset(**SAMPLE_DATASET).dump_task_fields()) <= config_fields
-
     def test_unknown_backend_fields_are_kept(self):
         dataset = Dataset(**{**SAMPLE_DATASET, "extra_field": "value"})
 

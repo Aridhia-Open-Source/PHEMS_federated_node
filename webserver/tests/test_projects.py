@@ -152,7 +152,7 @@ class TestProjectDefaultDataset:
         ):
         from app.models.dataset import Dataset
         second = Dataset(
-            name="SecondDs", host="example.com", k8s_secret_id=dataset.k8s_secret_id,
+            name="SecondDs", host="example.com", secret_id=dataset.secret_id,
             project_id=project.id
         )
         second.add(user_id=user_uuid)
@@ -166,12 +166,12 @@ class TestProjectDefaultDataset:
         assert project.default_dataset_id is None
 
     def test_reseeding_sets_a_new_default(
-            self, client, project, dataset, k8s_secret, user_uuid, k8s_client, mock_kc_client
+            self, client, project, dataset, secret, user_uuid, k8s_client, mock_kc_client
         ):
         from app.models.dataset import Dataset
         dataset.delete()
         replacement = Dataset(
-            name="Reseeded", host="example.com", k8s_secret_id=k8s_secret.id,
+            name="Reseeded", host="example.com", secret_id=secret.id,
             project_id=project.id
         )
         replacement.add(user_id=user_uuid)
@@ -303,10 +303,10 @@ class TestProjectHealthcheck:
         [repo] = response.json["trigger_repositories"]
         assert repo["status"] == "secret_missing"
 
-    def test_one_bad_repository_makes_the_project_unhealthy(self, client, project, default_repo, k8s_secret, git_api, simple_admin_header):
+    def test_one_bad_repository_makes_the_project_unhealthy(self, client, project, default_repo, secret, git_api, simple_admin_header):
         TriggerRepository(
             uri="github.com/org/other", provider="github", api_uri="https://api.github.com",
-            k8s_secret_id=k8s_secret.id, watch_dir="", project_id=project.id,
+            secret_id=secret.id, watch_dir="", project_id=project.id,
         ).add()
         git_api.side_effect = [
             Mock(status_code=200, ok=True, reason="OK"),
@@ -323,10 +323,10 @@ class TestProjectHealthcheck:
         assert response.json["status"] == "error"
         git_api.assert_not_called()
 
-    def test_reports_pull_request_count_per_repository(self, client, project, default_repo, k8s_secret, git_api, simple_admin_header):
+    def test_reports_pull_request_count_per_repository(self, client, project, default_repo, secret, git_api, simple_admin_header):
         other = TriggerRepository(
             uri="github.com/org/other", provider="github", api_uri="https://api.github.com",
-            k8s_secret_id=k8s_secret.id, watch_dir="", project_id=project.id,
+            secret_id=secret.id, watch_dir="", project_id=project.id,
         )
         other.add()
         merged_at = datetime(2026, 1, 1, tzinfo=timezone.utc)

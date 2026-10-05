@@ -1,10 +1,12 @@
 from app.dtos.base import DTO, WireDatetime
+from app.models.secret_type import SecretType
 
 
-class K8sSecretDTO(DTO):
+class SecretDTO(DTO):
     id: int
     project_id: int
     name: str
-    k8s_name: str
+    secret_type: SecretType
+    store_name: str
     created_at: WireDatetime
     updated_at: WireDatetime

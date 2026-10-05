@@ -24,7 +24,7 @@ from .helpers.query_validator import validate
 from .helpers.wrappers import audit, auth
 from .models.dataset import Dataset
 from .models.extras.catalogue import Catalogue
-from .models.k8s_secret import K8sSecret
+from .models.secret import Secret
 from .models.extras.dictionary import Dictionary
 from .models.extras.request import Request
 
@@ -51,16 +51,16 @@ def _reject_credentials(body: dict | None):
     """Credentials live in a k8s secret, so sending them here is a mistake, not something to ignore."""
     if body and ("username" in body or "password" in body):
         raise InvalidRequest(
-            "username and password are not accepted. Create a secret with POST /k8s_secrets "
-            "(values USERNAME and PASSWORD) and pass its name as k8s_secret_name"
+            "username and password are not accepted. Create a secret with POST /secrets "
+            "(values USERNAME and PASSWORD) and pass its name as secret_name"
         )
 
 
 def _resolve_secret(body: dict, project_id: int) -> dict:
-    """Swaps the project-local k8s_secret_name a request carries for the secret's id."""
-    if not body.get("k8s_secret_name"):
-        raise InvalidRequest("k8s_secret_name is required")
-    body["k8s_secret_id"] = K8sSecret.get_in_project(project_id, body.pop("k8s_secret_name")).id
+    """Swaps the project-local secret_name a request carries for the secret's id."""
+    if not body.get("secret_name"):
+        raise InvalidRequest("secret_name is required")
+    body["secret_id"] = Secret.get_in_project(project_id, body.pop("secret_name")).id
     return body
 
 
@@ -138,7 +138,7 @@ def delete_datasets_by_id_or_name(
 ):
     """
     DELETE /datasets/id endpoint. Deletes the dataset. Its k8s secret is left alone: it
-        has its own lifecycle (/k8s_secrets) and other datasets may share it.
+        has its own lifecycle (/secrets) and other datasets may share it.
     """
     logger.error(f"deleting ({dataset_id or dataset_name})")
     ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
@@ -179,7 +179,7 @@ def patch_datasets_by_id_or_name(
         if not hasattr(ds, k):
             raise InvalidRequest(f"Field {k} is not a valid one")
 
-    if "k8s_secret_name" in body:
+    if "secret_name" in body:
         _resolve_secret(body, body.get("project_id", ds.project_id))
 
     try:

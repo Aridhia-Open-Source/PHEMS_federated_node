@@ -5,25 +5,26 @@ from app.models.pull_request import PullRequest
 from app.models.task import Task
 from app.models.trigger_repository import TriggerRepository
 from app.models.dataset import Dataset
-from app.models.k8s_secret import K8sSecret
+from app.models.secret import Secret
+from app.models.secret_type import SecretType
 
-# What a repository needs to say about its git host. The secret is the conftest k8s_secret.
-REPO_FIELDS = {"provider": "github", "api_uri": "https://api.github.com", "k8s_secret_name": "test-creds"}
+# What a repository needs to say about its git host. The secret is the conftest secret.
+REPO_FIELDS = {"provider": "github", "api_uri": "https://api.github.com", "secret_name": "test-creds"}
 
 
 @pytest.fixture
-def test_dataset(client, user_uuid, k8s_client, mock_kc_client, project, k8s_secret):
+def test_dataset(client, user_uuid, k8s_client, mock_kc_client, project, secret):
     """Create a test dataset for repository tests"""
-    dataset = Dataset(name="TestDatasetForRepo", host="example.com", k8s_secret_id=k8s_secret.id, project_id=project.id)
+    dataset = Dataset(name="TestDatasetForRepo", host="example.com", secret_id=secret.id, project_id=project.id)
     dataset.add(user_id=user_uuid)
     return dataset
 
 
 @pytest.fixture
-def repository(client, test_dataset, k8s_secret):
+def repository(client, test_dataset, secret):
     repo = TriggerRepository(
         uri="github.com/org/repo", provider="github", api_uri="https://api.github.com",
-        k8s_secret_id=k8s_secret.id, watch_dir="", project_id=test_dataset.project_id
+        secret_id=secret.id, watch_dir="", project_id=test_dataset.project_id
     )
     repo.add()
     return repo
@@ -122,9 +123,9 @@ class TestPostRepository:
         assert response.status_code == 201
         assert response.json["provider"] == "github"
         assert response.json["api_uri"] == "https://api.github.com"
-        assert response.json["k8s_secret_name"] == "test-creds"
+        assert response.json["secret_name"] == "test-creds"
 
-    @pytest.mark.parametrize("field", ["provider", "api_uri", "k8s_secret_name"])
+    @pytest.mark.parametrize("field", ["provider", "api_uri", "secret_name"])
     def test_create_requires_the_git_host_and_secret(self, client, post_json_admin_header, repo_post_body, field):
         del repo_post_body[field]
         response = client.post("/trigger_repositories/", data=json.dumps(repo_post_body), headers=post_json_admin_header)
@@ -170,32 +171,32 @@ class TestPatchRepository:
         assert repository.provider == "github"
 
     def test_update_to_another_secret(self, client, post_json_admin_header, repository):
-        K8sSecret(project_id=repository.project_id, name="other-creds").add()
-        response = self.patch(client, post_json_admin_header, repository, {"k8s_secret_name": "other-creds"})
+        Secret(project_id=repository.project_id, name="other-creds", secret_type=SecretType.K8S).add()
+        response = self.patch(client, post_json_admin_header, repository, {"secret_name": "other-creds"})
         assert response.status_code == 200
-        assert response.json["k8s_secret_name"] == "other-creds"
+        assert response.json["secret_name"] == "other-creds"
 
     def test_update_to_another_projects_secret_fails(self, client, post_json_admin_header, repository, other_project):
-        K8sSecret(project_id=other_project.id, name="foreign-creds").add()
-        response = self.patch(client, post_json_admin_header, repository, {"k8s_secret_name": "foreign-creds"})
+        Secret(project_id=other_project.id, name="foreign-creds", secret_type=SecretType.K8S).add()
+        response = self.patch(client, post_json_admin_header, repository, {"secret_name": "foreign-creds"})
         assert response.status_code == 400
         assert "does not exist" in response.json["error"]
-        assert repository.k8s_secret_name == "test-creds"
+        assert repository.secret_name == "test-creds"
 
     def test_create_with_another_projects_secret_fails(self, client, post_json_admin_header, repo_post_body, other_project):
-        K8sSecret(project_id=other_project.id, name="foreign-creds").add()
-        repo_post_body["k8s_secret_name"] = "foreign-creds"
+        Secret(project_id=other_project.id, name="foreign-creds", secret_type=SecretType.K8S).add()
+        repo_post_body["secret_name"] = "foreign-creds"
         response = client.post("/trigger_repositories/", data=json.dumps(repo_post_body), headers=post_json_admin_header)
         assert response.status_code == 400
         assert "does not exist" in response.json["error"]
 
     def test_update_to_a_missing_secret_fails(self, client, post_json_admin_header, repository):
-        response = self.patch(client, post_json_admin_header, repository, {"k8s_secret_name": "missing"})
+        response = self.patch(client, post_json_admin_header, repository, {"secret_name": "missing"})
         assert response.status_code == 400
         assert "does not exist" in response.json["error"]
-        assert repository.k8s_secret_name == "test-creds"
+        assert repository.secret_name == "test-creds"
 
-    @pytest.mark.parametrize("field", ["provider", "api_uri", "k8s_secret_name"])
+    @pytest.mark.parametrize("field", ["provider", "api_uri", "secret_name"])
     def test_git_host_fields_cannot_be_emptied(self, client, post_json_admin_header, repository, field):
         response = self.patch(client, post_json_admin_header, repository, {field: ""})
         assert response.status_code == 400
@@ -203,7 +204,7 @@ class TestPatchRepository:
 
     def test_update_project_id(self, client, post_json_admin_header, repository, user_uuid, k8s_client, mock_kc_client, project):
         # Create a new dataset
-        new_dataset = Dataset(name="NewDatasetForRepo", host="example.com", k8s_secret_id=repository.k8s_secret_id, project_id=project.id)
+        new_dataset = Dataset(name="NewDatasetForRepo", host="example.com", secret_id=repository.secret_id, project_id=project.id)
         new_dataset.add(user_id=user_uuid)
 
         response = client.patch(
@@ -435,7 +436,7 @@ class TestTriggerRepositoryDTO:
     def test_fields(self, repository):
         """Test that the DTO contains all expected fields"""
         sanitized = TriggerRepositoryDTO.from_model(repository).dump()
-        expected_fields = ['id', 'uri', 'path', 'provider', 'api_uri', 'k8s_secret_name', 'k8s_secret_k8s_name', 'watch_dir',
+        expected_fields = ['id', 'uri', 'path', 'provider', 'api_uri', 'secret_name', 'secret_store_name', 'watch_dir',
                            'base_branch', 'project_id', 'dataset_id', 'pr_cursor', 'pr_count']
         for field in expected_fields:
             assert field in sanitized, f"Field '{field}' missing from the DTO"
@@ -590,10 +591,10 @@ class TestPostPullRequestTask:
     def test_dataset_override_in_other_project_fails(
             self, client, post_json_admin_header, repository, pull_request, other_project, user_uuid
         ):
-        other_secret = K8sSecret(project_id=other_project.id, name="test-creds")
+        other_secret = Secret(project_id=other_project.id, name="test-creds", secret_type=SecretType.K8S)
         other_secret.add()
         other_ds = Dataset(
-            name="OtherDs", host="example.com", k8s_secret_id=other_secret.id, project_id=other_project.id
+            name="OtherDs", host="example.com", secret_id=other_secret.id, project_id=other_project.id
         )
         other_ds.add(user_id=user_uuid)
         response = self.post(

@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 
+from .secret_type import SecretType
 from .pull_request import PullRequest
 
 
@@ -16,10 +17,11 @@ class TriggerRepository(BaseModel):
     path: str
     provider: str
     api_uri: str
-    # The Kubernetes secret holding the git token, under the key TOKEN.
-    k8s_secret_name: str
-    # What the secret is called in the cluster: the name is local to the project.
-    k8s_secret_k8s_name: str
+    # The project-local name of the secret holding the git token, under the key TOKEN.
+    secret_name: str
+    secret_type: SecretType
+    # What the secret is called in its store: the name is local to the project.
+    secret_store_name: str
     watch_dir: str
     base_branch: str
     project_id: int

@@ -6,7 +6,7 @@ from app.definitions.sensors.task.launcher import TaskLauncherSensor
 from app.models import Dataset, Project, Task
 
 DATASET = Dataset(
-    id=7, project_id=1, k8s_secret_name="cdm-creds", k8s_secret_k8s_name="cdm-creds-abc", name="cdm", host="db.host", port=5432,
+    id=7, project_id=1, secret_name="cdm-creds", secret_type="K8S", secret_store_name="cdm-creds-abc", name="cdm", host="db.host", port=5432,
     read_schema="cdm", type="postgres", slug="cdm", url="https://db.host/cdm",
 )
 
@@ -54,7 +54,7 @@ def test_launches_a_pending_task():
     config = result[0].run_config["ops"]["k8s_pipes_op"]["config"]
     assert config["docker_image"] == "ghcr.io/o/i:1"
     assert config["env"] == {"K": "v"}
-    assert config["dataset_name"] == "cdm"
+    assert config["dataset"]["name"] == "cdm"
     backend_api.get_dataset.assert_called_once_with(7)
     backend_api.get_tasks.assert_called_once_with(status="PENDING", project_id=1)
 

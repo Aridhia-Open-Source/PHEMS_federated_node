@@ -16,6 +16,7 @@ from app.helpers.const import DEFAULT_NAMESPACE
 from app.helpers.kubernetes import KubernetesClient
 from app.models import Models, sqla_column
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, GitProvider
+from app.models.secret_type import SecretType
 
 
 CONNECTION_TIMEOUT = 5
@@ -41,7 +42,7 @@ class TriggerRepository(db.Model, BaseModel):
     # The secret holding the git token (under the key TOKEN). Set explicitly rather than
     # derived from uri, so repositories can share one credential. The composite foreign
     # key below keeps it to a secret of this repository's own project.
-    k8s_secret_id = sa.Column(sa.Integer, nullable=False)
+    secret_id = sa.Column(sa.Integer, nullable=False)
     watch_dir = sa.Column(sa.String(4096), nullable=False)
     base_branch = sa.Column(sa.String(256), nullable=False, default='main')
     initial_cursor = sa.Column(
@@ -53,14 +54,14 @@ class TriggerRepository(db.Model, BaseModel):
 
     __table_args__ = (
         sa.ForeignKeyConstraint(
-            ['project_id', 'k8s_secret_id'], ['k8s_secrets.project_id', 'k8s_secrets.id'],
+            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'],
             ondelete='RESTRICT'
         ),
     )
 
     project = relationship("Project", back_populates="trigger_repositories")
-    k8s_secret = relationship(
-        "K8sSecret", back_populates="trigger_repositories", overlaps="trigger_repositories,project"
+    secret = relationship(
+        "Secret", back_populates="trigger_repositories", overlaps="trigger_repositories,project"
     )
     pull_requests = relationship(
         "PullRequest", back_populates="trigger_repository", cascade="all, delete"
@@ -107,12 +108,16 @@ class TriggerRepository(db.Model, BaseModel):
         return self.project.default_dataset
 
     @property
-    def k8s_secret_name(self) -> str:
-        return self.k8s_secret.name
+    def secret_name(self) -> str:
+        return self.secret.name
 
     @property
-    def k8s_secret_k8s_name(self) -> str:
-        return self.k8s_secret.k8s_name
+    def secret_type(self) -> SecretType:
+        return self.secret.secret_type
+
+    @property
+    def secret_store_name(self) -> str:
+        return self.secret.store_name
 
     @property
     def path(self):
@@ -130,7 +135,7 @@ class TriggerRepository(db.Model, BaseModel):
         """
         The git token, read from the cluster secret this repository names.
         """
-        secret = KubernetesClient().read_namespaced_secret(self.k8s_secret_k8s_name, DEFAULT_NAMESPACE)
+        secret = KubernetesClient().read_namespaced_secret(self.secret_store_name, DEFAULT_NAMESPACE)
         if secret.data is None:
             raise KeyError("TOKEN")
         return KubernetesClient.decode_secret_value(secret.data['TOKEN'])
@@ -145,13 +150,13 @@ class TriggerRepository(db.Model, BaseModel):
             token = self.get_token()
         except KeyError:
             return ConnectionCheck(
-                ConnectionStatus.SECRET_MISSING, f"Secret {self.k8s_secret_name} has no TOKEN"
+                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret_name} has no TOKEN"
             )
         except ApiException as e:
             if e.status != 404:
                 raise
             return ConnectionCheck(
-                ConnectionStatus.SECRET_MISSING, f"Secret {self.k8s_secret_name} not found"
+                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret_name} not found"
             )
 
         url = f"{self.api_uri.rstrip('/')}/repos/{self.path}"
@@ -212,7 +217,7 @@ class TriggerRepository(db.Model, BaseModel):
         uri: str,
         provider: str,
         api_uri: str,
-        k8s_secret_id: int,
+        secret_id: int,
         watch_dir: str,
         project_id: int,
         base_branch: str = 'main',
@@ -221,7 +226,7 @@ class TriggerRepository(db.Model, BaseModel):
         self.uri = uri
         self.provider = provider
         self.api_uri = api_uri
-        self.k8s_secret_id = k8s_secret_id
+        self.secret_id = secret_id
         self.watch_dir = watch_dir
         self.project_id = project_id
         self.base_branch = base_branch

@@ -205,23 +205,6 @@ class TestDatasets:
         assert session.post.call_args.kwargs["json"]["type"] == "postgres"
 
 
-class TestRequests:
-    def test_create_request_returns_the_raw_response(self, api, session):
-        response = make_response({"id": 1})
-        session.post.return_value = response
-
-        assert api.create_request(
-            title="t", description="d", project_name="p", requested_by="dev",
-            proj_start="2026-01-01", proj_end="2026-02-01", dataset_id=1,
-        ) is response
-        assert session.post.call_args.kwargs["raise_for_status"] is False
-
-    def test_approve_request(self, api, session):
-        assert api.approve_request(7) is True
-        assert session.patch.call_args.args[0] == "/requests/7"
-        assert session.patch.call_args.kwargs["json"] == {"status": "approved"}
-
-
 SAMPLE_PROJECT = {"id": 1, "name": "proj", "enabled": True, "default_dataset_id": 1}
 SAMPLE_TASK = {
     "id": 9, "name": "t", "docker_image": "a/b:1", "spec": {"image": "a/b:1"}, "attempt": 1, "trigger_id": 4, "status": "PENDING", "requested_by": "u",

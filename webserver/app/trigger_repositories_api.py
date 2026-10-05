@@ -23,7 +23,7 @@ from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.dtos.task_spec import TaskSpec
 from app.helpers.wrappers import auth
-from app.models.k8s_secret import K8sSecret
+from app.models.secret import Secret
 from app.models.project import Project
 from app.models.pull_request import PullRequest
 from app.models.task import Task
@@ -82,7 +82,7 @@ def post_repository():
         raise InvalidRequest("uri is required")
     if not body.get('project_id'):
         raise InvalidRequest("project_id is required")
-    for field in ('provider', 'api_uri', 'k8s_secret_name'):
+    for field in ('provider', 'api_uri', 'secret_name'):
         if not body.get(field):
             raise InvalidRequest(f"{field} is required")
 
@@ -92,14 +92,14 @@ def post_repository():
 
     # Validate project and secret exist
     Project.get_by_id(body['project_id'])
-    secret = K8sSecret.get_in_project(body['project_id'], body['k8s_secret_name'])
+    secret = Secret.get_in_project(body['project_id'], body['secret_name'])
 
     try:
         repo = TriggerRepository(
             uri=uri,
             provider=body['provider'],
             api_uri=body['api_uri'],
-            k8s_secret_id=secret.id,
+            secret_id=secret.id,
             watch_dir=body.get('watch_dir', ''),
             project_id=body['project_id'],
             base_branch=body.get('base_branch', 'main'),
@@ -137,10 +137,10 @@ def patch_repository(repo_id):
             raise InvalidRequest("watch_dir cannot be empty")
         repo.watch_dir = body['watch_dir']
 
-    if 'k8s_secret_name' in body:
-        if not body['k8s_secret_name']:
-            raise InvalidRequest("k8s_secret_name cannot be empty")
-        repo.k8s_secret_id = K8sSecret.get_in_project(repo.project_id, body['k8s_secret_name']).id
+    if 'secret_name' in body:
+        if not body['secret_name']:
+            raise InvalidRequest("secret_name cannot be empty")
+        repo.secret_id = Secret.get_in_project(repo.project_id, body['secret_name']).id
 
     for field in ('provider', 'api_uri'):
         if field in body:
