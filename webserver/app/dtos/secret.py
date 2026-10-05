@@ -3,7 +3,7 @@ from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 
 
-class SecretRefDTO(DTO):
+class SecretProviderDTO(DTO):
     label: str
     provider: SecretProviderType
     key: str

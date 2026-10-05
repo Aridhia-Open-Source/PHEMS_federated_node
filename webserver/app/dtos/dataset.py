@@ -1,13 +1,13 @@
 from app.dtos.base import DTO, WireDatetime
 from app.helpers.const import PUBLIC_URL
-from app.dtos.secret import SecretRefDTO
+from app.dtos.secret import SecretProviderDTO
 from app.models.dataset import Dataset
 
 
 class DatasetDTO(DTO):
     id: int
     project_id: int
-    secret: SecretRefDTO
+    secret: SecretProviderDTO
     name: str
     host: str
     port: int | None
@@ -26,7 +26,7 @@ class DatasetDTO(DTO):
         return cls(
             id=obj.id,
             project_id=obj.project_id,
-            secret=SecretRefDTO.from_model(obj.secret),
+            secret=SecretProviderDTO.from_model(obj.secret),
             name=obj.name,
             host=obj.host,
             port=obj.port,
