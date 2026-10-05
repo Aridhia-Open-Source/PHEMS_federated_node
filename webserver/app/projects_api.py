@@ -4,6 +4,7 @@ project endpoints:
 - GET /projects/<project_id>
 - POST /projects
 - PATCH /projects/<project_id>
+- DELETE /projects/<project_id>
 - GET /projects/<project_id>/healthcheck
 """
 
@@ -18,9 +19,13 @@ from app.dtos.project import (
 )
 from app.helpers.query_filters import parse_query_params
 from app.helpers.wrappers import audit, auth
+from app.models.extras.request import Request
 from app.models.git_provider import ConnectionStatus
 from app.models.project import Project
 from app.models.pull_request import PullRequest
+from app.models.secret import Secret
+from app.models.task import Task
+from app.secrets_api import SecretProvider
 
 
 bp = Blueprint('projects', __name__, url_prefix='/projects')
@@ -88,6 +93,46 @@ def patch_project(project_id: int):
     project.enabled = body["enabled"]
     db.session.commit()
     return ProjectDTO.from_model(project).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:project_id>', methods=['DELETE'])
+@audit
+@auth(scope='can_admin_dataset')
+def delete_project(project_id: int):
+    """
+    DELETE /projects/<project_id> endpoint. Deletes the project and everything under it:
+    tasks, requests, datasets, repositories and secrets. The stored secret values go after
+    the database commit.
+    """
+    # Hard delete for now, a soft delete option can come later. Keycloak entries of the
+    # datasets are left behind, as with DELETE /datasets.
+    project = Project.get_by_id(project_id)
+    project_secrets = Secret.query.filter_by(project_id=project.id).all()
+    secrets = [(s.provider, s.key, s.namespace) for s in project_secrets]
+
+    # Dependency order: most of these foreign keys to the project are RESTRICT.
+    try:
+        for task in Task.query.filter_by(project_id=project.id):
+            task.delete(False)
+        for request_ in Request.query.filter_by(project_id=project.id):
+            request_.delete(False)
+        for dataset in project.datasets:
+            dataset.delete(False)
+        for repo in project.trigger_repositories:
+            repo.delete(False)
+        for repo in project.results_repositories:
+            repo.delete(False)
+        for secret in project_secrets:
+            secret.delete(False)
+        project.delete(False)
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        raise InvalidRequest("Error while deleting the record") from exc
+
+    for provider, key, namespace in secrets:
+        SecretProvider(provider).delete(key, namespace)
+    return '', HTTPStatus.NO_CONTENT
 
 
 @bp.route('/<int:project_id>/healthcheck', methods=['GET'])
