@@ -1,6 +1,14 @@
 from pydantic import BaseModel
 
-from app.models import Dataset, SecretType
+from app.models import Dataset, SecretProviderType
+
+
+class PipesSecretConfig(BaseModel):
+    """Where a dataset's secret is: the store that holds it and what it is called there."""
+
+    provider: SecretProviderType
+    key: str
+    namespace: str | None
 
 
 class PipesDatasetConfig(BaseModel):
@@ -12,8 +20,7 @@ class PipesDatasetConfig(BaseModel):
     type: str
     read_schema: str | None
     write_schema: str | None
-    secret_type: SecretType
-    secret_store_name: str
+    secret: PipesSecretConfig
 
 
 class K8sPipesOpConfig(BaseModel):

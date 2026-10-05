@@ -1,10 +1,34 @@
-from app.k8s import get_k8s_secret
-from app.models import SecretType
+import base64
+from typing import cast
 
-# How to read a secret's value, by the store it lives in.
-READERS = {SecretType.K8S: get_k8s_secret}
+from kubernetes import client
+from kubernetes.client import V1Secret
+from kubernetes.config import load_incluster_config
+
+from app.models import SecretProviderType
 
 
-def get_secret_value(secret_type: SecretType, store_name: str, namespace: str, key: str) -> str:
-    """The value stored under key in a secret, read from the store the secret lives in."""
-    return READERS[secret_type](store_name, namespace, key)
+class K8sSecretProvider:
+    """Reads secret values from Kubernetes."""
+
+    def get(self, key: str, namespace: str, value_key: str) -> str:
+        """The decoded value stored under value_key in a Kubernetes secret."""
+        load_incluster_config()
+        v1 = client.CoreV1Api()
+        secret = cast(V1Secret, v1.read_namespaced_secret(key, namespace))
+        if secret.data is None:
+            raise ValueError(f"Secret {key} has no data")
+        return base64.b64decode(secret.data[value_key].encode()).decode()
+
+
+class SecretProvider:
+    """Reads secret values from the store the provider name selects."""
+
+    PROVIDERS = {SecretProviderType.K8S: K8sSecretProvider}
+
+    def __init__(self, name: SecretProviderType):
+        self.provider = self.PROVIDERS[name]()
+
+    def get(self, key: str, namespace: str, value_key: str) -> str:
+        """The value stored under value_key in the secret that the store knows as key."""
+        return self.provider.get(key, namespace, value_key)

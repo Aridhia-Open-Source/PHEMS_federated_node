@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 
-from .secret_type import SecretType
-from .pull_request import PullRequest
+from fncli.dagster.models.secret import Secret
+from fncli.dagster.models.pull_request import PullRequest
 
 
 class TriggerRepository(BaseModel):
@@ -14,14 +14,10 @@ class TriggerRepository(BaseModel):
 
     id: int
     uri: str
-    repo_path: str
     provider: str
     api_uri: str
-    # The project-local name of the secret holding the git token, under the key TOKEN.
-    secret_name: str
-    secret_type: SecretType
-    # What the secret is called in its store: the name is local to the project.
-    secret_store_name: str
+    # The secret holding the git token, under the key TOKEN.
+    secret: Secret
     watch_dir: str
     base_branch: str
     project_id: int
@@ -31,3 +27,12 @@ class TriggerRepository(BaseModel):
     pr_cursor: str
     pr_count: int = 0
     pull_requests: list[PullRequest] = Field(default_factory=list)
+
+    @property
+    def repo_path(self) -> str:
+        """
+        Where the repository is on the provider's API (owner/repo): the last two path
+        segments of the uri. Right for GitHub and Gitea; GitLab nested groups, Bitbucket
+        Server and Azure DevOps need provider-specific handling.
+        """
+        return "/".join(self.uri.split("/")[-2:])

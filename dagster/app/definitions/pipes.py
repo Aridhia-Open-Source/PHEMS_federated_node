@@ -8,8 +8,8 @@ from dagster_k8s import PipesK8sClient
 from dagster._core.pipes.client import PipesClientCompletedInvocation
 
 from app.config import PipesSecurityContextConfig
-from app.models import SecretType
-from app.secrets import get_secret_value
+from app.secrets import SecretProvider
+from app.models import SecretProviderType
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -33,8 +33,7 @@ TERMINATION_GRACE_PERIOD_SECONDS = 300
                     "type": str,
                     "read_schema": dg.Noneable(str),
                     "write_schema": dg.Noneable(str),
-                    "secret_type": str,
-                    "secret_store_name": str,
+                    "secret": dg.Shape({"provider": str, "key": str, "namespace": dg.Noneable(str)}),
                 }
             ),
             is_required=False,
@@ -222,12 +221,9 @@ class K8sPipe:
         return {'username': username, 'password': password}
 
     def _get_dataset_secret(self, key: str) -> str:
-        return get_secret_value(
-            SecretType(self.dataset['secret_type']),
-            self.dataset['secret_store_name'],
-            self.namespace,
-            key,
-        )
+        provider = SecretProvider(SecretProviderType(self.dataset['secret']['provider']))
+        secret = self.dataset['secret']
+        return provider.get(secret['key'], secret['namespace'], key)
 
 
 class K8sPipesResponse:

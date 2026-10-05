@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from .trigger_state import TriggerState
+from fncli.dagster.models.trigger_state import TriggerState
 
 
 class PullRequest(BaseModel):

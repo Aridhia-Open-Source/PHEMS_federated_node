@@ -52,16 +52,18 @@ def upgrade() -> None:
         'secrets',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=False),
-        sa.Column('name', sa.String(length=253), nullable=False),
-        sa.Column('secret_type', sa.Enum('K8S', name='secrettype'), nullable=False),
-        sa.Column('store_name', sa.String(length=253), nullable=False),
+        sa.Column('label', sa.String(length=253), nullable=False),
+        sa.Column('description', sa.String(length=4096), nullable=True),
+        sa.Column('provider', sa.Enum('K8S', name='secretprovidertype'), nullable=False),
+        sa.Column('key', sa.String(length=253), nullable=False),
+        sa.Column('namespace', sa.String(length=253), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('project_id', 'name'),
+        sa.UniqueConstraint('project_id', 'label'),
         sa.UniqueConstraint('project_id', 'id'),
-        sa.UniqueConstraint('store_name'),
+        sa.UniqueConstraint('key'),
     )
 
     # Create datasets table
@@ -95,7 +97,6 @@ def upgrade() -> None:
         sa.Column('uri', sa.String(length=4096), nullable=False),
         sa.Column('provider', sa.String(length=16), nullable=False),
         sa.Column('api_uri', sa.String(length=4096), nullable=False),
-        sa.Column('repo_path', sa.String(length=4096), nullable=False),
         sa.Column('secret_id', sa.Integer(), nullable=False),
         sa.Column('watch_dir', sa.String(length=4096), nullable=False),
         sa.Column('base_branch', sa.String(length=256), nullable=False, server_default='main'),
@@ -118,7 +119,6 @@ def upgrade() -> None:
         sa.Column('uri', sa.String(length=4096), nullable=False),
         sa.Column('provider', sa.String(length=16), nullable=False),
         sa.Column('api_uri', sa.String(length=4096), nullable=False),
-        sa.Column('repo_path', sa.String(length=4096), nullable=False),
         sa.Column('secret_id', sa.Integer(), nullable=False),
         sa.Column('target_dir', sa.String(length=4096), nullable=False),
         sa.Column('owned_by_federated_node', sa.Boolean(), nullable=False, server_default=sa.true()),
@@ -351,7 +351,7 @@ def downgrade() -> None:
     op.drop_table('trigger_repositories')
     op.drop_table('datasets')
     op.drop_table('secrets')
-    sa.Enum(name='secrettype').drop(op.get_bind())
+    sa.Enum(name='secretprovidertype').drop(op.get_bind())
     op.drop_index('ix_projects_id', 'projects')
     op.drop_table('projects')
     op.drop_table('audit')

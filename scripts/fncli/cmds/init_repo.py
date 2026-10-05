@@ -10,12 +10,12 @@ import logging
 import click
 from pydantic import Field
 
-from ..dagster.backend import BackendAPI
-from ..dagster.config import EnvConfig
-from ..dagster.gitea import GiteaAdminAPI, GiteaAdminClient, GiteaAPI, GiteaClient
-from ..dagster.k8s import get_k8s_secret
-from ..dagster.models import Project, TriggerRepository
-from ..dagster.utils import BackendAdapter, BackendSession
+from fncli.dagster.backend import BackendAPI
+from fncli.dagster.config import EnvConfig
+from fncli.dagster.gitea import GiteaAdminAPI, GiteaAdminClient, GiteaAPI, GiteaClient
+from fncli.dagster.k8s import get_k8s_secret
+from fncli.dagster.models import Project, TriggerRepository
+from fncli.dagster.utils import BackendAdapter, BackendSession
 
 logger = logging.getLogger("init_repo")
 
@@ -40,7 +40,7 @@ class InitRepoConfig(EnvConfig):
         return f"{self.gitea_url}/api/v1"
 
     @property
-    def git_secret_name(self) -> str:
+    def git_secret_label(self) -> str:
         return f"{self.trigger_repo}-creds"
 
 
@@ -97,17 +97,17 @@ def init_git_secret(
 ) -> str:
     """Store a fresh Gitea token where the sensor reads it."""
     token = gitea_api.replace_token(config.gitea_token_name, ["read:repository"])
-    secret = backend_api.upsert_secret(project.id, config.git_secret_name, {"TOKEN": token})
+    secret = backend_api.upsert_secret(project.id, config.git_secret_label, {"TOKEN": token})
     stored = get_k8s_secret(
-        secret_name=secret["store_name"], namespace=config.namespace, key="TOKEN"
+        secret_name=secret["key"], namespace=secret["namespace"], key="TOKEN"
     )
     if stored != token:
         raise RuntimeError(
-            f"Secret {secret['store_name']} in {config.namespace} does not hold the new token"
+            f"Secret {secret['key']} in {secret['namespace']} does not hold the new token"
         )
     logger.info(
-        f"Secret {config.git_secret_name} of project {project.id} is {secret['store_name']} "
-        f"in namespace {config.namespace} and holds the new token "
+        f"Secret {config.git_secret_label} of project {project.id} is {secret['key']} "
+        f"in namespace {secret['namespace']} and holds the new token "
         f"(Gitea token {config.gitea_token_name!r})"
     )
     return token
@@ -135,15 +135,14 @@ def init_backend_trigger_repo(
         uri=config.trigger_repo_uri,
         provider="gitea",
         api_uri=config.gitea_api_uri,
-        secret_name=config.git_secret_name,
+        secret_name=config.git_secret_label,
         watch_dir=config.trigger_repo_watch_dir,
         base_branch=gitea_repo["default_branch"],
         project_id=project.id,
-        repo_path=gitea_repo["full_name"],
     )
     logger.info(
         f"Backend trigger repository {repo.id}: {repo.uri} "
-        f"(provider {repo.provider}, api_uri {repo.api_uri}, secret {repo.secret_name}, "
+        f"(provider {repo.provider}, api_uri {repo.api_uri}, secret {repo.secret.label}, "
         f"branch {repo.base_branch}, watch_dir {repo.watch_dir}, project {repo.project_id}, "
         f"pr_cursor {repo.pr_cursor})"
     )
@@ -185,9 +184,9 @@ def verify_git_secret_command():
     gitea_repo = init_gitea_repo(config, build_gitea_api(config))
     backend_api = build_backend_api(config)
     project = init_backend_project(config, backend_api)
-    secret = backend_api.get_secret(project.id, config.git_secret_name)
+    secret = backend_api.get_secret(project.id, config.git_secret_label)
     token = get_k8s_secret(
-        secret_name=secret["store_name"], namespace=config.namespace, key="TOKEN"
+        secret_name=secret["key"], namespace=secret["namespace"], key="TOKEN"
     )
     verify_gitea_accepts_bearer_token(config=config, token=token, gitea_repo=gitea_repo)
 

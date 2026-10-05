@@ -55,10 +55,9 @@ def github_api(context) -> GithubAPI:
     return GithubAPI(client)
 
 
-@dg.resource(required_resource_keys={"kubernetes_config"})
+@dg.resource
 def git_apis(context) -> GitAPIFactory:
-    config = context.resources.kubernetes_config
-    return GitAPIFactory(namespace=config.namespace)
+    return GitAPIFactory()
 
 
 RESOURCES = {

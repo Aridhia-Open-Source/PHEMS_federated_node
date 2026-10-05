@@ -9,7 +9,6 @@ from sqlalchemy.orm import validates
 from app.helpers.const import DEFAULT_NAMESPACE
 from app.helpers.kubernetes import KubernetesClient
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, GitProvider
-from app.models.secret_type import SecretType
 
 
 CONNECTION_TIMEOUT = 5
@@ -32,9 +31,6 @@ class GitRepositoryMixin:
     provider = sa.Column(sa.String(16), nullable=False)
     # The scheme is stripped from uri, so the provider's API base URL is kept explicitly.
     api_uri = sa.Column(sa.String(4096), nullable=False)
-    # Where the repository is on the provider's API (owner/repo). Stored rather than derived
-    # from uri, which can carry a sub-path when the provider is installed under one.
-    repo_path = sa.Column(sa.String(4096), nullable=False)
     # The secret holding the git token (under the key TOKEN). Set explicitly rather than
     # derived from uri, so repositories can share one credential. The composite foreign
     # key keeps it to a secret of this repository's own project.
@@ -56,18 +52,6 @@ class GitRepositoryMixin:
             valid = ', '.join(p.value for p in GitProvider)
             raise ValueError(f"provider must be one of: {valid}")
 
-    @property
-    def secret_name(self) -> str:
-        return self.secret.name
-
-    @property
-    def secret_type(self) -> SecretType:
-        return self.secret.secret_type
-
-    @property
-    def secret_store_name(self) -> str:
-        return self.secret.store_name
-
     @classmethod
     def parse_repo_uri(cls, uri: str) -> str:
         """
@@ -76,18 +60,20 @@ class GitRepositoryMixin:
         parsed = urllib.parse.urlparse(uri)
         return (parsed.netloc + parsed.path).lower().rstrip('/')
 
-    @classmethod
-    def derive_repo_path(cls, uri: str) -> str:
+    @property
+    def repo_path(self) -> str:
         """
-        The uri without its host, for when the repository is at the root of its provider.
+        Where the repository is on the provider's API (owner/repo): the last two path
+        segments of the uri. Right for GitHub and Gitea; GitLab nested groups, Bitbucket
+        Server and Azure DevOps need provider-specific handling.
         """
-        return '/'.join(cls.parse_repo_uri(uri).split('/')[1:])
+        return '/'.join(self.uri.split('/')[-2:])
 
     def get_token(self) -> str:
         """
         The git token, read from the cluster secret this repository names.
         """
-        secret = KubernetesClient().read_namespaced_secret(self.secret_store_name, DEFAULT_NAMESPACE)
+        secret = KubernetesClient().read_namespaced_secret(self.secret.key, DEFAULT_NAMESPACE)
         if secret.data is None:
             raise KeyError("TOKEN")
         return KubernetesClient.decode_secret_value(secret.data['TOKEN'])
@@ -102,13 +88,13 @@ class GitRepositoryMixin:
             token = self.get_token()
         except KeyError:
             return ConnectionCheck(
-                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret_name} has no TOKEN"
+                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret.label} has no TOKEN"
             )
         except ApiException as e:
             if e.status != 404:
                 raise
             return ConnectionCheck(
-                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret_name} not found"
+                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret.label} not found"
             )
 
         url = f"{self.api_uri.rstrip('/')}/{GitProvider(self.provider).repo_api_path(self.repo_path)}"

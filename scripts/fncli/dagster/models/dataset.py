@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from .secret_type import SecretType
+from fncli.dagster.models.secret import Secret
 
 
 class Dataset(BaseModel):
@@ -9,11 +9,7 @@ class Dataset(BaseModel):
 
     - id: the dataset's id.
     - project_id: the project the dataset belongs to.
-    - secret_name: the project-local name of the secret holding the database credentials
-      (USERNAME and PASSWORD).
-    - secret_type: which secret store holds that secret.
-    - secret_store_name: what the secret is called in that store: the name is local to the
-      project, the store's is not.
+    - secret: the secret holding the database credentials (USERNAME and PASSWORD).
     - name: the database name.
     - host: the database host.
     - port: the database port.
@@ -30,9 +26,7 @@ class Dataset(BaseModel):
 
     id: int
     project_id: int
-    secret_name: str
-    secret_type: SecretType
-    secret_store_name: str
+    secret: Secret
     name: str
     host: str
     port: int

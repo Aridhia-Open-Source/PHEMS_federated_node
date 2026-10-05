@@ -1,18 +1,16 @@
 from datetime import datetime
 
 from app.dtos.base import DTO
+from app.dtos.secret import SecretDTO
 from app.models.trigger_repository import TriggerRepository
 
 
 class TriggerRepositoryDTO(DTO):
     id: int
     uri: str
-    repo_path: str
     provider: str
     api_uri: str
-    secret_name: str
-    secret_type: str
-    secret_store_name: str
+    secret: SecretDTO
     watch_dir: str
     base_branch: str
     project_id: int
@@ -26,12 +24,9 @@ class TriggerRepositoryDTO(DTO):
         return cls(
             id=obj.id,
             uri=obj.uri,
-            repo_path=obj.repo_path,
             provider=obj.provider,
             api_uri=obj.api_uri,
-            secret_name=obj.secret_name,
-            secret_type=obj.secret_type.value,
-            secret_store_name=obj.secret_store_name,
+            secret=SecretDTO.from_model(obj.secret),
             watch_dir=obj.watch_dir,
             base_branch=obj.base_branch,
             project_id=obj.project_id,

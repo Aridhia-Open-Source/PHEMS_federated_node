@@ -23,23 +23,27 @@ returns shortly after**, so don't build anything that blocks adding it.
 - Many trigger repos per project (already true). Results repos: **one per project to start**,
   behind a named unique constraint and a single accessor so it can grow later.
 - `TriggerRepository` and `ResultsRepository` share a base: `project_id`, `uri` (scheme
-  stripped), `provider`, `api_uri`, stored repo path, secret reference, `check_connection()`.
+  stripped), `provider`, `api_uri`, secret reference, `check_connection()`.
   `ResultsRepository` mirrors `TriggerRepository`, with its own `/results_repositories`
   endpoints and a `target_dir` (mirrors `watch_dir`).
-- Repo path is stored at creation (`owner/repo`, `group/sub/project`), not derived from `uri`.
+- Repo path (`owner/repo`, `group/sub/project`) is derived from `uri`, not stored.
   API-path building moves onto `GitProvider`.
 - `projects.results_repository_id` is dropped; the repo carries `project_id`.
 
 ### Secrets
-- `Secret` is a generic secret reference: `project_id`, project-local `name`, `secret_type` (only `K8S`
-  for now; another secret store is another value) and `store_name`, derived as `{project_id}-{name}`
-  for `K8S` (the real cluster secret). `UNIQUE(project_id, name)`, `UNIQUE(store_name)`, `UNIQUE(project_id, id)`.
+- `Secret` is a generic secret reference: `project_id`, a project-local `label`, an optional
+  `description`, `provider` (only `K8S` for now; another secret store is another value) and `key`,
+  what the secret is called in its store. The backend generates the key at creation as
+  `{project_id}-{label}` and it is fixed from then on, so a label can be renamed without touching the
+  stored secret. Clients treat it as opaque. `UNIQUE(project_id, label)`, `UNIQUE(key)`,
+  `UNIQUE(project_id, id)`.
 - Children reference the secret **by id** with a composite FK `(project_id, secret_id)`, so the
-  database rejects another project's secret. The neutral column is `store_name`, not `key`.
-- Secrets API is nested under the project and addressed by name: `/projects/<project_id>/secrets[/<name>]`
+  database rejects another project's secret. The neutral column is `key`.
+- Secrets API is nested under the project and addressed by label: `/projects/<project_id>/secrets[/<label>]`
   (decided in review of #429; replaces `project_id` in the body and the `/secrets` path). Keep Kubernetes
-  out of API names: children carry `secret_name` and `secret_type`. Dagster picks its reader by
-  `secret_type` and, for `K8S`, reads the cluster secret directly by `secret_store_name`; task pods use
+  out of API names: requests carry the project-local `secret_label`; responses nest the secret as
+  `secret: {label, provider, key}`. Dagster derives nothing: a `SecretProvider` picks its store by
+  `secret.provider` (`SecretProviderType`) and, for `K8S`, reads the cluster secret directly by `secret.key`; task pods use
   `envFrom` by that name.
 - Authorization is out of scope: a colleague is reworking Keycloak and the auth decorators. Don't design
   per-project permissions here.
@@ -66,8 +70,8 @@ returns shortly after**, so don't build anything that blocks adding it.
 ## Stage 1: DB and API
 
 **DB** (fold into `001_baseline`, fresh DB)
-1. `secrets`: add `project_id`, `store_name` and the unique constraints.
-2. Shared repo base with the composite secret FK and stored repo path.
+1. `secrets`: add `project_id`, `key` and the unique constraints.
+2. Shared repo base with the composite secret FK. `repo_path` is not stored: it is derived from `uri` (last two path segments, right for GitHub and Gitea; GitLab nested groups, Bitbucket Server and Azure DevOps need provider-specific handling later), in one place per side.
 3. `trigger_repositories`: use the base; unique `(project_id, uri)`.
 4. `results_repositories`: use the base, add `project_id` and `target_dir`; drop
    `projects.results_repository_id`.
@@ -75,18 +79,18 @@ returns shortly after**, so don't build anything that blocks adding it.
 6. New `task_results` table.
 
 **API**
-1. `/projects/<id>/secrets[/<name>]`: store secret created under `store_name`, by `secret_type`;
+1. `/projects/<id>/secrets[/<label>]`: store secret created under `key`, by `provider`;
    409 while referenced.
 2. `/trigger_repositories`: duplicate check on `(project_id, uri)`; resolve secret within the
    project; loop-guard validation.
 3. `/results_repositories`: new, mirrors trigger repos.
-4. `/projects/<id>/healthcheck`: both repo types; secret read through `store_name`.
+4. `/projects/<id>/healthcheck`: both repo types; secret read through `key`.
 5. `GitProvider` API paths; DTOs, OpenAPI, tests and fixtures.
 6. Task results: read endpoint(s) only.
-7. Follow-on: `fncli` passes `project_id`, reads the token back by `store_name`.
+7. Follow-on: `fncli` passes `project_id`, reads the token back by `key`.
 
 ## Stage 2: Dagster (outline only)
-- Models and `GitAPIFactory` read secrets through `store_name`.
+- Models and `GitAPIFactory` read secrets through `key`.
 - Success sensor: results to local Gitea, create the `TaskResult` rows.
 - Replication sensor: push branch upstream, find or open the PR, update the row.
 - `GitAPI` gains find-PR-by-branch and create-PR for Gitea and GitHub.

@@ -7,7 +7,7 @@ from app.definitions.sensors.base import BaseSensor
 from app.gitea import GiteaAPI, GiteaClient
 from app.github import GithubAPI, GithubClient
 from app.models import TriggerRepository
-from app.secrets import get_secret_value
+from app.secrets import SecretProvider
 
 
 class GitAPI(Protocol):
@@ -28,11 +28,8 @@ class GitAPIFactory:
     the secret it names, so every repository authenticates as itself.
     """
 
-    def __init__(self, namespace: str):
-        self.namespace = namespace
-
     def for_repository(self, repo: TriggerRepository) -> GitAPI:
-        token = get_secret_value(repo.secret_type, repo.secret_store_name, self.namespace, "TOKEN")
+        token = SecretProvider(repo.secret.provider).get(repo.secret.key, repo.secret.namespace, "TOKEN")
         match repo.provider:
             case "github":
                 return GithubAPI(GithubClient(token=token, base_uri=repo.api_uri))

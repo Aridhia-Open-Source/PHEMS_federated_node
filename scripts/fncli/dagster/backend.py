@@ -1,8 +1,8 @@
 import logging
 from urllib.parse import urlparse
 
-from .utils import BackendSession
-from .models import TriggerRepository, PullRequest, Dataset, Project
+from fncli.dagster.utils import BackendSession
+from fncli.dagster.models import TriggerRepository, PullRequest, Dataset, Project
 
 default_logger = logging.getLogger(__name__)
 
@@ -138,7 +138,7 @@ class BackendAPI:
         name: str,
         host: str,
         port: int,
-        secret_name: str,
+        secret_label: str,
         read_schema: str,
         db_type: str,
     ) -> Dataset:
@@ -148,7 +148,7 @@ class BackendAPI:
             "name": name,
             "host": host,
             "port": port,
-            "secret_name": secret_name,
+            "secret_label": secret_label,
             "read_schema": read_schema,
             "type": db_type,
         }
@@ -179,11 +179,10 @@ class BackendAPI:
         uri: str,
         provider: str,
         api_uri: str,
-        secret_name: str,
+        secret_label: str,
         watch_dir: str,
         base_branch: str,
         project_id: int,
-        repo_path: str,
         initial_cursor: str | None = None,
     ) -> TriggerRepository:
         """Create a repository"""
@@ -192,12 +191,11 @@ class BackendAPI:
             "uri": uri,
             "provider": provider,
             "api_uri": api_uri,
-            "secret_name": secret_name,
+            "secret_label": secret_label,
             "watch_dir": watch_dir,
             "base_branch": base_branch,
             "initial_cursor": initial_cursor,
             "project_id": project_id,
-            "repo_path": repo_path,
         }
         response = self.session.post("/trigger_repositories", json=data)
         return TriggerRepository(**response.json())
@@ -241,28 +239,28 @@ class BackendAPI:
         """The project's secrets, without their values"""
         return self.session.get(f"/projects/{project_id}/secrets").json()
 
-    def get_secret(self, project_id: int, name: str) -> dict:
-        """The project's secret with that project-local name"""
+    def get_secret(self, project_id: int, label: str) -> dict:
+        """The project's secret with that project-local label"""
         for secret in self.get_secrets(project_id):
-            if secret["name"] == name:
+            if secret["label"] == label:
                 return secret
-        raise ValueError(f"Secret {name} does not exist in project {project_id}")
+        raise ValueError(f"Secret {label} does not exist in project {project_id}")
 
-    def upsert_secret(self, project_id: int, name: str, values: dict[str, str]) -> dict:
+    def upsert_secret(self, project_id: int, label: str, values: dict[str, str]) -> dict:
         """
-        The backend keeps only the name, so a re-run rotates the values in the secret store.
-        Returns the secret, whose store_name is what it is called in the store.
+        The backend keeps only the label, so a re-run rotates the values in the secret store.
+        Returns the secret, whose key is what it is called in the store.
         """
-        if any(secret["name"] == name for secret in self.get_secrets(project_id)):
-            self.logger.info(f"Updating secret {name} of project {project_id}")
+        if any(secret["label"] == label for secret in self.get_secrets(project_id)):
+            self.logger.info(f"Updating secret {label} of project {project_id}")
             response = self.session.patch(
-                f"/projects/{project_id}/secrets/{name}", json={"values": values}
+                f"/projects/{project_id}/secrets/{label}", json={"values": values}
             )
         else:
-            self.logger.info(f"Creating secret {name} in project {project_id}")
+            self.logger.info(f"Creating secret {label} in project {project_id}")
             response = self.session.post(
                 f"/projects/{project_id}/secrets",
-                json={"name": name, "secret_type": "K8S", "values": values},
+                json={"label": label, "provider": "K8S", "values": values},
             )
         return response.json()
 

@@ -68,13 +68,13 @@ def post_repository():
     POST /results_repositories/ — create a new repository. A project has one.
     """
     body = request.json or {}
-    for field in ('uri', 'project_id', 'provider', 'api_uri', 'secret_name', 'target_dir'):
+    for field in ('uri', 'project_id', 'provider', 'api_uri', 'secret_label', 'target_dir'):
         if not body.get(field):
             raise InvalidRequest(f"{field} is required")
 
     # Validate project and secret exist
     Project.get_by_id(body['project_id'])
-    secret = Secret.get_in_project(body['project_id'], body['secret_name'])
+    secret = Secret.get_in_project(body['project_id'], body['secret_label'])
 
     if ResultsRepository.query.filter_by(project_id=body['project_id']).first():
         raise InvalidRequest(
@@ -91,7 +91,6 @@ def post_repository():
             target_dir=body['target_dir'],
             project_id=body['project_id'],
             owned_by_federated_node=body.get('owned_by_federated_node', True),
-            repo_path=body.get('repo_path'),
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
@@ -126,10 +125,10 @@ def patch_repository(repo_id):
             raise InvalidRequest("target_dir cannot be empty")
         repo.target_dir = body['target_dir']
 
-    if 'secret_name' in body:
-        if not body['secret_name']:
-            raise InvalidRequest("secret_name cannot be empty")
-        repo.secret_id = Secret.get_in_project(repo.project_id, body['secret_name']).id
+    if 'secret_label' in body:
+        if not body['secret_label']:
+            raise InvalidRequest("secret_label cannot be empty")
+        repo.secret_id = Secret.get_in_project(repo.project_id, body['secret_label']).id
 
     if 'owned_by_federated_node' in body:
         repo.owned_by_federated_node = body['owned_by_federated_node']

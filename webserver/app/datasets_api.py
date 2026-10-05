@@ -52,15 +52,15 @@ def _reject_credentials(body: dict | None):
     if body and ("username" in body or "password" in body):
         raise InvalidRequest(
             "username and password are not accepted. Create a secret with POST /secrets "
-            "(values USERNAME and PASSWORD) and pass its name as secret_name"
+            "(values USERNAME and PASSWORD) and pass its label as secret_label"
         )
 
 
 def _resolve_secret(body: dict, project_id: int) -> dict:
-    """Swaps the project-local secret_name a request carries for the secret's id."""
-    if not body.get("secret_name"):
-        raise InvalidRequest("secret_name is required")
-    body["secret_id"] = Secret.get_in_project(project_id, body.pop("secret_name")).id
+    """Swaps the project-local secret_label a request carries for the secret's id."""
+    if not body.get("secret_label"):
+        raise InvalidRequest("secret_label is required")
+    body["secret_id"] = Secret.get_in_project(project_id, body.pop("secret_label")).id
     return body
 
 
@@ -179,7 +179,7 @@ def patch_datasets_by_id_or_name(
         if not hasattr(ds, k):
             raise InvalidRequest(f"Field {k} is not a valid one")
 
-    if "secret_name" in body:
+    if "secret_label" in body:
         _resolve_secret(body, body.get("project_id", ds.project_id))
 
     try:

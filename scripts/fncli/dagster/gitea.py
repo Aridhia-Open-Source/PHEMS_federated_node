@@ -2,7 +2,7 @@ import base64
 import logging
 from datetime import datetime as dt
 
-from .utils import HttpClient
+from fncli.dagster.utils import HttpClient
 
 GITEA_API_BASE_URL = "http://gitea.fn.svc:3000/api/v1"
 

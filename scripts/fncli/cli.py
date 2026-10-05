@@ -9,7 +9,7 @@ import logging
 import click
 from dotenv import find_dotenv, load_dotenv
 
-from .cmds import hello_world, init_repo
+from fncli.cmds import hello_world, init_repo
 
 
 @click.group()
