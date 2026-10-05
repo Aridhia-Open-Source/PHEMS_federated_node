@@ -188,13 +188,14 @@ class GithubTransferOperation:
             f"Run ID: {parent_run_id}"
         )
         delivery_full = f"{delivery_owner}/{delivery_repo}"
-        pr_url = self.github_api.create_pull_request(
+        pr = self.github_api.create_pull_request(
             delivery_full,
             branch,
             self.config.base_branch,
             title,
             body,
         )
+        pr_url = pr["html_url"]
         self.log.info(f"Pull request created: {pr_url}")
         return pr_url
 

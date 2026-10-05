@@ -119,13 +119,23 @@ class GithubAPI:
         )
         return response.status_code == 200
 
+    def find_pull_request_by_branch(self, repo_path: str, head_branch: str, base_branch: str) -> dict | None:
+        """Fetch the open or closed PR from head_branch into base_branch, or None if there is none."""
+        owner = repo_path.split("/")[0]
+        response = self.client.request(
+            "GET", f"repos/{repo_path}/pulls",
+            params={"head": f"{owner}:{head_branch}", "base": base_branch, "state": "all"},
+        )
+        pulls = response.json()
+        return pulls[0] if pulls else None
+
     def create_pull_request(
-        self, repo_path: str, head: str, base: str, title: str, body: str
-    ) -> str:
-        """Create a pull request and return its URL."""
+        self, repo_path: str, head_branch: str, base_branch: str, title: str, body: str
+    ) -> dict:
+        """Create a pull request from head_branch into base_branch."""
         response = self.client.request(
             "POST",
             f"repos/{repo_path}/pulls",
-            json={"title": title, "body": body, "head": head, "base": base},
+            json={"title": title, "body": body, "head": head_branch, "base": base_branch},
         )
-        return response.json()["html_url"]
+        return response.json()
