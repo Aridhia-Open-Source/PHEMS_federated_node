@@ -139,7 +139,6 @@ def init_backend_trigger_repo(
         watch_dir=config.trigger_repo_watch_dir,
         base_branch=gitea_repo["default_branch"],
         project_id=project.id,
-        repo_path=gitea_repo["full_name"],
     )
     logger.info(
         f"Backend trigger repository {repo.id}: {repo.uri} "

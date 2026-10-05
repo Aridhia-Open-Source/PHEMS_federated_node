@@ -42,12 +42,10 @@ class ResultsRepository(GitRepositoryMixin, db.Model, BaseModel):
         target_dir: str,
         project_id: int,
         owned_by_federated_node: bool = True,
-        repo_path: str | None = None,
     ):
         self.uri = uri
         self.provider = provider
         self.api_uri = api_uri
-        self.repo_path = repo_path or self.derive_repo_path(uri)
         self.secret_id = secret_id
         self.target_dir = target_dir
         self.project_id = project_id

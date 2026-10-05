@@ -14,7 +14,6 @@ class TriggerRepository(BaseModel):
 
     id: int
     uri: str
-    repo_path: str
     provider: str
     api_uri: str
     # The secret holding the git token, under the key TOKEN.
@@ -28,3 +27,12 @@ class TriggerRepository(BaseModel):
     pr_cursor: str
     pr_count: int = 0
     pull_requests: list[PullRequest] = Field(default_factory=list)
+
+    @property
+    def repo_path(self) -> str:
+        """
+        Where the repository is on the provider's API (owner/repo): the last two path
+        segments of the uri. Right for GitHub and Gitea; GitLab nested groups, Bitbucket
+        Server and Azure DevOps need provider-specific handling.
+        """
+        return "/".join(self.uri.split("/")[-2:])

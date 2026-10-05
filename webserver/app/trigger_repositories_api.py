@@ -105,7 +105,6 @@ def post_repository():
             project_id=body['project_id'],
             base_branch=body.get('base_branch', 'main'),
             initial_cursor=body.get('initial_cursor'),
-            repo_path=body.get('repo_path'),
         )
     except ValueError as e:
         raise InvalidRequest(str(e))

@@ -91,12 +91,10 @@ class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
         project_id: int,
         base_branch: str = 'main',
         initial_cursor: dt | None = None,
-        repo_path: str | None = None,
     ):
         self.uri = uri
         self.provider = provider
         self.api_uri = api_uri
-        self.repo_path = repo_path or self.derive_repo_path(uri)
         self.secret_id = secret_id
         self.watch_dir = watch_dir
         self.project_id = project_id

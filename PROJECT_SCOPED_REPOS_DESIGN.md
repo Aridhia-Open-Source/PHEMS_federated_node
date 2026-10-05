@@ -23,7 +23,7 @@ returns shortly after**, so don't build anything that blocks adding it.
 - Many trigger repos per project (already true). Results repos: **one per project to start**,
   behind a named unique constraint and a single accessor so it can grow later.
 - `TriggerRepository` and `ResultsRepository` share a base: `project_id`, `uri` (scheme
-  stripped), `provider`, `api_uri`, stored repo path, secret reference, `check_connection()`.
+  stripped), `provider`, `api_uri`, secret reference, `check_connection()`.
   `ResultsRepository` mirrors `TriggerRepository`, with its own `/results_repositories`
   endpoints and a `target_dir` (mirrors `watch_dir`).
 - Repo path is stored at creation (`owner/repo`, `group/sub/project`), not derived from `uri`.
@@ -68,7 +68,7 @@ returns shortly after**, so don't build anything that blocks adding it.
 
 **DB** (fold into `001_baseline`, fresh DB)
 1. `secrets`: add `project_id`, `key` and the unique constraints.
-2. Shared repo base with the composite secret FK and stored repo path.
+2. Shared repo base with the composite secret FK. `repo_path` is not stored: it is derived from `uri` (last two path segments, right for GitHub and Gitea; GitLab nested groups, Bitbucket Server and Azure DevOps need provider-specific handling later), in one place per side.
 3. `trigger_repositories`: use the base; unique `(project_id, uri)`.
 4. `results_repositories`: use the base, add `project_id` and `target_dir`; drop
    `projects.results_repository_id`.

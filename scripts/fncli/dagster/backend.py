@@ -183,7 +183,6 @@ class BackendAPI:
         watch_dir: str,
         base_branch: str,
         project_id: int,
-        repo_path: str,
         initial_cursor: str | None = None,
     ) -> TriggerRepository:
         """Create a repository"""
@@ -197,7 +196,6 @@ class BackendAPI:
             "base_branch": base_branch,
             "initial_cursor": initial_cursor,
             "project_id": project_id,
-            "repo_path": repo_path,
         }
         response = self.session.post("/trigger_repositories", json=data)
         return TriggerRepository(**response.json())

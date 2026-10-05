@@ -91,7 +91,6 @@ def post_repository():
             target_dir=body['target_dir'],
             project_id=body['project_id'],
             owned_by_federated_node=body.get('owned_by_federated_node', True),
-            repo_path=body.get('repo_path'),
         )
     except ValueError as e:
         raise InvalidRequest(str(e))

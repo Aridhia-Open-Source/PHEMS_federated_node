@@ -31,9 +31,6 @@ class GitRepositoryMixin:
     provider = sa.Column(sa.String(16), nullable=False)
     # The scheme is stripped from uri, so the provider's API base URL is kept explicitly.
     api_uri = sa.Column(sa.String(4096), nullable=False)
-    # Where the repository is on the provider's API (owner/repo). Stored rather than derived
-    # from uri, which can carry a sub-path when the provider is installed under one.
-    repo_path = sa.Column(sa.String(4096), nullable=False)
     # The secret holding the git token (under the key TOKEN). Set explicitly rather than
     # derived from uri, so repositories can share one credential. The composite foreign
     # key keeps it to a secret of this repository's own project.
@@ -63,12 +60,14 @@ class GitRepositoryMixin:
         parsed = urllib.parse.urlparse(uri)
         return (parsed.netloc + parsed.path).lower().rstrip('/')
 
-    @classmethod
-    def derive_repo_path(cls, uri: str) -> str:
+    @property
+    def repo_path(self) -> str:
         """
-        The uri without its host, for when the repository is at the root of its provider.
+        Where the repository is on the provider's API (owner/repo): the last two path
+        segments of the uri. Right for GitHub and Gitea; GitLab nested groups, Bitbucket
+        Server and Azure DevOps need provider-specific handling.
         """
-        return '/'.join(cls.parse_repo_uri(uri).split('/')[1:])
+        return '/'.join(self.uri.split('/')[-2:])
 
     def get_token(self) -> str:
         """
