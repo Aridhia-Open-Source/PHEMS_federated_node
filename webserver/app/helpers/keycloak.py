@@ -595,6 +595,27 @@ class Keycloak:
 
         return scope_response.json()[0]
 
+    def delete_resource(self, resource_name:str):
+        """
+        Given a resource name, delete the resource from Keycloak
+        """
+        # TODO: not implemented yet
+        raise NotImplementedError("TODO: delete a Keycloak resource")
+
+    def delete_permission(self, permission_name:str):
+        """
+        Given a permission name, delete the permission from Keycloak
+        """
+        # TODO: not implemented yet
+        raise NotImplementedError("TODO: delete a Keycloak permission")
+
+    def delete_policy(self, name:str):
+        """
+        Given a policy name, delete the policy from Keycloak
+        """
+        # TODO: not implemented yet
+        raise NotImplementedError("TODO: delete a Keycloak policy")
+
     def create_client(self, client_name:str, token_lifetime:int) -> dict:
         """
         Create a new client for a given project. If it exist already,

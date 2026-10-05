@@ -93,7 +93,8 @@ class Dataset(db.Model, BaseModel):
         if project.default_dataset_id is None:
             project.default_dataset_id = self.id
             project.add(commit)
-        self.add_to_keycloak(user_id)
+        # TODO: Keycloak registration for datasets is detached for now. Re-attach
+        # self.add_to_keycloak(user_id) when the Keycloak/authorization rework lands.
         return self
 
     @classmethod
@@ -171,9 +172,9 @@ class Dataset(db.Model, BaseModel):
         Updates the instance with new values. These should be
         already validated.
         """
-        # The Keycloak resource name is derived from the dataset's name, so this runs
-        # before the UPDATE, while self still holds the old one.
-        self.update_keycloak(**kwargs)
+        # TODO: Keycloak resource renaming is detached for now. Re-attach
+        # self.update_keycloak(**kwargs) (before the UPDATE, while self still holds
+        # the old name) when the Keycloak/authorization rework lands.
 
         # Query.update() takes a dict of column -> value
         values = {k: v for k, v in kwargs.items() if k in self._get_fields_name()}
@@ -181,6 +182,18 @@ class Dataset(db.Model, BaseModel):
             self.query.filter(Dataset.id == self.id).update(
                 values, synchronize_session='evaluate'
             )
+
+    def remove_from_keycloak(self):
+        """
+        Delete what add_to_keycloak creates: the resource, its admin permission
+        and its admin policy.
+        """
+        # TODO: delete the resource f"{self.id}-{self.name}", the permission
+        # f"{self.id}-{self.name} Admin Permission" and the policy
+        # f"{self.id} - {self.name} Admin Policy"
+        raise NotImplementedError(
+            "TODO: delete the dataset's Keycloak resource, permission and policy"
+        )
 
     def update_keycloak(self, **kwargs):
         kc_client = Keycloak()
