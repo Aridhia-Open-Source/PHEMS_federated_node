@@ -149,6 +149,16 @@ class TestDatasetConfig:
         with pytest.raises(ValueError, match="Incomplete dataset configuration"):
             make_pipe(**config)
 
+    @pytest.mark.parametrize("schema, env_name", [("read_schema", "CDM_SCHEMA"), ("write_schema", "WRITE_SCHEMA")])
+    def test_a_dataset_without_a_schema_is_accepted(self, pipes_env, schema, env_name):
+        """A dataset's schemas are optional (Noneable in the op config and on the model)."""
+        config = {"dataset": {**DATASET_CONFIG["dataset"], schema: None}}
+
+        pipe = make_pipe(**config)
+
+        assert pipe.dataset[schema] is None
+        assert env_name not in pipe.env
+
     def test_dataset_schemas_are_exported_to_the_container(self, pipes_env):
         pipe = make_pipe(**DATASET_CONFIG)
 
