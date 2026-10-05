@@ -20,7 +20,7 @@ def parse(files, contents=None):
     git_api = MagicMock()
     git_api.get_pull_request_files.return_value = files
     git_api.get_file_contents.return_value = contents
-    repo = MagicMock(path="org/repo", watch_dir="specs/")
+    repo = MagicMock(repo_path="org/repo", watch_dir="specs/")
     return PullRequestParser(git_api, repo, MagicMock()).parse(pr()), git_api
 
 
@@ -75,7 +75,7 @@ def test_a_git_failure_raises_instead_of_rejecting():
     git_api = MagicMock()
     git_api.get_pull_request_files.return_value = [WATCHED]
     git_api.get_file_contents.side_effect = ConnectionError("git down")
-    repo = MagicMock(path="org/repo", watch_dir="specs/")
+    repo = MagicMock(repo_path="org/repo", watch_dir="specs/")
 
     with pytest.raises(ConnectionError):
         PullRequestParser(git_api, repo, MagicMock()).parse(pr())
