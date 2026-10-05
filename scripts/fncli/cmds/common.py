@@ -25,6 +25,10 @@ class GiteaConfig(EnvConfig):
         return f"{self.gitea_url}/api/v1"
 
 
+class DagsterConfig(EnvConfig):
+    dagster_url: str = Field(default="http://localhost:3000", alias="DAGSTER_URL")
+
+
 class BackendConfig(EnvConfig):
     keycloak_namespace: str = Field(default="", alias="KEYCLOAK_NAMESPACE")
     backend_url: str = Field(default="", alias="BACKEND_URL")
