@@ -1,5 +1,6 @@
 import base64
 import logging
+import time
 from datetime import datetime as dt
 
 from fncli.dagster.utils import HttpClient
@@ -197,8 +198,22 @@ class GiteaAdminAPI:
         return response.json()
 
     def merge_pull_request(self, repo_path: str, pr_number: int) -> None:
-        """Merge the pull request with a merge commit."""
+        """Merge the pull request with a merge commit. Retries on 405 (mergeability computing)."""
         self.logger.info(f"Merging PR #{pr_number} in {repo_path}")
-        self.client.request(
-            "POST", f"repos/{repo_path}/pulls/{pr_number}/merge", json={"Do": "merge"}
-        )
+        max_attempts = 10
+        for attempt in range(1, max_attempts + 1):
+            try:
+                self.client.request(
+                    "POST", f"repos/{repo_path}/pulls/{pr_number}/merge", json={"Do": "merge"}
+                )
+                return
+            except Exception as e:
+                if hasattr(e, 'response') and hasattr(e.response, 'status_code') and e.response.status_code == 405:
+                    if attempt < max_attempts:
+                        self.logger.info(f"Merge returned 405, retrying (attempt {attempt}/{max_attempts})")
+                        time.sleep(3)
+                    else:
+                        self.logger.error(f"Merge failed with 405 after {max_attempts} attempts")
+                        raise
+                else:
+                    raise

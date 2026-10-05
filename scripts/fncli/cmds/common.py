@@ -43,7 +43,7 @@ class RepoConfig(GiteaConfig, ProjectConfig):
     # The address the sensor uses from inside the cluster.
     gitea_api_uri: str = Field(default="", alias="GITEA_API_URI")
     # Set when the repo comes from a backend record: the label that record's secret has.
-    backend_secret_label: str = ""
+    backend_secret_label: str = Field(default="", validate_default=False)
     token_scope: ClassVar[str]
 
     @property

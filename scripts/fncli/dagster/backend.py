@@ -178,7 +178,7 @@ class BackendAPI:
     def find_dataset(self, name: str, project_id: int) -> Dataset | None:
         """The project's dataset of that name, if any"""
         for dataset in self.get_datasets():
-            if dataset.project_id == project_id and dataset.name == name:
+            if dataset.project_id == project_id and dataset.name.lower() == name.lower():
                 return dataset
         return None
 

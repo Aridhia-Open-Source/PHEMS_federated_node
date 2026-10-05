@@ -70,7 +70,7 @@ step 2.
 
 ## Usage
 
-Run commands from anywhere inside the repo: `.dev.env` is found by searching up from the current directory. `fncli --help` lists the commands.
+Run commands from anywhere inside the repo: `.dev.env` is found by searching up from the current directory. `fncli --help` lists the commands. fncli reads secrets from the CURRENT kubectl context, which must be `kind-fn`.
 
 ### Quick start
 
@@ -108,10 +108,10 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 | `setup-project` | Runs, in order: `init-backend-project`, `init-gitea-repo` (trigger, results), `init-git-secret` (trigger, results), `init-dataset-secret`, `init-backend-trigger-repo`, `init-backend-results-repo`, `init-backend-dataset`, `verify-git-secret` (trigger, results), `project-healthcheck` |
 | `open-pr [--kind] [--merge]` | Runs `create-gitea-branch`, `commit-gitea-file`, `create-gitea-pr`, and with `--merge` `merge-gitea-pr` |
 | `setup-backend` | Backend only, no Gitea: `init-backend-project`, `init-backend-secret` (trigger, results, dataset), `init-backend-trigger-repo --base-branch main`, `init-backend-results-repo`, `init-backend-dataset` |
-| `teardown-backend [-y]` | Backend only: `delete-backend-dataset`, `delete-backend-results-repo`, `delete-backend-trigger-repo`, `delete-secret` (trigger, results, dataset), `delete-backend-project` |
+| `teardown-backend [-y]` | Backend only: `delete-backend-project`, then `delete-backend-dataset`, `delete-backend-results-repo`, `delete-backend-trigger-repo`, `delete-secret` (trigger, results, dataset) |
 | `setup-gitea [--project]` | Gitea only, repos taken from the project's backend records (`--from-backend`): `init-gitea-repo` (trigger, results), `init-git-secret` (trigger, results; writes into the record's secret), `verify-git-secret` (trigger, results) |
 | `teardown-gitea [-y] [--project]` | Gitea only, same records: `delete-gitea-token` (trigger, results), `delete-gitea-repo` (trigger, results) |
-| `teardown-project [-y]` | After asking (`-y` / `--yes` skips the prompt), runs: `delete-backend-dataset`, `delete-backend-results-repo`, `delete-backend-trigger-repo`, `delete-secret` (trigger, results, dataset), `delete-backend-project`, `delete-gitea-token` (trigger, results), `delete-gitea-repo` (trigger, results). Both Gitea repos are always deleted |
+| `teardown-project [-y]` | After asking (`-y` / `--yes` skips the prompt), runs: `delete-backend-project` first, then `delete-backend-dataset`, `delete-backend-results-repo`, `delete-backend-trigger-repo`, `delete-secret` (trigger, results, dataset), `delete-gitea-token` (trigger, results), `delete-gitea-repo` (trigger, results). Both Gitea repos are always deleted |
 
 ### Step commands, by entity
 
@@ -148,7 +148,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 
 | Command | What it does |
 |---|---|
-| `init-backend-dataset` | Registers the dummy dataset (needs the dataset secret, and Keycloak working) |
+| `init-backend-dataset` | Registers the dummy dataset (needs the dataset secret) |
 | `delete-backend-dataset` | Deletes the dataset record from the backend |
 
 **Pull request** (`cmds/pr.py`; the file name, branch and title carry a timestamp, so it can be re-run)

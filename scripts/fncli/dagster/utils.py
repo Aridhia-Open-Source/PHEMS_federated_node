@@ -58,7 +58,7 @@ class HttpClient:
         **kwargs,
     ) -> requests.Response:
         url = f"{self._base_uri}/{path.lstrip('/')}"
-        response = self._session.request(method, url, timeout=10, **kwargs)
+        response = self._session.request(method, url, timeout=60, **kwargs)
         if raise_for_status:
             response.raise_for_status()
         return response
@@ -84,7 +84,7 @@ class BaseHttpAdapter(HTTPAdapter):
 
     retry_limit = 3
     backoff_factor = 0.5
-    default_timeout = 10
+    default_timeout = 60
     retry_status_forcelist = {429}
 
     def __init__(
