@@ -150,7 +150,11 @@ whose spec has an unknown field, so the PR is rejected.
 
 `hello-world` prints a greeting, to check the CLI is installed.
 
-`--role` is `trigger` (default) or `results`. Each command reads only the env vars it uses,
+`--role` is `trigger` (default) or `results`. Steps that are the same for both repos (Gitea
+repo, git secret, verify, Gitea token) take `--role`; steps that differ in fields or
+endpoints (the backend trigger repository vs results repository) are separate commands.
+
+Each command reads only the env vars it uses,
 all documented in `.dev.env.example`: the existing ones, plus `TEST_RESULTS_REPO`,
 `TEST_RESULTS_REPO_URI`, `TEST_RESULTS_TARGET_DIR`, `GITEA_RESULTS_TOKEN_NAME` (must differ
 from `GITEA_TOKEN_NAME`), `DEFAULT_PROJECT_DATASET` and `TEST_PR_IMAGE`.
@@ -200,9 +204,9 @@ remove that too, unless something else you use installs into `~/.local/bin`.
 scripts/fncli/
   cli.py            click group; loads .dev.env and registers commands
   cmds/             the commands, one module per entity (each has its init- and delete- commands)
-    common.py       config classes, API builders and helpers shared by the modules
+    common.py       env config classes and the Gitea and backend API builders
     actions.py      group commands: setup-project, open-pr, teardown-project
-    project.py      the backend project
+    project.py      the backend project, and the find/init helpers the other entities use
     repository.py   Gitea repos and the backend trigger/results repository records
     secret.py       Gitea token and dataset secrets
     dataset.py      the backend dataset record

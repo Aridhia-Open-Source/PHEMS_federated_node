@@ -7,10 +7,32 @@ import logging
 
 import click
 
-from fncli.cmds.common import ProjectConfig, build_backend_api, find_project, init_backend_project
+from fncli.cmds.common import ProjectConfig, build_backend_api
 from fncli.dagster.backend import BackendAPI
+from fncli.dagster.models import Project
 
 logger = logging.getLogger("project")
+
+
+def init_backend_project(config: ProjectConfig, backend_api: BackendAPI) -> Project:
+    """The simulation needs sensors to act on this project, so make sure it is enabled."""
+    project = backend_api.get_or_create_project(
+        name=config.project_name,
+        description="Trigger-repository simulation",
+        enabled=True,
+    )
+    if not project.enabled:
+        project = backend_api.patch_project(project.id, {"enabled": True})
+    logger.info(f"Backend project: {project.name} (id {project.id}, enabled {project.enabled})")
+    return project
+
+
+def find_project(config: ProjectConfig, backend_api: BackendAPI) -> Project | None:
+    """For the delete steps: a project that is already gone is not an error."""
+    project = backend_api.find_project(config.project_name)
+    if project is None:
+        logger.info(f"Backend project {config.project_name} does not exist")
+    return project
 
 
 @click.command("init-backend-project")

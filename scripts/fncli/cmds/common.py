@@ -3,7 +3,6 @@ Config and helpers shared by the commands: what the env holds, and the Gitea and
 APIs built from it.
 """
 
-import logging
 from typing import ClassVar
 
 import click
@@ -13,10 +12,7 @@ from fncli.dagster.backend import BackendAPI
 from fncli.dagster.config import EnvConfig
 from fncli.dagster.gitea import GiteaAdminAPI, GiteaAdminClient
 from fncli.dagster.k8s import get_k8s_secret
-from fncli.dagster.models import Project
 from fncli.dagster.utils import BackendAdapter, BackendSession
-
-logger = logging.getLogger("common")
 
 class GiteaConfig(EnvConfig):
     # Host-side script, so it needs the port-forwarded addresses, not in-cluster DNS.
@@ -118,24 +114,3 @@ def build_backend_api(config: BackendConfig) -> BackendAPI:
         ),
     )
     return BackendAPI(BackendSession(adapter))
-
-
-def init_backend_project(config: ProjectConfig, backend_api: BackendAPI) -> Project:
-    """The simulation needs sensors to act on this project, so make sure it is enabled."""
-    project = backend_api.get_or_create_project(
-        name=config.project_name,
-        description="Trigger-repository simulation",
-        enabled=True,
-    )
-    if not project.enabled:
-        project = backend_api.patch_project(project.id, {"enabled": True})
-    logger.info(f"Backend project: {project.name} (id {project.id}, enabled {project.enabled})")
-    return project
-
-
-def find_project(config: ProjectConfig, backend_api: BackendAPI) -> Project | None:
-    """For the delete steps: a project that is already gone is not an error."""
-    project = backend_api.find_project(config.project_name)
-    if project is None:
-        logger.info(f"Backend project {config.project_name} does not exist")
-    return project

@@ -7,7 +7,8 @@ import logging
 
 import click
 
-from fncli.cmds.common import DatasetConfig, build_backend_api, find_project, init_backend_project
+from fncli.cmds.common import DatasetConfig, build_backend_api
+from fncli.cmds.project import find_project, init_backend_project
 from fncli.dagster.backend import BackendAPI
 from fncli.dagster.models import Dataset, Project
 

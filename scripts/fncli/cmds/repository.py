@@ -14,10 +14,9 @@ from fncli.cmds.common import (
     TriggerRepoConfig,
     build_backend_api,
     build_gitea_api,
-    find_project,
-    init_backend_project,
     role_option,
 )
+from fncli.cmds.project import find_project, init_backend_project
 from fncli.dagster.backend import BackendAPI
 from fncli.dagster.gitea import GiteaAdminAPI
 from fncli.dagster.models import Project, ResultsRepository, TriggerRepository

@@ -14,10 +14,9 @@ from fncli.cmds.common import (
     RepoConfig,
     build_backend_api,
     build_gitea_api,
-    find_project,
-    init_backend_project,
     role_option,
 )
+from fncli.cmds.project import find_project, init_backend_project
 from fncli.cmds.repository import init_gitea_repo
 from fncli.dagster.backend import BackendAPI
 from fncli.dagster.gitea import GiteaAdminAPI, GiteaAPI, GiteaClient
