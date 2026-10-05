@@ -1,3 +1,5 @@
+# TODO(DAR): the DTO was removed while this is disconnected; restore DARDTO from git history
+# (commit fd5cf66a) before re-attaching.
 """
 request-related endpoints:
 - GET /requests
@@ -11,7 +13,6 @@ from flask import Blueprint, request
 
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from app.dtos.dar import DARDTO
 from app.helpers.query_filters import parse_query_params
 from app.helpers.wrappers import audit, auth
 from app.models.dataset import Dataset

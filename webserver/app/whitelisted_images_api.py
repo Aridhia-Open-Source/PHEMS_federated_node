@@ -1,5 +1,7 @@
 # TODO(whitelisted_images): blueprint not registered in app/__init__.py, disconnected for now,
 # revisit with the authorization rework.
+# TODO(whitelisted_images): the DTO was removed while this is disconnected; restore
+# WhitelistedImageDTO from git history (commit fd5cf66a) before re-attaching.
 """
 whitelisted image endpoints:
 - GET /whitelisted_images
@@ -16,7 +18,6 @@ from .helpers.base_model import db
 from .helpers.const import ENABLE_IMAGE_WHITELIST
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from .dtos.base import page_of
-from .dtos.whitelisted_image import WhitelistedImageDTO
 from .helpers.query_filters import parse_query_params
 from .helpers.wrappers import audit, auth
 from .models.extras.registry import Registry
