@@ -135,9 +135,21 @@ def delete_secret_command(role):
         logger.info(f"Secret {config.secret_label} of project {project.id} does not exist")
 
 
+@click.command("delete-gitea-token")
+@role_option
+def delete_gitea_token_command(role):
+    """Delete the Gitea token that init-git-secret created for a repo."""
+    config = ROLE_CONFIGS[role]()
+    if build_gitea_api(config).delete_token(config.token_name):
+        logger.info(f"Deleted Gitea token {config.token_name!r}")
+    else:
+        logger.info(f"Gitea token {config.token_name!r} does not exist")
+
+
 COMMANDS = [
     init_git_secret_command,
     init_dataset_secret_command,
     verify_git_secret_command,
     delete_secret_command,
+    delete_gitea_token_command,
 ]

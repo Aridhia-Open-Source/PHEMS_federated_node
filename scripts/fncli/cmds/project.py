@@ -1,7 +1,5 @@
 """
-Commands for the webserver Project, and the two that run every step of the dev project in
-order: `setup-project` builds it and `teardown-project` takes it down again. Each step is
-its own idempotent command (what is already gone is logged, not an error).
+Commands for the webserver Project. Deleting what is already gone is logged, not an error.
 """
 
 import json
@@ -9,27 +7,7 @@ import logging
 
 import click
 
-from fncli.cmds.common import (
-    ProjectConfig,
-    build_backend_api,
-    find_project,
-    init_backend_project,
-)
-from fncli.cmds.dataset import delete_backend_dataset_command, init_backend_dataset_command
-from fncli.cmds.repository import (
-    delete_backend_results_repo_command,
-    delete_backend_trigger_repo_command,
-    delete_gitea_repo_command,
-    init_backend_results_repo_command,
-    init_backend_trigger_repo_command,
-    init_gitea_repo_command,
-)
-from fncli.cmds.secret import (
-    delete_secret_command,
-    init_dataset_secret_command,
-    init_git_secret_command,
-    verify_git_secret_command,
-)
+from fncli.cmds.common import ProjectConfig, build_backend_api, find_project, init_backend_project
 from fncli.dagster.backend import BackendAPI
 
 logger = logging.getLogger("project")
@@ -73,64 +51,8 @@ def project_healthcheck_command():
         raise click.exceptions.Exit(1)
 
 
-# Each step with the options it runs with.
-SETUP_STEPS = [
-    (init_backend_project_command, {}),
-    (init_gitea_repo_command, {"role": "trigger"}),
-    (init_gitea_repo_command, {"role": "results"}),
-    (init_git_secret_command, {"role": "trigger"}),
-    (init_git_secret_command, {"role": "results"}),
-    (init_dataset_secret_command, {}),
-    (init_backend_trigger_repo_command, {}),
-    (init_backend_results_repo_command, {}),
-    (init_backend_dataset_command, {}),
-    (verify_git_secret_command, {"role": "trigger"}),
-    (verify_git_secret_command, {"role": "results"}),
-    (project_healthcheck_command, {}),
-]
-
-
-@click.command("setup-project")
-@click.pass_context
-def setup_project_command(ctx):
-    """Set up a whole dev project: two Gitea repos, secrets, and the backend records."""
-    for step, options in SETUP_STEPS:
-        logger.info(f"=== {step.name} {options or ''} ===")
-        ctx.invoke(step, **options)
-
-
-# Each step with the options it runs with. A secret goes after what uses it.
-TEARDOWN_STEPS = [
-    (delete_backend_dataset_command, {}),
-    (delete_backend_results_repo_command, {}),
-    (delete_backend_trigger_repo_command, {}),
-    (delete_secret_command, {"role": "trigger"}),
-    (delete_secret_command, {"role": "results"}),
-    (delete_secret_command, {"role": "dataset"}),
-    (delete_backend_project_command, {}),
-    (delete_gitea_repo_command, {"role": "trigger"}),
-    (delete_gitea_repo_command, {"role": "results"}),
-]
-
-
-@click.command("teardown-project")
-@click.confirmation_option(
-    "-y",
-    "--yes",
-    prompt="Delete the project, its secrets and both Gitea repos with all their pull requests?",
-)
-@click.pass_context
-def teardown_project_command(ctx):
-    """Delete the whole dev project, including both Gitea repos."""
-    for step, options in TEARDOWN_STEPS:
-        logger.info(f"=== {step.name} {options or ''} ===")
-        ctx.invoke(step, **options)
-
-
 COMMANDS = [
     init_backend_project_command,
     delete_backend_project_command,
     project_healthcheck_command,
-    setup_project_command,
-    teardown_project_command,
 ]

@@ -70,40 +70,74 @@ step 2.
 
 ## Usage
 
-Run commands from anywhere inside the repo: `.dev.env` is found by searching up from the current directory.
+Run commands from anywhere inside the repo: `.dev.env` is found by searching up from the current directory. `fncli --help` lists the commands.
+
+### Quick start
 
 ```bash
-fncli --help              # list the commands
-fncli setup-project       # set up a whole dev project
-fncli open-pr --merge     # open a watched PR in Gitea and merge it
-fncli teardown-project    # delete it all again
+fncli setup-project                 # build a whole dev project
+fncli open-pr [--kind watched|unwatched|invalid] [--merge]
+fncli teardown-project -y           # delete it all again
 ```
+
+- `setup-project`: builds the dev project. Side effects: creates two Gitea repos (trigger and results), a Gitea token for each (`fn-sensor`, `fn-results`), the K8s secrets holding them and the dataset's dummy credentials (via the backend), and the backend project, repository and dataset records.
+- `open-pr`: opens a PR in the trigger repo for the sensor to find. Side effects: a new branch, one new file and a PR in Gitea; with `--merge` the PR is merged, which is what the sensor picks up.
+- `teardown-project -y`: deletes the lot, side effects included: the backend records, the secrets (backend and K8s), the Gitea tokens and both Gitea repos with all their PRs. `-y` skips the prompt.
 
 A project is two Gitea repos (`--role trigger` is the repo the sensor watches, `--role
 results` is where task results go), a dataset, and a secret for each of the three. Every
-step is its own command and the groups chain them; every step is idempotent and can be run
-on its own or re-run after a failure.
+step is its own command and the group commands chain them; every step is idempotent and can be run
+on its own or re-run after a failure. Deletes of something already gone are logged, not errors.
 
-**Setup**
+### Group commands (`cmds/actions.py`)
 
 | Command | What it does |
 |---|---|
-| `setup-project` | Renamed from `init-repo`. Runs, in order: `init-backend-project`, `init-gitea-repo` (trigger, results), `init-git-secret` (trigger, results), `init-dataset-secret`, `init-backend-trigger-repo`, `init-backend-results-repo`, `init-backend-dataset`, `verify-git-secret` (trigger, results), `project-healthcheck` |
-| `init-gitea-repo [--role]` | Finds or creates the repo in Gitea |
+| `setup-project` | Runs, in order: `init-backend-project`, `init-gitea-repo` (trigger, results), `init-git-secret` (trigger, results), `init-dataset-secret`, `init-backend-trigger-repo`, `init-backend-results-repo`, `init-backend-dataset`, `verify-git-secret` (trigger, results), `project-healthcheck` |
+| `open-pr [--kind] [--merge]` | Runs `create-gitea-branch`, `commit-gitea-file`, `create-gitea-pr`, and with `--merge` `merge-gitea-pr` |
+| `teardown-project [-y]` | After asking (`-y` / `--yes` skips the prompt), runs: `delete-backend-dataset`, `delete-backend-results-repo`, `delete-backend-trigger-repo`, `delete-secret` (trigger, results, dataset), `delete-backend-project`, `delete-gitea-token` (trigger, results), `delete-gitea-repo` (trigger, results). Both Gitea repos are always deleted |
+
+### Step commands, by entity
+
+**Project** (`cmds/project.py`)
+
+| Command | What it does |
+|---|---|
 | `init-backend-project` | Finds or creates the test project in the backend, and enables it |
+| `delete-backend-project` | Deletes the project with everything still under it (`DELETE /projects/<id>`) |
+| `project-healthcheck` | Prints the backend's healthcheck for the test project as JSON (can the repos be reached with their tokens?). Exits 1 unless the status is `ok` |
+
+**Repository** (`cmds/repository.py`)
+
+| Command | What it does |
+|---|---|
+| `init-gitea-repo [--role]` | Finds or creates the repo in Gitea |
+| `delete-gitea-repo [--role] [-y]` | Deletes the repo from Gitea, after asking. Backend records are left alone |
+| `init-backend-trigger-repo` | Registers the trigger repo with the backend so the sensor polls it |
+| `init-backend-results-repo` | Registers the results repo as the project's results repository |
+| `delete-backend-trigger-repo`, `delete-backend-results-repo` | Delete that record from the backend |
+
+**Secret** (`cmds/secret.py`)
+
+| Command | What it does |
+|---|---|
 | `init-git-secret [--role]` | Stores a fresh Gitea token in the repo's K8s secret (`read:repository` for trigger, `write:repository` for results) |
 | `init-dataset-secret` | Stores dummy `USERNAME` and `PASSWORD` in the dataset's secret (`<project>-dataset-creds`) |
 | `verify-git-secret [--role]` | Checks Gitea accepts the token currently stored in the repo's secret |
-| `init-backend-trigger-repo` | Registers the trigger repo with the backend so the sensor polls it |
-| `init-backend-results-repo` | Registers the results repo as the project's results repository |
-| `init-backend-dataset` | Registers the dummy dataset (needs the dataset secret, and Keycloak working) |
-| `project-healthcheck` | Prints the backend's healthcheck for the test project as JSON (can the repos be reached with their tokens?). Exits 1 unless the status is `ok` |
+| `delete-secret [--role trigger\|results\|dataset]` | Deletes the secret from the backend and K8s. Refused while a repo or dataset uses it |
+| `delete-gitea-token [--role]` | Deletes the Gitea token `init-git-secret` created for the repo |
 
-**Open a PR** in the trigger repo (the file name, branch and title carry a timestamp, so it can be re-run)
+**Dataset** (`cmds/dataset.py`)
 
 | Command | What it does |
 |---|---|
-| `open-pr [--kind] [--merge]` | Runs `create-gitea-branch`, `commit-gitea-file`, `create-gitea-pr`, and with `--merge` `merge-gitea-pr` |
+| `init-backend-dataset` | Registers the dummy dataset (needs the dataset secret, and Keycloak working) |
+| `delete-backend-dataset` | Deletes the dataset record from the backend |
+
+**Pull request** (`cmds/pr.py`; the file name, branch and title carry a timestamp, so it can be re-run)
+
+| Command | What it does |
+|---|---|
 | `create-gitea-branch [--branch]` | Branches off the repo's default branch |
 | `commit-gitea-file --branch [--kind]` | Commits one new file to the branch |
 | `create-gitea-pr --branch [--kind]` | Opens the PR into the default branch |
@@ -113,17 +147,6 @@ on its own or re-run after a failure.
 new `.json` spec file under the watch_dir, which becomes a task; `unwatched` is a file
 outside the watch_dir, so the PR is ignored; `invalid` is a `.json` under the watch_dir
 whose spec has an unknown field, so the PR is rejected.
-
-**Teardown**
-
-| Command | What it does |
-|---|---|
-| `teardown-project [-y]` | After asking (`-y` / `--yes` skips the prompt), runs: `delete-backend-dataset`, `delete-backend-results-repo`, `delete-backend-trigger-repo`, `delete-secret` (trigger, results, dataset), `delete-backend-project`, `delete-gitea-repo` (trigger, results). Both Gitea repos are always deleted |
-| `delete-backend-dataset`, `delete-backend-results-repo`, `delete-backend-trigger-repo`, `delete-backend-project` | Delete that record; the project goes with everything still under it (`DELETE /projects/<id>`) |
-| `delete-secret [--role trigger\|results\|dataset]` | Deletes the secret from the backend and K8s. Refused while a repo or dataset uses it |
-| `delete-gitea-repo [--role] [-y]` | Deletes the repo from Gitea, after asking. Backend records are left alone |
-
-Deletes of something already gone are logged, not errors.
 
 `hello-world` prints a greeting, to check the CLI is installed.
 
@@ -178,11 +201,12 @@ scripts/fncli/
   cli.py            click group; loads .dev.env and registers commands
   cmds/             the commands, one module per entity (each has its init- and delete- commands)
     common.py       config classes, API builders and helpers shared by the modules
-    project.py      project commands, plus setup-project and teardown-project
+    actions.py      group commands: setup-project, open-pr, teardown-project
+    project.py      the backend project
     repository.py   Gitea repos and the backend trigger/results repository records
     secret.py       Gitea token and dataset secrets
     dataset.py      the backend dataset record
-    pr.py           open-pr and its steps
+    pr.py           the individual PR steps
     hello_world.py  install check
   dagster/          copies of dagster/app client code (backend, gitea, k8s, models)
   pyproject.toml    package and dependency definition

@@ -141,14 +141,25 @@ class GiteaAdminAPI:
         response.raise_for_status()
         return True
 
+    def delete_token(self, name: str) -> bool:
+        """Delete the admin user's token. Returns whether there was one to delete."""
+        response = self.client.request(
+            "DELETE", f"users/{self.username}/tokens/{name}", raise_for_status=False
+        )
+        if response.status_code == 404:
+            return False
+        response.raise_for_status()
+        return True
+
     def replace_token(self, name: str, scopes: list[str]) -> str:
         """
         Gitea only returns a token's value when it is created, so replace any previous
         token under the same name rather than pile up new ones on every run.
         """
-        path = f"users/{self.username}/tokens"
-        self.client.request("DELETE", f"{path}/{name}", raise_for_status=False)
-        response = self.client.request("POST", path, json={"name": name, "scopes": scopes})
+        self.delete_token(name)
+        response = self.client.request(
+            "POST", f"users/{self.username}/tokens", json={"name": name, "scopes": scopes}
+        )
         return response.json()["sha1"]
 
     def create_branch(self, repo_path: str, new_branch: str, old_branch: str) -> None:

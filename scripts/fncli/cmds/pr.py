@@ -105,24 +105,9 @@ def merge_gitea_pr_command(number):
     logger.info(f"Merged PR #{number}")
 
 
-@click.command("open-pr")
-@click.option("--kind", type=click.Choice(KINDS), default="watched", show_default=True)
-@click.option("--merge", is_flag=True, help="Also merge the PR.")
-@click.pass_context
-def open_pr_command(ctx, kind, merge):
-    """Open a PR in the trigger repo: branch, file, PR, and with --merge the merge."""
-    branch = new_branch_name()
-    ctx.invoke(create_gitea_branch_command, branch=branch)
-    ctx.invoke(commit_gitea_file_command, branch=branch, kind=kind)
-    pr = ctx.invoke(create_gitea_pr_command, branch=branch, kind=kind)
-    if merge:
-        ctx.invoke(merge_gitea_pr_command, number=pr["number"])
-
-
 COMMANDS = [
     create_gitea_branch_command,
     commit_gitea_file_command,
     create_gitea_pr_command,
     merge_gitea_pr_command,
-    open_pr_command,
 ]
