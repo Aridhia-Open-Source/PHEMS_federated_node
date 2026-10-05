@@ -78,9 +78,9 @@ class ModelRegistry:
         return ApiRequest
 
     @cached_property
-    def TaskRequest(self):
-        from app.models.task_request import TaskRequest
-        return TaskRequest
+    def Trigger(self):
+        from app.models.trigger import Trigger
+        return Trigger
 
     @cached_property
     def TaskResult(self):
@@ -136,7 +136,7 @@ _ = (
     Models.ResultsRepository,
     Models.ResultsBackend,
     Models.ApiRequest,
-    Models.TaskRequest,
+    Models.Trigger,
     Models.TaskResult,
     Models.K8sSecret,
 )

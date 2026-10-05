@@ -13,6 +13,7 @@ from app.helpers.base_model import BaseModel, db
 from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import InvalidRequest, NotImplementedException, TaskImageException
 from app.models import Models, sqla_column
+from app.models.task_status import TaskStatus
 
 
 logger = logging.getLogger('task_model')
@@ -27,17 +28,16 @@ class Task(db.Model, BaseModel):
     project_id = sa.Column(
         sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False, index=True
     )
-    pr_repository_id = sa.Column(sa.Integer, nullable=True)
-    pr_number = sa.Column(sa.Integer, nullable=True)
     request_id = sa.Column(sa.Integer, sa.ForeignKey('requests.id', ondelete='SET NULL'), nullable=True)
-    api_request_id = sa.Column(sa.Integer, sa.ForeignKey('api_requests.id', ondelete='SET NULL'), nullable=True)
-    task_request_id = sa.Column(
-        sa.Integer, sa.ForeignKey('task_requests.id', ondelete='RESTRICT', name='fk_tasks_task_request'), nullable=True
+    trigger_id = sa.Column(
+        sa.Integer, sa.ForeignKey('triggers.id', ondelete='RESTRICT'), nullable=False, unique=True
     )
 
     name = sa.Column(sa.String(256), nullable=False)
     docker_image = sa.Column(sa.String(256), nullable=False)
-    status = sa.Column(sa.String(256), default='scheduled')
+    status = sa.Column(sa.String(256), default=TaskStatus.PENDING.value)
+    # The run's attempt number. A retry is the same task with the next attempt.
+    attempt = sa.Column(sa.Integer, nullable=False, default=1, server_default='1')
     requested_by = sa.Column(sa.String(256), nullable=False)
     dagster_run_id = sa.Column(sa.String(64), nullable=True, unique=True)
     exit_code = sa.Column(sa.Integer, nullable=True)
@@ -48,55 +48,48 @@ class Task(db.Model, BaseModel):
     completed_at = sa.Column(sa.DateTime(timezone=False), nullable=True)
 
     params = sa.Column(sa.JSON, nullable=False, server_default='{}')
-    trigger_payload = sa.Column(sa.JSON, nullable=True)
+    # The validated TaskSpec, stored once
+    spec = sa.Column(sa.JSON, nullable=False)
 
     dataset = relationship("Dataset")
     project = relationship("Project")
-    api_request = relationship("ApiRequest", back_populates="tasks")
-    task_request = relationship("TaskRequest", back_populates="task")
+    trigger = relationship("Trigger", back_populates="task")
     results = relationship("TaskResult", back_populates="task", cascade="all, delete-orphan", passive_deletes=True)
 
     __table_args__ = (
-        sa.UniqueConstraint('task_request_id', name='uq_tasks_task_request'),
-        sa.ForeignKeyConstraint(
-            ['pr_repository_id', 'pr_number'],
-            ['pull_requests.trigger_repository_id', 'pull_requests.number'],
-            ondelete='SET NULL',
-            name='fk_tasks_pull_request',
-        ),
-        sa.CheckConstraint(
-            '(pr_repository_id IS NULL) = (pr_number IS NULL)',
-            name='ck_tasks_pr_both_or_neither',
-        ),
         sa.Index('ix_tasks_dataset_status', 'dataset_id', 'status'),
         sa.Index('ix_tasks_requested_by', 'requested_by'),
-        sa.Index('ix_tasks_pull_request', 'pr_repository_id', 'pr_number'),
+        sa.Index('ix_tasks_docker_image', 'docker_image'),
+        sa.Index('ix_tasks_status_project', 'status', 'project_id'),
     )
 
     def __init__(self,
                  name:str,
                  docker_image:str,
                  requested_by:str,
-                 dataset,
+                 dataset_id:int | None,
                  project_id:int,
-                 task_request_id:int | None = None,
-                 executors:list[dict] = [],
-                 tags:dict = {},
-                 resources:dict = {},
-                 **kwargs
+                 trigger_id:int,
+                 spec:dict,
+                 params:dict | None = None,
                  ):
         self.name = name
-        self.status = 'scheduled'
+        self.status = TaskStatus.PENDING.value
         self.docker_image = docker_image
         self.requested_by = requested_by
-        self.dataset = dataset
+        self.dataset_id = dataset_id
         self.project_id = project_id
-        self.task_request_id = task_request_id
+        self.attempt = 1
+        self.trigger_id = trigger_id
+        self.spec = spec
+        self.params = params or {}
         self.created_at = dt.now()
         self.updated_at = dt.now()
-        self.tags = tags
-        self.executors = executors
-        self.resources = resources
+
+    @classmethod
+    def _get_required_fields(cls) -> list[str]:
+        # Set when the task is created from its validated trigger, never in a request body
+        return [f for f in super()._get_required_fields() if f not in ("trigger_id", "spec")]
 
     @classmethod
     def validate(cls, data:dict):
@@ -110,10 +103,7 @@ class Task(db.Model, BaseModel):
         decoded_token = kc_client.decode_token(user_token)
         data["requested_by"] = kc_client.get_user_by_email(decoded_token["email"])["id"]
         user = kc_client.get_user_by_id(data["requested_by"])
-        # Support only for one image at a time, the standard is executors == list
-        executors = data["executors"][0]
-        data["docker_image"] = executors["image"]
-        repository = data.pop("repository", None)
+        repository = data.get("repository")
 
         data = super().validate(data)
 

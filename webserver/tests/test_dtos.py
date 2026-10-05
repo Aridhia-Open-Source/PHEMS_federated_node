@@ -145,15 +145,20 @@ class TestAuditDTO:
 class TestTaskDTO:
     def test_fields(self):
         task = Task(
-            name="task", docker_image="alpine:latest", requested_by="user", dataset=None, project_id=1
+            name="task", docker_image="alpine:latest", requested_by="user", dataset_id=None, project_id=1,
+            trigger_id=1, spec={"image": "alpine:latest"}
         )
         task.id = 1
         dumped = TaskDTO.from_model(task).dump()
         assert set(dumped) == {
-            "id", "name", "docker_image", "status", "created_at", "updated_at",
-            "requested_by", "dataset_id", "project_id",
+            "id", "name", "docker_image", "spec", "attempt", "status", "created_at", "updated_at",
+            "requested_by", "dataset_id", "project_id", "trigger_id",
+            "dagster_run_id", "exit_code", "started_at", "completed_at",
         }
-        assert dumped["status"] == "scheduled"
+        assert dumped["status"] == "PENDING"
+        assert dumped["attempt"] == 1
+        assert dumped["spec"] == {"image": "alpine:latest"}
+        assert dumped["trigger_id"] == 1
         assert WIRE_DATETIME.match(dumped["created_at"])
 
 

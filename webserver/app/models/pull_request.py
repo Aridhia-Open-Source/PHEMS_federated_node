@@ -3,37 +3,31 @@ from datetime import datetime as dt
 import sqlalchemy as sa
 from sqlalchemy import orm
 from sqlalchemy.orm import validates
-from sqlalchemy.sql import func
 
-from app.helpers.base_model import BaseModel, db
-from app.models.pull_request_status import PullRequestStatus
+from app.models.trigger import Trigger
 
 
-class PullRequest(db.Model, BaseModel):
+class PullRequest(Trigger):
     """
-    A GitHub pull request merged to a watched repository.
-    Stores PR metadata and payload for async processing by Dagster sensors.
+    A pull request merged to a watched repository.
+    Stores PR metadata and payload (the raw spec) for async processing by Dagster.
+    `state`, `state_cause` and `project_id` are columns of the Trigger it extends.
     """
     __tablename__ = 'pull_requests'
+    __mapper_args__ = {'polymorphic_identity': 'PR'}
     __table_args__ = (
         sa.UniqueConstraint('trigger_repository_id', 'number', name='uq_pr_repo_number'),
     )
 
-    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    trigger_id = sa.Column(
+        sa.Integer, sa.ForeignKey('triggers.id', ondelete='CASCADE'), primary_key=True
+    )
     number = sa.Column(sa.Integer, nullable=False)
     title = sa.Column(sa.String(256), nullable=False)
     raised_by = sa.Column(sa.String(256), nullable=False)
     merge_commit_sha = sa.Column(sa.String(40), nullable=False)
     merged_at = sa.Column(sa.DateTime(timezone=False), nullable=False)
-    saved_at = sa.Column(sa.DateTime(timezone=False), server_default=func.now())
     payload = sa.Column(sa.JSON, nullable=False, default={})
-
-    status = sa.Column(
-        sa.String(32),
-        nullable=False,
-        default=PullRequestStatus.UNKNOWN.value,
-        server_default=PullRequestStatus.UNKNOWN.value,
-    )
 
     trigger_repository_id = sa.Column(
         sa.Integer, sa.ForeignKey('trigger_repositories.id', ondelete='CASCADE'),
@@ -41,7 +35,6 @@ class PullRequest(db.Model, BaseModel):
     )
 
     trigger_repository = orm.relationship("TriggerRepository", back_populates="pull_requests")
-    task_request = orm.relationship("TaskRequest", back_populates="pull_request", uselist=False)
 
     @validates('merged_at')
     def validate_merged_at(self, key, value):
@@ -55,15 +48,16 @@ class PullRequest(db.Model, BaseModel):
 
     def __init__(
         self,
+        project_id: int,
         trigger_repository_id: int,
         number: int,
         title: str,
         raised_by: str,
         merged_at: dt,
         merge_commit_sha: str,
-        status: str = PullRequestStatus.UNKNOWN.value,
         payload: dict | None = None,
     ):
+        super().__init__(project_id)
         self.trigger_repository_id = trigger_repository_id
         self.number = number
         self.title = title
@@ -71,7 +65,10 @@ class PullRequest(db.Model, BaseModel):
         self.merged_at = merged_at
         self.payload = payload or {}
         self.merge_commit_sha = merge_commit_sha
-        self.status = status
+
+    @property
+    def requested_by(self) -> str:
+        return self.raised_by
 
     def __repr__(self):
         return f'<PullRequest (repo_id={self.trigger_repository_id}, pr={self.number})>'

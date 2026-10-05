@@ -3,19 +3,13 @@ from sqlalchemy.exc import IntegrityError
 
 from app.dtos.task_result import TaskResultDTO
 from app.models.results_repository import ResultsRepository
-from app.models.task import Task
 from app.models.task_result import TaskResult
 from app.models.task_result_status import TaskResultStatus
 
 
 @pytest.fixture
-def task(client, project, dataset):
-    task = Task(
-        name="task", docker_image="registry/image:1.0", requested_by="user",
-        dataset=dataset, project_id=project.id
-    )
-    task.add()
-    return task
+def task(make_task):
+    return make_task()
 
 
 @pytest.fixture

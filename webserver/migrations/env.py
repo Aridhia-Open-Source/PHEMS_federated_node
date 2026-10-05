@@ -24,7 +24,7 @@ import app.models.extras.audit
 import app.models.dataset
 import app.models.project
 import app.models.pull_request
-import app.models.pull_request_status
+import app.models.trigger
 import app.models.task
 import app.models.task_status
 import app.models.task_result
