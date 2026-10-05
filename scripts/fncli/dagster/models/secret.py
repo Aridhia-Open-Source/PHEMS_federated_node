@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from .secret_provider import SecretProvider
+from fncli.dagster.models.secret_provider import SecretProvider
 
 
 class Secret(BaseModel):

@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 
-from .secret import Secret
-from .pull_request import PullRequest
+from fncli.dagster.models.secret import Secret
+from fncli.dagster.models.pull_request import PullRequest
 
 
 class TriggerRepository(BaseModel):

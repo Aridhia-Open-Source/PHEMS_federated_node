@@ -1,3 +1,3 @@
-from .cli import cli
+from fncli.cli import cli
 
 cli()

@@ -1,8 +1,8 @@
 import logging
 from urllib.parse import urlparse
 
-from .utils import BackendSession
-from .models import TriggerRepository, PullRequest, Dataset, Project
+from fncli.dagster.utils import BackendSession
+from fncli.dagster.models import TriggerRepository, PullRequest, Dataset, Project
 
 default_logger = logging.getLogger(__name__)
 

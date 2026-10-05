@@ -1,13 +1,13 @@
 """Wire models for the backend API responses this code location consumes."""
 
-from .dataset import Catalogue, Dataset, Dictionary
-from .project import Project
-from .pull_request import PullRequest
-from .secret import Secret
-from .secret_provider import SecretProvider
-from .task import Task
-from .trigger_repository import TriggerRepository
-from .trigger_state import TriggerState
+from fncli.dagster.models.dataset import Catalogue, Dataset, Dictionary
+from fncli.dagster.models.project import Project
+from fncli.dagster.models.pull_request import PullRequest
+from fncli.dagster.models.secret import Secret
+from fncli.dagster.models.secret_provider import SecretProvider
+from fncli.dagster.models.task import Task
+from fncli.dagster.models.trigger_repository import TriggerRepository
+from fncli.dagster.models.trigger_state import TriggerState
 
 __all__ = [
     "Catalogue",

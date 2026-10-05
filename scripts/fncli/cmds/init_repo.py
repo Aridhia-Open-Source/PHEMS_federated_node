@@ -10,12 +10,12 @@ import logging
 import click
 from pydantic import Field
 
-from ..dagster.backend import BackendAPI
-from ..dagster.config import EnvConfig
-from ..dagster.gitea import GiteaAdminAPI, GiteaAdminClient, GiteaAPI, GiteaClient
-from ..dagster.k8s import get_k8s_secret
-from ..dagster.models import Project, TriggerRepository
-from ..dagster.utils import BackendAdapter, BackendSession
+from fncli.dagster.backend import BackendAPI
+from fncli.dagster.config import EnvConfig
+from fncli.dagster.gitea import GiteaAdminAPI, GiteaAdminClient, GiteaAPI, GiteaClient
+from fncli.dagster.k8s import get_k8s_secret
+from fncli.dagster.models import Project, TriggerRepository
+from fncli.dagster.utils import BackendAdapter, BackendSession
 
 logger = logging.getLogger("init_repo")
 
