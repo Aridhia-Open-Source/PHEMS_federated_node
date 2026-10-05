@@ -89,7 +89,6 @@ class TestTriggerRepository:
         assert repo.repo_path == "sub/repo"
 
     @pytest.mark.parametrize("uri", ["github.com/org/repo/", "github.com/org/repo.git"])
-    @pytest.mark.xfail(reason="BUG: repo_path keeps a trailing slash or .git suffix", strict=False)
     def test_repo_path_ignores_a_trailing_slash_and_git_suffix(self, uri):
         assert TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "uri": uri}).repo_path == "org/repo"
 
