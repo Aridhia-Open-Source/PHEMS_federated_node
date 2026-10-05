@@ -41,6 +41,9 @@ class Secret(db.Model, BaseModel):
     trigger_repositories = relationship(
         "TriggerRepository", back_populates="secret", overlaps="trigger_repositories,project"
     )
+    results_repositories = relationship(
+        "ResultsRepository", back_populates="secret", overlaps="results_repositories,project"
+    )
     datasets = relationship("Dataset", back_populates="secret", overlaps="datasets,project")
 
     @classmethod

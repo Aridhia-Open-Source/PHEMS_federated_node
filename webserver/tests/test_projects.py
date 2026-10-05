@@ -2,7 +2,7 @@ import pytest
 import requests
 from http import HTTPStatus
 from datetime import datetime, timezone
-from unittest.mock import Mock
+from unittest.mock import ANY, Mock
 
 from kubernetes.client.exceptions import ApiException
 
@@ -354,15 +354,45 @@ class TestProjectHealthcheck:
         response = self.get(client, project, simple_admin_header)
         assert response.json["trigger_repositories"][0]["pr_count"] == 0
 
-    def test_reports_the_results_repository(self, client, project, git_api, simple_admin_header):
-        results = ResultsRepository(uri="github.com/org/results", owned_by_federated_node=False)
+    def test_reports_the_results_repository(self, client, project, secret, git_api, k8s_client, simple_admin_header):
+        results = ResultsRepository(
+            uri="github.com/org/results", provider="github", api_uri="https://api.github.com",
+            secret_id=secret.id, target_dir="results", project_id=project.id,
+            owned_by_federated_node=False,
+        )
         results.add()
-        project.results_repository_id = results.id
-        db.session.commit()
         response = self.get(client, project, simple_admin_header)
         assert response.json["results_repository"] == {
-            "id": results.id, "uri": "github.com/org/results", "owned_by_federated_node": False
+            "id": results.id, "uri": "github.com/org/results", "owned_by_federated_node": False,
+            "target_dir": "results", "status": "ok",
+            "health_check": {"message": "OK", "status_code": 200, "latency_ms": ANY},
         }
+
+    def test_bad_results_repository_makes_the_project_unhealthy(self, client, project, default_repo, secret, git_api, simple_admin_header):
+        ResultsRepository(
+            uri="github.com/org/results", provider="github", api_uri="https://api.github.com",
+            secret_id=secret.id, target_dir="results", project_id=project.id,
+        ).add()
+        git_api.side_effect = [
+            Mock(status_code=200, ok=True, reason="OK"),
+            Mock(status_code=404, ok=False, reason="Not Found"),
+        ]
+        response = self.get(client, project, simple_admin_header)
+        assert response.json["status"] == "error"
+        assert response.json["trigger_repositories"][0]["status"] == "ok"
+        assert response.json["results_repository"]["status"] == "not_found"
+
+    def test_good_results_repository_keeps_the_project_healthy(self, client, project, default_repo, secret, git_api, simple_admin_header):
+        ResultsRepository(
+            uri="github.com/org/results", provider="github", api_uri="https://api.github.com",
+            secret_id=secret.id, target_dir="results", project_id=project.id,
+        ).add()
+        response = self.get(client, project, simple_admin_header)
+        assert response.json["status"] == "ok"
+
+    def test_no_results_repository_does_not_make_the_project_unhealthy(self, client, project, default_repo, git_api, simple_admin_header):
+        response = self.get(client, project, simple_admin_header)
+        assert response.json["status"] == "ok"
 
     def test_no_results_repository(self, client, project, git_api, simple_admin_header):
         response = self.get(client, project, simple_admin_header)

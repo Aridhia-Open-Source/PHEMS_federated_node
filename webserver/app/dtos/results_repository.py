@@ -1,7 +1,32 @@
 from app.dtos.base import DTO
+from app.models.results_repository import ResultsRepository
 
 
 class ResultsRepositoryDTO(DTO):
     id: int
     uri: str
+    repo_path: str
+    provider: str
+    api_uri: str
+    secret_name: str
+    secret_type: str
+    secret_store_name: str
+    target_dir: str
+    project_id: int
     owned_by_federated_node: bool
+
+    @classmethod
+    def from_model(cls, obj: ResultsRepository):
+        return cls(
+            id=obj.id,
+            uri=obj.uri,
+            repo_path=obj.repo_path,
+            provider=obj.provider,
+            api_uri=obj.api_uri,
+            secret_name=obj.secret_name,
+            secret_type=obj.secret_type.value,
+            secret_store_name=obj.secret_store_name,
+            target_dir=obj.target_dir,
+            project_id=obj.project_id,
+            owned_by_federated_node=obj.owned_by_federated_node,
+        )
