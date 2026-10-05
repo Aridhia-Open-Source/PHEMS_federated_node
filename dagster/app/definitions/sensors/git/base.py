@@ -32,7 +32,7 @@ class GitAPIFactory:
         self.namespace = namespace
 
     def for_repository(self, repo: TriggerRepository) -> GitAPI:
-        token = get_secret_value(repo.secret_type, repo.secret_store_name, self.namespace, "TOKEN")
+        token = get_secret_value(repo.secret.provider, repo.secret.key, self.namespace, "TOKEN")
         match repo.provider:
             case "github":
                 return GithubAPI(GithubClient(token=token, base_uri=repo.api_uri))

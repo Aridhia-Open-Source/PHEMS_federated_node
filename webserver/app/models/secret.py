@@ -6,16 +6,16 @@ from sqlalchemy.orm import relationship, validates
 from app.helpers.base_model import BaseModel, db
 from app.helpers.exceptions import InvalidRequest
 from app.models import sqla_column
-from app.models.secret_type import SecretType
+from app.models.secret_provider import SecretProvider
 
 
 class Secret(db.Model, BaseModel):
     """
-    A reference to a secret. The value only ever lives in the secret store that secret_type
+    A reference to a secret. The value only ever lives in the secret store that provider
     names; this row records which secrets exist, so one that repositories share cannot be
     dropped from under them. A secret belongs to a project, and only that project's datasets and
     repositories can point at it. Kubernetes cannot rename a secret, so the name is
-    immutable. The name is local to the project; the store one is store_name.
+    immutable. The name is local to the project; the store one is key.
     """
     __tablename__ = 'secrets'
 
@@ -24,9 +24,9 @@ class Secret(db.Model, BaseModel):
         sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False
     )
     name = sa.Column(sa.String(253), nullable=False)
-    secret_type = sa.Column(sa.Enum(SecretType), nullable=False)
+    provider = sa.Column(sa.Enum(SecretProvider), nullable=False)
     # What the secret is called in the store, which has no notion of projects.
-    store_name = sa.Column(sa.String(253), unique=True, nullable=False)
+    key = sa.Column(sa.String(253), unique=True, nullable=False)
 
     __table_args__ = (
         sa.UniqueConstraint('project_id', 'name'),
@@ -69,11 +69,11 @@ class Secret(db.Model, BaseModel):
     def _store_prefix(project_id: int) -> str:
         return f"{project_id}-"
 
-    def __init__(self, project_id: int, name: str, secret_type: SecretType):
+    def __init__(self, project_id: int, name: str, provider: SecretProvider):
         self.project_id = project_id
         self.name = name
-        self.secret_type = secret_type
-        self.store_name = f"{self._store_prefix(project_id)}{name}"
+        self.provider = provider
+        self.key = f"{self._store_prefix(project_id)}{name}"
 
     def __repr__(self):
-        return f'<Secret ({self.store_name})>'
+        return f'<Secret ({self.key})>'

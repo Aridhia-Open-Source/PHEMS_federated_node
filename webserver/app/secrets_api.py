@@ -24,7 +24,7 @@ from app.helpers.kubernetes import KubernetesClient
 from app.helpers.wrappers import audit, auth
 from app.models.project import Project
 from app.models.secret import Secret
-from app.models.secret_type import SecretType
+from app.models.secret_provider import SecretProvider
 
 logger = logging.getLogger('secrets_api')
 bp = Blueprint('secrets', __name__, url_prefix='/projects/<int:project_id>/secrets')
@@ -53,10 +53,10 @@ def _get_values(body: dict) -> dict[str, str]:
     return dict(values)
 
 
-def _write_k8s_secret(store_name: str, values: dict[str, str]):
+def _write_k8s_secret(key: str, values: dict[str, str]):
     """The caller is the authority on the content, so it overwrites what is there."""
     KubernetesClient().create_secret(
-        name=store_name,
+        name=key,
         values=values,
         namespaces=[DEFAULT_NAMESPACE],
         labels=SECRET_LABELS,
@@ -64,9 +64,9 @@ def _write_k8s_secret(store_name: str, values: dict[str, str]):
     )
 
 
-def _delete_k8s_secret(store_name: str):
+def _delete_k8s_secret(key: str):
     try:
-        KubernetesClient().delete_namespaced_secret(store_name, DEFAULT_NAMESPACE)
+        KubernetesClient().delete_namespaced_secret(key, DEFAULT_NAMESPACE)
     except ApiException as apie:
         if apie.status != 404:
             logger.error(apie)
@@ -74,8 +74,8 @@ def _delete_k8s_secret(store_name: str):
 
 
 # What to call to write or delete a secret's value, by the store it lives in.
-WRITE_VALUES = {SecretType.K8S: _write_k8s_secret}
-DELETE_VALUES = {SecretType.K8S: _delete_k8s_secret}
+WRITE_VALUES = {SecretProvider.K8S: _write_k8s_secret}
+DELETE_VALUES = {SecretProvider.K8S: _delete_k8s_secret}
 
 
 def _get_secret(project_id: int, name: str) -> Secret:
@@ -114,15 +114,15 @@ def post_secret(project_id):
     """
     POST /projects/<project_id>/secrets — create the secret in its store and the reference
     to it. In a Kubernetes store the secret is named "<project_id>-<name>".
-    Body: {"name": "...", "secret_type": "K8S", "values": {"KEY": "value", ...}}
+    Body: {"name": "...", "provider": "K8S", "values": {"KEY": "value", ...}}
     """
     body = request.json or {}
     if not body.get('name'):
         raise InvalidRequest("name is required")
     try:
-        secret_type = SecretType(body.get('secret_type'))
+        provider = SecretProvider(body.get('provider'))
     except ValueError:
-        raise InvalidRequest(f"secret_type must be one of {[t.value for t in SecretType]}")
+        raise InvalidRequest(f"provider must be one of {[t.value for t in SecretProvider]}")
     values = _get_values(body)
 
     Project.get_by_id(project_id)
@@ -130,13 +130,13 @@ def post_secret(project_id):
         raise InvalidRequest(f"Secret {body['name']} already exists", code=HTTPStatus.CONFLICT)
 
     try:
-        secret = Secret(project_id=project_id, name=body['name'], secret_type=secret_type)
+        secret = Secret(project_id=project_id, name=body['name'], provider=provider)
     except ValueError as e:
         raise InvalidRequest(str(e))
 
     # The store first, so a failure there leaves no row pointing at nothing. If the row
     # then fails, the stored secret is left for a retry to adopt: writing it overwrites.
-    WRITE_VALUES[secret.secret_type](secret.store_name, values)
+    WRITE_VALUES[secret.provider](secret.key, values)
     secret.add()
 
     return SecretDTO.from_model(secret).dump(), HTTPStatus.CREATED
@@ -154,7 +154,7 @@ def patch_secret(project_id, name):
     secret = _get_secret(project_id, name)
     values = _get_values(request.json or {})
 
-    WRITE_VALUES[secret.secret_type](secret.store_name, values)
+    WRITE_VALUES[secret.provider](secret.key, values)
     secret.updated_at = dt.now()
     session.commit()
 
@@ -185,7 +185,7 @@ def delete_secret(project_id, name):
         raise InvalidRequest("Error while deleting the record") from exc
 
     try:
-        DELETE_VALUES[secret.secret_type](secret.store_name)
+        DELETE_VALUES[secret.provider](secret.key)
     except InvalidRequest:
         session.rollback()
         raise

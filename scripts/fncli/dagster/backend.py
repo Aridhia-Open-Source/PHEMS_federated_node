@@ -251,7 +251,7 @@ class BackendAPI:
     def upsert_secret(self, project_id: int, name: str, values: dict[str, str]) -> dict:
         """
         The backend keeps only the name, so a re-run rotates the values in the secret store.
-        Returns the secret, whose store_name is what it is called in the store.
+        Returns the secret, whose key is what it is called in the store.
         """
         if any(secret["name"] == name for secret in self.get_secrets(project_id)):
             self.logger.info(f"Updating secret {name} of project {project_id}")
@@ -262,7 +262,7 @@ class BackendAPI:
             self.logger.info(f"Creating secret {name} in project {project_id}")
             response = self.session.post(
                 f"/projects/{project_id}/secrets",
-                json={"name": name, "secret_type": "K8S", "values": values},
+                json={"name": name, "provider": "K8S", "values": values},
             )
         return response.json()
 

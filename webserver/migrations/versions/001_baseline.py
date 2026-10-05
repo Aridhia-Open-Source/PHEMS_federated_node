@@ -53,15 +53,15 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(length=253), nullable=False),
-        sa.Column('secret_type', sa.Enum('K8S', name='secrettype'), nullable=False),
-        sa.Column('store_name', sa.String(length=253), nullable=False),
+        sa.Column('provider', sa.Enum('K8S', name='secretprovider'), nullable=False),
+        sa.Column('key', sa.String(length=253), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('project_id', 'name'),
         sa.UniqueConstraint('project_id', 'id'),
-        sa.UniqueConstraint('store_name'),
+        sa.UniqueConstraint('key'),
     )
 
     # Create datasets table
@@ -351,7 +351,7 @@ def downgrade() -> None:
     op.drop_table('trigger_repositories')
     op.drop_table('datasets')
     op.drop_table('secrets')
-    sa.Enum(name='secrettype').drop(op.get_bind())
+    sa.Enum(name='secretprovider').drop(op.get_bind())
     op.drop_index('ix_projects_id', 'projects')
     op.drop_table('projects')
     op.drop_table('audit')

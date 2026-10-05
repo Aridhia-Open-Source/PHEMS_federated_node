@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.secret_type import SecretType
+from app.models.secret import Secret
 from app.models.pull_request import PullRequest
 
 
@@ -17,11 +17,8 @@ class TriggerRepository(BaseModel):
     repo_path: str
     provider: str
     api_uri: str
-    # The project-local name of the secret holding the git token, under the key TOKEN.
-    secret_name: str
-    secret_type: SecretType
-    # What the secret is called in its store: the name is local to the project.
-    secret_store_name: str
+    # The secret holding the git token, under the key TOKEN.
+    secret: Secret
     watch_dir: str
     base_branch: str
     project_id: int

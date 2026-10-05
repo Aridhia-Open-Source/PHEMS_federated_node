@@ -13,7 +13,6 @@ from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
 from app.models import Models, sqla_column
-from app.models.secret_type import SecretType
 
 logger = logging.getLogger("dataset_model")
 logger.setLevel(logging.INFO)
@@ -86,18 +85,6 @@ class Dataset(db.Model, BaseModel):
     def __repr__(self):
         return f'<Dataset {self.name}>'
 
-    @property
-    def secret_name(self) -> str:
-        return self.secret.name
-
-    @property
-    def secret_type(self) -> SecretType:
-        return self.secret.secret_type
-
-    @property
-    def secret_store_name(self) -> str:
-        return self.secret.store_name
-
     def add(self, commit=True, user_id=None):
         super().add(commit)
         # First dataset into a project becomes what a task gets when it names only the
@@ -134,7 +121,7 @@ class Dataset(db.Model, BaseModel):
         Mostly used to create a direct connection to the DB
         This is not involved in the Task Execution Service
         """
-        secret = self._get_secret(self.secret_store_name)
+        secret = self._get_secret(self.secret.key)
         if secret.data is None:
             raise ValueError("Secret data is None")
 

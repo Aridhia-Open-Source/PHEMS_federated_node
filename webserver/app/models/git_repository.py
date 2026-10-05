@@ -9,7 +9,6 @@ from sqlalchemy.orm import validates
 from app.helpers.const import DEFAULT_NAMESPACE
 from app.helpers.kubernetes import KubernetesClient
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, GitProvider
-from app.models.secret_type import SecretType
 
 
 CONNECTION_TIMEOUT = 5
@@ -56,18 +55,6 @@ class GitRepositoryMixin:
             valid = ', '.join(p.value for p in GitProvider)
             raise ValueError(f"provider must be one of: {valid}")
 
-    @property
-    def secret_name(self) -> str:
-        return self.secret.name
-
-    @property
-    def secret_type(self) -> SecretType:
-        return self.secret.secret_type
-
-    @property
-    def secret_store_name(self) -> str:
-        return self.secret.store_name
-
     @classmethod
     def parse_repo_uri(cls, uri: str) -> str:
         """
@@ -87,7 +74,7 @@ class GitRepositoryMixin:
         """
         The git token, read from the cluster secret this repository names.
         """
-        secret = KubernetesClient().read_namespaced_secret(self.secret_store_name, DEFAULT_NAMESPACE)
+        secret = KubernetesClient().read_namespaced_secret(self.secret.key, DEFAULT_NAMESPACE)
         if secret.data is None:
             raise KeyError("TOKEN")
         return KubernetesClient.decode_secret_value(secret.data['TOKEN'])
@@ -102,13 +89,13 @@ class GitRepositoryMixin:
             token = self.get_token()
         except KeyError:
             return ConnectionCheck(
-                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret_name} has no TOKEN"
+                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret.name} has no TOKEN"
             )
         except ApiException as e:
             if e.status != 404:
                 raise
             return ConnectionCheck(
-                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret_name} not found"
+                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret.name} not found"
             )
 
         url = f"{self.api_uri.rstrip('/')}/{GitProvider(self.provider).repo_api_path(self.repo_path)}"
