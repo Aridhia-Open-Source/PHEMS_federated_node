@@ -36,7 +36,7 @@ class ProjectConfig(BackendConfig):
 
 class RepoConfig(GiteaConfig, ProjectConfig):
     """
-    What both Gitea repos share. Each role declares repo, repo_uri and token_name from its
+    What both Gitea repos share. Each entity declares repo, repo_uri and token_name from its
     own env vars, and the token scope it needs.
     """
 
@@ -53,8 +53,8 @@ class TriggerRepoConfig(RepoConfig):
     repo: str = Field(default="", alias="TEST_TRIGGER_REPO")
     repo_uri: str = Field(default="", alias="TEST_TRIGGER_REPO_URI")
     watch_dir: str = Field(default="", alias="TEST_TRIGGER_REPO_WATCH_DIR")
-    # Gitea tells tokens apart by name: reusing one name for both roles would invalidate
-    # the other role's token.
+    # Gitea tells tokens apart by name: reusing one name for both entities would invalidate
+    # the other entity's token.
     token_name: str = Field(default="fn-sensor", alias="GITEA_TOKEN_NAME")
     token_scope: ClassVar[str] = "read:repository"
 
@@ -75,12 +75,12 @@ class DatasetConfig(ProjectConfig):
         return f"{self.project_name}-dataset-creds"
 
 
-ROLE_CONFIGS = {"trigger": TriggerRepoConfig, "results": ResultsRepoConfig}
-SECRET_CONFIGS = {**ROLE_CONFIGS, "dataset": DatasetConfig}
+ENTITY_CONFIGS = {"trigger": TriggerRepoConfig, "results": ResultsRepoConfig}
+SECRET_CONFIGS = {**ENTITY_CONFIGS, "dataset": DatasetConfig}
 
-role_option = click.option(
-    "--role",
-    type=click.Choice(list(ROLE_CONFIGS)),
+entity_option = click.option(
+    "--entity",
+    type=click.Choice(list(ENTITY_CONFIGS)),
     default="trigger",
     show_default=True,
     help="Which Gitea repo to act on.",

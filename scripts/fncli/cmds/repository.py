@@ -8,13 +8,13 @@ import logging
 import click
 
 from fncli.cmds.common import (
-    ROLE_CONFIGS,
+    ENTITY_CONFIGS,
     RepoConfig,
     ResultsRepoConfig,
     TriggerRepoConfig,
     build_backend_api,
     build_gitea_api,
-    role_option,
+    entity_option,
 )
 from fncli.cmds.project import find_project, init_backend_project
 from fncli.dagster.backend import BackendAPI
@@ -71,10 +71,10 @@ def init_backend_results_repo(
 
 
 @click.command("init-gitea-repo")
-@role_option
-def init_gitea_repo_command(role):
+@entity_option
+def init_gitea_repo_command(entity):
     """Find or create a repo in Gitea."""
-    config = ROLE_CONFIGS[role]()
+    config = ENTITY_CONFIGS[entity]()
     init_gitea_repo(config, build_gitea_api(config))
 
 
@@ -135,11 +135,11 @@ def delete_backend_results_repo_command():
 
 
 @click.command("delete-gitea-repo")
-@role_option
+@entity_option
 @click.confirmation_option("-y", "--yes", prompt="Delete the Gitea repo and all its pull requests?")
-def delete_gitea_repo_command(role):
+def delete_gitea_repo_command(entity):
     """Delete a repo from Gitea. The backend's records of it are left alone."""
-    config = ROLE_CONFIGS[role]()
+    config = ENTITY_CONFIGS[entity]()
     if build_gitea_api(config).delete_repo(config.repo):
         logger.info(f"Deleted Gitea repo {config.gitea_admin_user}/{config.repo}")
     else:

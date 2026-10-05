@@ -44,16 +44,16 @@ logger = logging.getLogger("actions")
 # Each step with the options it runs with.
 SETUP_STEPS = [
     (init_backend_project_command, {}),
-    (init_gitea_repo_command, {"role": "trigger"}),
-    (init_gitea_repo_command, {"role": "results"}),
-    (init_git_secret_command, {"role": "trigger"}),
-    (init_git_secret_command, {"role": "results"}),
+    (init_gitea_repo_command, {"entity": "trigger"}),
+    (init_gitea_repo_command, {"entity": "results"}),
+    (init_git_secret_command, {"entity": "trigger"}),
+    (init_git_secret_command, {"entity": "results"}),
     (init_dataset_secret_command, {}),
     (init_backend_trigger_repo_command, {}),
     (init_backend_results_repo_command, {}),
     (init_backend_dataset_command, {}),
-    (verify_git_secret_command, {"role": "trigger"}),
-    (verify_git_secret_command, {"role": "results"}),
+    (verify_git_secret_command, {"entity": "trigger"}),
+    (verify_git_secret_command, {"entity": "results"}),
     (project_healthcheck_command, {}),
 ]
 
@@ -72,14 +72,14 @@ TEARDOWN_STEPS = [
     (delete_backend_dataset_command, {}),
     (delete_backend_results_repo_command, {}),
     (delete_backend_trigger_repo_command, {}),
-    (delete_secret_command, {"role": "trigger"}),
-    (delete_secret_command, {"role": "results"}),
-    (delete_secret_command, {"role": "dataset"}),
+    (delete_secret_command, {"entity": "trigger"}),
+    (delete_secret_command, {"entity": "results"}),
+    (delete_secret_command, {"entity": "dataset"}),
     (delete_backend_project_command, {}),
-    (delete_gitea_token_command, {"role": "trigger"}),
-    (delete_gitea_token_command, {"role": "results"}),
-    (delete_gitea_repo_command, {"role": "trigger"}),
-    (delete_gitea_repo_command, {"role": "results"}),
+    (delete_gitea_token_command, {"entity": "trigger"}),
+    (delete_gitea_token_command, {"entity": "results"}),
+    (delete_gitea_repo_command, {"entity": "trigger"}),
+    (delete_gitea_repo_command, {"entity": "results"}),
 ]
 
 

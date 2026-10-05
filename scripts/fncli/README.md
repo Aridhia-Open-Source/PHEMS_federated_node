@@ -84,7 +84,7 @@ fncli teardown-project -y           # delete it all again
 - `open-pr`: opens a PR in the trigger repo for the sensor to find. Side effects: a new branch, one new file and a PR in Gitea; with `--merge` the PR is merged, which is what the sensor picks up.
 - `teardown-project -y`: deletes the lot, side effects included: the backend records, the secrets (backend and K8s), the Gitea tokens and both Gitea repos with all their PRs. `-y` skips the prompt.
 
-A project is two Gitea repos (`--role trigger` is the repo the sensor watches, `--role
+A project is two Gitea repos (`--entity trigger` is the repo the sensor watches, `--entity
 results` is where task results go), a dataset, and a secret for each of the three. Every
 step is its own command and the group commands chain them; every step is idempotent and can be run
 on its own or re-run after a failure. Deletes of something already gone are logged, not errors.
@@ -111,8 +111,8 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 
 | Command | What it does |
 |---|---|
-| `init-gitea-repo [--role]` | Finds or creates the repo in Gitea |
-| `delete-gitea-repo [--role] [-y]` | Deletes the repo from Gitea, after asking. Backend records are left alone |
+| `init-gitea-repo [--entity]` | Finds or creates the repo in Gitea |
+| `delete-gitea-repo [--entity] [-y]` | Deletes the repo from Gitea, after asking. Backend records are left alone |
 | `init-backend-trigger-repo` | Registers the trigger repo with the backend so the sensor polls it |
 | `init-backend-results-repo` | Registers the results repo as the project's results repository |
 | `delete-backend-trigger-repo`, `delete-backend-results-repo` | Delete that record from the backend |
@@ -121,11 +121,11 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 
 | Command | What it does |
 |---|---|
-| `init-git-secret [--role]` | Stores a fresh Gitea token in the repo's K8s secret (`read:repository` for trigger, `write:repository` for results) |
+| `init-git-secret [--entity]` | Stores a fresh Gitea token in the repo's K8s secret (`read:repository` for trigger, `write:repository` for results) |
 | `init-dataset-secret` | Stores dummy `USERNAME` and `PASSWORD` in the dataset's secret (`<project>-dataset-creds`) |
-| `verify-git-secret [--role]` | Checks Gitea accepts the token currently stored in the repo's secret |
-| `delete-secret [--role trigger\|results\|dataset]` | Deletes the secret from the backend and K8s. Refused while a repo or dataset uses it |
-| `delete-gitea-token [--role]` | Deletes the Gitea token `init-git-secret` created for the repo |
+| `verify-git-secret [--entity]` | Checks Gitea accepts the token currently stored in the repo's secret |
+| `delete-secret [--entity trigger\|results\|dataset]` | Deletes the secret from the backend and K8s. Refused while a repo or dataset uses it |
+| `delete-gitea-token [--entity]` | Deletes the Gitea token `init-git-secret` created for the repo |
 
 **Dataset** (`cmds/dataset.py`)
 
@@ -150,8 +150,8 @@ whose spec has an unknown field, so the PR is rejected.
 
 `hello-world` prints a greeting, to check the CLI is installed.
 
-`--role` is `trigger` (default) or `results`. Steps that are the same for both repos (Gitea
-repo, git secret, verify, Gitea token) take `--role`; steps that differ in fields or
+`--entity` is `trigger` (default) or `results`. Steps that are the same for both repos (Gitea
+repo, git secret, verify, Gitea token) take `--entity`; steps that differ in fields or
 endpoints (the backend trigger repository vs results repository) are separate commands.
 
 Each command reads only the env vars it uses,

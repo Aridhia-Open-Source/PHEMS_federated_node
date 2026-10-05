@@ -8,13 +8,13 @@ import logging
 import click
 
 from fncli.cmds.common import (
-    ROLE_CONFIGS,
+    ENTITY_CONFIGS,
     SECRET_CONFIGS,
     DatasetConfig,
     RepoConfig,
     build_backend_api,
     build_gitea_api,
-    role_option,
+    entity_option,
 )
 from fncli.cmds.project import find_project, init_backend_project
 from fncli.cmds.repository import init_gitea_repo
@@ -75,10 +75,10 @@ def init_dataset_secret(config: DatasetConfig, backend_api: BackendAPI, project:
 
 
 @click.command("init-git-secret")
-@role_option
-def init_git_secret_command(role):
+@entity_option
+def init_git_secret_command(entity):
     """Store a fresh Gitea token in the K8s secret of a repo (read for trigger, write for results)."""
-    config = ROLE_CONFIGS[role]()
+    config = ENTITY_CONFIGS[entity]()
     backend_api = build_backend_api(config)
     project = init_backend_project(config, backend_api)
     init_git_secret(
@@ -99,10 +99,10 @@ def init_dataset_secret_command():
 
 
 @click.command("verify-git-secret")
-@role_option
-def verify_git_secret_command(role):
+@entity_option
+def verify_git_secret_command(entity):
     """Check Gitea accepts the token currently stored in a repo's secret."""
-    config = ROLE_CONFIGS[role]()
+    config = ENTITY_CONFIGS[entity]()
     gitea_repo = init_gitea_repo(config, build_gitea_api(config))
     backend_api = build_backend_api(config)
     project = init_backend_project(config, backend_api)
@@ -115,15 +115,15 @@ def verify_git_secret_command(role):
 
 @click.command("delete-secret")
 @click.option(
-    "--role",
+    "--entity",
     type=click.Choice(list(SECRET_CONFIGS)),
     default="trigger",
     show_default=True,
     help="Whose secret: a repo's, or the dataset's.",
 )
-def delete_secret_command(role):
+def delete_secret_command(entity):
     """Delete a secret from the backend and the K8s secret behind it. Nothing may use it."""
-    config = SECRET_CONFIGS[role]()
+    config = SECRET_CONFIGS[entity]()
     backend_api = build_backend_api(config)
     project = find_project(config, backend_api)
     if project is None:
@@ -135,10 +135,10 @@ def delete_secret_command(role):
 
 
 @click.command("delete-gitea-token")
-@role_option
-def delete_gitea_token_command(role):
+@entity_option
+def delete_gitea_token_command(entity):
     """Delete the Gitea token that init-git-secret created for a repo."""
-    config = ROLE_CONFIGS[role]()
+    config = ENTITY_CONFIGS[entity]()
     if build_gitea_api(config).delete_token(config.token_name):
         logger.info(f"Deleted Gitea token {config.token_name!r}")
     else:
