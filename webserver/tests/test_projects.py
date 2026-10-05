@@ -401,3 +401,65 @@ class TestProjectHealthcheck:
     def test_project_not_found(self, client, project, simple_admin_header):
         response = client.get(f"/projects/{project.id + 100}/healthcheck", headers=simple_admin_header)
         assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+class TestDeleteProject:
+    @pytest.fixture
+    def full_project(self, client, k8s_client, project, dataset, default_repo, secret, make_task, results_repo_for):
+        make_task(project=project, dataset_id=dataset.id)
+        return project
+
+    @pytest.fixture
+    def results_repo_for(self, client, project, secret):
+        repo = ResultsRepository(
+            uri="github.com/org/results", provider="github", api_uri="https://api.github.com",
+            secret_id=secret.id, target_dir="results", project_id=project.id
+        )
+        repo.add()
+        return repo
+
+    def delete(self, client, headers, project):
+        return client.delete(f"/projects/{project.id}", headers=headers)
+
+    def test_deletes_everything_under_the_project(
+        self, client, k8s_client, simple_admin_header, full_project, secret
+    ):
+        from app.models.dataset import Dataset
+        from app.models.secret import Secret
+        from app.models.task import Task
+        from app.models.trigger import Trigger
+        key, namespace = secret.key, secret.namespace
+        project_id = full_project.id
+
+        response = self.delete(client, simple_admin_header, full_project)
+
+        assert response.status_code == HTTPStatus.NO_CONTENT
+        assert Project.query.filter_by(id=project_id).count() == 0
+        for model in (Task, Dataset, TriggerRepository, ResultsRepository, Secret):
+            assert model.query.filter_by(project_id=project_id).count() == 0
+        assert Trigger.query.filter_by(project_id=project_id).count() == 0
+        k8s_client["delete_namespaced_secret_mock"].assert_called_once_with(key, namespace)
+
+    def test_other_projects_are_untouched(self, client, k8s_client, simple_admin_header, full_project, other_project):
+        self.delete(client, simple_admin_header, full_project)
+        assert Project.query.filter_by(id=other_project.id).count() == 1
+
+    def test_not_found(self, client, simple_admin_header):
+        assert client.delete("/projects/9999", headers=simple_admin_header).status_code == 404
+
+    def test_requires_auth(self, client, project):
+        assert client.delete(f"/projects/{project.id}").status_code == 401
+
+    def test_a_missing_cluster_secret_is_fine(self, client, k8s_client, simple_admin_header, full_project):
+        k8s_client["delete_namespaced_secret_mock"].side_effect = ApiException(status=404)
+        assert self.delete(client, simple_admin_header, full_project).status_code == HTTPStatus.NO_CONTENT
+
+    def test_deletes_a_project_with_pull_requests(
+        self, client, k8s_client, simple_admin_header, full_project, default_repo
+    ):
+        PullRequest(
+            project_id=full_project.id, trigger_repository_id=default_repo.id, number=1, title="t",
+            raised_by="u", merged_at="2026-01-01T10:00:00Z", merge_commit_sha="a" * 40
+        ).add()
+        assert self.delete(client, simple_admin_header, full_project).status_code == HTTPStatus.NO_CONTENT
+        assert PullRequest.query.count() == 0

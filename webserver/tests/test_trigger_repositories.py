@@ -5,6 +5,7 @@ from app.dtos.trigger_repository import TriggerRepositoryDTO
 from app.models.pull_request import PullRequest
 from app.models.task import Task
 from app.models.trigger_repository import TriggerRepository
+from app.helpers.base_model import db
 from app.models.dataset import Dataset
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
@@ -455,6 +456,126 @@ class TestPostPullRequestsBatch:
         )
         assert response.status_code == 400
         assert "must be a list" in response.json.get("error", "")
+
+
+def pr_body(number=1, merged_at="2026-01-01T10:00:00Z", **fields):
+    return {
+        "number": number, "title": f"PR {number}", "raised_by": "user", "merged_at": merged_at,
+        "merge_commit_sha": "a" * 40, "payload": {}, **fields,
+    }
+
+
+class TestPullRequestBatchBehaviour:
+    def post(self, client, headers, repository, body):
+        return client.post(
+            f"/trigger_repositories/{repository.id}/pull_requests/batch",
+            data=json.dumps(body), headers=headers
+        )
+
+    def test_new_pull_requests_are_unknown(self, client, post_json_admin_header, repository):
+        response = self.post(client, post_json_admin_header, repository, [pr_body()])
+        assert response.status_code == 201
+        assert response.json[0]["state"] == "UNKNOWN"
+        assert response.json[0]["state_cause"] is None
+        assert response.json[0]["task_id"] is None
+
+    def test_exactly_100_is_accepted(self, client, post_json_admin_header, repository):
+        response = self.post(client, post_json_admin_header, repository, [pr_body(n) for n in range(1, 101)])
+        assert response.status_code == 201
+        assert len(response.json) == 100
+
+    def test_duplicate_number_in_a_batch_is_rejected_and_nothing_is_kept(
+        self, client, post_json_admin_header, repository
+    ):
+        response = self.post(client, post_json_admin_header, repository, [pr_body(1), pr_body(1)])
+        assert response.status_code >= 400
+        assert PullRequest.query.count() == 0
+
+    def test_number_already_ingested_is_rejected(self, client, post_json_admin_header, repository):
+        assert self.post(client, post_json_admin_header, repository, [pr_body(1)]).status_code == 201
+        response = self.post(client, post_json_admin_header, repository, [pr_body(1)])
+        assert response.status_code >= 400
+        assert PullRequest.query.count() == 1
+
+    @pytest.mark.parametrize("field", ["number", "title", "raised_by", "merged_at", "merge_commit_sha", "payload"])
+    def test_each_required_field(self, client, post_json_admin_header, repository, field):
+        body = pr_body()
+        del body[field]
+        response = self.post(client, post_json_admin_header, repository, [body])
+        assert response.status_code == 400
+        assert field in response.json["error"]
+        assert PullRequest.query.count() == 0
+
+    def test_invalid_merged_at(self, client, post_json_admin_header, repository):
+        response = self.post(client, post_json_admin_header, repository, [pr_body(merged_at="yesterday")])
+        assert response.status_code == 400
+
+    def test_merged_at_with_an_offset_is_stored_as_utc(self, client, post_json_admin_header, repository):
+        response = self.post(
+            client, post_json_admin_header, repository, [pr_body(merged_at="2026-01-01T10:00:00+01:00")]
+        )
+        assert response.status_code == 201, response.json
+        assert PullRequest.query.one().merged_at.isoformat() == "2026-01-01T09:00:00"
+
+    def test_the_project_comes_from_the_repository(self, client, post_json_admin_header, repository):
+        self.post(client, post_json_admin_header, repository, [pr_body()])
+        assert PullRequest.query.one().project_id == repository.project_id
+
+
+class TestPrCursor:
+    def test_pr_cursor_is_the_latest_merge_time(self, client, post_json_admin_header, simple_admin_header, repository):
+        client.post(
+            f"/trigger_repositories/{repository.id}/pull_requests/batch",
+            data=json.dumps([pr_body(1, "2026-01-01T10:00:00Z"), pr_body(2, "2026-03-05T11:30:00Z")]),
+            headers=post_json_admin_header
+        )
+        response = client.get(f"/trigger_repositories/{repository.id}", headers=simple_admin_header)
+        assert response.json["pr_cursor"] == "2026-03-05T11:30:00Z"
+        assert response.json["pr_count"] == 2
+
+    def test_pr_cursor_falls_back_to_initial_cursor(self, client, post_json_admin_header, simple_admin_header, repository):
+        client.patch(
+            f"/trigger_repositories/{repository.id}",
+            data=json.dumps({"initial_cursor": "2026-02-02T02:02:02"}), headers=post_json_admin_header
+        )
+        response = client.get(f"/trigger_repositories/{repository.id}", headers=simple_admin_header)
+        assert response.json["pr_cursor"] == "2026-02-02T02:02:02Z"
+
+    def test_initial_cursor_cannot_change_once_pull_requests_exist(
+        self, client, post_json_admin_header, repository
+    ):
+        client.post(
+            f"/trigger_repositories/{repository.id}/pull_requests/batch",
+            data=json.dumps([pr_body()]), headers=post_json_admin_header
+        )
+        response = client.patch(
+            f"/trigger_repositories/{repository.id}",
+            data=json.dumps({"initial_cursor": "2026-02-02T02:02:02"}), headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+
+
+class TestRepositoryDelete:
+    def test_delete_removes_its_pull_requests(self, client, post_json_admin_header, simple_admin_header, repository):
+        client.post(
+            f"/trigger_repositories/{repository.id}/pull_requests/batch",
+            data=json.dumps([pr_body()]), headers=post_json_admin_header
+        )
+        response = client.delete(f"/trigger_repositories/{repository.id}", headers=simple_admin_header)
+        assert response.status_code == 204
+        assert TriggerRepository.query.count() == 0
+        assert PullRequest.query.count() == 0
+
+    def test_delete_not_found(self, client, simple_admin_header):
+        assert client.delete("/trigger_repositories/9999", headers=simple_admin_header).status_code == 404
+
+    def test_the_database_rejects_a_secret_of_another_project(self, repository, other_project):
+        foreign = Secret(project_id=other_project.id, label="foreign", provider=SecretProviderType.K8S)
+        foreign.add()
+        repository.secret_id = foreign.id
+        with pytest.raises(IntegrityError):
+            repository.add()
+        db.session.rollback()
 
 
 class TestTriggerRepositoryDTO:
