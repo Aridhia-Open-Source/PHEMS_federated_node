@@ -32,14 +32,14 @@ class TestTriggerModels:
         assert Trigger.query.filter_by(id=pr.id).one().type == "PR"
         assert pr.requested_by == "user"
 
-    @pytest.mark.parametrize("state,reason", [
+    @pytest.mark.parametrize("state,state_cause", [
         ("REJECTED", None), ("IGNORED", None), ("UNKNOWN", "why"), ("YIELDED", "why"),
     ])
-    def test_check_ties_reason_to_state(self, project, state, reason):
+    def test_check_ties_state_cause_to_state(self, project, state, state_cause):
         api = ApiRequest(project_id=project.id, user_id="user")
         api.add()
         api.state = state
-        api.reason = reason
+        api.state_cause = state_cause
         with pytest.raises(IntegrityError):
             api.add()
         db.session.rollback()

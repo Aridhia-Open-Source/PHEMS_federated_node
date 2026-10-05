@@ -156,13 +156,13 @@ def upgrade() -> None:
         sa.Column('type', sa.String(length=16), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=False),
         sa.Column('state', sa.String(length=32), nullable=False, server_default='UNKNOWN'),
-        sa.Column('reason', sa.String(length=1024), nullable=True),
+        sa.Column('state_cause', sa.String(length=1024), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
         sa.CheckConstraint(
-            "(state IN ('IGNORED', 'REJECTED')) = (reason IS NOT NULL)",
-            name='ck_triggers_reason_for_ignored_rejected',
+            "(state IN ('IGNORED', 'REJECTED')) = (state_cause IS NOT NULL)",
+            name='ck_triggers_state_cause_for_ignored_rejected',
         ),
         sa.PrimaryKeyConstraint('id'),
     )

@@ -14,7 +14,6 @@ class TaskSpec(BaseModel):
     image: str
     env: dict = {}
     params: dict = {}
-    # Dataset name. Resolved against the project when the task is created.
     dataset: str | None = None
     tags: dict = {}
     resources: dict = {}

@@ -30,7 +30,7 @@ class Trigger(db.Model, BaseModel):
         server_default=TriggerState.UNKNOWN.value,
     )
     # Why the trigger is IGNORED or REJECTED. Set for those two states only.
-    reason = sa.Column(sa.String(1024), nullable=True)
+    state_cause = sa.Column(sa.String(1024), nullable=True)
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
 
@@ -39,8 +39,8 @@ class Trigger(db.Model, BaseModel):
 
     __table_args__ = (
         sa.CheckConstraint(
-            "(state IN ('IGNORED', 'REJECTED')) = (reason IS NOT NULL)",
-            name='ck_triggers_reason_for_ignored_rejected',
+            "(state IN ('IGNORED', 'REJECTED')) = (state_cause IS NOT NULL)",
+            name='ck_triggers_state_cause_for_ignored_rejected',
         ),
         sa.Index('ix_triggers_state', 'state'),
     )
@@ -57,18 +57,18 @@ class Trigger(db.Model, BaseModel):
     def task_id(self) -> int | None:
         return self.task.id if self.task else None
 
-    def set_state(self, state: str, reason: str | None):
+    def set_state(self, state: str, state_cause: str | None):
         """
-        Set the state with its reason, which is required for IGNORED and REJECTED and
+        Set the state with its state_cause, which is required for IGNORED and REJECTED and
         not allowed otherwise.
         """
         if state not in [s.value for s in TriggerState]:
             valid = ', '.join([s.value for s in TriggerState])
             raise InvalidRequest(f"Invalid state: {state}. Must be one of: {valid}")
         needs_reason = state in (TriggerState.IGNORED.value, TriggerState.REJECTED.value)
-        if needs_reason and not reason:
-            raise InvalidRequest(f"reason is required when state is {state}")
-        if not needs_reason and reason is not None:
-            raise InvalidRequest(f"reason is not allowed when state is {state}")
+        if needs_reason and not state_cause:
+            raise InvalidRequest(f"state_cause is required when state is {state}")
+        if not needs_reason and state_cause is not None:
+            raise InvalidRequest(f"state_cause is not allowed when state is {state}")
         self.state = state
-        self.reason = reason
+        self.state_cause = state_cause

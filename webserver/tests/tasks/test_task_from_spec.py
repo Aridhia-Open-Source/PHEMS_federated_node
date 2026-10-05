@@ -103,7 +103,7 @@ class TestPostTasks:
         assert task.attempt == 1
         assert task.status == "PENDING"
         assert api_request.state == TriggerState.YIELDED.value
-        assert api_request.reason is None
+        assert api_request.state_cause is None
         assert task.dataset is dataset
         assert task.name == "TestTask"
         assert task.docker_image == task_body["executors"][0]["image"]
@@ -124,7 +124,7 @@ class TestPostTasks:
         assert Task.query.count() == 0
         api_request = ApiRequest.query.one()
         assert api_request.state == TriggerState.REJECTED.value
-        assert api_request.reason == response.json["error"]
+        assert api_request.state_cause == response.json["error"]
         assert api_request.payload["resources"] == {"limits": {"cpu": "abc"}}
 
     def test_dataset_of_another_project_keeps_a_rejected_request(
@@ -138,7 +138,7 @@ class TestPostTasks:
         assert Task.query.count() == 0
         api_request = ApiRequest.query.one()
         assert api_request.state == TriggerState.REJECTED.value
-        assert "does not belong to project" in api_request.reason
+        assert "does not belong to project" in api_request.state_cause
         assert api_request.project_id == other_project.id
 
     @pytest.mark.parametrize("executors", ["missing", []])

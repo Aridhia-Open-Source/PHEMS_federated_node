@@ -55,7 +55,7 @@ def test_an_ignored_pr_is_patched_with_its_reason():
     backend_api.create_task_for_pull_request.assert_not_called()
     (repo_id, number, data), _ = backend_api.patch_pull_request.call_args
     assert (repo_id, number) == (1, 5)
-    assert data["state"] == "IGNORED" and "specs/" in data["reason"]
+    assert data["state"] == "IGNORED" and "specs/" in data["state_cause"]
 
 
 def test_a_rejected_pr_is_patched_with_its_reason():
@@ -63,7 +63,7 @@ def test_a_rejected_pr_is_patched_with_its_reason():
 
     backend_api.create_task_for_pull_request.assert_not_called()
     data = backend_api.patch_pull_request.call_args.args[2]
-    assert data["state"] == "REJECTED" and data["reason"]
+    assert data["state"] == "REJECTED" and data["state_cause"]
 
 
 def test_a_400_from_the_task_endpoint_rejects_with_its_message():
@@ -73,7 +73,7 @@ def test_a_400_from_the_task_endpoint_rejects_with_its_message():
     run_evaluate(backend_api=backend_api)
 
     backend_api.patch_pull_request.assert_called_once_with(
-        1, 5, {"state": "REJECTED", "reason": "no such dataset"}
+        1, 5, {"state": "REJECTED", "state_cause": "no such dataset"}
     )
 
 

@@ -467,11 +467,11 @@ class TestPatchPullRequest:
     @pytest.mark.parametrize("state", ["IGNORED", "REJECTED"])
     def test_state_with_reason(self, client, post_json_admin_header, repository, pull_request, state):
         response = self.patch(
-            client, post_json_admin_header, repository, pull_request, {"state": state, "reason": "why"}
+            client, post_json_admin_header, repository, pull_request, {"state": state, "state_cause": "why"}
         )
         assert response.status_code == 200
         assert response.json["state"] == state
-        assert response.json["reason"] == "why"
+        assert response.json["state_cause"] == "why"
 
     @pytest.mark.parametrize("state", ["IGNORED", "REJECTED"])
     def test_ignored_and_rejected_need_a_reason(
@@ -482,7 +482,7 @@ class TestPatchPullRequest:
 
     def test_reason_not_allowed_for_unknown(self, client, post_json_admin_header, repository, pull_request):
         response = self.patch(
-            client, post_json_admin_header, repository, pull_request, {"state": "UNKNOWN", "reason": "why"}
+            client, post_json_admin_header, repository, pull_request, {"state": "UNKNOWN", "state_cause": "why"}
         )
         assert response.status_code == 400
 
@@ -606,14 +606,14 @@ class TestPullRequestDTO:
     def test_fields(self, pull_request):
         """Dagster's PullRequest wire model requires these"""
         expected_fields = ['trigger_repository_id', 'number', 'title', 'raised_by', 'merged_at',
-                           'payload', 'merge_commit_sha', 'state', 'reason', 'task_id']
+                           'payload', 'merge_commit_sha', 'state', 'state_cause', 'task_id']
         assert set(pull_request) == set(expected_fields)
 
     def test_values(self, repository, pull_request):
         assert pull_request["trigger_repository_id"] == repository.id
         assert pull_request["payload"] == {"image": "example:latest"}
         assert pull_request["state"] == "UNKNOWN"
-        assert pull_request["reason"] is None
+        assert pull_request["state_cause"] is None
         assert pull_request["task_id"] is None
 
     def test_merged_at_is_iso_string(self, pull_request):

@@ -15,5 +15,5 @@ class PullRequest(BaseModel):
     payload: dict
     merge_commit_sha: str
     state: TriggerState
-    reason: str | None = None
+    state_cause: str | None = None
     task_id: int | None = None

@@ -38,7 +38,7 @@ def test_no_watched_file_is_ignored_with_a_reason(files):
 
     assert parsed.outcome == PullRequestOutcome.IGNORED
     assert parsed.spec is None
-    assert "specs/" in parsed.reason
+    assert "specs/" in parsed.state_cause
 
 
 def test_several_watched_files_are_rejected_naming_them():
@@ -47,7 +47,7 @@ def test_several_watched_files_are_rejected_naming_them():
     parsed = parse(files)[0]
 
     assert parsed.outcome == PullRequestOutcome.REJECTED
-    assert "specs/a.json" in parsed.reason and "specs/b.json" in parsed.reason
+    assert "specs/a.json" in parsed.state_cause and "specs/b.json" in parsed.state_cause
 
 
 @pytest.mark.parametrize(
@@ -59,14 +59,14 @@ def test_a_bad_spec_file_is_rejected_with_a_reason(contents):
 
     assert parsed.outcome == PullRequestOutcome.REJECTED
     assert parsed.spec is None
-    assert "specs/a.json" in parsed.reason
+    assert "specs/a.json" in parsed.state_cause
 
 
 def test_a_valid_spec_file_is_ready():
     parsed, git_api = parse([WATCHED], json.dumps({"spec": {"docker_image": "a/b:1"}}))
 
     assert parsed.outcome == PullRequestOutcome.READY
-    assert parsed.reason is None
+    assert parsed.state_cause is None
     assert parsed.spec == PullRequestSpec(image="a/b:1")
     git_api.get_file_contents.assert_called_once_with(repo_path="org/repo", file_path="specs/a.json", ref="abc")
 

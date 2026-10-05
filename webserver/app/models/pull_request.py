@@ -11,6 +11,7 @@ class PullRequest(Trigger):
     """
     A pull request merged to a watched repository.
     Stores PR metadata and payload (the raw spec) for async processing by Dagster.
+    `state`, `state_cause` and `project_id` are columns of the Trigger it extends.
     """
     __tablename__ = 'pull_requests'
     __mapper_args__ = {'polymorphic_identity': 'PR'}

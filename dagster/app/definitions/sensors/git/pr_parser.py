@@ -10,7 +10,7 @@ from app.models import PullRequest, PullRequestSpec, TriggerRepository
 class PullRequestOutcome(str, Enum):
     """
     What evaluating a pull request found. Never persisted: it maps onto the PR's state
-    (READY becomes a task and so YIELDED, IGNORED and REJECTED are stored with the reason).
+    (READY becomes a task and so YIELDED, IGNORED and REJECTED are stored with the state_cause).
     """
 
     READY = "READY"
@@ -22,7 +22,7 @@ class ParsedPullRequest(BaseModel):
     outcome: PullRequestOutcome
     spec: PullRequestSpec | None = None
     # Why the PR is IGNORED or REJECTED
-    reason: str | None = None
+    state_cause: str | None = None
 
 
 class PullRequestParser:
@@ -49,12 +49,12 @@ class PullRequestParser:
         if not watched_file_names:
             return ParsedPullRequest(
                 outcome=PullRequestOutcome.IGNORED,
-                reason=f"No new spec file under {self.repo.watch_dir}",
+                state_cause=f"No new spec file under {self.repo.watch_dir}",
             )
         if len(watched_file_names) > 1:
             return ParsedPullRequest(
                 outcome=PullRequestOutcome.REJECTED,
-                reason=f"Several new spec files under {self.repo.watch_dir}: {', '.join(watched_file_names)}",
+                state_cause=f"Several new spec files under {self.repo.watch_dir}: {', '.join(watched_file_names)}",
             )
 
         contents = self.git_api.get_file_contents(
@@ -69,7 +69,7 @@ class PullRequestParser:
             self.log.error(f"PR #{pr.number} spec is invalid: {type(e).__name__}: {e}")
             return ParsedPullRequest(
                 outcome=PullRequestOutcome.REJECTED,
-                reason=f"Invalid spec file {watched_file_names[0]}: {type(e).__name__}: {e}",
+                state_cause=f"Invalid spec file {watched_file_names[0]}: {type(e).__name__}: {e}",
             )
         return ParsedPullRequest(outcome=PullRequestOutcome.READY, spec=spec)
 

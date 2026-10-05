@@ -46,7 +46,7 @@ class PullRequestDTO(DTO):
     merge_commit_sha: str
     merged_at: datetime | None
     state: str
-    reason: str | None
+    state_cause: str | None
     task_id: int | None
     payload: dict
 

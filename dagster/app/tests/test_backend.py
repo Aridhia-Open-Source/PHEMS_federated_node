@@ -154,10 +154,10 @@ class TestPullRequests:
     def test_patch_pull_request(self, api, session):
         session.patch.return_value = make_response(SAMPLE_PR)
 
-        api.patch_pull_request(1, 5, {"state": "IGNORED", "reason": "no spec"})
+        api.patch_pull_request(1, 5, {"state": "IGNORED", "state_cause": "no spec"})
 
         assert session.patch.call_args.args[0] == "/trigger_repositories/1/pull_requests/5"
-        assert session.patch.call_args.kwargs["json"] == {"state": "IGNORED", "reason": "no spec"}
+        assert session.patch.call_args.kwargs["json"] == {"state": "IGNORED", "state_cause": "no spec"}
 
     @pytest.mark.parametrize("status_code,created", [(201, True), (200, False)])
     def test_create_task_for_pull_request(self, api, session, status_code, created):

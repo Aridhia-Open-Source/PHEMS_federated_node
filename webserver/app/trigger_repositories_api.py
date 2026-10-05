@@ -294,7 +294,7 @@ def get_pull_request(repo_id, number):
 @bp.route('/<int:repo_id>/pull_requests/<int:number>', methods=['PATCH'])
 def patch_pull_request(repo_id, number):
     """
-    PATCH /trigger_repositories/<repo_id>/pull_requests/<number> — update PR state, reason and payload
+    PATCH /trigger_repositories/<repo_id>/pull_requests/<number> — update PR state, state_cause and payload
     """
     TriggerRepository.get_by_id(repo_id)
     pr = PullRequest.query.filter(
@@ -307,8 +307,8 @@ def patch_pull_request(repo_id, number):
 
     body = request.json or {}
 
-    if 'state' in body or 'reason' in body:
-        pr.set_state(body.get('state', pr.state), body.get('reason'))
+    if 'state' in body or 'state_cause' in body:
+        pr.set_state(body.get('state', pr.state), body.get('state_cause'))
 
     if 'payload' in body:
         pr.payload = body['payload']
