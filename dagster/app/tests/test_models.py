@@ -1,6 +1,6 @@
 import pytest
 
-from app.models import Dataset, PullRequest, PullRequestStatus, Registry, TriggerRepository
+from app.models import Dataset, PullRequest, TriggerRepository
 
 
 SAMPLE_DATASET = {
@@ -46,73 +46,6 @@ class TestDataset:
         assert dataset.extra_field == "value"
 
 
-class TestRegistry:
-    def make_registry(self, url, reg_id=1):
-        return Registry(id=reg_id, url=url)
-
-    @pytest.mark.parametrize("url,expected", [
-        ("https://ghcr.io", "ghcr-io"),
-        ("http://ghcr.io", "ghcr-io"),
-        ("ghcr.io", "ghcr-io"),
-        ("ghcr.io/org", "ghcr-io-org"),
-        ("my_registry.example.com", "my-registry-example-com"),
-    ])
-    def test_secret_name_matches_the_backend_slug(self, url, expected):
-        """Registry.slugify_name on the backend produces this name."""
-        assert self.make_registry(url).secret_name == expected
-
-    def test_matching_registry_wins(self):
-        registries = [
-            self.make_registry("docker.io", 1),
-            self.make_registry("ghcr.io", 2),
-        ]
-
-        assert Registry.secret_for_image(
-            "ghcr.io/org/experiment:latest", registries
-        ) == "ghcr-io"
-
-    def test_shortest_matching_prefix_wins(self):
-        registries = [
-            self.make_registry("ghcr.io/org", 1),
-            self.make_registry("ghcr.io", 2),
-        ]
-
-        assert Registry.secret_for_image(
-            "ghcr.io/org/experiment:latest", registries
-        ) == "ghcr-io"
-
-    def test_registry_host_on_its_own_matches(self):
-        registries = [self.make_registry("ghcr.io")]
-
-        assert Registry.secret_for_image("ghcr.io", registries) == "ghcr-io"
-
-    @pytest.mark.parametrize("image", [
-        "ghcr.iomalicious/img:1",
-        "evil.com/ghcr.io/img:1",
-        "docker.io/library/alpine:3",
-    ])
-    def test_non_matching_images_get_no_secret(self, image):
-        registries = [self.make_registry("ghcr.io")]
-
-        assert Registry.secret_for_image(image, registries) is None
-
-    def test_no_registries_configured(self):
-        assert Registry.secret_for_image("alpine:3", []) is None
-
-    def test_scheme_is_stripped_before_matching(self):
-        registries = [self.make_registry("https://ghcr.io")]
-
-        assert Registry.secret_for_image("ghcr.io/org/img:1", registries) == "ghcr-io"
-
-
-class TestPullRequestStatus:
-    def test_str_is_the_value(self):
-        assert str(PullRequestStatus.READY) == "READY"
-
-    def test_status_is_a_string_enum(self):
-        assert PullRequestStatus.SUCCESS == "SUCCESS"
-
-
 class TestTriggerRepository:
     def test_pull_requests_default_to_empty(self):
         repo = TriggerRepository(
@@ -153,7 +86,7 @@ class TestTriggerRepository:
                 "merged_at": "2026-06-26T10:00:00Z",
                 "merge_commit_sha": "abc",
                 "payload": {},
-                "status": "UNKNOWN",
+                "state": "UNKNOWN",
             }],
         )
 

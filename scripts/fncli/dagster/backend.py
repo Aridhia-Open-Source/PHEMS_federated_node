@@ -2,7 +2,7 @@ import logging
 from urllib.parse import urlparse
 
 from .utils import BackendSession
-from .models import TriggerRepository, PullRequest, TaskRequest, Dataset, Registry, Request, Project
+from .models import TriggerRepository, PullRequest, Dataset, Registry, Request, Project
 
 default_logger = logging.getLogger(__name__)
 
@@ -86,7 +86,6 @@ class BackendAPI:
         merged_at: str,
         merge_commit_sha: str,
         payload: dict,
-        status: str = "UNKNOWN",
     ) -> PullRequest:
         """Create a pull request"""
         self.logger.info(f"Creating PR #{number} in repo {trigger_repository_id}")
@@ -98,7 +97,6 @@ class BackendAPI:
             "merged_at": merged_at,
             "merge_commit_sha": merge_commit_sha,
             "payload": payload,
-            "status": status,
         }
         response = self.session.post("/trigger_repositories/pull_requests", json=data)
         return PullRequest(**response.json())
@@ -125,34 +123,6 @@ class BackendAPI:
             json=data,
         )
         return PullRequest(**response.json())
-
-    def update_pull_request_status(
-        self,
-        repo_id: int,
-        number: int,
-        status: str,
-    ) -> PullRequest:
-        """Update pull request status"""
-        self.logger.info(f"Updating PR #{number} status in repo {repo_id}")
-        response = self.session.patch(
-            f"/trigger_repositories/{repo_id}/pull_requests/{number}",
-            json={"status": status},
-        )
-        return PullRequest(**response.json())
-
-    def create_task_request(
-        self,
-        repo_id: int,
-        number: int,
-        payload: dict,
-    ) -> TaskRequest:
-        """Create the task request for a pull request"""
-        self.logger.info(f"Creating task request for PR #{number} in repo {repo_id}")
-        response = self.session.post(
-            f"/trigger_repositories/{repo_id}/pull_requests/{number}/task_request",
-            json={"payload": payload},
-        )
-        return TaskRequest(**response.json())
 
     def get_dataset_by_name(self, name: str) -> Dataset | None:
         """Get dataset by name"""
