@@ -14,7 +14,7 @@ class K8sPipesOpConfig(BaseModel):
     dataset_type: str
     dataset_read_schema: str | None
     dataset_write_schema: str | None
-    dataset_k8s_secret_name: str
+    dataset_k8s_secret_k8s_name: str
 
 
 def build_run_config(spec: dict, dataset: Dataset) -> dict:
