@@ -3,6 +3,7 @@
 from fncli.dagster.models.dataset import Catalogue, Dataset, Dictionary
 from fncli.dagster.models.project import Project
 from fncli.dagster.models.pull_request import PullRequest
+from fncli.dagster.models.results_repository import ResultsRepository
 from fncli.dagster.models.secret import Secret
 from fncli.dagster.models.secret_provider_type import SecretProviderType
 from fncli.dagster.models.task import Task
@@ -15,6 +16,7 @@ __all__ = [
     "Dictionary",
     "Project",
     "PullRequest",
+    "ResultsRepository",
     "Secret",
     "SecretProviderType",
     "Task",

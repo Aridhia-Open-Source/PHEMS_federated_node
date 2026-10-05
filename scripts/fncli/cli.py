@@ -9,7 +9,7 @@ import logging
 import click
 from dotenv import find_dotenv, load_dotenv
 
-from fncli.cmds import hello_world, init_repo
+from fncli.cmds import hello_world, init_repo, pr, teardown
 
 
 @click.group()
@@ -18,6 +18,6 @@ def cli():
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
-for module in (hello_world, init_repo):
+for module in (hello_world, init_repo, pr, teardown):
     for command in module.COMMANDS:
         cli.add_command(command)

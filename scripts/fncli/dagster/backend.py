@@ -2,7 +2,7 @@ import logging
 from urllib.parse import urlparse
 
 from fncli.dagster.utils import BackendSession
-from fncli.dagster.models import TriggerRepository, PullRequest, Dataset, Project
+from fncli.dagster.models import Dataset, Project, PullRequest, ResultsRepository, TriggerRepository
 
 default_logger = logging.getLogger(__name__)
 
@@ -135,33 +135,60 @@ class BackendAPI:
 
     def create_dataset(
         self,
+        project_id: int,
         name: str,
         host: str,
         port: int,
-        secret_label: str,
-        read_schema: str,
         db_type: str,
+        secret_label: str,
+        read_schema: str | None = None,
+        write_schema: str | None = None,
     ) -> Dataset:
-        """Create a dataset"""
+        """Create a dataset. secret_label names an existing secret of the project."""
         self.logger.info(f"Creating dataset {name}")
         data = {
+            "project_id": project_id,
             "name": name,
             "host": host,
             "port": port,
+            "type": db_type,
             "secret_label": secret_label,
             "read_schema": read_schema,
-            "type": db_type,
+            "write_schema": write_schema,
         }
         response = self.session.post("/datasets", json=data)
         return Dataset(**response.json())
 
+    def _get_all_pages(self, path: str) -> list[dict]:
+        """Every item of a paginated list endpoint"""
+        items = []
+        page = 1
+        while True:
+            data = self.session.get(path, params={"page": page, "per_page": 100}).json()
+            items.extend(data["items"])
+            if page >= data["pages"]:
+                return items
+            page += 1
+
     def get_datasets(self) -> list[Dataset]:
         """Get all datasets"""
         self.logger.info("Fetching datasets")
-        response = self.session.get("/datasets")
-        data = response.json()
-        items = data.get("items", data) if isinstance(data, dict) else data
-        return [Dataset(**ds) for ds in items]
+        return [Dataset(**ds) for ds in self._get_all_pages("/datasets")]
+
+    def find_dataset(self, name: str, project_id: int) -> Dataset | None:
+        """The project's dataset of that name, if any"""
+        for dataset in self.get_datasets():
+            if dataset.project_id == project_id and dataset.name == name:
+                return dataset
+        return None
+
+    def get_or_create_dataset(self, name: str, project_id: int, **kwargs) -> Dataset:
+        """Reuse the project's dataset of that name if there is one, else create it from kwargs"""
+        dataset = self.find_dataset(name, project_id)
+        if dataset:
+            self.logger.info(f"Reusing existing dataset {name} ({dataset.id})")
+            return dataset
+        return self.create_dataset(project_id=project_id, name=name, **kwargs)
 
     def get_dataset(self, dataset_id: int) -> Dataset:
         """Get single dataset"""
@@ -207,22 +234,35 @@ class BackendAPI:
     def get_projects(self) -> list[Project]:
         """Get all projects"""
         self.logger.info("Fetching projects")
-        response = self.session.get("/projects")
-        return [Project(**p) for p in response.json()["items"]]
+        return [Project(**p) for p in self._get_all_pages("/projects")]
+
+    def find_project(self, name: str) -> Project | None:
+        """The project of that name, if any"""
+        return next((p for p in self.get_projects() if p.name == name), None)
 
     def get_or_create_project(
         self, name: str, description: str | None = None, enabled: bool = False
     ) -> Project:
         """Reuse the project of that name if there is one, else create it with enabled"""
-        for project in self.get_projects():
-            if project.name == name:
-                self.logger.info(f"Reusing existing project {name} ({project.id})")
-                return project
+        project = self.find_project(name)
+        if project:
+            self.logger.info(f"Reusing existing project {name} ({project.id})")
+            return project
 
         self.logger.info(f"Creating project {name}")
         data = {"name": name, "description": description, "enabled": enabled}
         response = self.session.post("/projects", json=data)
-        return Project(**self.session.get(f"/projects/{response.json()['id']}").json())
+        return self.get_project(response.json()["id"])
+
+    def get_project(self, project_id: int) -> Project:
+        """Get single project"""
+        self.logger.info(f"Fetching project {project_id}")
+        return Project(**self.session.get(f"/projects/{project_id}").json())
+
+    def delete_project(self, project_id: int) -> None:
+        """Delete the project and everything under it"""
+        self.logger.info(f"Deleting project {project_id}")
+        self.session.delete(f"/projects/{project_id}")
 
     def get_project_healthcheck(self, project_id: int) -> dict:
         """Whether the project's trigger repositories can be reached with their tokens"""
@@ -264,13 +304,71 @@ class BackendAPI:
             )
         return response.json()
 
-    def get_or_create_repository(self, uri: str, project_id: int, **kwargs) -> TriggerRepository:
-        """Reuse the project's repository with that uri if there is one, else create it from kwargs"""
+    def delete_secret(self, project_id: int, label: str) -> bool:
+        """Delete the project's secret. Returns whether there was one to delete."""
+        if not any(secret["label"] == label for secret in self.get_secrets(project_id)):
+            return False
+        self.logger.info(f"Deleting secret {label} of project {project_id}")
+        self.session.delete(f"/projects/{project_id}/secrets/{label}")
+        return True
+
+    def find_repository(self, uri: str, project_id: int) -> TriggerRepository | None:
+        """The project's trigger repository with that uri, if any"""
         # The backend stores the host and path only, with the scheme stripped
         parsed = urlparse(uri)
         stored_uri = (parsed.netloc + parsed.path).lower().rstrip("/")
         for repo in self.get_repositories():
             if repo.project_id == project_id and repo.uri == stored_uri:
-                self.logger.info(f"Reusing existing repository {repo.uri} ({repo.id})")
                 return repo
+        return None
+
+    def get_or_create_repository(self, uri: str, project_id: int, **kwargs) -> TriggerRepository:
+        """Reuse the project's repository with that uri if there is one, else create it from kwargs"""
+        repo = self.find_repository(uri, project_id)
+        if repo:
+            self.logger.info(f"Reusing existing repository {repo.uri} ({repo.id})")
+            return repo
         return self.create_repository(uri=uri, project_id=project_id, **kwargs)
+
+    def get_results_repositories(self, project_id: int) -> list[ResultsRepository]:
+        """The project's results repositories (it has at most one)"""
+        response = self.session.get("/results_repositories", params={"project_id": project_id})
+        return [ResultsRepository(**repo) for repo in response.json()]
+
+    def create_results_repository(
+        self,
+        uri: str,
+        project_id: int,
+        provider: str,
+        api_uri: str,
+        secret_label: str,
+        target_dir: str,
+        owned_by_federated_node: bool | None = None,
+    ) -> ResultsRepository:
+        """Create a results repository"""
+        self.logger.info(f"Creating results repository {uri}")
+        data = {
+            "uri": uri,
+            "project_id": project_id,
+            "provider": provider,
+            "api_uri": api_uri,
+            "secret_label": secret_label,
+            "target_dir": target_dir,
+        }
+        if owned_by_federated_node is not None:
+            data["owned_by_federated_node"] = owned_by_federated_node
+        response = self.session.post("/results_repositories", json=data)
+        return ResultsRepository(**response.json())
+
+    def get_or_create_results_repository(self, project_id: int, **kwargs) -> ResultsRepository:
+        """Reuse the project's results repository if there is one, else create it from kwargs"""
+        repos = self.get_results_repositories(project_id)
+        if repos:
+            self.logger.info(f"Reusing existing results repository {repos[0].uri} ({repos[0].id})")
+            return repos[0]
+        return self.create_results_repository(project_id=project_id, **kwargs)
+
+    def delete_results_repository(self, repo_id: int) -> None:
+        """Delete a results repository"""
+        self.logger.info(f"Deleting results repository {repo_id}")
+        self.session.delete(f"/results_repositories/{repo_id}")
