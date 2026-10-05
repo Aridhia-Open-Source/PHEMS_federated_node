@@ -41,10 +41,10 @@ class PullRequestParser:
         IGNORED if the PR has no watched file, REJECTED if it has several or its spec is
         invalid, else READY with the spec. A git provider failure raises: it is not an outcome.
         """
-        pr_files = self.git_api.get_pull_request_files(self.repo.path, pr.number)
+        pr_files = self.git_api.get_pull_request_files(self.repo.repo_path, pr.number)
         watched_files = self._filter_watched_files(pr_files)
         watched_file_names = [f["filename"] for f in watched_files]
-        self.log.info(f"PR #{pr.number} in {self.repo.path}: watched files {watched_file_names}")
+        self.log.info(f"PR #{pr.number} in {self.repo.repo_path}: watched files {watched_file_names}")
 
         if not watched_file_names:
             return ParsedPullRequest(
@@ -58,7 +58,7 @@ class PullRequestParser:
             )
 
         contents = self.git_api.get_file_contents(
-            repo_path=self.repo.path,
+            repo_path=self.repo.repo_path,
             file_path=watched_file_names[0],
             ref=pr.merge_commit_sha,
         )

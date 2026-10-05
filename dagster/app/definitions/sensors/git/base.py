@@ -6,8 +6,8 @@ from app.backend import BackendAPI
 from app.definitions.sensors.base import BaseSensor
 from app.gitea import GiteaAPI, GiteaClient
 from app.github import GithubAPI, GithubClient
-from app.k8s import get_k8s_secret
 from app.models import TriggerRepository
+from app.secrets import get_secret_value
 
 
 class GitAPI(Protocol):
@@ -25,14 +25,14 @@ class GitAPI(Protocol):
 class GitAPIFactory:
     """
     Builds the api client for a repository from its provider, its API URI and the token in
-    the Kubernetes secret it names, so every repository authenticates as itself.
+    the secret it names, so every repository authenticates as itself.
     """
 
     def __init__(self, namespace: str):
         self.namespace = namespace
 
     def for_repository(self, repo: TriggerRepository) -> GitAPI:
-        token = get_k8s_secret(repo.k8s_secret_name, self.namespace, "TOKEN")
+        token = get_secret_value(repo.secret_type, repo.secret_store_name, self.namespace, "TOKEN")
         match repo.provider:
             case "github":
                 return GithubAPI(GithubClient(token=token, base_uri=repo.api_uri))

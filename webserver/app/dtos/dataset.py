@@ -6,7 +6,9 @@ from app.models.dataset import Dataset
 class DatasetDTO(DTO):
     id: int
     project_id: int
-    k8s_secret_name: str
+    secret_name: str
+    secret_type: str
+    secret_store_name: str
     name: str
     host: str
     port: int | None
@@ -25,7 +27,9 @@ class DatasetDTO(DTO):
         return cls(
             id=obj.id,
             project_id=obj.project_id,
-            k8s_secret_name=obj.k8s_secret_name,
+            secret_name=obj.secret_name,
+            secret_type=obj.secret_type.value,
+            secret_store_name=obj.secret_store_name,
             name=obj.name,
             host=obj.host,
             port=obj.port,

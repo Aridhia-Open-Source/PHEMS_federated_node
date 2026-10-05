@@ -8,7 +8,8 @@ from dagster_k8s import PipesK8sClient
 from dagster._core.pipes.client import PipesClientCompletedInvocation
 
 from app.config import PipesSecurityContextConfig
-from app.k8s import get_k8s_secret as _get_k8s_secret
+from app.models import SecretType
+from app.secrets import get_secret_value
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -23,13 +24,21 @@ TERMINATION_GRACE_PERIOD_SECONDS = 300
         "docker_image": dg.Field(str),
         "env": dg.Field(dict, default_value={}, is_required=False),
         "image_pull_secret": dg.Field(str, is_required=False),
-        "dataset_k8s_secret_name": dg.Field(str, is_required=False),
-        "dataset_name": dg.Field(str, is_required=False),
-        "dataset_host": dg.Field(str, is_required=False),
-        "dataset_port": dg.Field(int, is_required=False),
-        "dataset_type": dg.Field(str, is_required=False),
-        "dataset_read_schema": dg.Field(str, is_required=False),
-        "dataset_write_schema": dg.Field(str, is_required=False),
+        "dataset": dg.Field(
+            dg.Shape(
+                {
+                    "name": str,
+                    "host": str,
+                    "port": int,
+                    "type": str,
+                    "read_schema": dg.Noneable(str),
+                    "write_schema": dg.Noneable(str),
+                    "secret_type": str,
+                    "secret_store_name": str,
+                }
+            ),
+            is_required=False,
+        ),
     }
 )
 def k8s_pipes_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> dg.Output:
@@ -58,11 +67,9 @@ class K8sPipe:
         self.env = self._setup_env(ext_env)
 
     def _setup_dataset(self):
-        if not self.config.get('dataset_name'):
+        dataset = self.config.get('dataset')
+        if not dataset:
             return {}
-
-        keys = ['k8s_secret_name', 'name', 'host', 'port', 'type', 'read_schema', 'write_schema']
-        dataset = {k: self.config.get(f'dataset_{k}') for k in keys}
 
         if not all(dataset.values()):
             raise ValueError("Incomplete dataset configuration provided.")
@@ -210,12 +217,17 @@ class K8sPipe:
         )
 
     def _get_dataset_creds(self):
-        username = self._get_k8s_dataset_secret("USERNAME")
-        password = self._get_k8s_dataset_secret("PASSWORD")
+        username = self._get_dataset_secret("USERNAME")
+        password = self._get_dataset_secret("PASSWORD")
         return {'username': username, 'password': password}
 
-    def _get_k8s_dataset_secret(self, key: str) -> str:
-        return _get_k8s_secret(self.dataset['k8s_secret_name'], self.namespace, key)
+    def _get_dataset_secret(self, key: str) -> str:
+        return get_secret_value(
+            SecretType(self.dataset['secret_type']),
+            self.dataset['secret_store_name'],
+            self.namespace,
+            key,
+        )
 
 
 class K8sPipesResponse:

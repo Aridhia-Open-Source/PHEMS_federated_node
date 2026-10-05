@@ -27,11 +27,13 @@ import app.models.pull_request
 import app.models.trigger
 import app.models.task
 import app.models.task_status
+import app.models.task_result
+import app.models.task_result_status
 import app.models.trigger_repository
 import app.models.results_repository
 import app.models.results_backend
 import app.models.api_request
-import app.models.k8s_secret
+import app.models.secret
 # target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
 

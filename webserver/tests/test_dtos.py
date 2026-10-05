@@ -24,7 +24,7 @@ WIRE_DATETIME = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
 class TestProjectDTO:
     def test_fields(self, project):
         assert set(ProjectDTO.from_model(project).dump()) == {
-            "id", "name", "description", "enabled", "default_dataset_id", "results_repository_id",
+            "id", "name", "description", "default_dataset_id", "enabled",
             "created_at", "updated_at",
         }
 
@@ -43,7 +43,7 @@ class TestProjectDTO:
 class TestDatasetDTO:
     def test_fields(self, dataset):
         assert set(DatasetDTO.from_model(dataset).dump()) == {
-            "id", "project_id", "k8s_secret_name", "name", "host", "port", "read_schema", "write_schema", "type",
+            "id", "project_id", "secret_name", "secret_type", "secret_store_name", "name", "host", "port", "read_schema", "write_schema", "type",
             "extra_connection_args", "created_at", "updated_at", "slug", "url",
         }
 

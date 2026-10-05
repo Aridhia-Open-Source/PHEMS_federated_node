@@ -17,13 +17,13 @@ class PullRequestIngestSensor(GitSensor):
         saved = 0
         for repo in repositories:
             git_api = self.git_apis.for_repository(repo)
-            self.log.info(f"Fetching PRs for {repo.path} since {repo.pr_cursor}")
+            self.log.info(f"Fetching PRs for {repo.repo_path} since {repo.pr_cursor}")
             merged = git_api.get_new_merged_pulls(
-                repo_path=repo.path,
+                repo_path=repo.repo_path,
                 base_branch=repo.base_branch,
                 merged_after=repo.pr_cursor,
             )
-            self.log.info(f"Git provider returned {len(merged)} PRs for {repo.path}")
+            self.log.info(f"Git provider returned {len(merged)} PRs for {repo.repo_path}")
             if not merged:
                 continue
 
@@ -42,5 +42,5 @@ class PullRequestIngestSensor(GitSensor):
         yield dg.SkipReason(f"Saved {saved} new pull requests to database.")
 
     def _fetch_pr(self, git_api: GitAPI, repo: TriggerRepository, pr_number: int) -> PullRequest:
-        pr = git_api.get_pull_request(repo.path, pr_number)
+        pr = git_api.get_pull_request(repo.repo_path, pr_number)
         return PullRequest.from_git(repo.id, pr)

@@ -65,7 +65,7 @@ class TestRepositories:
         repos = api.get_repositories()
 
         assert [type(r) for r in repos] == [TriggerRepository]
-        assert repos[0].path == "org/repo"
+        assert repos[0].repo_path == "org/repo"
 
     def test_get_repository(self, api, session):
         session.get.return_value = make_response(SAMPLE_REPOSITORY_OBJ)
@@ -203,23 +203,6 @@ class TestDatasets:
         )
 
         assert session.post.call_args.kwargs["json"]["type"] == "postgres"
-
-
-class TestRequests:
-    def test_create_request_returns_the_raw_response(self, api, session):
-        response = make_response({"id": 1})
-        session.post.return_value = response
-
-        assert api.create_request(
-            title="t", description="d", project_name="p", requested_by="dev",
-            proj_start="2026-01-01", proj_end="2026-02-01", dataset_id=1,
-        ) is response
-        assert session.post.call_args.kwargs["raise_for_status"] is False
-
-    def test_approve_request(self, api, session):
-        assert api.approve_request(7) is True
-        assert session.patch.call_args.args[0] == "/requests/7"
-        assert session.patch.call_args.kwargs["json"] == {"status": "approved"}
 
 
 SAMPLE_PROJECT = {"id": 1, "name": "proj", "enabled": True, "default_dataset_id": 1}

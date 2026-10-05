@@ -13,8 +13,9 @@ from flask import Blueprint, request
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.dtos.base import page_of
-from app.dtos.project import HealthCheckDTO, ProjectDTO, ProjectHealthDTO, RepositoryHealthDTO
-from app.dtos.results_repository import ResultsRepositoryDTO
+from app.dtos.project import (
+    HealthCheckDTO, ProjectDTO, ProjectHealthDTO, RepositoryHealthDTO, ResultsRepositoryHealthDTO
+)
 from app.helpers.query_filters import parse_query_params
 from app.helpers.wrappers import audit, auth
 from app.models.git_provider import ConnectionStatus
@@ -116,16 +117,32 @@ def project_healthcheck(project_id: int):
             ),
         ))
 
-    healthy = repositories and all(r.status == ConnectionStatus.OK for r in repositories)
+    results_repo = project.get_results_repository()
+    results_health = None
+    if results_repo:
+        check = results_repo.check_connection()
+        results_health = ResultsRepositoryHealthDTO(
+            id=results_repo.id,
+            uri=results_repo.uri,
+            owned_by_federated_node=results_repo.owned_by_federated_node,
+            target_dir=results_repo.target_dir,
+            status=check.status.value,
+            health_check=HealthCheckDTO(
+                message=check.message,
+                status_code=check.status_code,
+                latency_ms=check.latency_ms,
+            ),
+        )
+
+    healthy = repositories and all(r.status == ConnectionStatus.OK for r in repositories) and (
+        results_health is None or results_health.status == ConnectionStatus.OK
+    )
     health = ProjectHealthDTO(
         id=project.id,
         name=project.name,
         enabled=project.enabled,
         status="ok" if healthy else "error",
-        results_repository=(
-            ResultsRepositoryDTO.from_model(project.results_repository)
-            if project.results_repository else None
-        ),
+        results_repository=results_health,
         trigger_repositories=repositories,
     )
     return health.dump(), HTTPStatus.OK

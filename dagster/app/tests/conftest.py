@@ -13,7 +13,7 @@ from dagster._core.events import DagsterEvent, DagsterEventType
 SAMPLE_REPO = {
     "id": 1,
     "uri": "github.com/org/repo",
-    "path": "org/repo",
+    "repo_path": "org/repo",
     "base_branch": "main",
     "watch_dir": "specs/",
     "project_id": 1,
@@ -24,7 +24,7 @@ SAMPLE_REPO = {
 SAMPLE_REPOSITORY_OBJ = {
     "id": 1,
     "uri": "github.com/org/repo",
-    "path": "org/repo",
+    "repo_path": "org/repo",
     "base_branch": "main",
     "watch_dir": "specs/",
     "project_id": 1,

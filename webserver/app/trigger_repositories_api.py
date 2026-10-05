@@ -22,8 +22,9 @@ from app.dtos.trigger_repository import PullRequestDTO, TriggerRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.dtos.task_spec import TaskSpec
+from app.helpers.repository_loop import check_no_loop
 from app.helpers.wrappers import auth
-from app.models.k8s_secret import K8sSecret
+from app.models.secret import Secret
 from app.models.project import Project
 from app.models.pull_request import PullRequest
 from app.models.task import Task
@@ -82,32 +83,39 @@ def post_repository():
         raise InvalidRequest("uri is required")
     if not body.get('project_id'):
         raise InvalidRequest("project_id is required")
-    for field in ('provider', 'api_uri', 'k8s_secret_name'):
+    for field in ('provider', 'api_uri', 'secret_name'):
         if not body.get(field):
             raise InvalidRequest(f"{field} is required")
 
-    uri = body['uri'].lower().rstrip('/')
-    if TriggerRepository.query.filter(TriggerRepository.uri == uri).one_or_none():
-        raise InvalidRequest(f"Repository {uri} already exists")
+    uri = TriggerRepository.parse_repo_uri(body['uri'])
+    if TriggerRepository.query.filter_by(project_id=body['project_id'], uri=uri).one_or_none():
+        raise InvalidRequest(f"Repository {uri} already exists in project {body['project_id']}")
 
     # Validate project and secret exist
     Project.get_by_id(body['project_id'])
-    K8sSecret.check_exists(body['k8s_secret_name'])
+    secret = Secret.get_in_project(body['project_id'], body['secret_name'])
 
     try:
         repo = TriggerRepository(
             uri=uri,
             provider=body['provider'],
             api_uri=body['api_uri'],
-            k8s_secret_name=body['k8s_secret_name'],
+            secret_id=secret.id,
             watch_dir=body.get('watch_dir', ''),
             project_id=body['project_id'],
             base_branch=body.get('base_branch', 'main'),
             initial_cursor=body.get('initial_cursor'),
+            repo_path=body.get('repo_path'),
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
-    repo.add()
+    repo.add(commit=False)
+    try:
+        check_no_loop(repo.project_id, repo.uri)
+    except InvalidRequest:
+        session.rollback()
+        raise
+    session.commit()
 
     return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.CREATED
 
@@ -137,12 +145,15 @@ def patch_repository(repo_id):
             raise InvalidRequest("watch_dir cannot be empty")
         repo.watch_dir = body['watch_dir']
 
-    for field in ('provider', 'api_uri', 'k8s_secret_name'):
+    if 'secret_name' in body:
+        if not body['secret_name']:
+            raise InvalidRequest("secret_name cannot be empty")
+        repo.secret_id = Secret.get_in_project(repo.project_id, body['secret_name']).id
+
+    for field in ('provider', 'api_uri'):
         if field in body:
             if not body[field]:
                 raise InvalidRequest(f"{field} cannot be empty")
-            if field == 'k8s_secret_name':
-                K8sSecret.check_exists(body[field])
             try:
                 setattr(repo, field, body[field])
             except ValueError as e:
@@ -151,6 +162,12 @@ def patch_repository(repo_id):
     if 'initial_cursor' in body:
         repo.initial_cursor = body['initial_cursor']
 
+    session.flush()
+    try:
+        check_no_loop(repo.project_id, repo.uri)
+    except InvalidRequest:
+        session.rollback()
+        raise
     session.commit()
     return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK
 

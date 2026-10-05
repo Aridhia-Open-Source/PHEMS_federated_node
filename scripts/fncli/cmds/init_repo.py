@@ -93,21 +93,22 @@ def init_backend_project(config: InitRepoConfig, backend_api: BackendAPI) -> Pro
 
 
 def init_git_secret(
-    config: InitRepoConfig, gitea_api: GiteaAdminAPI, backend_api: BackendAPI
+    config: InitRepoConfig, gitea_api: GiteaAdminAPI, backend_api: BackendAPI, project: Project
 ) -> str:
     """Store a fresh Gitea token where the sensor reads it."""
     token = gitea_api.replace_token(config.gitea_token_name, ["read:repository"])
-    backend_api.upsert_k8s_secret(config.git_secret_name, {"TOKEN": token})
+    secret = backend_api.upsert_secret(project.id, config.git_secret_name, {"TOKEN": token})
     stored = get_k8s_secret(
-        secret_name=config.git_secret_name, namespace=config.namespace, key="TOKEN"
+        secret_name=secret["store_name"], namespace=config.namespace, key="TOKEN"
     )
     if stored != token:
         raise RuntimeError(
-            f"Secret {config.git_secret_name} in {config.namespace} does not hold the new token"
+            f"Secret {secret['store_name']} in {config.namespace} does not hold the new token"
         )
     logger.info(
-        f"Secret {config.git_secret_name} in namespace {config.namespace} "
-        f"holds the new token (Gitea token {config.gitea_token_name!r})"
+        f"Secret {config.git_secret_name} of project {project.id} is {secret['store_name']} "
+        f"in namespace {config.namespace} and holds the new token "
+        f"(Gitea token {config.gitea_token_name!r})"
     )
     return token
 
@@ -134,14 +135,15 @@ def init_backend_trigger_repo(
         uri=config.trigger_repo_uri,
         provider="gitea",
         api_uri=config.gitea_api_uri,
-        k8s_secret_name=config.git_secret_name,
+        secret_name=config.git_secret_name,
         watch_dir=config.trigger_repo_watch_dir,
         base_branch=gitea_repo["default_branch"],
         project_id=project.id,
+        repo_path=gitea_repo["full_name"],
     )
     logger.info(
         f"Backend trigger repository {repo.id}: {repo.uri} "
-        f"(provider {repo.provider}, api_uri {repo.api_uri}, secret {repo.k8s_secret_name}, "
+        f"(provider {repo.provider}, api_uri {repo.api_uri}, secret {repo.secret_name}, "
         f"branch {repo.base_branch}, watch_dir {repo.watch_dir}, project {repo.project_id}, "
         f"pr_cursor {repo.pr_cursor})"
     )
@@ -166,10 +168,13 @@ def init_backend_project_command():
 def init_git_secret_command():
     """Store a fresh Gitea token in the K8s secret the sensor reads."""
     config = InitRepoConfig()
+    backend_api = build_backend_api(config)
+    project = init_backend_project(config, backend_api)
     init_git_secret(
         config=config,
         gitea_api=build_gitea_api(config),
-        backend_api=build_backend_api(config),
+        backend_api=backend_api,
+        project=project,
     )
 
 
@@ -178,8 +183,11 @@ def verify_git_secret_command():
     """Check Gitea accepts the token currently stored in the sensor's secret."""
     config = InitRepoConfig()
     gitea_repo = init_gitea_repo(config, build_gitea_api(config))
+    backend_api = build_backend_api(config)
+    project = init_backend_project(config, backend_api)
+    secret = backend_api.get_secret(project.id, config.git_secret_name)
     token = get_k8s_secret(
-        secret_name=config.git_secret_name, namespace=config.namespace, key="TOKEN"
+        secret_name=secret["store_name"], namespace=config.namespace, key="TOKEN"
     )
     verify_gitea_accepts_bearer_token(config=config, token=token, gitea_repo=gitea_repo)
 

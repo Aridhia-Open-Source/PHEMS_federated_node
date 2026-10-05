@@ -14,7 +14,8 @@ from app.models.dataset import Dataset
 from app.models.extras.catalogue import Catalogue
 from app.models.extras.dictionary import Dictionary
 from app.models.extras.request import Request
-from app.models.k8s_secret import K8sSecret
+from app.models.secret import Secret
+from app.models.secret_type import SecretType
 from tests.conftest import sample_ds_body
 from app.helpers.exceptions import KeycloakError
 
@@ -41,9 +42,10 @@ class MixinTestDataset:
         """
         A dataset references its credentials secret by name, so it has to exist first
         """
-        name = data_body.get("k8s_secret_name")
-        if name and not K8sSecret.query.filter_by(name=name).one_or_none():
-            K8sSecret(name=name).add()
+        name = data_body.get("secret_name")
+        project_id = data_body.get("project_id")
+        if name and not Secret.query.filter_by(project_id=project_id, name=name).one_or_none():
+            Secret(project_id=project_id, name=name, secret_type=SecretType.K8S).add()
 
     def post_dataset(
             self,
@@ -80,7 +82,9 @@ class TestDatasets(MixinTestDataset):
             "write_schema": None,
             "extra_connection_args": None,
             "project_id": dataset.project_id,
-            "k8s_secret_name": dataset.k8s_secret_name,
+            "secret_name": dataset.secret_name,
+            "secret_type": "K8S",
+            "secret_store_name": dataset.secret_store_name,
             "created_at": dataset.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             "updated_at": dataset.updated_at.strftime("%Y-%m-%d %H:%M:%S")
         }
@@ -364,7 +368,9 @@ class TestPostDataset(MixinTestDataset):
             "slug": "test-dataset",
             "read_schema": None,
             "write_schema": None,
-            "k8s_secret_name": data_body["k8s_secret_name"],
+            "secret_name": data_body["secret_name"],
+            "secret_type": "K8S",
+            "secret_store_name": f"{new_ds['project_id']}-{data_body['secret_name']}",
             "extra_connection_args": None,
             "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset",
             "project_id": new_ds["project_id"],
@@ -826,14 +832,14 @@ class TestDeleteDataset(MixinTestDataset):
         its own lifecycle and other datasets may share it
         """
         ds_id = dataset.id
-        secret_name = dataset.k8s_secret_name
+        secret_id = dataset.secret_id
         response = client.delete(
             f"/datasets/{ds_id}",
             headers=post_json_admin_header
         )
         assert response.status_code == 204
         assert not Dataset.query.filter_by(id=ds_id).one_or_none()
-        assert K8sSecret.query.filter_by(name=secret_name).one_or_none()
+        assert Secret.query.filter_by(id=secret_id).one_or_none()
         k8s_client["delete_namespaced_secret_mock"].assert_not_called()
 
     def test_delete_dataset_not_found(

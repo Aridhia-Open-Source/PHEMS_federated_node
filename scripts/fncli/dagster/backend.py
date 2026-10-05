@@ -2,7 +2,7 @@ import logging
 from urllib.parse import urlparse
 
 from .utils import BackendSession
-from .models import TriggerRepository, PullRequest, Dataset, Registry, Request, Project
+from .models import TriggerRepository, PullRequest, Dataset, Project
 
 default_logger = logging.getLogger(__name__)
 
@@ -138,7 +138,7 @@ class BackendAPI:
         name: str,
         host: str,
         port: int,
-        k8s_secret_name: str,
+        secret_name: str,
         read_schema: str,
         db_type: str,
     ) -> Dataset:
@@ -148,7 +148,7 @@ class BackendAPI:
             "name": name,
             "host": host,
             "port": port,
-            "k8s_secret_name": k8s_secret_name,
+            "secret_name": secret_name,
             "read_schema": read_schema,
             "type": db_type,
         }
@@ -162,14 +162,6 @@ class BackendAPI:
         data = response.json()
         items = data.get("items", data) if isinstance(data, dict) else data
         return [Dataset(**ds) for ds in items]
-
-    def get_registries(self) -> list[Registry]:
-        """Get all container registries"""
-        self.logger.info("Fetching registries")
-        response = self.session.get("/registries")
-        data = response.json()
-        items = data.get("items", data) if isinstance(data, dict) else data
-        return [Registry(**reg) for reg in items]
 
     def get_dataset(self, dataset_id: int) -> Dataset:
         """Get single dataset"""
@@ -187,10 +179,11 @@ class BackendAPI:
         uri: str,
         provider: str,
         api_uri: str,
-        k8s_secret_name: str,
+        secret_name: str,
         watch_dir: str,
         base_branch: str,
         project_id: int,
+        repo_path: str,
         initial_cursor: str | None = None,
     ) -> TriggerRepository:
         """Create a repository"""
@@ -199,11 +192,12 @@ class BackendAPI:
             "uri": uri,
             "provider": provider,
             "api_uri": api_uri,
-            "k8s_secret_name": k8s_secret_name,
+            "secret_name": secret_name,
             "watch_dir": watch_dir,
             "base_branch": base_branch,
             "initial_cursor": initial_cursor,
             "project_id": project_id,
+            "repo_path": repo_path,
         }
         response = self.session.post("/trigger_repositories", json=data)
         return TriggerRepository(**response.json())
@@ -211,36 +205,6 @@ class BackendAPI:
     def delete_repository(self, repo_id: int) -> None:
         """Delete a repository"""
         self.session.delete(f"/trigger_repositories/{repo_id}")
-
-    def create_request(
-        self,
-        title: str,
-        description: str,
-        project_name: str,
-        requested_by: str,
-        proj_start: str,
-        proj_end: str,
-        dataset_id: int,
-    ) -> Request:
-        """Create a Data Access Request"""
-        self.logger.info(f"Creating request {title}")
-        data = {
-            "title": title,
-            "description": description,
-            "project_name": project_name,
-            "requested_by": requested_by,
-            "proj_start": proj_start,
-            "proj_end": proj_end,
-            "dataset_id": dataset_id,
-        }
-        response = self.session.post("/requests", json=data, raise_for_status=False)
-        return response
-
-    def approve_request(self, request_id: int) -> bool:
-        """Approve a Data Access Request"""
-        self.logger.info(f"Approving request {request_id}")
-        self.session.patch(f"/requests/{request_id}", json={"status": "approved"})
-        return True
 
     def get_projects(self) -> list[Project]:
         """Get all projects"""
@@ -273,24 +237,42 @@ class BackendAPI:
         response = self.session.patch(f"/projects/{project_id}", json=data)
         return Project(**response.json())
 
-    def upsert_k8s_secret(self, name: str, values: dict[str, str]) -> None:
-        """The backend keeps only the name, so a re-run rotates the values in the cluster"""
-        response = self.session.get("/k8s_secrets")
-        existing = {secret["name"]: secret for secret in response.json()}
-        if name in existing:
-            self.logger.info(f"Updating k8s secret {name}")
-            self.session.patch(f"/k8s_secrets/{existing[name]['id']}", json={"values": values})
-        else:
-            self.logger.info(f"Creating k8s secret {name}")
-            self.session.post("/k8s_secrets", json={"name": name, "values": values})
+    def get_secrets(self, project_id: int) -> list[dict]:
+        """The project's secrets, without their values"""
+        return self.session.get(f"/projects/{project_id}/secrets").json()
 
-    def get_or_create_repository(self, uri: str, **kwargs) -> TriggerRepository:
-        """Reuse the repository with that uri if there is one, else create it from kwargs"""
+    def get_secret(self, project_id: int, name: str) -> dict:
+        """The project's secret with that project-local name"""
+        for secret in self.get_secrets(project_id):
+            if secret["name"] == name:
+                return secret
+        raise ValueError(f"Secret {name} does not exist in project {project_id}")
+
+    def upsert_secret(self, project_id: int, name: str, values: dict[str, str]) -> dict:
+        """
+        The backend keeps only the name, so a re-run rotates the values in the secret store.
+        Returns the secret, whose store_name is what it is called in the store.
+        """
+        if any(secret["name"] == name for secret in self.get_secrets(project_id)):
+            self.logger.info(f"Updating secret {name} of project {project_id}")
+            response = self.session.patch(
+                f"/projects/{project_id}/secrets/{name}", json={"values": values}
+            )
+        else:
+            self.logger.info(f"Creating secret {name} in project {project_id}")
+            response = self.session.post(
+                f"/projects/{project_id}/secrets",
+                json={"name": name, "secret_type": "K8S", "values": values},
+            )
+        return response.json()
+
+    def get_or_create_repository(self, uri: str, project_id: int, **kwargs) -> TriggerRepository:
+        """Reuse the project's repository with that uri if there is one, else create it from kwargs"""
         # The backend stores the host and path only, with the scheme stripped
         parsed = urlparse(uri)
         stored_uri = (parsed.netloc + parsed.path).lower().rstrip("/")
         for repo in self.get_repositories():
-            if repo.uri == stored_uri:
+            if repo.project_id == project_id and repo.uri == stored_uri:
                 self.logger.info(f"Reusing existing repository {repo.uri} ({repo.id})")
                 return repo
-        return self.create_repository(uri=uri, **kwargs)
+        return self.create_repository(uri=uri, project_id=project_id, **kwargs)

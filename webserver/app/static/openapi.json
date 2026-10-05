@@ -635,13 +635,10 @@
         "tags": [
           "Tasks"
         ],
-        "summary": "Get task results if available",
+        "summary": "List the delivery of a task's results to each destination",
         "responses": {
           "200": {
-            "$ref": "#/components/responses/TaskResults"
-          },
-          "400": {
-            "$ref": "#/components/responses/ReviewNeededOrBlocked"
+            "$ref": "#/components/responses/TaskResultList"
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
@@ -1935,6 +1932,43 @@
           }
         }
       }
+    },
+    "/task_results/{id}": {
+      "get": {
+        "operationId": "get_task_result",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task result identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Get a single task result by its id",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TaskResult"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
     }
   },
   "security": [
@@ -2614,6 +2648,29 @@
             }
           }
         }
+      },
+      "TaskResult": {
+        "description": "Task result",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TaskResultById"
+            }
+          }
+        }
+      },
+      "TaskResultList": {
+        "description": "Task results, one per destination",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/TaskResultById"
+              }
+            }
+          }
+        }
       }
     },
     "schemas": {
@@ -2637,9 +2694,9 @@
             "description": "Port for the host field",
             "example": 5432
           },
-          "k8s_secret_name": {
+          "secret_name": {
             "type": "string",
-            "description": "Name of an existing k8s secret (see POST /k8s_secrets) holding the credentials the Federated Node uses to access the DB, under the keys USERNAME and PASSWORD",
+            "description": "Name of an existing secret of the same project (see POST /projects/{project_id}/secrets; the name is local to the project) holding the credentials the Federated Node uses to access the DB, under the keys USERNAME and PASSWORD",
             "example": "my-dataset-creds"
           },
           "extra_connection_args": {
@@ -2682,7 +2739,7 @@
         },
         "required": [
           "name",
-          "k8s_secret_name",
+          "secret_name",
           "host",
           "project_id"
         ]
@@ -3370,7 +3427,7 @@
           },
           "status": {
             "type": "string",
-            "description": "ok only when there is at least one repository and all of them are reachable",
+            "description": "ok only when there is at least one trigger repository and all repositories, the results one included, are reachable",
             "enum": [
               "ok",
               "error"
@@ -3379,7 +3436,7 @@
           "results_repository": {
             "type": "object",
             "nullable": true,
-            "description": "Where the project's results go, or null if it has none",
+            "description": "Where the project's results go, or null if it has none. Its status counts towards the project's",
             "properties": {
               "id": {
                 "type": "integer",
@@ -3392,6 +3449,44 @@
               "owned_by_federated_node": {
                 "type": "boolean",
                 "example": true
+              },
+              "target_dir": {
+                "type": "string",
+                "example": "results"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "unauthorized",
+                  "not_found",
+                  "unreachable",
+                  "secret_missing",
+                  "error"
+                ]
+              },
+              "health_check": {
+                "type": "object",
+                "description": "What calling the provider's API for the repository returned",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "The provider's own message on an error, else the HTTP reason. If no request was made, why not",
+                    "example": "OK"
+                  },
+                  "status_code": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "The provider's HTTP status, or null if it could not be reached or no request was made",
+                    "example": 200
+                  },
+                  "latency_ms": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "How long the provider took to respond, or to fail. Null if no request was made",
+                    "example": 42
+                  }
+                }
               }
             }
           },
@@ -3542,6 +3637,67 @@
             "type": "string",
             "format": "date-time",
             "example": "2026-01-01T10:30:00"
+          }
+        }
+      },
+      "TaskResultById": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "task_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "results_repository_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PUSHED",
+              "PR_OPENED",
+              "DELIVERED",
+              "FAILED"
+            ],
+            "example": "PENDING"
+          },
+          "attempts": {
+            "type": "integer",
+            "example": 0
+          },
+          "branch": {
+            "type": "string",
+            "nullable": true,
+            "example": "task-1-results"
+          },
+          "commit_sha": {
+            "type": "string",
+            "nullable": true
+          },
+          "pull_request_number": {
+            "type": "integer",
+            "nullable": true
+          },
+          "pull_request_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "example": "Mon, 19 Feb 2024 10:41:54 GMT"
+          },
+          "updated_at": {
+            "type": "string",
+            "example": "Mon, 19 Feb 2024 10:41:54 GMT"
           }
         }
       }

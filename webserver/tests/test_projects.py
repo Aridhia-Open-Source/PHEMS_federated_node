@@ -2,7 +2,7 @@ import pytest
 import requests
 from http import HTTPStatus
 from datetime import datetime, timezone
-from unittest.mock import Mock
+from unittest.mock import ANY, Mock
 
 from kubernetes.client.exceptions import ApiException
 
@@ -152,7 +152,7 @@ class TestProjectDefaultDataset:
         ):
         from app.models.dataset import Dataset
         second = Dataset(
-            name="SecondDs", host="example.com", k8s_secret_name=dataset.k8s_secret_name,
+            name="SecondDs", host="example.com", secret_id=dataset.secret_id,
             project_id=project.id
         )
         second.add(user_id=user_uuid)
@@ -166,12 +166,12 @@ class TestProjectDefaultDataset:
         assert project.default_dataset_id is None
 
     def test_reseeding_sets_a_new_default(
-            self, client, project, dataset, user_uuid, k8s_client, mock_kc_client
+            self, client, project, dataset, secret, user_uuid, k8s_client, mock_kc_client
         ):
         from app.models.dataset import Dataset
         dataset.delete()
         replacement = Dataset(
-            name="Reseeded", host="example.com", k8s_secret_name="test-creds",
+            name="Reseeded", host="example.com", secret_id=secret.id,
             project_id=project.id
         )
         replacement.add(user_id=user_uuid)
@@ -202,7 +202,7 @@ class TestProjectHealthcheck:
     @pytest.fixture
     def git_api(self, mocker):
         return mocker.patch(
-            "app.models.trigger_repository.requests.get",
+            "app.models.git_repository.requests.get",
             return_value=Mock(status_code=200, ok=True, reason="OK"),
         )
 
@@ -230,6 +230,19 @@ class TestProjectHealthcheck:
         self.get(client, project, simple_admin_header)
         git_api.assert_called_once_with(
             self.URL, headers={"Authorization": "Bearer abc123"}, timeout=5
+        )
+
+    def test_checks_the_explicit_repo_path_of_a_sub_path_install(
+        self, client, k8s_client, project, secret, git_api, simple_admin_header
+    ):
+        TriggerRepository(
+            uri="host/gitea/owner/repo", provider="gitea", api_uri="https://host/gitea/api/v1",
+            secret_id=secret.id, watch_dir="", project_id=project.id, repo_path="owner/repo"
+        ).add()
+        self.get(client, project, simple_admin_header)
+        git_api.assert_called_once_with(
+            "https://host/gitea/api/v1/repos/owner/repo",
+            headers={"Authorization": "Bearer abc123"}, timeout=5,
         )
 
     def test_response_never_contains_the_token(self, client, project, default_repo, git_api, simple_admin_header):
@@ -303,10 +316,10 @@ class TestProjectHealthcheck:
         [repo] = response.json["trigger_repositories"]
         assert repo["status"] == "secret_missing"
 
-    def test_one_bad_repository_makes_the_project_unhealthy(self, client, project, default_repo, k8s_secret, git_api, simple_admin_header):
+    def test_one_bad_repository_makes_the_project_unhealthy(self, client, project, default_repo, secret, git_api, simple_admin_header):
         TriggerRepository(
             uri="github.com/org/other", provider="github", api_uri="https://api.github.com",
-            k8s_secret_name=k8s_secret.name, watch_dir="", project_id=project.id,
+            secret_id=secret.id, watch_dir="", project_id=project.id,
         ).add()
         git_api.side_effect = [
             Mock(status_code=200, ok=True, reason="OK"),
@@ -323,10 +336,10 @@ class TestProjectHealthcheck:
         assert response.json["status"] == "error"
         git_api.assert_not_called()
 
-    def test_reports_pull_request_count_per_repository(self, client, project, default_repo, k8s_secret, git_api, simple_admin_header):
+    def test_reports_pull_request_count_per_repository(self, client, project, default_repo, secret, git_api, simple_admin_header):
         other = TriggerRepository(
             uri="github.com/org/other", provider="github", api_uri="https://api.github.com",
-            k8s_secret_name=k8s_secret.name, watch_dir="", project_id=project.id,
+            secret_id=secret.id, watch_dir="", project_id=project.id,
         )
         other.add()
         merged_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -341,15 +354,45 @@ class TestProjectHealthcheck:
         response = self.get(client, project, simple_admin_header)
         assert response.json["trigger_repositories"][0]["pr_count"] == 0
 
-    def test_reports_the_results_repository(self, client, project, git_api, simple_admin_header):
-        results = ResultsRepository(uri="github.com/org/results", owned_by_federated_node=False)
+    def test_reports_the_results_repository(self, client, project, secret, git_api, k8s_client, simple_admin_header):
+        results = ResultsRepository(
+            uri="github.com/org/results", provider="github", api_uri="https://api.github.com",
+            secret_id=secret.id, target_dir="results", project_id=project.id,
+            owned_by_federated_node=False,
+        )
         results.add()
-        project.results_repository_id = results.id
-        db.session.commit()
         response = self.get(client, project, simple_admin_header)
         assert response.json["results_repository"] == {
-            "id": results.id, "uri": "github.com/org/results", "owned_by_federated_node": False
+            "id": results.id, "uri": "github.com/org/results", "owned_by_federated_node": False,
+            "target_dir": "results", "status": "ok",
+            "health_check": {"message": "OK", "status_code": 200, "latency_ms": ANY},
         }
+
+    def test_bad_results_repository_makes_the_project_unhealthy(self, client, project, default_repo, secret, git_api, simple_admin_header):
+        ResultsRepository(
+            uri="github.com/org/results", provider="github", api_uri="https://api.github.com",
+            secret_id=secret.id, target_dir="results", project_id=project.id,
+        ).add()
+        git_api.side_effect = [
+            Mock(status_code=200, ok=True, reason="OK"),
+            Mock(status_code=404, ok=False, reason="Not Found"),
+        ]
+        response = self.get(client, project, simple_admin_header)
+        assert response.json["status"] == "error"
+        assert response.json["trigger_repositories"][0]["status"] == "ok"
+        assert response.json["results_repository"]["status"] == "not_found"
+
+    def test_good_results_repository_keeps_the_project_healthy(self, client, project, default_repo, secret, git_api, simple_admin_header):
+        ResultsRepository(
+            uri="github.com/org/results", provider="github", api_uri="https://api.github.com",
+            secret_id=secret.id, target_dir="results", project_id=project.id,
+        ).add()
+        response = self.get(client, project, simple_admin_header)
+        assert response.json["status"] == "ok"
+
+    def test_no_results_repository_does_not_make_the_project_unhealthy(self, client, project, default_repo, git_api, simple_admin_header):
+        response = self.get(client, project, simple_admin_header)
+        assert response.json["status"] == "ok"
 
     def test_no_results_repository(self, client, project, git_api, simple_admin_header):
         response = self.get(client, project, simple_admin_header)

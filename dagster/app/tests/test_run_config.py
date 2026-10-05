@@ -6,7 +6,7 @@ from app.models import Dataset
 DATASET = Dataset(
     id=1,
     project_id=1,
-    k8s_secret_name="cdm-creds",
+    secret_name="cdm-creds", secret_type="K8S", secret_store_name="cdm-creds-abc",
     name="cdm",
     host="db.host",
     port=5432,
@@ -17,13 +17,16 @@ DATASET = Dataset(
     url="https://db.host/cdm",
 )
 DATASET_FIELDS = {
-    "dataset_name": "cdm",
-    "dataset_host": "db.host",
-    "dataset_port": 5432,
-    "dataset_type": "postgres",
-    "dataset_read_schema": "cdm",
-    "dataset_write_schema": "results",
-    "dataset_k8s_secret_name": "cdm-creds",
+    "dataset": {
+        "name": "cdm",
+        "host": "db.host",
+        "port": 5432,
+        "type": "postgres",
+        "read_schema": "cdm",
+        "write_schema": "results",
+        "secret_type": "K8S",
+        "secret_store_name": "cdm-creds-abc",
+    }
 }
 
 
