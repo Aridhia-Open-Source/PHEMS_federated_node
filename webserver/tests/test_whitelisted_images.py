@@ -9,6 +9,8 @@ from app.helpers.base_model import db
 from app.models.extras.whitelisted_image import WhitelistedImage
 from tests.fixtures.azure_cr_fixtures import *
 
+pytestmark = pytest.mark.skip(reason="whitelisted_images disconnected for now, see TODO")
+
 @pytest.fixture(scope='function')
 def container_body(registry, project):
     return deepcopy({

@@ -1,3 +1,5 @@
+# TODO(whitelisted_images): blueprint not registered in app/__init__.py, disconnected for now,
+# revisit with the authorization rework.
 """
 whitelisted image endpoints:
 - GET /whitelisted_images
