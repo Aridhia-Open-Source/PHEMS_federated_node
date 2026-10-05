@@ -29,6 +29,7 @@ from app.helpers.keycloak import Keycloak
 from app.dtos.task_spec import TaskSpec
 from app.helpers.wrappers import audit, auth
 from app.dtos.task import NewTaskDTO, TaskDTO
+from app.dtos.task_result import TaskResultDTO
 from app.models.api_request import ApiRequest
 from app.models.project import Project
 from app.models.task import Task
@@ -277,16 +278,17 @@ def post_tasks_validate():
     return "Ok", 200
 
 
-@bp.route('/<task_id>/results', methods=['GET'])
+@bp.route('/<int:task_id>/results', methods=['GET'])
 @audit
 @auth(scope='can_exec_task')
 def get_task_results(task_id):
     """
-    GET /tasks/id/results endpoint.
-        Allows to get tasks results if approved to be released
-        or, if an admin is trying to view them
+    GET /tasks/id/results endpoint. Lists the delivery of the task's results
+    to each of its destinations
     """
-    raise NotImplementedException()
+    task = Task.get_by_id(task_id)
+    does_user_own_task(task)
+    return [TaskResultDTO.from_model(r).dump() for r in task.results], HTTPStatus.OK
 
 
 @bp.route('/<task_id>/logs', methods=['GET'])

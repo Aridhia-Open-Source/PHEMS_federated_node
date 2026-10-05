@@ -83,6 +83,11 @@ class ModelRegistry:
         return Trigger
 
     @cached_property
+    def TaskResult(self):
+        from app.models.task_result import TaskResult
+        return TaskResult
+
+    @cached_property
     def Secret(self):
         from app.models.secret import Secret
         return Secret
@@ -133,4 +138,5 @@ _ = (
     Models.ApiRequest,
     Models.Trigger,
     Models.Secret,
+    Models.TaskResult,
 )

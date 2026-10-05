@@ -250,6 +250,27 @@ def upgrade() -> None:
     op.create_index('ix_tasks_docker_image', 'tasks', ['docker_image'])
     op.create_index('ix_tasks_status_project', 'tasks', ['status', 'project_id'])
 
+    # Create task_results table
+    op.create_table(
+        'task_results',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('task_id', sa.Integer(), nullable=False),
+        sa.Column('results_repository_id', sa.Integer(), nullable=False),
+        sa.Column('status', sa.String(length=32), nullable=False, server_default='PENDING'),
+        sa.Column('attempts', sa.Integer(), nullable=False, server_default='0'),
+        sa.Column('branch', sa.String(length=256), nullable=True),
+        sa.Column('commit_sha', sa.String(length=40), nullable=True),
+        sa.Column('pull_request_number', sa.Integer(), nullable=True),
+        sa.Column('pull_request_url', sa.String(length=4096), nullable=True),
+        sa.Column('error', sa.String(length=1024), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.ForeignKeyConstraint(['task_id'], ['tasks.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['results_repository_id'], ['results_repositories.id'], ondelete='RESTRICT'),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('task_id', 'results_repository_id', name='uq_task_results_task_repository'),
+    )
+
     # Create whitelisted_images table
     op.create_table(
         'whitelisted_images',
@@ -316,6 +337,7 @@ def downgrade() -> None:
     op.drop_table('dictionaries')
     op.drop_table('catalogues')
     op.drop_table('whitelisted_images')
+    op.drop_table('task_results')
     op.drop_index('ix_tasks_project_id', 'tasks')
     op.drop_table('tasks')
     op.drop_table('results_backends')

@@ -635,13 +635,10 @@
         "tags": [
           "Tasks"
         ],
-        "summary": "Get task results if available",
+        "summary": "List the delivery of a task's results to each destination",
         "responses": {
           "200": {
-            "$ref": "#/components/responses/TaskResults"
-          },
-          "400": {
-            "$ref": "#/components/responses/ReviewNeededOrBlocked"
+            "$ref": "#/components/responses/TaskResultList"
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
@@ -1935,6 +1932,43 @@
           }
         }
       }
+    },
+    "/task_results/{id}": {
+      "get": {
+        "operationId": "get_task_result",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task result identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Get a single task result by its id",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TaskResult"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
     }
   },
   "security": [
@@ -2610,6 +2644,29 @@
                   "type": "string",
                   "example": "non operational"
                 }
+              }
+            }
+          }
+        }
+      },
+      "TaskResult": {
+        "description": "Task result",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TaskResultById"
+            }
+          }
+        }
+      },
+      "TaskResultList": {
+        "description": "Task results, one per destination",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/TaskResultById"
               }
             }
           }
@@ -3580,6 +3637,67 @@
             "type": "string",
             "format": "date-time",
             "example": "2026-01-01T10:30:00"
+          }
+        }
+      },
+      "TaskResultById": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "task_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "results_repository_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PUSHED",
+              "PR_OPENED",
+              "DELIVERED",
+              "FAILED"
+            ],
+            "example": "PENDING"
+          },
+          "attempts": {
+            "type": "integer",
+            "example": 0
+          },
+          "branch": {
+            "type": "string",
+            "nullable": true,
+            "example": "task-1-results"
+          },
+          "commit_sha": {
+            "type": "string",
+            "nullable": true
+          },
+          "pull_request_number": {
+            "type": "integer",
+            "nullable": true
+          },
+          "pull_request_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "example": "Mon, 19 Feb 2024 10:41:54 GMT"
+          },
+          "updated_at": {
+            "type": "string",
+            "example": "Mon, 19 Feb 2024 10:41:54 GMT"
           }
         }
       }
