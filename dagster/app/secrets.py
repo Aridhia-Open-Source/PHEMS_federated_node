@@ -5,7 +5,7 @@ from kubernetes import client
 from kubernetes.client import V1Secret
 from kubernetes.config import load_incluster_config
 
-from app.models import SecretProviderName
+from app.models import SecretProviderType
 
 
 class K8sSecretProvider:
@@ -24,9 +24,9 @@ class K8sSecretProvider:
 class SecretProvider:
     """Reads secret values from the store the provider name selects."""
 
-    PROVIDERS = {SecretProviderName.K8S: K8sSecretProvider}
+    PROVIDERS = {SecretProviderType.K8S: K8sSecretProvider}
 
-    def __init__(self, name: SecretProviderName):
+    def __init__(self, name: SecretProviderType):
         self.provider = self.PROVIDERS[name]()
 
     def get(self, key: str, namespace: str, value_key: str) -> str:

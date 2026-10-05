@@ -1,12 +1,12 @@
 from pydantic import BaseModel
 
-from app.models import Dataset, SecretProviderName
+from app.models import Dataset, SecretProviderType
 
 
 class PipesSecretConfig(BaseModel):
     """Where a dataset's secret is: the store that holds it and what it is called there."""
 
-    provider: SecretProviderName
+    provider: SecretProviderType
     key: str
 
 

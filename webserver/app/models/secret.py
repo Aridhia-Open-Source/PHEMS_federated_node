@@ -6,7 +6,7 @@ from sqlalchemy.orm import relationship, validates
 from app.helpers.base_model import BaseModel, db
 from app.helpers.exceptions import InvalidRequest
 from app.models import sqla_column
-from app.models.secret_provider_name import SecretProviderName
+from app.models.secret_provider_type import SecretProviderType
 
 
 class Secret(db.Model, BaseModel):
@@ -26,7 +26,7 @@ class Secret(db.Model, BaseModel):
     )
     label = sa.Column(sa.String(253), nullable=False)
     description = sa.Column(sa.String(4096), nullable=True)
-    provider = sa.Column(sa.Enum(SecretProviderName), nullable=False)
+    provider = sa.Column(sa.Enum(SecretProviderType), nullable=False)
     # What the secret is called in the store, which has no notion of projects.
     key = sa.Column(sa.String(253), unique=True, nullable=False)
 
@@ -72,7 +72,7 @@ class Secret(db.Model, BaseModel):
         return f"{project_id}-"
 
     def __init__(
-        self, project_id: int, label: str, provider: SecretProviderName,
+        self, project_id: int, label: str, provider: SecretProviderType,
         description: str | None = None
     ):
         self.project_id = project_id

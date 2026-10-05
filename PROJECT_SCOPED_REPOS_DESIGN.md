@@ -43,7 +43,7 @@ returns shortly after**, so don't build anything that blocks adding it.
   (decided in review of #429; replaces `project_id` in the body and the `/secrets` path). Keep Kubernetes
   out of API names: requests carry the project-local `secret_label`; responses nest the secret as
   `secret: {label, provider, key}`. Dagster derives nothing: a `SecretProvider` picks its store by
-  `secret.provider` (`SecretProviderName`) and, for `K8S`, reads the cluster secret directly by `secret.key`; task pods use
+  `secret.provider` (`SecretProviderType`) and, for `K8S`, reads the cluster secret directly by `secret.key`; task pods use
   `envFrom` by that name.
 - Authorization is out of scope: a colleague is reworking Keycloak and the auth decorators. Don't design
   per-project permissions here.

@@ -24,7 +24,7 @@ from app.helpers.kubernetes import KubernetesClient
 from app.helpers.wrappers import audit, auth
 from app.models.project import Project
 from app.models.secret import Secret
-from app.models.secret_provider_name import SecretProviderName
+from app.models.secret_provider_type import SecretProviderType
 
 logger = logging.getLogger('secrets_api')
 bp = Blueprint('secrets', __name__, url_prefix='/projects/<int:project_id>/secrets')
@@ -78,9 +78,9 @@ class K8sSecretProvider:
 class SecretProvider:
     """Writes and deletes secret values in the store the provider name selects."""
 
-    PROVIDERS = {SecretProviderName.K8S: K8sSecretProvider}
+    PROVIDERS = {SecretProviderType.K8S: K8sSecretProvider}
 
-    def __init__(self, name: SecretProviderName):
+    def __init__(self, name: SecretProviderType):
         self.provider = self.PROVIDERS[name]()
 
     def set(self, key: str, values: dict[str, str]):
@@ -134,9 +134,9 @@ def post_secret(project_id):
     if not body.get('label'):
         raise InvalidRequest("label is required")
     try:
-        provider = SecretProviderName(body.get('provider'))
+        provider = SecretProviderType(body.get('provider'))
     except ValueError:
-        raise InvalidRequest(f"provider must be one of {[t.value for t in SecretProviderName]}")
+        raise InvalidRequest(f"provider must be one of {[t.value for t in SecretProviderType]}")
     values = _get_values(body)
 
     Project.get_by_id(project_id)

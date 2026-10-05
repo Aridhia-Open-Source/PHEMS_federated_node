@@ -1,11 +1,11 @@
 from app.dtos.base import DTO, WireDatetime
 from app.models.secret import Secret
-from app.models.secret_provider_name import SecretProviderName
+from app.models.secret_provider_type import SecretProviderType
 
 
 class SecretRefDTO(DTO):
     label: str
-    provider: SecretProviderName
+    provider: SecretProviderType
     key: str
 
     @classmethod
@@ -18,7 +18,7 @@ class SecretDTO(DTO):
     project_id: int
     label: str
     description: str | None
-    provider: SecretProviderName
+    provider: SecretProviderType
     key: str
     created_at: WireDatetime
     updated_at: WireDatetime

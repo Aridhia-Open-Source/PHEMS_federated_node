@@ -54,7 +54,7 @@ def upgrade() -> None:
         sa.Column('project_id', sa.Integer(), nullable=False),
         sa.Column('label', sa.String(length=253), nullable=False),
         sa.Column('description', sa.String(length=4096), nullable=True),
-        sa.Column('provider', sa.Enum('K8S', name='secretprovidername'), nullable=False),
+        sa.Column('provider', sa.Enum('K8S', name='secretprovidertype'), nullable=False),
         sa.Column('key', sa.String(length=253), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
@@ -350,7 +350,7 @@ def downgrade() -> None:
     op.drop_table('trigger_repositories')
     op.drop_table('datasets')
     op.drop_table('secrets')
-    sa.Enum(name='secretprovidername').drop(op.get_bind())
+    sa.Enum(name='secretprovidertype').drop(op.get_bind())
     op.drop_index('ix_projects_id', 'projects')
     op.drop_table('projects')
     op.drop_table('audit')

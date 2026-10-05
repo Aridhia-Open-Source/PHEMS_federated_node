@@ -9,7 +9,7 @@ from dagster._core.pipes.client import PipesClientCompletedInvocation
 
 from app.config import PipesSecurityContextConfig
 from app.secrets import SecretProvider
-from app.models import SecretProviderName
+from app.models import SecretProviderType
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -221,7 +221,7 @@ class K8sPipe:
         return {'username': username, 'password': password}
 
     def _get_dataset_secret(self, key: str) -> str:
-        provider = SecretProvider(SecretProviderName(self.dataset['secret']['provider']))
+        provider = SecretProvider(SecretProviderType(self.dataset['secret']['provider']))
         return provider.get(self.dataset['secret']['key'], self.namespace, key)
 
 

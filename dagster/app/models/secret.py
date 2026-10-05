@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from app.models.secret_provider_name import SecretProviderName
+from app.models.secret_provider_type import SecretProviderType
 
 
 class Secret(BaseModel):
@@ -15,5 +15,5 @@ class Secret(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     label: str
-    provider: SecretProviderName
+    provider: SecretProviderType
     key: str
