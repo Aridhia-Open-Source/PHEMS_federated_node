@@ -35,7 +35,11 @@ returns shortly after**, so don't build anything that blocks adding it.
   (the real cluster secret). `UNIQUE(project_id, name)`, `UNIQUE(k8s_name)`, `UNIQUE(project_id, id)`.
 - Children reference the secret **by id** with a composite FK `(project_id, secret_id)`, so the
   database rejects another project's secret. The column is `k8s_name`, not `key`.
-- Secrets API takes `project_id` in the body.
+- Secrets API is nested under the project and addressed by name: `/projects/<project_id>/secrets[/<name>]`
+  (decided in review of #429; replaces `project_id` in the body and the `/k8s_secrets` path). Keep Kubernetes
+  out of API names (`secret_name`, not `k8s_secret_k8s_name`); how Dagster resolves the secret is still open.
+- Authorization is out of scope: a colleague is reworking Keycloak and the auth decorators. Don't design
+  per-project permissions here.
 
 ### Results delivery (local-first, raw git)
 - A task succeeds once its results are committed to the **local Gitea** (a project-owned,

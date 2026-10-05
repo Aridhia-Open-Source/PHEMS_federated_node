@@ -193,7 +193,7 @@ class TestModelRegistry:
         assert project.whitelisted_images == []
         assert project.datasets == []
         assert project.results_backend is None
-        assert project.api_requests == []
+        assert project.triggers == []
 
 
 class TestProjectHealthcheck:
@@ -345,7 +345,7 @@ class TestProjectHealthcheck:
         merged_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
         for repo, numbers in ((default_repo, (1, 2, 3)), (other, (1,))):
             for number in numbers:
-                PullRequest(repo.id, number, f"PR {number}", "user", merged_at, f"sha{number}").add()
+                PullRequest(project.id, repo.id, number, f"PR {number}", "user", merged_at, f"sha{number}").add()
         response = self.get(client, project, simple_admin_header)
         counts = {r["id"]: r["pr_count"] for r in response.json["trigger_repositories"]}
         assert counts == {default_repo.id: 3, other.id: 1}
