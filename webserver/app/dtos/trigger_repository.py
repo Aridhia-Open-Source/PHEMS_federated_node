@@ -45,15 +45,8 @@ class PullRequestDTO(DTO):
     raised_by: str
     merge_commit_sha: str
     merged_at: datetime | None
-    saved_at: datetime | None
-    status: str
+    state: str
+    state_cause: str | None
+    task_id: int | None
     payload: dict
 
-
-class TaskRequestDTO(DTO):
-    id: int
-    pull_request_id: int | None
-    api_request_id: int | None
-    project_id: int
-    queued: bool
-    payload: dict

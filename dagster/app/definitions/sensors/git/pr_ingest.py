@@ -1,7 +1,7 @@
 import dagster as dg
 
 from app.definitions.sensors.git.base import GitAPI, GitSensor
-from app.models import PullRequest, PullRequestStatus, TriggerRepository
+from app.models import PullRequest, TriggerRepository
 
 
 class PullRequestIngestSensor(GitSensor):
@@ -31,7 +31,7 @@ class PullRequestIngestSensor(GitSensor):
             self.log.info(f"Saving batch of {len(pull_requests)} PRs for repo {repo.id}")
             self.backend_api.create_pull_requests_batch(
                 repo.id,
-                [pr.model_dump(exclude={"trigger_repository_id"}) for pr in pull_requests],
+                [pr.dump_new() for pr in pull_requests],
             )
             saved += len(pull_requests)
 
@@ -43,13 +43,4 @@ class PullRequestIngestSensor(GitSensor):
 
     def _fetch_pr(self, git_api: GitAPI, repo: TriggerRepository, pr_number: int) -> PullRequest:
         pr = git_api.get_pull_request(repo.path, pr_number)
-        return PullRequest(
-            trigger_repository_id=repo.id,
-            number=pr["number"],
-            title=pr["title"],
-            raised_by=pr["user"]["login"],
-            merged_at=pr["merged_at"],
-            merge_commit_sha=pr["merge_commit_sha"],
-            status=PullRequestStatus.UNKNOWN.value,
-            payload={},
-        )
+        return PullRequest.from_git(repo.id, pr)

@@ -5,28 +5,42 @@ tasks-related endpoints:
 - POST /tasks
 - POST /tasks/validate
 - GET /tasks/id
+- PATCH /tasks/id
+- POST /tasks/id/retry
 - POST /tasks/id/cancel
 - GET /tasks/id/results
 - POST /tasks/id/results/approve
 - POST /tasks/id/results/block
 - GET /tasks/id/logs
 """
+from copy import deepcopy
+from datetime import datetime as dt
 from http import HTTPStatus
 
 from flask import Blueprint, request
 from sqlalchemy import text
 
 from app.helpers.base_model import db
-from app.helpers.exceptions import NotImplementedException, UnauthorizedError
+from app.helpers.exceptions import (
+    DBRecordNotFoundError, InvalidDBEntry, InvalidRequest, NotImplementedException, TaskImageException,
+    UnauthorizedError
+)
 from app.helpers.keycloak import Keycloak
+from app.dtos.task_spec import TaskSpec
 from app.helpers.wrappers import audit, auth
-from app.dtos.task import TaskDTO
+from app.dtos.task import NewTaskDTO, TaskDTO
 from app.models.api_request import ApiRequest
-from app.models.task_request import TaskRequest
 from app.models.project import Project
 from app.models.task import Task
+from app.models.task_status import TaskStatus
+from app.models.trigger_state import TriggerState
 
 bp = Blueprint('tasks', __name__, url_prefix='/tasks')
+
+# What a task request that fails validation raises. Such a request is kept, as REJECTED.
+VALIDATION_ERRORS = (
+    InvalidRequest, InvalidDBEntry, DBRecordNotFoundError, TaskImageException, UnauthorizedError
+)
 
 
 def does_user_own_task(task: Task):
@@ -65,11 +79,29 @@ def get_service_info():
 def get_tasks():
     """
     GET /tasks/ endpoint. Gets the list of tasks with pagination
+    Query params:
+        - page: page number (default 1)
+        - per_page: items per page (default 10)
+        - status: filter by task status (optional)
+        - project_id: filter by project (optional)
     """
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
+    status = request.args.get('status', None)
+    project_id = request.args.get('project_id', None, type=int)
 
-    pagination = Task.query.paginate(page=page, per_page=per_page)
+    query = Task.query
+
+    if status is not None:
+        if status not in [s.value for s in TaskStatus]:
+            valid = ', '.join([s.value for s in TaskStatus])
+            raise InvalidRequest(f"Invalid status: {status}. Must be one of: {valid}")
+        query = query.filter(Task.status == status)
+
+    if project_id is not None:
+        query = query.filter(Task.project_id == project_id)
+
+    pagination = query.order_by(Task.id).paginate(page=page, per_page=per_page)
     tasks = [TaskDTO.from_model(t).dump() for t in pagination.items]
 
     return {
@@ -97,6 +129,73 @@ def get_task_id(task_id):
     return TaskDTO.from_model(task).dump(), HTTPStatus.OK
 
 
+@bp.route('/<int:task_id>', methods=['PATCH'])
+@audit
+@auth(scope='can_admin_dataset')
+def patch_task(task_id):
+    """
+    PATCH /tasks/id endpoint. Records the progress of a task's run
+    """
+    task = Task.get_by_id(task_id)
+
+    body = request.json or {}
+    if not body:
+        raise InvalidRequest("No fields provided to update")
+
+    unknown = set(body) - {"status", "dagster_run_id", "exit_code", "started_at", "completed_at"}
+    if unknown:
+        raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
+
+    if 'status' in body:
+        if body['status'] not in [s.value for s in TaskStatus]:
+            valid = ', '.join([s.value for s in TaskStatus])
+            raise InvalidRequest(f"Invalid status: {body['status']}. Must be one of: {valid}")
+        task.status = body['status']
+
+    if 'dagster_run_id' in body:
+        if not isinstance(body['dagster_run_id'], str):
+            raise InvalidRequest("dagster_run_id must be a string")
+        task.dagster_run_id = body['dagster_run_id']
+
+    if 'exit_code' in body:
+        if not isinstance(body['exit_code'], int) or isinstance(body['exit_code'], bool):
+            raise InvalidRequest("exit_code must be an integer")
+        task.exit_code = body['exit_code']
+
+    for field in ('started_at', 'completed_at'):
+        if field in body:
+            try:
+                setattr(task, field, dt.fromisoformat(body[field].rstrip('Z')))
+            except (ValueError, AttributeError):
+                raise InvalidRequest(f"{field} must be a valid ISO 8601 datetime string")
+
+    db.session.commit()
+    return TaskDTO.from_model(task).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:task_id>/retry', methods=['POST'])
+@audit
+@auth(scope='can_admin_task')
+def retry_task(task_id):
+    """
+    POST /tasks/id/retry endpoint. Queues a failed or canceled task for another attempt
+    """
+    task = Task.get_by_id(task_id)
+
+    if task.status not in (TaskStatus.FAILED.value, TaskStatus.CANCELED.value):
+        raise InvalidRequest(f"Only a {TaskStatus.FAILED} or {TaskStatus.CANCELED} task can be retried")
+
+    task.status = TaskStatus.PENDING.value
+    task.attempt += 1
+    task.dagster_run_id = None
+    task.started_at = None
+    task.completed_at = None
+    task.exit_code = None
+
+    db.session.commit()
+    return TaskDTO.from_model(task).dump(), HTTPStatus.OK
+
+
 @bp.route('/<task_id>/cancel', methods=['POST'])
 @audit
 @auth(scope='can_admin_task')
@@ -116,13 +215,10 @@ def post_tasks():
     POST /tasks/ endpoint. Creates a new task from API request
     """
     req_body = request.json or {}
+    raw_body = deepcopy(req_body)
     project_name = request.headers.get("project-name")
     req_body["project_name"] = project_name
 
-    # Validate the task spec
-    Task.validate(req_body)
-
-    # Create ApiRequest record
     kc_client = Keycloak()
     token = kc_client.get_token_from_headers()
     dec_token = kc_client.decode_token(token)
@@ -132,38 +228,34 @@ def post_tasks():
     if not project:
         return {"error": f"Project '{project_name}' not found"}, HTTPStatus.NOT_FOUND
 
-    api_request = ApiRequest(
-        project_id=project.id,
-        user_id=user_id,
-        payload=req_body
-    )
-    api_request.add(commit=True)
+    # The request is recorded before it is evaluated. A rejected one is kept, with
+    # the reason: no task is created from it, so nothing can launch.
+    api_request = ApiRequest(project_id=project.id, user_id=user_id, payload=raw_body)
+    api_request.add()
 
-    task_request = TaskRequest(
-        api_request_id=api_request.id,
-        project_id=project.id,
-        payload=req_body,
-        queued=True,
-    )
-    task_request.add(commit=True)
+    session = db.session
+    try:
+        # Validate the task spec, and normalise it. The dataset it was validated
+        # against is the one the task runs on.
+        spec = TaskSpec.from_api_body(req_body)
+        req_body["docker_image"] = spec.image
+        validated = Task.validate(req_body)
+        spec.dataset = validated["dataset"].name
+        new_task = NewTaskDTO.from_spec(spec, api_request)
+    except VALIDATION_ERRORS as error:
+        api_request.set_state(TriggerState.REJECTED.value, str(error.description)[:1024])
+        session.commit()
+        raise
 
-    # Create Task from TaskRequest
-    task = Task(
-        project_id=project.id,
-        api_request_id=api_request.id,
-        task_request_id=task_request.id,
-        requested_by=user_id,
-        trigger_payload=req_body,
-        name=req_body.get("name", "Unnamed Task"),
-        docker_image=req_body.get("executors", {}).get("image", ""),
-        **req_body
-    )
-    task.add(commit=True)
+    # The state and the task are one transaction
+    api_request.set_state(TriggerState.YIELDED.value, None)
+    task = Task(**new_task.model_dump())
+    task.add(commit=False)
+    session.commit()
 
     return {
         "id": task.id,
         "api_request_id": api_request.id,
-        "task_request_id": task_request.id,
         "status": task.status,
         "created_at": task.created_at.isoformat() if task.created_at else None
     }, HTTPStatus.CREATED
@@ -179,6 +271,8 @@ def post_tasks_validate():
     """
     req_body = request.json
     req_body["project_name"] = request.headers.get("project-name")
+    spec = TaskSpec.from_api_body(req_body)
+    req_body["docker_image"] = spec.image
     Task.validate(req_body)
     return "Ok", 200
 
