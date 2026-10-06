@@ -2,6 +2,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.helpers.base_model import db
+from app.helpers.exceptions import InvalidRequest
 from app.models.api_request import ApiRequest
 from app.models.pull_request import PullRequest
 from app.models.task import Task
@@ -53,3 +54,31 @@ class TestTriggerModels:
         with pytest.raises(IntegrityError):
             duplicate.add()
         db.session.rollback()
+
+
+class TestTriggerSetState:
+    @pytest.fixture
+    def api(self, project):
+        api = ApiRequest(project_id=project.id, user_id="user")
+        api.add()
+        return api
+
+    @pytest.mark.parametrize("state", ["IGNORED", "REJECTED"])
+    def test_needs_a_cause(self, api, state):
+        with pytest.raises(InvalidRequest):
+            api.set_state(state, None)
+
+    @pytest.mark.parametrize("state", ["UNKNOWN", "YIELDED"])
+    def test_cause_not_allowed(self, api, state):
+        with pytest.raises(InvalidRequest):
+            api.set_state(state, "why")
+
+    def test_unknown_state(self, api):
+        with pytest.raises(InvalidRequest):
+            api.set_state("DONE", None)
+
+    @pytest.mark.parametrize("state,cause", [("IGNORED", "no spec"), ("REJECTED", "bad spec"), ("YIELDED", None)])
+    def test_valid_transitions_persist(self, api, state, cause):
+        api.set_state(state, cause)
+        api.add()
+        assert Trigger.query.filter_by(id=api.id).one().state_cause == cause

@@ -40,7 +40,7 @@ class TestProjectDTO:
 class TestDatasetDTO:
     def test_fields(self, dataset):
         assert set(DatasetDTO.from_model(dataset).dump()) == {
-            "id", "project_id", "secret_name", "secret_type", "secret_store_name", "name", "host", "port", "read_schema", "write_schema", "type",
+            "id", "project_id", "secret", "name", "host", "port", "read_schema", "write_schema", "type",
             "extra_connection_args", "created_at", "updated_at", "slug", "url",
         }
 

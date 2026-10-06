@@ -13,10 +13,10 @@ def task(make_task):
 
 
 @pytest.fixture
-def results_repo(client, project, k8s_secret):
+def results_repo(client, project, secret):
     repo = ResultsRepository(
         uri="github.com/org/results", provider="github", api_uri="https://api.github.com",
-        k8s_secret_id=k8s_secret.id, target_dir="results", project_id=project.id
+        secret_id=secret.id, target_dir="results", project_id=project.id
     )
     repo.add()
     return repo

@@ -159,7 +159,10 @@ def patch_repository(repo_id):
                 raise InvalidRequest(str(e))
 
     if 'initial_cursor' in body:
-        repo.initial_cursor = body['initial_cursor']
+        try:
+            repo.initial_cursor = body['initial_cursor']
+        except ValueError as e:
+            raise InvalidRequest(str(e))
 
     session.flush()
     try:

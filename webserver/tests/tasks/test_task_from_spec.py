@@ -6,7 +6,7 @@ from app.helpers.exceptions import InvalidRequest
 from app.models.api_request import ApiRequest
 from app.models.dataset import Dataset
 from app.models.secret import Secret
-from app.models.secret_type import SecretType
+from app.models.secret_provider_type import SecretProviderType
 from app.models.pull_request import PullRequest
 from app.models.task import Task
 from app.models.trigger_state import TriggerState
@@ -43,7 +43,7 @@ def second_dataset(client, user_uuid, project, secret):
 
 @pytest.fixture
 def other_project_dataset(client, user_uuid, other_project):
-    secret = Secret(project_id=other_project.id, name="test-creds", secret_type=SecretType.K8S)
+    secret = Secret(project_id=other_project.id, label="test-creds", provider=SecretProviderType.K8S)
     secret.add()
     ds = Dataset(name="OtherDs", host="example.com", secret_id=secret.id, project_id=other_project.id)
     ds.add(user_id=user_uuid)
