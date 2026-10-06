@@ -21,6 +21,7 @@ from fncli.cmds.common import (
 from fncli.cmds.project import find_project
 from fncli.cmds.repository import init_gitea_repo
 from fncli.cmds.sensor import SENSORS
+from fncli.cmds.verify import Report, verify_task
 from fncli.dagster.models import TriggerState
 from fncli.dagster.sensors import DagsterAPI
 
@@ -31,9 +32,8 @@ logger = logging.getLogger("pr")
 KINDS = ["watched", "unwatched", "invalid"]
 
 POLL_SECONDS = 3
-# Dagster's run statuses that end a task's run, and the ones of those that are a failure.
+# Dagster's run statuses that end a task's run.
 RUN_DONE = ["SUCCESS", "FAILURE", "CANCELED"]
-RUN_FAILED = ["FAILURE", "CANCELED"]
 
 
 class PrConfig(TriggerRepoConfig):
@@ -121,7 +121,8 @@ def stuck_sensors(dagster_api: DagsterAPI, stage: str) -> list[str]:
 def watch_pr(config: PrConfig, number: int, timeout: int):
     """
     Print each change of the PR in the backend, then of its task and the task's run, until
-    one ends or the timeout. Exits 1 on a REJECTED PR, a failed or canceled run or a timeout.
+    one ends or the timeout. When the run ends, print the verify-task report. Exits 1 on a
+    REJECTED PR, a failed verification (which a failed or canceled run is) or a timeout.
     """
     backend_api = build_backend_api(config)
     dagster_api = DagsterAPI(DagsterConfig().dagster_url)
@@ -157,7 +158,10 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
         if pr and pr.state == TriggerState.REJECTED:
             raise click.exceptions.Exit(1)
         if run and run["status"] in RUN_DONE:
-            raise click.exceptions.Exit(int(run["status"] in RUN_FAILED))
+            report = Report()
+            verify_task(report, backend_api, dagster_api, repo.id, number)
+            report.echo()
+            raise click.exceptions.Exit(int(report.failed > 0))
         time.sleep(POLL_SECONDS)
     logger.info(f"Timed out after {timeout}s, last seen: {list(seen.values())}")
     logger.info(f"Sensors not running at the {stage} stage: {stuck_sensors(dagster_api, stage)}")

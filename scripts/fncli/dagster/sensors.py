@@ -47,7 +47,7 @@ TASK_RUN = """
 query TaskRun($filter: RunsFilter!) {
   runsOrError(filter: $filter, limit: 1) {
     __typename
-    ... on Runs { results { runId status } }
+    ... on Runs { results { runId status jobName tags { key value } } }
     ... on PythonError { message }
     ... on InvalidPipelineRunsFilterError { message }
   }
@@ -97,7 +97,7 @@ class DagsterAPI(HttpClient):
         return result["instigationState"]["status"]
 
     def get_task_run(self, task_id: int) -> dict | None:
-        """The task's latest run (runId, status), found by its task_id tag, if it has one."""
+        """The task's latest run (runId, status, jobName, tags), found by its task_id tag, if it has one."""
         variables = {"filter": {"tags": [{"key": "task_id", "value": str(task_id)}]}}
         results = self.graphql_ok(TASK_RUN, variables, "Runs")["results"]
         return results[0] if results else None

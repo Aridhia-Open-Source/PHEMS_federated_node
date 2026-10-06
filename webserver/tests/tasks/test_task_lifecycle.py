@@ -66,6 +66,38 @@ class TestGetTasks:
         assert client.get("/tasks", headers=simple_user_header).status_code == 403
 
 
+class TestGetTask:
+    @pytest.fixture
+    def tasks_kc(self, mock_kc_client):
+        kc = mock_kc_client["tasks_api_kc"].return_value
+        kc.is_user_admin.return_value = False
+        kc.is_system_user.return_value = False
+        return kc
+
+    def test_the_requester_reads_it(self, client, simple_user_header, make_task, user_uuid, tasks_kc):
+        task = make_task(requested_by=user_uuid)
+        response = client.get(f"/tasks/{task.id}", headers=simple_user_header)
+        assert response.status_code == 200
+        assert response.json["id"] == task.id
+
+    def test_another_user_is_forbidden(self, client, simple_user_header, make_task, tasks_kc):
+        task = make_task(requested_by="someone-else")
+        assert client.get(f"/tasks/{task.id}", headers=simple_user_header).status_code == 403
+
+    def test_an_admin_reads_it(self, client, simple_user_header, make_task, tasks_kc):
+        tasks_kc.is_user_admin.return_value = True
+        task = make_task(requested_by="someone-else")
+        assert client.get(f"/tasks/{task.id}", headers=simple_user_header).status_code == 200
+
+    def test_the_system_user_reads_it(self, client, simple_user_header, make_task, tasks_kc):
+        tasks_kc.is_system_user.return_value = True
+        task = make_task(requested_by="someone-else")
+        assert client.get(f"/tasks/{task.id}", headers=simple_user_header).status_code == 200
+
+    def test_not_found(self, client, simple_user_header, tasks_kc):
+        assert client.get("/tasks/999", headers=simple_user_header).status_code == 404
+
+
 class TestRetryTask:
     @pytest.mark.parametrize("status", ["FAILED", "CANCELED"])
     def test_retry(self, make_task, client, simple_admin_header, project, status):

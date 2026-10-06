@@ -41,12 +41,8 @@ def test_the_run_status_maps_to_the_task_status(status, task_status, time_field)
     (task_id, fields), _ = backend_api.patch_task.call_args
     assert task_id == 9
     assert fields["status"] == task_status
-    assert set(fields) - {"status"} == (
-        {"dagster_run_id", "started_at"} if time_field == "started_at"
-        else {time_field} if time_field else set()
-    )
-    if time_field == "started_at":
-        assert fields["dagster_run_id"] == "test-run-id"
+    assert set(fields) - {"status", "dagster_run_id"} == ({time_field} if time_field else set())
+    assert fields["dagster_run_id"] == "test-run-id"
     if time_field == "completed_at":
         assert fields["completed_at"] == "2023-11-14T22:13:20Z"
 

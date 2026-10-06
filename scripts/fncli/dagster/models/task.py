@@ -9,6 +9,10 @@ class Task(BaseModel):
     name: str
     docker_image: str
     status: str | None = None
+    attempt: int | None = None
+    dagster_run_id: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
     requested_by: str
