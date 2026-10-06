@@ -121,7 +121,7 @@ def stuck_sensors(dagster_api: DagsterAPI, stage: str) -> list[str]:
 def watch_pr(config: PrConfig, number: int, timeout: int):
     """
     Print each change of the PR in the backend, then of its task and the task's run, until
-    one ends or the timeout. When the run ends, print the verify-task report. Exits 1 on a
+    one ends or the timeout. When the run ends, print the task verification report. Exits 1 on a
     REJECTED PR, a failed verification (which a failed or canceled run is) or a timeout.
     """
     backend_api = build_backend_api(config)
