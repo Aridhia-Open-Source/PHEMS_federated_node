@@ -6,7 +6,7 @@ from fncli.cmds import common
 EXPECTED_COMMANDS = {
     "hello-world",
     "setup-project", "open-pr", "teardown-project", "setup-backend", "teardown-backend",
-    "setup-gitea", "teardown-gitea", "verify-project", "verify-task",
+    "setup-gitea", "teardown-gitea", "verify-project", "verify-repo",
     "init-backend-project", "delete-backend-project", "project-healthcheck",
     "init-gitea-repo", "delete-gitea-repo", "init-backend-trigger-repo",
     "init-backend-results-repo", "delete-backend-trigger-repo", "delete-backend-results-repo",

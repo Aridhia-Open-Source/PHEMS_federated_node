@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from fncli.cmds.verify import Report, verify_task
+from fncli.cmds.verify import Report, verify_repo, verify_task
 from fncli.dagster.models import TriggerState
 
 
@@ -110,3 +110,61 @@ def test_a_queued_run_needs_no_start_or_end_time():
     )
 
     assert failures(report) == ["Run succeeded"]
+
+
+class RepoBackend:
+    def __init__(self, prs, task=None):
+        self.prs = prs
+        self.task = task or task_of()
+
+    def get_pull_requests(self, repo_id):
+        return self.prs
+
+    def get_task(self, task_id):
+        return self.task
+
+
+def numbered(number, state="YIELDED", cause=None):
+    return SimpleNamespace(
+        number=number, title=f"PR {number}", state=TriggerState(state), state_cause=cause, task_id=9
+    )
+
+
+def verify_all(prs, run=None, tail=None):
+    return verify_repo(RepoBackend(prs), FakeDagster(run or run_of()), 7, tail)
+
+
+def test_repo_with_every_pr_fine_has_no_failures(capsys):
+    prs = [numbered(1), numbered(2, "IGNORED", "no spec"), numbered(3, "REJECTED", "bad spec")]
+
+    assert verify_all(prs) == 0
+    out = capsys.readouterr().out
+    assert "3 PRs checked, 0 checks failed" in out
+    assert "PR was IGNORED, so no task is expected" in out
+
+
+def test_repo_counts_the_failures_across_prs(capsys):
+    prs = [numbered(1), numbered(2)]
+
+    assert verify_all(prs, run_of(status="FAILURE")) == 4  # status mismatch + run not succeeded, twice
+    assert "2 PRs checked, 4 checks failed" in capsys.readouterr().out
+
+
+def test_repo_fails_a_pr_still_unknown(capsys):
+    assert verify_all([numbered(1, "UNKNOWN")]) == 1
+    assert "still UNKNOWN" in capsys.readouterr().out
+
+
+def test_repo_tail_checks_only_the_last_prs_by_number(capsys):
+    prs = [numbered(3), numbered(1), numbered(2)]
+
+    verify_all(prs, tail=2)
+
+    out = capsys.readouterr().out
+    assert "PR #1" not in out and "PR #2" in out and "PR #3" in out
+    assert "2 PRs checked" in out
+
+
+def test_repo_with_no_prs_fails(capsys):
+    assert verify_all([]) == 1
+    assert "No pull requests in the repo" in capsys.readouterr().out

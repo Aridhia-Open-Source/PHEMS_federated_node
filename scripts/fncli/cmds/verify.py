@@ -52,9 +52,11 @@ class Report:
     def failed(self) -> int:
         return sum(1 for status, _, _ in self.rows if status == "FAIL")
 
-    def echo(self):
+    def echo(self, summary: bool = True, indent: str = ""):
         for status, name, detail in self.rows:
-            click.echo(f"[{status:>4}] {name}" + (f"  ({detail})" if detail else ""))
+            click.echo(f"{indent}[{status:>4}] {name}" + (f"  ({detail})" if detail else ""))
+        if not summary:
+            return
         passed = sum(1 for status, _, _ in self.rows if status == "ok")
         skipped = sum(1 for status, _, _ in self.rows if status == "SKIP")
         click.echo(f"\n{passed} passed, {self.failed} failed, {skipped} skipped")
@@ -139,6 +141,11 @@ def verify_task(report: Report, backend_api, dagster_api: DagsterAPI, repo_id: i
     )
     if pr is None:
         return
+    verify_pr(report, backend_api, dagster_api, pr)
+
+
+def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, pr):
+    """The checks for one PR already fetched: its task in the backend against its Dagster run."""
     cause = f"{pr.state.value}, {pr.state_cause}" if pr.state_cause else pr.state.value
     report.record(pr.state == TriggerState.YIELDED, "PR was YIELDED, so it has a task", cause)
     if pr.state != TriggerState.YIELDED:
@@ -182,18 +189,43 @@ def verify_task(report: Report, backend_api, dagster_api: DagsterAPI, repo_id: i
     report.record(run["status"] == "SUCCESS", "Run succeeded", run["status"])
 
 
-@click.command("verify-task")
-@click.option("--number", required=True, type=int, help="The merged PR's number.")
-def verify_task_command(number):
-    """Check, read-only, that a merged PR's task ran in Dagster and the backend agrees. Exits 1 on a failure."""
+def verify_repo(backend_api, dagster_api: DagsterAPI, repo_id: int, tail: int | None) -> int:
+    """
+    Print a report per PR of the trigger repo, the last `tail` by number if given, and a
+    summary. Returns how many checks failed. A PR the sensor ignored or rejected has no task
+    to check, which is the right outcome for it. One still UNKNOWN has not been evaluated.
+    """
+    prs = sorted(backend_api.get_pull_requests(repo_id), key=lambda pr: pr.number)
+    if tail:
+        prs = prs[-tail:]
+    if not prs:
+        click.echo("No pull requests in the repo")
+        return 1
+    failed = 0
+    for pr in prs:
+        report = Report()
+        if pr.state in (TriggerState.IGNORED, TriggerState.REJECTED):
+            report.record(True, f"PR was {pr.state.value}, so no task is expected", pr.state_cause or "")
+        elif pr.state == TriggerState.UNKNOWN:
+            report.record(False, "PR was evaluated", "still UNKNOWN, the evaluate sensor has not run on it")
+        else:
+            verify_pr(report, backend_api, dagster_api, pr)
+        click.echo(f"PR #{pr.number}: {pr.title}")
+        report.echo(summary=False, indent="  ")
+        failed += report.failed
+    click.echo(f"\n{len(prs)} PRs checked, {failed} checks failed")
+    return failed
+
+
+@click.command("verify-repo")
+@click.option("--tail", type=int, default=None, help="Only check the last N PRs, by number. Default: all.")
+def verify_repo_command(tail):
+    """Check, read-only, that every merged PR of the trigger repo ran in Dagster and the backend agrees. Exits 1 on a failure."""
     config = TriggerRepoConfig()
     backend_api = build_backend_api(config)
     project = find_project(config, backend_api)
     repo = backend_api.find_repository(config.repo_uri, project.id)
-    report = Report()
-    verify_task(report, backend_api, DagsterAPI(DagsterConfig().dagster_url), repo.id, number)
-    report.echo()
-    if report.failed:
+    if verify_repo(backend_api, DagsterAPI(DagsterConfig().dagster_url), repo.id, tail):
         raise click.exceptions.Exit(1)
 
 
@@ -207,4 +239,4 @@ def verify_project_command():
         raise click.exceptions.Exit(1)
 
 
-COMMANDS = [verify_project_command, verify_task_command]
+COMMANDS = [verify_project_command, verify_repo_command]
