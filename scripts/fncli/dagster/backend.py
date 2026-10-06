@@ -2,7 +2,7 @@ import logging
 from urllib.parse import urlparse
 
 from fncli.dagster.utils import BackendSession
-from fncli.dagster.models import Dataset, Project, PullRequest, ResultsRepository, TriggerRepository
+from fncli.dagster.models import Dataset, Project, PullRequest, ResultsRepository, Task, TriggerRepository
 
 default_logger = logging.getLogger(__name__)
 
@@ -123,6 +123,11 @@ class BackendAPI:
             json=data,
         )
         return PullRequest(**response.json())
+
+    def get_task(self, task_id: int) -> Task:
+        """Get single task"""
+        self.logger.info(f"Fetching task {task_id}")
+        return Task(**self.session.get(f"/tasks/{task_id}").json())
 
     def get_dataset_by_name(self, name: str) -> Dataset | None:
         """Get dataset by name"""
