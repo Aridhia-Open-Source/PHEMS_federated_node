@@ -70,7 +70,8 @@ class K8sPipe:
         if not dataset:
             return {}
 
-        if not all(dataset.values()):
+        required = {k: v for k, v in dataset.items() if k not in ("read_schema", "write_schema")}
+        if not all(required.values()):
             raise ValueError("Incomplete dataset configuration provided.")
         return dataset
 
@@ -81,8 +82,10 @@ class K8sPipe:
             'ARTIFACT_PATH': self.artifact_path,
         }
         if self.dataset:
-            env['CDM_SCHEMA'] = self.dataset['read_schema']
-            env['WRITE_SCHEMA'] = self.dataset['write_schema']
+            if self.dataset['read_schema']:
+                env['CDM_SCHEMA'] = self.dataset['read_schema']
+            if self.dataset['write_schema']:
+                env['WRITE_SCHEMA'] = self.dataset['write_schema']
         return env
 
     def __call__(self):

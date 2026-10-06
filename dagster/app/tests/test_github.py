@@ -170,3 +170,19 @@ class TestWrites:
         assert client.request.call_args.kwargs["json"] == {
             "title": "t", "body": "b", "head": "results/pr-5", "base": "main",
         }
+
+
+class TestBranchPullRequests:
+    def test_find_returns_the_first_pr_of_the_branch(self, api, client):
+        client.request.return_value = response([{"number": 7}, {"number": 3}])
+
+        assert api.find_pull_request_by_branch("org/repo", "feature", "main") == {"number": 7}
+        assert client.request.call_args.args == ("GET", "repos/org/repo/pulls")
+        assert client.request.call_args.kwargs["params"] == {
+            "head": "org:feature", "base": "main", "state": "all",
+        }
+
+    def test_find_returns_none_without_one(self, api, client):
+        client.request.return_value = response([])
+
+        assert api.find_pull_request_by_branch("org/repo", "feature", "main") is None

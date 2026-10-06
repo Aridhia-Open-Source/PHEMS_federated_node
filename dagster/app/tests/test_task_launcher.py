@@ -6,7 +6,7 @@ from app.definitions.sensors.task.launcher import TaskLauncherSensor
 from app.models import Dataset, Project, Task
 
 DATASET = Dataset(
-    id=7, project_id=1, secret_name="cdm-creds", secret_type="K8S", secret_store_name="cdm-creds-abc", name="cdm", host="db.host", port=5432,
+    id=7, project_id=1, secret={"id": 3, "project_id": 1, "label": "cdm-creds", "provider": "K8S", "key": "cdm-creds-abc"}, name="cdm", host="db.host", port=5432,
     read_schema="cdm", type="postgres", slug="cdm", url="https://db.host/cdm",
 )
 
