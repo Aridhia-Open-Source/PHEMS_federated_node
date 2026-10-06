@@ -67,6 +67,14 @@ Each command opens a PR and merges it, using the Gitea API only. fncli makes no 
   - Gitea: the same, with a file that fails validation.
   - Expect it to be rejected.
 
+Add `--watch` to follow the merged PR in real time (and `--timeout <seconds>`, default 300). It prints a timestamped line each time something changes, and exits 1 on REJECTED, a FAILURE or CANCELED run, or a timeout. On a timeout it also lists the sensors that are not running at the stage it is stuck at.
+
+- `fncli open-pr --kind watched --merge --watch`, or `fncli merge-gitea-pr --number <n> --watch`
+  - Backend: `GET /trigger_repositories/{repo_id}/pull_requests`, until the PR shows up ("waiting for ingest") and shows its state (UNKNOWN, then YIELDED, IGNORED or REJECTED, with its state_cause).
+  - Backend: `GET /tasks/{task_id}` for a YIELDED PR, showing the task's status.
+  - Dagster: GraphQL `runsOrError` filtered by the task_id tag, showing the run's id and status until SUCCESS, FAILURE or CANCELED.
+  - Exits 0 on IGNORED or SUCCESS.
+
 Optional, the same thing in separate steps (`--kind` as above):
 
 - `fncli create-gitea-branch`: `POST repos/{repo}/branches` on Gitea. Prints the branch name.

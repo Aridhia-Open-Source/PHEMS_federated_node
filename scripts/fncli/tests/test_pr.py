@@ -1,11 +1,17 @@
 import importlib.util
 import json
+import logging
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
+import click
 import pytest
 from pydantic import ValidationError
 
+from fncli.cmds import pr
 from fncli.cmds.pr import KINDS, PrConfig, file_for, new_branch_name
+from fncli.dagster.models import TriggerState
 
 SPEC_MODULE = Path(__file__).parents[2] / "../dagster/app/models/pull_request_spec.py"
 
@@ -63,3 +69,90 @@ def test_branch_names_are_prefixed_with_the_time():
     name = new_branch_name()
 
     assert name.startswith("pr-") and name[3:].isdigit()
+
+
+# --watch
+
+class FakeBackend:
+    def __init__(self, prs, task_status="PENDING"):
+        self.prs = prs
+        self.task_status = task_status
+
+    def find_repository(self, uri, project_id):
+        return SimpleNamespace(id=7)
+
+    def get_pull_requests(self, repo_id):
+        assert repo_id == 7
+        return self.prs.pop(0) if len(self.prs) > 1 else self.prs[0]
+
+    def get_task(self, task_id):
+        return SimpleNamespace(id=task_id, status=self.task_status)
+
+
+def pr_of(state, cause=None):
+    return SimpleNamespace(number=5, state=TriggerState(state), state_cause=cause, task_id=9)
+
+
+@pytest.fixture
+def watch(monkeypatch):
+    """Runs watch_pr against a fake backend and Dagster, returning the exit code."""
+
+    def run(prs, runs=(None,), sensors=None, timeout=300):
+        runs = list(runs)
+        dagster_api = MagicMock()
+        dagster_api.get_task_run.side_effect = lambda task_id: runs.pop(0) if len(runs) > 1 else runs[0]
+        dagster_api.get_sensor_state.side_effect = lambda name: {"status": (sensors or {}).get(name, "RUNNING")}
+        monkeypatch.setattr(pr, "build_backend_api", lambda config: FakeBackend(list(prs)))
+        monkeypatch.setattr(pr, "DagsterAPI", lambda url: dagster_api)
+        monkeypatch.setattr(pr, "find_project", lambda config, api: SimpleNamespace(id=1))
+        monkeypatch.setattr(pr, "POLL_SECONDS", 0)
+        try:
+            pr.watch_pr(PrConfig(), 5, timeout)
+        except click.exceptions.Exit as exit:
+            return exit.exit_code
+        return 0
+
+    return run
+
+
+def test_watch_prints_each_change_once(watch, caplog):
+    caplog.set_level(logging.INFO, logger="pr")
+    runs = [{"runId": "abc", "status": "STARTED"}, {"runId": "abc", "status": "SUCCESS"}]
+
+    code = watch([[], [pr_of("UNKNOWN")], [pr_of("YIELDED")]], runs)
+
+    assert code == 0
+    lines = [r.message.split(" ", 1)[1] for r in caplog.records]
+    assert lines == [
+        "PR: waiting for ingest",
+        "PR: UNKNOWN",
+        "PR: YIELDED",
+        "Task 9: PENDING",
+        "Run abc: STARTED",
+        "Run abc: SUCCESS",
+    ]
+
+
+def test_watch_ignored_exits_zero(watch):
+    assert watch([[pr_of("IGNORED", "no spec")]]) == 0
+
+
+def test_watch_rejected_exits_one_and_shows_the_cause(watch, caplog):
+    caplog.set_level(logging.INFO, logger="pr")
+
+    assert watch([[pr_of("REJECTED", "bad spec")]]) == 1
+    assert "PR: REJECTED (bad spec)" in caplog.text
+
+
+@pytest.mark.parametrize("status, code", [("SUCCESS", 0), ("FAILURE", 1), ("CANCELED", 1)])
+def test_watch_run_status_sets_the_exit_code(watch, status, code):
+    assert watch([[pr_of("YIELDED")]], [{"runId": "abc", "status": status}]) == code
+
+
+def test_watch_timeout_names_the_stopped_sensor_of_the_stage(watch, caplog):
+    caplog.set_level(logging.INFO, logger="pr")
+
+    code = watch([[pr_of("YIELDED")]], sensors={"task_launcher_sensor": "STOPPED"}, timeout=0.05)
+
+    assert code == 1
+    assert "launcher stage: ['task_launcher_sensor']" in caplog.text
