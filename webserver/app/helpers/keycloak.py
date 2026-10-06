@@ -396,12 +396,12 @@ class Keycloak:
             )
 
         # FIXME: Temporary workaround for system users
-        if with_permissions and not self._is_system_user(token):
+        if with_permissions and not self.is_system_user(token):
             return response_auth.ok and self.check_permissions(token, scope, resource, is_access_token)
 
         return response_auth.ok
 
-    def _is_system_user(self, token: str) -> bool:
+    def is_system_user(self, token: str) -> bool:
         token_dict = self.decode_token(token)
         roles = token_dict.get("realm_access", {}).get("roles", [])
         return 'system' in [r.lower() for r in roles]

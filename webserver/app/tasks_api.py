@@ -47,7 +47,8 @@ VALIDATION_ERRORS = (
 def does_user_own_task(task: Task):
     """
     Simple wrapper to check if the user is the one who
-    triggered the task, or is admin.
+    triggered the task, or is admin, or is the system user (Dagster, which reads tasks it
+    did not request).
 
     If they don't, an exception is raised with 403 status code
     """
@@ -56,7 +57,12 @@ def does_user_own_task(task: Task):
     dec_token = kc_client.decode_token(token)
     user_id = kc_client.get_user_by_email(dec_token["email"])["id"]
 
-    if task.requested_by != user_id and not kc_client.is_user_admin(token):
+    # TODO(auth): revisit with the Keycloak/authorization rework.
+    if (
+        task.requested_by != user_id
+        and not kc_client.is_user_admin(token)
+        and not kc_client.is_system_user(token)
+    ):
         raise UnauthorizedError("User does not have enough permissions")
 
 
