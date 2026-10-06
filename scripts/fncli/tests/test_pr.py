@@ -74,7 +74,7 @@ def test_branch_names_are_prefixed_with_the_time():
 # --watch
 
 class FakeBackend:
-    def __init__(self, prs, task_status="PENDING"):
+    def __init__(self, prs, task_status="SUCCESS"):
         self.prs = prs
         self.task_status = task_status
 
@@ -86,7 +86,17 @@ class FakeBackend:
         return self.prs.pop(0) if len(self.prs) > 1 else self.prs[0]
 
     def get_task(self, task_id):
-        return SimpleNamespace(id=task_id, status=self.task_status)
+        return SimpleNamespace(
+            id=task_id, status=self.task_status, attempt=1, dagster_run_id="abc",
+            started_at="2026-01-01T10:00:00Z", completed_at="2026-01-01T10:01:00Z",
+        )
+
+
+def run_of(status):
+    return {
+        "runId": "abc", "status": status, "jobName": "k8s_pipes_job",
+        "tags": [{"key": "attempt", "value": "1"}],
+    }
 
 
 def pr_of(state, cause=None):
@@ -117,7 +127,7 @@ def watch(monkeypatch):
 
 def test_watch_prints_each_change_once(watch, caplog):
     caplog.set_level(logging.INFO, logger="pr")
-    runs = [{"runId": "abc", "status": "STARTED"}, {"runId": "abc", "status": "SUCCESS"}]
+    runs = [run_of("STARTED"), run_of("SUCCESS")]
 
     code = watch([[], [pr_of("UNKNOWN")], [pr_of("YIELDED")]], runs)
 
@@ -127,7 +137,7 @@ def test_watch_prints_each_change_once(watch, caplog):
         "PR: waiting for ingest",
         "PR: UNKNOWN",
         "PR: YIELDED",
-        "Task 9: PENDING",
+        "Task 9: SUCCESS",
         "Run abc: STARTED",
         "Run abc: SUCCESS",
     ]
@@ -146,7 +156,7 @@ def test_watch_rejected_exits_one_and_shows_the_cause(watch, caplog):
 
 @pytest.mark.parametrize("status, code", [("SUCCESS", 0), ("FAILURE", 1), ("CANCELED", 1)])
 def test_watch_run_status_sets_the_exit_code(watch, status, code):
-    assert watch([[pr_of("YIELDED")]], [{"runId": "abc", "status": status}]) == code
+    assert watch([[pr_of("YIELDED")]], [run_of(status)]) == code
 
 
 def test_watch_timeout_names_the_stopped_sensor_of_the_stage(watch, caplog):

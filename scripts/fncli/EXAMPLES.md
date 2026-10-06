@@ -100,6 +100,17 @@ Optional, a read-only report on the project:
   - Backend: `GET /datasets`, `GET /datasets/{id}` and `GET /projects/{id}/secrets`, for the dataset the healthcheck leaves out.
   - Creates and changes nothing.
 
+Optional, check that a merged PR's task ran in Dagster and the backend agrees:
+
+- `fncli verify-task --number <n>`
+  - Prints one line per check (`ok` or `FAIL`) and a summary. Exits 1 if any check fails.
+  - Backend: `GET /trigger_repositories/{id}/pull_requests`, to check the PR was `YIELDED` and has a task.
+  - Backend: `GET /tasks/{id}`, for the task's status, run id, attempt and times.
+  - Dagster: finds the run tagged with the task's id, and checks it is a `k8s_pipes_job`.
+  - Checks the task's status, run id and attempt match the run, and that `started_at` and `completed_at` are set when they should be.
+  - Checks the run succeeded.
+  - `merge-gitea-pr --watch` and `open-pr --merge --watch` print this same report when the run ends.
+
 ### 5. Tear down
 
 - `fncli teardown-project -y`
