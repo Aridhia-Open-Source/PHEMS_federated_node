@@ -8,7 +8,7 @@ from http import HTTPStatus
 from flask import Blueprint, request
 
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.keycloak import KEYCLOAK_ADMIN, Keycloak
+from app.helpers.keycloak import KEYCLOAK_ADMIN, KEYCLOAK_SERVICE_USER, Keycloak
 from app.helpers.const import PUBLIC_URL
 from app.helpers.wrappers import audit, auth
 
@@ -83,7 +83,7 @@ def get_users_list():
             "lastName": user.get("lastName", ''),
             "role": kc.get_user_role(user["id"]),
             "needs_to_reset_password": user.get("requiredActions", []) != []
-        } for user in ls_users if user["username"] != KEYCLOAK_ADMIN
+        } for user in ls_users if user["username"] not in (KEYCLOAK_ADMIN, KEYCLOAK_SERVICE_USER)
     ]
 
     return normalised_list, HTTPStatus.OK
