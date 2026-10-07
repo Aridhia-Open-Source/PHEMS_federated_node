@@ -10,6 +10,7 @@ import time
 from datetime import datetime, timezone
 
 import click
+import requests
 from pydantic import Field
 
 from fncli.cmds.common import (
@@ -21,7 +22,7 @@ from fncli.cmds.common import (
 from fncli.cmds.project import find_project
 from fncli.cmds.repository import init_gitea_repo
 from fncli.cmds.sensor import SENSORS
-from fncli.cmds.verify import Report, verify_task
+from fncli.cmds.verify import RUN_TO_TASK_STATUS, Report, verify_task
 from fncli.dagster.models import TriggerState
 from fncli.dagster.sensors import DagsterAPI
 
@@ -32,12 +33,16 @@ logger = logging.getLogger("pr")
 KINDS = ["watched", "unwatched", "invalid"]
 
 POLL_SECONDS = 3
+# Consecutive polls that may fail to connect (Dagster reloading, say) before --watch gives up.
+MAX_CONNECTION_ERRORS = 10
+# The run-status sensors tick every 10s, so the task trails its run by up to that long.
+SETTLE_SECONDS = 30
 # Dagster's run statuses that end a task's run.
 RUN_DONE = ["SUCCESS", "FAILURE", "CANCELED"]
 
 
 class PrConfig(TriggerRepoConfig):
-    pr_image: str = Field(default="busybox:latest", alias="TEST_PR_IMAGE")
+    pr_image: str = Field(default="localhost:5001/pypipes-fn:latest", alias="TEST_PR_IMAGE")
 
     @property
     def repo_path(self) -> str:
@@ -131,24 +136,40 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
     seen = {}
     stage = "ingest"
     deadline = time.monotonic() + timeout
+    connection_errors = 0
+    last_error = None
     while time.monotonic() < deadline:
         lines = {}
-        pr = next((p for p in backend_api.get_pull_requests(repo.id) if p.number == number), None)
         run = None
-        if pr is None:
-            lines["pr"] = "PR: waiting for ingest"
-        else:
-            cause = f" ({pr.state_cause})" if pr.state_cause else ""
-            lines["pr"] = f"PR: {pr.state.value}{cause}"
-            stage = "evaluate"
-        if pr and pr.state == TriggerState.YIELDED:
-            stage = "launcher"
-            task = backend_api.get_task(pr.task_id)
-            lines["task"] = f"Task {task.id}: {task.status}"
-            run = dagster_api.get_task_run(task.id)
-            if run:
-                stage = "status"
-                lines["run"] = f"Run {run['runId']}: {run['status']}"
+        try:
+            pr = next(
+                (p for p in backend_api.get_pull_requests(repo.id) if p.number == number), None
+            )
+            if pr is None:
+                lines["pr"] = "PR: waiting for ingest"
+            else:
+                cause = f" ({pr.state_cause})" if pr.state_cause else ""
+                lines["pr"] = f"PR: {pr.state.value}{cause}"
+                stage = "evaluate"
+            if pr and pr.state == TriggerState.YIELDED:
+                stage = "launcher"
+                task = backend_api.get_task(pr.task_id)
+                lines["task"] = f"Task {task.id}: {task.status}"
+                run = dagster_api.get_task_run(task.id)
+                if run:
+                    stage = "status"
+                    lines["run"] = f"Run {run['runId']}: {run['status']}"
+        except requests.exceptions.ConnectionError as error:
+            connection_errors += 1
+            if connection_errors >= MAX_CONNECTION_ERRORS:
+                logger.info(f"{connection_errors} connection errors in a row, giving up: {error}")
+                raise click.exceptions.Exit(1)
+            if str(error) != last_error:
+                last_error = str(error)
+                logger.info(f"connection error, retrying: {error}")
+            time.sleep(POLL_SECONDS)
+            continue
+        connection_errors = 0
         for key, line in lines.items():
             if seen.get(key) != line:
                 seen[key] = line
@@ -158,6 +179,12 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
         if pr and pr.state == TriggerState.REJECTED:
             raise click.exceptions.Exit(1)
         if run and run["status"] in RUN_DONE:
+            settle_deadline = time.monotonic() + SETTLE_SECONDS
+            while (
+                backend_api.get_task(task.id).status != RUN_TO_TASK_STATUS[run["status"]]
+                and time.monotonic() < settle_deadline
+            ):
+                time.sleep(POLL_SECONDS)
             report = Report()
             verify_task(report, backend_api, dagster_api, repo.id, number)
             report.echo()

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 import click
 import pytest
+import requests
 from pydantic import ValidationError
 
 from fncli.cmds import pr
@@ -110,7 +111,13 @@ def watch(monkeypatch):
     def run(prs, runs=(None,), sensors=None, timeout=300):
         runs = list(runs)
         dagster_api = MagicMock()
-        dagster_api.get_task_run.side_effect = lambda task_id: runs.pop(0) if len(runs) > 1 else runs[0]
+        def get_task_run(task_id):
+            run = runs.pop(0) if len(runs) > 1 else runs[0]
+            if isinstance(run, Exception):
+                raise run
+            return run
+
+        dagster_api.get_task_run.side_effect = get_task_run
         dagster_api.get_sensor_state.side_effect = lambda name: {"status": (sensors or {}).get(name, "RUNNING")}
         monkeypatch.setattr(pr, "build_backend_api", lambda config: FakeBackend(list(prs)))
         monkeypatch.setattr(pr, "DagsterAPI", lambda url: dagster_api)
@@ -166,3 +173,23 @@ def test_watch_timeout_names_the_stopped_sensor_of_the_stage(watch, caplog):
 
     assert code == 1
     assert "launcher stage: ['task_launcher_sensor']" in caplog.text
+
+
+def test_watch_survives_a_dropped_connection(watch, caplog):
+    caplog.set_level(logging.INFO, logger="pr")
+    outcomes = [requests.exceptions.ConnectionError("Remote end closed connection"), run_of("SUCCESS")]
+
+    code = watch([[pr_of("YIELDED")]], runs=outcomes)
+
+    assert code == 0
+    assert caplog.text.count("connection error, retrying: Remote end closed connection") == 1
+    assert "Run abc: SUCCESS" in caplog.text
+
+
+def test_watch_gives_up_after_too_many_connection_errors(watch, caplog):
+    caplog.set_level(logging.INFO, logger="pr")
+
+    code = watch([[pr_of("YIELDED")]], runs=[requests.exceptions.ConnectionError("down")])
+
+    assert code == 1
+    assert f"{pr.MAX_CONNECTION_ERRORS} connection errors in a row" in caplog.text
