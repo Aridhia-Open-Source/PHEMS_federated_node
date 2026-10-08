@@ -3,7 +3,7 @@
 from enum import Enum
 
 
-class PullRequestResultState(str, Enum):
+class MergeStatus(str, Enum):
     """
     Where the pull request we opened to deliver a task's results stands on the git provider.
 

@@ -22,9 +22,9 @@ class PullRequestResult(TaskResult):
     )
     branch = sa.Column(sa.String(256), nullable=True)
     commit_sha = sa.Column(sa.String(40), nullable=True)
-    pull_request_number = sa.Column(sa.Integer, nullable=True)
-    pull_request_url = sa.Column(sa.String(4096), nullable=True)
-    pull_request_state = sa.Column(sa.String(16), nullable=True)
+    number = sa.Column(sa.Integer, nullable=True)
+    url = sa.Column(sa.String(4096), nullable=True)
+    merge_status = sa.Column(sa.String(16), nullable=True)
     merged_at = sa.Column(sa.DateTime(timezone=False), nullable=True)
     merge_commit_sha = sa.Column(sa.String(40), nullable=True)
 
@@ -39,4 +39,4 @@ class PullRequestResult(TaskResult):
         return value
 
     def __repr__(self):
-        return f'<PullRequestResult (task_id={self.task_id}, pr={self.pull_request_number})>'
+        return f'<PullRequestResult (task_id={self.task_id}, pr={self.number})>'

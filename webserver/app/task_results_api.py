@@ -14,7 +14,7 @@ from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.wrappers import audit, auth
 from app.models.pull_request_result import PullRequestResult
-from app.models.pull_request_result_state import PullRequestResultState
+from app.models.merge_status import MergeStatus
 from app.models.results_repository import ResultsRepository
 from app.models.task import Task
 from app.models.task_result import TaskResult
@@ -25,7 +25,7 @@ bp = Blueprint('task_results', __name__, url_prefix='/task_results')
 
 BASE_FIELDS = {"status", "attempts", "error"}
 PULL_REQUEST_FIELDS = {
-    "branch", "commit_sha", "pull_request_number", "pull_request_url", "pull_request_state",
+    "branch", "commit_sha", "number", "url", "merge_status",
     "merged_at", "merge_commit_sha"
 }
 
@@ -38,15 +38,15 @@ def get_task_results():
     """
     GET /task_results endpoint. Lists task results
     Query params:
-        - pull_request_state: only the pull request results in this state (optional)
+        - merge_status: only the pull request results in this state (optional)
     """
     query = TaskResult.query
-    state = request.args.get('pull_request_state', None)
+    state = request.args.get('merge_status', None)
     if state is not None:
-        if state not in [s.value for s in PullRequestResultState]:
-            valid = ', '.join([s.value for s in PullRequestResultState])
-            raise InvalidRequest(f"Invalid pull_request_state: {state}. Must be one of: {valid}")
-        query = PullRequestResult.query.filter(PullRequestResult.pull_request_state == state)
+        if state not in [s.value for s in MergeStatus]:
+            valid = ', '.join([s.value for s in MergeStatus])
+            raise InvalidRequest(f"Invalid merge_status: {state}. Must be one of: {valid}")
+        query = PullRequestResult.query.filter(PullRequestResult.merge_status == state)
     return [dump_task_result(r) for r in query.order_by(TaskResult.id).all()], HTTPStatus.OK
 
 
@@ -116,13 +116,13 @@ def patch_task_result(task_result_id):
             raise InvalidRequest(f"Invalid status: {body['status']}. Must be one of: {valid}")
         task_result.status = body['status']
 
-    if 'pull_request_state' in body:
-        if body['pull_request_state'] not in [s.value for s in PullRequestResultState]:
-            valid = ', '.join([s.value for s in PullRequestResultState])
+    if 'merge_status' in body:
+        if body['merge_status'] not in [s.value for s in MergeStatus]:
+            valid = ', '.join([s.value for s in MergeStatus])
             raise InvalidRequest(
-                f"Invalid pull_request_state: {body['pull_request_state']}. Must be one of: {valid}"
+                f"Invalid merge_status: {body['merge_status']}. Must be one of: {valid}"
             )
-        task_result.pull_request_state = body['pull_request_state']
+        task_result.merge_status = body['merge_status']
 
     if 'merged_at' in body:
         if body['merged_at'] is not None and not isinstance(body['merged_at'], str):
@@ -132,14 +132,14 @@ def patch_task_result(task_result_id):
         except ValueError as e:
             raise InvalidRequest(str(e))
 
-    for field in ('attempts', 'pull_request_number'):
+    for field in ('attempts', 'number'):
         if field in body:
             if not isinstance(body[field], int) or isinstance(body[field], bool):
                 raise InvalidRequest(f"{field} must be an integer")
             setattr(task_result, field, body[field])
 
     for field, size in (
-        ('branch', 256), ('commit_sha', 40), ('pull_request_url', 4096), ('merge_commit_sha', 40),
+        ('branch', 256), ('commit_sha', 40), ('url', 4096), ('merge_commit_sha', 40),
         ('error', 1024)
     ):
         if field in body:
