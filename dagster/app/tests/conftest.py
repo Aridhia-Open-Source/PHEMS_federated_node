@@ -171,21 +171,6 @@ def mock_backend_api():
 # GitHub API mock helpers
 # ---------------------------------------------------------------------------
 
-def make_github_api_mock():
-    """Create a fully mocked GithubAPI instance."""
-    api = MagicMock()
-    return api
-
-
-@pytest.fixture
-def mock_github_api():
-    return make_github_api_mock()
-
-
-# ---------------------------------------------------------------------------
-# GitHub API mock helpers
-# ---------------------------------------------------------------------------
-
 @pytest.fixture
 def mock_pr():
     return dict(SAMPLE_PR)
@@ -235,21 +220,6 @@ def github_triggered_run():
 @pytest.fixture
 def non_github_run():
     return make_dagster_run(tags={"trigger": "manual"})
-
-
-@pytest.fixture
-def transfer_completed_run():
-    return make_dagster_run(
-        run_id="transfer-run-id",
-        job_name="github_transfer_job",
-        tags={
-            "trigger": "github_transfer",
-            "pr_number": "5",
-            "repo_id": "1",
-            "repo_uri": "github.com/org/repo",
-            "parent_run_id": "test-run-id",
-        },
-    )
 
 
 @pytest.fixture

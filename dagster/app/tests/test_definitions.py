@@ -11,7 +11,7 @@ class TestCodeLocation:
     def test_jobs_are_registered(self):
         names = {job.name for job in defs.jobs}
 
-        assert {"noop_job", "k8s_pipes_job", "github_transfer_job",
+        assert {"noop_job", "k8s_pipes_job",
                 "evaluate_repository_pull_requests_job", "deliver_results_job"} <= names
 
     def test_sensors_are_registered(self):

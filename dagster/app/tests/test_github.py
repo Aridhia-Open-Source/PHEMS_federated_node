@@ -128,45 +128,6 @@ class TestPullRequestFiles:
 
         assert [f["filename"] for f in files] == ["a.json", "b.json"]
 
-    def test_watched_files_must_be_added_in_the_watch_dir(self, api):
-        files = [
-            {"filename": "specs/new.json", "status": "added"},
-            {"filename": "specs/changed.json", "status": "modified"},
-            {"filename": "other/new.json", "status": "added"},
-            {"filename": "specs/new.txt", "status": "added"},
-        ]
-
-        watched = api._filter_watched_dir(files, "specs/", ".json")
-
-        assert watched == ["specs/new.json"]
-
-    def test_any_extension_is_watched_by_default(self, api):
-        files = [{"filename": "specs/new.txt", "status": "added"}]
-
-        assert api._filter_watched_dir(files, "specs/") == ["specs/new.txt"]
-
-    def test_prs_without_watched_files_are_dropped(self, api, client):
-        prs = [{"number": 5, "base": {"repo": {"full_name": "org/repo"}}}]
-        client.request.side_effect = [
-            response({"number": 5}),
-            response([{"filename": "docs/readme.md", "status": "added"}]),
-            response([]),
-        ]
-
-        assert api.filter_prs_by_watch_dir(prs, "specs/", ".json") == []
-
-    def test_prs_with_watched_files_are_annotated(self, api, client):
-        prs = [{"number": 5, "base": {"repo": {"full_name": "org/repo"}}}]
-        client.request.side_effect = [
-            response({"number": 5}),
-            response([{"filename": "specs/new.json", "status": "added"}]),
-            response([]),
-        ]
-
-        results = api.filter_prs_by_watch_dir(prs, "specs/", ".json")
-
-        assert results[0]["watched_files"] == ["specs/new.json"]
-
 
 class TestContents:
     def test_file_contents_are_base64_decoded(self, api, client):
@@ -178,27 +139,6 @@ class TestContents:
 
 
 class TestWrites:
-    def test_comments_post_a_body(self, api, client):
-        client.request.return_value = response({"id": 1})
-
-        api.add_pull_request_comment("org/repo", 5, "done")
-
-        assert client.request.call_args.args == (
-            "POST", "repos/org/repo/issues/5/comments",
-        )
-        assert client.request.call_args.kwargs["json"] == {"body": "done"}
-
-    def test_branch_exists(self, api, client):
-        client.request.return_value = response({}, status_code=200)
-
-        assert api.branch_exists("org/repo", "results/pr-5") is True
-
-    def test_missing_branch_does_not_raise(self, api, client):
-        client.request.return_value = response({}, status_code=404)
-
-        assert api.branch_exists("org/repo", "results/pr-5") is False
-        assert client.request.call_args.kwargs["raise_for_status"] is False
-
     def test_create_pull_request_returns_the_pr(self, api, client):
         client.request.return_value = response({"html_url": "https://github.com/org/repo/pull/6"})
 

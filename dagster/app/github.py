@@ -64,24 +64,6 @@ class GithubAPI:
                 return results
             page += 1
 
-    def filter_prs_by_watch_dir(self, prs: list[dict], watch_dir: str, file_ext: str = "") -> list[dict]:
-        results = []
-        for pr in prs:
-            pr_number = pr["number"]
-            repo_path = pr["base"]["repo"]["full_name"]
-            self.logger.info(f"Checking PR #{pr_number} files")
-            pr = self.client.request("GET", f"repos/{repo_path}/pulls/{pr_number}").json()
-            pr_files = self.get_pull_request_files(repo_path, pr_number)
-            pr["watched_files"] = self._filter_watched_dir(pr_files, watch_dir, file_ext)
-
-            if pr["watched_files"]:
-                self.logger.info(f"Found new PR #{pr_number} for repo {repo_path} with watched files: {pr['watched_files']}")
-                results.append(pr)
-            else:
-                self.logger.info(f"Skipped new PR #{pr_number} for repo {repo_path} no new files in {watch_dir}")
-
-        return results
-
     def get_pull_request_files(self, repo_path: str, pr_number: int):
         self.logger.info(f"fetching pull request files for {repo_path} PR #{pr_number}")
 
@@ -99,15 +81,6 @@ class GithubAPI:
             page += 1
         return files
 
-    @staticmethod
-    def _filter_watched_dir(files, watch_dir: str, file_ext: str = ""):
-        return [
-            f["filename"] for f in files
-            if f["filename"].startswith(watch_dir)
-            and f["status"] == "added"
-            and f["filename"].endswith(file_ext)
-        ]
-
     def get_file_contents(self, repo_path: str, file_path: str, ref: str) -> str:
         response = self.client.request(
             "GET", f"repos/{repo_path}/contents/{file_path}",
@@ -115,20 +88,6 @@ class GithubAPI:
         )
         data = response.json()
         return base64.b64decode(data["content"]).decode("utf-8")
-
-    def add_pull_request_comment(self, repo_path: str, pr_number: int, body: str):
-        response = self.client.request(
-            "POST", f"repos/{repo_path}/issues/{pr_number}/comments",
-            json={"body": body},
-        )
-        return response.json()
-
-    def branch_exists(self, repo_path: str, branch: str) -> bool:
-        """Check if a branch exists on the remote."""
-        response = self.client.request(
-            "GET", f"repos/{repo_path}/branches/{branch}", raise_for_status=False
-        )
-        return response.status_code == 200
 
     def find_pull_request_by_branch(self, repo_path: str, head_branch: str, base_branch: str) -> dict | None:
         """Fetch the open or closed PR from head_branch into base_branch, or None if there is none."""

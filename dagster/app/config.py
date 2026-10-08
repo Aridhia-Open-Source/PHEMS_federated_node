@@ -42,14 +42,6 @@ class GithubConfig(EnvConfig):
     )
 
 
-class GithubTransferConfig(EnvConfig):
-    token: str = Field(default="", alias="GH_TOKEN")
-    delivery_repo: str = Field(default="", alias="GH_DELIVERY_REPO")
-    base_branch: str = Field(default="main", alias="GH_DELIVERY_BASE_BRANCH")
-    results_dir: str = Field(default="", alias="GH_RESULTS_DIR")
-    artifact_mount_path: str = Field(default="", alias="DAGSTER_ARTIFACT_MOUNT_PATH")
-
-
 class GiteaConfig(EnvConfig):
     token: str = Field(default="", alias="GITEA_TOKEN")
     base_uri: str = Field(
