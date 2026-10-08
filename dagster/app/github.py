@@ -1,10 +1,13 @@
 import logging
 import base64
+from datetime import datetime as dt
+
 import requests as req
 
 from app.utils import HttpClient
 
 GH_API_BASE_URL = "https://api.github.com"
+GH_PAGE_SIZE = 100
 
 default_logger = logging.getLogger(__name__)
 
@@ -29,29 +32,37 @@ class GithubAPI:
         return response.json()
 
     def get_new_merged_pulls(self, repo_path: str, base_branch: str, merged_after: str) -> list[dict]:
+        """
+        Fetch the PRs merged into base_branch after merged_after. Lists closed PRs most recently
+        updated first rather than searching: the search API allows 30 requests a minute and
+        its index lags, which could let the cursor pass a PR before it is found.
+        """
         self.logger.info(f"Fetching merged PRs for {repo_path}, after {merged_after}")
 
+        merged_after_dt = dt.fromisoformat(merged_after.replace('Z', '+00:00'))
         page = 1
-        per_page = 100
         results = []
         while True:
-            query = (
-                f"repo:{repo_path} "
-                f"is:pr is:merged "
-                f"base:{base_branch} "
-                f"merged:>{merged_after}"
-            )
             response = self.client.request(
-                "GET", "search/issues",
-                params={"q": query, "per_page": per_page, "page": page},
+                "GET", f"repos/{repo_path}/pulls",
+                params={
+                    "state": "closed", "base": base_branch, "sort": "updated", "direction": "desc",
+                    "per_page": GH_PAGE_SIZE, "page": page,
+                },
             )
-            items = response.json().get("items")
-            self.logger.info(f"Fetched {len(items)} PRs from GitHub for repository {repo_path} (page {page})")
-            results.extend(items)
-            page += 1
+            items = response.json()
+            self.logger.info(f"Fetched {len(items)} closed PRs from GitHub for repository {repo_path} (page {page})")
 
-            if not items:
+            for item in items:
+                # updated_at is never before merged_at, so nothing older can be newly merged
+                if dt.fromisoformat(item["updated_at"].replace('Z', '+00:00')) <= merged_after_dt:
+                    return results
+                if item["merged_at"] and dt.fromisoformat(item["merged_at"].replace('Z', '+00:00')) > merged_after_dt:
+                    results.append(item)
+
+            if len(items) < GH_PAGE_SIZE:
                 return results
+            page += 1
 
     def filter_prs_by_watch_dir(self, prs: list[dict], watch_dir: str, file_ext: str = "") -> list[dict]:
         results = []
