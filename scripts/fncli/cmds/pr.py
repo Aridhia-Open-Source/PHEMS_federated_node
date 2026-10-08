@@ -15,6 +15,7 @@ from pydantic import Field
 
 from fncli.cmds.common import (
     DagsterConfig,
+    ResultsRepoConfig,
     TriggerRepoConfig,
     build_backend_api,
     build_gitea_api,
@@ -48,6 +49,12 @@ RUN_DONE = ["SUCCESS", "FAILURE", "CANCELED"]
 class PrConfig(TriggerRepoConfig):
     pr_image: str = Field(default="localhost:5001/pypipes-fn:latest", alias="TEST_PR_IMAGE")
 
+    @property
+    def repo_path(self) -> str:
+        return f"{self.gitea_admin_user}/{self.repo}"
+
+
+class ResultsPrConfig(ResultsRepoConfig):
     @property
     def repo_path(self) -> str:
         return f"{self.gitea_admin_user}/{self.repo}"
@@ -242,9 +249,19 @@ def merge_gitea_pr_command(number, watch, timeout):
         watch_pr(config, number, timeout)
 
 
+@click.command("merge-results-pr")
+@click.option("--number", required=True, type=int, help="The results PR's number.")
+def merge_results_pr_command(number):
+    """Merge a results PR in the results repo, which the sync sensor then records as MERGED."""
+    config = ResultsPrConfig()
+    build_gitea_api(config).merge_pull_request(config.repo_path, number)
+    logger.info(f"Merged results PR #{number}")
+
+
 COMMANDS = [
     create_gitea_branch_command,
     commit_gitea_file_command,
     create_gitea_pr_command,
     merge_gitea_pr_command,
+    merge_results_pr_command,
 ]

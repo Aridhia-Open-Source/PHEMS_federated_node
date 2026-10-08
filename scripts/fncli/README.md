@@ -160,6 +160,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 | `commit-gitea-file --branch [--kind]` | Commits one new file to the branch |
 | `create-gitea-pr --branch [--kind]` | Opens the PR into the default branch |
 | `merge-gitea-pr --number` | Merges the PR; the sensor only picks up merged PRs |
+| `merge-results-pr --number` | Merges a results PR in the results repo; the sync sensor then records it as MERGED |
 
 `--kind` picks the file, and so what the sensor makes of the PR: `watched` (default) is one
 new `.json` spec file under the watch_dir, which becomes a task; `unwatched` is a file
