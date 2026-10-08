@@ -5,7 +5,7 @@ import base64
 import pytest
 
 from app.delivery import git_push
-from app.models import PullRequestResultState
+from app.models import MergeStatus
 
 
 @pytest.mark.parametrize("uri, api_uri, expected", [
@@ -24,10 +24,10 @@ def test_the_token_is_sent_as_github_x_access_token_basic_auth():
 
 @pytest.mark.parametrize("pr, expected", [
     # GitHub fills merge_commit_sha on an open PR with its test merge
-    ({"state": "open", "merged": False, "merged_at": None, "merge_commit_sha": "abc"}, PullRequestResultState.OPEN),
+    ({"state": "open", "merged": False, "merged_at": None, "merge_commit_sha": "abc"}, MergeStatus.OPEN),
     ({"state": "closed", "merged": True, "merged_at": "2026-10-08T12:00:00Z", "merge_commit_sha": "def"},
-     PullRequestResultState.MERGED),
-    ({"state": "closed", "merged": False, "merged_at": None, "merge_commit_sha": "abc"}, PullRequestResultState.CLOSED),
+     MergeStatus.MERGED),
+    ({"state": "closed", "merged": False, "merged_at": None, "merge_commit_sha": "abc"}, MergeStatus.CLOSED),
 ])
-def test_github_pull_request_states(pr, expected):
-    assert PullRequestResultState.from_git(pr) == expected
+def test_github_merge_statuss(pr, expected):
+    assert MergeStatus.from_git(pr) == expected
