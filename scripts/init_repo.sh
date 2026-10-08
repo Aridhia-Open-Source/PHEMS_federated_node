@@ -9,7 +9,12 @@ set -euo pipefail
 source .dev.env
 source scripts/gitea.sh
 
-KEYCLOAK_SERVICE_PASSWORD="${KEYCLOAK_SERVICE_PASSWORD:-$(kubectl get secret kc-secrets -n "${KEYCLOAK_NAMESPACE:-keycloak}" -o jsonpath='{.data.KEYCLOAK_SERVICE_PASSWORD}' | base64 -d)}"
+keycloak_secret() {
+  kubectl get secret kc-secrets -n "${KEYCLOAK_NAMESPACE:-keycloak}" \
+    -o jsonpath="{.data.$1}" | base64 -d
+}
+
+KEYCLOAK_SERVICE_PASSWORD="${KEYCLOAK_SERVICE_PASSWORD:-$(keycloak_secret KEYCLOAK_SERVICE_PASSWORD)}"
 
 # Colors for output (gitea.sh's are local to that file's scope once sourced,
 # but re-declare here for clarity/independence)
