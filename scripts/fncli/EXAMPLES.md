@@ -81,6 +81,7 @@ Optional, the same thing in separate steps (`--kind` as above):
 - `fncli commit-gitea-file --branch <branch> --kind watched`: `POST repos/{repo}/contents/{file}` on Gitea.
 - `fncli create-gitea-pr --branch <branch> --kind watched`: `POST repos/{repo}/pulls` on Gitea.
 - `fncli merge-gitea-pr --number <n>`: `POST repos/{repo}/pulls/{n}/merge` on Gitea.
+- `fncli merge-results-pr --number <n>`: the same call on the results repo. `results_pull_request_sync_sensor` then patches the row to MERGED within about a minute; check with `fncli verify-repo --tail 1`.
 
 ### 4. Check the result
 

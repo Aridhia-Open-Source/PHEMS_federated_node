@@ -13,7 +13,7 @@ EXPECTED_COMMANDS = {
     "init-git-secret", "init-dataset-secret", "init-backend-secret", "verify-git-secret",
     "delete-secret", "delete-gitea-token",
     "init-backend-dataset", "delete-backend-dataset",
-    "create-gitea-branch", "commit-gitea-file", "create-gitea-pr", "merge-gitea-pr",
+    "create-gitea-branch", "commit-gitea-file", "create-gitea-pr", "merge-gitea-pr", "merge-results-pr",
 }
 
 
@@ -22,7 +22,7 @@ def test_every_expected_command_is_registered():
 
 
 def test_there_are_34_commands():
-    assert len(cli.commands) == 34
+    assert len(cli.commands) == 35
 
 
 def test_every_command_has_help_text():

@@ -248,3 +248,17 @@ def test_watch_gives_up_after_too_many_connection_errors(watch, caplog):
 
     assert code == 1
     assert f"{pr.MAX_CONNECTION_ERRORS} connection errors in a row" in caplog.text
+
+
+def test_merge_results_pr_merges_in_the_results_repo(monkeypatch):
+    merged = []
+
+    class FakeGitea:
+        def merge_pull_request(self, repo_path, number):
+            merged.append((repo_path, number))
+
+    monkeypatch.setattr(pr, "build_gitea_api", lambda config: FakeGitea())
+    monkeypatch.setenv("TEST_RESULTS_REPO", "results-demo-repo")
+    result = CliRunner().invoke(pr.merge_results_pr_command, ["--number", "3"])
+    assert result.exit_code == 0
+    assert merged == [("gitea_admin/results-demo-repo", 3)]
