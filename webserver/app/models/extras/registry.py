@@ -38,14 +38,6 @@ class Registry(db.Model, BaseModel):
         self.username = username
         self.password = password
 
-    def sanitized_dict(self):
-        san_dict = super().sanitized_dict()
-        keys = list(san_dict.keys())
-        for k in keys:
-            if k not in self._get_fields_name():
-                san_dict.pop(k, None)
-        return san_dict
-
     @classmethod
     def validate(cls, data:dict):
         data = super().validate(data)

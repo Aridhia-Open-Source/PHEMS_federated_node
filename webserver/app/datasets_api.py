@@ -16,6 +16,7 @@ from http import HTTPStatus
 from flask import Blueprint, request
 from kubernetes.client import ApiException
 
+from .dtos.dataset import CatalogueDTO, DictionaryDTO
 from .helpers.base_model import db
 from .helpers.const import DEFAULT_NAMESPACE
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
@@ -221,7 +222,7 @@ def get_datasets_catalogue_by_id_or_name(
     cata = Catalogue.query.filter(Catalogue.dataset_id == dataset.id).one_or_none()
     if not cata:
         raise DBRecordNotFoundError(f"Dataset {dataset.name} has no catalogue.")
-    return cata.sanitized_dict(), HTTPStatus.OK
+    return CatalogueDTO.from_model(cata).dump(), HTTPStatus.OK
 
 
 @bp.route('/<dataset_name>/dictionaries', methods=['GET'])
@@ -243,7 +244,7 @@ def get_datasets_dictionaries_by_id_or_name(
     if not dictionary:
         raise DBRecordNotFoundError(f"Dataset {dataset.name} has no dictionaries.")
 
-    return [dc.sanitized_dict() for dc in dictionary], HTTPStatus.OK
+    return [DictionaryDTO.from_model(dc).dump() for dc in dictionary], HTTPStatus.OK
 
 
 @bp.route('/<dataset_name>/dictionaries/<table_name>', methods=['GET'])
@@ -271,7 +272,7 @@ def get_datasets_dictionaries_table_by_id_or_name(
             f"Dataset {dataset.name} has no dictionaries with table {table_name}."
         )
 
-    return [dc.sanitized_dict() for dc in dictionary], HTTPStatus.OK
+    return [DictionaryDTO.from_model(dc).dump() for dc in dictionary], HTTPStatus.OK
 
 
 @bp.route('/token_transfer', methods=['POST'])
