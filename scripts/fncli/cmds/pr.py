@@ -15,6 +15,7 @@ from pydantic import Field
 
 from fncli.cmds.common import (
     DagsterConfig,
+    ResultsRepoConfig,
     TriggerRepoConfig,
     build_backend_api,
     build_gitea_api,
@@ -22,7 +23,7 @@ from fncli.cmds.common import (
 from fncli.cmds.project import find_project
 from fncli.cmds.repository import init_gitea_repo
 from fncli.cmds.sensor import SENSORS
-from fncli.cmds.verify import RUN_TO_TASK_STATUS, Report, verify_task
+from fncli.cmds.verify import RUN_TO_TASK_STATUS, Links, Report, verify_task
 from fncli.dagster.models import TriggerState
 from fncli.dagster.sensors import DagsterAPI
 
@@ -37,6 +38,10 @@ POLL_SECONDS = 3
 MAX_CONNECTION_ERRORS = 10
 # The run-status sensors tick every 10s, so the task trails its run by up to that long.
 SETTLE_SECONDS = 30
+# How long after a succeeded run its results may take to be delivered (the delivery sensor
+# ticks, then launches a run that zips and pushes them).
+DELIVERY_SECONDS = 60
+DELIVERY_DONE = ["DELIVERED", "FAILED"]
 # Dagster's run statuses that end a task's run.
 RUN_DONE = ["SUCCESS", "FAILURE", "CANCELED"]
 
@@ -44,6 +49,12 @@ RUN_DONE = ["SUCCESS", "FAILURE", "CANCELED"]
 class PrConfig(TriggerRepoConfig):
     pr_image: str = Field(default="localhost:5001/pypipes-fn:latest", alias="TEST_PR_IMAGE")
 
+    @property
+    def repo_path(self) -> str:
+        return f"{self.gitea_admin_user}/{self.repo}"
+
+
+class ResultsPrConfig(ResultsRepoConfig):
     @property
     def repo_path(self) -> str:
         return f"{self.gitea_admin_user}/{self.repo}"
@@ -123,6 +134,23 @@ def stuck_sensors(dagster_api: DagsterAPI, stage: str) -> list[str]:
     ]
 
 
+def wait_for_delivery(backend_api, dagster_api: DagsterAPI, task_id: int):
+    """Print each change of the task's delivery status until it is DELIVERED or FAILED, or the wait ends."""
+    deadline = time.monotonic() + DELIVERY_SECONDS
+    last = ""
+    while time.monotonic() < deadline:
+        results = backend_api.get_task_results(task_id)
+        status = results[0].status if results else None
+        if status != last:
+            last = status
+            logger.info(f"Delivery: {status or 'waiting for the delivery sensor'}")
+        if status in DELIVERY_DONE:
+            return
+        time.sleep(POLL_SECONDS)
+    logger.info(f"Delivery not finished after {DELIVERY_SECONDS}s, last seen: {last or None}")
+    logger.info(f"Sensors not running at the delivery stage: {stuck_sensors(dagster_api, 'delivery')}")
+
+
 def watch_pr(config: PrConfig, number: int, timeout: int):
     """
     Print each change of the PR in the backend, then of its task and the task's run, until
@@ -130,9 +158,11 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
     REJECTED PR, a failed verification (which a failed or canceled run is) or a timeout.
     """
     backend_api = build_backend_api(config)
-    dagster_api = DagsterAPI(DagsterConfig().dagster_url)
+    dagster_url = DagsterConfig().dagster_url
+    dagster_api = DagsterAPI(dagster_url)
     project = find_project(config, backend_api)
     repo = backend_api.find_repository(config.repo_uri, project.id)
+    links = Links(config.gitea_url, dagster_url, repo.repo_path)
     seen = {}
     stage = "ingest"
     deadline = time.monotonic() + timeout
@@ -159,6 +189,7 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
                 if run:
                     stage = "status"
                     lines["run"] = f"Run {run['runId']}: {run['status']}"
+                    lines["run_link"] = f"Dagster run: {links.run(run['runId'])}"
         except requests.exceptions.ConnectionError as error:
             connection_errors += 1
             if connection_errors >= MAX_CONNECTION_ERRORS:
@@ -173,7 +204,7 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
         for key, line in lines.items():
             if seen.get(key) != line:
                 seen[key] = line
-                logger.info(f"{datetime.now().strftime('%H:%M:%S')} {line}")
+                logger.info(line)
         if pr and pr.state == TriggerState.IGNORED:
             return
         if pr and pr.state == TriggerState.REJECTED:
@@ -185,8 +216,10 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
                 and time.monotonic() < settle_deadline
             ):
                 time.sleep(POLL_SECONDS)
+            if run["status"] == "SUCCESS":
+                wait_for_delivery(backend_api, dagster_api, task.id)
             report = Report()
-            verify_task(report, backend_api, dagster_api, repo.id, number)
+            verify_task(report, backend_api, dagster_api, links, repo.id, number)
             report.echo()
             raise click.exceptions.Exit(int(report.failed > 0))
         time.sleep(POLL_SECONDS)
@@ -216,9 +249,19 @@ def merge_gitea_pr_command(number, watch, timeout):
         watch_pr(config, number, timeout)
 
 
+@click.command("merge-results-pr")
+@click.option("--number", required=True, type=int, help="The results PR's number.")
+def merge_results_pr_command(number):
+    """Merge a results PR in the results repo, which the sync sensor then records as MERGED."""
+    config = ResultsPrConfig()
+    build_gitea_api(config).merge_pull_request(config.repo_path, number)
+    logger.info(f"Merged results PR #{number}")
+
+
 COMMANDS = [
     create_gitea_branch_command,
     commit_gitea_file_command,
     create_gitea_pr_command,
     merge_gitea_pr_command,
+    merge_results_pr_command,
 ]

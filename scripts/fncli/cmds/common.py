@@ -4,6 +4,7 @@ APIs built from it.
 """
 
 from typing import ClassVar
+from urllib.parse import urlparse
 
 import click
 from pydantic import Field
@@ -14,6 +15,21 @@ from fncli.dagster.gitea import GiteaAdminAPI, GiteaAdminClient
 from fncli.dagster.k8s import get_k8s_secret
 from fncli.dagster.utils import BackendAdapter, BackendSession
 
+IN_CLUSTER_SUFFIX = "fn.svc"
+
+
+def to_host_url(url: str) -> str:
+    """
+    The URL as this host-side script reaches it. An in-cluster host (gitea.fn.svc) is only
+    reachable from the host through the Tilt port-forward on localhost, on the same port, so
+    only the hostname changes. Any other URL is returned as it is.
+    """
+    host = urlparse(url).hostname
+    if not host or not host.endswith(IN_CLUSTER_SUFFIX):
+        return url
+    return url.replace(host, "localhost", 1)
+
+
 class GiteaConfig(EnvConfig):
     # Host-side script, so it needs the port-forwarded addresses, not in-cluster DNS.
     gitea_url: str = Field(default="http://localhost:4000", alias="GITEA_URL")
@@ -22,7 +38,7 @@ class GiteaConfig(EnvConfig):
 
     @property
     def gitea_host_api_uri(self) -> str:
-        return f"{self.gitea_url}/api/v1"
+        return to_host_url(f"{self.gitea_url}/api/v1")
 
 
 class DagsterConfig(EnvConfig):

@@ -4,12 +4,14 @@ import sqlalchemy as sa
 from sqlalchemy import orm
 from sqlalchemy.orm import validates
 
+from app.models.merge_status import MergeStatus
 from app.models.trigger import Trigger
 
 
 class PullRequest(Trigger):
     """
-    A pull request merged to a watched repository.
+    A pull request merged to a watched repository, the trigger of a task.
+    Not to be confused with `PullRequestResult`, the pull request we open to deliver results.
     Stores PR metadata and payload (the raw spec) for async processing by Dagster.
     `state`, `state_cause` and `project_id` are columns of the Trigger it extends.
     """
@@ -27,6 +29,13 @@ class PullRequest(Trigger):
     raised_by = sa.Column(sa.String(256), nullable=False)
     merge_commit_sha = sa.Column(sa.String(40), nullable=False)
     merged_at = sa.Column(sa.DateTime(timezone=False), nullable=False)
+    # Only merged pull requests are watched, so this is always MERGED.
+    merge_status = sa.Column(
+        sa.String(16),
+        nullable=False,
+        default=MergeStatus.MERGED.value,
+        server_default=MergeStatus.MERGED.value,
+    )
     payload = sa.Column(sa.JSON, nullable=False, default={})
 
     trigger_repository_id = sa.Column(

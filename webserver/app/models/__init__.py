@@ -38,6 +38,11 @@ class ModelRegistry:
         return PullRequest
 
     @cached_property
+    def PullRequestResult(self):
+        from app.models.pull_request_result import PullRequestResult
+        return PullRequestResult
+
+    @cached_property
     def Registry(self):
         from app.models.extras.registry import Registry
         return Registry
@@ -133,4 +138,5 @@ _ = (
     Models.Trigger,
     Models.Secret,
     Models.TaskResult,
+    Models.PullRequestResult,
 )

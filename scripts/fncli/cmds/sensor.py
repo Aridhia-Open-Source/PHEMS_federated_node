@@ -22,9 +22,16 @@ RUN_STATUS_SENSORS = [
     "task_failure_sensor",
     "task_canceled_sensor",
 ]
+# The delivery sensor is a run-status sensor too (it acts when a task's run succeeds), so it
+# starts before the launcher as well.
+DELIVERY_SENSOR = "task_results_delivery_sensor"
+# Polls the open results PRs and copies their state (merged, closed) onto the TaskResult.
+RESULTS_PR_SYNC_SENSOR = "results_pull_request_sync_sensor"
 # In start order; stopping goes the other way round.
 ALL_SENSORS = [
     *RUN_STATUS_SENSORS,
+    DELIVERY_SENSOR,
+    RESULTS_PR_SYNC_SENSOR,
     "git_pull_request_ingest_sensor",
     "git_pull_request_evaluate_sensor",
     "task_launcher_sensor",
@@ -34,6 +41,7 @@ SENSORS = {
     "evaluate": ["git_pull_request_evaluate_sensor"],
     "launcher": ["task_launcher_sensor"],
     "status": RUN_STATUS_SENSORS,
+    "delivery": [DELIVERY_SENSOR, RESULTS_PR_SYNC_SENSOR],
     "all": ALL_SENSORS,
 }
 
@@ -42,7 +50,7 @@ sensor_option = click.option(
     type=click.Choice(list(SENSORS)),
     default="ingest",
     show_default=True,
-    help="Which sensor to act on: one, 'status' (the run-status sensors) or 'all'.",
+    help="Which sensor to act on: one, 'status' (the run-status sensors), 'delivery' or 'all'.",
 )
 
 

@@ -20,6 +20,16 @@ class GitProvider(str, Enum):
         """The path, under the provider's API base URL, of the repository itself."""
         return f"repos/{repo_path}"
 
+    def default_api_uri(self, uri: str) -> str:
+        """
+        The provider's API base URL when none is given, assuming the provider's default
+        location: GitHub's own API host, or the Gitea API on the repository's own host.
+        The uri has no scheme, so Gitea is assumed to be on https.
+        """
+        if self is GitProvider.GITHUB:
+            return "https://api.github.com"
+        return f"https://{uri.split('/')[0]}/api/v1"
+
 
 class ConnectionStatus(str, Enum):
     """The outcome of checking that a trigger repository can be reached with its token."""

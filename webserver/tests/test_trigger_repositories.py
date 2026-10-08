@@ -81,6 +81,19 @@ class TestPostRepository:
         assert "pr_cursor" in response.json
         assert isinstance(response.json["pr_cursor"], str)
 
+    def test_create_defaults_the_api_uri(self, client, post_json_admin_header, repo_post_body):
+        del repo_post_body["api_uri"]
+        response = client.post("/trigger_repositories/", data=json.dumps(repo_post_body), headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["api_uri"] == "https://api.github.com"
+
+    def test_create_defaults_the_gitea_api_uri_to_the_repository_host(self, client, post_json_admin_header, repo_post_body):
+        body = {**repo_post_body, "provider": "gitea", "uri": "gitea.fn.svc:4000/org/repo"}
+        del body["api_uri"]
+        response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["api_uri"] == "https://gitea.fn.svc:4000/api/v1"
+
     def test_create_with_custom_base_branch(self, client, post_json_admin_header, test_dataset):
         body = {**REPO_FIELDS, "uri": "github.com/org/repo", "base_branch": "develop", "project_id": test_dataset.project_id}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
@@ -165,7 +178,7 @@ class TestPostRepository:
         assert response.json["secret"]["key"] == f"{response.json['project_id']}-test-creds"
         assert "secret_label" not in response.json
 
-    @pytest.mark.parametrize("field", ["provider", "api_uri", "secret_label"])
+    @pytest.mark.parametrize("field", ["provider", "secret_label"])
     def test_create_requires_the_git_host_and_secret(self, client, post_json_admin_header, repo_post_body, field):
         del repo_post_body[field]
         response = client.post("/trigger_repositories/", data=json.dumps(repo_post_body), headers=post_json_admin_header)

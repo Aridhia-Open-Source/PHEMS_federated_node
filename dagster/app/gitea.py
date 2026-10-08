@@ -4,7 +4,7 @@ from datetime import datetime as dt
 
 from app.utils import HttpClient
 
-GITEA_API_BASE_URL = "http://gitea.fn.svc:3000/api/v1"
+GITEA_API_BASE_URL = "http://gitea.fn.svc:4000/api/v1"
 # Gitea caps a page at 50 by default (it ignores per_page and takes limit).
 GITEA_PAGE_SIZE = 50
 

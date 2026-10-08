@@ -4,6 +4,8 @@ healthcheck does the repo and token checks (it reaches each repo with its stored
 this adds only what the healthcheck leaves out: the dataset. Nothing is created or changed.
 """
 
+from dataclasses import dataclass
+
 import click
 
 from fncli.cmds.common import (
@@ -12,6 +14,7 @@ from fncli.cmds.common import (
     ProjectConfig,
     TriggerRepoConfig,
     build_backend_api,
+    to_host_url,
 )
 from fncli.cmds.project import find_project
 from fncli.dagster.models import TriggerState
@@ -48,6 +51,10 @@ class Report:
     def skip(self, name, reason):
         self.rows.append(("SKIP", name, reason))
 
+    def link(self, name, url):
+        """A URL to open, not a check: counts as neither passed nor failed."""
+        self.rows.append(("link", name, url))
+
     @property
     def failed(self) -> int:
         return sum(1 for status, _, _ in self.rows if status == "FAIL")
@@ -62,10 +69,31 @@ class Report:
         click.echo(f"\n{passed} passed, {self.failed} failed, {skipped} skipped")
 
 
+@dataclass
+class Links:
+    """Builds the URLs the reports print, as they open from the host."""
+    gitea_url: str
+    dagster_url: str
+    # owner/repo of the trigger repo, from its stored uri
+    repo_path: str
+
+    def trigger_pr(self, number: int) -> str:
+        return to_host_url(f"{self.gitea_url}/{self.repo_path}/pulls/{number}")
+
+    def run(self, run_id: str) -> str:
+        return to_host_url(f"{self.dagster_url}/runs/{run_id}")
+
+
 def require(value, what: str):
     if value is None:
         raise RuntimeError(f"{what} not found")
     return value
+
+
+def exactly_one(results: list):
+    if len(results) != 1:
+        raise RuntimeError(f"expected 1 result, found {len(results)}")
+    return results[0]
 
 
 def record_repo_health(report: Report, kind: str, repo: dict):
@@ -129,7 +157,9 @@ def verify_project(report: Report, config: ProjectConfig, dataset_config: Datase
         )
 
 
-def verify_task(report: Report, backend_api, dagster_api: DagsterAPI, repo_id: int, number: int):
+def verify_task(
+    report: Report, backend_api, dagster_api: DagsterAPI, links: Links, repo_id: int, number: int
+):
     """Compare a merged PR's task in the backend with its run in Dagster."""
     pr = report.check(
         f"PR #{number} is in the backend: GET /trigger_repositories/{repo_id}/pull_requests",
@@ -141,10 +171,11 @@ def verify_task(report: Report, backend_api, dagster_api: DagsterAPI, repo_id: i
     )
     if pr is None:
         return
-    verify_pr(report, backend_api, dagster_api, pr)
+    report.link("Trigger PR", links.trigger_pr(number))
+    verify_pr(report, backend_api, dagster_api, links, pr)
 
 
-def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, pr):
+def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, links: Links, pr):
     """The checks for one PR already fetched: its task in the backend against its Dagster run."""
     cause = f"{pr.state.value}, {pr.state_cause}" if pr.state_cause else pr.state.value
     report.record(pr.state == TriggerState.YIELDED, "PR was YIELDED, so it has a task", cause)
@@ -161,6 +192,8 @@ def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, pr):
         lambda: require(dagster_api.get_task_run(pr.task_id), "run"),
         lambda r: f"{r['runId']}, {r['status']}",
     )
+    if run is not None:
+        report.link("Dagster run", links.run(run["runId"]))
     if task is None or run is None:
         return
 
@@ -187,9 +220,37 @@ def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, pr):
     if expected in ("SUCCESS", "FAILED", "CANCELED"):
         report.record(task.completed_at is not None, "Task has completed_at", str(task.completed_at))
     report.record(run["status"] == "SUCCESS", "Run succeeded", run["status"])
+    if run["status"] == "SUCCESS":
+        verify_delivery(report, backend_api, pr.task_id)
 
 
-def verify_repo(backend_api, dagster_api: DagsterAPI, repo_id: int, tail: int | None) -> int:
+def verify_delivery(report: Report, backend_api, task_id: int):
+    """A succeeded task's results are delivered: one TaskResult, DELIVERED, with a commit and a results PR."""
+    results = report.check(
+        f"Task {task_id} has one results delivery: GET /tasks/{task_id}/results",
+        lambda: exactly_one(backend_api.get_task_results(task_id)),
+        lambda r: f"{r.status}, attempts {r.attempts}",
+    )
+    if results is None:
+        return
+    report.record(
+        results.status == "DELIVERED",
+        "Results were DELIVERED",
+        f"{results.status}" + (f": {results.error}" if results.error else ""),
+    )
+    report.record(results.commit_sha is not None, "Delivery has a commit_sha", str(results.commit_sha))
+    report.record(
+        results.number is not None and results.url is not None,
+        "Delivery has a results PR",
+        f"#{results.number}, {results.merge_status}",
+    )
+    if results.url is not None:
+        report.link("Results PR", to_host_url(results.url))
+
+
+def verify_repo(
+    backend_api, dagster_api: DagsterAPI, links: Links, repo_id: int, tail: int | None
+) -> int:
     """
     Print a report per PR of the trigger repo, the last `tail` by number if given, and a
     summary. Returns how many checks failed. A PR the sensor ignored or rejected has no task
@@ -204,12 +265,13 @@ def verify_repo(backend_api, dagster_api: DagsterAPI, repo_id: int, tail: int | 
     failed = 0
     for pr in prs:
         report = Report()
+        report.link("Trigger PR", links.trigger_pr(pr.number))
         if pr.state in (TriggerState.IGNORED, TriggerState.REJECTED):
             report.record(True, f"PR was {pr.state.value}, so no task is expected", pr.state_cause or "")
         elif pr.state == TriggerState.UNKNOWN:
             report.record(False, "PR was evaluated", "still UNKNOWN, the evaluate sensor has not run on it")
         else:
-            verify_pr(report, backend_api, dagster_api, pr)
+            verify_pr(report, backend_api, dagster_api, links, pr)
         click.echo(f"PR #{pr.number}: {pr.title}")
         report.echo(summary=False, indent="  ")
         failed += report.failed
@@ -225,7 +287,9 @@ def verify_repo_command(tail):
     backend_api = build_backend_api(config)
     project = find_project(config, backend_api)
     repo = backend_api.find_repository(config.repo_uri, project.id)
-    if verify_repo(backend_api, DagsterAPI(DagsterConfig().dagster_url), repo.id, tail):
+    dagster_url = DagsterConfig().dagster_url
+    links = Links(config.gitea_url, dagster_url, repo.repo_path)
+    if verify_repo(backend_api, DagsterAPI(dagster_url), links, repo.id, tail):
         raise click.exceptions.Exit(1)
 
 

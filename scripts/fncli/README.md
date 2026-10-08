@@ -160,6 +160,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 | `commit-gitea-file --branch [--kind]` | Commits one new file to the branch |
 | `create-gitea-pr --branch [--kind]` | Opens the PR into the default branch |
 | `merge-gitea-pr --number` | Merges the PR; the sensor only picks up merged PRs |
+| `merge-results-pr --number` | Merges a results PR in the results repo; the sync sensor then records it as MERGED |
 
 `--kind` picks the file, and so what the sensor makes of the PR: `watched` (default) is one
 new `.json` spec file under the watch_dir, which becomes a task; `unwatched` is a file
@@ -170,7 +171,7 @@ whose spec has an unknown field, so the PR is rejected.
 
 | Command | What it does |
 |---|---|
-| `start-sensor [--sensor]` | Starts Dagster sensors; `--sensor` is `ingest` (default, `git_pull_request_ingest_sensor`), `evaluate` (`git_pull_request_evaluate_sensor`), `launcher` (`task_launcher_sensor`), `status` (the five run-status sensors) or `all` |
+| `start-sensor [--sensor]` | Starts Dagster sensors; `--sensor` is `ingest` (default, `git_pull_request_ingest_sensor`), `evaluate` (`git_pull_request_evaluate_sensor`), `launcher` (`task_launcher_sensor`), `status` (the five run-status sensors), `delivery` (`task_results_delivery_sensor`, `results_pull_request_sync_sensor`) or `all` |
 | `stop-sensor [--sensor]` | Stops them; `all` stops the launcher first |
 | `sensor-status` | Prints every sensor's status and last 3 ticks (status, skip reason or error) |
 

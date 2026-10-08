@@ -15,6 +15,7 @@ from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.repository_loop import check_no_loop
 from app.helpers.wrappers import auth
+from app.models.git_provider import GitProvider
 from app.models.secret import Secret
 from app.models.project import Project
 from app.models.results_repository import ResultsRepository
@@ -68,7 +69,7 @@ def post_repository():
     POST /results_repositories/ — create a new repository. A project has one.
     """
     body = request.json or {}
-    for field in ('uri', 'project_id', 'provider', 'api_uri', 'secret_label', 'target_dir'):
+    for field in ('uri', 'project_id', 'provider', 'secret_label', 'target_dir'):
         if not body.get(field):
             raise InvalidRequest(f"{field} is required")
 
@@ -83,10 +84,11 @@ def post_repository():
         )
 
     try:
+        uri = ResultsRepository.parse_repo_uri(body['uri'])
         repo = ResultsRepository(
-            uri=ResultsRepository.parse_repo_uri(body['uri']),
+            uri=uri,
             provider=body['provider'],
-            api_uri=body['api_uri'],
+            api_uri=body.get('api_uri') or GitProvider(body['provider']).default_api_uri(uri),
             secret_id=secret.id,
             target_dir=body['target_dir'],
             project_id=body['project_id'],

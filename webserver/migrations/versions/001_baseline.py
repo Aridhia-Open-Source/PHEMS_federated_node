@@ -195,6 +195,7 @@ def upgrade() -> None:
         sa.Column('raised_by', sa.String(length=256), nullable=False),
         sa.Column('merge_commit_sha', sa.String(length=40), nullable=False),
         sa.Column('merged_at', sa.DateTime(), nullable=False),
+        sa.Column('merge_status', sa.String(length=16), nullable=False, server_default='MERGED'),
         sa.Column('payload', sa.JSON(), nullable=False),
         sa.ForeignKeyConstraint(['trigger_id'], ['triggers.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['trigger_repository_id'], ['trigger_repositories.id'], ondelete='CASCADE'),
@@ -249,14 +250,11 @@ def upgrade() -> None:
     op.create_table(
         'task_results',
         sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('type', sa.String(length=16), nullable=False),
         sa.Column('task_id', sa.Integer(), nullable=False),
         sa.Column('results_repository_id', sa.Integer(), nullable=False),
         sa.Column('status', sa.String(length=32), nullable=False, server_default='PENDING'),
         sa.Column('attempts', sa.Integer(), nullable=False, server_default='0'),
-        sa.Column('branch', sa.String(length=256), nullable=True),
-        sa.Column('commit_sha', sa.String(length=40), nullable=True),
-        sa.Column('pull_request_number', sa.Integer(), nullable=True),
-        sa.Column('pull_request_url', sa.String(length=4096), nullable=True),
         sa.Column('error', sa.String(length=1024), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
@@ -264,6 +262,21 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['results_repository_id'], ['results_repositories.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('task_id', 'results_repository_id', name='uq_task_results_task_repository'),
+    )
+
+    # Create pull_request_results table (a task result)
+    op.create_table(
+        'pull_request_results',
+        sa.Column('task_result_id', sa.Integer(), nullable=False),
+        sa.Column('branch', sa.String(length=256), nullable=True),
+        sa.Column('commit_sha', sa.String(length=40), nullable=True),
+        sa.Column('number', sa.Integer(), nullable=True),
+        sa.Column('url', sa.String(length=4096), nullable=True),
+        sa.Column('merge_status', sa.String(length=16), nullable=True),
+        sa.Column('merged_at', sa.DateTime(), nullable=True),
+        sa.Column('merge_commit_sha', sa.String(length=40), nullable=True),
+        sa.ForeignKeyConstraint(['task_result_id'], ['task_results.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('task_result_id'),
     )
 
     # Create registries table
@@ -333,6 +346,7 @@ def downgrade() -> None:
     op.drop_table('catalogues')
     op.drop_table('whitelisted_images')
     op.drop_table('registries')
+    op.drop_table('pull_request_results')
     op.drop_table('task_results')
     op.drop_table('tasks')
     op.drop_table('api_requests')

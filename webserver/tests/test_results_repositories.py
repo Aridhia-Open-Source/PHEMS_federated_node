@@ -75,7 +75,26 @@ class TestPostResultsRepository:
         assert response.status_code == 201
         assert response.json["uri"] == "github.com/org/results"
 
-    @pytest.mark.parametrize("field", ["uri", "project_id", "provider", "api_uri", "secret_label", "target_dir"])
+    def test_create_defaults_the_api_uri(self, client, post_json_admin_header, results_post_body):
+        del results_post_body["api_uri"]
+        response = client.post("/results_repositories", json=results_post_body, headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["api_uri"] == "https://api.github.com"
+
+    def test_create_defaults_the_gitea_api_uri_to_the_repository_host(self, client, post_json_admin_header, results_post_body):
+        body = {**results_post_body, "provider": "gitea", "uri": "gitea.fn.svc:4000/org/results"}
+        del body["api_uri"]
+        response = client.post("/results_repositories", json=body, headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["api_uri"] == "https://gitea.fn.svc:4000/api/v1"
+
+    def test_create_keeps_a_given_api_uri(self, client, post_json_admin_header, results_post_body):
+        body = {**results_post_body, "provider": "gitea", "api_uri": "http://gitea.fn.svc:4000/api/v1"}
+        response = client.post("/results_repositories", json=body, headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["api_uri"] == "http://gitea.fn.svc:4000/api/v1"
+
+    @pytest.mark.parametrize("field", ["uri", "project_id", "provider", "secret_label", "target_dir"])
     def test_create_requires_field(self, client, post_json_admin_header, results_post_body, field):
         del results_post_body[field]
         response = client.post("/results_repositories", json=results_post_body, headers=post_json_admin_header)

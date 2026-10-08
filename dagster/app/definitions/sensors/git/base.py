@@ -6,7 +6,7 @@ from app.backend import BackendAPI
 from app.definitions.sensors.base import BaseSensor
 from app.gitea import GiteaAPI, GiteaClient
 from app.github import GithubAPI, GithubClient
-from app.models import TriggerRepository
+from app.models import ResultsRepository, TriggerRepository
 from app.secrets import SecretProvider
 
 
@@ -34,7 +34,7 @@ class GitAPIFactory:
     the secret it names, so every repository authenticates as itself.
     """
 
-    def for_repository(self, repo: TriggerRepository) -> GitAPI:
+    def for_repository(self, repo: TriggerRepository | ResultsRepository) -> GitAPI:
         token = SecretProvider(repo.secret.provider).get(repo.secret.key, repo.secret.namespace, "TOKEN")
         match repo.provider:
             case "github":
