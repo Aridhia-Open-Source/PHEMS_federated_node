@@ -25,10 +25,13 @@ RUN_STATUS_SENSORS = [
 # The delivery sensor is a run-status sensor too (it acts when a task's run succeeds), so it
 # starts before the launcher as well.
 DELIVERY_SENSOR = "task_results_delivery_sensor"
+# Polls the open results PRs and copies their state (merged, closed) onto the TaskResult.
+RESULTS_PR_SYNC_SENSOR = "results_pull_request_sync_sensor"
 # In start order; stopping goes the other way round.
 ALL_SENSORS = [
     *RUN_STATUS_SENSORS,
     DELIVERY_SENSOR,
+    RESULTS_PR_SYNC_SENSOR,
     "git_pull_request_ingest_sensor",
     "git_pull_request_evaluate_sensor",
     "task_launcher_sensor",
@@ -38,7 +41,7 @@ SENSORS = {
     "evaluate": ["git_pull_request_evaluate_sensor"],
     "launcher": ["task_launcher_sensor"],
     "status": RUN_STATUS_SENSORS,
-    "delivery": [DELIVERY_SENSOR],
+    "delivery": [DELIVERY_SENSOR, RESULTS_PR_SYNC_SENSOR],
     "all": ALL_SENSORS,
 }
 

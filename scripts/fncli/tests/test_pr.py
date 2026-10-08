@@ -85,11 +85,13 @@ class FakeBackend:
         if status is None:
             return []
         return [SimpleNamespace(
-            id=1, task_id=task_id, status=status, attempts=1, commit_sha="abc", error=None
+            id=1, type="PR", task_id=task_id, status=status, attempts=1, commit_sha="abc", error=None,
+            pull_request_number=3, pull_request_url="http://gitea.fn.svc:4000/gitea_admin/results/pulls/3",
+            pull_request_state="OPEN",
         )]
 
     def find_repository(self, uri, project_id):
-        return SimpleNamespace(id=7)
+        return SimpleNamespace(id=7, repo_path="gitea_admin/trigger")
 
     def get_pull_requests(self, repo_id):
         assert repo_id == 7
@@ -148,13 +150,14 @@ def test_watch_prints_each_change_once(watch, caplog):
     code = watch([[], [pr_of("UNKNOWN")], [pr_of("YIELDED")]], runs)
 
     assert code == 0
-    lines = [r.message.split(" ", 1)[1] for r in caplog.records]
+    lines = [r.message for r in caplog.records]
     assert lines == [
         "PR: waiting for ingest",
         "PR: UNKNOWN",
         "PR: YIELDED",
         "Task 9: SUCCESS",
         "Run abc: STARTED",
+        "Dagster run: http://localhost:3000/runs/abc",
         "Run abc: SUCCESS",
         "Delivery: DELIVERED",
     ]
@@ -182,7 +185,7 @@ def test_watch_waits_for_the_delivery_and_prints_each_change(watch, caplog):
     code = watch([[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=[None, "PENDING", "DELIVERED"])
 
     assert code == 0
-    lines = [r.message.split(" ", 1)[1] for r in caplog.records if "Delivery" in r.message]
+    lines = [r.message for r in caplog.records if "Delivery" in r.message]
     assert lines == [
         "Delivery: waiting for the delivery sensor", "Delivery: PENDING", "Delivery: DELIVERED"
     ]

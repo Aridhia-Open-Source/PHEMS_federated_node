@@ -1,9 +1,10 @@
 from fncli.cmds.sensor import ALL_SENSORS, RUN_STATUS_SENSORS, SENSORS
 
 
-def test_the_delivery_sensor_is_selectable_and_in_all():
-    assert SENSORS["delivery"] == ["task_results_delivery_sensor"]
+def test_the_delivery_sensors_are_selectable_and_in_all():
+    assert SENSORS["delivery"] == ["task_results_delivery_sensor", "results_pull_request_sync_sensor"]
     assert "task_results_delivery_sensor" in SENSORS["all"]
+    assert "results_pull_request_sync_sensor" in SENSORS["all"]
 
 
 def test_run_status_sensors_start_before_the_launcher():

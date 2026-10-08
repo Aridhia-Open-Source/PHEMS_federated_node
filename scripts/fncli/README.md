@@ -170,7 +170,7 @@ whose spec has an unknown field, so the PR is rejected.
 
 | Command | What it does |
 |---|---|
-| `start-sensor [--sensor]` | Starts Dagster sensors; `--sensor` is `ingest` (default, `git_pull_request_ingest_sensor`), `evaluate` (`git_pull_request_evaluate_sensor`), `launcher` (`task_launcher_sensor`), `status` (the five run-status sensors), `delivery` (`task_results_delivery_sensor`) or `all` |
+| `start-sensor [--sensor]` | Starts Dagster sensors; `--sensor` is `ingest` (default, `git_pull_request_ingest_sensor`), `evaluate` (`git_pull_request_evaluate_sensor`), `launcher` (`task_launcher_sensor`), `status` (the five run-status sensors), `delivery` (`task_results_delivery_sensor`, `results_pull_request_sync_sensor`) or `all` |
 | `stop-sensor [--sensor]` | Stops them; `all` stops the launcher first |
 | `sensor-status` | Prints every sensor's status and last 3 ticks (status, skip reason or error) |
 

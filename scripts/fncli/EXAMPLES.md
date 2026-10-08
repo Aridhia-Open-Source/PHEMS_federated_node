@@ -47,11 +47,11 @@ Optional, to set up one side only:
 ### 2. Start the sensors
 
 - `fncli start-sensor --sensor all`
-  - Dagster: starts the run-status sensors first, then the results delivery sensor (it also acts when a run succeeds, so it must be running before the launcher).
+  - Dagster: starts the run-status sensors first, then the results delivery sensor (it also acts when a run succeeds, so it must be running before the launcher) and the results PR sync sensor.
   - Dagster: starts the other sensors (ingest, evaluate, launcher).
   - Dagster: does nothing for a sensor that is already running.
 
-Optional: `--sensor ingest|evaluate|launcher|status|delivery` starts just one (`status` is the run-status sensors, `delivery` is `task_results_delivery_sensor`).
+Optional: `--sensor ingest|evaluate|launcher|status|delivery` starts just one (`status` is the run-status sensors, `delivery` is `task_results_delivery_sensor` and `results_pull_request_sync_sensor`, which keeps each results PR's state (open, merged, closed) up to date).
 
 ### 3. Open pull requests in the trigger repo
 
@@ -67,7 +67,7 @@ Each command opens a PR and merges it, using the Gitea API only. fncli makes no 
   - Gitea: the same, with a file that fails validation.
   - Expect it to be rejected.
 
-Add `--watch` to follow the merged PR in real time (and `--timeout <seconds>`, default 300). It prints a timestamped line each time something changes, and exits 1 on REJECTED, a FAILURE or CANCELED run, or a timeout. On a timeout it also lists the sensors that are not running at the stage it is stuck at. A dropped connection (Dagster reloading, say) is retried; it gives up after 10 failed polls in a row.
+Add `--watch` to follow the merged PR in real time (and `--timeout <seconds>`, default 300). It prints a timestamped line each time something changes (including a link to the Dagster run once it starts), and exits 1 on REJECTED, a FAILURE or CANCELED run, or a timeout. On a timeout it also lists the sensors that are not running at the stage it is stuck at. A dropped connection (Dagster reloading, say) is retried; it gives up after 10 failed polls in a row.
 
 - `fncli open-pr --kind watched --merge --watch`, or `fncli merge-gitea-pr --number <n> --watch`
   - Backend: `GET /trigger_repositories/{repo_id}/pull_requests`, until the PR shows up ("waiting for ingest") and shows its state (UNKNOWN, then YIELDED, IGNORED or REJECTED, with its state_cause).
@@ -104,6 +104,7 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
 
 - `fncli verify-repo`
   - Prints a block per PR, one line per check (`ok` or `FAIL`), and a summary. Exits 1 if any check fails.
+  - `link` lines give the trigger PR in Gitea, the Dagster run and the results PR, as URLs that open from the host. They are not checks.
   - Backend: `GET /trigger_repositories/{id}/pull_requests`, for every PR.
   - A PR the sensor ignored or rejected has no task, so it passes with a note.
   - A PR still `UNKNOWN` fails: the evaluate sensor hasn't run on it.
@@ -111,7 +112,7 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
   - For a `YIELDED` PR, Dagster: finds the run tagged with the task's id, and checks it is a `k8s_pipes_job`.
   - Checks the task's status, run id and attempt match the run, and that `started_at` and `completed_at` are set when they should be.
   - Checks the run succeeded.
-  - For a succeeded run, Backend: `GET /tasks/{id}/results`, and checks the task has exactly one results delivery, its status is `DELIVERED` (a `FAILED` one shows its error) and it has a `commit_sha`.
+  - For a succeeded run, Backend: `GET /tasks/{id}/results`, and checks the task has exactly one results delivery, its status is `DELIVERED` (a `FAILED` one shows its error), it has a `commit_sha`, and it has a results PR (number and url; its state is shown).
   - Does not check the files in the results repo: it only reads the backend and Dagster.
 - `fncli verify-repo --tail 10`
   - The same, for only the last 10 PRs by number.
