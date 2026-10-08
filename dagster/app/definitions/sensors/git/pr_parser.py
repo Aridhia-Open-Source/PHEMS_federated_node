@@ -4,7 +4,7 @@ from enum import Enum
 from pydantic import BaseModel
 
 from app.definitions.sensors.git.base import GitAPI
-from app.models import PullRequest, PullRequestSpec, TriggerRepository
+from app.models import PullRequestTrigger, PullRequestSpec, TriggerRepository
 
 
 class PullRequestOutcome(str, Enum):
@@ -36,7 +36,7 @@ class PullRequestParser:
         self.repo = repo
         self.log = log
 
-    def parse(self, pr: PullRequest) -> ParsedPullRequest:
+    def parse(self, pr: PullRequestTrigger) -> ParsedPullRequest:
         """
         IGNORED if the PR has no watched file, REJECTED if it has several or its spec is
         invalid, else READY with the spec. A git provider failure raises: it is not an outcome.

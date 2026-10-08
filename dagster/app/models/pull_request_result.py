@@ -1,14 +1,12 @@
 from pydantic import BaseModel, ConfigDict
 
-from app.models.merge_status import MergeStatus
-from app.models.task_result_status import TaskResultStatus
+from app.models.pull_request_result_state import PullRequestResultState
 
 
-class TaskResult(BaseModel):
+class PullRequestResult(BaseModel):
     """
-    The delivery of one task's results to one results repository. type PR is a
-    PullRequestResult on the webserver: the pull request we open to deliver the results,
-    not the merged trigger PullRequest we watch.
+    The delivery of one task's results to one results repository by a pull request we open,
+    not the merged PullRequestTrigger we watch. The webserver's Result of type PR.
     """
     model_config = ConfigDict(extra="allow")
 
@@ -16,7 +14,7 @@ class TaskResult(BaseModel):
     type: str
     task_id: int
     results_repository_id: int
-    status: TaskResultStatus
+    state: PullRequestResultState
     attempts: int
     error: str | None = None
     created_at: str | None = None
@@ -25,6 +23,5 @@ class TaskResult(BaseModel):
     commit_sha: str | None = None
     number: int | None = None
     url: str | None = None
-    merge_status: MergeStatus | None = None
     merged_at: str | None = None
     merge_commit_sha: str | None = None

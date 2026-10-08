@@ -4,13 +4,13 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.definitions.sensors.git.pr_parser import PullRequestOutcome, PullRequestParser
-from app.models import PullRequest, PullRequestSpec
+from app.models import PullRequestTrigger, PullRequestSpec
 
 WATCHED = {"filename": "specs/a.json", "status": "added"}
 
 
 def pr():
-    return PullRequest(
+    return PullRequestTrigger(
         trigger_repository_id=1, number=5, title="t", raised_by="dev",
         merged_at="2026-01-01T00:00:00Z", merge_commit_sha="abc", state="UNKNOWN", payload={},
     )

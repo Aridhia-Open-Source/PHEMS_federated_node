@@ -99,6 +99,11 @@ class GiteaAPI:
             return base64.b64decode(data["content"]).decode("utf-8")
         return data.get("content", "")
 
+    def get_default_branch(self, repo_path: str) -> str:
+        """The repository's default branch, the one results pull requests go into."""
+        response = self.client.request("GET", f"repos/{repo_path}")
+        return response.json()["default_branch"]
+
     def find_pull_request_by_branch(self, repo_path: str, head_branch: str, base_branch: str) -> dict | None:
         """Fetch the open or closed PR from head_branch into base_branch, or None if there is none."""
         self.logger.info(f"Looking up PR {head_branch} -> {base_branch} in {repo_path}")

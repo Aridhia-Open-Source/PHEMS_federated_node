@@ -1,6 +1,6 @@
 import pytest
 
-from app.models import Dataset, PullRequest, Secret, SecretProviderType, TriggerRepository
+from app.models import Dataset, PullRequestTrigger, Secret, SecretProviderType, TriggerRepository
 from app.tests.conftest import SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_SECRET
 
 
@@ -67,7 +67,7 @@ class TestTriggerRepository:
     def test_nested_pull_requests_are_parsed(self):
         repo = TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "pull_requests": [SAMPLE_PR]})
 
-        assert isinstance(repo.pull_requests[0], PullRequest)
+        assert isinstance(repo.pull_requests[0], PullRequestTrigger)
         assert repo.pull_requests[0].number == 5
 
     def test_unknown_fields_are_kept(self):
@@ -95,7 +95,7 @@ class TestTriggerRepository:
 
 class TestPullRequest:
     def test_parses_a_webserver_payload(self):
-        pr = PullRequest(**{**SAMPLE_PR, "id": 77, "created_at": "x"})
+        pr = PullRequestTrigger(**{**SAMPLE_PR, "id": 77, "created_at": "x"})
 
         assert pr.number == 5 and pr.state.value == "UNKNOWN"
         assert pr.task_id is None and pr.state_cause is None
@@ -107,13 +107,13 @@ class TestPullRequest:
             "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "abc", "extra": "ignored",
         }
 
-        pr = PullRequest.from_git(4, git_pr)
+        pr = PullRequestTrigger.from_git(4, git_pr)
 
         assert (pr.trigger_repository_id, pr.number, pr.raised_by) == (4, 12, "dev")
         assert pr.state.value == "UNKNOWN" and pr.payload == {}
 
     def test_dump_new_leaves_out_the_server_fields(self):
-        pr = PullRequest.from_git(4, {
+        pr = PullRequestTrigger.from_git(4, {
             "number": 12, "title": "t", "user": {"login": "dev"},
             "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "abc",
         })

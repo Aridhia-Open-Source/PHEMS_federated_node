@@ -5,8 +5,8 @@ from pydantic import BaseModel, ConfigDict
 from app.models.trigger_state import TriggerState
 
 
-class PullRequest(BaseModel):
-    """Pull Request data from backend API."""
+class PullRequestTrigger(BaseModel):
+    """A merged pull request recorded as a trigger, from the backend API."""
     model_config = ConfigDict(extra="allow")
 
     trigger_repository_id: int
@@ -24,7 +24,7 @@ class PullRequest(BaseModel):
     SERVER_FIELDS: ClassVar[set[str]] = {"trigger_repository_id", "state", "state_cause", "task_id"}
 
     @classmethod
-    def from_git(cls, trigger_repository_id: int, pr: dict) -> "PullRequest":
+    def from_git(cls, trigger_repository_id: int, pr: dict) -> "PullRequestTrigger":
         """A newly merged pull request, from the git provider's response."""
         return cls(
             trigger_repository_id=trigger_repository_id,

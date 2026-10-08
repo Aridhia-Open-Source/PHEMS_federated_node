@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.backend import BackendAPI
-from app.models import Dataset, PullRequest, TriggerRepository
+from app.models import Dataset, PullRequestResultState, PullRequestTrigger, TriggerRepository
 from app.tests.conftest import SAMPLE_SECRET, SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, make_response
 
 
@@ -86,7 +86,7 @@ class TestPullRequests:
 
         prs = api.get_pull_requests(repo_id=1, state="UNKNOWN")
 
-        assert [type(p) for p in prs] == [PullRequest]
+        assert [type(p) for p in prs] == [PullRequestTrigger]
         assert session.get.call_count == 1
 
     def test_pagination_follows_the_total(self, api, session):
@@ -255,8 +255,8 @@ class TestTasks:
         assert session.patch.call_args.kwargs["json"] == {"status": "QUEUED"}
 
 
-class TestTaskResults:
-    RESULT = {"id": 9, "type": "PR", "task_id": 7, "results_repository_id": 5, "status": "PENDING", "attempts": 0}
+class TestResults:
+    RESULT = {"id": 9, "type": "PR", "task_id": 7, "results_repository_id": 5, "state": "UNKNOWN", "attempts": 0}
 
     def test_the_results_repository_is_the_one_of_the_project(self, api, session):
         repository = {
@@ -273,23 +273,23 @@ class TestTaskResults:
     def test_create_posts_the_task_and_repository(self, api, session):
         session.post.return_value = make_response(self.RESULT)
 
-        api.create_task_result(7, 5)
+        api.create_result(7, 5)
 
-        session.post.assert_called_once_with("/task_results", json={"task_id": 7, "results_repository_id": 5})
+        session.post.assert_called_once_with("/results", json={"task_id": 7, "results_repository_id": 5})
 
     def test_patch_and_list(self, api, session):
-        session.patch.return_value = make_response({**self.RESULT, "status": "DELIVERED"})
+        session.patch.return_value = make_response({**self.RESULT, "state": "PUSHED"})
         session.get.return_value = make_response([self.RESULT])
 
-        assert api.patch_task_result(9, {"status": "DELIVERED"}).status == "DELIVERED"
+        assert api.patch_result(9, {"state": "PUSHED"}).state == PullRequestResultState.PUSHED
         assert api.get_task_results(7)[0].id == 9
-        session.patch.assert_called_once_with("/task_results/9", json={"status": "DELIVERED"})
+        session.patch.assert_called_once_with("/results/9", json={"state": "PUSHED"})
         session.get.assert_called_once_with("/tasks/7/results")
 
-    def test_list_by_merge_status(self, api, session):
-        session.get.return_value = make_response([{**self.RESULT, "merge_status": "OPEN"}])
+    def test_list_by_state(self, api, session):
+        session.get.return_value = make_response([{**self.RESULT, "state": "OPENED"}])
 
-        (result,) = api.get_task_results_by_merge_status("OPEN")
+        (result,) = api.get_results_by_state(["PUSHED", "OPENED"])
 
-        assert result.merge_status == "OPEN"
-        session.get.assert_called_once_with("/task_results", params={"merge_status": "OPEN"})
+        assert result.state == PullRequestResultState.OPENED
+        session.get.assert_called_once_with("/results", params={"state": ["PUSHED", "OPENED"]})

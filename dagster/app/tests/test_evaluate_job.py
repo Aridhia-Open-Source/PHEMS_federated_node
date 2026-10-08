@@ -10,14 +10,14 @@ from app.definitions.sensors.git.evaluate_job import (
     evaluate_repository_pull_requests_job,
     load_unknown_pull_requests,
 )
-from app.models import PullRequest
+from app.models import PullRequestTrigger
 
 WATCHED = {"filename": "specs/a.json", "status": "added"}
 SPEC_FILE = json.dumps({"spec": {"docker_image": "a/b:1"}})
 
 
 def pull_request(number=5, merged_at="2026-01-01T00:00:00Z"):
-    return PullRequest(
+    return PullRequestTrigger(
         trigger_repository_id=1, number=number, title="t", raised_by="dev",
         merged_at=merged_at, merge_commit_sha="abc", state="UNKNOWN", payload={},
     )

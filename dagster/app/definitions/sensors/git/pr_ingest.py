@@ -1,7 +1,7 @@
 import dagster as dg
 
 from app.definitions.sensors.git.base import GitAPI, GitSensor
-from app.models import PullRequest, TriggerRepository
+from app.models import PullRequestTrigger, TriggerRepository
 
 
 class PullRequestIngestSensor(GitSensor):
@@ -41,6 +41,6 @@ class PullRequestIngestSensor(GitSensor):
 
         yield dg.SkipReason(f"Saved {saved} new pull requests to database.")
 
-    def _fetch_pr(self, git_api: GitAPI, repo: TriggerRepository, pr_number: int) -> PullRequest:
+    def _fetch_pr(self, git_api: GitAPI, repo: TriggerRepository, pr_number: int) -> PullRequestTrigger:
         pr = git_api.get_pull_request(repo.repo_path, pr_number)
-        return PullRequest.from_git(repo.id, pr)
+        return PullRequestTrigger.from_git(repo.id, pr)

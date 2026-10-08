@@ -8,7 +8,7 @@ from dagster import OpExecutionContext as OpExecCtx
 from app.backend import BackendAPI
 from app.definitions.sensors.git.base import GitAPIFactory
 from app.definitions.sensors.git.pr_parser import ParsedPullRequest, PullRequestOutcome, PullRequestParser
-from app.models import PullRequest, TriggerState
+from app.models import PullRequestTrigger, TriggerState
 
 # The git provider's API rate limit is the constraint, so keep the fan-out low
 MAX_CONCURRENT_EVALUATIONS = 3
@@ -17,7 +17,7 @@ MAX_CONCURRENT_EVALUATIONS = 3
 @dg.op(
     config_schema={"repo_id": dg.Field(int)},
     required_resource_keys={"backend_api"},
-    out=dg.DynamicOut(PullRequest),
+    out=dg.DynamicOut(PullRequestTrigger),
 )
 def load_unknown_pull_requests(context: OpExecCtx):
     """Emit the UNKNOWN pull requests of the repository, oldest first."""
@@ -27,7 +27,7 @@ def load_unknown_pull_requests(context: OpExecCtx):
         yield dg.DynamicOutput(pr, mapping_key=str(pr.number))
 
 
-def record_outcome(backend_api: BackendAPI, pr: PullRequest, parsed: ParsedPullRequest, log):
+def record_outcome(backend_api: BackendAPI, pr: PullRequestTrigger, parsed: ParsedPullRequest, log):
     """
     Write the outcome on the pull request: READY becomes its task (the backend marks it
     YIELDED), IGNORED and REJECTED are stored with their state_cause. Backend failures raise.
@@ -51,7 +51,7 @@ def record_outcome(backend_api: BackendAPI, pr: PullRequest, parsed: ParsedPullR
     required_resource_keys={"backend_api", "git_apis"},
     retry_policy=dg.RetryPolicy(max_retries=3, delay=5, backoff=dg.Backoff.EXPONENTIAL),
 )
-def evaluate_pull_request(context: OpExecCtx, pr: PullRequest):
+def evaluate_pull_request(context: OpExecCtx, pr: PullRequestTrigger):
     """
     Read the spec of one UNKNOWN pull request and record its outcome. A bad spec is an
     outcome; only a git or backend failure raises, and the retry policy covers it.
