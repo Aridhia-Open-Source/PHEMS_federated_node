@@ -136,7 +136,7 @@ def test_success_pushes_a_branch_with_the_layout_and_marks_the_row_delivered(
     assert metadata["task_id"] == 7
     assert metadata["dagster_run_id"] == RUN_ID
     assert metadata["trigger_repository_uri"] == TRIGGER_REPOSITORY.uri
-    assert metadata["pull_request_number"] == 12
+    assert metadata["number"] == 12
     assert metadata["zip_size_bytes"] == (out / "results.zip").stat().st_size
     assert metadata["delivered_at"]
 
@@ -209,9 +209,9 @@ def test_the_pull_request_is_opened_into_the_default_branch_and_recorded(backend
     assert title == "fn/analysis PR12 - task 7 - results"
     fields = patched_fields(backend_api)
     assert fields["status"] == "DELIVERED"
-    assert fields["pull_request_number"] == 3
-    assert fields["pull_request_url"] == "http://gitea/fn/results/pulls/3"
-    assert fields["pull_request_state"] == "OPEN"
+    assert fields["number"] == 3
+    assert fields["url"] == "http://gitea/fn/results/pulls/3"
+    assert fields["merge_status"] == "OPEN"
     assert (fields["merged_at"], fields["merge_commit_sha"]) == (None, None)
 
 
@@ -226,7 +226,7 @@ def test_a_pull_request_failure_fails_the_row_with_the_branch_recorded(backend_a
     assert fields["error"] == "RuntimeError: provider down"
     assert fields["branch"] == BRANCH
     assert fields["commit_sha"] == git("rev-parse", BRANCH, cwd=remote)
-    assert "pull_request_number" not in fields
+    assert "number" not in fields
 
 
 def test_a_retry_skips_the_push_of_a_pushed_branch_and_opens_its_pull_request(
@@ -248,7 +248,7 @@ def test_a_retry_skips_the_push_of_a_pushed_branch_and_opens_its_pull_request(
     assert (fields["status"], fields["attempts"], fields["error"]) == ("DELIVERED", 2, None)
     assert (fields["branch"], fields["commit_sha"]) == (BRANCH, pushed_sha)
     assert git("rev-list", "--count", f"main..{BRANCH}", cwd=remote) == "1"
-    assert fields["pull_request_number"] == 3
+    assert fields["number"] == 3
 
 
 def test_a_retry_records_the_pull_request_an_earlier_attempt_opened(backend_api, remote, artifacts, git_api, git_apis):
@@ -258,7 +258,7 @@ def test_a_retry_records_the_pull_request_an_earlier_attempt_opened(backend_api,
 
     git_api.create_pull_request.assert_not_called()
     fields = patched_fields(backend_api)
-    assert (fields["status"], fields["pull_request_number"], fields["pull_request_state"]) == ("DELIVERED", 3, "MERGED")
+    assert (fields["status"], fields["number"], fields["merge_status"]) == ("DELIVERED", 3, "MERGED")
 
 
 def test_a_retry_records_the_merge_of_a_pull_request_merged_before_it(backend_api, remote, artifacts, git_api, git_apis):

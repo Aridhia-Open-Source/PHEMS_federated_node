@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from app.models.pull_request_result_state import PullRequestResultState
+from app.models.merge_status import MergeStatus
 from app.models.task_result_status import TaskResultStatus
 
 
@@ -23,8 +23,8 @@ class TaskResult(BaseModel):
     updated_at: str | None = None
     branch: str | None = None
     commit_sha: str | None = None
-    pull_request_number: int | None = None
-    pull_request_url: str | None = None
-    pull_request_state: PullRequestResultState | None = None
+    number: int | None = None
+    url: str | None = None
+    merge_status: MergeStatus | None = None
     merged_at: str | None = None
     merge_commit_sha: str | None = None
