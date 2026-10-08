@@ -86,8 +86,8 @@ class FakeBackend:
             return []
         return [SimpleNamespace(
             id=1, type="PR", task_id=task_id, status=status, attempts=1, commit_sha="abc", error=None,
-            pull_request_number=3, pull_request_url="http://gitea.fn.svc:4000/gitea_admin/results/pulls/3",
-            pull_request_state="OPEN",
+            number=3, url="http://gitea.fn.svc:4000/gitea_admin/results/pulls/3",
+            merge_status="OPEN",
         )]
 
     def find_repository(self, uri, project_id):
