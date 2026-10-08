@@ -2021,7 +2021,7 @@
         "parameters": [
           {
             "in": "query",
-            "name": "pull_request_state",
+            "name": "merge_status",
             "description": "Only the pull request results in this state",
             "required": false,
             "schema": {
@@ -3840,15 +3840,15 @@
             "type": "string",
             "nullable": true
           },
-          "pull_request_number": {
+          "number": {
             "type": "integer",
             "nullable": true
           },
-          "pull_request_url": {
+          "url": {
             "type": "string",
             "nullable": true
           },
-          "pull_request_state": {
+          "merge_status": {
             "type": "string",
             "nullable": true,
             "enum": [
@@ -3913,15 +3913,15 @@
             "type": "string",
             "nullable": true
           },
-          "pull_request_number": {
+          "number": {
             "type": "integer",
             "nullable": true
           },
-          "pull_request_url": {
+          "url": {
             "type": "string",
             "nullable": true
           },
-          "pull_request_state": {
+          "merge_status": {
             "type": "string",
             "enum": [
               "OPEN",

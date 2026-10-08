@@ -19,9 +19,9 @@ class TaskResultDTO(DTO):
 class PullRequestResultDTO(TaskResultDTO):
     branch: str | None
     commit_sha: str | None
-    pull_request_number: int | None
-    pull_request_url: str | None
-    pull_request_state: str | None
+    number: int | None
+    url: str | None
+    merge_status: str | None
     merged_at: datetime | None
     merge_commit_sha: str | None
 

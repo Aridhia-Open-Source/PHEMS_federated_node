@@ -44,7 +44,7 @@ class TestTaskResultModel:
         assert task_result.attempts == 0
         assert task_result.type == "PR"
         assert task_result.branch is None
-        assert task_result.pull_request_state is None
+        assert task_result.merge_status is None
         assert task_result.created_at is not None
 
     def test_base_query_returns_the_child(self, task_result):
@@ -74,7 +74,7 @@ class TestGetTaskResults:
         assert response.json == [PullRequestResultDTO.from_model(task_result).dump()]
         assert response.json[0]["status"] == "PENDING"
         assert response.json[0]["type"] == "PR"
-        assert response.json[0]["pull_request_state"] is None
+        assert response.json[0]["merge_status"] is None
 
     def test_list_unknown_task(self, client, simple_admin_header):
         response = client.get("/tasks/9999/results", headers=simple_admin_header)
@@ -94,16 +94,16 @@ class TestGetTaskResults:
         assert response.status_code == 200
         assert response.json == [PullRequestResultDTO.from_model(task_result).dump()]
 
-    def test_list_by_pull_request_state(self, client, simple_admin_header, make_task, results_repo, task_result):
+    def test_list_by_merge_status(self, client, simple_admin_header, make_task, results_repo, task_result):
         open_result = PullRequestResult(task_id=make_task().id, results_repository_id=results_repo.id)
-        open_result.pull_request_state = "OPEN"
+        open_result.merge_status = "OPEN"
         open_result.add()
-        response = client.get("/task_results?pull_request_state=OPEN", headers=simple_admin_header)
+        response = client.get("/task_results?merge_status=OPEN", headers=simple_admin_header)
         assert response.status_code == 200
         assert [r["id"] for r in response.json] == [open_result.id]
 
-    def test_list_invalid_pull_request_state(self, client, simple_admin_header):
-        response = client.get("/task_results?pull_request_state=open", headers=simple_admin_header)
+    def test_list_invalid_merge_status(self, client, simple_admin_header):
+        response = client.get("/task_results?merge_status=open", headers=simple_admin_header)
         assert response.status_code == 400
 
 
@@ -154,17 +154,17 @@ class TestPatchTaskResult:
     def test_update_all_fields(self, client, post_json_admin_header, task_result):
         response = self.patch(client, post_json_admin_header, task_result.id, {
             "status": "PR_OPENED", "attempts": 2, "branch": "task-1-results", "commit_sha": "a" * 40,
-            "pull_request_number": 7, "pull_request_url": "https://example.com/pull/7", "error": None,
-            "pull_request_state": "MERGED", "merged_at": "2026-10-08T10:30:00Z", "merge_commit_sha": "b" * 40,
+            "number": 7, "url": "https://example.com/pull/7", "error": None,
+            "merge_status": "MERGED", "merged_at": "2026-10-08T10:30:00Z", "merge_commit_sha": "b" * 40,
         })
         assert response.status_code == 200
         assert response.json["status"] == "PR_OPENED"
         assert response.json["attempts"] == 2
         assert response.json["branch"] == "task-1-results"
         assert response.json["commit_sha"] == "a" * 40
-        assert response.json["pull_request_number"] == 7
-        assert response.json["pull_request_url"] == "https://example.com/pull/7"
-        assert response.json["pull_request_state"] == "MERGED"
+        assert response.json["number"] == 7
+        assert response.json["url"] == "https://example.com/pull/7"
+        assert response.json["merge_status"] == "MERGED"
         assert response.json["merged_at"] == "2026-10-08T10:30:00"
         assert response.json["merge_commit_sha"] == "b" * 40
         task_result = TaskResult.query.get(task_result.id)
@@ -191,12 +191,12 @@ class TestPatchTaskResult:
         {"task_id": 2},
         {"attempts": "1"},
         {"attempts": True},
-        {"pull_request_number": "7"},
+        {"number": "7"},
         {"commit_sha": "a" * 41},
         {"error": 1},
         {"branch": 1},
-        {"pull_request_state": "open"},
-        {"pull_request_state": None},
+        {"merge_status": "open"},
+        {"merge_status": None},
         {"merged_at": "yesterday"},
         {"merged_at": 1},
         {"merge_commit_sha": "b" * 41},
