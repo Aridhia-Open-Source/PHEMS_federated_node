@@ -29,7 +29,7 @@ from app.helpers.keycloak import Keycloak
 from app.dtos.task_spec import TaskSpec
 from app.helpers.wrappers import audit, auth
 from app.dtos.task import NewTaskDTO, TaskDTO
-from app.dtos.task_result import TaskResultDTO
+from app.dtos.task_result import dump_task_result
 from app.models.api_request import ApiRequest
 from app.models.project import Project
 from app.models.task import Task
@@ -294,7 +294,7 @@ def get_task_results(task_id):
     """
     task = Task.get_by_id(task_id)
     does_user_own_task(task)
-    return [TaskResultDTO.from_model(r).dump() for r in task.results], HTTPStatus.OK
+    return [dump_task_result(r) for r in task.results], HTTPStatus.OK
 
 
 @bp.route('/<task_id>/logs', methods=['GET'])

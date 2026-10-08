@@ -1,9 +1,11 @@
 import json
+from datetime import datetime
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.dtos.task_result import TaskResultDTO
+from app.dtos.task_result import PullRequestResultDTO
+from app.models.pull_request_result import PullRequestResult
 from app.models.results_repository import ResultsRepository
 from app.models.task_result import TaskResult
 from app.models.task_result_status import TaskResultStatus
@@ -26,7 +28,7 @@ def results_repo(client, project, secret):
 
 @pytest.fixture
 def task_result(task, results_repo):
-    task_result = TaskResult(task_id=task.id, results_repository_id=results_repo.id)
+    task_result = PullRequestResult(task_id=task.id, results_repository_id=results_repo.id)
     task_result.add()
     return task_result
 
@@ -40,12 +42,17 @@ class TestTaskResultModel:
     def test_defaults(self, task_result):
         assert task_result.status == TaskResultStatus.PENDING.value
         assert task_result.attempts == 0
+        assert task_result.type == "PR"
         assert task_result.branch is None
+        assert task_result.pull_request_state is None
         assert task_result.created_at is not None
+
+    def test_base_query_returns_the_child(self, task_result):
+        assert isinstance(TaskResult.query.get(task_result.id), PullRequestResult)
 
     def test_unique_per_task_and_destination(self, task, results_repo, task_result):
         with pytest.raises(IntegrityError):
-            TaskResult(task_id=task.id, results_repository_id=results_repo.id).add()
+            PullRequestResult(task_id=task.id, results_repository_id=results_repo.id).add()
 
     def test_results_relationship(self, task, task_result):
         assert task.results == [task_result]
@@ -64,8 +71,10 @@ class TestGetTaskResults:
     def test_list(self, client, simple_admin_header, task, task_result):
         response = client.get(f"/tasks/{task.id}/results", headers=simple_admin_header)
         assert response.status_code == 200
-        assert response.json == [TaskResultDTO.from_model(task_result).dump()]
+        assert response.json == [PullRequestResultDTO.from_model(task_result).dump()]
         assert response.json[0]["status"] == "PENDING"
+        assert response.json[0]["type"] == "PR"
+        assert response.json[0]["pull_request_state"] is None
 
     def test_list_unknown_task(self, client, simple_admin_header):
         response = client.get("/tasks/9999/results", headers=simple_admin_header)
@@ -74,11 +83,28 @@ class TestGetTaskResults:
     def test_get_by_id(self, client, simple_admin_header, task_result):
         response = client.get(f"/task_results/{task_result.id}", headers=simple_admin_header)
         assert response.status_code == 200
-        assert response.json == TaskResultDTO.from_model(task_result).dump()
+        assert response.json == PullRequestResultDTO.from_model(task_result).dump()
 
     def test_get_by_id_not_found(self, client, simple_admin_header):
         response = client.get("/task_results/9999", headers=simple_admin_header)
         assert response.status_code == 404
+
+    def test_list_all(self, client, simple_admin_header, task_result):
+        response = client.get("/task_results", headers=simple_admin_header)
+        assert response.status_code == 200
+        assert response.json == [PullRequestResultDTO.from_model(task_result).dump()]
+
+    def test_list_by_pull_request_state(self, client, simple_admin_header, make_task, results_repo, task_result):
+        open_result = PullRequestResult(task_id=make_task().id, results_repository_id=results_repo.id)
+        open_result.pull_request_state = "OPEN"
+        open_result.add()
+        response = client.get("/task_results?pull_request_state=OPEN", headers=simple_admin_header)
+        assert response.status_code == 200
+        assert [r["id"] for r in response.json] == [open_result.id]
+
+    def test_list_invalid_pull_request_state(self, client, simple_admin_header):
+        response = client.get("/task_results?pull_request_state=open", headers=simple_admin_header)
+        assert response.status_code == 400
 
 
 class TestPostTaskResult:
@@ -94,14 +120,15 @@ class TestPostTaskResult:
         assert response.json["results_repository_id"] == results_repo.id
         assert response.json["status"] == "PENDING"
         assert response.json["attempts"] == 0
-        assert TaskResult.query.filter_by(task_id=task.id).count() == 1
+        assert response.json["type"] == "PR"
+        assert isinstance(TaskResult.query.filter_by(task_id=task.id).one(), PullRequestResult)
 
     def test_create_is_idempotent(self, client, post_json_admin_header, task, results_repo, task_result):
         response = self.post(
             client, post_json_admin_header, {"task_id": task.id, "results_repository_id": results_repo.id}
         )
         assert response.status_code == 200
-        assert response.json == TaskResultDTO.from_model(task_result).dump()
+        assert response.json == PullRequestResultDTO.from_model(task_result).dump()
         assert TaskResult.query.filter_by(task_id=task.id).count() == 1
 
     def test_unknown_task(self, client, post_json_admin_header, results_repo):
@@ -128,6 +155,7 @@ class TestPatchTaskResult:
         response = self.patch(client, post_json_admin_header, task_result.id, {
             "status": "PR_OPENED", "attempts": 2, "branch": "task-1-results", "commit_sha": "a" * 40,
             "pull_request_number": 7, "pull_request_url": "https://example.com/pull/7", "error": None,
+            "pull_request_state": "MERGED", "merged_at": "2026-10-08T10:30:00Z", "merge_commit_sha": "b" * 40,
         })
         assert response.status_code == 200
         assert response.json["status"] == "PR_OPENED"
@@ -136,9 +164,13 @@ class TestPatchTaskResult:
         assert response.json["commit_sha"] == "a" * 40
         assert response.json["pull_request_number"] == 7
         assert response.json["pull_request_url"] == "https://example.com/pull/7"
+        assert response.json["pull_request_state"] == "MERGED"
+        assert response.json["merged_at"] == "2026-10-08T10:30:00"
+        assert response.json["merge_commit_sha"] == "b" * 40
         task_result = TaskResult.query.get(task_result.id)
         assert task_result.status == "PR_OPENED"
         assert task_result.attempts == 2
+        assert task_result.merged_at == datetime(2026, 10, 8, 10, 30)
 
     def test_update_failed_with_error(self, client, post_json_admin_header, task_result):
         response = self.patch(client, post_json_admin_header, task_result.id, {"status": "FAILED", "error": "zip too big"})
@@ -163,6 +195,11 @@ class TestPatchTaskResult:
         {"commit_sha": "a" * 41},
         {"error": 1},
         {"branch": 1},
+        {"pull_request_state": "open"},
+        {"pull_request_state": None},
+        {"merged_at": "yesterday"},
+        {"merged_at": 1},
+        {"merge_commit_sha": "b" * 41},
     ])
     def test_invalid_body(self, client, post_json_admin_header, task_result, body):
         response = self.patch(client, post_json_admin_header, task_result.id, body)
