@@ -20,9 +20,9 @@ class TaskResult(BaseModel):
     updated_at: str | None = None
     branch: str | None = None
     commit_sha: str | None = None
-    pull_request_number: int | None = None
-    pull_request_url: str | None = None
+    number: int | None = None
+    url: str | None = None
     # OPEN, MERGED or CLOSED, kept fresh by results_pull_request_sync_sensor.
-    pull_request_state: str | None = None
+    merge_status: str | None = None
     merged_at: str | None = None
     merge_commit_sha: str | None = None

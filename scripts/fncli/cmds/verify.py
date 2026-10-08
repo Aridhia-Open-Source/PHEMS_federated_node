@@ -240,12 +240,12 @@ def verify_delivery(report: Report, backend_api, task_id: int):
     )
     report.record(results.commit_sha is not None, "Delivery has a commit_sha", str(results.commit_sha))
     report.record(
-        results.pull_request_number is not None and results.pull_request_url is not None,
+        results.number is not None and results.url is not None,
         "Delivery has a results PR",
-        f"#{results.pull_request_number}, {results.pull_request_state}",
+        f"#{results.number}, {results.merge_status}",
     )
-    if results.pull_request_url is not None:
-        report.link("Results PR", to_host_url(results.pull_request_url))
+    if results.url is not None:
+        report.link("Results PR", to_host_url(results.url))
 
 
 def verify_repo(

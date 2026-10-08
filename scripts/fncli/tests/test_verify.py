@@ -33,8 +33,8 @@ class FakeDagster:
 def result_of(**fields):
     result = dict(
         id=1, type="PR", task_id=9, status="DELIVERED", attempts=1, commit_sha="abc123", error=None,
-        pull_request_number=3, pull_request_url="http://gitea.fn.svc:4000/gitea_admin/results/pulls/3",
-        pull_request_state="OPEN",
+        number=3, url="http://gitea.fn.svc:4000/gitea_admin/results/pulls/3",
+        merge_status="OPEN",
     )
     return SimpleNamespace(**(result | fields))
 
@@ -128,11 +128,11 @@ def test_each_mismatch_is_reported(task_fields, run_fields, failed):
 
 @pytest.mark.parametrize("results, failed", [
     ([result_of(status="FAILED", error="zip too big")], ["Results were DELIVERED"]),
-    ([result_of(status="PENDING", commit_sha=None, pull_request_number=None, pull_request_url=None)],
+    ([result_of(status="PENDING", commit_sha=None, number=None, url=None)],
      ["Results were DELIVERED", "Delivery has a commit_sha", "Delivery has a results PR"]),
     ([result_of(commit_sha=None)], ["Delivery has a commit_sha"]),
-    ([result_of(pull_request_number=None)], ["Delivery has a results PR"]),
-    ([result_of(pull_request_url=None)], ["Delivery has a results PR"]),
+    ([result_of(number=None)], ["Delivery has a results PR"]),
+    ([result_of(url=None)], ["Delivery has a results PR"]),
     ([], ["Task 9 has one results delivery: GET /tasks/9/results"]),
     ([result_of(), result_of(id=2)], ["Task 9 has one results delivery: GET /tasks/9/results"]),
 ])
