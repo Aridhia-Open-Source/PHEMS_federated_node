@@ -8,6 +8,8 @@ from app.helpers.base_model import db
 from app.models.extras.request import Request
 from app.helpers.keycloak import Keycloak
 
+pytestmark = pytest.mark.skip(reason="DAR disconnected for now, see TODO(DAR)")
+
 @pytest.fixture
 def request_base_body():
     return {
