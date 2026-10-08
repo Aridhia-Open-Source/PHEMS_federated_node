@@ -5,12 +5,36 @@ API returns, and the Dagster wire models in dagster/app/models.py depend on them
 import re
 
 from app.dtos.audit import AuditDTO
+from app.dtos.base import page_of
 from app.dtos.dataset import CatalogueDTO, DatasetDTO, DictionaryDTO
+from app.dtos.project import ProjectDTO
 from app.dtos.registry import RegistryDTO
+from app.dtos.task import TaskDTO
 from app.models.extras.audit import Audit
 from app.models.extras.registry import Registry
+from app.models.project import Project
+from app.models.task import Task
 
 WIRE_DATETIME = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
+
+
+class TestProjectDTO:
+    def test_fields(self, project):
+        assert set(ProjectDTO.from_model(project).dump()) == {
+            "id", "name", "description", "default_dataset_id", "enabled",
+            "created_at", "updated_at",
+        }
+
+    def test_values(self, project):
+        dumped = ProjectDTO.from_model(project).dump()
+        assert dumped["id"] == project.id
+        assert dumped["name"] == "TestProject"
+        assert dumped["description"] is None
+
+    def test_datetimes_use_the_wire_format(self, project):
+        dumped = ProjectDTO.from_model(project).dump()
+        assert WIRE_DATETIME.match(dumped["created_at"])
+        assert WIRE_DATETIME.match(dumped["updated_at"])
 
 
 class TestDatasetDTO:
@@ -90,3 +114,42 @@ class TestAuditDTO:
         assert dumped["status_code"] == 200
         assert dumped["details"] is None
         assert WIRE_DATETIME.match(dumped["event_time"])
+
+
+class TestTaskDTO:
+    def test_fields(self):
+        task = Task(
+            name="task", docker_image="alpine:latest", requested_by="user", dataset_id=None, project_id=1,
+            trigger_id=1, spec={"image": "alpine:latest"}
+        )
+        task.id = 1
+        dumped = TaskDTO.from_model(task).dump()
+        assert set(dumped) == {
+            "id", "name", "docker_image", "spec", "attempt", "status", "created_at", "updated_at",
+            "requested_by", "dataset_id", "project_id", "trigger_id",
+            "dagster_run_id", "exit_code", "started_at", "completed_at",
+        }
+        assert dumped["status"] == "PENDING"
+        assert dumped["attempt"] == 1
+        assert dumped["spec"] == {"image": "alpine:latest"}
+        assert dumped["trigger_id"] == 1
+        assert WIRE_DATETIME.match(dumped["created_at"])
+
+
+class TestPageOf:
+    def test_envelope(self, project):
+        page = page_of(Project.query.paginate(page=1, per_page=10), ProjectDTO)
+        assert set(page) == {"items", "page", "per_page", "total", "pages"}
+        assert page["page"] == 1
+        assert page["per_page"] == 10
+        assert page["total"] == 1
+        assert page["pages"] == 1
+
+    def test_items_are_dumped_dtos(self, project):
+        page = page_of(Project.query.paginate(page=1, per_page=10), ProjectDTO)
+        assert page["items"] == [ProjectDTO.from_model(project).dump()]
+
+    def test_empty(self, client):
+        page = page_of(Project.query.paginate(page=1, per_page=10), ProjectDTO)
+        assert page["items"] == []
+        assert page["total"] == 0
