@@ -1,9 +1,12 @@
+import base64
 import logging
-import requests as req
+from datetime import datetime as dt
 
 from app.utils import HttpClient
 
-GITEA_API_BASE_URL = "http://gitea.fn.svc:3000/api/v1"
+GITEA_API_BASE_URL = "http://gitea.fn.svc:4000/api/v1"
+# Gitea caps a page at 50 by default (it ignores per_page and takes limit).
+GITEA_PAGE_SIZE = 50
 
 default_logger = logging.getLogger(__name__)
 
@@ -31,26 +34,23 @@ class GiteaAPI:
         self.logger.info(f"Fetching merged PRs for {repo_path}, after {merged_after}")
 
         page = 1
-        per_page = 100
         results = []
-        from datetime import datetime as dt
 
         merged_after_dt = dt.fromisoformat(merged_after.replace('Z', '+00:00')) if merged_after else None
 
+        # Gitea pages with limit/page (it ignores per_page) and has no base filter. Its page cap
+        # is configurable, so only an empty page ends the loop.
         while True:
             response = self.client.request(
                 "GET", f"repos/{repo_path}/pulls",
-                params={
-                    "state": "closed",
-                    "per_page": per_page,
-                    "page": page,
-                    "base": base_branch,
-                }
+                params={"state": "closed", "limit": GITEA_PAGE_SIZE, "page": page}
             )
             items = response.json()
             self.logger.info(f"Fetched {len(items)} closed PRs from Gitea for repository {repo_path} (page {page})")
 
             for item in items:
+                if item["base"]["ref"] != base_branch:
+                    continue
                 if item.get("merged_at"):
                     merged_at = item["merged_at"]
                     if isinstance(merged_at, str):
@@ -60,7 +60,7 @@ class GiteaAPI:
                     else:
                         results.append(item)
 
-            if not items or len(items) < per_page:
+            if not items:
                 return results
 
             page += 1
@@ -75,13 +75,13 @@ class GiteaAPI:
             response = self.client.request(
                 "GET",
                 f"repos/{repo_path}/pulls/{pr_number}/files",
-                params={"page": page, "per_page": 100}
+                params={"page": page, "limit": GITEA_PAGE_SIZE}
             )
             items = response.json()
             self.logger.info(f"Fetched {len(items)} files from Gitea for PR #{pr_number} (page {page})")
             files.extend(items)
 
-            if not items or len(items) < 100:
+            if not items:
                 return files
 
             page += 1
@@ -95,7 +95,29 @@ class GiteaAPI:
             params={"ref": ref}
         )
         data = response.json()
-        import base64
         if "content" in data:
             return base64.b64decode(data["content"]).decode("utf-8")
         return data.get("content", "")
+
+    def find_pull_request_by_branch(self, repo_path: str, head_branch: str, base_branch: str) -> dict | None:
+        """Fetch the open or closed PR from head_branch into base_branch, or None if there is none."""
+        self.logger.info(f"Looking up PR {head_branch} -> {base_branch} in {repo_path}")
+        response = self.client.request(
+            "GET", f"repos/{repo_path}/pulls/{base_branch}/{head_branch}", raise_for_status=False
+        )
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        return response.json()
+
+    def create_pull_request(
+        self, repo_path: str, head_branch: str, base_branch: str, title: str, body: str
+    ) -> dict:
+        """Create a pull request from head_branch into base_branch."""
+        self.logger.info(f"Creating PR {head_branch} -> {base_branch} in {repo_path}")
+        response = self.client.request(
+            "POST",
+            f"repos/{repo_path}/pulls",
+            json={"title": title, "body": body, "head": head_branch, "base": base_branch},
+        )
+        return response.json()

@@ -48,7 +48,7 @@ class GithubTransferConfig(EnvConfig):
 class GiteaConfig(EnvConfig):
     token: str = Field(default="", alias="GITEA_TOKEN")
     base_uri: str = Field(
-        default="http://gitea.fn.svc:3000/api/v1",
+        default="http://gitea.fn.svc:4000/api/v1",
         alias="GITEA_API_URI",
     )
 

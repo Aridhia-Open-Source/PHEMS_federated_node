@@ -3,11 +3,14 @@ import json
 
 import pytest
 from kubernetes.client.exceptions import ApiException
+from sqlalchemy.exc import IntegrityError
 
+from app.helpers.base_model import db
 from app.helpers.const import DEFAULT_NAMESPACE
 from app.models.extras.audit import Audit
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
+from app.models.trigger_repository import TriggerRepository
 
 TOKEN = "abc123"
 SECRET_FIELDS = {"id", "project_id", "label", "description", "provider", "key", "namespace", "created_at", "updated_at"}
@@ -35,6 +38,20 @@ def secret(client, k8s_client, project):
     secret = Secret(project_id=project.id, label="gitea-token", provider=SecretProviderType.K8S, namespace=DEFAULT_NAMESPACE)
     secret.add()
     return secret
+
+
+@pytest.fixture
+def repository(client, project, secret):
+    repo = TriggerRepository(
+        uri="gitea.fn.svc:3000/org/repo",
+        provider="gitea",
+        api_uri="http://gitea.fn.svc:3000/api/v1",
+        secret_id=secret.id,
+        watch_dir="",
+        project_id=project.id,
+    )
+    repo.add()
+    return repo
 
 
 class TestGetSecrets:
@@ -305,6 +322,27 @@ class TestDeleteSecret:
         assert Secret.query.count() == 0
         k8s_client["delete_namespaced_secret_mock"].assert_called_once_with(store_name, DEFAULT_NAMESPACE)
 
+    def test_refused_while_a_repository_uses_it(self, client, k8s_client, audited, simple_admin_header, repository):
+        response = client.delete(f"/projects/{repository.project_id}/secrets/{repository.secret.label}", headers=simple_admin_header)
+        assert response.status_code == 409
+        assert Secret.query.count() == 1
+        k8s_client["delete_namespaced_secret_mock"].assert_not_called()
+
+    def test_a_secret_shared_by_two_repositories_stays_until_both_are_gone(
+        self, client, k8s_client, audited, simple_admin_header, repository, project
+    ):
+        second = TriggerRepository(
+            uri="gitea.fn.svc:3000/org/other", provider="gitea", api_uri="http://gitea.fn.svc:3000/api/v1",
+            secret_id=repository.secret_id, watch_dir="", project_id=project.id,
+        )
+        second.add()
+
+        repository.delete()
+        assert client.delete(f"/projects/{project.id}/secrets/gitea-token", headers=simple_admin_header).status_code == 409
+
+        second.delete()
+        assert client.delete(f"/projects/{project.id}/secrets/gitea-token", headers=simple_admin_header).status_code == 204
+
     def test_missing_cluster_secret_is_fine(self, client, k8s_client, audited, simple_admin_header, secret):
         k8s_client["delete_namespaced_secret_mock"].side_effect = ApiException(status=404)
         response = client.delete(f"/projects/{secret.project_id}/secrets/{secret.label}", headers=simple_admin_header)
@@ -320,3 +358,77 @@ class TestDeleteSecret:
     def test_not_found(self, client, k8s_client, audited, simple_admin_header, project):
         assert client.delete(f"/projects/{project.id}/secrets/missing", headers=simple_admin_header).status_code == 404
 
+
+class TestRepositoryReference:
+    def test_a_repository_cannot_use_another_projects_secret(
+        self, client, k8s_client, post_json_admin_header, project, other_project
+    ):
+        secret = Secret(project_id=other_project.id, label="foreign-token", provider=SecretProviderType.K8S)
+        secret.add()
+        response = client.post(
+            "/trigger_repositories",
+            data=json.dumps({
+                "uri": "http://gitea.fn.svc:3000/org/repo", "project_id": project.id, "provider": "gitea",
+                "api_uri": "http://gitea.fn.svc:3000/api/v1", "secret_label": "foreign-token",
+            }),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert "does not exist" in response.json["error"]
+
+    def test_the_database_rejects_a_repository_pointing_at_another_projects_secret(
+        self, client, k8s_client, project, other_project
+    ):
+        secret = Secret(project_id=other_project.id, label="foreign-token", provider=SecretProviderType.K8S)
+        secret.add()
+        repo = TriggerRepository(
+            uri="gitea.fn.svc:3000/org/repo", provider="gitea", api_uri="http://gitea.fn.svc:3000/api/v1",
+            secret_id=secret.id, watch_dir="", project_id=project.id,
+        )
+        with pytest.raises(IntegrityError):
+            repo.add()
+        db.session.rollback()
+
+    def test_the_response_names_the_cluster_secret(
+        self, client, k8s_client, post_json_admin_header, project, secret
+    ):
+        response = client.post(
+            "/trigger_repositories",
+            data=json.dumps({
+                "uri": "http://gitea.fn.svc:3000/org/repo", "project_id": project.id, "provider": "gitea",
+                "api_uri": "http://gitea.fn.svc:3000/api/v1", "secret_label": secret.label,
+            }),
+            headers=post_json_admin_header
+        )
+        assert response.json["secret"]["key"] == f"{project.id}-gitea-token"
+
+    def test_the_token_is_read_from_the_cluster_secret(self, client, k8s_client, repository):
+        repository.get_token()
+        k8s_client["read_namespaced_secret_mock"].assert_called_once_with(
+            f"{repository.project_id}-gitea-token", DEFAULT_NAMESPACE
+        )
+
+    def test_a_repository_needs_an_existing_secret(self, client, k8s_client, simple_admin_header, post_json_admin_header, project):
+        response = client.post(
+            "/trigger_repositories",
+            data=json.dumps({
+                "uri": "http://gitea.fn.svc:3000/org/repo", "project_id": project.id, "provider": "gitea",
+                "api_uri": "http://gitea.fn.svc:3000/api/v1", "secret_label": "missing",
+            }),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert "does not exist" in response.json["error"]
+
+    def test_a_repository_can_reference_a_secret(self, client, k8s_client, post_json_admin_header, project, secret):
+        response = client.post(
+            "/trigger_repositories",
+            data=json.dumps({
+                "uri": "http://gitea.fn.svc:3000/org/repo", "project_id": project.id, "provider": "gitea",
+                "api_uri": "http://gitea.fn.svc:3000/api/v1", "secret_label": secret.label,
+            }),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 201, response.json
+        assert response.json["secret"]["label"] == "gitea-token"
+        assert response.json["provider"] == "gitea"
