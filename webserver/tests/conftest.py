@@ -15,11 +15,14 @@ from app.models.dataset import Dataset
 from app.models.extras.catalogue import Catalogue
 from app.models.extras.dictionary import Dictionary
 from app.models.project import Project
-from app.models.extras.request import Request
+from app.models.task import Task
+from app.models.extras.dar import DAR
 from app.models.trigger_repository import TriggerRepository
+from app.models.secret import Secret
+from app.models.secret_provider_type import SecretProviderType
 from app.models.results_repository import ResultsRepository
 from app.models.results_backend import ResultsBackend
-from app.models.api_request import ApiRequest
+from app.models.api_request_trigger import ApiRequestTrigger
 from app.helpers.exceptions import KeycloakError
 
 
@@ -49,8 +52,7 @@ sample_ds_body = {
     "name": "TestDs",
     "host": "db",
     "port": 5432,
-    "username": "Username",
-    "password": "pass",
+    "secret_label": "test-creds",
     "repository": sample_repo_uri,
     "catalogue": {
         "title": "test",
@@ -201,6 +203,23 @@ def project(client) -> Project:
 
 
 @fixture
+def make_task(client, project):
+    """Factory for a task with its own ApiRequestTrigger trigger"""
+    def _make(project=project, **fields) -> Task:
+        api_request = ApiRequestTrigger(project_id=project.id, user_id="user", payload={})
+        api_request.add()
+        task = Task(
+            name="task", docker_image="img:1", requested_by="user", dataset_id=None,
+            project_id=project.id, trigger_id=api_request.id, spec={"image": "img:1"}
+        )
+        for field, value in fields.items():
+            setattr(task, field, value)
+        task.add()
+        return task
+    return _make
+
+
+@fixture
 def other_project(client) -> Project:
     """A second project, for checking one project cannot reach another's rows."""
     project = Project(name="OtherProject")
@@ -208,14 +227,25 @@ def other_project(client) -> Project:
     return project
 
 
+# The secret the dataset and repository fixtures reference. sample_ds_body names it too.
+@fixture
+def secret(client, project) -> Secret:
+    secret = Secret(project_id=project.id, label="test-creds", provider=SecretProviderType.K8S)
+    secret.add()
+    return secret
+
+
 # Trigger repository fixtures
 @fixture
-def default_repo(client, user_uuid, k8s_client, mock_kc_client, project) -> TriggerRepository:
+def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> TriggerRepository:
     # Create a dataset first (required for TriggerRepository)
-    dataset = Dataset(name="DefaultDatasetForRepo", host="example.com", password='pass', username='user', project_id=project.id)
+    dataset = Dataset(name="DefaultDatasetForRepo", host="example.com", secret_id=secret.id, project_id=project.id)
     dataset.add(user_id=user_uuid)
 
-    repo = TriggerRepository(uri=sample_repo_uri, watch_dir="", project_id=project.id)
+    repo = TriggerRepository(
+        uri=sample_repo_uri, provider="github", api_uri="https://api.github.com",
+        secret_id=secret.id, watch_dir="", project_id=project.id
+    )
     repo.add()
     return repo
 
@@ -229,30 +259,33 @@ def dataset_post_body(default_repo, project):
 
 
 @fixture
-def dataset(client, user_uuid, k8s_client, mock_kc_client, project) -> Dataset:
-    dataset = Dataset(name="TestDs", host="example.com", password='pass', username='user', project_id=project.id)
+def dataset(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> Dataset:
+    dataset = Dataset(name="TestDs", host="example.com", secret_id=secret.id, project_id=project.id)
     dataset.add(user_id=user_uuid)
     return dataset
 
 
 @fixture
-def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project) -> Dataset:
+def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> Dataset:
     from app.models.trigger_repository import TriggerRepository
     # Create dataset first
-    dataset = Dataset(name="TestDsRepo", host="example.com", password='pass', username='user', project_id=project.id)
+    dataset = Dataset(name="TestDsRepo", host="example.com", secret_id=secret.id, project_id=project.id)
     dataset.add(user_id=user_uuid)
 
     # Then create repository with the dataset_id
-    repo = TriggerRepository(uri="organisation/repository", watch_dir="", project_id=project.id)
+    repo = TriggerRepository(
+        uri="organisation/repository", provider="github", api_uri="https://api.github.com",
+        secret_id=secret.id, watch_dir="", project_id=project.id
+    )
     repo.add()
 
     return dataset
 
 
 @fixture
-def dataset_oracle(mocker, client, user_uuid, k8s_client, project)  -> Dataset:
+def dataset_oracle(mocker, client, user_uuid, k8s_client, project, secret)  -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
-    dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user', type="oracle", project_id=project.id)
+    dataset = Dataset(name="AnotherDS", host="example.com", secret_id=secret.id, type="oracle", project_id=project.id)
     dataset.add(user_id=user_uuid)
     return dataset
 
@@ -280,7 +313,7 @@ def dar_user():
 
 @fixture
 def access_request(dataset, user_uuid, k8s_client):
-    request = Request(
+    request = DAR(
         title="TestRequest",
         project_name="example.com",
         requested_by=user_uuid,
@@ -321,7 +354,7 @@ def request_base_body_name(dataset):
 @fixture
 def approve_request(mocker):
     return mocker.patch(
-        'app.datasets_api.Request.approve',
+        'app.models.extras.dar.DAR.approve',
         return_value={"token": "somejwttoken"}
     )
 
@@ -372,15 +405,7 @@ def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
             has_user_roles=Mock(side_effect=lambda user_id, roles: False),
             is_token_valid=Mock(side_effect=lambda token, scope, *args, **kwargs: token == "admin_token" or scope != 'can_admin_request')
         )),
-        "datasets_api_kc": mocker.patch('app.datasets_api.Keycloak', return_value=Mock(
-            get_token=Mock(return_value={"access_token": "token"}),
-            get_admin_token=Mock(return_value={"access_token": "admin_token"}),
-            decode_token=Mock(return_value=decode_token_return),
-            get_user_by_email=Mock(return_value=basic_user),
-            list_users=Mock(return_value=[basic_user]),
-            create_user=Mock(return_value=create_user_return),
-            get_user_role=Mock(return_value="Users"),
-        )),
+        # TODO(DAR): the datasets_api Keycloak mock went with the DAR code in that module
         "users_api_kc": mocker.patch('app.users_api.Keycloak', return_value=Mock(
             get_token=Mock(return_value={"access_token": "token"}),
             get_admin_token=Mock(return_value={"access_token": "admin_token"}),

@@ -1,5 +1,7 @@
 # DVC + Gitea Results Delivery Plan (MVP)
 
+> **Update 2026-09-30:** the results repository is now scoped to a project and no longer referenced by `projects.results_repository_id`. See [PROJECT_SCOPED_REPOS_DESIGN.md](PROJECT_SCOPED_REPOS_DESIGN.md).
+
 ## TL;DR (30 seconds)
 
 **Primary model:** Every task's results go to S3/Azure via DVC, then commit metadata to git (Gitea or client's GitHub).

@@ -1,4 +1,3 @@
-import urllib.parse
 from datetime import datetime as dt
 from datetime import timezone as tz
 from typing import cast
@@ -8,42 +7,42 @@ from sqlalchemy.orm import relationship, validates
 from sqlalchemy.sql import func
 
 from app.helpers.base_model import BaseModel, db
-from app.models import Models
+from app.models import Models, sqla_column
+from app.models.git_repository import GitRepositoryMixin
 
 
 def now_ts():
     return dt.now(tz=tz.utc)
 
 
-class TriggerRepository(db.Model, BaseModel):
+class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
     __tablename__ = 'trigger_repositories'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    project_id = sa.Column(
-        sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False
-    )
-
-    uri = sa.Column(sa.String(4096), unique=True, nullable=False)
     watch_dir = sa.Column(sa.String(4096), nullable=False)
     base_branch = sa.Column(sa.String(256), nullable=False, default='main')
     initial_cursor = sa.Column(
         sa.DateTime, nullable=False, server_default=func.now(), default=now_ts
     )
 
-    created_at = sa.Column(sa.DateTime(timezone=False), server_default=func.now(), nullable=True)
-    updated_at = sa.Column(sa.DateTime(timezone=False), onupdate=func.now(), nullable=True)
+    created_at = sqla_column.created_at()
+    updated_at = sqla_column.updated_at()
 
-    project = relationship("Project", back_populates="trigger_repositories")
-    pull_requests = relationship(
-        "PullRequest", back_populates="trigger_repository", cascade="all, delete"
+    __table_args__ = (
+        sa.UniqueConstraint('project_id', 'uri', name='uq_trigger_repositories_project_uri'),
+        sa.ForeignKeyConstraint(
+            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'],
+            ondelete='RESTRICT'
+        ),
     )
 
-    @validates('uri')
-    def validate_uri(self, key, value):
-        """Strip http/https schema from URI on save/update."""
-        if value:
-            value = self.parse_repo_uri(value)
-        return value
+    project = relationship("Project", back_populates="trigger_repositories")
+    secret = relationship(
+        "Secret", back_populates="trigger_repositories", overlaps="trigger_repositories,project"
+    )
+    pull_request_triggers = relationship(
+        "PullRequestTrigger", back_populates="trigger_repository", cascade="all, delete"
+    )
 
     @validates('initial_cursor')
     def validate_initial_cursor(self, key, value):
@@ -54,7 +53,7 @@ class TriggerRepository(db.Model, BaseModel):
             except (ValueError, TypeError):
                 raise ValueError("initial_cursor must be a valid ISO 8601 datetime string")
 
-        if self.id is not None and self.pull_requests:
+        if self.id is not None and self.pull_request_triggers:
             raise ValueError(
                 "Cannot change initial_cursor while pull requests exist. "
                 "Delete all pull requests first if you want to adjust the cursor."
@@ -69,24 +68,12 @@ class TriggerRepository(db.Model, BaseModel):
         """
         return self.project.default_dataset
 
-    @property
-    def path(self):
-        return '/'.join(self.uri.split('/')[1:])
-
-    @classmethod
-    def parse_repo_uri(cls, uri: str) -> str:
-        """
-        Parse the repository URI to extract the host and path.
-        """
-        parsed = urllib.parse.urlparse(uri)
-        return (parsed.netloc + parsed.path).lower().rstrip('/')
-
     def get_pull_request_cursor(self) -> str:
         """
         Get latest PR merge time from all ingested pull requests.
         If no pull requests exist, use initial_cursor as the starting point.
         """
-        pr_cursor = db.session.query(func.max(Models.PullRequest.merged_at))\
+        pr_cursor = db.session.query(func.max(Models.PullRequestTrigger.merged_at))\
             .filter_by(trigger_repository_id=self.id)\
             .scalar()
 
@@ -94,29 +81,21 @@ class TriggerRepository(db.Model, BaseModel):
 
         return (pr_cursor or initial_cursor).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    def sanitized_dict(self):
-        return {
-            'id': self.id,
-            'uri': self.uri,
-            'path': self.path,
-            'watch_dir': self.watch_dir,
-            'base_branch': self.base_branch,
-            'project_id': self.project_id,
-            'dataset_id': self.dataset.id if self.dataset else None,
-            'initial_cursor': self.initial_cursor.isoformat() if self.initial_cursor else None,
-            'pr_cursor': self.get_pull_request_cursor(),
-            'pr_count': len(self.pull_requests)
-        }
-
     def __init__(
         self,
         uri: str,
+        provider: str,
+        api_uri: str,
+        secret_id: int,
         watch_dir: str,
         project_id: int,
         base_branch: str = 'main',
         initial_cursor: dt | None = None,
     ):
         self.uri = uri
+        self.provider = provider
+        self.api_uri = api_uri
+        self.secret_id = secret_id
         self.watch_dir = watch_dir
         self.project_id = project_id
         self.base_branch = base_branch

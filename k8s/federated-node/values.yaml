@@ -251,6 +251,10 @@ fnDagster:
   tag:
   artifactMountPath: /mnt/dagster/artifacts
   artifactsPvcName: artifacts-pvc
+  # Task results are delivered to the project's results repository as a zip. Over this size
+  # (bytes of the zip) the delivery fails.
+  results:
+    maxZipBytes: 10485760
   createDB: false
   # The code location (gRPC) server, owned by this chart rather than the
   # dagster-user-deployments subchart. `name` is the gRPC host in the workspace file.
@@ -385,7 +389,7 @@ gitea:
   service:
     http:
       type: ClusterIP
-      port: 3000
+      port: 4000
     ssh:
       type: ClusterIP
       port: 22

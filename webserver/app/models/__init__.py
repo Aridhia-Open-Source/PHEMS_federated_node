@@ -4,21 +4,6 @@ from sqlalchemy import Column, DateTime
 from sqlalchemy.sql import func
 
 
-class SqlaColumn:
-    """Factory for standardized column definitions shared across models."""
-
-    def created_at(self, **kwargs) -> Column:
-        return Column(DateTime(timezone=False), nullable=False, server_default=func.now(), **kwargs)
-
-    def updated_at(self, **kwargs) -> Column:
-        return Column(DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now(), **kwargs)
-
-
-sqla_column = SqlaColumn()
-
-__all__ = ['sqla_column', 'SqlaColumn', 'ModelRegistry', 'Models']
-
-
 class ModelRegistry:
     """Registry of all app models. Cached on first access."""
 
@@ -48,19 +33,19 @@ class ModelRegistry:
         return Project
 
     @cached_property
-    def PullRequest(self):
-        from app.models.pull_request import PullRequest
-        return PullRequest
+    def PullRequestTrigger(self):
+        from app.models.pull_request_trigger import PullRequestTrigger
+        return PullRequestTrigger
+
+    @cached_property
+    def PullRequestResult(self):
+        from app.models.pull_request_result import PullRequestResult
+        return PullRequestResult
 
     @cached_property
     def Registry(self):
         from app.models.extras.registry import Registry
         return Registry
-
-    @cached_property
-    def Request(self):
-        from app.models.extras.request import Request
-        return Request
 
     @cached_property
     def Task(self):
@@ -88,34 +73,70 @@ class ModelRegistry:
         return ResultsBackend
 
     @cached_property
-    def ApiRequest(self):
-        from app.models.api_request import ApiRequest
-        return ApiRequest
+    def ApiRequestTrigger(self):
+        from app.models.api_request_trigger import ApiRequestTrigger
+        return ApiRequestTrigger
 
     @cached_property
-    def TaskRequest(self):
-        from app.models.task_request import TaskRequest
-        return TaskRequest
+    def Trigger(self):
+        from app.models.trigger import Trigger
+        return Trigger
+
+    @cached_property
+    def Result(self):
+        from app.models.result import Result
+        return Result
+
+    @cached_property
+    def Secret(self):
+        from app.models.secret import Secret
+        return Secret
+
+
+class SqlaColumn:
+    """Factory for standardized column definitions shared across models."""
+
+    def created_at(self, **kwargs) -> Column:
+        return Column(
+            DateTime(timezone=False),
+            nullable=False,
+            server_default=func.now(),
+            **kwargs
+        )
+
+    def updated_at(self, **kwargs) -> Column:
+        return Column(
+            DateTime(timezone=False),
+            nullable=False,
+            server_default=func.now(),
+            onupdate=func.now(),
+            **kwargs
+        )
 
 
 Models = ModelRegistry()
+sqla_column = SqlaColumn()
+__all__ = ['sqla_column', 'SqlaColumn', 'ModelRegistry', 'Models']
 
-# Force eager import of all models to register them with SQLAlchemy before mapper configuration
-# This ensures string-based relationships can be resolved
+
+# Force eager import of all models to register them with SQLA before mapper configuration
+# This ensures string-based relationships can be resolved to avoid circular dependencies.
 _ = (
     Models.Audit,
     Models.Catalogue,
     Models.Dataset,
     Models.Dictionary,
     Models.Project,
-    Models.PullRequest,
+    Models.PullRequestTrigger,
     Models.Registry,
-    Models.Request,
     Models.Task,
     Models.WhitelistedImage,
     Models.TriggerRepository,
     Models.ResultsRepository,
     Models.ResultsBackend,
-    Models.ApiRequest,
-    Models.TaskRequest,
+    Models.ApiRequestTrigger,
+    Models.Trigger,
+    Models.Secret,
+    Models.Result,
+    Models.PullRequestResult,
 )

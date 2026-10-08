@@ -32,49 +32,58 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
 
-    # Create results_repositories table first (no dependencies)
-    op.create_table(
-        'results_repositories',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('uri', sa.String(length=4096), nullable=False),
-        sa.Column('owned_by_federated_node', sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('uri'),
-    )
-
     # Create projects table
     op.create_table(
         'projects',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('description', sa.String(length=4096), nullable=True),
+        sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column('default_dataset_id', sa.Integer(), nullable=True),
-        sa.Column('results_repository_id', sa.Integer(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.ForeignKeyConstraint(['results_repository_id'], ['results_repositories.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('name'),
     )
-    op.create_index('ix_projects_id', 'projects', ['id'])
+
+    # Create secrets table (references to secrets that live in a secret store)
+    op.create_table(
+        'secrets',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('project_id', sa.Integer(), nullable=False),
+        sa.Column('label', sa.String(length=253), nullable=False),
+        sa.Column('description', sa.String(length=4096), nullable=True),
+        sa.Column('provider', sa.Enum('K8S', name='secretprovidertype'), nullable=False),
+        sa.Column('key', sa.String(length=253), nullable=False),
+        sa.Column('namespace', sa.String(length=253), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('project_id', 'label'),
+        sa.UniqueConstraint('project_id', 'id'),
+        sa.UniqueConstraint('key'),
+    )
 
     # Create datasets table
     op.create_table(
         'datasets',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=False),
+        sa.Column('secret_id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('host', sa.String(length=256), nullable=False),
-        sa.Column('port', sa.Integer(), nullable=False, server_default=sa.literal_column('5432')),
-        sa.Column('schema', sa.String(length=256), nullable=True),
-        sa.Column('schema_write', sa.String(length=256), nullable=True),
+        sa.Column('port', sa.Integer(), nullable=True),
+        sa.Column('read_schema', sa.String(length=256), nullable=True),
+        sa.Column('write_schema', sa.String(length=256), nullable=True),
         sa.Column('type', sa.String(length=256), nullable=False, server_default='postgres'),
         sa.Column('extra_connection_args', sa.String(length=4096), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
+        sa.ForeignKeyConstraint(
+            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'], ondelete='RESTRICT'
+        ),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('name'),
     )
@@ -85,77 +94,60 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=False),
         sa.Column('uri', sa.String(length=4096), nullable=False),
+        sa.Column('provider', sa.String(length=16), nullable=False),
+        sa.Column('api_uri', sa.String(length=4096), nullable=False),
+        sa.Column('secret_id', sa.Integer(), nullable=False),
         sa.Column('watch_dir', sa.String(length=4096), nullable=False),
         sa.Column('base_branch', sa.String(length=256), nullable=False, server_default='main'),
         sa.Column('initial_cursor', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.Column('created_at', sa.DateTime(timezone=False), nullable=True),
-        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=True),
-        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('uri'),
-    )
-
-    # Create pull_request_status enum table (if needed)
-    op.create_table(
-        'pull_request_statuses',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('status', sa.String(256), nullable=False),
-        sa.PrimaryKeyConstraint('id'),
-    )
-
-    # Create pull_requests table
-    op.create_table(
-        'pull_requests',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('trigger_repository_id', sa.Integer(), nullable=False),
-        sa.Column('number', sa.Integer(), nullable=False),
-        sa.Column('title', sa.String(length=512), nullable=False),
-        sa.Column('description', sa.String(length=4096), nullable=True),
-        sa.Column('author', sa.String(length=256), nullable=False),
-        sa.Column('spec', sa.JSON(), nullable=False, server_default='{}'),
-        sa.Column('status', sa.String(256), nullable=False, server_default='UNKNOWN'),
-        sa.Column('merged_at', sa.DateTime(), nullable=True),
-        sa.Column('merge_commit_sha', sa.String(length=40), nullable=True),
-        sa.Column('raised_by', sa.String(length=256), nullable=False),
-        sa.Column('saved_at', sa.DateTime(timezone=False), nullable=True, server_default=sa.func.now()),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.ForeignKeyConstraint(['trigger_repository_id'], ['trigger_repositories.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
+        sa.ForeignKeyConstraint(
+            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'], ondelete='RESTRICT'
+        ),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('trigger_repository_id', 'number'),
+        sa.UniqueConstraint('project_id', 'uri', name='uq_trigger_repositories_project_uri'),
     )
 
-    # Create task_status enum table (if needed)
+    # Create results_repositories table
     op.create_table(
-        'task_statuses',
+        'results_repositories',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('status', sa.String(256), nullable=False),
-        sa.PrimaryKeyConstraint('id'),
-    )
-
-    # Create requests table (Data Access Requests - separate from api_requests)
-    op.create_table(
-        'requests',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('dataset_id', sa.Integer(), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=False),
+        sa.Column('uri', sa.String(length=4096), nullable=False),
+        sa.Column('provider', sa.String(length=16), nullable=False),
+        sa.Column('api_uri', sa.String(length=4096), nullable=False),
+        sa.Column('secret_id', sa.Integer(), nullable=False),
+        sa.Column('target_dir', sa.String(length=4096), nullable=False),
+        sa.Column('owned_by_federated_node', sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
+        sa.ForeignKeyConstraint(
+            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'], ondelete='RESTRICT'
+        ),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('project_id', name='uq_results_repositories_project'),
+        sa.UniqueConstraint('project_id', 'uri', name='uq_results_repositories_project_uri'),
+    )
+
+    # Create dars table (Data Access Requests - separate from the api_request_triggers trigger)
+    op.create_table(
+        'dars',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('dataset_id', sa.Integer(), nullable=True),
+        sa.Column('project_id', sa.Integer(), nullable=True),
+        sa.Column('title', sa.String(length=256), nullable=False),
         sa.Column('description', sa.String(length=4096), nullable=True),
+        sa.Column('requested_by', sa.String(length=256), nullable=False),
+        sa.Column('project_name', sa.String(length=256), nullable=False),
+        sa.Column('status', sa.String(length=256), nullable=True),
+        sa.Column('proj_start', sa.DateTime(timezone=False), nullable=False),
+        sa.Column('proj_end', sa.DateTime(timezone=False), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id'),
-    )
-
-    # Create api_requests table (NEW - API trigger requests)
-    op.create_table(
-        'api_requests',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('project_id', sa.Integer(), nullable=False),
-        sa.Column('user_id', sa.String(length=256), nullable=False),
-        sa.Column('status', sa.String(length=32), nullable=False, server_default='UNKNOWN'),
-        sa.Column('payload', sa.JSON(), nullable=False, server_default='{}'),
-        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
     )
@@ -174,21 +166,51 @@ def upgrade() -> None:
         sa.UniqueConstraint('project_id'),
     )
 
-    # Create task_requests table (NEW - unified trigger entity)
+    # Create triggers table (why a task ran; joined-table parent of pull_request_triggers and
+    # api_request_triggers)
     op.create_table(
-        'task_requests',
+        'triggers',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('pull_request_id', sa.Integer(), nullable=True),
-        sa.Column('api_request_id', sa.Integer(), nullable=True),
+        sa.Column('type', sa.String(length=16), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=False),
-        sa.Column('status', sa.String(length=32), nullable=False, server_default='UNKNOWN'),
-        sa.Column('payload', sa.JSON(), nullable=False, server_default='{}'),
+        sa.Column('state', sa.String(length=32), nullable=False, server_default='UNKNOWN'),
+        sa.Column('state_cause', sa.String(length=1024), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.ForeignKeyConstraint(['pull_request_id'], ['pull_requests.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['api_request_id'], ['api_requests.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
+        sa.CheckConstraint(
+            "(state IN ('IGNORED', 'REJECTED')) = (state_cause IS NOT NULL)",
+            name='ck_triggers_state_cause_for_ignored_rejected',
+        ),
         sa.PrimaryKeyConstraint('id'),
+    )
+    op.create_index('ix_triggers_state', 'triggers', ['state'])
+
+    # Create pull_request_triggers table (a trigger)
+    op.create_table(
+        'pull_request_triggers',
+        sa.Column('trigger_id', sa.Integer(), nullable=False),
+        sa.Column('trigger_repository_id', sa.Integer(), nullable=False),
+        sa.Column('number', sa.Integer(), nullable=False),
+        sa.Column('title', sa.String(length=256), nullable=False),
+        sa.Column('raised_by', sa.String(length=256), nullable=False),
+        sa.Column('merge_commit_sha', sa.String(length=40), nullable=False),
+        sa.Column('merged_at', sa.DateTime(), nullable=False),
+        sa.Column('payload', sa.JSON(), nullable=False),
+        sa.ForeignKeyConstraint(['trigger_id'], ['triggers.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['trigger_repository_id'], ['trigger_repositories.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('trigger_id'),
+        sa.UniqueConstraint('trigger_repository_id', 'number', name='uq_pr_repo_number'),
+    )
+
+    # Create api_request_triggers table (a trigger)
+    op.create_table(
+        'api_request_triggers',
+        sa.Column('trigger_id', sa.Integer(), nullable=False),
+        sa.Column('user_id', sa.String(length=256), nullable=False),
+        sa.Column('payload', sa.JSON(), nullable=False, server_default='{}'),
+        sa.ForeignKeyConstraint(['trigger_id'], ['triggers.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('trigger_id'),
     )
 
     # Create tasks table
@@ -196,119 +218,146 @@ def upgrade() -> None:
         'tasks',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=False),
-        sa.Column('pr_repository_id', sa.Integer(), nullable=True),
-        sa.Column('pr_number', sa.Integer(), nullable=True),
-        sa.Column('api_request_id', sa.Integer(), nullable=True),
-        sa.Column('request_id', sa.Integer(), nullable=True),
+        sa.Column('trigger_id', sa.Integer(), nullable=False),
         sa.Column('dataset_id', sa.Integer(), nullable=True),
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('docker_image', sa.String(length=256), nullable=False),
-        sa.Column('description', sa.String(length=4096), nullable=True),
-        sa.Column('status', sa.String(length=256), nullable=False, server_default='scheduled'),
+        sa.Column('status', sa.String(length=256), nullable=True),
+        sa.Column('attempt', sa.Integer(), nullable=False, server_default='1'),
         sa.Column('requested_by', sa.String(length=256), nullable=False),
-        sa.Column('review_status', sa.Boolean(), nullable=True),
-        sa.Column('trigger_source', sa.String(length=16), nullable=False, server_default='API'),
         sa.Column('dagster_run_id', sa.String(length=64), nullable=True),
         sa.Column('started_at', sa.DateTime(), nullable=True),
         sa.Column('completed_at', sa.DateTime(), nullable=True),
         sa.Column('exit_code', sa.Integer(), nullable=True),
-        sa.Column('reason', sa.String(length=256), nullable=True),
-        sa.Column('artifact_key', sa.String(length=512), nullable=True),
         sa.Column('params', sa.JSON(), nullable=False, server_default='{}'),
-        sa.Column('reviewed_by', sa.String(length=256), nullable=True),
-        sa.Column('reviewed_at', sa.DateTime(), nullable=True),
-        sa.Column('git_commit_sha', sa.String(length=40), nullable=True),
-        sa.Column('results_path', sa.String(length=512), nullable=True),
-        sa.Column('trigger_payload', sa.JSON(), nullable=True),
+        sa.Column('spec', sa.JSON(), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.ForeignKeyConstraint(['api_request_id'], ['api_requests.id'], ondelete='SET NULL'),
         sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
-        sa.ForeignKeyConstraint(['request_id'], ['requests.id'], ondelete='SET NULL'),
+        sa.ForeignKeyConstraint(['trigger_id'], ['triggers.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('dagster_run_id'),
+        sa.UniqueConstraint('trigger_id'),
     )
     op.create_index('ix_tasks_project_id', 'tasks', ['project_id'])
+    op.create_index('ix_tasks_dataset_status', 'tasks', ['dataset_id', 'status'])
+    op.create_index('ix_tasks_requested_by', 'tasks', ['requested_by'])
+    op.create_index('ix_tasks_docker_image', 'tasks', ['docker_image'])
+    op.create_index('ix_tasks_status_project', 'tasks', ['status', 'project_id'])
 
-    # Create whitelisted_images table
+    # Create results table
     op.create_table(
-        'whitelisted_images',
+        'results',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('project_id', sa.Integer(), nullable=False),
-        sa.Column('image', sa.String(length=512), nullable=False),
-        sa.Column('active', sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column('type', sa.String(length=16), nullable=False),
+        sa.Column('task_id', sa.Integer(), nullable=False),
+        sa.Column('results_repository_id', sa.Integer(), nullable=False),
+        sa.Column('attempts', sa.Integer(), nullable=False, server_default='0'),
+        sa.Column('error', sa.String(length=1024), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['task_id'], ['tasks.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['results_repository_id'], ['results_repositories.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('project_id', 'image'),
+        sa.UniqueConstraint('task_id', 'results_repository_id', name='uq_results_task_repository'),
     )
 
-    # Create catalogues table
+    # Create pull_request_results table (a result)
     op.create_table(
-        'catalogues',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('dataset_id', sa.Integer(), nullable=False),
-        sa.Column('field_name', sa.String(length=256), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('dataset_id', 'field_name'),
-    )
-
-    # Create dictionaries table
-    op.create_table(
-        'dictionaries',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('dataset_id', sa.Integer(), nullable=False),
-        sa.Column('field_name', sa.String(length=256), nullable=False),
-        sa.Column('definition', sa.String(length=4096), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('dataset_id', 'field_name'),
+        'pull_request_results',
+        sa.Column('result_id', sa.Integer(), nullable=False),
+        sa.Column('state', sa.String(length=32), nullable=False, server_default='UNKNOWN'),
+        sa.Column('branch', sa.String(length=256), nullable=True),
+        sa.Column('commit_sha', sa.String(length=40), nullable=True),
+        sa.Column('number', sa.Integer(), nullable=True),
+        sa.Column('url', sa.String(length=4096), nullable=True),
+        sa.Column('merged_at', sa.DateTime(), nullable=True),
+        sa.Column('merge_commit_sha', sa.String(length=40), nullable=True),
+        sa.ForeignKeyConstraint(['result_id'], ['results.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('result_id'),
     )
 
     # Create registries table
     op.create_table(
         'registries',
         sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('url', sa.String(length=256), nullable=False),
+        sa.Column('needs_auth', sa.Boolean(), nullable=True),
+        sa.Column('active', sa.Boolean(), nullable=True),
+        sa.PrimaryKeyConstraint('id'),
+    )
+
+    # Create whitelisted_images table
+    op.create_table(
+        'whitelisted_images',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('registry_id', sa.Integer(), nullable=True),
         sa.Column('project_id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(length=256), nullable=False),
-        sa.Column('url', sa.String(length=512), nullable=False),
-        sa.Column('active', sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('tag', sa.String(length=256), nullable=True),
+        sa.Column('sha', sa.String(length=256), nullable=True),
+        sa.ForeignKeyConstraint(['registry_id'], ['registries.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
     )
 
-    # Add deferred FK for default_dataset_id (circular dependency)
-    op.create_foreign_key('fk_projects_default_dataset_id', 'projects', 'datasets',
-                         ['default_dataset_id'], ['id'], ondelete='RESTRICT', deferrable=True, initially='DEFERRED')
+    # Create catalogues table
+    op.create_table(
+        'catalogues',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('dataset_id', sa.Integer(), nullable=True),
+        sa.Column('version', sa.String(length=256), nullable=True),
+        sa.Column('title', sa.String(length=256), nullable=False),
+        sa.Column('description', sa.String(length=4096), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('title', 'dataset_id'),
+    )
+
+    # Create dictionaries table
+    op.create_table(
+        'dictionaries',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('dataset_id', sa.Integer(), nullable=True),
+        sa.Column('table_name', sa.String(length=256), nullable=False),
+        sa.Column('field_name', sa.String(length=256), nullable=False),
+        sa.Column('label', sa.String(length=256), nullable=True),
+        sa.Column('description', sa.String(length=4096), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('table_name', 'dataset_id', 'field_name'),
+    )
+
+    # Add the circular FK from projects to datasets, as the model declares it
+    op.create_foreign_key('fk_projects_default_dataset', 'projects', 'datasets',
+                          ['default_dataset_id'], ['id'], ondelete='SET NULL')
 
 
 def downgrade() -> None:
-    # Drop tables in reverse order
-    op.drop_table('registries')
+    # The projects <-> datasets cycle first, then the tables in reverse order
+    op.drop_constraint('fk_projects_default_dataset', 'projects', type_='foreignkey')
     op.drop_table('dictionaries')
     op.drop_table('catalogues')
     op.drop_table('whitelisted_images')
-    op.drop_table('task_requests')
-    op.drop_index('ix_tasks_project_id', 'tasks')
+    op.drop_table('registries')
+    op.drop_table('pull_request_results')
+    op.drop_table('results')
     op.drop_table('tasks')
+    op.drop_table('api_request_triggers')
+    op.drop_table('pull_request_triggers')
+    op.drop_index('ix_triggers_state', 'triggers')
+    op.drop_table('triggers')
     op.drop_table('results_backends')
-    op.drop_table('api_requests')
-    op.drop_table('requests')
-    op.drop_table('task_statuses')
-    op.drop_table('pull_requests')
-    op.drop_table('pull_request_statuses')
+    op.drop_table('dars')
+    op.drop_table('results_repositories')
     op.drop_table('trigger_repositories')
     op.drop_table('datasets')
-    op.drop_index('ix_projects_id', 'projects')
+    op.drop_table('secrets')
+    sa.Enum(name='secretprovidertype').drop(op.get_bind())
     op.drop_table('projects')
-    op.drop_table('results_repositories')
     op.drop_table('audit')

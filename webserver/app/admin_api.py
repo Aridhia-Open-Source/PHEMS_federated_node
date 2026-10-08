@@ -8,6 +8,8 @@ from http import HTTPStatus
 from flask import Blueprint, request
 from sqlalchemy.orm import scoped_session, sessionmaker
 
+from .dtos.audit import AuditDTO
+from .dtos.base import page_of
 from .helpers.base_model import engine
 from .helpers.exceptions import NotImplementedException
 from .helpers.query_filters import parse_query_params
@@ -27,7 +29,7 @@ def get_audit_logs():
     GET /audit endpoint.
         Returns a list of audit entries
     """
-    return parse_query_params(Audit, request.args.copy()), HTTPStatus.OK
+    return page_of(parse_query_params(Audit, request.args.copy()), AuditDTO), HTTPStatus.OK
 
 
 @bp.route('/delivery-secret', methods=['PATCH'])
