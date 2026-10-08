@@ -8,6 +8,10 @@ from app.config import BackendConfig
 from app.definitions.jobs import k8s_pipes_job
 from app.definitions.sensors.task.delivery import deliver_results_job, task_results_delivery_sensor
 from app.definitions.sensors.task.launcher import TaskLauncherSensor
+from app.definitions.sensors.task.pull_request_sync import (
+    results_pull_request_sync_sensor,
+    sync_results_pull_requests_job,
+)
 from app.definitions.sensors.task.run_status import TaskRunStatusSensor
 from app.utils import BackendAdapter, BackendSession
 
@@ -112,6 +116,7 @@ SENSORS = [
     task_failure_sensor,
     task_canceled_sensor,
     task_results_delivery_sensor,
+    results_pull_request_sync_sensor,
 ]
 
-JOBS = [deliver_results_job]
+JOBS = [deliver_results_job, sync_results_pull_requests_job]

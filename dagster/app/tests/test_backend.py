@@ -256,7 +256,7 @@ class TestTasks:
 
 
 class TestTaskResults:
-    RESULT = {"id": 9, "task_id": 7, "results_repository_id": 5, "status": "PENDING", "attempts": 0}
+    RESULT = {"id": 9, "type": "PR", "task_id": 7, "results_repository_id": 5, "status": "PENDING", "attempts": 0}
 
     def test_the_results_repository_is_the_one_of_the_project(self, api, session):
         repository = {
@@ -285,3 +285,11 @@ class TestTaskResults:
         assert api.get_task_results(7)[0].id == 9
         session.patch.assert_called_once_with("/task_results/9", json={"status": "DELIVERED"})
         session.get.assert_called_once_with("/tasks/7/results")
+
+    def test_list_by_pull_request_state(self, api, session):
+        session.get.return_value = make_response([{**self.RESULT, "pull_request_state": "OPEN"}])
+
+        (result,) = api.get_task_results_by_pull_request_state("OPEN")
+
+        assert result.pull_request_state == "OPEN"
+        session.get.assert_called_once_with("/task_results", params={"pull_request_state": "OPEN"})

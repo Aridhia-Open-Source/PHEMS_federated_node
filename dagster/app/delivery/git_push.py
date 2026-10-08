@@ -62,6 +62,17 @@ def clone(url: str, dest: Path, env: dict[str, str]) -> None:
     git(["config", "user.email", COMMITTER_EMAIL], cwd=dest)
 
 
+def current_branch(repo_dir: Path) -> str:
+    """The checked-out branch: right after a clone, the remote's default branch."""
+    return git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_dir)
+
+
+def remote_branch_sha(repo_dir: Path, branch: str, env: dict[str, str]) -> str | None:
+    """The sha the branch points at on the remote, or None if the remote has no such branch."""
+    out = git(["ls-remote", "--heads", "origin", f"refs/heads/{branch}"], cwd=repo_dir, env=env)
+    return out.split()[0] if out else None
+
+
 def checkout_new_branch(repo_dir: Path, branch: str) -> None:
     """Start a new branch from the cloned commit."""
     git(["checkout", "-b", branch], cwd=repo_dir)
