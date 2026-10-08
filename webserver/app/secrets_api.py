@@ -199,7 +199,7 @@ def delete_secret(project_id, label):
     secret. Refused while a repository or dataset still uses it.
     """
     secret = _get_secret(project_id, label)
-    users = len(secret.datasets)
+    users = len(secret.trigger_repositories) + len(secret.results_repositories) + len(secret.datasets)
     if users:
         raise InvalidRequest(
             f"Secret {secret.label} is still used by {users} repositories or datasets",
