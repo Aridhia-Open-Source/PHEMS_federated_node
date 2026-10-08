@@ -21,3 +21,8 @@ class ResultsRepository(BaseModel):
     secret: Secret
     target_dir: str
     project_id: int
+
+    @property
+    def repo_path(self) -> str:
+        """Where the repository is on the provider's API (owner/repo), as TriggerRepository.repo_path."""
+        return "/".join(self.uri.removesuffix("/").removesuffix(".git").split("/")[-2:])

@@ -6,16 +6,18 @@ from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 from app.backend import BackendAPI
 from app.config import ResultsDeliveryConfig
 from app.definitions.jobs import k8s_pipes_job
+from app.definitions.sensors.git.base import GitAPIFactory
 from app.delivery.results import ResultsDelivery
 
 MIN_SENSOR_INTERVAL_SECONDS = 10
 
 
-@dg.op(config_schema={"task_id": dg.Field(int)}, required_resource_keys={"backend_api"})
+@dg.op(config_schema={"task_id": dg.Field(int)}, required_resource_keys={"backend_api", "git_apis"})
 def deliver_results(context: OpExecCtx):
     """Deliver the results of a task to its project's results repository."""
     ResultsDelivery(
         backend_api=cast(BackendAPI, context.resources.backend_api),
+        git_apis=cast(GitAPIFactory, context.resources.git_apis),
         config=ResultsDeliveryConfig(),
         log=context.log,
     )(context.op_config["task_id"])

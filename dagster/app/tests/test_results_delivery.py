@@ -71,17 +71,38 @@ def backend_api():
     api.get_repositories.return_value = [TRIGGER_REPOSITORY]
     api.get_pull_requests.return_value = [PULL_REQUEST]
     api.create_task_result.return_value = TaskResult(
-        id=9, task_id=7, results_repository_id=5, status="PENDING", attempts=0,
+        id=9, type="PR", task_id=7, results_repository_id=5, status="PENDING", attempts=0,
     )
     return api
 
 
-def deliver(backend_api, remote, artifacts, max_zip_bytes=10485760):
+RESULTS_PR = {
+    "number": 3, "html_url": "http://gitea/fn/results/pulls/3", "state": "open", "merged_at": None,
+    "merge_commit_sha": None,
+}
+
+
+@pytest.fixture
+def git_api():
+    api = MagicMock()
+    api.find_pull_request_by_branch.return_value = None
+    api.create_pull_request.return_value = RESULTS_PR
+    return api
+
+
+@pytest.fixture
+def git_apis(git_api):
+    factory = MagicMock()
+    factory.for_repository.return_value = git_api
+    return factory
+
+
+def deliver(backend_api, remote, artifacts, git_apis=None, max_zip_bytes=10485760):
     config = ResultsDeliveryConfig(DAGSTER_ARTIFACT_MOUNT_PATH=str(artifacts), RESULTS_MAX_ZIP_BYTES=max_zip_bytes)
     with patch("app.delivery.results.SecretProvider") as provider, \
             patch.object(git_push, "clone_url", return_value=str(remote)):
         provider.return_value.get.return_value = "tok"
-        ResultsDelivery(backend_api, config, MagicMock())(7)
+        ResultsDelivery(backend_api, git_apis or MagicMock(), config, MagicMock())(7)
     return provider
 
 
@@ -91,8 +112,10 @@ def patched_fields(backend_api):
     return fields
 
 
-def test_success_pushes_a_branch_with_the_layout_and_marks_the_row_delivered(backend_api, remote, artifacts, tmp_path):
-    provider = deliver(backend_api, remote, artifacts)
+def test_success_pushes_a_branch_with_the_layout_and_marks_the_row_delivered(
+    backend_api, remote, artifacts, tmp_path, git_apis
+):
+    provider = deliver(backend_api, remote, artifacts, git_apis)
 
     provider.return_value.get.assert_called_once_with(SAMPLE_SECRET["key"], "fn", "TOKEN")
     fields = patched_fields(backend_api)
@@ -101,6 +124,7 @@ def test_success_pushes_a_branch_with_the_layout_and_marks_the_row_delivered(bac
     check = tmp_path / "check"
     git("clone", "--branch", BRANCH, str(remote), str(check), cwd=tmp_path)
     assert fields["commit_sha"] == git("rev-parse", "HEAD", cwd=check)
+    assert fields["branch"] == BRANCH
     out = check / LAYOUT
     with zipfile.ZipFile(out / "results.zip") as zf:
         assert sorted(zf.namelist()) == ["out.txt", "sub/b.csv"]
@@ -155,7 +179,7 @@ def test_a_task_without_a_pull_request_fails_the_delivery(backend_api, remote, a
 
 def test_a_delivered_row_is_left_alone(backend_api, remote, artifacts):
     backend_api.create_task_result.return_value = TaskResult(
-        id=9, task_id=7, results_repository_id=5, status="DELIVERED", attempts=1,
+        id=9, type="PR", task_id=7, results_repository_id=5, status="DELIVERED", attempts=1,
     )
 
     deliver(backend_api, remote, artifacts)
@@ -164,15 +188,76 @@ def test_a_delivered_row_is_left_alone(backend_api, remote, artifacts):
     assert git("rev-list", "--count", "main", cwd=remote) == "1"
 
 
-def test_a_retry_after_a_failure_delivers_and_counts_the_attempt(backend_api, remote, artifacts):
+def test_a_retry_after_a_failure_delivers_and_counts_the_attempt(backend_api, remote, artifacts, git_apis):
     backend_api.create_task_result.return_value = TaskResult(
-        id=9, task_id=7, results_repository_id=5, status="FAILED", attempts=1, error="boom",
+        id=9, type="PR", task_id=7, results_repository_id=5, status="FAILED", attempts=1, error="boom",
     )
 
-    deliver(backend_api, remote, artifacts)
+    deliver(backend_api, remote, artifacts, git_apis)
 
     fields = patched_fields(backend_api)
     assert (fields["status"], fields["attempts"], fields["error"]) == ("DELIVERED", 2, None)
+
+
+def test_the_pull_request_is_opened_into_the_default_branch_and_recorded(backend_api, remote, artifacts, git_api, git_apis):
+    deliver(backend_api, remote, artifacts, git_apis)
+
+    git_apis.for_repository.assert_called_once_with(REPOSITORY)
+    git_api.find_pull_request_by_branch.assert_called_once_with("fn/results", BRANCH, "main")
+    repo_path, head, base, title, _ = git_api.create_pull_request.call_args.args
+    assert (repo_path, head, base) == ("fn/results", BRANCH, "main")
+    assert title == "fn/analysis PR12 - task 7 - results"
+    fields = patched_fields(backend_api)
+    assert fields["status"] == "DELIVERED"
+    assert fields["pull_request_number"] == 3
+    assert fields["pull_request_url"] == "http://gitea/fn/results/pulls/3"
+    assert fields["pull_request_state"] == "OPEN"
+
+
+def test_a_pull_request_failure_fails_the_row_with_the_branch_recorded(backend_api, remote, artifacts, git_api, git_apis):
+    git_api.create_pull_request.side_effect = RuntimeError("provider down")
+
+    with pytest.raises(RuntimeError, match="provider down"):
+        deliver(backend_api, remote, artifacts, git_apis)
+
+    fields = patched_fields(backend_api)
+    assert fields["status"] == "FAILED"
+    assert fields["error"] == "RuntimeError: provider down"
+    assert fields["branch"] == BRANCH
+    assert fields["commit_sha"] == git("rev-parse", BRANCH, cwd=remote)
+    assert "pull_request_number" not in fields
+
+
+def test_a_retry_skips_the_push_of_a_pushed_branch_and_opens_its_pull_request(
+    backend_api, remote, artifacts, git_api, git_apis
+):
+    git_api.create_pull_request.side_effect = RuntimeError("provider down")
+    with pytest.raises(RuntimeError):
+        deliver(backend_api, remote, artifacts, git_apis)
+    pushed_sha = git("rev-parse", BRANCH, cwd=remote)
+    backend_api.create_task_result.return_value = TaskResult(
+        id=9, type="PR", task_id=7, results_repository_id=5, status="FAILED", attempts=1, error="boom",
+        branch=BRANCH, commit_sha=pushed_sha,
+    )
+    git_api.create_pull_request.side_effect = None
+
+    deliver(backend_api, remote, artifacts, git_apis)
+
+    fields = patched_fields(backend_api)
+    assert (fields["status"], fields["attempts"], fields["error"]) == ("DELIVERED", 2, None)
+    assert (fields["branch"], fields["commit_sha"]) == (BRANCH, pushed_sha)
+    assert git("rev-list", "--count", f"main..{BRANCH}", cwd=remote) == "1"
+    assert fields["pull_request_number"] == 3
+
+
+def test_a_retry_records_the_pull_request_an_earlier_attempt_opened(backend_api, remote, artifacts, git_api, git_apis):
+    git_api.find_pull_request_by_branch.return_value = {**RESULTS_PR, "state": "closed", "merged_at": "2026-10-08T10:00:00Z"}
+
+    deliver(backend_api, remote, artifacts, git_apis)
+
+    git_api.create_pull_request.assert_not_called()
+    fields = patched_fields(backend_api)
+    assert (fields["status"], fields["pull_request_number"], fields["pull_request_state"]) == ("DELIVERED", 3, "MERGED")
 
 
 def test_the_token_stays_out_of_the_command_line():

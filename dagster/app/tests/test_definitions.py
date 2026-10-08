@@ -27,6 +27,7 @@ class TestCodeLocation:
             "task_failure_sensor",
             "task_canceled_sensor",
             "task_results_delivery_sensor",
+            "results_pull_request_sync_sensor",
         } <= names
 
     def test_the_pipes_client_is_a_resource(self):

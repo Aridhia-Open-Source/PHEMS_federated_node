@@ -3,6 +3,7 @@
 from app.models.dataset import Catalogue, Dataset, Dictionary
 from app.models.project import Project
 from app.models.pull_request import PullRequest
+from app.models.pull_request_result_state import PullRequestResultState
 from app.models.pull_request_spec import PullRequestSpec
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
@@ -20,6 +21,7 @@ __all__ = [
     "Dictionary",
     "Project",
     "PullRequest",
+    "PullRequestResultState",
     "PullRequestSpec",
     "ResultsRepository",
     "Secret",
