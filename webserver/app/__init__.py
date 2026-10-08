@@ -7,17 +7,18 @@ All general configs are taken care in here:
 """
 import logging
 import traceback
+from flask import Flask
 from flask_swagger_ui import get_swaggerui_blueprint
 from sqlalchemy import exc
 from werkzeug.exceptions import HTTPException
 
 from app import (
-    main, admin_api, datasets_api, tasks_api, requests_api, projects_api,
-    whitelisted_images_api, registries_api, users_api, trigger_repositories_api
+    main, admin_api, datasets_api, tasks_api, projects_api,
+    registries_api, users_api, trigger_repositories_api,
+    secrets_api, results_repositories_api, results_api
 )
 from app.helpers.base_model import build_sql_uri, db
 from app.helpers.exceptions import LogAndException
-from app.fn_flask import FNFlask
 
 
 logging.basicConfig(level=logging.WARN)
@@ -28,7 +29,7 @@ def create_app():
     """
     Standard Flask initialization function
     """
-    app = FNFlask(__name__)
+    app = Flask(__name__)
     app.config["SQLALCHEMY_DATABASE_URI"] = build_sql_uri()
     app.config["TRAP_HTTP_EXCEPTIONS"] = True
 
@@ -70,13 +71,16 @@ def create_app():
     app.register_blueprint(main.bp)
     app.register_blueprint(projects_api.bp)
     app.register_blueprint(datasets_api.bp)
-    app.register_blueprint(requests_api.bp)
     app.register_blueprint(tasks_api.bp)
+    app.register_blueprint(results_api.bp)
     app.register_blueprint(admin_api.bp)
-    app.register_blueprint(whitelisted_images_api.bp)
+    # TODO(whitelisted_images): disconnected for now, revisit with the authorization rework.
+    # Re-attach with: app.register_blueprint(whitelisted_images_api.bp)
     app.register_blueprint(registries_api.bp)
     app.register_blueprint(users_api.bp)
     app.register_blueprint(trigger_repositories_api.bp)
+    app.register_blueprint(secrets_api.bp)
+    app.register_blueprint(results_repositories_api.bp)
 
     @app.teardown_appcontext
     # pylint: disable=unused-argument

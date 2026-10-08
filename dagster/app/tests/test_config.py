@@ -4,7 +4,6 @@ from pydantic import ValidationError
 from app.config import (
     BackendConfig,
     GithubConfig,
-    GithubTransferConfig,
     PipesSecurityContextConfig,
     SensorConfig,
 )
@@ -49,13 +48,6 @@ class TestEnvConfig:
         monkeypatch.setenv("GH_TOKEN", "abc")
 
         assert GithubConfig().base_uri == "https://api.github.com"
-
-    def test_transfer_config_defaults_to_the_main_branch(self, monkeypatch):
-        for key in ("GH_TOKEN", "GH_DELIVERY_REPO", "GH_RESULTS_DIR",
-                    "DAGSTER_ARTIFACT_MOUNT_PATH"):
-            monkeypatch.setenv(key, "x")
-
-        assert GithubTransferConfig().base_branch == "main"
 
     def test_sensor_config_requires_its_paths(self, monkeypatch):
         monkeypatch.setenv("GH_TOKEN", "abc")

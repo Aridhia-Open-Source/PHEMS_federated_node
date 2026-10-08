@@ -1,18 +1,15 @@
 import os
 import logging
-import base64
 from pathlib import Path
-from typing import cast
 
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx
 from dagster_k8s import PipesK8sClient
 from dagster._core.pipes.client import PipesClientCompletedInvocation
-from kubernetes import client
-from kubernetes.client import V1Secret
-from kubernetes.config import load_incluster_config
 
 from app.config import PipesSecurityContextConfig
+from app.secrets import SecretProvider
+from app.models import SecretProviderType
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,13 +24,20 @@ TERMINATION_GRACE_PERIOD_SECONDS = 300
         "docker_image": dg.Field(str),
         "env": dg.Field(dict, default_value={}, is_required=False),
         "image_pull_secret": dg.Field(str, is_required=False),
-        "dataset_secret_name": dg.Field(str, is_required=False),
-        "dataset_name": dg.Field(str, is_required=False),
-        "dataset_host": dg.Field(str, is_required=False),
-        "dataset_port": dg.Field(int, is_required=False),
-        "dataset_type": dg.Field(str, is_required=False),
-        "dataset_schema": dg.Field(str, is_required=False),
-        "dataset_schema_write": dg.Field(str, is_required=False),
+        "dataset": dg.Field(
+            dg.Shape(
+                {
+                    "name": str,
+                    "host": str,
+                    "port": int,
+                    "type": str,
+                    "read_schema": dg.Noneable(str),
+                    "write_schema": dg.Noneable(str),
+                    "secret": dg.Shape({"provider": str, "key": str, "namespace": dg.Noneable(str)}),
+                }
+            ),
+            is_required=False,
+        ),
     }
 )
 def k8s_pipes_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> dg.Output:
@@ -62,13 +66,12 @@ class K8sPipe:
         self.env = self._setup_env(ext_env)
 
     def _setup_dataset(self):
-        if not self.config.get('dataset_name'):
+        dataset = self.config.get('dataset')
+        if not dataset:
             return {}
 
-        keys = ['secret_name', 'name', 'host', 'port', 'type', 'schema', 'schema_write']
-        dataset = {k: self.config.get(f'dataset_{k}') for k in keys}
-
-        if not all(dataset.values()):
+        required = {k: v for k, v in dataset.items() if k not in ("read_schema", "write_schema")}
+        if not all(required.values()):
             raise ValueError("Incomplete dataset configuration provided.")
         return dataset
 
@@ -79,8 +82,10 @@ class K8sPipe:
             'ARTIFACT_PATH': self.artifact_path,
         }
         if self.dataset:
-            env['CDM_SCHEMA'] = self.dataset['schema']
-            env['WRITE_SCHEMA'] = self.dataset['schema_write']
+            if self.dataset['read_schema']:
+                env['CDM_SCHEMA'] = self.dataset['read_schema']
+            if self.dataset['write_schema']:
+                env['WRITE_SCHEMA'] = self.dataset['write_schema']
         return env
 
     def __call__(self):
@@ -214,12 +219,14 @@ class K8sPipe:
         )
 
     def _get_dataset_creds(self):
-        username = self._get_k8s_dataset_secret("USERNAME")
-        password = self._get_k8s_dataset_secret("PASSWORD")
+        username = self._get_dataset_secret("USERNAME")
+        password = self._get_dataset_secret("PASSWORD")
         return {'username': username, 'password': password}
 
-    def _get_k8s_dataset_secret(self, key: str) -> str:
-        return _get_k8s_secret(self.dataset['secret_name'], self.namespace, key)
+    def _get_dataset_secret(self, key: str) -> str:
+        provider = SecretProvider(SecretProviderType(self.dataset['secret']['provider']))
+        secret = self.dataset['secret']
+        return provider.get(secret['key'], secret['namespace'], key)
 
 
 class K8sPipesResponse:
@@ -240,15 +247,6 @@ class K8sPipesResponse:
                 "artifacts_path": artifact_path,
             },
         )
-
-
-def _get_k8s_secret(secret_name: str, namespace: str, key: str) -> str:
-    load_incluster_config()
-    v1 = client.CoreV1Api()
-    secret = cast(V1Secret, v1.read_namespaced_secret(secret_name, namespace))
-    if secret.data is None:
-        raise ValueError(f"Secret {secret_name} has no data")
-    return base64.b64decode(secret.data[key].encode()).decode()
 
 
 def _dict_to_pod_env(env: dict):

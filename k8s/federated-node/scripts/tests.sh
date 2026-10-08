@@ -88,6 +88,7 @@ test_create_dataset() {
 }
 
 test_dar() {
+    # TODO(DAR): POST /datasets/token_transfer was removed, DAR is disconnected for now
     printf "[test]\t### Test DAR process ###\n\n"
     USER_TOKEN=$(curl "${BACKEND_URL}/datasets/token_transfer" \
         --silent \

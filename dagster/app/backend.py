@@ -1,7 +1,8 @@
 import logging
+from http import HTTPStatus
 
 from app.utils import BackendSession
-from app.models import TriggerRepository, PullRequest, Dataset, Registry, Request
+from app.models import TriggerRepository, PullRequestTrigger, Project, ResultsRepository, Task, PullRequestResult, Dataset
 
 default_logger = logging.getLogger(__name__)
 
@@ -26,6 +27,19 @@ class BackendAPI:
             self.session.adapter.access_token = token
         return data
 
+    def get_projects(self) -> list[Project]:
+        """Get all projects, automatically handling pagination"""
+        self.logger.info("Fetching projects")
+        projects = []
+        page = 1
+        while True:
+            response = self.session.get("/projects", params={"page": page, "per_page": 100})
+            data = response.json()
+            projects.extend(Project(**project) for project in data["items"])
+            if page >= data["pages"]:
+                return projects
+            page += 1
+
     def get_repositories(self) -> list[TriggerRepository]:
         """Get all repositories"""
         self.logger.info("Fetching repositories")
@@ -45,15 +59,15 @@ class BackendAPI:
         response = self.session.patch(f"/trigger_repositories/{repo_id}", json=data)
         return TriggerRepository(**response.json())
 
-    def get_pull_requests(self, repo_id: int, **query_params) -> list[PullRequest]:
-        """Get all pull requests for a repository, automatically handling pagination"""
-        self.logger.info(f"Fetching all pull requests for repo {repo_id}")
+    def get_pull_requests(self, repo_id: int, state: str) -> list[PullRequestTrigger]:
+        """Get all pull requests of a repository in a state, automatically handling pagination"""
+        self.logger.info(f"Fetching all {state} pull requests for repo {repo_id}")
         all_prs = []
         page = 1
         per_page = 100
 
         while True:
-            params = {**query_params, "page": page, "per_page": per_page}
+            params = {"state": state, "page": page, "per_page": per_page}
             response = self.session.get(
                 f"/trigger_repositories/{repo_id}/pull_requests",
                 params=params,
@@ -64,7 +78,7 @@ class BackendAPI:
             if not items:
                 break
 
-            all_prs.extend([PullRequest(**pr) for pr in items])
+            all_prs.extend([PullRequestTrigger(**pr) for pr in items])
             self.logger.info(f"Fetched page {page}: {len(items)} PRs (total: {len(all_prs)})")
 
             total = data.get("total") if isinstance(data, dict) else None
@@ -84,9 +98,8 @@ class BackendAPI:
         raised_by: str,
         merged_at: str,
         merge_commit_sha: str,
-        spec: dict,
-        status: str = "UNKNOWN",
-    ) -> PullRequest:
+        payload: dict,
+    ) -> PullRequestTrigger:
         """Create a pull request"""
         self.logger.info(f"Creating PR #{number} in repo {trigger_repository_id}")
         data = {
@@ -96,48 +109,106 @@ class BackendAPI:
             "raised_by": raised_by,
             "merged_at": merged_at,
             "merge_commit_sha": merge_commit_sha,
-            "spec": spec,
-            "status": status,
+            "payload": payload,
         }
         response = self.session.post("/trigger_repositories/pull_requests", json=data)
-        return PullRequest(**response.json())
+        return PullRequestTrigger(**response.json())
 
-    def create_pull_requests_batch(self, repo_id: int, pull_requests: list[dict]) -> list[PullRequest]:
+    def create_pull_requests_batch(self, repo_id: int, pull_requests: list[dict]) -> list[PullRequestTrigger]:
         """Create multiple pull requests for a repository in one request (up to 100)"""
         if len(pull_requests) > 100:
             raise ValueError("Maximum 100 pull requests per batch")
 
         self.logger.info(f"Creating batch of {len(pull_requests)} pull requests for repo {repo_id}")
         response = self.session.post(f"/trigger_repositories/{repo_id}/pull_requests/batch", json=pull_requests)
-        return [PullRequest(**pr) for pr in response.json()]
+        return [PullRequestTrigger(**pr) for pr in response.json()]
 
     def patch_pull_request(
         self,
         repo_id: int,
         number: int,
         data: dict,
-    ) -> PullRequest:
+    ) -> PullRequestTrigger:
         """Update pull request"""
         self.logger.info(f"Updating PR #{number} in repo {repo_id}")
         response = self.session.patch(
             f"/trigger_repositories/{repo_id}/pull_requests/{number}",
             json=data,
         )
-        return PullRequest(**response.json())
+        return PullRequestTrigger(**response.json())
 
-    def update_pull_request_status(
-        self,
-        repo_id: int,
-        number: int,
-        status: str,
-    ) -> PullRequest:
-        """Update pull request status"""
-        self.logger.info(f"Updating PR #{number} status in repo {repo_id}")
-        response = self.session.patch(
-            f"/trigger_repositories/{repo_id}/pull_requests/{number}",
-            json={"status": status},
+    def create_task_for_pull_request(self, repo_id: int, number: int, payload: dict) -> tuple[Task, bool]:
+        """
+        Validate the spec of a pull request and create its task, marking the PR YIELDED.
+        Returns the task and whether it was created (False: the PR already had one).
+        """
+        self.logger.info(f"Creating task for PR #{number} in repo {repo_id}")
+        response = self.session.post(
+            f"/trigger_repositories/{repo_id}/pull_requests/{number}/task",
+            json={"payload": payload},
         )
-        return PullRequest(**response.json())
+        return Task(**response.json()), response.status_code == HTTPStatus.CREATED
+
+    def get_tasks(self, status: str, project_id: int) -> list[Task]:
+        """Get all tasks of a project in a status, automatically handling pagination"""
+        self.logger.info(f"Fetching {status} tasks of project {project_id}")
+        tasks = []
+        page = 1
+        while True:
+            params = {"status": status, "project_id": project_id, "page": page, "per_page": 100}
+            response = self.session.get("/tasks", params=params)
+            data = response.json()
+            tasks.extend(Task(**task) for task in data["tasks"])
+            if page >= data["pages"]:
+                return tasks
+            page += 1
+
+    def patch_task(self, task_id: int, data: dict) -> Task:
+        """Update task"""
+        self.logger.info(f"Updating task {task_id}")
+        response = self.session.patch(f"/tasks/{task_id}", json=data)
+        return Task(**response.json())
+
+    def get_task(self, task_id: int) -> Task:
+        """Get single task"""
+        self.logger.info(f"Fetching task {task_id}")
+        response = self.session.get(f"/tasks/{task_id}")
+        return Task(**response.json())
+
+    def get_results_repository(self, project_id: int) -> ResultsRepository:
+        """Get the results repository of a project. A project has exactly one."""
+        self.logger.info(f"Fetching the results repository of project {project_id}")
+        # Route is a placeholder for the project's results repository: change it here only
+        response = self.session.get("/results_repositories", params={"project_id": project_id})
+        (repository,) = response.json()
+        return ResultsRepository(**repository)
+
+    def get_task_results(self, task_id: int) -> list[PullRequestResult]:
+        """Get the deliveries of a task's results"""
+        self.logger.info(f"Fetching results of task {task_id}")
+        response = self.session.get(f"/tasks/{task_id}/results")
+        return [PullRequestResult(**result) for result in response.json()]
+
+    def create_result(self, task_id: int, results_repository_id: int) -> PullRequestResult:
+        """Create the delivery of a task's results to a repository, or return the existing one"""
+        self.logger.info(f"Creating result of task {task_id} for repository {results_repository_id}")
+        response = self.session.post(
+            "/results",
+            json={"task_id": task_id, "results_repository_id": results_repository_id},
+        )
+        return PullRequestResult(**response.json())
+
+    def patch_result(self, result_id: int, data: dict) -> PullRequestResult:
+        """Update result"""
+        self.logger.info(f"Updating result {result_id}")
+        response = self.session.patch(f"/results/{result_id}", json=data)
+        return PullRequestResult(**response.json())
+
+    def get_results_by_state(self, states: list[str]) -> list[PullRequestResult]:
+        """Get the results in any of the states"""
+        self.logger.info(f"Fetching results in {', '.join(states)}")
+        response = self.session.get("/results", params={"state": states})
+        return [PullRequestResult(**result) for result in response.json()]
 
     def get_dataset_by_name(self, name: str) -> Dataset | None:
         """Get dataset by name"""
@@ -153,9 +224,8 @@ class BackendAPI:
         name: str,
         host: str,
         port: int,
-        username: str,
-        password: str,
-        schema: str,
+        secret_label: str,
+        read_schema: str,
         db_type: str,
     ) -> Dataset:
         """Create a dataset"""
@@ -164,9 +234,8 @@ class BackendAPI:
             "name": name,
             "host": host,
             "port": port,
-            "username": username,
-            "password": password,
-            "schema": schema,
+            "secret_label": secret_label,
+            "read_schema": read_schema,
             "type": db_type,
         }
         response = self.session.post("/datasets", json=data)
@@ -179,14 +248,6 @@ class BackendAPI:
         data = response.json()
         items = data.get("items", data) if isinstance(data, dict) else data
         return [Dataset(**ds) for ds in items]
-
-    def get_registries(self) -> list[Registry]:
-        """Get all container registries"""
-        self.logger.info("Fetching registries")
-        response = self.session.get("/registries")
-        data = response.json()
-        items = data.get("items", data) if isinstance(data, dict) else data
-        return [Registry(**reg) for reg in items]
 
     def get_dataset(self, dataset_id: int) -> Dataset:
         """Get single dataset"""
@@ -202,19 +263,25 @@ class BackendAPI:
     def create_repository(
         self,
         uri: str,
+        provider: str,
+        api_uri: str,
+        secret_label: str,
         watch_dir: str,
         base_branch: str,
-        initial_cursor: str,
-        dataset_id: int,
+        project_id: int,
+        initial_cursor: str | None = None,
     ) -> TriggerRepository:
         """Create a repository"""
         self.logger.info(f"Creating repository {uri}")
         data = {
             "uri": uri,
+            "provider": provider,
+            "api_uri": api_uri,
+            "secret_label": secret_label,
             "watch_dir": watch_dir,
             "base_branch": base_branch,
             "initial_cursor": initial_cursor,
-            "dataset_id": dataset_id,
+            "project_id": project_id,
         }
         response = self.session.post("/trigger_repositories", json=data)
         return TriggerRepository(**response.json())
@@ -222,33 +289,3 @@ class BackendAPI:
     def delete_repository(self, repo_id: int) -> None:
         """Delete a repository"""
         self.session.delete(f"/trigger_repositories/{repo_id}")
-
-    def create_request(
-        self,
-        title: str,
-        description: str,
-        project_name: str,
-        requested_by: str,
-        proj_start: str,
-        proj_end: str,
-        dataset_id: int,
-    ) -> Request:
-        """Create a Data Access Request"""
-        self.logger.info(f"Creating request {title}")
-        data = {
-            "title": title,
-            "description": description,
-            "project_name": project_name,
-            "requested_by": requested_by,
-            "proj_start": proj_start,
-            "proj_end": proj_end,
-            "dataset_id": dataset_id,
-        }
-        response = self.session.post("/requests", json=data, raise_for_status=False)
-        return response
-
-    def approve_request(self, request_id: int) -> bool:
-        """Approve a Data Access Request"""
-        self.logger.info(f"Approving request {request_id}")
-        self.session.patch(f"/requests/{request_id}", json={"status": "approved"})
-        return True

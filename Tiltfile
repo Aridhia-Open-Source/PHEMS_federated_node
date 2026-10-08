@@ -22,12 +22,8 @@ RELEASE_NAME = os.getenv('RELEASE_NAME', 'fn-dev')
 # The code server is part of the Federated Node chart (templates/dagster-code-server.yaml),
 # so it is <release>-<fnDagster.codeServer.name>, not the dagster subchart's
 # <release>-dagster-user-deployments-dagster-<name>.
-DAGSTER_DEPLOYMENT = RELEASE_NAME + '-' + os.getenv('DAGSTER_USER_DEPLOYMENT', 'dagster-fn')
-
-# Full entrypoint from dev.values.yaml dagsterApiGrpcArgs
-DAGSTER_FULL_ENTRYPOINT = [
-  'dagster', 'api', 'grpc',
-]
+DAGSTER_LOCATION = os.getenv('DAGSTER_USER_DEPLOYMENT', 'dagster-fn')
+DAGSTER_DEPLOYMENT = RELEASE_NAME + '-' + DAGSTER_LOCATION
 
 # Allow Tilt to control what K8s cluster to deploy to
 allow_k8s_contexts('kind-fn')
@@ -57,7 +53,6 @@ docker_build_with_restart(
   only=[
     'app',
     'requirements.txt',
-    'setup.py',
     'alembic.ini',
     'migrations',
   ],
@@ -65,7 +60,6 @@ docker_build_with_restart(
     # Dependency / packaging changes => full rebuild
     fall_back_on([
       'webserver/requirements.txt',
-      'webserver/setup.py',
       'webserver/alembic.ini',
       'webserver/migrations',
     ]),
@@ -77,8 +71,11 @@ docker_build_with_restart(
 # ==============================================================================
 # DAGSTER USER CODE DEPLOYMENT
 # ==============================================================================
-# Entrypoint combines Tilt's base command with Helm's args.
-# tilt_manifests.py clears the Kubernetes args field so they don't get appended.
+# The image has no ENTRYPOINT or CMD: the chart passes the whole gRPC command as the
+# container args (templates/dagster-code-server.yaml). With an empty entrypoint Tilt's
+# command is just the restart wrapper, and Kubernetes appends those args to it, so the
+# wrapper runs the chart's own command. Don't set an entrypoint here and don't clear the
+# args: either one doubles the command or leaves the wrapper with nothing to run.
 docker_build_with_restart(
   '{}/dagster-fn'.format(DOCKER_REGISTRY),
   'dagster',
@@ -86,27 +83,45 @@ docker_build_with_restart(
   only=[
     'app',
     'requirements.txt',
-    'setup.py',
     'pyproject.toml',
+    'dagster.yaml',
+    'workspace.yaml',
   ],
   live_update=[
     fall_back_on([
       'dagster/requirements.txt',
-      'dagster/setup.py',
       'dagster/pyproject.toml',
+      'dagster/dagster.yaml',
+      'dagster/workspace.yaml',
     ]),
     sync('dagster/app', '/opt/dagster/home/app'),
   ],
+)
+
+# Run pods start from DAGSTER_CURRENT_IMAGE, not from the image Tilt live-updates, so
+# rebuild and push that image (tag set in scripts/tilt_manifests.py) on every code change.
+# Run pods always pull, so the next run picks it up.
+local_resource(
+  'dagster-run-image',
+  cmd='docker build dagster -t {img} && docker push {img}'.format(
+    img='{}/dagster-fn:tilt-run'.format(DOCKER_REGISTRY),
+  ),
+  deps=['dagster'],
+  ignore=['dagster/**/__pycache__', 'dagster/**/*.pyc'],
+  labels=['dev'],
 )
 
 # ==============================================================================
 # STATUS HELPERS
 # ==============================================================================
 
-# Watch for dagster code changes, restart the pod, and reload workspace
+# Watch for dagster code changes, restart the pod, then reload the code location
+# via the Dagster GraphQL API so the UI updates immediately.
 local_resource(
   'dagster-reload',
-  serve_cmd='bash -c \'while inotifywait -r -e modify dagster/app; do echo "Restarting dagster pod..."; kubectl rollout restart deployment/{} -n {}; kubectl rollout status deployment/{} -n {} --timeout=60s >/dev/null 2>&1; echo "Pod restarted, refresh the UI to see changes"; done\''.format(DAGSTER_DEPLOYMENT, NAMESPACE, DAGSTER_DEPLOYMENT, NAMESPACE),
+  serve_cmd='bash tilt/scripts/dagster_reload.sh {location}'.format(
+    location=DAGSTER_LOCATION,
+  ),
   labels=['dev'],
 )
 
@@ -130,7 +145,7 @@ local_resource(
 
 local_resource(
   'gitea-port-forward',
-  serve_cmd='kubectl port-forward svc/gitea -n {ns} 4000:3000'.format(ns=NAMESPACE),
+  serve_cmd='kubectl port-forward svc/gitea -n {ns} 4000:4000'.format(ns=NAMESPACE),
   labels=['infrastructure'],
 )
 

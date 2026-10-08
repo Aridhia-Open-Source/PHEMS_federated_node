@@ -2,9 +2,9 @@ from datetime import datetime as dt
 
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 
 from app.helpers.base_model import BaseModel, db
+from app.models import sqla_column
 from app.models.dataset import Dataset
 from app.helpers.exceptions import InvalidRequest
 
@@ -17,10 +17,8 @@ class Catalogue(db.Model, BaseModel):
     version = sa.Column(sa.String(256), nullable=True, default='1')
     title = sa.Column(sa.String(256), nullable=False)
     description = sa.Column(sa.String(4096), nullable=False)
-    created_at = sa.Column(sa.DateTime(timezone=False), nullable=False, server_default=func.now())
-    updated_at = sa.Column(
-        sa.DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
-    )
+    created_at = sqla_column.created_at()
+    updated_at = sqla_column.updated_at()
 
     dataset = relationship("Dataset")
 

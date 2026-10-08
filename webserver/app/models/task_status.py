@@ -13,8 +13,8 @@ class TaskStatus(str, Enum):
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
     SUCCESS = "SUCCESS"
-    FAILURE = "FAILURE"
-    CANCELLED = "CANCELLED"
+    FAILED = "FAILED"
+    CANCELED = "CANCELED"
 
     def __str__(self):
         return self.value

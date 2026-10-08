@@ -7,26 +7,22 @@ datasets-related endpoints:
 - GET /datasets/id/catalogues
 - GET /datasets/id/dictionaries
 - GET /datasets/id/dictionaries/table_name
-- POST /datasets/token_transfer
 """
 import logging
-from datetime import datetime
 from http import HTTPStatus
 
 from flask import Blueprint, request
-from kubernetes.client import ApiException
 
+from .dtos.base import page_of
+from .dtos.dataset import CatalogueDTO, DatasetDTO, DictionaryDTO
 from .helpers.base_model import db
-from .helpers.const import DEFAULT_NAMESPACE
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from .helpers.keycloak import Keycloak
-from .helpers.kubernetes import KubernetesClient
 from .helpers.query_validator import validate
 from .helpers.wrappers import audit, auth
 from .models.dataset import Dataset
 from .models.extras.catalogue import Catalogue
+from .models.secret import Secret
 from .models.extras.dictionary import Dictionary
-from .models.extras.request import Request
 
 
 bp = Blueprint('datasets', __name__, url_prefix='/datasets')
@@ -44,7 +40,24 @@ def get_datasets():
     """
     GET /datasets/ endpoint. Returns a list of all datasets
     """
-    return Dataset.get_all(), HTTPStatus.OK
+    return page_of(Dataset.get_all(), DatasetDTO), HTTPStatus.OK
+
+
+def _reject_credentials(body: dict | None):
+    """Credentials live in a k8s secret, so sending them here is a mistake, not something to ignore."""
+    if body and ("username" in body or "password" in body):
+        raise InvalidRequest(
+            "username and password are not accepted. Create a secret with POST /secrets "
+            "(values USERNAME and PASSWORD) and pass its label as secret_label"
+        )
+
+
+def _resolve_secret(body: dict, project_id: int) -> dict:
+    """Swaps the project-local secret_label a request carries for the secret's id."""
+    if not body.get("secret_label"):
+        raise InvalidRequest("secret_label is required")
+    body["secret_id"] = Secret.get_in_project(project_id, body.pop("secret_label")).id
+    return body
 
 
 @bp.route('/', methods=['POST'])
@@ -56,18 +69,15 @@ def post_datasets():
     POST /datasets/ endpoint. Creates a new dataset
     """
     try:
-        body = Dataset.validate(request.json)
+        _reject_credentials(request.json)
+        if not request.json.get("project_id"):
+            raise InvalidRequest("project_id is required")
+        body = Dataset.validate(_resolve_secret(dict(request.json), request.json["project_id"]))
         cata_body = body.pop("catalogue", {})
         dict_body = body.pop("dictionaries", [])
         dataset = Dataset(**body)
 
-        kc_client = Keycloak()
-        token_info = kc_client.decode_token(kc_client.get_token_from_headers())
-        user_id = kc_client.get_user_by_email(token_info["email"])["id"]
-        dataset.add(
-            commit=False,
-            user_id=user_id
-        )
+        dataset.add(commit=False)
         if cata_body:
             cata_data = Catalogue.validate(cata_body)
             catalogue = Catalogue(dataset=dataset, **cata_data)
@@ -85,7 +95,7 @@ def post_datasets():
 
         session.commit()
 
-        return Dataset.sanitized_dict(dataset), 201
+        return DatasetDTO.from_model(dataset).dump(), 201
 
     except Exception:
         session.rollback()
@@ -105,7 +115,7 @@ def get_datasets_by_id_or_name(
     GET /datasets/id endpoint. Gets dataset with a give id
     """
     ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
-    return Dataset.sanitized_dict(ds), HTTPStatus.OK
+    return DatasetDTO.from_model(ds).dump(), HTTPStatus.OK
 
 
 @bp.route('/<int:dataset_id>', methods=['DELETE'])
@@ -117,30 +127,16 @@ def delete_datasets_by_id_or_name(
     dataset_name: str | None = None
 ):
     """
-    DELETE /datasets/id endpoint. Deletes the dataset from the db and k8s secrets
-        the DB entry deletion is prioritized to the k8s secret.
+    DELETE /datasets/id endpoint. Deletes the dataset. Its k8s secret is left alone: it
+        has its own lifecycle (/secrets) and other datasets may share it.
     """
     logger.error(f"deleting ({dataset_id or dataset_name})")
     ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
-    secret_name = ds.get_creds_secret_name()
-    # Staged, not committed: the secret deletion below has to be able to roll this
-    # back, and a rollback after a commit is a no-op.
     try:
-        ds.delete(False)
+        ds.delete()
     except Exception as exc:
         session.rollback()
         raise InvalidRequest("Error while deleting the record") from exc
-
-    v1 = KubernetesClient()
-    try:
-        v1.delete_namespaced_secret(secret_name, DEFAULT_NAMESPACE)
-    except ApiException as apie:
-        if apie.status != 404:
-            logger.error(apie)
-            session.rollback()
-            raise InvalidRequest("Could not clear the secrets properly") from apie
-
-    session.commit()
     return {}, 204
 
 
@@ -157,7 +153,6 @@ def patch_datasets_by_id_or_name(
     """
     ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
 
-    old_ds_name = ds.name
     # Update validation doesn't have required fields
     body = request.json
     body.pop("id", None)
@@ -169,27 +164,17 @@ def patch_datasets_by_id_or_name(
         session.rollback()
         raise InvalidRequest("dictionaries should be a list.")
 
+    if "secret_label" in body:
+        _resolve_secret(body, body.get("project_id", ds.project_id))
+
     for k in body:
-        if not hasattr(ds, k) and k not in ["username", "password"]:
+        if not hasattr(ds, k):
             raise InvalidRequest(f"Field {k} is not a valid one")
 
     try:
         ds.update(**body)
-        # Also make sure all the request clients are updated with this
-        if body.get("name", None) is not None and body.get("name", None) != old_ds_name:
-            dars = Request.query.with_entities(Request.requested_by, Request.project_name)\
-                .filter(Request.dataset_id == ds.id, Request.proj_end > datetime.now())\
-                .group_by(Request.requested_by, Request.project_name).all()
-            for dar in dars:
-                update_args = {
-                    "name": f"{ds.id}-{ds.name}",
-                    "displayName": f"{ds.id} - {ds.name}"
-                }
-
-                user = Keycloak().get_user_by_id(dar[0])
-                req_by = user["email"]
-                kc_client = Keycloak(client=f"Request {req_by} - {dar[1]}")
-                kc_client.patch_resource(f"{ds.id}-{old_ds_name}", **update_args)
+        # TODO(DAR): the DAR Keycloak clients are no longer patched on rename, disconnected
+        # for now.
         # Update catalogue and dictionaries
         if cata_body:
             Catalogue.update_or_create(cata_body, ds)
@@ -201,7 +186,7 @@ def patch_datasets_by_id_or_name(
         raise
 
     session.commit()
-    return Dataset.sanitized_dict(ds), HTTPStatus.ACCEPTED
+    return DatasetDTO.from_model(ds).dump(), HTTPStatus.ACCEPTED
 
 
 @bp.route('/<dataset_name>/catalogue', methods=['GET'])
@@ -221,7 +206,7 @@ def get_datasets_catalogue_by_id_or_name(
     cata = Catalogue.query.filter(Catalogue.dataset_id == dataset.id).one_or_none()
     if not cata:
         raise DBRecordNotFoundError(f"Dataset {dataset.name} has no catalogue.")
-    return cata.sanitized_dict(), HTTPStatus.OK
+    return CatalogueDTO.from_model(cata).dump(), HTTPStatus.OK
 
 
 @bp.route('/<dataset_name>/dictionaries', methods=['GET'])
@@ -243,7 +228,7 @@ def get_datasets_dictionaries_by_id_or_name(
     if not dictionary:
         raise DBRecordNotFoundError(f"Dataset {dataset.name} has no dictionaries.")
 
-    return [dc.sanitized_dict() for dc in dictionary], HTTPStatus.OK
+    return [DictionaryDTO.from_model(dc).dump() for dc in dictionary], HTTPStatus.OK
 
 
 @bp.route('/<dataset_name>/dictionaries/<table_name>', methods=['GET'])
@@ -271,42 +256,4 @@ def get_datasets_dictionaries_table_by_id_or_name(
             f"Dataset {dataset.name} has no dictionaries with table {table_name}."
         )
 
-    return [dc.sanitized_dict() for dc in dictionary], HTTPStatus.OK
-
-
-@bp.route('/token_transfer', methods=['POST'])
-@audit
-@auth(scope='can_transfer_token', check_dataset=False)
-def post_transfer_token():
-    """
-    POST /datasets/token_transfer endpoint.
-        Returns a user's token based on an approved DAR
-    """
-    try:
-        # Not sure we need all of this in the Request table...
-        body = request.json
-        if 'email' not in body["requested_by"].keys():
-            raise InvalidRequest("Missing email from requested_by field")
-
-        user = Keycloak().get_user_by_email(body["requested_by"]["email"])
-        if not user:
-            user = Keycloak().create_user(**body["requested_by"])
-
-        body["requested_by"] = user["id"]
-        ds_id = body.pop("dataset_id", None)
-        ds_name = body.pop("dataset_name", None)
-        body["dataset"] = Dataset.get_dataset_by_name_or_id(ds_id, ds_name)
-
-        req_attributes = Request.validate(body)
-        req = Request(**req_attributes)
-        req.add()
-        return req.approve(), HTTPStatus.CREATED
-
-    except KeyError as kexc:
-        session.rollback()
-        raise InvalidRequest(
-            f"Missing field. Make sure {"".join(kexc.args)} fields are there"
-        ) from kexc
-    except Exception:
-        session.rollback()
-        raise
+    return [DictionaryDTO.from_model(dc).dump() for dc in dictionary], HTTPStatus.OK

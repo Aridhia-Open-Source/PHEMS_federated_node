@@ -15,15 +15,20 @@ Transformations applied for dev workflow:
         already ran during the initial `make deploy`, and the DB + results PV
         persist, so the dev pod only needs the long-running server.
 
-  For the dagster user-deployment:
-      - Clear args field so the Kubernetes container won't append them to the
-        injected entrypoint (which already includes the args from Helm).
+  The dagster user-deployment gets DAGSTER_CURRENT_IMAGE pointed at RUN_IMAGE_TAG. Run
+  pods start from that image, not from the one Tilt live-updates, and the Tiltfile's
+  dagster-run-image resource rebuilds it on every code change.
+
+  The dagster user-deployment keeps the args Helm gave it: the image has no
+  entrypoint, so they are the command that Tilt's restart wrapper runs.
 
 Usage: tilt_manifests.py <namespace> <backend-deploy> <dagster-deploy>
 """
 import json
 import subprocess
 import sys
+
+RUN_IMAGE_TAG = "tilt-run"
 
 
 def main():
@@ -49,12 +54,14 @@ def main():
             if container.get("imagePullPolicy") == "Always":
                 container["imagePullPolicy"] = "IfNotPresent"
 
+        if name == dagster:
+            for container in spec["containers"]:
+                for env in container.get("env", []):
+                    if env["name"] == "DAGSTER_CURRENT_IMAGE":
+                        env["value"] = env["value"].rsplit(":", 1)[0] + ":" + RUN_IMAGE_TAG
+
         if name == backend:
             spec.pop("initContainers", None)
-
-        if name == dagster:
-            for container in spec.get("containers", []):
-                container["args"] = []
 
     print(json.dumps({"apiVersion": "v1", "kind": "List", "items": items}))
 
