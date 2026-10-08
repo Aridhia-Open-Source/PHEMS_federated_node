@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class PullRequestResultState(str, Enum):
+class MergeStatus(str, Enum):
     """
     The state of the pull request a task's results were delivered in, as the webserver defines it.
 
@@ -15,7 +15,7 @@ class PullRequestResultState(str, Enum):
     CLOSED = "CLOSED"
 
     @classmethod
-    def from_git(cls, pr: dict) -> "PullRequestResultState":
+    def from_git(cls, pr: dict) -> "MergeStatus":
         """The state of a pull request, from the git provider's response."""
         if pr["merged_at"]:
             return cls.MERGED

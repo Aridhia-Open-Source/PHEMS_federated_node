@@ -9,7 +9,7 @@ from app.backend import BackendAPI
 from app.config import ResultsDeliveryConfig
 from app.delivery import git_push
 from app.models import (
-    PullRequest, PullRequestResultState, ResultsRepository, Task, TaskResultStatus, TriggerRepository, TriggerState,
+    PullRequest, MergeStatus, ResultsRepository, Task, TaskResultStatus, TriggerRepository, TriggerState,
 )
 from app.secrets import SecretProvider
 
@@ -63,18 +63,18 @@ class ResultsDelivery:
             raise
 
         # An earlier attempt's PR may be merged already, and the sync sensor only polls OPEN ones
-        state = PullRequestResultState.from_git(results_pr)
+        state = MergeStatus.from_git(results_pr)
         self.backend_api.patch_task_result(task_result.id, {
             "status": TaskResultStatus.DELIVERED.value,
             "attempts": task_result.attempts + 1,
             "error": None,
             **pushed,
-            "pull_request_number": results_pr["number"],
-            "pull_request_url": results_pr["html_url"],
-            "pull_request_state": state.value,
+            "number": results_pr["number"],
+            "url": results_pr["html_url"],
+            "merge_status": state.value,
             "merged_at": results_pr["merged_at"],
             # GitHub fills merge_commit_sha on an unmerged PR with its test merge
-            "merge_commit_sha": results_pr["merge_commit_sha"] if state == PullRequestResultState.MERGED else None,
+            "merge_commit_sha": results_pr["merge_commit_sha"] if state == MergeStatus.MERGED else None,
         })
         self.log.info(f"Delivered results of task {task.id} in {results_pr['html_url']}")
 
@@ -133,7 +133,7 @@ class ResultsDelivery:
                 "task_id": task.id,
                 "dagster_run_id": task.dagster_run_id,
                 "trigger_repository_uri": trigger_repository.uri,
-                "pull_request_number": pull_request.number,
+                "number": pull_request.number,
                 "delivered_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "zip_size_bytes": zip_size,
             }, indent=2) + "\n")

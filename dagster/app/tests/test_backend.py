@@ -286,10 +286,10 @@ class TestTaskResults:
         session.patch.assert_called_once_with("/task_results/9", json={"status": "DELIVERED"})
         session.get.assert_called_once_with("/tasks/7/results")
 
-    def test_list_by_pull_request_state(self, api, session):
-        session.get.return_value = make_response([{**self.RESULT, "pull_request_state": "OPEN"}])
+    def test_list_by_merge_status(self, api, session):
+        session.get.return_value = make_response([{**self.RESULT, "merge_status": "OPEN"}])
 
-        (result,) = api.get_task_results_by_pull_request_state("OPEN")
+        (result,) = api.get_task_results_by_merge_status("OPEN")
 
-        assert result.pull_request_state == "OPEN"
-        session.get.assert_called_once_with("/task_results", params={"pull_request_state": "OPEN"})
+        assert result.merge_status == "OPEN"
+        session.get.assert_called_once_with("/task_results", params={"merge_status": "OPEN"})

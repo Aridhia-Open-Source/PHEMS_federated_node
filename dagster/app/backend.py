@@ -204,10 +204,10 @@ class BackendAPI:
         response = self.session.patch(f"/task_results/{task_result_id}", json=data)
         return TaskResult(**response.json())
 
-    def get_task_results_by_pull_request_state(self, state: str) -> list[TaskResult]:
+    def get_task_results_by_merge_status(self, state: str) -> list[TaskResult]:
         """Get the task results whose pull request is in a state"""
         self.logger.info(f"Fetching task results with {state} pull requests")
-        response = self.session.get("/task_results", params={"pull_request_state": state})
+        response = self.session.get("/task_results", params={"merge_status": state})
         return [TaskResult(**result) for result in response.json()]
 
     def get_dataset_by_name(self, name: str) -> Dataset | None:

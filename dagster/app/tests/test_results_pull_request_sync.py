@@ -25,8 +25,8 @@ TASK = Task(
 def open_result(id=9, number=3):
     return TaskResult(
         id=id, type="PR", task_id=7, results_repository_id=5, status="DELIVERED", attempts=1,
-        branch="b", commit_sha="c", pull_request_number=number, pull_request_url=f"http://g/pulls/{number}",
-        pull_request_state="OPEN",
+        branch="b", commit_sha="c", number=number, url=f"http://g/pulls/{number}",
+        merge_status="OPEN",
     )
 
 
@@ -36,7 +36,7 @@ def git_pr(state="open", merged_at=None, merge_commit_sha="test-merge"):
 
 def sync(results, prs_by_number):
     backend_api = MagicMock()
-    backend_api.get_task_results_by_pull_request_state.return_value = results
+    backend_api.get_task_results_by_merge_status.return_value = results
     backend_api.get_task.return_value = TASK
     backend_api.get_results_repository.return_value = REPOSITORY
     git_api = MagicMock()
@@ -53,12 +53,12 @@ def test_a_merged_pull_request_is_recorded():
         [open_result()], {3: git_pr("closed", "2026-10-08T10:00:00Z", "m1")}
     )
 
-    backend_api.get_task_results_by_pull_request_state.assert_called_once_with("OPEN")
+    backend_api.get_task_results_by_merge_status.assert_called_once_with("OPEN")
     backend_api.get_results_repository.assert_called_once_with(1)
     git_apis.for_repository.assert_called_once_with(REPOSITORY)
     git_api.get_pull_request.assert_called_once_with("fn/results", 3)
     backend_api.patch_task_result.assert_called_once_with(9, {
-        "pull_request_state": "MERGED", "merged_at": "2026-10-08T10:00:00Z", "merge_commit_sha": "m1",
+        "merge_status": "MERGED", "merged_at": "2026-10-08T10:00:00Z", "merge_commit_sha": "m1",
     })
 
 
@@ -66,7 +66,7 @@ def test_a_closed_pull_request_is_recorded_without_a_merge_commit():
     backend_api, _, _ = sync([open_result()], {3: git_pr("closed")})
 
     backend_api.patch_task_result.assert_called_once_with(9, {
-        "pull_request_state": "CLOSED", "merged_at": None, "merge_commit_sha": None,
+        "merge_status": "CLOSED", "merged_at": None, "merge_commit_sha": None,
     })
 
 
@@ -78,7 +78,7 @@ def test_a_pull_request_still_open_is_left_alone():
 
 def run_sensor(results, in_flight=False):
     backend_api = MagicMock()
-    backend_api.get_task_results_by_pull_request_state.return_value = results
+    backend_api.get_task_results_by_merge_status.return_value = results
     context = MagicMock()
     context.resources.backend_api = backend_api
     context.instance.get_runs.return_value = [MagicMock()] if in_flight else []
