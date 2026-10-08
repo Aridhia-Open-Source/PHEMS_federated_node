@@ -1,7 +1,6 @@
 import pytest
 
-from app.models import Dataset, PullRequest, PullRequestStatus, Registry, TriggerRepository
-from app.models import Secret, SecretProviderType
+from app.models import Dataset, PullRequestTrigger, Secret, SecretProviderType, TriggerRepository
 from app.tests.conftest import SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_SECRET
 
 
@@ -49,73 +48,6 @@ class TestDataset:
         assert dataset.extra_field == "value"
 
 
-class TestRegistry:
-    def make_registry(self, url, reg_id=1):
-        return Registry(id=reg_id, url=url)
-
-    @pytest.mark.parametrize("url,expected", [
-        ("https://ghcr.io", "ghcr-io"),
-        ("http://ghcr.io", "ghcr-io"),
-        ("ghcr.io", "ghcr-io"),
-        ("ghcr.io/org", "ghcr-io-org"),
-        ("my_registry.example.com", "my-registry-example-com"),
-    ])
-    def test_secret_name_matches_the_backend_slug(self, url, expected):
-        """Registry.slugify_name on the backend produces this name."""
-        assert self.make_registry(url).secret_name == expected
-
-    def test_matching_registry_wins(self):
-        registries = [
-            self.make_registry("docker.io", 1),
-            self.make_registry("ghcr.io", 2),
-        ]
-
-        assert Registry.secret_for_image(
-            "ghcr.io/org/experiment:latest", registries
-        ) == "ghcr-io"
-
-    def test_shortest_matching_prefix_wins(self):
-        registries = [
-            self.make_registry("ghcr.io/org", 1),
-            self.make_registry("ghcr.io", 2),
-        ]
-
-        assert Registry.secret_for_image(
-            "ghcr.io/org/experiment:latest", registries
-        ) == "ghcr-io"
-
-    def test_registry_host_on_its_own_matches(self):
-        registries = [self.make_registry("ghcr.io")]
-
-        assert Registry.secret_for_image("ghcr.io", registries) == "ghcr-io"
-
-    @pytest.mark.parametrize("image", [
-        "ghcr.iomalicious/img:1",
-        "evil.com/ghcr.io/img:1",
-        "docker.io/library/alpine:3",
-    ])
-    def test_non_matching_images_get_no_secret(self, image):
-        registries = [self.make_registry("ghcr.io")]
-
-        assert Registry.secret_for_image(image, registries) is None
-
-    def test_no_registries_configured(self):
-        assert Registry.secret_for_image("alpine:3", []) is None
-
-    def test_scheme_is_stripped_before_matching(self):
-        registries = [self.make_registry("https://ghcr.io")]
-
-        assert Registry.secret_for_image("ghcr.io/org/img:1", registries) == "ghcr-io"
-
-
-class TestPullRequestStatus:
-    def test_str_is_the_value(self):
-        assert str(PullRequestStatus.READY) == "READY"
-
-    def test_status_is_a_string_enum(self):
-        assert PullRequestStatus.SUCCESS == "SUCCESS"
-
-
 class TestTriggerRepository:
     def test_parses_a_webserver_payload(self):
         repo = TriggerRepository(**SAMPLE_REPOSITORY_OBJ)
@@ -135,7 +67,7 @@ class TestTriggerRepository:
     def test_nested_pull_requests_are_parsed(self):
         repo = TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "pull_requests": [SAMPLE_PR]})
 
-        assert isinstance(repo.pull_requests[0], PullRequest)
+        assert isinstance(repo.pull_requests[0], PullRequestTrigger)
         assert repo.pull_requests[0].number == 5
 
     def test_unknown_fields_are_kept(self):
@@ -159,3 +91,34 @@ class TestTriggerRepository:
     @pytest.mark.parametrize("uri", ["github.com/org/repo/", "github.com/org/repo.git"])
     def test_repo_path_ignores_a_trailing_slash_and_git_suffix(self, uri):
         assert TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "uri": uri}).repo_path == "org/repo"
+
+
+class TestPullRequest:
+    def test_parses_a_webserver_payload(self):
+        pr = PullRequestTrigger(**{**SAMPLE_PR, "id": 77, "created_at": "x"})
+
+        assert pr.number == 5 and pr.state.value == "UNKNOWN"
+        assert pr.task_id is None and pr.state_cause is None
+        assert pr.id == 77
+
+    def test_from_git_reads_the_provider_response(self):
+        git_pr = {
+            "number": 12, "title": "Add spec", "user": {"login": "dev"},
+            "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "abc", "extra": "ignored",
+        }
+
+        pr = PullRequestTrigger.from_git(4, git_pr)
+
+        assert (pr.trigger_repository_id, pr.number, pr.raised_by) == (4, 12, "dev")
+        assert pr.state.value == "UNKNOWN" and pr.payload == {}
+
+    def test_dump_new_leaves_out_the_server_fields(self):
+        pr = PullRequestTrigger.from_git(4, {
+            "number": 12, "title": "t", "user": {"login": "dev"},
+            "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "abc",
+        })
+
+        assert pr.dump_new() == {
+            "number": 12, "title": "t", "raised_by": "dev",
+            "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "abc", "payload": {},
+        }

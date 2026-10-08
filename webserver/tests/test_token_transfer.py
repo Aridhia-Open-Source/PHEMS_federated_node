@@ -3,7 +3,7 @@ import pytest
 from datetime import datetime, timedelta
 import json
 from unittest import mock
-from app.models.extras.request import Request
+from app.models.extras.dar import DAR
 from app.helpers.exceptions import KeycloakError
 
 pytestmark = pytest.mark.skip(reason="DAR disconnected for now, see TODO(DAR)")
@@ -148,7 +148,7 @@ class TestTransfers:
         """
         Tests that a duplicate request is not accepted.
         """
-        Request(**request_model_body).add()
+        DAR(**request_model_body).add()
 
         response = client.post(
             "/datasets/token_transfer",
@@ -173,7 +173,7 @@ class TestTransfers:
         Tests that a duplicate, or a time-overlapping request
         is not accepted.
         """
-        Request(**request_model_body).add()
+        DAR(**request_model_body).add()
         request_base_body["proj_end"] = (
             datetime.strptime(request_base_body["proj_end"], "%Y-%m-%d") + timedelta(days=20)
         ).strftime("%Y-%m-%d")
@@ -200,7 +200,7 @@ class TestTransfers:
         is accepted with same ds and project name.
         """
         request_model_body["proj_end"] = datetime.now().date().strftime("%Y-%m-%d")
-        Request(**request_model_body).add()
+        DAR(**request_model_body).add()
         request_base_body["proj_start"] = (
             datetime.strptime(request_base_body["proj_end"], "%Y-%m-%d") + timedelta(days=1)
         ).strftime("%Y-%m-%d")
@@ -227,7 +227,7 @@ class TestTransfers:
         """
         A project holds several datasets, so a user can hold one DAR per dataset in it.
         """
-        Request(**request_model_body).add()
+        DAR(**request_model_body).add()
         request_base_body["dataset_id"] = dataset_oracle.id
 
         response = client.post(
@@ -256,8 +256,8 @@ class TestTransfers:
         )
         assert response.status_code == 201, response.json
 
-        dar = Request.query.filter(
-            Request.project_name == request_base_body["project_name"]
+        dar = DAR.query.filter(
+            DAR.project_name == request_base_body["project_name"]
         ).one_or_none()
         assert dar.project_id == dataset.project_id
 
@@ -286,7 +286,7 @@ class TestTransfers:
             data=json.dumps(request_base_body)
         )
         assert response.status_code == 500
-        assert Request.query.filter(
-            Request.title == request_base_body["title"],
-            Request.project_name == request_base_body["project_name"],
+        assert DAR.query.filter(
+            DAR.title == request_base_body["title"],
+            DAR.project_name == request_base_body["project_name"],
         ).count() == 0

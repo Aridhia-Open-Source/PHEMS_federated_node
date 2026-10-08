@@ -86,6 +86,7 @@ class TestApiResources:
 class TestRegistry:
     def test_every_resource_is_exported(self):
         assert set(RESOURCES) == {
-            "backend_config", "sensor_config", "github_config",
-            "backend_api", "github_api", "git_apis",
+            "backend_config", "sensor_config", "gitea_config", "gitea_api",
+            "github_config", "kubernetes_config", "backend_api", "github_api",
+            "git_apis",
         }
