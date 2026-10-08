@@ -100,3 +100,17 @@ class TestGetOrCreateRepository:
         self.create(api, "http://gitea.fn.svc/gitea_admin/other")
 
         session.post.assert_called_once()
+
+
+def test_get_task_results_lists_the_tasks_deliveries(api, session):
+    body = [{
+        "id": 4, "task_id": 9, "results_repository_id": 2, "status": "DELIVERED", "attempts": 1,
+        "branch": None, "commit_sha": "abc", "pull_request_number": None, "pull_request_url": None,
+        "error": None, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z",
+    }]
+    session.get.return_value = response(body)
+
+    results = api.get_task_results(9)
+
+    session.get.assert_called_once_with("/tasks/9/results")
+    assert [(r.id, r.status, r.commit_sha) for r in results] == [(4, "DELIVERED", "abc")]

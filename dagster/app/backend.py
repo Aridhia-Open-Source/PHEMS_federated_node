@@ -2,7 +2,7 @@ import logging
 from http import HTTPStatus
 
 from app.utils import BackendSession
-from app.models import TriggerRepository, PullRequest, Project, Task, Dataset
+from app.models import TriggerRepository, PullRequest, Project, ResultsRepository, Task, TaskResult, Dataset
 
 default_logger = logging.getLogger(__name__)
 
@@ -168,6 +168,41 @@ class BackendAPI:
         self.logger.info(f"Updating task {task_id}")
         response = self.session.patch(f"/tasks/{task_id}", json=data)
         return Task(**response.json())
+
+    def get_task(self, task_id: int) -> Task:
+        """Get single task"""
+        self.logger.info(f"Fetching task {task_id}")
+        response = self.session.get(f"/tasks/{task_id}")
+        return Task(**response.json())
+
+    def get_results_repository(self, project_id: int) -> ResultsRepository:
+        """Get the results repository of a project. A project has exactly one."""
+        self.logger.info(f"Fetching the results repository of project {project_id}")
+        # Route is a placeholder for the project's results repository: change it here only
+        response = self.session.get("/results_repositories", params={"project_id": project_id})
+        (repository,) = response.json()
+        return ResultsRepository(**repository)
+
+    def get_task_results(self, task_id: int) -> list[TaskResult]:
+        """Get the deliveries of a task's results"""
+        self.logger.info(f"Fetching results of task {task_id}")
+        response = self.session.get(f"/tasks/{task_id}/results")
+        return [TaskResult(**result) for result in response.json()]
+
+    def create_task_result(self, task_id: int, results_repository_id: int) -> TaskResult:
+        """Create the delivery of a task's results to a repository, or return the existing one"""
+        self.logger.info(f"Creating result of task {task_id} for repository {results_repository_id}")
+        response = self.session.post(
+            "/task_results",
+            json={"task_id": task_id, "results_repository_id": results_repository_id},
+        )
+        return TaskResult(**response.json())
+
+    def patch_task_result(self, task_result_id: int, data: dict) -> TaskResult:
+        """Update task result"""
+        self.logger.info(f"Updating task result {task_result_id}")
+        response = self.session.patch(f"/task_results/{task_result_id}", json=data)
+        return TaskResult(**response.json())
 
     def get_dataset_by_name(self, name: str) -> Dataset | None:
         """Get dataset by name"""

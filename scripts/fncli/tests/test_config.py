@@ -7,6 +7,7 @@ from fncli.cmds.common import (
     RepoConfig,
     ResultsRepoConfig,
     TriggerRepoConfig,
+    to_host_url,
 )
 from fncli.dagster.config import EnvConfig
 
@@ -15,6 +16,22 @@ def test_gitea_config_defaults_to_the_port_forwarded_address(monkeypatch):
     monkeypatch.delenv("GITEA_URL", raising=False)
 
     assert GiteaConfig().gitea_host_api_uri == "http://localhost:4000/api/v1"
+
+
+def test_gitea_config_reaches_an_in_cluster_url_through_localhost(monkeypatch):
+    monkeypatch.setenv("GITEA_URL", "http://gitea.fn.svc:4000")
+
+    assert GiteaConfig().gitea_host_api_uri == "http://localhost:4000/api/v1"
+
+
+@pytest.mark.parametrize("url, expected", [
+    ("http://gitea.fn.svc:4000/api/v1", "http://localhost:4000/api/v1"),
+    ("https://gitea.fn.svc/org/repo.git", "https://localhost/org/repo.git"),
+    ("http://localhost:4000/api/v1", "http://localhost:4000/api/v1"),
+    ("https://api.github.com", "https://api.github.com"),
+])
+def test_to_host_url_only_swaps_an_in_cluster_hostname(url, expected):
+    assert to_host_url(url) == expected
 
 
 def test_values_are_read_from_the_environment(monkeypatch):

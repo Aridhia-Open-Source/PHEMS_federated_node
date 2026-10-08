@@ -37,6 +37,10 @@ POLL_SECONDS = 3
 MAX_CONNECTION_ERRORS = 10
 # The run-status sensors tick every 10s, so the task trails its run by up to that long.
 SETTLE_SECONDS = 30
+# How long after a succeeded run its results may take to be delivered (the delivery sensor
+# ticks, then launches a run that zips and pushes them).
+DELIVERY_SECONDS = 60
+DELIVERY_DONE = ["DELIVERED", "FAILED"]
 # Dagster's run statuses that end a task's run.
 RUN_DONE = ["SUCCESS", "FAILURE", "CANCELED"]
 
@@ -123,6 +127,23 @@ def stuck_sensors(dagster_api: DagsterAPI, stage: str) -> list[str]:
     ]
 
 
+def wait_for_delivery(backend_api, dagster_api: DagsterAPI, task_id: int):
+    """Print each change of the task's delivery status until it is DELIVERED or FAILED, or the wait ends."""
+    deadline = time.monotonic() + DELIVERY_SECONDS
+    last = ""
+    while time.monotonic() < deadline:
+        results = backend_api.get_task_results(task_id)
+        status = results[0].status if results else None
+        if status != last:
+            last = status
+            logger.info(f"{datetime.now().strftime('%H:%M:%S')} Delivery: {status or 'waiting for the delivery sensor'}")
+        if status in DELIVERY_DONE:
+            return
+        time.sleep(POLL_SECONDS)
+    logger.info(f"Delivery not finished after {DELIVERY_SECONDS}s, last seen: {last or None}")
+    logger.info(f"Sensors not running at the delivery stage: {stuck_sensors(dagster_api, 'delivery')}")
+
+
 def watch_pr(config: PrConfig, number: int, timeout: int):
     """
     Print each change of the PR in the backend, then of its task and the task's run, until
@@ -185,6 +206,8 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
                 and time.monotonic() < settle_deadline
             ):
                 time.sleep(POLL_SECONDS)
+            if run["status"] == "SUCCESS":
+                wait_for_delivery(backend_api, dagster_api, task.id)
             report = Report()
             verify_task(report, backend_api, dagster_api, repo.id, number)
             report.echo()

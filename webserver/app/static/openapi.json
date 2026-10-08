@@ -1958,6 +1958,117 @@
             "$ref": "#/components/responses/InternalError"
           }
         }
+      },
+      "patch": {
+        "operationId": "patch_task_result",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task result identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Record the progress of a task's delivery",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskResultPatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated task result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResultById"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/task_results": {
+      "post": {
+        "operationId": "post_task_result",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Create the delivery of a task's results to a results repository. If it exists already, it is returned",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskResultPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new task result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResultById"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The existing task result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResultById"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     }
   },
@@ -3688,6 +3799,64 @@
           "updated_at": {
             "type": "string",
             "example": "Mon, 19 Feb 2024 10:41:54 GMT"
+          }
+        }
+      },
+      "TaskResultPostBody": {
+        "type": "object",
+        "required": [
+          "task_id",
+          "results_repository_id"
+        ],
+        "properties": {
+          "task_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "results_repository_id": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "TaskResultPatchBody": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PUSHED",
+              "PR_OPENED",
+              "DELIVERED",
+              "FAILED"
+            ],
+            "example": "PENDING"
+          },
+          "attempts": {
+            "type": "integer",
+            "example": 0
+          },
+          "branch": {
+            "type": "string",
+            "nullable": true,
+            "example": "task-1-results"
+          },
+          "commit_sha": {
+            "type": "string",
+            "nullable": true
+          },
+          "pull_request_number": {
+            "type": "integer",
+            "nullable": true
+          },
+          "pull_request_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
           }
         }
       }

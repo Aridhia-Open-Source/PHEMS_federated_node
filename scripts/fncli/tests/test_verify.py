@@ -7,9 +7,13 @@ from fncli.dagster.models import TriggerState
 
 
 class FakeBackend:
-    def __init__(self, pr, task):
+    def __init__(self, pr, task, results=None):
         self.pr = pr
         self.task = task
+        self.results = [result_of()] if results is None else results
+
+    def get_task_results(self, task_id):
+        return self.results
 
     def get_pull_requests(self, repo_id):
         return [self.pr] if self.pr else []
@@ -24,6 +28,11 @@ class FakeDagster:
 
     def get_task_run(self, task_id):
         return self.run
+
+
+def result_of(**fields):
+    result = dict(id=1, task_id=9, status="DELIVERED", attempts=1, commit_sha="abc123", error=None)
+    return SimpleNamespace(**(result | fields))
 
 
 def pr_of(state="YIELDED"):
@@ -46,9 +55,9 @@ def run_of(**fields):
     return run | fields
 
 
-def verify(pr=None, task=None, run=None):
+def verify(pr=None, task=None, run=None, results=None):
     report = Report()
-    verify_task(report, FakeBackend(pr, task), FakeDagster(run), 7, 5)
+    verify_task(report, FakeBackend(pr, task, results), FakeDagster(run), 7, 5)
     return report
 
 
@@ -60,7 +69,7 @@ def test_a_task_that_ran_and_matches_passes():
     report = verify(pr_of(), task_of(), run_of())
 
     assert report.failed == 0
-    assert len(report.rows) == 10
+    assert len(report.rows) == 14
 
 
 def test_a_missing_pr_fails_and_stops():
@@ -98,6 +107,25 @@ def test_each_mismatch_is_reported(task_fields, run_fields, failed):
     assert failures(report) == [failed]
 
 
+@pytest.mark.parametrize("results, failed", [
+    ([result_of(status="FAILED", error="zip too big")], ["Results were DELIVERED"]),
+    ([result_of(status="PENDING", commit_sha=None)], ["Results were DELIVERED", "Delivery has a commit_sha"]),
+    ([result_of(commit_sha=None)], ["Delivery has a commit_sha"]),
+    ([], ["Task 9 has one results delivery: GET /tasks/9/results"]),
+    ([result_of(), result_of(id=2)], ["Task 9 has one results delivery: GET /tasks/9/results"]),
+])
+def test_each_delivery_problem_is_reported(results, failed):
+    report = verify(pr_of(), task_of(), run_of(), results)
+
+    assert failures(report) == failed
+
+
+def test_a_failed_delivery_shows_its_error():
+    report = verify(pr_of(), task_of(), run_of(), [result_of(status="FAILED", error="zip too big")])
+
+    assert ("FAIL", "Results were DELIVERED", "FAILED: zip too big") in report.rows
+
+
 def test_a_failed_run_matching_its_task_still_fails_the_run_check():
     report = verify(pr_of(), task_of(status="FAILED"), run_of(status="FAILURE"))
 
@@ -116,6 +144,9 @@ class RepoBackend:
     def __init__(self, prs, task=None):
         self.prs = prs
         self.task = task or task_of()
+
+    def get_task_results(self, task_id):
+        return [result_of()]
 
     def get_pull_requests(self, repo_id):
         return self.prs

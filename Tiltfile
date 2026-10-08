@@ -98,6 +98,19 @@ docker_build_with_restart(
   ],
 )
 
+# Run pods start from DAGSTER_CURRENT_IMAGE, not from the image Tilt live-updates, so
+# rebuild and push that image (tag set in scripts/tilt_manifests.py) on every code change.
+# Run pods always pull, so the next run picks it up.
+local_resource(
+  'dagster-run-image',
+  cmd='docker build dagster -t {img} && docker push {img}'.format(
+    img='{}/dagster-fn:tilt-run'.format(DOCKER_REGISTRY),
+  ),
+  deps=['dagster'],
+  ignore=['dagster/**/__pycache__', 'dagster/**/*.pyc'],
+  labels=['dev'],
+)
+
 # ==============================================================================
 # STATUS HELPERS
 # ==============================================================================
@@ -132,7 +145,7 @@ local_resource(
 
 local_resource(
   'gitea-port-forward',
-  serve_cmd='kubectl port-forward svc/gitea -n {ns} 4000:3000'.format(ns=NAMESPACE),
+  serve_cmd='kubectl port-forward svc/gitea -n {ns} 4000:4000'.format(ns=NAMESPACE),
   labels=['infrastructure'],
 )
 

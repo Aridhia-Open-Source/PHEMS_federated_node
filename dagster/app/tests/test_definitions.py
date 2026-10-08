@@ -12,7 +12,7 @@ class TestCodeLocation:
         names = {job.name for job in defs.jobs}
 
         assert {"noop_job", "k8s_pipes_job", "github_transfer_job",
-                "evaluate_repository_pull_requests_job"} <= names
+                "evaluate_repository_pull_requests_job", "deliver_results_job"} <= names
 
     def test_sensors_are_registered(self):
         names = {sensor.name for sensor in defs.sensors}
@@ -26,6 +26,7 @@ class TestCodeLocation:
             "task_success_sensor",
             "task_failure_sensor",
             "task_canceled_sensor",
+            "task_results_delivery_sensor",
         } <= names
 
     def test_the_pipes_client_is_a_resource(self):

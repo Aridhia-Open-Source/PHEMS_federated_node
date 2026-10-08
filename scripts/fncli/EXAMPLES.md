@@ -47,11 +47,11 @@ Optional, to set up one side only:
 ### 2. Start the sensors
 
 - `fncli start-sensor --sensor all`
-  - Dagster: starts the run-status sensors first.
+  - Dagster: starts the run-status sensors first, then the results delivery sensor (it also acts when a run succeeds, so it must be running before the launcher).
   - Dagster: starts the other sensors (ingest, evaluate, launcher).
   - Dagster: does nothing for a sensor that is already running.
 
-Optional: `--sensor ingest|evaluate|launcher|status` starts just one (`status` is the run-status sensors).
+Optional: `--sensor ingest|evaluate|launcher|status|delivery` starts just one (`status` is the run-status sensors, `delivery` is `task_results_delivery_sensor`).
 
 ### 3. Open pull requests in the trigger repo
 
@@ -111,9 +111,11 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
   - For a `YIELDED` PR, Dagster: finds the run tagged with the task's id, and checks it is a `k8s_pipes_job`.
   - Checks the task's status, run id and attempt match the run, and that `started_at` and `completed_at` are set when they should be.
   - Checks the run succeeded.
+  - For a succeeded run, Backend: `GET /tasks/{id}/results`, and checks the task has exactly one results delivery, its status is `DELIVERED` (a `FAILED` one shows its error) and it has a `commit_sha`.
+  - Does not check the files in the results repo: it only reads the backend and Dagster.
 - `fncli verify-repo --tail 10`
   - The same, for only the last 10 PRs by number.
-- `merge-gitea-pr --watch` and `open-pr --merge --watch` print the same per-PR checks when the run ends.
+- `merge-gitea-pr --watch` and `open-pr --merge --watch` print the same per-PR checks when the run ends. After a succeeded run they first wait up to 60s for the delivery to reach `DELIVERED` or `FAILED`, printing a `Delivery:` line each time its status changes (Backend: `GET /tasks/{id}/results`). If it does not finish, they name the delivery sensor if it is not running, and the delivery check fails.
 
 ### 5. Tear down
 

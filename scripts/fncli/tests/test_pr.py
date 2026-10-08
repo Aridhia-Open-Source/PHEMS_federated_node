@@ -75,9 +75,18 @@ def test_branch_names_are_prefixed_with_the_time():
 # --watch
 
 class FakeBackend:
-    def __init__(self, prs, task_status="SUCCESS"):
+    def __init__(self, prs, task_status="SUCCESS", deliveries=("DELIVERED",)):
         self.prs = prs
         self.task_status = task_status
+        self.deliveries = list(deliveries)
+
+    def get_task_results(self, task_id):
+        status = self.deliveries.pop(0) if len(self.deliveries) > 1 else self.deliveries[0]
+        if status is None:
+            return []
+        return [SimpleNamespace(
+            id=1, task_id=task_id, status=status, attempts=1, commit_sha="abc", error=None
+        )]
 
     def find_repository(self, uri, project_id):
         return SimpleNamespace(id=7)
@@ -108,7 +117,7 @@ def pr_of(state, cause=None):
 def watch(monkeypatch):
     """Runs watch_pr against a fake backend and Dagster, returning the exit code."""
 
-    def run(prs, runs=(None,), sensors=None, timeout=300):
+    def run(prs, runs=(None,), sensors=None, timeout=300, deliveries=("DELIVERED",)):
         runs = list(runs)
         dagster_api = MagicMock()
         def get_task_run(task_id):
@@ -119,7 +128,7 @@ def watch(monkeypatch):
 
         dagster_api.get_task_run.side_effect = get_task_run
         dagster_api.get_sensor_state.side_effect = lambda name: {"status": (sensors or {}).get(name, "RUNNING")}
-        monkeypatch.setattr(pr, "build_backend_api", lambda config: FakeBackend(list(prs)))
+        monkeypatch.setattr(pr, "build_backend_api", lambda config: FakeBackend(list(prs), deliveries=deliveries))
         monkeypatch.setattr(pr, "DagsterAPI", lambda url: dagster_api)
         monkeypatch.setattr(pr, "find_project", lambda config, api: SimpleNamespace(id=1))
         monkeypatch.setattr(pr, "POLL_SECONDS", 0)
@@ -147,6 +156,7 @@ def test_watch_prints_each_change_once(watch, caplog):
         "Task 9: SUCCESS",
         "Run abc: STARTED",
         "Run abc: SUCCESS",
+        "Delivery: DELIVERED",
     ]
 
 
@@ -164,6 +174,48 @@ def test_watch_rejected_exits_one_and_shows_the_cause(watch, caplog):
 @pytest.mark.parametrize("status, code", [("SUCCESS", 0), ("FAILURE", 1), ("CANCELED", 1)])
 def test_watch_run_status_sets_the_exit_code(watch, status, code):
     assert watch([[pr_of("YIELDED")]], [run_of(status)]) == code
+
+
+def test_watch_waits_for_the_delivery_and_prints_each_change(watch, caplog):
+    caplog.set_level(logging.INFO, logger="pr")
+
+    code = watch([[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=[None, "PENDING", "DELIVERED"])
+
+    assert code == 0
+    lines = [r.message.split(" ", 1)[1] for r in caplog.records if "Delivery" in r.message]
+    assert lines == [
+        "Delivery: waiting for the delivery sensor", "Delivery: PENDING", "Delivery: DELIVERED"
+    ]
+
+
+def test_watch_a_failed_delivery_exits_one(watch, caplog):
+    caplog.set_level(logging.INFO, logger="pr")
+
+    assert watch([[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=["FAILED"]) == 1
+    assert "Delivery: FAILED" in caplog.text
+
+
+def test_watch_a_delivery_that_never_comes_is_bounded_and_fails_verification(
+    watch, caplog, monkeypatch
+):
+    caplog.set_level(logging.INFO, logger="pr")
+    monkeypatch.setattr(pr, "DELIVERY_SECONDS", 0.05)
+
+    code = watch(
+        [[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=[None],
+        sensors={"task_results_delivery_sensor": "STOPPED"},
+    )
+
+    assert code == 1
+    assert "delivery stage: ['task_results_delivery_sensor']" in caplog.text
+
+
+def test_watch_a_failed_run_does_not_wait_for_a_delivery(watch, caplog):
+    caplog.set_level(logging.INFO, logger="pr")
+
+    watch([[pr_of("YIELDED")]], [run_of("FAILURE")], deliveries=[None])
+
+    assert "Delivery" not in caplog.text
 
 
 def test_watch_timeout_names_the_stopped_sensor_of_the_stage(watch, caplog):

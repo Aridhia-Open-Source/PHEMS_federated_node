@@ -24,6 +24,7 @@ from app.helpers.exceptions import InvalidRequest
 from app.dtos.task_spec import TaskSpec
 from app.helpers.repository_loop import check_no_loop
 from app.helpers.wrappers import auth
+from app.models.git_provider import GitProvider
 from app.models.secret import Secret
 from app.models.project import Project
 from app.models.pull_request import PullRequest
@@ -83,7 +84,7 @@ def post_repository():
         raise InvalidRequest("uri is required")
     if not body.get('project_id'):
         raise InvalidRequest("project_id is required")
-    for field in ('provider', 'api_uri', 'secret_label'):
+    for field in ('provider', 'secret_label'):
         if not body.get(field):
             raise InvalidRequest(f"{field} is required")
 
@@ -99,7 +100,7 @@ def post_repository():
         repo = TriggerRepository(
             uri=uri,
             provider=body['provider'],
-            api_uri=body['api_uri'],
+            api_uri=body.get('api_uri') or GitProvider(body['provider']).default_api_uri(uri),
             secret_id=secret.id,
             watch_dir=body.get('watch_dir', ''),
             project_id=body['project_id'],

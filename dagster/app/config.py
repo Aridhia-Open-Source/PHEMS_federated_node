@@ -29,6 +29,11 @@ class SensorConfig(EnvConfig):
     token: str = Field(default="", alias="GH_TOKEN")
 
 
+class ResultsDeliveryConfig(EnvConfig):
+    artifact_mount_path: str = Field(default="", alias="DAGSTER_ARTIFACT_MOUNT_PATH")
+    max_zip_bytes: int = Field(default=10485760, alias="RESULTS_MAX_ZIP_BYTES")
+
+
 class GithubConfig(EnvConfig):
     token: str = Field(default="", alias="GH_TOKEN")
     base_uri: str = Field(
@@ -48,7 +53,7 @@ class GithubTransferConfig(EnvConfig):
 class GiteaConfig(EnvConfig):
     token: str = Field(default="", alias="GITEA_TOKEN")
     base_uri: str = Field(
-        default="http://gitea.fn.svc:3000/api/v1",
+        default="http://gitea.fn.svc:4000/api/v1",
         alias="GITEA_API_URI",
     )
 

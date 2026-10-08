@@ -4,7 +4,7 @@ import pytest
 
 from app.backend import BackendAPI
 from app.models import Dataset, PullRequest, TriggerRepository
-from app.tests.conftest import SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, make_response
+from app.tests.conftest import SAMPLE_SECRET, SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, make_response
 
 
 
@@ -253,3 +253,35 @@ class TestTasks:
         assert (task.dagster_run_id, task.exit_code) == ("r1", 0)
         assert session.patch.call_args.args == ("/tasks/9",)
         assert session.patch.call_args.kwargs["json"] == {"status": "QUEUED"}
+
+
+class TestTaskResults:
+    RESULT = {"id": 9, "task_id": 7, "results_repository_id": 5, "status": "PENDING", "attempts": 0}
+
+    def test_the_results_repository_is_the_one_of_the_project(self, api, session):
+        repository = {
+            "id": 5, "uri": "h/o/r", "provider": "gitea", "api_uri": "http://h/api/v1",
+            "secret": SAMPLE_SECRET, "target_dir": "results", "project_id": 1,
+        }
+        session.get.return_value = make_response([repository])
+
+        result = api.get_results_repository(1)
+
+        session.get.assert_called_once_with("/results_repositories", params={"project_id": 1})
+        assert result.id == 5
+
+    def test_create_posts_the_task_and_repository(self, api, session):
+        session.post.return_value = make_response(self.RESULT)
+
+        api.create_task_result(7, 5)
+
+        session.post.assert_called_once_with("/task_results", json={"task_id": 7, "results_repository_id": 5})
+
+    def test_patch_and_list(self, api, session):
+        session.patch.return_value = make_response({**self.RESULT, "status": "DELIVERED"})
+        session.get.return_value = make_response([self.RESULT])
+
+        assert api.patch_task_result(9, {"status": "DELIVERED"}).status == "DELIVERED"
+        assert api.get_task_results(7)[0].id == 9
+        session.patch.assert_called_once_with("/task_results/9", json={"status": "DELIVERED"})
+        session.get.assert_called_once_with("/tasks/7/results")

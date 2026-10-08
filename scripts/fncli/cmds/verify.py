@@ -68,6 +68,12 @@ def require(value, what: str):
     return value
 
 
+def exactly_one(results: list):
+    if len(results) != 1:
+        raise RuntimeError(f"expected 1 result, found {len(results)}")
+    return results[0]
+
+
 def record_repo_health(report: Report, kind: str, repo: dict):
     """One healthcheck repo entry: reachable with its stored token or not."""
     check = repo["health_check"]
@@ -187,6 +193,25 @@ def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, pr):
     if expected in ("SUCCESS", "FAILED", "CANCELED"):
         report.record(task.completed_at is not None, "Task has completed_at", str(task.completed_at))
     report.record(run["status"] == "SUCCESS", "Run succeeded", run["status"])
+    if run["status"] == "SUCCESS":
+        verify_delivery(report, backend_api, pr.task_id)
+
+
+def verify_delivery(report: Report, backend_api, task_id: int):
+    """A succeeded task's results are delivered: one TaskResult, DELIVERED, with a commit."""
+    results = report.check(
+        f"Task {task_id} has one results delivery: GET /tasks/{task_id}/results",
+        lambda: exactly_one(backend_api.get_task_results(task_id)),
+        lambda r: f"{r.status}, attempts {r.attempts}",
+    )
+    if results is None:
+        return
+    report.record(
+        results.status == "DELIVERED",
+        "Results were DELIVERED",
+        f"{results.status}" + (f": {results.error}" if results.error else ""),
+    )
+    report.record(results.commit_sha is not None, "Delivery has a commit_sha", str(results.commit_sha))
 
 
 def verify_repo(backend_api, dagster_api: DagsterAPI, repo_id: int, tail: int | None) -> int:

@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from sqlalchemy.exc import IntegrityError
 
@@ -77,3 +79,127 @@ class TestGetTaskResults:
     def test_get_by_id_not_found(self, client, simple_admin_header):
         response = client.get("/task_results/9999", headers=simple_admin_header)
         assert response.status_code == 404
+
+
+class TestPostTaskResult:
+    def post(self, client, headers, body):
+        return client.post("/task_results", data=json.dumps(body), headers=headers)
+
+    def test_create(self, client, post_json_admin_header, task, results_repo):
+        response = self.post(
+            client, post_json_admin_header, {"task_id": task.id, "results_repository_id": results_repo.id}
+        )
+        assert response.status_code == 201
+        assert response.json["task_id"] == task.id
+        assert response.json["results_repository_id"] == results_repo.id
+        assert response.json["status"] == "PENDING"
+        assert response.json["attempts"] == 0
+        assert TaskResult.query.filter_by(task_id=task.id).count() == 1
+
+    def test_create_is_idempotent(self, client, post_json_admin_header, task, results_repo, task_result):
+        response = self.post(
+            client, post_json_admin_header, {"task_id": task.id, "results_repository_id": results_repo.id}
+        )
+        assert response.status_code == 200
+        assert response.json == TaskResultDTO.from_model(task_result).dump()
+        assert TaskResult.query.filter_by(task_id=task.id).count() == 1
+
+    def test_unknown_task(self, client, post_json_admin_header, results_repo):
+        response = self.post(
+            client, post_json_admin_header, {"task_id": 9999, "results_repository_id": results_repo.id}
+        )
+        assert response.status_code == 404
+
+    def test_unknown_repository(self, client, post_json_admin_header, task):
+        response = self.post(client, post_json_admin_header, {"task_id": task.id, "results_repository_id": 9999})
+        assert response.status_code == 404
+
+    @pytest.mark.parametrize("body", [{}, {"task_id": 1}, {"results_repository_id": 1}, {"task_id": "1", "results_repository_id": 1}])
+    def test_invalid_body(self, client, post_json_admin_header, body):
+        response = self.post(client, post_json_admin_header, body)
+        assert response.status_code == 400
+
+
+class TestPatchTaskResult:
+    def patch(self, client, headers, task_result_id, body):
+        return client.patch(f"/task_results/{task_result_id}", data=json.dumps(body), headers=headers)
+
+    def test_update_all_fields(self, client, post_json_admin_header, task_result):
+        response = self.patch(client, post_json_admin_header, task_result.id, {
+            "status": "PR_OPENED", "attempts": 2, "branch": "task-1-results", "commit_sha": "a" * 40,
+            "pull_request_number": 7, "pull_request_url": "https://example.com/pull/7", "error": None,
+        })
+        assert response.status_code == 200
+        assert response.json["status"] == "PR_OPENED"
+        assert response.json["attempts"] == 2
+        assert response.json["branch"] == "task-1-results"
+        assert response.json["commit_sha"] == "a" * 40
+        assert response.json["pull_request_number"] == 7
+        assert response.json["pull_request_url"] == "https://example.com/pull/7"
+        task_result = TaskResult.query.get(task_result.id)
+        assert task_result.status == "PR_OPENED"
+        assert task_result.attempts == 2
+
+    def test_update_failed_with_error(self, client, post_json_admin_header, task_result):
+        response = self.patch(client, post_json_admin_header, task_result.id, {"status": "FAILED", "error": "zip too big"})
+        assert response.status_code == 200
+        task_result = TaskResult.query.get(task_result.id)
+        assert task_result.status == "FAILED"
+        assert task_result.error == "zip too big"
+        assert task_result.commit_sha is None
+
+    def test_not_found(self, client, post_json_admin_header):
+        response = self.patch(client, post_json_admin_header, 9999, {"status": "DELIVERED"})
+        assert response.status_code == 404
+
+    @pytest.mark.parametrize("body", [
+        {},
+        {"status": "delivered"},
+        {"status": "DONE"},
+        {"task_id": 2},
+        {"attempts": "1"},
+        {"attempts": True},
+        {"pull_request_number": "7"},
+        {"commit_sha": "a" * 41},
+        {"error": 1},
+        {"branch": 1},
+    ])
+    def test_invalid_body(self, client, post_json_admin_header, task_result, body):
+        response = self.patch(client, post_json_admin_header, task_result.id, body)
+        assert response.status_code == 400
+        assert TaskResult.query.get(task_result.id).status == "PENDING"
+
+
+class TestTaskResultWritesAuth:
+    @pytest.fixture
+    def tasks_kc(self, mock_kc_client):
+        kc = mock_kc_client["tasks_api_kc"].return_value
+        kc.is_user_admin.return_value = False
+        kc.is_system_user.return_value = False
+        return kc
+
+    def test_the_system_user_writes(self, client, post_json_admin_header, make_task, results_repo, tasks_kc):
+        tasks_kc.is_system_user.return_value = True
+        task = make_task(requested_by="someone-else")
+        response = client.post(
+            "/task_results", headers=post_json_admin_header,
+            data=json.dumps({"task_id": task.id, "results_repository_id": results_repo.id})
+        )
+        assert response.status_code == 201
+
+    def test_another_user_is_forbidden(self, client, post_json_admin_header, make_task, results_repo, tasks_kc):
+        task = make_task(requested_by="someone-else")
+        response = client.post(
+            "/task_results", headers=post_json_admin_header,
+            data=json.dumps({"task_id": task.id, "results_repository_id": results_repo.id})
+        )
+        assert response.status_code == 403
+
+    def test_patch_by_another_user_is_forbidden(self, client, post_json_admin_header, task_result, tasks_kc):
+        task_result.task.requested_by = "someone-else"
+        task_result.add()
+        response = client.patch(
+            f"/task_results/{task_result.id}", headers=post_json_admin_header,
+            data=json.dumps({"status": "DELIVERED"})
+        )
+        assert response.status_code == 403
