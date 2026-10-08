@@ -3,11 +3,11 @@ import pytest
 from app.dtos.task import NewTaskDTO
 from app.dtos.task_spec import TaskSpec
 from app.helpers.exceptions import InvalidRequest
-from app.models.api_request import ApiRequest
+from app.models.api_request_trigger import ApiRequestTrigger
 from app.models.dataset import Dataset
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
-from app.models.pull_request import PullRequest
+from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.task import Task
 from app.models.trigger_state import TriggerState
 from tests.fixtures.azure_cr_fixtures import *
@@ -18,14 +18,14 @@ SPEC = {"name": "TestTask", "image": "img:1", "env": {"K": "v"}, "params": {"p":
 
 @pytest.fixture
 def api_request(client, project, dataset):
-    api_request = ApiRequest(project_id=project.id, user_id="api-user", payload={"raw": True})
+    api_request = ApiRequestTrigger(project_id=project.id, user_id="api-user", payload={"raw": True})
     api_request.add()
     return api_request
 
 
 @pytest.fixture
 def pull_request(client, project, dataset, default_repo):
-    pull_request = PullRequest(
+    pull_request = PullRequestTrigger(
         project_id=project.id, trigger_repository_id=default_repo.id, number=7, title="PR title",
         raised_by="pr-user", merged_at="2026-01-01T10:00:00", merge_commit_sha="a" * 40,
         payload={"image": "img:1"},
@@ -100,7 +100,7 @@ class TestPostTasks:
         response = self.post(client, post_json_admin_header, project, task_body)
         assert response.status_code == 201, response.json
         task = Task.query.one()
-        api_request = ApiRequest.query.one()
+        api_request = ApiRequestTrigger.query.one()
         assert response.json["id"] == task.id
         assert response.json["api_request_id"] == api_request.id
         assert task.trigger_id == api_request.id
@@ -126,7 +126,7 @@ class TestPostTasks:
         response = self.post(client, post_json_admin_header, project, task_body)
         assert response.status_code == 400
         assert Task.query.count() == 0
-        api_request = ApiRequest.query.one()
+        api_request = ApiRequestTrigger.query.one()
         assert api_request.state == TriggerState.REJECTED.value
         assert api_request.state_cause == response.json["error"]
         assert api_request.payload["resources"] == {"limits": {"cpu": "abc"}}
@@ -140,7 +140,7 @@ class TestPostTasks:
         assert response.status_code == 400, response.json
         assert "does not belong to project" in response.json["error"]
         assert Task.query.count() == 0
-        api_request = ApiRequest.query.one()
+        api_request = ApiRequestTrigger.query.one()
         assert api_request.state == TriggerState.REJECTED.value
         assert "does not belong to project" in api_request.state_cause
         assert api_request.project_id == other_project.id
@@ -155,7 +155,7 @@ class TestPostTasks:
         assert response.status_code == 400
         assert response.json["error"] == "executors must be a non-empty list of objects"
         assert Task.query.count() == 0
-        assert ApiRequest.query.one().state == TriggerState.REJECTED.value
+        assert ApiRequestTrigger.query.one().state == TriggerState.REJECTED.value
 
     def test_unknown_project_records_nothing(
             self, client, cr_client, registry_client, post_json_admin_header, task_body
@@ -164,10 +164,10 @@ class TestPostTasks:
             '/tasks', json=task_body, headers={**post_json_admin_header, "project-name": "NoSuchProject"}
         )
         assert response.status_code in (403, 404)
-        assert ApiRequest.query.count() == 0
+        assert ApiRequestTrigger.query.count() == 0
         assert Task.query.count() == 0
 
     def test_unauthenticated_records_nothing(self, client, task_body, project):
         response = client.post('/tasks', json=task_body, headers={"project-name": project.name})
         assert response.status_code == 401
-        assert ApiRequest.query.count() == 0
+        assert ApiRequestTrigger.query.count() == 0

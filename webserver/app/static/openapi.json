@@ -603,7 +603,7 @@
         "summary": "List the delivery of a task's results to each destination",
         "responses": {
           "200": {
-            "$ref": "#/components/responses/TaskResultList"
+            "$ref": "#/components/responses/ResultList"
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
@@ -1923,14 +1923,14 @@
         }
       }
     },
-    "/task_results/{id}": {
+    "/results/{id}": {
       "get": {
-        "operationId": "get_task_result",
+        "operationId": "get_result",
         "parameters": [
           {
             "in": "path",
             "name": "id",
-            "description": "Unique task result identifier",
+            "description": "Unique result identifier",
             "required": true,
             "schema": {
               "type": "integer"
@@ -1940,10 +1940,10 @@
         "tags": [
           "Tasks"
         ],
-        "summary": "Get a single task result by its id",
+        "summary": "Get a single result by its id",
         "responses": {
           "200": {
-            "$ref": "#/components/responses/TaskResult"
+            "$ref": "#/components/responses/Result"
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
@@ -1960,12 +1960,12 @@
         }
       },
       "patch": {
-        "operationId": "patch_task_result",
+        "operationId": "patch_result",
         "parameters": [
           {
             "in": "path",
             "name": "id",
-            "description": "Unique task result identifier",
+            "description": "Unique result identifier",
             "required": true,
             "schema": {
               "type": "integer"
@@ -1975,24 +1975,24 @@
         "tags": [
           "Tasks"
         ],
-        "summary": "Record the progress of a task's delivery",
+        "summary": "Record the progress of a task's delivery. A pull request result's state only moves forward: UNKNOWN, PUSHED, OPENED, then MERGED or CLOSED, both terminal. A backward move is a 400",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TaskResultPatchBody"
+                "$ref": "#/components/schemas/ResultPatchBody"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "The updated task result",
+            "description": "The updated result",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TaskResultById"
+                  "$ref": "#/components/schemas/ResultById"
                 }
               }
             }
@@ -2015,32 +2015,39 @@
         }
       }
     },
-    "/task_results": {
+    "/results": {
       "get": {
-        "operationId": "get_task_results_list",
+        "operationId": "get_results",
         "parameters": [
           {
             "in": "query",
-            "name": "merge_status",
-            "description": "Only the pull request results in this state",
+            "name": "state",
+            "description": "Only the pull request results in these states, repeated for several: ?state=PUSHED&state=OPENED",
             "required": false,
+            "style": "form",
+            "explode": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "OPEN",
-                "MERGED",
-                "CLOSED"
-              ]
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "UNKNOWN",
+                  "PUSHED",
+                  "OPENED",
+                  "MERGED",
+                  "CLOSED"
+                ]
+              }
             }
           }
         ],
         "tags": [
           "Tasks"
         ],
-        "summary": "List task results",
+        "summary": "List results",
         "responses": {
           "200": {
-            "$ref": "#/components/responses/TaskResultList"
+            "$ref": "#/components/responses/ResultList"
           },
           "400": {
             "$ref": "#/components/responses/InvalidBody"
@@ -2057,7 +2064,7 @@
         }
       },
       "post": {
-        "operationId": "post_task_result",
+        "operationId": "post_result",
         "tags": [
           "Tasks"
         ],
@@ -2067,28 +2074,28 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TaskResultPostBody"
+                "$ref": "#/components/schemas/ResultPostBody"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "The new task result",
+            "description": "The new result",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TaskResultById"
+                  "$ref": "#/components/schemas/ResultById"
                 }
               }
             }
           },
           "200": {
-            "description": "The existing task result",
+            "description": "The existing result",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TaskResultById"
+                  "$ref": "#/components/schemas/ResultById"
                 }
               }
             }
@@ -2790,24 +2797,24 @@
           }
         }
       },
-      "TaskResult": {
-        "description": "Task result",
+      "Result": {
+        "description": "Result",
         "content": {
           "application/json": {
             "schema": {
-              "$ref": "#/components/schemas/TaskResultById"
+              "$ref": "#/components/schemas/ResultById"
             }
           }
         }
       },
-      "TaskResultList": {
-        "description": "Task results, one per destination",
+      "ResultList": {
+        "description": "Results, one per destination",
         "content": {
           "application/json": {
             "schema": {
               "type": "array",
               "items": {
-                "$ref": "#/components/schemas/TaskResultById"
+                "$ref": "#/components/schemas/ResultById"
               }
             }
           }
@@ -3781,7 +3788,7 @@
           }
         }
       },
-      "TaskResultById": {
+      "ResultById": {
         "type": "object",
         "properties": {
           "id": {
@@ -3804,17 +3811,6 @@
             "type": "integer",
             "example": 1
           },
-          "status": {
-            "type": "string",
-            "enum": [
-              "PENDING",
-              "PUSHED",
-              "PR_OPENED",
-              "DELIVERED",
-              "FAILED"
-            ],
-            "example": "PENDING"
-          },
           "attempts": {
             "type": "integer",
             "example": 0
@@ -3831,6 +3827,18 @@
             "type": "string",
             "example": "Mon, 19 Feb 2024 10:41:54 GMT"
           },
+          "state": {
+            "type": "string",
+            "enum": [
+              "UNKNOWN",
+              "PUSHED",
+              "OPENED",
+              "MERGED",
+              "CLOSED"
+            ],
+            "example": "UNKNOWN",
+            "description": "Type PR only. The furthest delivery step reached, forward only"
+          },
           "branch": {
             "type": "string",
             "nullable": true,
@@ -3848,16 +3856,6 @@
             "type": "string",
             "nullable": true
           },
-          "merge_status": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "OPEN",
-              "MERGED",
-              "CLOSED"
-            ],
-            "example": "OPEN"
-          },
           "merged_at": {
             "type": "string",
             "nullable": true,
@@ -3869,7 +3867,7 @@
           }
         }
       },
-      "TaskResultPostBody": {
+      "ResultPostBody": {
         "type": "object",
         "required": [
           "task_id",
@@ -3886,19 +3884,19 @@
           }
         }
       },
-      "TaskResultPatchBody": {
+      "ResultPatchBody": {
         "type": "object",
         "properties": {
-          "status": {
+          "state": {
             "type": "string",
             "enum": [
-              "PENDING",
+              "UNKNOWN",
               "PUSHED",
-              "PR_OPENED",
-              "DELIVERED",
-              "FAILED"
+              "OPENED",
+              "MERGED",
+              "CLOSED"
             ],
-            "example": "PENDING"
+            "example": "PUSHED"
           },
           "attempts": {
             "type": "integer",
@@ -3921,15 +3919,6 @@
             "type": "string",
             "nullable": true
           },
-          "merge_status": {
-            "type": "string",
-            "enum": [
-              "OPEN",
-              "MERGED",
-              "CLOSED"
-            ],
-            "example": "OPEN"
-          },
           "merged_at": {
             "type": "string",
             "nullable": true,
@@ -3944,7 +3933,7 @@
             "nullable": true
           }
         },
-        "description": "branch, commit_sha, pull_request_*, merged_at and merge_commit_sha are only accepted for task results of type PR"
+        "description": "state, branch, commit_sha, number, url, merged_at and merge_commit_sha are only accepted for results of type PR"
       }
     }
   }

@@ -40,8 +40,8 @@ class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
     secret = relationship(
         "Secret", back_populates="trigger_repositories", overlaps="trigger_repositories,project"
     )
-    pull_requests = relationship(
-        "PullRequest", back_populates="trigger_repository", cascade="all, delete"
+    pull_request_triggers = relationship(
+        "PullRequestTrigger", back_populates="trigger_repository", cascade="all, delete"
     )
 
     @validates('initial_cursor')
@@ -53,7 +53,7 @@ class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
             except (ValueError, TypeError):
                 raise ValueError("initial_cursor must be a valid ISO 8601 datetime string")
 
-        if self.id is not None and self.pull_requests:
+        if self.id is not None and self.pull_request_triggers:
             raise ValueError(
                 "Cannot change initial_cursor while pull requests exist. "
                 "Delete all pull requests first if you want to adjust the cursor."
@@ -73,7 +73,7 @@ class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
         Get latest PR merge time from all ingested pull requests.
         If no pull requests exist, use initial_cursor as the starting point.
         """
-        pr_cursor = db.session.query(func.max(Models.PullRequest.merged_at))\
+        pr_cursor = db.session.query(func.max(Models.PullRequestTrigger.merged_at))\
             .filter_by(trigger_repository_id=self.id)\
             .scalar()
 

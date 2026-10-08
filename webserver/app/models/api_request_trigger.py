@@ -4,11 +4,11 @@ import sqlalchemy as sa
 from app.models.trigger import Trigger
 
 
-class ApiRequest(Trigger):
+class ApiRequestTrigger(Trigger):
     """
     A task requested through POST /tasks. `payload` is the raw request body.
     """
-    __tablename__ = 'api_requests'
+    __tablename__ = 'api_request_triggers'
     __mapper_args__ = {'polymorphic_identity': 'API'}
 
     trigger_id = sa.Column(
@@ -27,4 +27,4 @@ class ApiRequest(Trigger):
         return self.user_id
 
     def __repr__(self):
-        return f'<ApiRequest (id={self.id}, project_id={self.project_id})>'
+        return f'<ApiRequestTrigger (id={self.id}, project_id={self.project_id})>'

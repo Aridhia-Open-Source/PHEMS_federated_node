@@ -29,8 +29,8 @@ from app.helpers.keycloak import Keycloak
 from app.dtos.task_spec import TaskSpec
 from app.helpers.wrappers import audit, auth
 from app.dtos.task import NewTaskDTO, TaskDTO
-from app.dtos.task_result import dump_task_result
-from app.models.api_request import ApiRequest
+from app.dtos.result import dump_result
+from app.models.api_request_trigger import ApiRequestTrigger
 from app.models.project import Project
 from app.models.task import Task
 from app.models.task_status import TaskStatus
@@ -237,7 +237,7 @@ def post_tasks():
 
     # The request is recorded before it is evaluated. A rejected one is kept, with
     # the reason: no task is created from it, so nothing can launch.
-    api_request = ApiRequest(project_id=project.id, user_id=user_id, payload=raw_body)
+    api_request = ApiRequestTrigger(project_id=project.id, user_id=user_id, payload=raw_body)
     api_request.add()
 
     session = db.session
@@ -294,7 +294,7 @@ def get_task_results(task_id):
     """
     task = Task.get_by_id(task_id)
     does_user_own_task(task)
-    return [dump_task_result(r) for r in task.results], HTTPStatus.OK
+    return [dump_result(r) for r in task.results], HTTPStatus.OK
 
 
 @bp.route('/<task_id>/logs', methods=['GET'])

@@ -8,7 +8,7 @@ from kubernetes.client.exceptions import ApiException
 
 from app.helpers.base_model import db
 from app.models.project import Project
-from app.models.pull_request import PullRequest
+from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.results_repository import ResultsRepository
 from app.models.trigger_repository import TriggerRepository
 
@@ -345,7 +345,7 @@ class TestProjectHealthcheck:
         merged_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
         for repo, numbers in ((default_repo, (1, 2, 3)), (other, (1,))):
             for number in numbers:
-                PullRequest(project.id, repo.id, number, f"PR {number}", "user", merged_at, f"sha{number}").add()
+                PullRequestTrigger(project.id, repo.id, number, f"PR {number}", "user", merged_at, f"sha{number}").add()
         response = self.get(client, project, simple_admin_header)
         counts = {r["id"]: r["pr_count"] for r in response.json["trigger_repositories"]}
         assert counts == {default_repo.id: 3, other.id: 1}
@@ -457,9 +457,9 @@ class TestDeleteProject:
     def test_deletes_a_project_with_pull_requests(
         self, client, k8s_client, simple_admin_header, full_project, default_repo
     ):
-        PullRequest(
+        PullRequestTrigger(
             project_id=full_project.id, trigger_repository_id=default_repo.id, number=1, title="t",
             raised_by="u", merged_at="2026-01-01T10:00:00Z", merge_commit_sha="a" * 40
         ).add()
         assert self.delete(client, simple_admin_header, full_project).status_code == HTTPStatus.NO_CONTENT
-        assert PullRequest.query.count() == 0
+        assert PullRequestTrigger.query.count() == 0

@@ -23,6 +23,7 @@ class Trigger(db.Model, BaseModel):
     project_id = sa.Column(
         sa.Integer, sa.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False
     )
+    # The verdict on the request, see TriggerState.
     state = sa.Column(
         sa.String(32),
         nullable=False,

@@ -33,9 +33,9 @@ class ModelRegistry:
         return Project
 
     @cached_property
-    def PullRequest(self):
-        from app.models.pull_request import PullRequest
-        return PullRequest
+    def PullRequestTrigger(self):
+        from app.models.pull_request_trigger import PullRequestTrigger
+        return PullRequestTrigger
 
     @cached_property
     def PullRequestResult(self):
@@ -73,9 +73,9 @@ class ModelRegistry:
         return ResultsBackend
 
     @cached_property
-    def ApiRequest(self):
-        from app.models.api_request import ApiRequest
-        return ApiRequest
+    def ApiRequestTrigger(self):
+        from app.models.api_request_trigger import ApiRequestTrigger
+        return ApiRequestTrigger
 
     @cached_property
     def Trigger(self):
@@ -83,9 +83,9 @@ class ModelRegistry:
         return Trigger
 
     @cached_property
-    def TaskResult(self):
-        from app.models.task_result import TaskResult
-        return TaskResult
+    def Result(self):
+        from app.models.result import Result
+        return Result
 
     @cached_property
     def Secret(self):
@@ -127,16 +127,16 @@ _ = (
     Models.Dataset,
     Models.Dictionary,
     Models.Project,
-    Models.PullRequest,
+    Models.PullRequestTrigger,
     Models.Registry,
     Models.Task,
     Models.WhitelistedImage,
     Models.TriggerRepository,
     Models.ResultsRepository,
     Models.ResultsBackend,
-    Models.ApiRequest,
+    Models.ApiRequestTrigger,
     Models.Trigger,
     Models.Secret,
-    Models.TaskResult,
+    Models.Result,
     Models.PullRequestResult,
 )

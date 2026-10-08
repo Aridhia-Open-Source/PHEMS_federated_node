@@ -53,7 +53,7 @@ class Task(db.Model, BaseModel):
     dataset = relationship("Dataset")
     project = relationship("Project")
     trigger = relationship("Trigger", back_populates="task")
-    results = relationship("TaskResult", back_populates="task", cascade="all, delete-orphan", passive_deletes=True)
+    results = relationship("Result", back_populates="task", cascade="all, delete-orphan", passive_deletes=True)
 
     __table_args__ = (
         sa.Index('ix_tasks_dataset_status', 'dataset_id', 'status'),

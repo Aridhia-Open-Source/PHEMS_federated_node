@@ -21,7 +21,7 @@ from app.helpers.query_filters import parse_query_params
 from app.helpers.wrappers import audit, auth
 from app.models.git_provider import ConnectionStatus
 from app.models.project import Project
-from app.models.pull_request import PullRequest
+from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.secret import Secret
 from app.models.task import Task
 from app.secrets_api import SecretProvider
@@ -155,7 +155,7 @@ def project_healthcheck(project_id: int):
             id=repo.id,
             uri=repo.uri,
             provider=repo.provider,
-            pr_count=PullRequest.query.filter_by(trigger_repository_id=repo.id).count(),
+            pr_count=PullRequestTrigger.query.filter_by(trigger_repository_id=repo.id).count(),
             status=check.status.value,
             health_check=HealthCheckDTO(
                 message=check.message,

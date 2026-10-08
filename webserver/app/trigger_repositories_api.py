@@ -18,7 +18,7 @@ from flask import Blueprint, request
 from sqlalchemy.exc import IntegrityError
 
 from app.dtos.task import NewTaskDTO, TaskDTO
-from app.dtos.trigger_repository import PullRequestDTO, TriggerRepositoryDTO
+from app.dtos.trigger_repository import PullRequestTriggerDTO, TriggerRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.dtos.task_spec import TaskSpec
@@ -27,7 +27,7 @@ from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
 from app.models.secret import Secret
 from app.models.project import Project
-from app.models.pull_request import PullRequest
+from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.task import Task
 from app.models.trigger_repository import TriggerRepository
 from app.models.trigger_state import TriggerState
@@ -189,7 +189,7 @@ def post_pull_request():
 
     # Create PR
     repo = TriggerRepository.get_by_id(body['trigger_repository_id'])
-    pr = PullRequest(
+    pr = PullRequestTrigger(
         project_id=repo.project_id,
         trigger_repository_id=body['trigger_repository_id'],
         number=body['number'],
@@ -201,7 +201,7 @@ def post_pull_request():
     )
     pr.add()
 
-    return PullRequestDTO.from_model(pr).dump(), HTTPStatus.CREATED
+    return PullRequestTriggerDTO.from_model(pr).dump(), HTTPStatus.CREATED
 
 
 # TODO: internal, called by Dagster only. Restrict to internal callers.
@@ -234,7 +234,7 @@ def post_pull_requests_batch(repo_id):
                 raise InvalidRequest(f"Missing required fields in PR: {', '.join(missing)}")
 
             # Create PR (repository_id always from URL)
-            pr = PullRequest(
+            pr = PullRequestTrigger(
                 project_id=repo.project_id,
                 trigger_repository_id=repo_id,
                 number=pr_data['number'],
@@ -253,7 +253,7 @@ def post_pull_requests_batch(repo_id):
     # Batch commit all PRs
     session.commit()
 
-    return [PullRequestDTO.from_model(pr).dump() for pr in created_prs], HTTPStatus.CREATED
+    return [PullRequestTriggerDTO.from_model(pr).dump() for pr in created_prs], HTTPStatus.CREATED
 
 
 # TODO: internal, called by Dagster only. Restrict to internal callers.
@@ -273,19 +273,19 @@ def get_pull_requests(repo_id):
     per_page = request.args.get('per_page', 20, type=int)
     state = request.args.get('state', None)
 
-    query = PullRequest.query.filter(PullRequest.trigger_repository_id == repo_id)
+    query = PullRequestTrigger.query.filter(PullRequestTrigger.trigger_repository_id == repo_id)
 
     if state is not None:
         if state not in [s.value for s in TriggerState]:
             valid = ', '.join([s.value for s in TriggerState])
             raise InvalidRequest(f"Invalid state: {state}. Must be one of: {valid}")
-        query = query.filter(PullRequest.state == state)
+        query = query.filter(PullRequestTrigger.state == state)
 
-    query = query.order_by(PullRequest.merged_at.desc())
+    query = query.order_by(PullRequestTrigger.merged_at.desc())
     paginated = query.paginate(page=page, per_page=per_page, error_out=False)
 
     return {
-        'items': [PullRequestDTO.from_model(pr).dump() for pr in paginated.items],
+        'items': [PullRequestTriggerDTO.from_model(pr).dump() for pr in paginated.items],
         'page': page,
         'per_page': per_page,
         'total': paginated.total,
@@ -299,15 +299,15 @@ def get_pull_request(repo_id, number):
     GET /trigger_repositories/<repo_id>/pull_requests/<number> — get a single PR
     """
     TriggerRepository.get_by_id(repo_id)
-    pr = PullRequest.query.filter(
-        PullRequest.trigger_repository_id == repo_id,
-        PullRequest.number == number
+    pr = PullRequestTrigger.query.filter(
+        PullRequestTrigger.trigger_repository_id == repo_id,
+        PullRequestTrigger.number == number
     ).one_or_none()
 
     if not pr:
         raise InvalidRequest(f"PR #{number} not found in repository {repo_id}", code=HTTPStatus.NOT_FOUND)
 
-    return PullRequestDTO.from_model(pr).dump(), HTTPStatus.OK
+    return PullRequestTriggerDTO.from_model(pr).dump(), HTTPStatus.OK
 
 
 # TODO: internal, called by Dagster only. Restrict to internal callers.
@@ -317,9 +317,9 @@ def patch_pull_request(repo_id, number):
     PATCH /trigger_repositories/<repo_id>/pull_requests/<number> — update PR state, state_cause and payload
     """
     TriggerRepository.get_by_id(repo_id)
-    pr = PullRequest.query.filter(
-        PullRequest.trigger_repository_id == repo_id,
-        PullRequest.number == number
+    pr = PullRequestTrigger.query.filter(
+        PullRequestTrigger.trigger_repository_id == repo_id,
+        PullRequestTrigger.number == number
     ).one_or_none()
 
     if not pr:
@@ -334,7 +334,7 @@ def patch_pull_request(repo_id, number):
         pr.payload = body['payload']
 
     session.commit()
-    return PullRequestDTO.from_model(pr).dump(), HTTPStatus.OK
+    return PullRequestTriggerDTO.from_model(pr).dump(), HTTPStatus.OK
 
 
 # TODO: internal, called by Dagster only. Restrict to internal callers.
@@ -348,9 +348,9 @@ def post_task(repo_id, number):
     Idempotent: if the pull request already has a task it is returned with a 200.
     """
     TriggerRepository.get_by_id(repo_id)
-    pr = PullRequest.query.filter(
-        PullRequest.trigger_repository_id == repo_id,
-        PullRequest.number == number
+    pr = PullRequestTrigger.query.filter(
+        PullRequestTrigger.trigger_repository_id == repo_id,
+        PullRequestTrigger.number == number
     ).one_or_none()
 
     if not pr:

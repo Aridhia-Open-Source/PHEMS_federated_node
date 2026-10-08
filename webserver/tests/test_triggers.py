@@ -3,14 +3,14 @@ from sqlalchemy.exc import IntegrityError
 
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
-from app.models.api_request import ApiRequest
-from app.models.pull_request import PullRequest
+from app.models.api_request_trigger import ApiRequestTrigger
+from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.task import Task
 from app.models.trigger import Trigger
 
 
-def make_pull_request(project, repo_id=1) -> PullRequest:
-    pr = PullRequest(
+def make_pull_request(project, repo_id=1) -> PullRequestTrigger:
+    pr = PullRequestTrigger(
         project_id=project.id, trigger_repository_id=repo_id, number=1, title="t",
         raised_by="user", merged_at="2026-01-01T10:00:00Z", merge_commit_sha="a" * 40,
     )
@@ -20,10 +20,10 @@ def make_pull_request(project, repo_id=1) -> PullRequest:
 
 class TestTriggerModels:
     def test_polymorphic_load(self, project):
-        api = ApiRequest(project_id=project.id, user_id="user")
+        api = ApiRequestTrigger(project_id=project.id, user_id="user")
         api.add()
         loaded = Trigger.query.filter_by(id=api.id).one()
-        assert isinstance(loaded, ApiRequest)
+        assert isinstance(loaded, ApiRequestTrigger)
         assert loaded.type == "API"
         assert loaded.state == "UNKNOWN"
         assert loaded.requested_by == "user"
@@ -37,7 +37,7 @@ class TestTriggerModels:
         ("REJECTED", None), ("IGNORED", None), ("UNKNOWN", "why"), ("YIELDED", "why"),
     ])
     def test_check_ties_state_cause_to_state(self, project, state, state_cause):
-        api = ApiRequest(project_id=project.id, user_id="user")
+        api = ApiRequestTrigger(project_id=project.id, user_id="user")
         api.add()
         api.state = state
         api.state_cause = state_cause
@@ -59,7 +59,7 @@ class TestTriggerModels:
 class TestTriggerSetState:
     @pytest.fixture
     def api(self, project):
-        api = ApiRequest(project_id=project.id, user_id="user")
+        api = ApiRequestTrigger(project_id=project.id, user_id="user")
         api.add()
         return api
 

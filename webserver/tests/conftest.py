@@ -22,7 +22,7 @@ from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 from app.models.results_repository import ResultsRepository
 from app.models.results_backend import ResultsBackend
-from app.models.api_request import ApiRequest
+from app.models.api_request_trigger import ApiRequestTrigger
 from app.helpers.exceptions import KeycloakError
 
 
@@ -204,9 +204,9 @@ def project(client) -> Project:
 
 @fixture
 def make_task(client, project):
-    """Factory for a task with its own ApiRequest trigger"""
+    """Factory for a task with its own ApiRequestTrigger trigger"""
     def _make(project=project, **fields) -> Task:
-        api_request = ApiRequest(project_id=project.id, user_id="user", payload={})
+        api_request = ApiRequestTrigger(project_id=project.id, user_id="user", payload={})
         api_request.add()
         task = Task(
             name="task", docker_image="img:1", requested_by="user", dataset_id=None,

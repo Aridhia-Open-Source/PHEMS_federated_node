@@ -15,7 +15,7 @@ from werkzeug.exceptions import HTTPException
 from app import (
     main, admin_api, datasets_api, tasks_api, projects_api,
     registries_api, users_api, trigger_repositories_api,
-    secrets_api, results_repositories_api, task_results_api
+    secrets_api, results_repositories_api, results_api
 )
 from app.helpers.base_model import build_sql_uri, db
 from app.helpers.exceptions import LogAndException
@@ -72,7 +72,7 @@ def create_app():
     app.register_blueprint(projects_api.bp)
     app.register_blueprint(datasets_api.bp)
     app.register_blueprint(tasks_api.bp)
-    app.register_blueprint(task_results_api.bp)
+    app.register_blueprint(results_api.bp)
     app.register_blueprint(admin_api.bp)
     # TODO(whitelisted_images): disconnected for now, revisit with the authorization rework.
     # Re-attach with: app.register_blueprint(whitelisted_images_api.bp)

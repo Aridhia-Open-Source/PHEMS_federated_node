@@ -4,18 +4,18 @@ import sqlalchemy as sa
 from sqlalchemy import orm
 from sqlalchemy.orm import validates
 
-from app.models.merge_status import MergeStatus
 from app.models.trigger import Trigger
 
 
-class PullRequest(Trigger):
+class PullRequestTrigger(Trigger):
     """
-    A pull request merged to a watched repository, the trigger of a task.
+    A pull request merged to a watched repository, the trigger of a task. Only merged pull
+    requests are watched.
     Not to be confused with `PullRequestResult`, the pull request we open to deliver results.
     Stores PR metadata and payload (the raw spec) for async processing by Dagster.
     `state`, `state_cause` and `project_id` are columns of the Trigger it extends.
     """
-    __tablename__ = 'pull_requests'
+    __tablename__ = 'pull_request_triggers'
     __mapper_args__ = {'polymorphic_identity': 'PR'}
     __table_args__ = (
         sa.UniqueConstraint('trigger_repository_id', 'number', name='uq_pr_repo_number'),
@@ -29,13 +29,6 @@ class PullRequest(Trigger):
     raised_by = sa.Column(sa.String(256), nullable=False)
     merge_commit_sha = sa.Column(sa.String(40), nullable=False)
     merged_at = sa.Column(sa.DateTime(timezone=False), nullable=False)
-    # Only merged pull requests are watched, so this is always MERGED.
-    merge_status = sa.Column(
-        sa.String(16),
-        nullable=False,
-        default=MergeStatus.MERGED.value,
-        server_default=MergeStatus.MERGED.value,
-    )
     payload = sa.Column(sa.JSON, nullable=False, default={})
 
     trigger_repository_id = sa.Column(
@@ -43,7 +36,7 @@ class PullRequest(Trigger):
         nullable=False
     )
 
-    trigger_repository = orm.relationship("TriggerRepository", back_populates="pull_requests")
+    trigger_repository = orm.relationship("TriggerRepository", back_populates="pull_request_triggers")
 
     @validates('merged_at')
     def validate_merged_at(self, key, value):
@@ -80,4 +73,4 @@ class PullRequest(Trigger):
         return self.raised_by
 
     def __repr__(self):
-        return f'<PullRequest (repo_id={self.trigger_repository_id}, pr={self.number})>'
+        return f'<PullRequestTrigger (repo_id={self.trigger_repository_id}, pr={self.number})>'

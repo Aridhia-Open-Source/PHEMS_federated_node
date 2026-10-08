@@ -132,7 +132,7 @@ def upgrade() -> None:
         sa.UniqueConstraint('project_id', 'uri', name='uq_results_repositories_project_uri'),
     )
 
-    # Create dars table (Data Access Requests - separate from the api_requests trigger)
+    # Create dars table (Data Access Requests - separate from the api_request_triggers trigger)
     op.create_table(
         'dars',
         sa.Column('id', sa.Integer(), nullable=False),
@@ -166,7 +166,8 @@ def upgrade() -> None:
         sa.UniqueConstraint('project_id'),
     )
 
-    # Create triggers table (why a task ran; joined-table parent of pull_requests and api_requests)
+    # Create triggers table (why a task ran; joined-table parent of pull_request_triggers and
+    # api_request_triggers)
     op.create_table(
         'triggers',
         sa.Column('id', sa.Integer(), nullable=False),
@@ -185,9 +186,9 @@ def upgrade() -> None:
     )
     op.create_index('ix_triggers_state', 'triggers', ['state'])
 
-    # Create pull_requests table (a trigger)
+    # Create pull_request_triggers table (a trigger)
     op.create_table(
-        'pull_requests',
+        'pull_request_triggers',
         sa.Column('trigger_id', sa.Integer(), nullable=False),
         sa.Column('trigger_repository_id', sa.Integer(), nullable=False),
         sa.Column('number', sa.Integer(), nullable=False),
@@ -195,7 +196,6 @@ def upgrade() -> None:
         sa.Column('raised_by', sa.String(length=256), nullable=False),
         sa.Column('merge_commit_sha', sa.String(length=40), nullable=False),
         sa.Column('merged_at', sa.DateTime(), nullable=False),
-        sa.Column('merge_status', sa.String(length=16), nullable=False, server_default='MERGED'),
         sa.Column('payload', sa.JSON(), nullable=False),
         sa.ForeignKeyConstraint(['trigger_id'], ['triggers.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['trigger_repository_id'], ['trigger_repositories.id'], ondelete='CASCADE'),
@@ -203,9 +203,9 @@ def upgrade() -> None:
         sa.UniqueConstraint('trigger_repository_id', 'number', name='uq_pr_repo_number'),
     )
 
-    # Create api_requests table (a trigger)
+    # Create api_request_triggers table (a trigger)
     op.create_table(
-        'api_requests',
+        'api_request_triggers',
         sa.Column('trigger_id', sa.Integer(), nullable=False),
         sa.Column('user_id', sa.String(length=256), nullable=False),
         sa.Column('payload', sa.JSON(), nullable=False, server_default='{}'),
@@ -246,14 +246,13 @@ def upgrade() -> None:
     op.create_index('ix_tasks_docker_image', 'tasks', ['docker_image'])
     op.create_index('ix_tasks_status_project', 'tasks', ['status', 'project_id'])
 
-    # Create task_results table
+    # Create results table
     op.create_table(
-        'task_results',
+        'results',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('type', sa.String(length=16), nullable=False),
         sa.Column('task_id', sa.Integer(), nullable=False),
         sa.Column('results_repository_id', sa.Integer(), nullable=False),
-        sa.Column('status', sa.String(length=32), nullable=False, server_default='PENDING'),
         sa.Column('attempts', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('error', sa.String(length=1024), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
@@ -261,22 +260,22 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['task_id'], ['tasks.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['results_repository_id'], ['results_repositories.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('task_id', 'results_repository_id', name='uq_task_results_task_repository'),
+        sa.UniqueConstraint('task_id', 'results_repository_id', name='uq_results_task_repository'),
     )
 
-    # Create pull_request_results table (a task result)
+    # Create pull_request_results table (a result)
     op.create_table(
         'pull_request_results',
-        sa.Column('task_result_id', sa.Integer(), nullable=False),
+        sa.Column('result_id', sa.Integer(), nullable=False),
+        sa.Column('state', sa.String(length=32), nullable=False, server_default='UNKNOWN'),
         sa.Column('branch', sa.String(length=256), nullable=True),
         sa.Column('commit_sha', sa.String(length=40), nullable=True),
         sa.Column('number', sa.Integer(), nullable=True),
         sa.Column('url', sa.String(length=4096), nullable=True),
-        sa.Column('merge_status', sa.String(length=16), nullable=True),
         sa.Column('merged_at', sa.DateTime(), nullable=True),
         sa.Column('merge_commit_sha', sa.String(length=40), nullable=True),
-        sa.ForeignKeyConstraint(['task_result_id'], ['task_results.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('task_result_id'),
+        sa.ForeignKeyConstraint(['result_id'], ['results.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('result_id'),
     )
 
     # Create registries table
@@ -347,10 +346,10 @@ def downgrade() -> None:
     op.drop_table('whitelisted_images')
     op.drop_table('registries')
     op.drop_table('pull_request_results')
-    op.drop_table('task_results')
+    op.drop_table('results')
     op.drop_table('tasks')
-    op.drop_table('api_requests')
-    op.drop_table('pull_requests')
+    op.drop_table('api_request_triggers')
+    op.drop_table('pull_request_triggers')
     op.drop_index('ix_triggers_state', 'triggers')
     op.drop_table('triggers')
     op.drop_table('results_backends')

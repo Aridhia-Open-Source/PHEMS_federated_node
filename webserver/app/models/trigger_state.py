@@ -5,8 +5,9 @@ from enum import Enum
 
 class TriggerState(str, Enum):
     """
-    Where a trigger (a pull request or an API request) stands in its evaluation. A trigger is
-    recorded first, then evaluated, and a Task is only created when evaluation succeeds.
+    The verdict on a trigger, the request to run a task (a pull request or an API request).
+    A trigger is recorded first, then evaluated, and a Task is only created when evaluation
+    succeeds.
 
     - UNKNOWN: recorded, not evaluated yet.
     - IGNORED: not for us, e.g. the pull request has no watched spec file. Needs a state_cause.

@@ -2,7 +2,7 @@ import json
 import pytest
 from sqlalchemy.exc import IntegrityError
 from app.dtos.trigger_repository import TriggerRepositoryDTO
-from app.models.pull_request import PullRequest
+from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.task import Task
 from app.models.trigger_repository import TriggerRepository
 from app.helpers.base_model import db
@@ -502,13 +502,13 @@ class TestPullRequestBatchBehaviour:
     ):
         response = self.post(client, post_json_admin_header, repository, [pr_body(1), pr_body(1)])
         assert response.status_code >= 400
-        assert PullRequest.query.count() == 0
+        assert PullRequestTrigger.query.count() == 0
 
     def test_number_already_ingested_is_rejected(self, client, post_json_admin_header, repository):
         assert self.post(client, post_json_admin_header, repository, [pr_body(1)]).status_code == 201
         response = self.post(client, post_json_admin_header, repository, [pr_body(1)])
         assert response.status_code >= 400
-        assert PullRequest.query.count() == 1
+        assert PullRequestTrigger.query.count() == 1
 
     @pytest.mark.parametrize("field", ["number", "title", "raised_by", "merged_at", "merge_commit_sha", "payload"])
     def test_each_required_field(self, client, post_json_admin_header, repository, field):
@@ -517,7 +517,7 @@ class TestPullRequestBatchBehaviour:
         response = self.post(client, post_json_admin_header, repository, [body])
         assert response.status_code == 400
         assert field in response.json["error"]
-        assert PullRequest.query.count() == 0
+        assert PullRequestTrigger.query.count() == 0
 
     def test_invalid_merged_at(self, client, post_json_admin_header, repository):
         response = self.post(client, post_json_admin_header, repository, [pr_body(merged_at="yesterday")])
@@ -528,11 +528,11 @@ class TestPullRequestBatchBehaviour:
             client, post_json_admin_header, repository, [pr_body(merged_at="2026-01-01T10:00:00+01:00")]
         )
         assert response.status_code == 201, response.json
-        assert PullRequest.query.one().merged_at.isoformat() == "2026-01-01T09:00:00"
+        assert PullRequestTrigger.query.one().merged_at.isoformat() == "2026-01-01T09:00:00"
 
     def test_the_project_comes_from_the_repository(self, client, post_json_admin_header, repository):
         self.post(client, post_json_admin_header, repository, [pr_body()])
-        assert PullRequest.query.one().project_id == repository.project_id
+        assert PullRequestTrigger.query.one().project_id == repository.project_id
 
 
 class TestPrCursor:
@@ -577,7 +577,7 @@ class TestRepositoryDelete:
         response = client.delete(f"/trigger_repositories/{repository.id}", headers=simple_admin_header)
         assert response.status_code == 204
         assert TriggerRepository.query.count() == 0
-        assert PullRequest.query.count() == 0
+        assert PullRequestTrigger.query.count() == 0
 
     def test_delete_not_found(self, client, simple_admin_header):
         assert client.delete("/trigger_repositories/9999", headers=simple_admin_header).status_code == 404
@@ -713,7 +713,7 @@ class TestPostPullRequestTask:
         )
 
     def get_pr(self, repository, pull_request):
-        return PullRequest.query.filter_by(trigger_repository_id=repository.id, number=pull_request["number"]).one()
+        return PullRequestTrigger.query.filter_by(trigger_repository_id=repository.id, number=pull_request["number"]).one()
 
     def test_create(self, client, post_json_admin_header, repository, pull_request):
         response = self.post(
@@ -795,9 +795,9 @@ class TestPostPullRequestTask:
         assert response.status_code == 401
 
 
-class TestPullRequestDTO:
+class TestPullRequestTriggerDTO:
     def test_fields(self, pull_request):
-        """Dagster's PullRequest wire model requires these"""
+        """Dagster's PullRequestTrigger wire model requires these"""
         expected_fields = ['trigger_repository_id', 'number', 'title', 'raised_by', 'merged_at',
                            'payload', 'merge_commit_sha', 'state', 'state_cause', 'task_id']
         assert set(pull_request) == set(expected_fields)
