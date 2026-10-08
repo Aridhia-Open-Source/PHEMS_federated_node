@@ -44,6 +44,7 @@ class PullRequestDTO(DTO):
     raised_by: str
     merge_commit_sha: str
     merged_at: datetime | None
+    merge_status: str
     state: str
     state_cause: str | None
     task_id: int | None

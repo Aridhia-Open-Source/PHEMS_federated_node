@@ -1,11 +1,12 @@
-"""Pull request result state enum."""
+"""Merge status of a pull request."""
 
 from enum import Enum
 
 
 class MergeStatus(str, Enum):
     """
-    Where the pull request we opened to deliver a task's results stands on the git provider.
+    Where a pull request stands on the git provider. A trigger `PullRequest` is always MERGED;
+    a `PullRequestResult` starts OPEN.
 
     - OPEN: waiting for review.
     - MERGED: merged into the results repository's default branch.
