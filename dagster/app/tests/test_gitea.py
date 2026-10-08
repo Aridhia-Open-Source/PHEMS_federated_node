@@ -13,8 +13,8 @@ def response(body, status_code=200):
     return resp
 
 
-def pr(number, merged_at):
-    return {"number": number, "merged_at": merged_at}
+def pr(number, merged_at, base="main"):
+    return {"number": number, "merged_at": merged_at, "base": {"ref": base}}
 
 
 @pytest.fixture
@@ -37,73 +37,78 @@ class TestGiteaClient:
         assert client._base_uri == "http://gitea:3000/api/v1"
 
     def test_defaults_to_the_in_cluster_gitea(self):
-        assert GiteaClient(token="abc", session=MagicMock())._base_uri == "http://gitea.fn.svc:3000/api/v1"
+        assert GiteaClient(token="abc", session=MagicMock())._base_uri == "http://gitea.fn.svc:4000/api/v1"
 
 
 class TestNewMergedPulls:
     def test_only_prs_merged_after_the_cursor_are_returned(self, api, client):
-        client.request.return_value = response([
+        client.request.side_effect = [response([
             pr(1, "2026-01-01T00:00:00Z"),
             pr(2, "2026-02-01T00:00:00Z"),
             pr(3, "2026-03-01T00:00:00Z"),
-        ])
+        ]), response([])]
 
         result = api.get_new_merged_pulls("org/repo", "main", "2026-01-15T00:00:00Z")
 
         assert [p["number"] for p in result] == [2, 3]
 
     def test_a_pr_merged_exactly_at_the_cursor_is_not_new(self, api, client):
-        client.request.return_value = response([pr(1, "2026-01-01T00:00:00Z")])
+        client.request.side_effect = [response([pr(1, "2026-01-01T00:00:00Z")]), response([])]
 
         assert api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z") == []
 
     def test_offsets_are_compared_as_instants(self, api, client):
-        client.request.return_value = response([
+        client.request.side_effect = [response([
             pr(1, "2026-01-01T10:00:00+02:00"),  # 08:00Z, before the cursor
             pr(2, "2026-01-01T10:00:00-02:00"),  # 12:00Z, after it
-        ])
+        ]), response([])]
 
         result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T09:00:00Z")
 
         assert [p["number"] for p in result] == [2]
 
     def test_closed_but_unmerged_prs_are_dropped(self, api, client):
-        client.request.return_value = response([pr(1, None), {"number": 2}, pr(3, "2026-03-01T00:00:00Z")])
+        client.request.side_effect = [
+            response([pr(1, None), {"number": 2, "base": {"ref": "main"}}, pr(3, "2026-03-01T00:00:00Z")]),
+            response([]),
+        ]
 
         result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
 
         assert [p["number"] for p in result] == [3]
 
     def test_an_empty_cursor_returns_every_merged_pr(self, api, client):
-        client.request.return_value = response([pr(1, "2020-01-01T00:00:00Z")])
+        client.request.side_effect = [response([pr(1, "2020-01-01T00:00:00Z")]), response([])]
 
         assert len(api.get_new_merged_pulls("org/repo", "main", "")) == 1
 
-    def test_the_closed_prs_of_the_base_branch_are_requested(self, api, client):
+    def test_the_closed_prs_are_requested_with_limit(self, api, client):
         client.request.return_value = response([])
 
         api.get_new_merged_pulls("org/repo", "dev", "2026-01-01T00:00:00Z")
 
         assert client.request.call_args.args == ("GET", "repos/org/repo/pulls")
-        assert client.request.call_args.kwargs["params"] == {
-            "state": "closed", "per_page": 100, "page": 1, "base": "dev",
-        }
+        assert client.request.call_args.kwargs["params"] == {"state": "closed", "limit": 50, "page": 1}
 
-    def test_a_full_page_fetches_the_next_one(self, api, client):
-        full = [pr(i, "2026-02-01T00:00:00Z") for i in range(100)]
-        client.request.side_effect = [response(full), response([pr(200, "2026-02-01T00:00:00Z")])]
+    def test_prs_of_other_base_branches_are_dropped(self, api, client):
+        client.request.side_effect = [
+            response([pr(1, "2026-02-01T00:00:00Z", base="dev"), pr(2, "2026-02-01T00:00:00Z")]),
+            response([]),
+        ]
 
         result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
 
-        assert len(result) == 101
+        assert [p["number"] for p in result] == [2]
+
+    def test_pages_are_fetched_until_an_empty_one(self, api, client):
+        short = [pr(1, "2026-02-01T00:00:00Z")]
+        client.request.side_effect = [response(short), response([pr(2, "2026-02-01T00:00:00Z")]), response([])]
+
+        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+
+        assert len(result) == 2
+        assert client.request.call_count == 3
         assert client.request.call_args_list[1].kwargs["params"]["page"] == 2
-
-    def test_a_short_page_stops_the_pagination(self, api, client):
-        client.request.return_value = response([pr(1, "2026-02-01T00:00:00Z")])
-
-        api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
-
-        assert client.request.call_count == 1
 
 
 class TestPullRequest:
@@ -113,14 +118,16 @@ class TestPullRequest:
         assert api.get_pull_request("org/repo", 5) == {"number": 5}
         assert client.request.call_args.args == ("GET", "repos/org/repo/pulls/5")
 
-    def test_files_paginate_until_a_short_page(self, api, client):
-        first = [{"filename": f"f{i}", "status": "added"} for i in range(100)]
-        client.request.side_effect = [response(first), response([{"filename": "last", "status": "added"}])]
+    def test_files_paginate_until_an_empty_page(self, api, client):
+        first = [{"filename": f"f{i}", "status": "added"} for i in range(50)]
+        client.request.side_effect = [
+            response(first), response([{"filename": "last", "status": "added"}]), response([]),
+        ]
 
         files = api.get_pull_request_files("org/repo", 5)
 
-        assert len(files) == 101
-        assert client.request.call_args_list[1].kwargs["params"] == {"page": 2, "per_page": 100}
+        assert len(files) == 51
+        assert client.request.call_args_list[1].kwargs["params"] == {"page": 2, "limit": 50}
         assert client.request.call_args.args == ("GET", "repos/org/repo/pulls/5/files")
 
     def test_no_files(self, api, client):

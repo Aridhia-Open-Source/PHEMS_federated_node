@@ -13,6 +13,10 @@ def response(body, status_code=200):
     return resp
 
 
+def merged_pr(number, merged_at, updated_at=None):
+    return {"number": number, "merged_at": merged_at, "updated_at": updated_at or merged_at or "2026-01-01T00:00:00Z"}
+
+
 @pytest.fixture
 def client():
     return MagicMock()
@@ -51,29 +55,65 @@ class TestPullRequests:
         assert api.get_pull_request("org/repo", 5) == {"number": 5}
         assert client.request.call_args.args == ("GET", "repos/org/repo/pulls/5")
 
-    def test_merged_pulls_are_searched_by_branch_and_date(self, api, client):
-        client.request.side_effect = [response({"items": [{"number": 5}]}), response({"items": []})]
+    def test_closed_prs_of_the_base_branch_are_listed_newest_update_first(self, api, client):
+        client.request.return_value = response([])
 
-        results = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+        api.get_new_merged_pulls("org/repo", "dev", "2026-01-01T00:00:00Z")
 
-        assert [pr["number"] for pr in results] == [5]
-        query = client.request.call_args_list[0].kwargs["params"]["q"]
-        assert "repo:org/repo" in query
-        assert "is:pr is:merged" in query
-        assert "base:main" in query
-        assert "merged:>2026-01-01T00:00:00Z" in query
+        assert client.request.call_args.args == ("GET", "repos/org/repo/pulls")
+        assert client.request.call_args.kwargs["params"] == {
+            "state": "closed", "base": "dev", "sort": "updated", "direction": "desc",
+            "per_page": 100, "page": 1,
+        }
 
-    def test_merged_pulls_paginate_until_empty(self, api, client):
-        client.request.side_effect = [
-            response({"items": [{"number": 5}]}),
-            response({"items": [{"number": 6}]}),
-            response({"items": []}),
-        ]
+    def test_only_prs_merged_after_the_cursor_are_returned(self, api, client):
+        client.request.return_value = response([
+            merged_pr(3, "2026-03-01T00:00:00Z"),
+            merged_pr(2, "2026-02-01T00:00:00Z"),
+            # updated after the cursor, merged before it
+            merged_pr(1, "2026-01-01T00:00:00Z", updated_at="2026-04-01T00:00:00Z"),
+        ])
 
-        results = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-15T00:00:00Z")
 
-        assert [pr["number"] for pr in results] == [5, 6]
-        assert client.request.call_args_list[-1].kwargs["params"]["page"] == 3
+        assert [p["number"] for p in result] == [3, 2]
+
+    def test_a_pr_merged_exactly_at_the_cursor_is_not_new(self, api, client):
+        client.request.return_value = response([
+            merged_pr(1, "2026-01-01T00:00:00Z", updated_at="2026-02-01T00:00:00Z"),
+        ])
+
+        assert api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z") == []
+
+    def test_closed_but_unmerged_prs_are_dropped(self, api, client):
+        client.request.return_value = response([
+            merged_pr(2, None, updated_at="2026-03-01T00:00:00Z"),
+            merged_pr(1, "2026-02-01T00:00:00Z"),
+        ])
+
+        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+
+        assert [p["number"] for p in result] == [1]
+
+    def test_a_pr_updated_before_the_cursor_ends_the_listing(self, api, client):
+        full = [merged_pr(i, "2026-02-01T00:00:00Z") for i in range(99)]
+        full.append(merged_pr(99, "2025-12-01T00:00:00Z"))
+        client.request.return_value = response(full)
+
+        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+
+        assert len(result) == 99
+        assert client.request.call_count == 1
+
+    def test_a_full_page_fetches_the_next_one(self, api, client):
+        full = [merged_pr(i, "2026-02-01T00:00:00Z") for i in range(100)]
+        client.request.side_effect = [response(full), response([merged_pr(200, "2026-02-01T00:00:00Z")])]
+
+        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+
+        assert len(result) == 101
+        assert client.request.call_count == 2
+        assert client.request.call_args_list[1].kwargs["params"]["page"] == 2
 
 
 class TestPullRequestFiles:
