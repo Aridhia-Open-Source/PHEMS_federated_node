@@ -195,6 +195,7 @@ def upgrade() -> None:
         sa.Column('raised_by', sa.String(length=256), nullable=False),
         sa.Column('merge_commit_sha', sa.String(length=40), nullable=False),
         sa.Column('merged_at', sa.DateTime(), nullable=False),
+        sa.Column('merge_status', sa.String(length=16), nullable=False, server_default='MERGED'),
         sa.Column('payload', sa.JSON(), nullable=False),
         sa.ForeignKeyConstraint(['trigger_id'], ['triggers.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['trigger_repository_id'], ['trigger_repositories.id'], ondelete='CASCADE'),
