@@ -78,7 +78,7 @@ class TestProjectDefaultDataset:
         ):
         from app.models.dataset import Dataset
         second = Dataset(
-            name="SecondDs", host="example.com", password='pass', username='user',
+            name="SecondDs", host="example.com", secret_id=dataset.secret_id,
             project_id=project.id
         )
         second.add(user_id=user_uuid)
@@ -92,12 +92,12 @@ class TestProjectDefaultDataset:
         assert project.default_dataset_id is None
 
     def test_reseeding_sets_a_new_default(
-            self, client, project, dataset, user_uuid, k8s_client, mock_kc_client
+            self, client, project, dataset, secret, user_uuid, k8s_client, mock_kc_client
         ):
         from app.models.dataset import Dataset
         dataset.delete()
         replacement = Dataset(
-            name="Reseeded", host="example.com", password='pass', username='user',
+            name="Reseeded", host="example.com", secret_id=secret.id,
             project_id=project.id
         )
         replacement.add(user_id=user_uuid)

@@ -21,8 +21,7 @@ class TestPagination:
         Dataset(
             name="testnew",
             host="host.url",
-            username="user",
-            password="pass",
+            secret_id=dataset.secret_id,
             project_id=project.id
         ).add(user_id=user_uuid)
         resp = client.get('/datasets', query_string={"page": "2", "per_page": '2'}, headers=simple_admin_header)

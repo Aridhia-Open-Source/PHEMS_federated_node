@@ -10,6 +10,35 @@ from dagster._core.events import DagsterEvent, DagsterEventType
 # Sample data
 # ---------------------------------------------------------------------------
 
+SAMPLE_SECRET = {
+    "id": 3,
+    "project_id": 1,
+    "label": "git-token",
+    "description": None,
+    "provider": "K8S",
+    "key": "git-token-abc",
+    "namespace": "fn",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z",
+}
+
+SAMPLE_DATASET = {
+    "id": 1,
+    "project_id": 1,
+    "secret": SAMPLE_SECRET,
+    "name": "cdm",
+    "host": "db.host",
+    "port": 5432,
+    "read_schema": "cdm",
+    "write_schema": "results",
+    "type": "postgres",
+    "extra_connection_args": None,
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z",
+    "slug": "cdm",
+    "url": "https://db.host/cdm",
+}
+
 SAMPLE_REPO = {
     "id": 1,
     "uri": "github.com/org/repo",
