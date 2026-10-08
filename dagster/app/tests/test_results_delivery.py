@@ -212,6 +212,7 @@ def test_the_pull_request_is_opened_into_the_default_branch_and_recorded(backend
     assert fields["pull_request_number"] == 3
     assert fields["pull_request_url"] == "http://gitea/fn/results/pulls/3"
     assert fields["pull_request_state"] == "OPEN"
+    assert (fields["merged_at"], fields["merge_commit_sha"]) == (None, None)
 
 
 def test_a_pull_request_failure_fails_the_row_with_the_branch_recorded(backend_api, remote, artifacts, git_api, git_apis):
@@ -258,6 +259,25 @@ def test_a_retry_records_the_pull_request_an_earlier_attempt_opened(backend_api,
     git_api.create_pull_request.assert_not_called()
     fields = patched_fields(backend_api)
     assert (fields["status"], fields["pull_request_number"], fields["pull_request_state"]) == ("DELIVERED", 3, "MERGED")
+
+
+def test_a_retry_records_the_merge_of_a_pull_request_merged_before_it(backend_api, remote, artifacts, git_api, git_apis):
+    git_api.find_pull_request_by_branch.return_value = {
+        **RESULTS_PR, "state": "closed", "merged_at": "2026-10-08T10:00:00Z", "merge_commit_sha": "def",
+    }
+
+    deliver(backend_api, remote, artifacts, git_apis)
+
+    fields = patched_fields(backend_api)
+    assert (fields["merged_at"], fields["merge_commit_sha"]) == ("2026-10-08T10:00:00Z", "def")
+
+
+def test_an_open_pull_request_records_no_github_test_merge_sha(backend_api, remote, artifacts, git_api, git_apis):
+    git_api.create_pull_request.return_value = {**RESULTS_PR, "merge_commit_sha": "test-merge"}
+
+    deliver(backend_api, remote, artifacts, git_apis)
+
+    assert patched_fields(backend_api)["merge_commit_sha"] is None
 
 
 def test_the_token_stays_out_of_the_command_line():
