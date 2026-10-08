@@ -1,5 +1,6 @@
 """
 task results endpoints:
+- GET /task_results
 - GET /task_results/<id>
 - POST /task_results
 - PATCH /task_results/<id>
@@ -8,10 +9,12 @@ from http import HTTPStatus
 
 from flask import Blueprint, request
 
-from app.dtos.task_result import TaskResultDTO
+from app.dtos.task_result import dump_task_result
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.wrappers import audit, auth
+from app.models.pull_request_result import PullRequestResult
+from app.models.pull_request_result_state import PullRequestResultState
 from app.models.results_repository import ResultsRepository
 from app.models.task import Task
 from app.models.task_result import TaskResult
@@ -19,6 +22,32 @@ from app.models.task_result_status import TaskResultStatus
 from app.tasks_api import does_user_own_task
 
 bp = Blueprint('task_results', __name__, url_prefix='/task_results')
+
+BASE_FIELDS = {"status", "attempts", "error"}
+PULL_REQUEST_FIELDS = {
+    "branch", "commit_sha", "pull_request_number", "pull_request_url", "pull_request_state",
+    "merged_at", "merge_commit_sha"
+}
+
+
+@bp.route('/', methods=['GET'])
+@bp.route('', methods=['GET'])
+@audit
+@auth(scope='can_admin_dataset')
+def get_task_results():
+    """
+    GET /task_results endpoint. Lists task results
+    Query params:
+        - pull_request_state: only the pull request results in this state (optional)
+    """
+    query = TaskResult.query
+    state = request.args.get('pull_request_state', None)
+    if state is not None:
+        if state not in [s.value for s in PullRequestResultState]:
+            valid = ', '.join([s.value for s in PullRequestResultState])
+            raise InvalidRequest(f"Invalid pull_request_state: {state}. Must be one of: {valid}")
+        query = PullRequestResult.query.filter(PullRequestResult.pull_request_state == state)
+    return [dump_task_result(r) for r in query.order_by(TaskResult.id).all()], HTTPStatus.OK
 
 
 @bp.route('/<int:task_result_id>', methods=['GET'])
@@ -30,7 +59,7 @@ def get_task_result(task_result_id):
     """
     task_result = TaskResult.get_by_id(task_result_id)
     does_user_own_task(task_result.task)
-    return TaskResultDTO.from_model(task_result).dump(), HTTPStatus.OK
+    return dump_task_result(task_result), HTTPStatus.OK
 
 
 @bp.route('/', methods=['POST'])
@@ -40,7 +69,7 @@ def get_task_result(task_result_id):
 def post_task_result():
     """
     POST /task_results endpoint. Creates the delivery of a task's results to a results
-    repository. If it exists already, that one is returned.
+    repository, by pull request. If it exists already, that one is returned.
     """
     body = request.json or {}
     for field in ('task_id', 'results_repository_id'):
@@ -53,11 +82,11 @@ def post_task_result():
 
     task_result = TaskResult.query.filter_by(task_id=task.id, results_repository_id=repo.id).first()
     if task_result:
-        return TaskResultDTO.from_model(task_result).dump(), HTTPStatus.OK
+        return dump_task_result(task_result), HTTPStatus.OK
 
-    task_result = TaskResult(task_id=task.id, results_repository_id=repo.id)
+    task_result = PullRequestResult(task_id=task.id, results_repository_id=repo.id)
     task_result.add()
-    return TaskResultDTO.from_model(task_result).dump(), HTTPStatus.CREATED
+    return dump_task_result(task_result), HTTPStatus.CREATED
 
 
 @bp.route('/<int:task_result_id>', methods=['PATCH'])
@@ -74,9 +103,10 @@ def patch_task_result(task_result_id):
     if not body:
         raise InvalidRequest("No fields provided to update")
 
-    unknown = set(body) - {
-        "status", "attempts", "branch", "commit_sha", "pull_request_number", "pull_request_url", "error"
-    }
+    allowed = BASE_FIELDS
+    if isinstance(task_result, PullRequestResult):
+        allowed = BASE_FIELDS | PULL_REQUEST_FIELDS
+    unknown = set(body) - allowed
     if unknown:
         raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
 
@@ -86,6 +116,22 @@ def patch_task_result(task_result_id):
             raise InvalidRequest(f"Invalid status: {body['status']}. Must be one of: {valid}")
         task_result.status = body['status']
 
+    if 'pull_request_state' in body:
+        if body['pull_request_state'] not in [s.value for s in PullRequestResultState]:
+            valid = ', '.join([s.value for s in PullRequestResultState])
+            raise InvalidRequest(
+                f"Invalid pull_request_state: {body['pull_request_state']}. Must be one of: {valid}"
+            )
+        task_result.pull_request_state = body['pull_request_state']
+
+    if 'merged_at' in body:
+        if body['merged_at'] is not None and not isinstance(body['merged_at'], str):
+            raise InvalidRequest("merged_at must be an ISO 8601 datetime string")
+        try:
+            task_result.merged_at = body['merged_at']
+        except ValueError as e:
+            raise InvalidRequest(str(e))
+
     for field in ('attempts', 'pull_request_number'):
         if field in body:
             if not isinstance(body[field], int) or isinstance(body[field], bool):
@@ -93,7 +139,8 @@ def patch_task_result(task_result_id):
             setattr(task_result, field, body[field])
 
     for field, size in (
-        ('branch', 256), ('commit_sha', 40), ('pull_request_url', 4096), ('error', 1024)
+        ('branch', 256), ('commit_sha', 40), ('pull_request_url', 4096), ('merge_commit_sha', 40),
+        ('error', 1024)
     ):
         if field in body:
             if body[field] is not None and (not isinstance(body[field], str) or len(body[field]) > size):
@@ -101,4 +148,4 @@ def patch_task_result(task_result_id):
             setattr(task_result, field, body[field])
 
     db.session.commit()
-    return TaskResultDTO.from_model(task_result).dump(), HTTPStatus.OK
+    return dump_task_result(task_result), HTTPStatus.OK

@@ -2016,6 +2016,46 @@
       }
     },
     "/task_results": {
+      "get": {
+        "operationId": "get_task_results_list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "pull_request_state",
+            "description": "Only the pull request results in this state",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OPEN",
+                "MERGED",
+                "CLOSED"
+              ]
+            }
+          }
+        ],
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "List task results",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TaskResultList"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
       "post": {
         "operationId": "post_task_result",
         "tags": [
@@ -3748,6 +3788,14 @@
             "type": "integer",
             "example": 1
           },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PR"
+            ],
+            "example": "PR",
+            "description": "The way of delivering. PR: a pull request opened on the results repository"
+          },
           "task_id": {
             "type": "integer",
             "example": 1
@@ -3771,6 +3819,18 @@
             "type": "integer",
             "example": 0
           },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "example": "Mon, 19 Feb 2024 10:41:54 GMT"
+          },
+          "updated_at": {
+            "type": "string",
+            "example": "Mon, 19 Feb 2024 10:41:54 GMT"
+          },
           "branch": {
             "type": "string",
             "nullable": true,
@@ -3788,17 +3848,24 @@
             "type": "string",
             "nullable": true
           },
-          "error": {
+          "pull_request_state": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "OPEN",
+              "MERGED",
+              "CLOSED"
+            ],
+            "example": "OPEN"
+          },
+          "merged_at": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-01-01T10:30:00"
+          },
+          "merge_commit_sha": {
             "type": "string",
             "nullable": true
-          },
-          "created_at": {
-            "type": "string",
-            "example": "Mon, 19 Feb 2024 10:41:54 GMT"
-          },
-          "updated_at": {
-            "type": "string",
-            "example": "Mon, 19 Feb 2024 10:41:54 GMT"
           }
         }
       },
@@ -3854,11 +3921,30 @@
             "type": "string",
             "nullable": true
           },
+          "pull_request_state": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "MERGED",
+              "CLOSED"
+            ],
+            "example": "OPEN"
+          },
+          "merged_at": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-01-01T10:30:00"
+          },
+          "merge_commit_sha": {
+            "type": "string",
+            "nullable": true
+          },
           "error": {
             "type": "string",
             "nullable": true
           }
-        }
+        },
+        "description": "branch, commit_sha, pull_request_*, merged_at and merge_commit_sha are only accepted for task results of type PR"
       }
     }
   }

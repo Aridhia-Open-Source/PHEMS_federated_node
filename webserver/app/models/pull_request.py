@@ -9,7 +9,8 @@ from app.models.trigger import Trigger
 
 class PullRequest(Trigger):
     """
-    A pull request merged to a watched repository.
+    A pull request merged to a watched repository, the trigger of a task.
+    Not to be confused with `PullRequestResult`, the pull request we open to deliver results.
     Stores PR metadata and payload (the raw spec) for async processing by Dagster.
     `state`, `state_cause` and `project_id` are columns of the Trigger it extends.
     """
