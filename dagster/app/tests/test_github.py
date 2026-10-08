@@ -139,27 +139,6 @@ class TestContents:
 
 
 class TestWrites:
-    def test_comments_post_a_body(self, api, client):
-        client.request.return_value = response({"id": 1})
-
-        api.add_pull_request_comment("org/repo", 5, "done")
-
-        assert client.request.call_args.args == (
-            "POST", "repos/org/repo/issues/5/comments",
-        )
-        assert client.request.call_args.kwargs["json"] == {"body": "done"}
-
-    def test_branch_exists(self, api, client):
-        client.request.return_value = response({}, status_code=200)
-
-        assert api.branch_exists("org/repo", "results/pr-5") is True
-
-    def test_missing_branch_does_not_raise(self, api, client):
-        client.request.return_value = response({}, status_code=404)
-
-        assert api.branch_exists("org/repo", "results/pr-5") is False
-        assert client.request.call_args.kwargs["raise_for_status"] is False
-
     def test_create_pull_request_returns_the_pr(self, api, client):
         client.request.return_value = response({"html_url": "https://github.com/org/repo/pull/6"})
 

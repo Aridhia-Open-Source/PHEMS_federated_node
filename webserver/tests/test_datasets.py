@@ -13,7 +13,7 @@ from app.helpers.kubernetes import KubernetesClient
 from app.models.dataset import Dataset
 from app.models.extras.catalogue import Catalogue
 from app.models.extras.dictionary import Dictionary
-from app.models.extras.request import Request
+from app.models.extras.dar import DAR
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 from tests.conftest import sample_ds_body
@@ -194,7 +194,7 @@ class TestDatasets(MixinTestDataset):
         assert response.json == {"error": "Could not find project"}
 
     @pytest.mark.skip(reason="This test is not working as expected, needs to be fixed")
-    @mock.patch('app.models.extras.request.Request.approve', return_value={"token": "token"})
+    @mock.patch('app.models.extras.dar.DAR.approve', return_value={"token": "token"})
     def test_get_dataset_by_id_project_approved(
             self,
             req_approve_mock,
@@ -217,8 +217,8 @@ class TestDatasets(MixinTestDataset):
         assert "token" in response.json
 
         token = response.json["token"]
-        req = Request.query.filter(
-            Request.project_name == request_base_body["project_name"]
+        req = DAR.query.filter(
+            DAR.project_name == request_base_body["project_name"]
         ).one_or_none()
         mock_kc_client["wrappers_kc"].return_value.get_user_by_username.return_value = {"id": user_uuid}
         req.requested_by = user_uuid
@@ -231,7 +231,7 @@ class TestDatasets(MixinTestDataset):
         assert response.json == self.expected_ds_entry(dataset)
 
     @pytest.mark.skip(reason="DAR disconnected for now, see TODO(DAR)")
-    @mock.patch('app.models.extras.request.Request.approve', return_value={"token": "somejwttoken"})
+    @mock.patch('app.models.extras.dar.DAR.approve', return_value={"token": "somejwttoken"})
     def test_get_dataset_by_id_project_non_approved(
             self,
             req_mock,
