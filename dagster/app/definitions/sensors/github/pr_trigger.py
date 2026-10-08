@@ -136,7 +136,13 @@ class PullRequestTriggerSensor(GithubSensor):
         op_config = {
             "env": pr.spec.get("env") or {},
             "docker_image": image,
-            **dataset.dump_task_fields(),
+            # The nested dataset config k8s_pipes_op takes. Interim: these sensors are
+            # replaced by the task launcher, which builds it in run_config.py.
+            "dataset": dataset.model_dump(mode="json", include={
+                "name": True, "host": True, "port": True, "type": True,
+                "read_schema": True, "write_schema": True,
+                "secret": {"provider": True, "key": True, "namespace": True},
+            }),
         }
         pull_secret = self._image_pull_secret(image)
         if pull_secret:

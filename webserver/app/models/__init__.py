@@ -97,6 +97,11 @@ class ModelRegistry:
         from app.models.task_request import TaskRequest
         return TaskRequest
 
+    @cached_property
+    def Secret(self):
+        from app.models.secret import Secret
+        return Secret
+
 
 Models = ModelRegistry()
 
@@ -118,4 +123,5 @@ _ = (
     Models.ResultsBackend,
     Models.ApiRequest,
     Models.TaskRequest,
+    Models.Secret,
 )

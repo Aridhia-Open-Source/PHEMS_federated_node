@@ -107,6 +107,7 @@ class TestAudits:
         audit_list = Audit.query.all()[-1]
         details = json.loads(audit_list.details.replace("'", "\""))
 
-        assert details["password"] == '*****'
-        assert details["username"] == '*****'
         assert details["dictionaries"][0]["password"] == '*****'
+        # A dataset no longer carries credentials, only the name of the secret holding them
+        assert "username" not in details
+        assert details["secret_label"] == "test-creds"

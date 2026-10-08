@@ -153,9 +153,8 @@ class BackendAPI:
         name: str,
         host: str,
         port: int,
-        username: str,
-        password: str,
-        schema: str,
+        secret_label: str,
+        read_schema: str,
         db_type: str,
     ) -> Dataset:
         """Create a dataset"""
@@ -164,9 +163,8 @@ class BackendAPI:
             "name": name,
             "host": host,
             "port": port,
-            "username": username,
-            "password": password,
-            "schema": schema,
+            "secret_label": secret_label,
+            "read_schema": read_schema,
             "type": db_type,
         }
         response = self.session.post("/datasets", json=data)

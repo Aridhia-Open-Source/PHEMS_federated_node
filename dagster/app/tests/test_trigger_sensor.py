@@ -17,7 +17,7 @@ from dagster import SkipReason, RunRequest
 
 from app.definitions.sensors.github.pr_trigger import PullRequestTriggerSensor
 from app.models import Dataset, PullRequest, PullRequestStatus, Registry
-from app.tests.conftest import SAMPLE_REPO, SAMPLE_PR
+from app.tests.conftest import SAMPLE_DATASET, SAMPLE_REPO, SAMPLE_PR
 
 
 class TestPullRequestTriggerSensor:
@@ -136,17 +136,7 @@ class TestPullRequestTriggerSensor:
         assert isinstance(result[0], SkipReason)
 
 
-SPEC_DATASET = {
-    "id": 1,
-    "name": "cdm",
-    "host": "db.host",
-    "port": 5432,
-    "schema": "cdm",
-    "schema_write": "results",
-    "type": "postgres",
-    "slug": "cdm",
-    "url": "https://db.host/cdm",
-}
+SPEC_DATASET = SAMPLE_DATASET
 
 
 def make_sensor(backend_api=None, github_api=None):
@@ -287,8 +277,8 @@ class TestRunRequestConfig:
         )
 
         config = request.run_config["ops"]["k8s_pipes_op"]["config"]
-        assert config["dataset_name"] == "cdm"
-        assert config["dataset_secret_name"] == "db.host-cdm-creds"
+        assert config["dataset"]["name"] == "cdm"
+        assert config["dataset"]["secret"] == {"provider": "K8S", "key": "git-token-abc", "namespace": "fn"}
         assert config["docker_image"] == "ghcr.io/org/img:1"
 
     def test_the_docker_image_key_is_accepted(self):

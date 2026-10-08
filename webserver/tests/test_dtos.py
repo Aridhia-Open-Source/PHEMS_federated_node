@@ -5,12 +5,35 @@ API returns, and the Dagster wire models in dagster/app/models.py depend on them
 import re
 
 from app.dtos.audit import AuditDTO
-from app.dtos.dataset import CatalogueDTO, DictionaryDTO
+from app.dtos.dataset import CatalogueDTO, DatasetDTO, DictionaryDTO
 from app.dtos.registry import RegistryDTO
 from app.models.extras.audit import Audit
 from app.models.extras.registry import Registry
 
 WIRE_DATETIME = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
+
+
+class TestDatasetDTO:
+    def test_fields(self, dataset):
+        assert set(DatasetDTO.from_model(dataset).dump()) == {
+            "id", "project_id", "secret", "name", "host", "port", "read_schema", "write_schema", "type",
+            "extra_connection_args", "created_at", "updated_at", "slug", "url",
+        }
+
+    def test_never_exposes_credentials(self, dataset):
+        dumped = DatasetDTO.from_model(dataset).dump()
+        assert "username" not in dumped
+        assert "password" not in dumped
+
+    def test_slug_and_url_are_derived(self, dataset):
+        dumped = DatasetDTO.from_model(dataset).dump()
+        assert dumped["slug"] == dataset.slugify_name()
+        assert dumped["url"].endswith(f"/datasets/{dumped['slug']}")
+
+    def test_datetimes_use_the_wire_format(self, dataset):
+        dumped = DatasetDTO.from_model(dataset).dump()
+        assert WIRE_DATETIME.match(dumped["created_at"])
+        assert WIRE_DATETIME.match(dumped["updated_at"])
 
 
 class TestCatalogueDTO:

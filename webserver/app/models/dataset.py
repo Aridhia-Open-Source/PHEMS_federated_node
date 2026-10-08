@@ -2,20 +2,17 @@ import logging
 import re
 import typing
 import urllib.parse
-from typing import cast
 
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 from kubernetes.client import V1Secret
-from kubernetes.client.exceptions import ApiException
 
 from app.helpers.base_model import BaseModel, db
-from app.helpers.const import DEFAULT_NAMESPACE, TASK_NAMESPACE, PUBLIC_URL
-from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, KubernetesException
+from app.helpers.const import DEFAULT_NAMESPACE, PUBLIC_URL
+from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
-from app.models import Models
+from app.models import Models, sqla_column
 
 logger = logging.getLogger("dataset_model")
 logger.setLevel(logging.INFO)
@@ -30,33 +27,41 @@ class Dataset(db.Model, BaseModel):
     project_id = sa.Column(
         sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False
     )
+    # The secret holding the database credentials (USERNAME and PASSWORD). The composite
+    # foreign key below keeps it to a secret of this dataset's own project.
+    secret_id = sa.Column(sa.Integer, nullable=False)
 
     name = sa.Column(sa.String(256), unique=True, nullable=False)
     host = sa.Column(sa.String(256), nullable=False)
     port = sa.Column(sa.Integer, default=5432)
-    schema = sa.Column(sa.String(256), nullable=True)
-    schema_write = sa.Column(sa.String(256), nullable=True)
+    read_schema = sa.Column(sa.String(256), nullable=True)
+    write_schema = sa.Column(sa.String(256), nullable=True)
     type = sa.Column(sa.String(256), server_default="postgres", nullable=False)
     extra_connection_args = sa.Column(sa.String(4096), nullable=True)
 
-    created_at = sa.Column(sa.DateTime(timezone=False), nullable=False, server_default=func.now())
-    updated_at = sa.Column(
-        sa.DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
+    created_at = sqla_column.created_at()
+    updated_at = sqla_column.updated_at()
+
+    __table_args__ = (
+        sa.ForeignKeyConstraint(
+            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'],
+            ondelete='RESTRICT'
+        ),
     )
 
     project = relationship(
         "Project", back_populates="datasets", foreign_keys=[project_id]
     )
+    secret = relationship("Secret", back_populates="datasets", overlaps="datasets,project")
 
     def __init__(
         self,
         name: str,
         host: str,
-        username: str,
-        password: str,
+        secret_id: int,
         port: int = 5432,
-        schema: str | None = None,
-        schema_write: str | None = None,
+        read_schema: str | None = None,
+        write_schema: str | None = None,
         type: str = "postgres",
         extra_connection_args: str | None = None,
         project_id: int | None = None,
@@ -67,11 +72,10 @@ class Dataset(db.Model, BaseModel):
         self.url = f"https://{PUBLIC_URL}/datasets/{self.slug}"
         self.host = host
         self.port = port
-        self.schema = schema
-        self.schema_write = schema_write
+        self.read_schema = read_schema
+        self.write_schema = write_schema
         self.type = type
-        self.username = username
-        self.password = password
+        self.secret_id = secret_id
         self.extra_connection_args = extra_connection_args
         self.project_id = project_id
 
@@ -89,9 +93,6 @@ class Dataset(db.Model, BaseModel):
         if project.default_dataset_id is None:
             project.default_dataset_id = self.id
             project.add(commit)
-        self.create_kubernetes_secret()
-        delattr(self, "username")
-        delattr(self, "password")
         # TODO: Keycloak registration for datasets is detached for now. Re-attach
         # self.add_to_keycloak(user_id) when the Keycloak/authorization rework lands.
         return self
@@ -109,19 +110,6 @@ class Dataset(db.Model, BaseModel):
         parsed = urllib.parse.urlparse(uri)
         return (parsed.netloc + parsed.path).lower().rstrip('/')
 
-    def get_creds_secret_name(self, host=None, name=None):
-        host = host or self.host
-        name = name or self.name
-
-        cleaned_up_host = re.sub('http(s)*://', '', host)
-        return f"{cleaned_up_host}-{re.sub('\\s|_|#', '-', name.lower())}-creds"
-
-    def sanitized_dict(self):
-        dataset = super().sanitized_dict()
-        dataset["slug"] = self.slugify_name()
-        dataset["url"] = f"https://{PUBLIC_URL}/datasets/{dataset['slug']}"
-        return dataset
-
     def slugify_name(self) -> str:
         """
         Based on the provided name, it will return the slugified name
@@ -134,7 +122,7 @@ class Dataset(db.Model, BaseModel):
         Mostly used to create a direct connection to the DB
         This is not involved in the Task Execution Service
         """
-        secret = self._get_secret(self.get_creds_secret_name())
+        secret = self._get_secret(self.secret.key)
         if secret.data is None:
             raise ValueError("Secret data is None")
 
@@ -142,30 +130,6 @@ class Dataset(db.Model, BaseModel):
         password = KubernetesClient.decode_secret_value(secret.data['PASSWORD'])
 
         return user, password
-
-    def create_kubernetes_secret(self) -> V1Secret:
-        v1 = KubernetesClient()
-        return v1.create_secret(
-            name=self.get_creds_secret_name(),
-            values={
-                "USERNAME": self.username,
-                "PASSWORD": self.password,
-            },
-            namespaces=[DEFAULT_NAMESPACE, TASK_NAMESPACE],
-            # The labels update_kubernetes_secret already sets, so a secret reads the
-            # same whether it was created or updated last. Teardown selects on them to
-            # clear the ones the Helm release does not own.
-            labels={
-                "type": "database",
-                "host": self.get_creds_secret_name()
-            },
-            # Registering a dataset is what decides its credentials. Without this the
-            # create is refused as a conflict whenever a secret from a previous
-            # registration is still around - silently, so the dataset row is new while
-            # the password behind it is the old one, and the failure surfaces only much
-            # later as an authentication error inside a task pod.
-            overwrite=True
-        )
 
     def add_to_keycloak(self, user_id=None):
         kc_client = Keycloak()
@@ -208,75 +172,28 @@ class Dataset(db.Model, BaseModel):
         Updates the instance with new values. These should be
         already validated.
         """
-        # This compares kwargs against the current values - the secret's name is derived
-        # from them - so it runs before the UPDATE, while self still holds the old ones.
-        self.update_kubernetes_secret(**kwargs)
         # TODO: Keycloak resource renaming is detached for now. Re-attach
         # self.update_keycloak(**kwargs) (before the UPDATE, while self still holds
         # the old name) when the Keycloak/authorization rework lands.
 
-        # Query.update() takes a dict of column -> value. username and password are
-        # not columns and were handled above.
+        # Query.update() takes a dict of column -> value
         values = {k: v for k, v in kwargs.items() if k in self._get_fields_name()}
         if values:
             self.query.filter(Dataset.id == self.id).update(
                 values, synchronize_session='evaluate'
             )
 
-    def update_kubernetes_secret(self, **kwargs):
-        if not kwargs:
-            return
-
-        v1 = KubernetesClient()
-        new_username = kwargs.pop("username", None)
-        secret_name: str = self.get_creds_secret_name()
-
-        # Get existing secret
-        secret: V1Secret = typing.cast(
-            V1Secret,
-            v1.read_namespaced_secret(secret_name, DEFAULT_NAMESPACE)
+    def remove_from_keycloak(self):
+        """
+        Delete what add_to_keycloak creates: the resource, its admin permission
+        and its admin policy.
+        """
+        # TODO: delete the resource f"{self.id}-{self.name}", the permission
+        # f"{self.id}-{self.name} Admin Permission" and the policy
+        # f"{self.id} - {self.name} Admin Policy"
+        raise NotImplementedError(
+            "TODO: delete the dataset's Keycloak resource, permission and policy"
         )
-
-        # Update secret if credentials are provided. The keys have to be the ones
-        # create_kubernetes_secret wrote, which are also the ones get_credentials, the
-        # task pod env and the Dagster pipes op read - anything else updates a key
-        # nobody looks at and leaves the old credentials in service.
-        new_name = kwargs.get("name", None)
-        if new_username:
-            secret.data["USERNAME"] = KubernetesClient.encode_secret_value(new_username)
-        new_pass = kwargs.pop("password", None)
-        if new_pass:
-            secret.data["PASSWORD"] = KubernetesClient.encode_secret_value(new_pass)
-
-        secret_task: V1Secret = cast(
-            V1Secret,
-            v1.read_namespaced_secret(secret_name, TASK_NAMESPACE)
-        )
-
-        secret.metadata.labels = {
-            "type": "database",
-            "host": secret_name
-        }
-        secret_task.data = secret.data
-        # Check secret names
-        new_host = kwargs.get("host", None)
-        try:
-            # Create new secret if name is different
-            if (new_host != self.host and new_host) or (new_name != self.name and new_name):
-                secret.metadata.name = self.get_creds_secret_name(new_host, new_name)
-                secret_task.metadata = secret.metadata
-                secret.metadata.resource_version = None
-                v1.create_namespaced_secret(DEFAULT_NAMESPACE, body=secret, pretty='true')
-                v1.create_namespaced_secret(TASK_NAMESPACE, body=secret_task, pretty='true')
-                v1.delete_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=secret_name)
-                v1.delete_namespaced_secret(namespace=TASK_NAMESPACE, name=secret_name)
-            else:
-                v1.patch_namespaced_secret(namespace=DEFAULT_NAMESPACE, name=secret_name, body=secret)
-                v1.patch_namespaced_secret(namespace=TASK_NAMESPACE, name=secret_name, body=secret_task)
-        except ApiException as e:
-            # Host and name are unique so there shouldn't be duplicates. If so
-            # let the exception to be re-raised with the internal one
-            raise KubernetesException(e.body, 400) from e
 
     def update_keycloak(self, **kwargs):
         kc_client = Keycloak()
@@ -300,7 +217,7 @@ class Dataset(db.Model, BaseModel):
             rather than an OR.
 
         Returns:
-         Dataset:
+            Dataset:
 
         Raises:
             DBRecordNotFoundError: if no record is found

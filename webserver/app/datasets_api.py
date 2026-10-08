@@ -12,17 +12,16 @@ import logging
 from http import HTTPStatus
 
 from flask import Blueprint, request
-from kubernetes.client import ApiException
 
-from .dtos.dataset import CatalogueDTO, DictionaryDTO
+from .dtos.base import page_of
+from .dtos.dataset import CatalogueDTO, DatasetDTO, DictionaryDTO
 from .helpers.base_model import db
-from .helpers.const import DEFAULT_NAMESPACE
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from .helpers.kubernetes import KubernetesClient
 from .helpers.query_validator import validate
 from .helpers.wrappers import audit, auth
 from .models.dataset import Dataset
 from .models.extras.catalogue import Catalogue
+from .models.secret import Secret
 from .models.extras.dictionary import Dictionary
 
 
@@ -41,7 +40,24 @@ def get_datasets():
     """
     GET /datasets/ endpoint. Returns a list of all datasets
     """
-    return Dataset.get_all(), HTTPStatus.OK
+    return page_of(Dataset.get_all(), DatasetDTO), HTTPStatus.OK
+
+
+def _reject_credentials(body: dict | None):
+    """Credentials live in a k8s secret, so sending them here is a mistake, not something to ignore."""
+    if body and ("username" in body or "password" in body):
+        raise InvalidRequest(
+            "username and password are not accepted. Create a secret with POST /secrets "
+            "(values USERNAME and PASSWORD) and pass its label as secret_label"
+        )
+
+
+def _resolve_secret(body: dict, project_id: int) -> dict:
+    """Swaps the project-local secret_label a request carries for the secret's id."""
+    if not body.get("secret_label"):
+        raise InvalidRequest("secret_label is required")
+    body["secret_id"] = Secret.get_in_project(project_id, body.pop("secret_label")).id
+    return body
 
 
 @bp.route('/', methods=['POST'])
@@ -53,7 +69,10 @@ def post_datasets():
     POST /datasets/ endpoint. Creates a new dataset
     """
     try:
-        body = Dataset.validate(request.json)
+        _reject_credentials(request.json)
+        if not request.json.get("project_id"):
+            raise InvalidRequest("project_id is required")
+        body = Dataset.validate(_resolve_secret(dict(request.json), request.json["project_id"]))
         cata_body = body.pop("catalogue", {})
         dict_body = body.pop("dictionaries", [])
         dataset = Dataset(**body)
@@ -76,7 +95,7 @@ def post_datasets():
 
         session.commit()
 
-        return Dataset.sanitized_dict(dataset), 201
+        return DatasetDTO.from_model(dataset).dump(), 201
 
     except Exception:
         session.rollback()
@@ -96,7 +115,7 @@ def get_datasets_by_id_or_name(
     GET /datasets/id endpoint. Gets dataset with a give id
     """
     ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
-    return Dataset.sanitized_dict(ds), HTTPStatus.OK
+    return DatasetDTO.from_model(ds).dump(), HTTPStatus.OK
 
 
 @bp.route('/<int:dataset_id>', methods=['DELETE'])
@@ -108,30 +127,16 @@ def delete_datasets_by_id_or_name(
     dataset_name: str | None = None
 ):
     """
-    DELETE /datasets/id endpoint. Deletes the dataset from the db and k8s secrets
-        the DB entry deletion is prioritized to the k8s secret.
+    DELETE /datasets/id endpoint. Deletes the dataset. Its k8s secret is left alone: it
+        has its own lifecycle (/secrets) and other datasets may share it.
     """
     logger.error(f"deleting ({dataset_id or dataset_name})")
     ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
-    secret_name = ds.get_creds_secret_name()
-    # Staged, not committed: the secret deletion below has to be able to roll this
-    # back, and a rollback after a commit is a no-op.
     try:
-        ds.delete(False)
+        ds.delete()
     except Exception as exc:
         session.rollback()
         raise InvalidRequest("Error while deleting the record") from exc
-
-    v1 = KubernetesClient()
-    try:
-        v1.delete_namespaced_secret(secret_name, DEFAULT_NAMESPACE)
-    except ApiException as apie:
-        if apie.status != 404:
-            logger.error(apie)
-            session.rollback()
-            raise InvalidRequest("Could not clear the secrets properly") from apie
-
-    session.commit()
     return {}, 204
 
 
@@ -159,8 +164,11 @@ def patch_datasets_by_id_or_name(
         session.rollback()
         raise InvalidRequest("dictionaries should be a list.")
 
+    if "secret_label" in body:
+        _resolve_secret(body, body.get("project_id", ds.project_id))
+
     for k in body:
-        if not hasattr(ds, k) and k not in ["username", "password"]:
+        if not hasattr(ds, k):
             raise InvalidRequest(f"Field {k} is not a valid one")
 
     try:
@@ -178,7 +186,7 @@ def patch_datasets_by_id_or_name(
         raise
 
     session.commit()
-    return Dataset.sanitized_dict(ds), HTTPStatus.ACCEPTED
+    return DatasetDTO.from_model(ds).dump(), HTTPStatus.ACCEPTED
 
 
 @bp.route('/<dataset_name>/catalogue', methods=['GET'])
