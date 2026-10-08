@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 
 from fncli.dagster.models.secret import Secret
-from fncli.dagster.models.pull_request import PullRequest
+from fncli.dagster.models.pull_request_trigger import PullRequestTrigger
 
 
 class TriggerRepository(BaseModel):
@@ -26,7 +26,7 @@ class TriggerRepository(BaseModel):
     initial_cursor: str | None = None
     pr_cursor: str
     pr_count: int = 0
-    pull_requests: list[PullRequest] = Field(default_factory=list)
+    pull_requests: list[PullRequestTrigger] = Field(default_factory=list)
 
     @property
     def repo_path(self) -> str:

@@ -32,9 +32,8 @@ class FakeDagster:
 
 def result_of(**fields):
     result = dict(
-        id=1, type="PR", task_id=9, status="DELIVERED", attempts=1, commit_sha="abc123", error=None,
+        id=1, type="PR", task_id=9, state="OPENED", attempts=1, commit_sha="abc123", error=None,
         number=3, url="http://gitea.fn.svc:4000/gitea_admin/results/pulls/3",
-        merge_status="OPEN",
     )
     return SimpleNamespace(**(result | fields))
 
@@ -88,7 +87,7 @@ def test_the_report_links_the_trigger_pr_the_run_and_the_results_pr():
         ("Dagster run", "http://localhost:3000/runs/abc"),
         ("Results PR", "http://localhost:4000/gitea_admin/results/pulls/3"),
     ]
-    assert ("ok", "Delivery has a results PR", "#3, OPEN") in report.rows
+    assert ("ok", "Delivery has a results PR", "#3, OPENED") in report.rows
 
 
 def test_a_missing_pr_fails_and_stops():
@@ -127,9 +126,10 @@ def test_each_mismatch_is_reported(task_fields, run_fields, failed):
 
 
 @pytest.mark.parametrize("results, failed", [
-    ([result_of(status="FAILED", error="zip too big")], ["Results were DELIVERED"]),
-    ([result_of(status="PENDING", commit_sha=None, number=None, url=None)],
-     ["Results were DELIVERED", "Delivery has a commit_sha", "Delivery has a results PR"]),
+    ([result_of(state="PUSHED", error="provider down", number=None, url=None)],
+     ["Results PR was opened", "Delivery has a results PR"]),
+    ([result_of(state="UNKNOWN", commit_sha=None, number=None, url=None)],
+     ["Results PR was opened", "Delivery has a commit_sha", "Delivery has a results PR"]),
     ([result_of(commit_sha=None)], ["Delivery has a commit_sha"]),
     ([result_of(number=None)], ["Delivery has a results PR"]),
     ([result_of(url=None)], ["Delivery has a results PR"]),
@@ -143,9 +143,18 @@ def test_each_delivery_problem_is_reported(results, failed):
 
 
 def test_a_failed_delivery_shows_its_error():
-    report = verify(pr_of(), task_of(), run_of(), [result_of(status="FAILED", error="zip too big")])
+    report = verify(pr_of(), task_of(), run_of(), [result_of(state="UNKNOWN", error="zip too big")])
 
-    assert ("FAIL", "Results were DELIVERED", "FAILED: zip too big") in report.rows
+    assert ("FAIL", "Results PR was opened", "UNKNOWN: zip too big") in report.rows
+
+
+@pytest.mark.parametrize("state", ["OPENED", "MERGED", "CLOSED"])
+def test_a_results_pr_past_pushed_is_delivered_and_shows_its_state(state):
+    report = verify(pr_of(), task_of(), run_of(), [result_of(state=state)])
+
+    assert failures(report) == []
+    assert ("ok", "Results PR was opened", state) in report.rows
+    assert ("ok", "Delivery has a results PR", f"#3, {state}") in report.rows
 
 
 def test_a_failed_run_matching_its_task_still_fails_the_run_check():

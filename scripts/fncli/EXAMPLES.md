@@ -51,7 +51,7 @@ Optional, to set up one side only:
   - Dagster: starts the other sensors (ingest, evaluate, launcher).
   - Dagster: does nothing for a sensor that is already running.
 
-Optional: `--sensor ingest|evaluate|launcher|status|delivery` starts just one (`status` is the run-status sensors, `delivery` is `task_results_delivery_sensor` and `results_pull_request_sync_sensor`, which keeps each results PR's state (open, merged, closed) up to date).
+Optional: `--sensor ingest|evaluate|launcher|status|delivery` starts just one (`status` is the run-status sensors, `delivery` is `task_results_delivery_sensor` and `results_pull_request_sync_sensor`, which records the results PR of a pushed result and keeps each results PR's state (OPENED, MERGED, CLOSED) up to date).
 
 ### 3. Open pull requests in the trigger repo
 
@@ -113,11 +113,11 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
   - For a `YIELDED` PR, Dagster: finds the run tagged with the task's id, and checks it is a `k8s_pipes_job`.
   - Checks the task's status, run id and attempt match the run, and that `started_at` and `completed_at` are set when they should be.
   - Checks the run succeeded.
-  - For a succeeded run, Backend: `GET /tasks/{id}/results`, and checks the task has exactly one results delivery, its status is `DELIVERED` (a `FAILED` one shows its error), it has a `commit_sha`, and it has a results PR (number and url; its state is shown).
+  - For a succeeded run, Backend: `GET /tasks/{id}/results`, and checks the task has exactly one results delivery, its results PR was opened (state `OPENED`, `MERGED` or `CLOSED`; a failed delivery shows its error), it has a `commit_sha`, and it has a results PR (number and url; its state is shown).
   - Does not check the files in the results repo: it only reads the backend and Dagster.
 - `fncli verify-repo --tail 10`
   - The same, for only the last 10 PRs by number.
-- `merge-gitea-pr --watch` and `open-pr --merge --watch` print the same per-PR checks when the run ends. After a succeeded run they first wait up to 60s for the delivery to reach `DELIVERED` or `FAILED`, printing a `Delivery:` line each time its status changes (Backend: `GET /tasks/{id}/results`). If it does not finish, they name the delivery sensor if it is not running, and the delivery check fails.
+- `merge-gitea-pr --watch` and `open-pr --merge --watch` print the same per-PR checks when the run ends. After a succeeded run they first wait up to 60s for the delivery to open its results PR (state `OPENED` or later) or fail (an error is recorded), printing a `Delivery:` line each time its state changes (Backend: `GET /tasks/{id}/results`). If it does not finish, they name the delivery sensor if it is not running, and the delivery check fails.
 
 ### 5. Tear down
 

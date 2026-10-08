@@ -1,11 +1,11 @@
 from pydantic import BaseModel, ConfigDict
 
 
-class TaskResult(BaseModel):
+class PullRequestResult(BaseModel):
     """
-    A task's results delivery to a results repository, from the backend API. `type` 'PR' is
-    a delivery as a pull request we open in the results repo (not the trigger-side
-    PullRequest we watch); its fields fill in as the delivery goes.
+    A task's results delivery to a results repository, from the backend API: the pull
+    request we open in the results repo (not the trigger-side PullRequestTrigger we watch).
+    Its fields fill in as the delivery goes.
     """
     model_config = ConfigDict(extra="allow")
 
@@ -13,7 +13,9 @@ class TaskResult(BaseModel):
     type: str
     task_id: int
     results_repository_id: int
-    status: str
+    # The furthest delivery step reached: UNKNOWN, PUSHED, OPENED, then MERGED or CLOSED,
+    # the last two kept fresh by results_pull_request_sync_sensor.
+    state: str
     attempts: int
     error: str | None = None
     created_at: str | None = None
@@ -22,7 +24,5 @@ class TaskResult(BaseModel):
     commit_sha: str | None = None
     number: int | None = None
     url: str | None = None
-    # OPEN, MERGED or CLOSED, kept fresh by results_pull_request_sync_sensor.
-    merge_status: str | None = None
     merged_at: str | None = None
     merge_commit_sha: str | None = None

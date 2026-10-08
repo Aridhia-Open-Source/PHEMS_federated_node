@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import click
+from click.testing import CliRunner
 import pytest
 import requests
 from pydantic import ValidationError
@@ -75,19 +76,22 @@ def test_branch_names_are_prefixed_with_the_time():
 # --watch
 
 class FakeBackend:
-    def __init__(self, prs, task_status="SUCCESS", deliveries=("DELIVERED",)):
+    def __init__(self, prs, task_status="SUCCESS", deliveries=("OPENED",)):
         self.prs = prs
         self.task_status = task_status
         self.deliveries = list(deliveries)
 
     def get_task_results(self, task_id):
-        status = self.deliveries.pop(0) if len(self.deliveries) > 1 else self.deliveries[0]
-        if status is None:
+        """Each delivery is None (no result yet), a state, or a (state, error) of a failed attempt."""
+        delivery = self.deliveries.pop(0) if len(self.deliveries) > 1 else self.deliveries[0]
+        if delivery is None:
             return []
+        state, error = delivery if isinstance(delivery, tuple) else (delivery, None)
+        opened = state in ("OPENED", "MERGED", "CLOSED")
         return [SimpleNamespace(
-            id=1, type="PR", task_id=task_id, status=status, attempts=1, commit_sha="abc", error=None,
-            number=3, url="http://gitea.fn.svc:4000/gitea_admin/results/pulls/3",
-            merge_status="OPEN",
+            id=1, type="PR", task_id=task_id, state=state, attempts=1, commit_sha="abc", error=error,
+            number=3 if opened else None,
+            url="http://gitea.fn.svc:4000/gitea_admin/results/pulls/3" if opened else None,
         )]
 
     def find_repository(self, uri, project_id):
@@ -119,7 +123,7 @@ def pr_of(state, cause=None):
 def watch(monkeypatch):
     """Runs watch_pr against a fake backend and Dagster, returning the exit code."""
 
-    def run(prs, runs=(None,), sensors=None, timeout=300, deliveries=("DELIVERED",)):
+    def run(prs, runs=(None,), sensors=None, timeout=300, deliveries=("OPENED",)):
         runs = list(runs)
         dagster_api = MagicMock()
         def get_task_run(task_id):
@@ -159,7 +163,7 @@ def test_watch_prints_each_change_once(watch, caplog):
         "Run abc: STARTED",
         "Dagster run: http://localhost:3000/runs/abc",
         "Run abc: SUCCESS",
-        "Delivery: DELIVERED",
+        "Delivery: OPENED",
     ]
 
 
@@ -182,20 +186,33 @@ def test_watch_run_status_sets_the_exit_code(watch, status, code):
 def test_watch_waits_for_the_delivery_and_prints_each_change(watch, caplog):
     caplog.set_level(logging.INFO, logger="pr")
 
-    code = watch([[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=[None, "PENDING", "DELIVERED"])
+    code = watch(
+        [[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=[None, "UNKNOWN", "PUSHED", "OPENED"]
+    )
 
     assert code == 0
     lines = [r.message for r in caplog.records if "Delivery" in r.message]
     assert lines == [
-        "Delivery: waiting for the delivery sensor", "Delivery: PENDING", "Delivery: DELIVERED"
+        "Delivery: waiting for the delivery sensor", "Delivery: UNKNOWN", "Delivery: PUSHED", "Delivery: OPENED"
     ]
 
 
-def test_watch_a_failed_delivery_exits_one(watch, caplog):
+@pytest.mark.parametrize("state", ["MERGED", "CLOSED"])
+def test_watch_ends_on_a_results_pr_already_merged_or_closed(watch, caplog, state):
     caplog.set_level(logging.INFO, logger="pr")
 
-    assert watch([[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=["FAILED"]) == 1
-    assert "Delivery: FAILED" in caplog.text
+    assert watch([[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=[state]) == 0
+    assert f"Delivery: {state}" in caplog.text
+
+
+@pytest.mark.parametrize("state", ["UNKNOWN", "PUSHED"])
+def test_watch_a_failed_delivery_stops_waiting_and_exits_one(watch, caplog, monkeypatch, state):
+    caplog.set_level(logging.INFO, logger="pr")
+    monkeypatch.setattr(pr, "DELIVERY_SECONDS", 5)
+
+    assert watch([[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=[(state, "zip too big")]) == 1
+    assert f"Delivery: {state}: zip too big" in caplog.text
+    assert "Delivery not finished" not in caplog.text
 
 
 def test_watch_a_delivery_that_never_comes_is_bounded_and_fails_verification(

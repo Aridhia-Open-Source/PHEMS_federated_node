@@ -104,7 +104,7 @@ class TestGetOrCreateRepository:
 
 def test_get_task_results_lists_the_tasks_deliveries(api, session):
     body = [{
-        "id": 4, "type": "PR", "task_id": 9, "results_repository_id": 2, "status": "DELIVERED", "attempts": 1,
+        "id": 4, "type": "PR", "task_id": 9, "results_repository_id": 2, "state": "OPENED", "attempts": 1,
         "branch": None, "commit_sha": "abc", "number": None, "url": None,
         "error": None, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z",
     }]
@@ -113,4 +113,4 @@ def test_get_task_results_lists_the_tasks_deliveries(api, session):
     results = api.get_task_results(9)
 
     session.get.assert_called_once_with("/tasks/9/results")
-    assert [(r.id, r.status, r.commit_sha) for r in results] == [(4, "DELIVERED", "abc")]
+    assert [(r.id, r.state, r.commit_sha) for r in results] == [(4, "OPENED", "abc")]

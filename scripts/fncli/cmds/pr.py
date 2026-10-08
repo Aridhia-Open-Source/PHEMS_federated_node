@@ -23,7 +23,7 @@ from fncli.cmds.common import (
 from fncli.cmds.project import find_project
 from fncli.cmds.repository import init_gitea_repo
 from fncli.cmds.sensor import SENSORS
-from fncli.cmds.verify import RUN_TO_TASK_STATUS, Links, Report, verify_task
+from fncli.cmds.verify import PAST_PUSHED, RUN_TO_TASK_STATUS, Links, Report, verify_task
 from fncli.dagster.models import TriggerState
 from fncli.dagster.sensors import DagsterAPI
 
@@ -41,7 +41,6 @@ SETTLE_SECONDS = 30
 # How long after a succeeded run its results may take to be delivered (the delivery sensor
 # ticks, then launches a run that zips and pushes them).
 DELIVERY_SECONDS = 60
-DELIVERY_DONE = ["DELIVERED", "FAILED"]
 # Dagster's run statuses that end a task's run.
 RUN_DONE = ["SUCCESS", "FAILURE", "CANCELED"]
 
@@ -135,16 +134,21 @@ def stuck_sensors(dagster_api: DagsterAPI, stage: str) -> list[str]:
 
 
 def wait_for_delivery(backend_api, dagster_api: DagsterAPI, task_id: int):
-    """Print each change of the task's delivery status until it is DELIVERED or FAILED, or the wait ends."""
+    """
+    Print each change of the task's delivery state until its results PR is opened or the
+    delivery fails (it records an error and leaves the state), or the wait ends.
+    """
     deadline = time.monotonic() + DELIVERY_SECONDS
     last = ""
     while time.monotonic() < deadline:
         results = backend_api.get_task_results(task_id)
-        status = results[0].status if results else None
-        if status != last:
-            last = status
-            logger.info(f"Delivery: {status or 'waiting for the delivery sensor'}")
-        if status in DELIVERY_DONE:
+        state = results[0].state if results else None
+        error = results[0].error if results else None
+        seen = f"{state}: {error}" if error else state
+        if seen != last:
+            last = seen
+            logger.info(f"Delivery: {seen or 'waiting for the delivery sensor'}")
+        if state in PAST_PUSHED or error:
             return
         time.sleep(POLL_SECONDS)
     logger.info(f"Delivery not finished after {DELIVERY_SECONDS}s, last seen: {last or None}")

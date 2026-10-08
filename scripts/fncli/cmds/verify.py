@@ -29,6 +29,8 @@ RUN_TO_TASK_STATUS = {
     "CANCELED": "CANCELED",
 }
 TASK_JOB = "k8s_pipes_job"
+# The delivery states past PUSHED: its results PR is opened.
+PAST_PUSHED = ["OPENED", "MERGED", "CLOSED"]
 
 
 class Report:
@@ -225,24 +227,27 @@ def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, links: Links
 
 
 def verify_delivery(report: Report, backend_api, task_id: int):
-    """A succeeded task's results are delivered: one TaskResult, DELIVERED, with a commit and a results PR."""
+    """
+    A succeeded task's results are delivered: one result, past PUSHED (OPENED, MERGED or
+    CLOSED), with a commit and a results PR.
+    """
     results = report.check(
         f"Task {task_id} has one results delivery: GET /tasks/{task_id}/results",
         lambda: exactly_one(backend_api.get_task_results(task_id)),
-        lambda r: f"{r.status}, attempts {r.attempts}",
+        lambda r: f"{r.state}, attempts {r.attempts}",
     )
     if results is None:
         return
     report.record(
-        results.status == "DELIVERED",
-        "Results were DELIVERED",
-        f"{results.status}" + (f": {results.error}" if results.error else ""),
+        results.state in PAST_PUSHED,
+        "Results PR was opened",
+        f"{results.state}" + (f": {results.error}" if results.error else ""),
     )
     report.record(results.commit_sha is not None, "Delivery has a commit_sha", str(results.commit_sha))
     report.record(
         results.number is not None and results.url is not None,
         "Delivery has a results PR",
-        f"#{results.number}, {results.merge_status}",
+        f"#{results.number}, {results.state}",
     )
     if results.url is not None:
         report.link("Results PR", to_host_url(results.url))

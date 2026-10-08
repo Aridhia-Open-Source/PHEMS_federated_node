@@ -25,7 +25,7 @@ RUN_STATUS_SENSORS = [
 # The delivery sensor is a run-status sensor too (it acts when a task's run succeeds), so it
 # starts before the launcher as well.
 DELIVERY_SENSOR = "task_results_delivery_sensor"
-# Polls the open results PRs and copies their state (merged, closed) onto the TaskResult.
+# Polls the pushed and opened results and copies their PR's state (opened, merged, closed) onto the result.
 RESULTS_PR_SYNC_SENSOR = "results_pull_request_sync_sensor"
 # In start order; stopping goes the other way round.
 ALL_SENSORS = [

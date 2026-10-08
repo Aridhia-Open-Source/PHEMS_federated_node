@@ -3,8 +3,8 @@ from pydantic import BaseModel, ConfigDict
 from fncli.dagster.models.trigger_state import TriggerState
 
 
-class PullRequest(BaseModel):
-    """Pull Request data from backend API."""
+class PullRequestTrigger(BaseModel):
+    """A merged pull request recorded as a trigger, from the backend API."""
     model_config = ConfigDict(extra="allow")
 
     trigger_repository_id: int

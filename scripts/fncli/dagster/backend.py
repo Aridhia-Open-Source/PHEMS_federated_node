@@ -2,7 +2,7 @@ import logging
 from urllib.parse import urlparse
 
 from fncli.dagster.utils import BackendSession
-from fncli.dagster.models import Dataset, Project, PullRequest, ResultsRepository, Task, TaskResult, TriggerRepository
+from fncli.dagster.models import Dataset, Project, PullRequestResult, PullRequestTrigger, ResultsRepository, Task, TriggerRepository
 
 default_logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class BackendAPI:
         response = self.session.patch(f"/trigger_repositories/{repo_id}", json=data)
         return TriggerRepository(**response.json())
 
-    def get_pull_requests(self, repo_id: int, **query_params) -> list[PullRequest]:
+    def get_pull_requests(self, repo_id: int, **query_params) -> list[PullRequestTrigger]:
         """Get all pull requests for a repository, automatically handling pagination"""
         self.logger.info(f"Fetching all pull requests for repo {repo_id}")
         all_prs = []
@@ -65,7 +65,7 @@ class BackendAPI:
             if not items:
                 break
 
-            all_prs.extend([PullRequest(**pr) for pr in items])
+            all_prs.extend([PullRequestTrigger(**pr) for pr in items])
             self.logger.info(f"Fetched page {page}: {len(items)} PRs (total: {len(all_prs)})")
 
             total = data.get("total") if isinstance(data, dict) else None
@@ -86,7 +86,7 @@ class BackendAPI:
         merged_at: str,
         merge_commit_sha: str,
         payload: dict,
-    ) -> PullRequest:
+    ) -> PullRequestTrigger:
         """Create a pull request"""
         self.logger.info(f"Creating PR #{number} in repo {trigger_repository_id}")
         data = {
@@ -99,40 +99,40 @@ class BackendAPI:
             "payload": payload,
         }
         response = self.session.post("/trigger_repositories/pull_requests", json=data)
-        return PullRequest(**response.json())
+        return PullRequestTrigger(**response.json())
 
-    def create_pull_requests_batch(self, repo_id: int, pull_requests: list[dict]) -> list[PullRequest]:
+    def create_pull_requests_batch(self, repo_id: int, pull_requests: list[dict]) -> list[PullRequestTrigger]:
         """Create multiple pull requests for a repository in one request (up to 100)"""
         if len(pull_requests) > 100:
             raise ValueError("Maximum 100 pull requests per batch")
 
         self.logger.info(f"Creating batch of {len(pull_requests)} pull requests for repo {repo_id}")
         response = self.session.post(f"/trigger_repositories/{repo_id}/pull_requests/batch", json=pull_requests)
-        return [PullRequest(**pr) for pr in response.json()]
+        return [PullRequestTrigger(**pr) for pr in response.json()]
 
     def patch_pull_request(
         self,
         repo_id: int,
         number: int,
         data: dict,
-    ) -> PullRequest:
+    ) -> PullRequestTrigger:
         """Update pull request"""
         self.logger.info(f"Updating PR #{number} in repo {repo_id}")
         response = self.session.patch(
             f"/trigger_repositories/{repo_id}/pull_requests/{number}",
             json=data,
         )
-        return PullRequest(**response.json())
+        return PullRequestTrigger(**response.json())
 
     def get_task(self, task_id: int) -> Task:
         """Get single task"""
         self.logger.info(f"Fetching task {task_id}")
         return Task(**self.session.get(f"/tasks/{task_id}").json())
 
-    def get_task_results(self, task_id: int) -> list[TaskResult]:
+    def get_task_results(self, task_id: int) -> list[PullRequestResult]:
         """The task's result deliveries, one per results repository"""
         self.logger.info(f"Fetching results of task {task_id}")
-        return [TaskResult(**result) for result in self.session.get(f"/tasks/{task_id}/results").json()]
+        return [PullRequestResult(**result) for result in self.session.get(f"/tasks/{task_id}/results").json()]
 
     def get_dataset_by_name(self, name: str) -> Dataset | None:
         """Get dataset by name"""
