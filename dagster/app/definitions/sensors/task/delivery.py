@@ -42,7 +42,11 @@ def deliver_results_job():
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )
 def task_results_delivery_sensor(context: RunStatusSensorContext):
-    """Launch the delivery of a task's results when its run succeeds."""
+    """
+    Launch the delivery of a task's results when its run succeeds. It fires once per task
+    attempt, so a failed delivery is not retried by itself: re-launch deliver_results_job by
+    hand, and it resumes from the state its result reached.
+    """
     tags = context.dagster_run.tags
     if tags.get("trigger") != "task":
         return

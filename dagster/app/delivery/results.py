@@ -1,4 +1,10 @@
-"""Delivery of one task's results to its project's results repository."""
+"""
+Delivery of one task's results to its project's results repository.
+
+task_results_delivery_sensor launches a delivery once per task attempt, so a failed delivery
+is not retried by itself: it is re-launched by hand, and resumes from where it stopped.
+results_pull_request_sync_sensor only heals a pull request opened but not recorded.
+"""
 
 import json
 import tempfile
@@ -9,7 +15,7 @@ from app.backend import BackendAPI
 from app.config import ResultsDeliveryConfig
 from app.delivery import git_push
 from app.models import (
-    PullRequest, MergeStatus, ResultsRepository, Task, TaskResultStatus, TriggerRepository, TriggerState,
+    PullRequestResultState, PullRequestTrigger, ResultsRepository, Task, TriggerRepository, TriggerState,
 )
 from app.secrets import SecretProvider
 
@@ -17,13 +23,15 @@ ZIP_NAME = "results.zip"
 METADATA_NAME = "metadata.json"
 SPEC_NAME = "spec.json"
 MAX_ERROR_LENGTH = 1000
+# Past these the pull request is opened, so there is nothing left to deliver.
+PAST_PUSHED = {PullRequestResultState.OPENED, PullRequestResultState.MERGED, PullRequestResultState.CLOSED}
 
 
 class ResultsDelivery:
     """
     Zips a task's artifacts and pushes them with the task's spec and a metadata file to a new branch of
     the project's results repository, opens a pull request from it into the repository's default
-    branch, then records the outcome on the task's TaskResult.
+    branch, and records each step on the task's result as soon as it is done.
     Delivery never touches the task's own status.
     """
 
@@ -35,15 +43,18 @@ class ResultsDelivery:
 
     def __call__(self, task_id: int) -> None:
         """
-        Deliver the results of a task. A delivered one is left alone. Any failure is
-        recorded on the TaskResult as FAILED and raised, so the Dagster run fails visibly.
-        A pushed branch is recorded even when its pull request fails, and a retry reuses it.
+        Deliver the results of a task: record PUSHED once the branch is pushed, then OPENED
+        once its pull request is opened. A result past PUSHED is left alone, and one in
+        UNKNOWN or PUSHED resumes: a branch already on the remote is not pushed again, and
+        its pull request is looked up before one is opened.
+        Any failure is recorded on the result as an error with one more attempt, its state
+        left where it was, and raised, so the Dagster run fails visibly.
         """
         task = self.backend_api.get_task(task_id)
         repository = self.backend_api.get_results_repository(task.project_id)
-        task_result = self.backend_api.create_task_result(task.id, repository.id)
-        if task_result.status == TaskResultStatus.DELIVERED:
-            self.log.info(f"Results of task {task.id} are already delivered")
+        result = self.backend_api.create_result(task.id, repository.id)
+        if result.state in PAST_PUSHED:
+            self.log.info(f"Results of task {task.id} are already delivered, {result.state.value}")
             return
 
         pushed = {}
@@ -52,30 +63,27 @@ class ResultsDelivery:
             title = f"{trigger_repository.repo_path} PR{pull_request.number} - task {task.id} - results"
             branch, commit_sha, base_branch = self._push(task, repository, trigger_repository, pull_request, title)
             pushed = {"branch": branch, "commit_sha": commit_sha}
+            self.backend_api.patch_result(result.id, {"state": PullRequestResultState.PUSHED.value, **pushed})
             results_pr = self._open_pull_request(repository, branch, base_branch, title, pull_request)
+            # An earlier attempt's PR may be merged or closed already: record what it is
+            state = PullRequestResultState.from_git(results_pr)
+            self.backend_api.patch_result(result.id, {
+                "state": state.value,
+                "attempts": result.attempts + 1,
+                "error": None,
+                "number": results_pr["number"],
+                "url": results_pr["html_url"],
+                "merged_at": results_pr["merged_at"],
+                # GitHub fills merge_commit_sha on an unmerged PR with its test merge
+                "merge_commit_sha": results_pr["merge_commit_sha"] if state == PullRequestResultState.MERGED else None,
+            })
         except Exception as e:
-            self.backend_api.patch_task_result(task_result.id, {
-                "status": TaskResultStatus.FAILED.value,
-                "attempts": task_result.attempts + 1,
+            self.backend_api.patch_result(result.id, {
+                "attempts": result.attempts + 1,
                 "error": f"{type(e).__name__}: {e}"[:MAX_ERROR_LENGTH],
                 **pushed,
             })
             raise
-
-        # An earlier attempt's PR may be merged already, and the sync sensor only polls OPEN ones
-        state = MergeStatus.from_git(results_pr)
-        self.backend_api.patch_task_result(task_result.id, {
-            "status": TaskResultStatus.DELIVERED.value,
-            "attempts": task_result.attempts + 1,
-            "error": None,
-            **pushed,
-            "number": results_pr["number"],
-            "url": results_pr["html_url"],
-            "merge_status": state.value,
-            "merged_at": results_pr["merged_at"],
-            # GitHub fills merge_commit_sha on an unmerged PR with its test merge
-            "merge_commit_sha": results_pr["merge_commit_sha"] if state == MergeStatus.MERGED else None,
-        })
         self.log.info(f"Delivered results of task {task.id} in {results_pr['html_url']}")
 
     def _push(
@@ -83,7 +91,7 @@ class ResultsDelivery:
         task: Task,
         repository: ResultsRepository,
         trigger_repository: TriggerRepository,
-        pull_request: PullRequest,
+        pull_request: PullRequestTrigger,
         message: str,
     ) -> tuple[str, str, str]:
         """
@@ -141,7 +149,7 @@ class ResultsDelivery:
             return branch, git_push.commit_and_push(clone_dir, message, env), base_branch
 
     def _open_pull_request(
-        self, repository: ResultsRepository, branch: str, base_branch: str, title: str, pull_request: PullRequest
+        self, repository: ResultsRepository, branch: str, base_branch: str, title: str, pull_request: PullRequestTrigger
     ) -> dict:
         """Open the pull request of the branch, or return the one an earlier attempt opened."""
         git_api = self.git_apis.for_repository(repository)
@@ -152,7 +160,7 @@ class ResultsDelivery:
         body = f"Results of the task run for pull request #{pull_request.number}, merged at {pull_request.merge_commit_sha}."
         return git_api.create_pull_request(repository.repo_path, branch, base_branch, title, body)
 
-    def _find_pull_request(self, task: Task) -> tuple[TriggerRepository, PullRequest]:
+    def _find_pull_request(self, task: Task) -> tuple[TriggerRepository, PullRequestTrigger]:
         """The trigger repository and pull request that yielded the task."""
         for repository in self.backend_api.get_repositories():
             if repository.project_id != task.project_id:
