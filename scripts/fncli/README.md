@@ -70,7 +70,7 @@ step 2.
 
 ## Usage
 
-Run commands from anywhere inside the repo: `.dev.env` is found by searching up from the current directory. `fncli --help` lists the commands.
+Run commands from anywhere inside the repo: `.dev.env` is found by searching up from the current directory. `fncli --help` lists the commands. fncli reads secrets from the CURRENT kubectl context, which must be `kind-fn`.
 
 ### Quick start
 
@@ -78,6 +78,7 @@ Run commands from anywhere inside the repo: `.dev.env` is found by searching up 
 fncli setup-project                 # build a whole dev project
 fncli open-pr [--kind watched|unwatched|invalid] [--merge]
 fncli teardown-project -y           # delete it all again
+fncli start-sensor --sensor all     # ingest -> evaluate -> launcher, plus the run-status sensors (fncli sensor-status to watch)
 
 fncli setup-backend                 # or the two halves separately:
 fncli setup-gitea [--project NAME]
@@ -108,10 +109,10 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 | `setup-project` | Runs, in order: `init-backend-project`, `init-gitea-repo` (trigger, results), `init-git-secret` (trigger, results), `init-dataset-secret`, `init-backend-trigger-repo`, `init-backend-results-repo`, `init-backend-dataset`, `verify-git-secret` (trigger, results), `project-healthcheck` |
 | `open-pr [--kind] [--merge]` | Runs `create-gitea-branch`, `commit-gitea-file`, `create-gitea-pr`, and with `--merge` `merge-gitea-pr` |
 | `setup-backend` | Backend only, no Gitea: `init-backend-project`, `init-backend-secret` (trigger, results, dataset), `init-backend-trigger-repo --base-branch main`, `init-backend-results-repo`, `init-backend-dataset` |
-| `teardown-backend [-y]` | Backend only: `delete-backend-dataset`, `delete-backend-results-repo`, `delete-backend-trigger-repo`, `delete-secret` (trigger, results, dataset), `delete-backend-project` |
+| `teardown-backend [-y]` | Backend only: `delete-backend-project`, then `delete-backend-dataset`, `delete-backend-results-repo`, `delete-backend-trigger-repo`, `delete-secret` (trigger, results, dataset) |
 | `setup-gitea [--project]` | Gitea only, repos taken from the project's backend records (`--from-backend`): `init-gitea-repo` (trigger, results), `init-git-secret` (trigger, results; writes into the record's secret), `verify-git-secret` (trigger, results) |
 | `teardown-gitea [-y] [--project]` | Gitea only, same records: `delete-gitea-token` (trigger, results), `delete-gitea-repo` (trigger, results) |
-| `teardown-project [-y]` | After asking (`-y` / `--yes` skips the prompt), runs: `delete-backend-dataset`, `delete-backend-results-repo`, `delete-backend-trigger-repo`, `delete-secret` (trigger, results, dataset), `delete-backend-project`, `delete-gitea-token` (trigger, results), `delete-gitea-repo` (trigger, results). Both Gitea repos are always deleted |
+| `teardown-project [-y]` | After asking (`-y` / `--yes` skips the prompt), runs: `delete-backend-project` first, then `delete-backend-dataset`, `delete-backend-results-repo`, `delete-backend-trigger-repo`, `delete-secret` (trigger, results, dataset), `delete-gitea-token` (trigger, results), `delete-gitea-repo` (trigger, results). Both Gitea repos are always deleted |
 
 ### Step commands, by entity
 
@@ -148,7 +149,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 
 | Command | What it does |
 |---|---|
-| `init-backend-dataset` | Registers the dummy dataset (needs the dataset secret, and Keycloak working) |
+| `init-backend-dataset` | Registers the dummy dataset (needs the dataset secret) |
 | `delete-backend-dataset` | Deletes the dataset record from the backend |
 
 **Pull request** (`cmds/pr.py`; the file name, branch and title carry a timestamp, so it can be re-run)
@@ -164,6 +165,21 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 new `.json` spec file under the watch_dir, which becomes a task; `unwatched` is a file
 outside the watch_dir, so the PR is ignored; `invalid` is a `.json` under the watch_dir
 whose spec has an unknown field, so the PR is rejected.
+
+**Sensors** (`cmds/sensor.py`; needs the Dagster webserver on `DAGSTER_URL`, default `http://localhost:3000`)
+
+| Command | What it does |
+|---|---|
+| `start-sensor [--sensor]` | Starts Dagster sensors; `--sensor` is `ingest` (default, `git_pull_request_ingest_sensor`), `evaluate` (`git_pull_request_evaluate_sensor`), `launcher` (`task_launcher_sensor`), `status` (the five run-status sensors) or `all` |
+| `stop-sensor [--sensor]` | Stops them; `all` stops the launcher first |
+| `sensor-status` | Prints every sensor's status and last 3 ticks (status, skip reason or error) |
+
+Everything is STOPPED in Dagster by default. The whole path from a merged PR is: `ingest` saves it
+(UNKNOWN), `evaluate` turns it into a task (YIELDED, or IGNORED / REJECTED with a cause), `launcher`
+starts a Dagster run for each PENDING task, and the run-status sensors copy the run's status onto the
+task. The run-status sensors only see events from the moment they start, so they must be running
+BEFORE the launcher: a run that finishes first leaves its task PENDING for good. `start-sensor
+--sensor all` starts them in the safe order.
 
 `hello-world` prints a greeting, to check the CLI is installed.
 
@@ -230,8 +246,10 @@ scripts/fncli/
     secret.py       Gitea token and dataset secrets
     dataset.py      the backend dataset record
     pr.py           the individual PR steps
+    sensor.py       start/stop/status of the Dagster sensors
     hello_world.py  install check
-  dagster/          copies of dagster/app client code (backend, gitea, k8s, models)
+  dagster/          copies of dagster/app client code (backend, gitea, k8s, models), plus
+                    sensors.py, the Dagster GraphQL client
   pyproject.toml    package and dependency definition
   requirements.txt  pinned dependencies, generated by make pip_compile
 ```

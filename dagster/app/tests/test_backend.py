@@ -4,21 +4,9 @@ import pytest
 
 from app.backend import BackendAPI
 from app.models import Dataset, PullRequest, TriggerRepository
-from app.tests.conftest import SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, make_response
+from app.tests.conftest import SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, make_response
 
 
-SAMPLE_DATASET = {
-    "id": 1,
-    "project_id": 1,
-    "name": "cdm",
-    "host": "db.host",
-    "port": 5432,
-    "schema": "cdm",
-    "schema_write": "results",
-    "type": "postgres",
-    "slug": "cdm",
-    "url": "https://db.host/cdm",
-}
 
 
 
@@ -198,11 +186,15 @@ class TestDatasets:
         session.post.return_value = make_response(SAMPLE_DATASET)
 
         api.create_dataset(
-            name="cdm", host="db.host", port=5432, username="u",
-            password="p", schema="cdm", db_type="postgres",
+            name="cdm", host="db.host", port=5432, secret_label="cdm-creds",
+            read_schema="cdm", db_type="postgres",
         )
 
-        assert session.post.call_args.kwargs["json"]["type"] == "postgres"
+        assert session.post.call_args.args == ("/datasets",)
+        assert session.post.call_args.kwargs["json"] == {
+            "name": "cdm", "host": "db.host", "port": 5432, "secret_label": "cdm-creds",
+            "read_schema": "cdm", "type": "postgres",
+        }
 
 
 SAMPLE_PROJECT = {"id": 1, "name": "proj", "enabled": True, "default_dataset_id": 1}

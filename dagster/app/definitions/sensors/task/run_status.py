@@ -30,8 +30,9 @@ class TaskRunStatusSensor(BaseSensor):
         """
         Execute the sensor. Patches the task to the status the run moved to.
 
-        When the run starts the task records the run id and start time. When it reaches a
-        terminal status the task records the time the run ended.
+        Every status records the run id, so a run that skips one still leaves it on the task.
+        When the run starts the task records the start time. When it reaches a terminal status
+        the task records the time the run ended.
         The exit code is not recorded: the run does not expose it.
         """
         run = self.context.dagster_run
@@ -39,9 +40,8 @@ class TaskRunStatusSensor(BaseSensor):
         task_id = int(run.tags["task_id"])
 
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        fields = {"status": task_status.value}
+        fields = {"status": task_status.value, "dagster_run_id": run.run_id}
         if run.status == dg.DagsterRunStatus.STARTED:
-            fields["dagster_run_id"] = run.run_id
             fields["started_at"] = now
         elif task_status in self.TERMINAL_STATUSES:
             end_time = self.context.instance.get_run_record_by_id(run.run_id).end_time

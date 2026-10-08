@@ -6,13 +6,25 @@ that ties the steps together: the file and the PR title are derived from it.
 
 import json
 import logging
+import time
 from datetime import datetime, timezone
 
 import click
+import requests
 from pydantic import Field
 
-from fncli.cmds.common import GiteaConfig, build_gitea_api
+from fncli.cmds.common import (
+    DagsterConfig,
+    TriggerRepoConfig,
+    build_backend_api,
+    build_gitea_api,
+)
+from fncli.cmds.project import find_project
 from fncli.cmds.repository import init_gitea_repo
+from fncli.cmds.sensor import SENSORS
+from fncli.cmds.verify import RUN_TO_TASK_STATUS, Report, verify_task
+from fncli.dagster.models import TriggerState
+from fncli.dagster.sensors import DagsterAPI
 
 logger = logging.getLogger("pr")
 
@@ -20,11 +32,17 @@ logger = logging.getLogger("pr")
 # file is outside the watch_dir) or reject it (invalid, the spec does not validate).
 KINDS = ["watched", "unwatched", "invalid"]
 
+POLL_SECONDS = 3
+# Consecutive polls that may fail to connect (Dagster reloading, say) before --watch gives up.
+MAX_CONNECTION_ERRORS = 10
+# The run-status sensors tick every 10s, so the task trails its run by up to that long.
+SETTLE_SECONDS = 30
+# Dagster's run statuses that end a task's run.
+RUN_DONE = ["SUCCESS", "FAILURE", "CANCELED"]
 
-class PrConfig(GiteaConfig):
-    repo: str = Field(default="", alias="TEST_TRIGGER_REPO")
-    watch_dir: str = Field(default="", alias="TEST_TRIGGER_REPO_WATCH_DIR")
-    pr_image: str = Field(default="busybox:latest", alias="TEST_PR_IMAGE")
+
+class PrConfig(TriggerRepoConfig):
+    pr_image: str = Field(default="localhost:5001/pypipes-fn:latest", alias="TEST_PR_IMAGE")
 
     @property
     def repo_path(self) -> str:
@@ -96,13 +114,106 @@ def create_gitea_pr_command(branch, kind):
     return pr
 
 
+def stuck_sensors(dagster_api: DagsterAPI, stage: str) -> list[str]:
+    """The sensors of the stage the PR is stuck at that are not running."""
+    return [
+        name
+        for name in SENSORS[stage]
+        if dagster_api.get_sensor_state(name)["status"] != "RUNNING"
+    ]
+
+
+def watch_pr(config: PrConfig, number: int, timeout: int):
+    """
+    Print each change of the PR in the backend, then of its task and the task's run, until
+    one ends or the timeout. When the run ends, print the task verification report. Exits 1 on a
+    REJECTED PR, a failed verification (which a failed or canceled run is) or a timeout.
+    """
+    backend_api = build_backend_api(config)
+    dagster_api = DagsterAPI(DagsterConfig().dagster_url)
+    project = find_project(config, backend_api)
+    repo = backend_api.find_repository(config.repo_uri, project.id)
+    seen = {}
+    stage = "ingest"
+    deadline = time.monotonic() + timeout
+    connection_errors = 0
+    last_error = None
+    while time.monotonic() < deadline:
+        lines = {}
+        run = None
+        try:
+            pr = next(
+                (p for p in backend_api.get_pull_requests(repo.id) if p.number == number), None
+            )
+            if pr is None:
+                lines["pr"] = "PR: waiting for ingest"
+            else:
+                cause = f" ({pr.state_cause})" if pr.state_cause else ""
+                lines["pr"] = f"PR: {pr.state.value}{cause}"
+                stage = "evaluate"
+            if pr and pr.state == TriggerState.YIELDED:
+                stage = "launcher"
+                task = backend_api.get_task(pr.task_id)
+                lines["task"] = f"Task {task.id}: {task.status}"
+                run = dagster_api.get_task_run(task.id)
+                if run:
+                    stage = "status"
+                    lines["run"] = f"Run {run['runId']}: {run['status']}"
+        except requests.exceptions.ConnectionError as error:
+            connection_errors += 1
+            if connection_errors >= MAX_CONNECTION_ERRORS:
+                logger.info(f"{connection_errors} connection errors in a row, giving up: {error}")
+                raise click.exceptions.Exit(1)
+            if str(error) != last_error:
+                last_error = str(error)
+                logger.info(f"connection error, retrying: {error}")
+            time.sleep(POLL_SECONDS)
+            continue
+        connection_errors = 0
+        for key, line in lines.items():
+            if seen.get(key) != line:
+                seen[key] = line
+                logger.info(f"{datetime.now().strftime('%H:%M:%S')} {line}")
+        if pr and pr.state == TriggerState.IGNORED:
+            return
+        if pr and pr.state == TriggerState.REJECTED:
+            raise click.exceptions.Exit(1)
+        if run and run["status"] in RUN_DONE:
+            settle_deadline = time.monotonic() + SETTLE_SECONDS
+            while (
+                backend_api.get_task(task.id).status != RUN_TO_TASK_STATUS[run["status"]]
+                and time.monotonic() < settle_deadline
+            ):
+                time.sleep(POLL_SECONDS)
+            report = Report()
+            verify_task(report, backend_api, dagster_api, repo.id, number)
+            report.echo()
+            raise click.exceptions.Exit(int(report.failed > 0))
+        time.sleep(POLL_SECONDS)
+    logger.info(f"Timed out after {timeout}s, last seen: {list(seen.values())}")
+    logger.info(f"Sensors not running at the {stage} stage: {stuck_sensors(dagster_api, stage)}")
+    raise click.exceptions.Exit(1)
+
+
+watch_option = click.option(
+    "--watch", is_flag=True, help="After merging, follow the PR, its task and run until the end."
+)
+timeout_option = click.option(
+    "--timeout", default=300, show_default=True, help="Seconds --watch waits before giving up."
+)
+
+
 @click.command("merge-gitea-pr")
 @click.option("--number", required=True, type=int, help="The PR's number.")
-def merge_gitea_pr_command(number):
+@watch_option
+@timeout_option
+def merge_gitea_pr_command(number, watch, timeout):
     """Merge a PR in the trigger repo, which is what makes the sensor pick it up."""
     config = PrConfig()
     build_gitea_api(config).merge_pull_request(config.repo_path, number)
     logger.info(f"Merged PR #{number}")
+    if watch:
+        watch_pr(config, number, timeout)
 
 
 COMMANDS = [

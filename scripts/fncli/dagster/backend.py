@@ -2,7 +2,7 @@ import logging
 from urllib.parse import urlparse
 
 from fncli.dagster.utils import BackendSession
-from fncli.dagster.models import Dataset, Project, PullRequest, ResultsRepository, TriggerRepository
+from fncli.dagster.models import Dataset, Project, PullRequest, ResultsRepository, Task, TriggerRepository
 
 default_logger = logging.getLogger(__name__)
 
@@ -124,6 +124,11 @@ class BackendAPI:
         )
         return PullRequest(**response.json())
 
+    def get_task(self, task_id: int) -> Task:
+        """Get single task"""
+        self.logger.info(f"Fetching task {task_id}")
+        return Task(**self.session.get(f"/tasks/{task_id}").json())
+
     def get_dataset_by_name(self, name: str) -> Dataset | None:
         """Get dataset by name"""
         try:
@@ -178,7 +183,7 @@ class BackendAPI:
     def find_dataset(self, name: str, project_id: int) -> Dataset | None:
         """The project's dataset of that name, if any"""
         for dataset in self.get_datasets():
-            if dataset.project_id == project_id and dataset.name == name:
+            if dataset.project_id == project_id and dataset.name.lower() == name.lower():
                 return dataset
         return None
 
@@ -314,8 +319,9 @@ class BackendAPI:
 
     def find_repository(self, uri: str, project_id: int) -> TriggerRepository | None:
         """The project's trigger repository with that uri, if any"""
-        # The backend stores the host and path only, with the scheme stripped
-        parsed = urlparse(uri)
+        # The backend stores the host and path only, with the scheme stripped. A uri that
+        # already has no scheme ('host:3000/owner/repo') would have its host read as one.
+        parsed = urlparse(uri if "://" in uri else f"//{uri}")
         stored_uri = (parsed.netloc + parsed.path).lower().rstrip("/")
         for repo in self.get_repositories():
             if repo.project_id == project_id and repo.uri == stored_uri:

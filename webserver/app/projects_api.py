@@ -109,10 +109,15 @@ def delete_project(project_id: int):
     project_secrets = Secret.query.filter_by(project_id=project.id).all()
     secrets = [(s.provider, s.key, s.namespace) for s in project_secrets]
 
-    # Dependency order: most of these foreign keys to the project are RESTRICT.
+    # Dependency order: most of these foreign keys to the project are RESTRICT. The
+    # triggers left after the repositories' pull requests (the API ones) go with the
+    # project, through the database's ON DELETE CASCADE.
     try:
         for task in Task.query.filter_by(project_id=project.id):
             task.delete(False)
+        # The project's default dataset points into the datasets being deleted.
+        project.default_dataset_id = None
+        db.session.flush()
         for dataset in project.datasets:
             dataset.delete(False)
         for repo in project.trigger_repositories:

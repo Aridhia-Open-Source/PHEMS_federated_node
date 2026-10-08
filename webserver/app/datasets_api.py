@@ -164,12 +164,12 @@ def patch_datasets_by_id_or_name(
         session.rollback()
         raise InvalidRequest("dictionaries should be a list.")
 
+    if "secret_label" in body:
+        _resolve_secret(body, body.get("project_id", ds.project_id))
+
     for k in body:
         if not hasattr(ds, k):
             raise InvalidRequest(f"Field {k} is not a valid one")
-
-    if "secret_label" in body:
-        _resolve_secret(body, body.get("project_id", ds.project_id))
 
     try:
         ds.update(**body)

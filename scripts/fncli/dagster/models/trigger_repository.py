@@ -35,4 +35,4 @@ class TriggerRepository(BaseModel):
         segments of the uri. Right for GitHub and Gitea; GitLab nested groups, Bitbucket
         Server and Azure DevOps need provider-specific handling.
         """
-        return "/".join(self.uri.split("/")[-2:])
+        return "/".join(self.uri.removesuffix("/").removesuffix(".git").split("/")[-2:])

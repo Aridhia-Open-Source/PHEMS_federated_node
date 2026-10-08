@@ -30,12 +30,23 @@ class Project(db.Model, BaseModel):
     datasets = relationship(
         "Dataset", back_populates="project", foreign_keys="Dataset.project_id"
     )
-    default_dataset = relationship("Dataset", foreign_keys=[default_dataset_id])
+    # post_update: projects and datasets reference each other, so this column is set in
+    # its own UPDATE rather than by the unit of work ordering the two tables.
+    default_dataset = relationship("Dataset", foreign_keys=[default_dataset_id], post_update=True)
     trigger_repositories = relationship("TriggerRepository", back_populates="project")
-    whitelisted_images = relationship("WhitelistedImage", back_populates="project")
+    # The foreign keys of these three are ON DELETE CASCADE, so the database removes the
+    # rows and the ORM must neither select them nor null their NOT NULL project_id.
+    whitelisted_images = relationship(
+        "WhitelistedImage", back_populates="project", cascade="all, delete", passive_deletes=True
+    )
     results_repositories = relationship("ResultsRepository", back_populates="project")
-    results_backend = relationship("ResultsBackend", back_populates="project", uselist=False)
-    triggers = relationship("Trigger", back_populates="project")
+    results_backend = relationship(
+        "ResultsBackend", back_populates="project", uselist=False,
+        cascade="all, delete", passive_deletes=True
+    )
+    triggers = relationship(
+        "Trigger", back_populates="project", cascade="all, delete", passive_deletes=True
+    )
 
     def __init__(self, name: str, description: str | None = None, enabled: bool = False, **kwargs):
         self.name = name

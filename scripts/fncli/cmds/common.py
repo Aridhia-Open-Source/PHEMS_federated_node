@@ -25,6 +25,10 @@ class GiteaConfig(EnvConfig):
         return f"{self.gitea_url}/api/v1"
 
 
+class DagsterConfig(EnvConfig):
+    dagster_url: str = Field(default="http://localhost:3000", alias="DAGSTER_URL")
+
+
 class BackendConfig(EnvConfig):
     keycloak_namespace: str = Field(default="", alias="KEYCLOAK_NAMESPACE")
     backend_url: str = Field(default="", alias="BACKEND_URL")
@@ -43,7 +47,7 @@ class RepoConfig(GiteaConfig, ProjectConfig):
     # The address the sensor uses from inside the cluster.
     gitea_api_uri: str = Field(default="", alias="GITEA_API_URI")
     # Set when the repo comes from a backend record: the label that record's secret has.
-    backend_secret_label: str = ""
+    backend_secret_label: str = Field(default="", validate_default=False)
     token_scope: ClassVar[str]
 
     @property
