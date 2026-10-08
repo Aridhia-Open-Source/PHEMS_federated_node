@@ -28,6 +28,14 @@ def gitea(client):
     return GiteaAPI(client=client, logger=MagicMock())
 
 
+@pytest.mark.parametrize("api", ["github", "gitea"])
+def test_the_default_branch_is_the_repository_s(api, request, client):
+    client.request.return_value = response({"default_branch": "main", "name": "repo"})
+
+    assert request.getfixturevalue(api).get_default_branch("org/repo") == "main"
+    assert client.request.call_args.args == ("GET", "repos/org/repo")
+
+
 class TestGithubFindPullRequestByBranch:
     def test_returns_the_matching_pr(self, github, client):
         client.request.return_value = response([{"number": 7, "state": "open"}])
