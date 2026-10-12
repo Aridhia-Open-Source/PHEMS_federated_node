@@ -11,6 +11,8 @@ from flask import Blueprint, request
 
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.wrappers import audit, auth
+from app.dtos.base import page_of
+from app.dtos.registry import RegistryDTO
 from app.models.extras.registry import Registry
 
 
@@ -25,7 +27,7 @@ def list_registries():
     """
     GET /registries endpoint.
     """
-    return Registry.get_all(), HTTPStatus.OK
+    return page_of(Registry.get_all(), RegistryDTO), HTTPStatus.OK
 
 
 @bp.route('/<int:registry_id>', methods=['GET'])
@@ -38,7 +40,7 @@ def registry_by_id(registry_id: int):
     registry = Registry.query.filter_by(id=registry_id).one_or_none()
     if registry is None:
         raise DBRecordNotFoundError("Registry not found")
-    return registry.sanitized_dict(), HTTPStatus.OK
+    return RegistryDTO.from_model(registry).dump(), HTTPStatus.OK
 
 
 @bp.route('/<int:registry_id>', methods=['DELETE'])

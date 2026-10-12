@@ -205,7 +205,7 @@ class TestValidateTask:
         assert response.status_code == 404
         assert response.json == {"error": "Dataset something else does not exist"}
 
-    @pytest.skip(reason="This test is not working as expected, needs to be fixed")
+    @pytest.mark.skip(reason="This test is not working as expected, needs to be fixed")
     @mock.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=False)
     def test_validate_unauthorized_task(
             self,

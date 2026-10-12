@@ -1,13 +1,14 @@
 from datetime import datetime
-from flask import request
 from typing import Self
+
+from flask import request
 from flask_sqlalchemy import SQLAlchemy
 from flask_sqlalchemy.pagination import QueryPagination
-from sqlalchemy import create_engine, Column
+from sqlalchemy import Column, create_engine
 from sqlalchemy.orm import Relationship, declarative_base
-from app.helpers.exceptions import DBRecordNotFoundError, InvalidDBEntry, InvalidRequest
-from app.helpers.const import build_sql_uri
 
+from app.helpers.const import build_sql_uri
+from app.helpers.exceptions import DBRecordNotFoundError, InvalidDBEntry, InvalidRequest
 
 engine = create_engine(build_sql_uri())
 Base = declarative_base()
@@ -15,7 +16,9 @@ db = SQLAlchemy(model_class=Base)
 
 
 # Another helper class for common methods
-class BaseModel():
+class BaseModel:
+    WIRE_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+
     @classmethod
     def _query(cls) -> QueryPagination:
         try:
@@ -25,8 +28,6 @@ class BaseModel():
             raise InvalidRequest("page and per_page parameters should be integers") from ve
 
         return cls.query.paginate(page=page, per_page=per_page)
-
-    WIRE_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
     def sanitized_dict(self) -> dict[str, bool|int|str]:
         """
@@ -60,12 +61,8 @@ class BaseModel():
             db.session.commit()
 
     @classmethod
-    def get_all(cls) -> list[dict]:
-        obj_list = cls._query()
-        jsonized = []
-        for obj in obj_list.items:
-            jsonized.append(obj.sanitized_dict())
-        return obj_list
+    def get_all(cls) -> QueryPagination:
+        return cls._query()
 
     @classmethod
     def _get_fields(cls) -> list[Column]:
@@ -91,7 +88,7 @@ class BaseModel():
         return [f.name for f in cls._get_fields() if cls.is_field_required(f)]
 
     @classmethod
-    def validate(cls, data:dict) -> dict:
+    def validate(cls, data: dict) -> dict:
         """
         Make sure we have all required fields. Set to None if missing
         """
@@ -100,7 +97,7 @@ class BaseModel():
         valid = data.copy()
         for k, v in data.items():
             field = getattr(cls, k, None)
-            if field is None or isinstance(v, dict) or isinstance(v, list) or isinstance(field.property, Relationship):
+            if field is None or isinstance(v, (dict, list)) or isinstance(field.property, Relationship):
                 continue
             if getattr(cls, k).nullable:
                 valid[k] = v
