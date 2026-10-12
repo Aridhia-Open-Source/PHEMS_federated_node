@@ -396,12 +396,12 @@ class Keycloak:
             )
 
         # FIXME: Temporary workaround for system users
-        if with_permissions and not self._is_system_user(token):
+        if with_permissions and not self.is_system_user(token):
             return response_auth.ok and self.check_permissions(token, scope, resource, is_access_token)
 
         return response_auth.ok
 
-    def _is_system_user(self, token: str) -> bool:
+    def is_system_user(self, token: str) -> bool:
         token_dict = self.decode_token(token)
         roles = token_dict.get("realm_access", {}).get("roles", [])
         return 'system' in [r.lower() for r in roles]
@@ -594,6 +594,27 @@ class Keycloak:
             raise KeycloakError("Error when fetching the scopes from Keycloak")
 
         return scope_response.json()[0]
+
+    def delete_resource(self, resource_name:str):
+        """
+        Given a resource name, delete the resource from Keycloak
+        """
+        # TODO: not implemented yet
+        raise NotImplementedError("TODO: delete a Keycloak resource")
+
+    def delete_permission(self, permission_name:str):
+        """
+        Given a permission name, delete the permission from Keycloak
+        """
+        # TODO: not implemented yet
+        raise NotImplementedError("TODO: delete a Keycloak permission")
+
+    def delete_policy(self, name:str):
+        """
+        Given a policy name, delete the policy from Keycloak
+        """
+        # TODO: not implemented yet
+        raise NotImplementedError("TODO: delete a Keycloak policy")
 
     def create_client(self, client_name:str, token_lifetime:int) -> dict:
         """

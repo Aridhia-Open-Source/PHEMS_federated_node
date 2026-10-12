@@ -92,7 +92,8 @@ class Dataset(db.Model, BaseModel):
         self.create_kubernetes_secret()
         delattr(self, "username")
         delattr(self, "password")
-        self.add_to_keycloak(user_id)
+        # TODO: Keycloak registration for datasets is detached for now. Re-attach
+        # self.add_to_keycloak(user_id) when the Keycloak/authorization rework lands.
         return self
 
     @classmethod
@@ -207,11 +208,12 @@ class Dataset(db.Model, BaseModel):
         Updates the instance with new values. These should be
         already validated.
         """
-        # Both of these compare kwargs against the current values - the secret's name
-        # and the Keycloak resource name are derived from them - so they run before the
-        # UPDATE, while self still holds the old ones.
+        # This compares kwargs against the current values - the secret's name is derived
+        # from them - so it runs before the UPDATE, while self still holds the old ones.
         self.update_kubernetes_secret(**kwargs)
-        self.update_keycloak(**kwargs)
+        # TODO: Keycloak resource renaming is detached for now. Re-attach
+        # self.update_keycloak(**kwargs) (before the UPDATE, while self still holds
+        # the old name) when the Keycloak/authorization rework lands.
 
         # Query.update() takes a dict of column -> value. username and password are
         # not columns and were handled above.
