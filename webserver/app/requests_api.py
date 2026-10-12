@@ -16,6 +16,7 @@ from app.helpers.wrappers import audit, auth
 from app.models.dataset import Dataset
 from app.models.extras.request import Request
 
+# TODO(DAR): not registered in app/__init__.py, disconnected for now.
 bp = Blueprint('requests', __name__, url_prefix='/requests')
 session = db.session
 

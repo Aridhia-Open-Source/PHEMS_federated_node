@@ -8,7 +8,6 @@ from app.helpers.exceptions import AuthenticationError, UnauthorizedError
 from app.helpers.keycloak import Keycloak
 from app.models.extras.audit import Audit
 from app.models.dataset import Dataset
-from app.models.extras.request import Request
 
 logger = logging.getLogger('wrappers')
 logger.setLevel(logging.INFO)
@@ -23,8 +22,6 @@ def auth(scope: str, check_dataset=True):
                 raise AuthenticationError("Token not provided")
 
             resource = 'endpoints'
-            requested_project = request.headers.get("project-name")
-            client = 'global'
             token_type = 'refresh_token'
 
             kc_client = Keycloak()
@@ -32,13 +29,10 @@ def auth(scope: str, check_dataset=True):
             user = kc_client.get_user_by_username(token_info['username'])
 
             # Handlers that scope by project read these rather than repeating the token
-            # decode and the DAR lookup.
+            # decode.
             g.caller_is_admin = kc_client.is_user_admin(token)
             g.caller_project_id = None
 
-            # A project can hold several datasets, so the DAR branch needs to know which
-            # dataset the request is about before it can pick one. Both branches read it
-            # the same way.
             ds_id = kwargs.get("dataset_id")
             ds_name = kwargs.get("dataset_name", "")
 
@@ -50,32 +44,15 @@ def auth(scope: str, check_dataset=True):
                 ds_id = flat_json.get("dataset_id")
                 ds_name = flat_json.get("dataset_name", "")
 
-            if requested_project and not g.caller_is_admin:
-                requested_ds = None
-                if ds_id or ds_name:
-                    requested_ds = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
-
-                dar = Request.get_active_project(
-                    requested_project, user["id"],
-                    dataset_id=requested_ds.id if requested_ds else None
-                )
-                if dar.dataset_id:
-                    ds = Dataset.get_dataset_by_name_or_id(id=dar.dataset_id)
-                    resource = f"{ds.id}-{ds.name}"
-                    g.caller_project_id = ds.project_id
-
-            elif check_dataset:
+            # TODO(DAR): DAR checking is disconnected for now. A non-admin caller used to
+            # have an active DAR looked up from the project-name header, and its dataset,
+            # g.caller_project_id and per-DAR Keycloak client (token exchange) were used.
+            # Now every caller takes the plain path below. Revisit with the authorization
+            # rework.
+            if check_dataset:
                 if ds_id or ds_name:
                     ds = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
                     resource = f"{ds.id}-{ds.name}"
-
-            # If the user is an admin or system, ignore the project
-            if not kc_client.has_user_roles(user["id"], {"Super Administrator", "Administrator", "System"}):
-                if requested_project:
-                    client = f"Request {token_info['username']} - {requested_project}"
-                    kc_client = Keycloak(client)
-                    token = kc_client.exchange_global_token(token)
-                    token_type = 'access_token'
 
             if kc_client.is_token_valid(token, scope, resource, token_type):
                 return func(*args, **kwargs)

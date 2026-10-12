@@ -1,3 +1,7 @@
+# TODO(whitelisted_images): blueprint not registered in app/__init__.py, disconnected for now,
+# revisit with the authorization rework.
+# TODO(whitelisted_images): the DTO was removed while this is disconnected; restore
+# WhitelistedImageDTO from git history (commit fd5cf66a) before re-attaching.
 """
 whitelisted image endpoints:
 - GET /whitelisted_images
@@ -13,6 +17,7 @@ from flask import Blueprint, g, request
 from .helpers.base_model import db
 from .helpers.const import ENABLE_IMAGE_WHITELIST
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
+from .dtos.base import page_of
 from .helpers.query_filters import parse_query_params
 from .helpers.wrappers import audit, auth
 from .models.extras.registry import Registry
@@ -77,7 +82,7 @@ def get_all_whitelisted_images():
     project_id = caller_project_id()
     if project_id is not None:
         args["project_id"] = project_id
-    return parse_query_params(WhitelistedImage, args), HTTPStatus.OK
+    return page_of(parse_query_params(WhitelistedImage, args), WhitelistedImageDTO), HTTPStatus.OK
 
 
 @bp.route('/', methods=['POST'])
@@ -126,7 +131,7 @@ def get_image_by_id(image_id: int):
     """
     image = owned_image(image_id)
 
-    return WhitelistedImage.sanitized_dict(image), HTTPStatus.OK
+    return WhitelistedImageDTO.from_model(image).dump(), HTTPStatus.OK
 
 
 @bp.route('/<int:image_id>', methods=['DELETE'])
