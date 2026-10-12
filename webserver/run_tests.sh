@@ -44,9 +44,7 @@ else
     fi
     docker cp flask-app-test:/app/artifacts/coverage.xml ../artifacts/ 2>/dev/null || true
     echo "Cleaning up compose resources"
-    docker compose -f docker-compose-tests-ci.yaml stop
-    docker compose -f docker-compose-tests-ci.yaml rm -f
     docker rm flask-app-test
-    docker volume rm federated_node_tests_data
+    docker compose -f docker-compose-tests-ci.yaml down --volumes
     exit $exit_code
 fi

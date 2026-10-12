@@ -30,16 +30,16 @@ if ! command -v pip-compile > /dev/null 2>&1; then
 fi
 
 pip-compile \
- --generate-hashes \
- --no-header \
- --no-emit-options \
- --no-emit-trusted-host \
- --no-emit-index-url \
- --resolver=backtracking \
- --strip-extras \
- --allow-unsafe \
- --verbose \
- --output-file="$OUTPUT_FILE" \
- "$@" \
- pyproject.toml
+    --generate-hashes \
+    --no-header \
+    --no-emit-options \
+    --no-emit-trusted-host \
+    --no-emit-index-url \
+    --resolver=backtracking \
+    --strip-extras \
+    --allow-unsafe \
+    --verbose \
+    --output-file="$OUTPUT_FILE" \
+    "$@" \
+    pyproject.toml
 
