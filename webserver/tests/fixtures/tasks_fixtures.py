@@ -7,6 +7,7 @@ def task_body(dataset, container, project):
     return deepcopy({
         "name": "Test Task",
         "requested_by": "das9908-as098080c-9a80s9",
+        "docker_image": container.full_image_name(),
         "project_id": project.id,
         "executors": [
             {

@@ -23,14 +23,14 @@ from app.helpers.base_model import Base
 import app.models.extras.audit
 import app.models.dataset
 import app.models.project
-import app.models.pull_request
-import app.models.pull_request_status
+import app.models.pull_request_trigger
+import app.models.trigger
 import app.models.task
 import app.models.task_status
 import app.models.trigger_repository
 import app.models.results_repository
 import app.models.results_backend
-import app.models.api_request
+import app.models.api_request_trigger
 import app.models.secret
 # target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata

@@ -3,12 +3,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.backend import BackendAPI
-from app.models import Dataset, PullRequest, Registry, TriggerRepository
-from app.tests.conftest import SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, make_response
-from app.tests.conftest import SAMPLE_DATASET
+from app.models import Dataset, PullRequestResultState, PullRequestTrigger, TriggerRepository
+from app.tests.conftest import SAMPLE_SECRET, SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, make_response
 
 
-SAMPLE_REGISTRY = {"id": 1, "url": "ghcr.io", "active": True, "needs_auth": True}
+
 
 
 @pytest.fixture
@@ -54,7 +53,7 @@ class TestRepositories:
         repos = api.get_repositories()
 
         assert [type(r) for r in repos] == [TriggerRepository]
-        assert repos[0].path == "org/repo"
+        assert repos[0].repo_path == "org/repo"
 
     def test_get_repository(self, api, session):
         session.get.return_value = make_response(SAMPLE_REPOSITORY_OBJ)
@@ -85,16 +84,16 @@ class TestPullRequests:
     def test_single_page(self, api, session):
         session.get.return_value = self._page([SAMPLE_PR], 1)
 
-        prs = api.get_pull_requests(repo_id=1)
+        prs = api.get_pull_requests(repo_id=1, state="UNKNOWN")
 
-        assert [type(p) for p in prs] == [PullRequest]
+        assert [type(p) for p in prs] == [PullRequestTrigger]
         assert session.get.call_count == 1
 
     def test_pagination_follows_the_total(self, api, session):
         second = {**SAMPLE_PR, "number": 6}
         session.get.side_effect = [self._page([SAMPLE_PR], 2), self._page([second], 2)]
 
-        prs = api.get_pull_requests(repo_id=1)
+        prs = api.get_pull_requests(repo_id=1, state="UNKNOWN")
 
         assert [p.number for p in prs] == [5, 6]
         assert session.get.call_args_list[1].kwargs["params"]["page"] == 2
@@ -102,14 +101,14 @@ class TestPullRequests:
     def test_pagination_stops_on_an_empty_page(self, api, session):
         session.get.side_effect = [self._page([SAMPLE_PR], 99), self._page([], 99)]
 
-        assert len(api.get_pull_requests(repo_id=1)) == 1
+        assert len(api.get_pull_requests(repo_id=1, state="UNKNOWN")) == 1
 
-    def test_query_params_are_forwarded(self, api, session):
+    def test_the_state_is_sent_as_a_query_param(self, api, session):
         session.get.return_value = self._page([], 0)
 
-        api.get_pull_requests(repo_id=1, status="UNKNOWN")
+        api.get_pull_requests(repo_id=1, state="UNKNOWN")
 
-        assert session.get.call_args.kwargs["params"]["status"] == "UNKNOWN"
+        assert session.get.call_args.kwargs["params"]["state"] == "UNKNOWN"
 
     def test_create_pull_request(self, api, session):
         session.post.return_value = make_response(SAMPLE_PR)
@@ -121,11 +120,11 @@ class TestPullRequests:
             raised_by="dev",
             merged_at="2026-06-26T10:00:00Z",
             merge_commit_sha="abc",
-            spec={},
+            payload={},
         )
 
         body = session.post.call_args.kwargs["json"]
-        assert body["status"] == "UNKNOWN"
+        assert "status" not in body and "state" not in body
         assert body["number"] == 5
 
     def test_batch_creation_is_capped(self, api):
@@ -140,13 +139,23 @@ class TestPullRequests:
         assert session.post.call_args.args[0] == "/trigger_repositories/1/pull_requests/batch"
         assert len(prs) == 1
 
-    def test_update_status(self, api, session):
+    def test_patch_pull_request(self, api, session):
         session.patch.return_value = make_response(SAMPLE_PR)
 
-        api.update_pull_request_status(1, 5, "SUCCESS")
+        api.patch_pull_request(1, 5, {"state": "IGNORED", "state_cause": "no spec"})
 
         assert session.patch.call_args.args[0] == "/trigger_repositories/1/pull_requests/5"
-        assert session.patch.call_args.kwargs["json"] == {"status": "SUCCESS"}
+        assert session.patch.call_args.kwargs["json"] == {"state": "IGNORED", "state_cause": "no spec"}
+
+    @pytest.mark.parametrize("status_code,created", [(201, True), (200, False)])
+    def test_create_task_for_pull_request(self, api, session, status_code, created):
+        session.post.return_value = make_response(SAMPLE_TASK, status_code)
+
+        task, was_created = api.create_task_for_pull_request(1, 5, {"image": "a/b:1"})
+
+        assert task.id == 9 and was_created is created
+        assert session.post.call_args.args == ("/trigger_repositories/1/pull_requests/5/task",)
+        assert session.post.call_args.kwargs["json"] == {"payload": {"image": "a/b:1"}}
 
 
 class TestDatasets:
@@ -188,39 +197,99 @@ class TestDatasets:
         }
 
 
-class TestRegistries:
-    def test_get_registries_unwraps_pagination(self, api, session):
-        session.get.return_value = make_response({"items": [SAMPLE_REGISTRY]})
-
-        registries = api.get_registries()
-
-        assert [type(r) for r in registries] == [Registry]
-        assert registries[0].secret_name == "ghcr-io"
-        session.get.assert_called_once_with("/registries")
-
-    def test_get_registries_accepts_a_bare_list(self, api, session):
-        session.get.return_value = make_response([SAMPLE_REGISTRY])
-
-        assert len(api.get_registries()) == 1
-
-    def test_no_registries_configured(self, api, session):
-        session.get.return_value = make_response({"items": []})
-
-        assert api.get_registries() == []
+SAMPLE_PROJECT = {"id": 1, "name": "proj", "enabled": True, "default_dataset_id": 1}
+SAMPLE_TASK = {
+    "id": 9, "name": "t", "docker_image": "a/b:1", "spec": {"image": "a/b:1"}, "attempt": 1, "trigger_id": 4, "status": "PENDING", "requested_by": "u",
+    "dataset_id": 1, "project_id": 1, "dagster_run_id": None, "exit_code": None,
+    "started_at": None, "completed_at": None,
+}
 
 
-class TestRequests:
-    def test_create_request_returns_the_raw_response(self, api, session):
-        response = make_response({"id": 1})
-        session.post.return_value = response
+def page(items, pages, key="items"):
+    return make_response({key: items, "page": 1, "per_page": 100, "total": len(items), "pages": pages})
 
-        assert api.create_request(
-            title="t", description="d", project_name="p", requested_by="dev",
-            proj_start="2026-01-01", proj_end="2026-02-01", dataset_id=1,
-        ) is response
-        assert session.post.call_args.kwargs["raise_for_status"] is False
 
-    def test_approve_request(self, api, session):
-        assert api.approve_request(7) is True
-        assert session.patch.call_args.args[0] == "/requests/7"
-        assert session.patch.call_args.kwargs["json"] == {"status": "approved"}
+class TestProjects:
+    def test_get_projects_follows_the_pages(self, api, session):
+        second = {**SAMPLE_PROJECT, "id": 2, "enabled": False}
+        session.get.side_effect = [page([SAMPLE_PROJECT], 2), page([second], 2)]
+
+        projects = api.get_projects()
+
+        assert [(p.id, p.enabled) for p in projects] == [(1, True), (2, False)]
+        assert session.get.call_args_list[1].kwargs["params"]["page"] == 2
+
+    def test_no_projects(self, api, session):
+        session.get.return_value = page([], 0)
+
+        assert api.get_projects() == []
+
+
+class TestTasks:
+    def test_get_tasks_filters_by_status_and_project(self, api, session):
+        session.get.return_value = page([SAMPLE_TASK], 1, key="tasks")
+
+        tasks = api.get_tasks(status="PENDING", project_id=1)
+
+        assert [t.id for t in tasks] == [9]
+        assert session.get.call_args.args == ("/tasks",)
+        params = session.get.call_args.kwargs["params"]
+        assert (params["status"], params["project_id"]) == ("PENDING", 1)
+
+    def test_get_tasks_follows_the_pages(self, api, session):
+        second = {**SAMPLE_TASK, "id": 10}
+        session.get.side_effect = [page([SAMPLE_TASK], 2, key="tasks"), page([second], 2, key="tasks")]
+
+        tasks = api.get_tasks(status="PENDING", project_id=1)
+
+        assert [t.id for t in tasks] == [9, 10]
+        assert session.get.call_args_list[1].kwargs["params"]["page"] == 2
+
+    def test_patch_task_reads_the_run_fields(self, api, session):
+        session.patch.return_value = make_response({**SAMPLE_TASK, "dagster_run_id": "r1", "exit_code": 0})
+
+        task = api.patch_task(9, {"status": "QUEUED"})
+
+        assert (task.dagster_run_id, task.exit_code) == ("r1", 0)
+        assert session.patch.call_args.args == ("/tasks/9",)
+        assert session.patch.call_args.kwargs["json"] == {"status": "QUEUED"}
+
+
+class TestResults:
+    RESULT = {"id": 9, "type": "PR", "task_id": 7, "results_repository_id": 5, "state": "UNKNOWN", "attempts": 0}
+
+    def test_the_results_repository_is_the_one_of_the_project(self, api, session):
+        repository = {
+            "id": 5, "uri": "h/o/r", "provider": "gitea", "api_uri": "http://h/api/v1",
+            "secret": SAMPLE_SECRET, "target_dir": "results", "project_id": 1,
+        }
+        session.get.return_value = make_response([repository])
+
+        result = api.get_results_repository(1)
+
+        session.get.assert_called_once_with("/results_repositories", params={"project_id": 1})
+        assert result.id == 5
+
+    def test_create_posts_the_task_and_repository(self, api, session):
+        session.post.return_value = make_response(self.RESULT)
+
+        api.create_result(7, 5)
+
+        session.post.assert_called_once_with("/results", json={"task_id": 7, "results_repository_id": 5})
+
+    def test_patch_and_list(self, api, session):
+        session.patch.return_value = make_response({**self.RESULT, "state": "PUSHED"})
+        session.get.return_value = make_response([self.RESULT])
+
+        assert api.patch_result(9, {"state": "PUSHED"}).state == PullRequestResultState.PUSHED
+        assert api.get_task_results(7)[0].id == 9
+        session.patch.assert_called_once_with("/results/9", json={"state": "PUSHED"})
+        session.get.assert_called_once_with("/tasks/7/results")
+
+    def test_list_by_state(self, api, session):
+        session.get.return_value = make_response([{**self.RESULT, "state": "OPENED"}])
+
+        (result,) = api.get_results_by_state(["PUSHED", "OPENED"])
+
+        assert result.state == PullRequestResultState.OPENED
+        session.get.assert_called_once_with("/results", params={"state": ["PUSHED", "OPENED"]})

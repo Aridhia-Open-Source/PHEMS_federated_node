@@ -89,19 +89,10 @@ class GithubAPI:
         data = response.json()
         return base64.b64decode(data["content"]).decode("utf-8")
 
-    def add_pull_request_comment(self, repo_path: str, pr_number: int, body: str):
-        response = self.client.request(
-            "POST", f"repos/{repo_path}/issues/{pr_number}/comments",
-            json={"body": body},
-        )
-        return response.json()
-
-    def branch_exists(self, repo_path: str, branch: str) -> bool:
-        """Check if a branch exists on the remote."""
-        response = self.client.request(
-            "GET", f"repos/{repo_path}/branches/{branch}", raise_for_status=False
-        )
-        return response.status_code == 200
+    def get_default_branch(self, repo_path: str) -> str:
+        """The repository's default branch, the one results pull requests go into."""
+        response = self.client.request("GET", f"repos/{repo_path}")
+        return response.json()["default_branch"]
 
     def find_pull_request_by_branch(self, repo_path: str, head_branch: str, base_branch: str) -> dict | None:
         """Fetch the open or closed PR from head_branch into base_branch, or None if there is none."""
