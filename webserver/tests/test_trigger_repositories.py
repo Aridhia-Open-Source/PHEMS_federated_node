@@ -255,18 +255,17 @@ class TestPatchRepository:
         assert response.status_code == 400
         assert f"{field} cannot be empty" in response.json["error"]
 
-    def test_update_project_id(self, client, post_json_admin_header, repository, user_uuid, k8s_client, mock_kc_client, project):
-        # Create a new dataset
-        new_dataset = Dataset(name="NewDatasetForRepo", host="example.com", secret_id=repository.secret_id, project_id=project.id)
-        new_dataset.add(user_id=user_uuid)
+    def test_move_to_another_project_fails(self, client, post_json_admin_header, repository, other_project):
+        project_id = repository.project_id
+        response = self.patch(client, post_json_admin_header, repository, {"project_id": other_project.id})
+        assert response.status_code == 400
+        assert "can't be moved" in response.json["error"]
+        assert TriggerRepository.query.get(repository.id).project_id == project_id
 
-        response = client.patch(
-            f"/trigger_repositories/{repository.id}",
-            data=json.dumps({"project_id": new_dataset.project_id}),
-            headers=post_json_admin_header
-        )
+    def test_same_project_id_is_allowed(self, client, post_json_admin_header, repository):
+        response = self.patch(client, post_json_admin_header, repository, {"project_id": repository.project_id})
         assert response.status_code == 200
-        assert response.json["project_id"] == new_dataset.project_id
+        assert response.json["project_id"] == repository.project_id
 
     def test_update_project_id_invalid_fails(self, client, post_json_admin_header, repository):
         response = client.patch(
