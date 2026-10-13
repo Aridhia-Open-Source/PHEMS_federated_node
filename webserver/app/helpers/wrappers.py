@@ -95,8 +95,9 @@ def audit(func):
 
             if request.is_json and isinstance(details, (dict, list)):
                 # Remove any of the following fields that contain
-                # sensitive data, so far only username and password on dataset POST
-                for field in ["username", "password"]:
+                # sensitive data: username and password on dataset POST, and the values
+                # of a k8s secret
+                for field in ["username", "password", "values"]:
                     find_and_redact_key(details, field)
                 details = str(details)
 
@@ -125,10 +126,10 @@ def find_and_redact_key(obj: dict | list, key: str):
     """
     if isinstance(obj, dict):
         for k, v in obj.items():
-            if isinstance(v, (dict, list)):
-                find_and_redact_key(v, key)
-            elif k == key:
+            if k == key:
                 obj[k] = '*****'
+            elif isinstance(v, (dict, list)):
+                find_and_redact_key(v, key)
     elif isinstance(obj, list):
         for item in obj:
             if isinstance(item, (dict, list)):

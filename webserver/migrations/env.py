@@ -31,6 +31,7 @@ import app.models.trigger_repository
 import app.models.results_repository
 import app.models.results_backend
 import app.models.api_request
+import app.models.secret
 # target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
 

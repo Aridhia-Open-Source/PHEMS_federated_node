@@ -5,6 +5,10 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from app.models.dataset import Catalogue, Dataset, Dictionary
+from app.models.secret import Secret
+from app.models.secret_provider_type import SecretProviderType
+
 
 class PullRequestStatus(str, Enum):
     """
@@ -40,34 +44,6 @@ class PullRequest(BaseModel):
     merge_commit_sha: str
     status: str
     saved_at: str | None = None
-
-
-class Dataset(BaseModel):
-    """Dataset data from backend API."""
-    model_config = ConfigDict(extra="allow")
-
-    id: int
-    name: str
-    host: str
-    port: int
-    schema: str | None = None
-    schema_write: str | None = None
-    type: str
-    extra_connection_args: str | None = None
-    slug: str
-    url: str
-
-    @computed_field
-    @property
-    def secret_name(self) -> str:
-        cleaned_up_host = re.sub('http(s)*://', '', self.host)
-        return f"{cleaned_up_host}-{re.sub('\\s|_|#', '-', self.name.lower())}-creds"
-
-    def dump_task_fields(self) -> dict:
-        """Return only the fields needed for task configuration with dataset_ prefix."""
-        keys = {"name", "host", "port", "type", "schema", "schema_write", "secret_name"}
-        fields = self.model_dump(include=keys)
-        return {f"dataset_{k}": v for k, v in fields.items()}
 
 
 class Registry(BaseModel):

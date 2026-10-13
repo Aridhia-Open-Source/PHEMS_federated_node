@@ -1,8 +1,6 @@
 import subprocess
 import base64
 
-from models import Dataset
-
 
 def get_k8s_secret(secret_name: str, namespace: str, key: str) -> str:
     """Fetch a secret value from Kubernetes."""
@@ -16,21 +14,10 @@ def get_k8s_secret(secret_name: str, namespace: str, key: str) -> str:
     return base64.b64decode(result.stdout).decode()
 
 
-def load_dataset_secret(dataset_name: str, host: str):
+def load_dataset_secret(k8s_secret_name: str):
     """Check if dataset K8s secret exists and return credentials."""
-    dataset = Dataset(
-        id=0,
-        name=dataset_name,
-        host=host,
-        port=5432,
-        type="postgres",
-        slug="",
-        url=""
-    )
-    secret_name = dataset.get_creds_secret_name()
-
-    user = get_k8s_secret(secret_name, "fn", "USERNAME")
-    password = get_k8s_secret(secret_name, "fn", "PASSWORD")
+    user = get_k8s_secret(k8s_secret_name, "fn", "USERNAME")
+    password = get_k8s_secret(k8s_secret_name, "fn", "PASSWORD")
     return {'username': user, 'password': password}
 
 

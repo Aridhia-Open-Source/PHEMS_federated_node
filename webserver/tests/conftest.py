@@ -16,6 +16,8 @@ from app.models.extras.catalogue import Catalogue
 from app.models.extras.dictionary import Dictionary
 from app.models.project import Project
 from app.models.extras.request import Request
+from app.models.secret import Secret
+from app.models.secret_provider_type import SecretProviderType
 from app.models.trigger_repository import TriggerRepository
 from app.models.results_repository import ResultsRepository
 from app.models.results_backend import ResultsBackend
@@ -49,8 +51,7 @@ sample_ds_body = {
     "name": "TestDs",
     "host": "db",
     "port": 5432,
-    "username": "Username",
-    "password": "pass",
+    "secret_label": "test-creds",
     "repository": sample_repo_uri,
     "catalogue": {
         "title": "test",
@@ -209,10 +210,18 @@ def other_project(client) -> Project:
 
 
 # Trigger repository fixtures
+# The secret the dataset and repository fixtures reference. sample_ds_body names it too.
 @fixture
-def default_repo(client, user_uuid, k8s_client, mock_kc_client, project) -> TriggerRepository:
+def secret(client, project) -> Secret:
+    secret = Secret(project_id=project.id, label="test-creds", provider=SecretProviderType.K8S)
+    secret.add()
+    return secret
+
+
+@fixture
+def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> TriggerRepository:
     # Create a dataset first (required for TriggerRepository)
-    dataset = Dataset(name="DefaultDatasetForRepo", host="example.com", password='pass', username='user', project_id=project.id)
+    dataset = Dataset(name="DefaultDatasetForRepo", host="example.com", secret_id=secret.id, project_id=project.id)
     dataset.add(user_id=user_uuid)
 
     repo = TriggerRepository(uri=sample_repo_uri, watch_dir="", project_id=project.id)
@@ -229,17 +238,17 @@ def dataset_post_body(default_repo, project):
 
 
 @fixture
-def dataset(client, user_uuid, k8s_client, mock_kc_client, project) -> Dataset:
-    dataset = Dataset(name="TestDs", host="example.com", password='pass', username='user', project_id=project.id)
+def dataset(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> Dataset:
+    dataset = Dataset(name="TestDs", host="example.com", secret_id=secret.id, project_id=project.id)
     dataset.add(user_id=user_uuid)
     return dataset
 
 
 @fixture
-def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project) -> Dataset:
+def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> Dataset:
     from app.models.trigger_repository import TriggerRepository
     # Create dataset first
-    dataset = Dataset(name="TestDsRepo", host="example.com", password='pass', username='user', project_id=project.id)
+    dataset = Dataset(name="TestDsRepo", host="example.com", secret_id=secret.id, project_id=project.id)
     dataset.add(user_id=user_uuid)
 
     # Then create repository with the dataset_id
@@ -250,9 +259,9 @@ def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project) ->
 
 
 @fixture
-def dataset_oracle(mocker, client, user_uuid, k8s_client, project)  -> Dataset:
+def dataset_oracle(mocker, client, user_uuid, k8s_client, project, secret)  -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
-    dataset = Dataset(name="AnotherDS", host="example.com", password='pass', username='user', type="oracle", project_id=project.id)
+    dataset = Dataset(name="AnotherDS", host="example.com", secret_id=secret.id, type="oracle", project_id=project.id)
     dataset.add(user_id=user_uuid)
     return dataset
 

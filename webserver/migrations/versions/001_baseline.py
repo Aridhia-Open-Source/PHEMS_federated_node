@@ -60,21 +60,44 @@ def upgrade() -> None:
     )
     op.create_index('ix_projects_id', 'projects', ['id'])
 
+    # Create secrets table (references to secrets that live in a secret store)
+    op.create_table(
+        'secrets',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('project_id', sa.Integer(), nullable=False),
+        sa.Column('label', sa.String(length=253), nullable=False),
+        sa.Column('description', sa.String(length=4096), nullable=True),
+        sa.Column('provider', sa.Enum('K8S', name='secretprovidertype'), nullable=False),
+        sa.Column('key', sa.String(length=253), nullable=False),
+        sa.Column('namespace', sa.String(length=253), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('project_id', 'label'),
+        sa.UniqueConstraint('project_id', 'id'),
+        sa.UniqueConstraint('key'),
+    )
+
     # Create datasets table
     op.create_table(
         'datasets',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=False),
+        sa.Column('secret_id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('host', sa.String(length=256), nullable=False),
-        sa.Column('port', sa.Integer(), nullable=False, server_default=sa.literal_column('5432')),
-        sa.Column('schema', sa.String(length=256), nullable=True),
-        sa.Column('schema_write', sa.String(length=256), nullable=True),
+        sa.Column('port', sa.Integer(), nullable=True),
+        sa.Column('read_schema', sa.String(length=256), nullable=True),
+        sa.Column('write_schema', sa.String(length=256), nullable=True),
         sa.Column('type', sa.String(length=256), nullable=False, server_default='postgres'),
         sa.Column('extra_connection_args', sa.String(length=4096), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
+        sa.ForeignKeyConstraint(
+            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'], ondelete='RESTRICT'
+        ),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('name'),
     )
@@ -286,13 +309,14 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
 
-    # Add deferred FK for default_dataset_id (circular dependency)
-    op.create_foreign_key('fk_projects_default_dataset_id', 'projects', 'datasets',
-                         ['default_dataset_id'], ['id'], ondelete='RESTRICT', deferrable=True, initially='DEFERRED')
+    # Add the circular FK from projects to datasets, as the model declares it
+    op.create_foreign_key('fk_projects_default_dataset', 'projects', 'datasets',
+                          ['default_dataset_id'], ['id'], ondelete='SET NULL')
 
 
 def downgrade() -> None:
-    # Drop tables in reverse order
+    # The projects <-> datasets cycle first, then the tables in reverse order
+    op.drop_constraint('fk_projects_default_dataset', 'projects', type_='foreignkey')
     op.drop_table('registries')
     op.drop_table('dictionaries')
     op.drop_table('catalogues')
@@ -308,6 +332,8 @@ def downgrade() -> None:
     op.drop_table('pull_request_statuses')
     op.drop_table('trigger_repositories')
     op.drop_table('datasets')
+    op.drop_table('secrets')
+    sa.Enum(name='secretprovidertype').drop(op.get_bind())
     op.drop_index('ix_projects_id', 'projects')
     op.drop_table('projects')
     op.drop_table('results_repositories')
