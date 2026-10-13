@@ -5,9 +5,9 @@ from app.models.dataset import Dataset
 
 
 @pytest.fixture
-def test_dataset(client, user_uuid, k8s_client, mock_kc_client, project):
+def test_dataset(client, user_uuid, k8s_client, mock_kc_client, project, secret):
     """Create a test dataset for repository tests"""
-    dataset = Dataset(name="TestDatasetForRepo", host="example.com", password='pass', username='user', project_id=project.id)
+    dataset = Dataset(name="TestDatasetForRepo", host="example.com", secret_id=secret.id, project_id=project.id)
     dataset.add(user_id=user_uuid)
     return dataset
 
@@ -124,7 +124,7 @@ class TestPatchRepository:
 
     def test_update_project_id(self, client, post_json_admin_header, repository, user_uuid, k8s_client, mock_kc_client, project):
         # Create a new dataset
-        new_dataset = Dataset(name="NewDatasetForRepo", host="example.com", password='pass', username='user', project_id=project.id)
+        new_dataset = Dataset(name="NewDatasetForRepo", host="example.com", secret_id=repository.dataset.secret_id, project_id=project.id)
         new_dataset.add(user_id=user_uuid)
 
         response = client.patch(

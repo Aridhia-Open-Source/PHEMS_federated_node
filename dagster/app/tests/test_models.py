@@ -1,60 +1,47 @@
 import pytest
 
 from app.models import Dataset, PullRequest, PullRequestStatus, Registry, TriggerRepository
+from app.models import Secret, SecretProviderType
+from app.tests.conftest import SAMPLE_DATASET, SAMPLE_SECRET
 
 
-SAMPLE_DATASET = {
-    "id": 1,
-    "name": "My Dataset",
-    "host": "https://db.host",
-    "port": 5432,
-    "schema": "cdm",
-    "schema_write": "results",
-    "type": "postgres",
-    "slug": "my-dataset",
-    "url": "https://db.host/my-dataset",
-}
+class TestSecret:
+    def test_parses_a_webserver_payload(self):
+        secret = Secret(**SAMPLE_SECRET)
+
+        assert secret.provider is SecretProviderType.K8S
+        assert (secret.key, secret.namespace, secret.label) == ("git-token-abc", "fn", "git-token")
+
+    def test_namespace_and_description_are_optional(self):
+        secret = Secret(id=1, project_id=1, label="l", provider="K8S", key="k")
+
+        assert secret.namespace is None and secret.description is None
+
+    def test_unknown_provider_is_rejected(self):
+        with pytest.raises(ValueError):
+            Secret(**{**SAMPLE_SECRET, "provider": "VAULT"})
+
+    def test_unknown_fields_are_kept(self):
+        assert Secret(**{**SAMPLE_SECRET, "extra": 1}).extra == 1
 
 
 class TestDataset:
-    def test_secret_name_matches_the_backend_naming(self):
-        """Dataset.get_creds_secret_name on the backend produces this name."""
-        assert Dataset(**SAMPLE_DATASET).secret_name == "db.host-my-dataset-creds"
+    def test_secret_is_nested(self):
+        dataset = Dataset(**SAMPLE_DATASET)
 
-    @pytest.mark.parametrize("name,expected", [
-        ("My Dataset", "db.host-my-dataset-creds"),
-        ("my_dataset", "db.host-my-dataset-creds"),
-        ("my#dataset", "db.host-my-dataset-creds"),
-        ("UPPER", "db.host-upper-creds"),
-    ])
-    def test_secret_name_normalises_the_dataset_name(self, name, expected):
-        assert Dataset(**{**SAMPLE_DATASET, "name": name}).secret_name == expected
+        assert isinstance(dataset.secret, Secret)
+        assert dataset.secret.key == "git-token-abc"
 
-    def test_secret_name_strips_the_scheme_from_the_host(self):
-        dataset = Dataset(**{**SAMPLE_DATASET, "host": "http://db.host"})
+    def test_secret_is_required(self):
+        payload = {k: v for k, v in SAMPLE_DATASET.items() if k != "secret"}
 
-        assert dataset.secret_name.startswith("db.host-")
+        with pytest.raises(ValueError):
+            Dataset(**payload)
 
-    def test_dump_task_fields_are_prefixed(self):
-        fields = Dataset(**SAMPLE_DATASET).dump_task_fields()
+    def test_schemas_are_optional(self):
+        dataset = Dataset(**{**SAMPLE_DATASET, "read_schema": None, "write_schema": None})
 
-        assert fields == {
-            "dataset_name": "My Dataset",
-            "dataset_host": "https://db.host",
-            "dataset_port": 5432,
-            "dataset_type": "postgres",
-            "dataset_schema": "cdm",
-            "dataset_schema_write": "results",
-            "dataset_secret_name": "db.host-my-dataset-creds",
-        }
-
-    def test_dump_task_fields_feed_the_pipes_op_config(self):
-        """Every key has to be a k8s_pipes_op config field."""
-        from app.definitions.pipes import k8s_pipes_op
-
-        config_fields = set(k8s_pipes_op.config_schema.as_field().config_type.fields)
-
-        assert set(Dataset(**SAMPLE_DATASET).dump_task_fields()) <= config_fields
+        assert dataset.read_schema is None and dataset.write_schema is None
 
     def test_unknown_backend_fields_are_kept(self):
         dataset = Dataset(**{**SAMPLE_DATASET, "extra_field": "value"})

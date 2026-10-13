@@ -1,6 +1,5 @@
 """Data models for backend API."""
 
-import re
 from enum import Enum
 from pydantic import BaseModel, ConfigDict
 
@@ -46,6 +45,14 @@ class Project(BaseModel):
     default_dataset_id: int | None = None
 
 
+class K8sSecret(BaseModel):
+    """Reference to a Kubernetes secret, from the backend API. The values are never returned."""
+    model_config = ConfigDict(extra="allow")
+
+    id: int
+    name: str
+
+
 class Dataset(BaseModel):
     """Dataset data from backend API."""
     model_config = ConfigDict(extra="allow")
@@ -54,17 +61,14 @@ class Dataset(BaseModel):
     name: str
     host: str
     port: int
-    schema: str | None = None
-    schema_write: str | None = None
+    read_schema: str | None = None
+    write_schema: str | None = None
     type: str
     extra_connection_args: str | None = None
     project_id: int
+    k8s_secret_name: str
     slug: str
     url: str
-
-    def get_creds_secret_name(self) -> str:
-        cleaned_up_host = re.sub('http(s)*://', '', self.host)
-        return f"{cleaned_up_host}-{re.sub('\\s|_|#', '-', self.name.lower())}-creds"
 
 
 class TriggerRepository(BaseModel):

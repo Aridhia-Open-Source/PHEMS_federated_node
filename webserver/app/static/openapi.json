@@ -2228,26 +2228,21 @@
             "description": "Port for the host field",
             "example": 5432
           },
-          "username": {
+          "secret_label": {
             "type": "string",
-            "description": "Username for the Federated Node to access the DB",
-            "example": "usernameDB"
-          },
-          "password": {
-            "type": "string",
-            "description": "Password for the Federated Node to access the DB",
-            "example": "password"
+            "description": "Label of an existing secret of the same project (see POST /projects/{project_id}/secrets; the label is local to the project) holding the credentials the Federated Node uses to access the DB, under the keys USERNAME and PASSWORD",
+            "example": "my-dataset-creds"
           },
           "extra_connection_args": {
             "type": "string",
             "description": "Extra argument to use for connecting to the DB. Eventually this is passed to the tasks' pod as environment variable",
             "example": "TrustServerCertificate=Yes"
           },
-          "schema": {
+          "read_schema": {
             "type": "string",
             "description": "Read from DB schema"
           },
-          "schema_write": {
+          "write_schema": {
             "type": "string",
             "description": "DB schema to write to in case is needed"
           },
@@ -2278,8 +2273,7 @@
         },
         "required": [
           "name",
-          "username",
-          "password",
+          "secret_label",
           "host",
           "project_id"
         ]
@@ -2307,11 +2301,11 @@
             "type": "string",
             "example": "blood_cancer_database"
           },
-          "schema": {
+          "read_schema": {
             "type": "string",
             "example": "readSchema"
           },
-          "schema_write": {
+          "write_schema": {
             "type": "string",
             "example": "writeSchema"
           },
