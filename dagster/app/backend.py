@@ -183,6 +183,12 @@ class BackendAPI:
         (repository,) = response.json()
         return ResultsRepository(**repository)
 
+    def get_results_repository_by_id(self, repository_id: int) -> ResultsRepository:
+        """Get a results repository by id"""
+        self.logger.info(f"Fetching results repository {repository_id}")
+        response = self.session.get(f"/results_repositories/{repository_id}")
+        return ResultsRepository(**response.json())
+
     def get_task_results(self, task_id: int) -> list[PullRequestResult]:
         """Get the deliveries of a task's results"""
         self.logger.info(f"Fetching results of task {task_id}")
