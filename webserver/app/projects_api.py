@@ -8,6 +8,7 @@ project endpoints:
 - GET /projects/<project_id>/healthcheck
 """
 
+from concurrent.futures import ThreadPoolExecutor
 from http import HTTPStatus
 from flask import Blueprint, request
 
@@ -26,6 +27,8 @@ from app.models.secret import Secret
 from app.models.task import Task
 from app.secrets_api import SecretProvider
 
+
+HEALTHCHECK_MAX_WORKERS = 8
 
 bp = Blueprint('projects', __name__, url_prefix='/projects')
 
@@ -148,9 +151,17 @@ def project_healthcheck(project_id: int):
     """
     project = Project.get_by_id(project_id)
 
+    # Tokens are read here, in the request; only the network calls run in the threads.
+    trigger_repos = list(project.trigger_repositories)
+    results_repo = project.get_results_repository()
+    checks = [repo.prepare_connection_check() for repo in trigger_repos]
+    if results_repo:
+        checks.append(results_repo.prepare_connection_check())
+    with ThreadPoolExecutor(max_workers=HEALTHCHECK_MAX_WORKERS) as executor:
+        results = list(executor.map(lambda check: check(), checks))
+
     repositories = []
-    for repo in project.trigger_repositories:
-        check = repo.check_connection()
+    for repo, check in zip(trigger_repos, results):
         repositories.append(RepositoryHealthDTO(
             id=repo.id,
             uri=repo.uri,
@@ -164,10 +175,9 @@ def project_healthcheck(project_id: int):
             ),
         ))
 
-    results_repo = project.get_results_repository()
     results_health = None
     if results_repo:
-        check = results_repo.check_connection()
+        check = results[-1]
         results_health = ResultsRepositoryHealthDTO(
             id=results_repo.id,
             uri=results_repo.uri,
