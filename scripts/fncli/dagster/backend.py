@@ -1,6 +1,6 @@
 import logging
-from urllib.parse import urlparse
 
+from fncli.dagster.git_uri import normalise_repo_uri
 from fncli.dagster.utils import BackendSession
 from fncli.dagster.models import Dataset, Project, PullRequestResult, PullRequestTrigger, ResultsRepository, Task, TriggerRepository
 
@@ -324,10 +324,7 @@ class BackendAPI:
 
     def find_repository(self, uri: str, project_id: int) -> TriggerRepository | None:
         """The project's trigger repository with that uri, if any"""
-        # The backend stores the host and path only, with the scheme stripped. A uri that
-        # already has no scheme ('host:3000/owner/repo') would have its host read as one.
-        parsed = urlparse(uri if "://" in uri else f"//{uri}")
-        stored_uri = (parsed.netloc + parsed.path).lower().rstrip("/")
+        stored_uri = normalise_repo_uri(uri)
         for repo in self.get_repositories():
             if repo.project_id == project_id and repo.uri == stored_uri:
                 return repo

@@ -17,6 +17,7 @@ from http import HTTPStatus
 from flask import Blueprint, request
 from sqlalchemy.exc import IntegrityError
 
+from app.dtos.repository_uri import RepositoryUriRequest
 from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.trigger_repository import PullRequestTriggerDTO, TriggerRepositoryDTO
 from app.helpers.base_model import db
@@ -88,7 +89,7 @@ def post_repository():
         if not body.get(field):
             raise InvalidRequest(f"{field} is required")
 
-    uri = TriggerRepository.parse_repo_uri(body['uri'])
+    uri = RepositoryUriRequest.normalised(body['uri'])
     if TriggerRepository.query.filter_by(project_id=body['project_id'], uri=uri).one_or_none():
         raise InvalidRequest(f"Repository {uri} already exists in project {body['project_id']}")
 

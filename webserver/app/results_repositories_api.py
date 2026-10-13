@@ -10,6 +10,7 @@ from http import HTTPStatus
 
 from flask import Blueprint, request
 
+from app.dtos.repository_uri import RepositoryUriRequest
 from app.dtos.results_repository import ResultsRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
@@ -73,6 +74,8 @@ def post_repository():
         if not body.get(field):
             raise InvalidRequest(f"{field} is required")
 
+    uri = RepositoryUriRequest.normalised(body['uri'])
+
     # Validate project and secret exist
     Project.get_by_id(body['project_id'])
     secret = Secret.get_in_project(body['project_id'], body['secret_label'])
@@ -84,7 +87,6 @@ def post_repository():
         )
 
     try:
-        uri = ResultsRepository.parse_repo_uri(body['uri'])
         repo = ResultsRepository(
             uri=uri,
             provider=body['provider'],

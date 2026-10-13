@@ -108,6 +108,19 @@ class TestPostRepository:
         assert response.json["uri"] == "github.com/org/repo"
         assert response.json["dataset_id"] == test_dataset.id
 
+    @pytest.mark.parametrize("uri", ["github.com/org", "ssh://github.com/org/repo", "https://u:p@github.com/org/repo"])
+    def test_create_rejects_an_unparsable_uri(self, client, post_json_admin_header, test_dataset, uri):
+        body = {**REPO_FIELDS, "uri": uri, "project_id": test_dataset.project_id}
+        response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
+        assert response.status_code == 400
+        assert "Invalid repository uri" in response.json["error"]
+
+    def test_create_strips_the_git_suffix(self, client, post_json_admin_header, test_dataset):
+        body = {**REPO_FIELDS, "uri": "https://github.com/Org/Repo.git", "project_id": test_dataset.project_id}
+        response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["uri"] == "github.com/org/repo"
+
     def test_create_duplicate_uri_fails(self, client, post_json_admin_header, repository):
         body = {**REPO_FIELDS, "uri": repository.uri, "project_id": repository.project_id}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)

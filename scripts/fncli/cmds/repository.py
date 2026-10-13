@@ -19,6 +19,7 @@ from fncli.cmds.common import (
 )
 from fncli.cmds.project import find_project, init_backend_project
 from fncli.dagster.backend import BackendAPI
+from fncli.dagster.git_uri import normalise_repo_uri
 from fncli.dagster.gitea import GiteaAdminAPI
 from fncli.dagster.models import Project, ResultsRepository, TriggerRepository
 
@@ -118,7 +119,7 @@ def load_repo_config(entity: str, from_backend: bool, project: str | None) -> Re
             f"(run setup-backend first)"
         )
     record = get_backend_repo_record(entity, backend_api, backend_project)
-    owner, name = record.uri.rstrip("/").split("/")[-2:]
+    owner, name = normalise_repo_uri(record.uri).split("/")[-2:]
     # The configs insist on every field, so carry over the one only this entity has.
     own_field = {"watch_dir": record.watch_dir} if entity == "trigger" else {"target_dir": record.target_dir}
     config = config_class(

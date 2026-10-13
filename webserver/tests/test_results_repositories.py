@@ -75,6 +75,19 @@ class TestPostResultsRepository:
         assert response.status_code == 201
         assert response.json["uri"] == "github.com/org/results"
 
+    def test_create_strips_the_git_suffix(self, client, post_json_admin_header, results_post_body):
+        body = {**results_post_body, "uri": "https://github.com/org/results.git"}
+        response = client.post("/results_repositories", json=body, headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["uri"] == "github.com/org/results"
+
+    @pytest.mark.parametrize("uri", ["github.com/org", "ssh://github.com/org/results"])
+    def test_create_rejects_an_unparsable_uri(self, client, post_json_admin_header, results_post_body, uri):
+        response = client.post("/results_repositories", json={**results_post_body, "uri": uri}, headers=post_json_admin_header)
+        assert response.status_code == 400
+        assert "Invalid repository uri" in response.json["error"]
+        assert ResultsRepository.query.count() == 0
+
     def test_create_defaults_the_api_uri(self, client, post_json_admin_header, results_post_body):
         del results_post_body["api_uri"]
         response = client.post("/results_repositories", json=results_post_body, headers=post_json_admin_header)
