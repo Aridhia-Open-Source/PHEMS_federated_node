@@ -11,7 +11,7 @@ spec:
   type: {{ .Values.gitea.service.http.type | default "ClusterIP" }}
   ports:
   - name: http
-    port: {{ .Values.gitea.service.http.port | default 3000 }}
+    port: {{ .Values.gitea.service.http.port | default 4000 }}
     targetPort: http
     protocol: TCP
   - name: ssh

@@ -200,19 +200,25 @@ class BackendAPI:
     def create_repository(
         self,
         uri: str,
+        provider: str,
+        api_uri: str,
+        secret_label: str,
         watch_dir: str,
         base_branch: str,
-        initial_cursor: str,
-        dataset_id: int,
+        project_id: int,
+        initial_cursor: str | None = None,
     ) -> TriggerRepository:
         """Create a repository"""
         self.logger.info(f"Creating repository {uri}")
         data = {
             "uri": uri,
+            "provider": provider,
+            "api_uri": api_uri,
+            "secret_label": secret_label,
             "watch_dir": watch_dir,
             "base_branch": base_branch,
             "initial_cursor": initial_cursor,
-            "dataset_id": dataset_id,
+            "project_id": project_id,
         }
         response = self.session.post("/trigger_repositories", json=data)
         return TriggerRepository(**response.json())

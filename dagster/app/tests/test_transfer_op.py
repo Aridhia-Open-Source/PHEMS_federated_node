@@ -29,7 +29,7 @@ def mock_github_api():
     """Create a mock GithubAPI."""
     api = Mock(spec=GithubAPI)
     api.branch_exists.return_value = False
-    api.create_pull_request.return_value = "https://github.com/owner/delivery-repo/pull/1"
+    api.create_pull_request.return_value = {"html_url": "https://github.com/owner/delivery-repo/pull/1"}
     return api
 
 

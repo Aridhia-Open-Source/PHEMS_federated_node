@@ -2,7 +2,7 @@ import pytest
 
 from app.models import Dataset, PullRequest, PullRequestStatus, Registry, TriggerRepository
 from app.models import Secret, SecretProviderType
-from app.tests.conftest import SAMPLE_DATASET, SAMPLE_SECRET
+from app.tests.conftest import SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_SECRET
 
 
 class TestSecret:
@@ -117,40 +117,45 @@ class TestPullRequestStatus:
 
 
 class TestTriggerRepository:
-    def test_pull_requests_default_to_empty(self):
-        repo = TriggerRepository(
-            id=1,
-            uri="github.com/org/repo",
-            path="org/repo",
-            watch_dir="specs/",
-            base_branch="main",
-            dataset_id=1,
-            pr_cursor="2026-01-01T00:00:00Z",
-        )
+    def test_parses_a_webserver_payload(self):
+        repo = TriggerRepository(**SAMPLE_REPOSITORY_OBJ)
 
+        assert isinstance(repo.secret, Secret)
+        assert repo.repo_path == "org/repo"
         assert repo.pull_requests == []
         assert repo.pr_count == 0
 
+    def test_dataset_id_and_initial_cursor_are_optional(self):
+        payload = {k: v for k, v in SAMPLE_REPOSITORY_OBJ.items() if k not in ("dataset_id", "initial_cursor")}
+
+        repo = TriggerRepository(**payload)
+
+        assert repo.dataset_id is None and repo.initial_cursor is None
+
     def test_nested_pull_requests_are_parsed(self):
-        repo = TriggerRepository(
-            id=1,
-            uri="github.com/org/repo",
-            path="org/repo",
-            watch_dir="specs/",
-            base_branch="main",
-            dataset_id=1,
-            pr_cursor="2026-01-01T00:00:00Z",
-            pull_requests=[{
-                "trigger_repository_id": 1,
-                "number": 5,
-                "title": "t",
-                "raised_by": "dev",
-                "merged_at": "2026-06-26T10:00:00Z",
-                "merge_commit_sha": "abc",
-                "spec": {},
-                "status": "UNKNOWN",
-            }],
-        )
+        repo = TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "pull_requests": [SAMPLE_PR]})
 
         assert isinstance(repo.pull_requests[0], PullRequest)
         assert repo.pull_requests[0].number == 5
+
+    def test_unknown_fields_are_kept(self):
+        assert TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "extra": 1}).extra == 1
+
+    @pytest.mark.parametrize("uri,expected", [
+        ("github.com/org/repo", "org/repo"),
+        ("https://github.com/org/repo", "org/repo"),
+        ("http://gitea.fn.svc:3000/org/repo", "org/repo"),
+        ("gitea.fn.svc:3000/org/repo", "org/repo"),
+        ("org/repo", "org/repo"),
+    ])
+    def test_repo_path_is_the_last_two_segments(self, uri, expected):
+        assert TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "uri": uri}).repo_path == expected
+
+    def test_repo_path_of_a_nested_path_keeps_the_last_two_segments(self):
+        repo = TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "uri": "gitlab.com/group/sub/repo"})
+
+        assert repo.repo_path == "sub/repo"
+
+    @pytest.mark.parametrize("uri", ["github.com/org/repo/", "github.com/org/repo.git"])
+    def test_repo_path_ignores_a_trailing_slash_and_git_suffix(self, uri):
+        assert TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "uri": uri}).repo_path == "org/repo"

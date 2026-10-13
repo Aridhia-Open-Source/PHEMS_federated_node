@@ -32,18 +32,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
 
-    # Create results_repositories table first (no dependencies)
-    op.create_table(
-        'results_repositories',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('uri', sa.String(length=4096), nullable=False),
-        sa.Column('owned_by_federated_node', sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('uri'),
-    )
-
     # Create projects table
     op.create_table(
         'projects',
@@ -51,10 +39,8 @@ def upgrade() -> None:
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('description', sa.String(length=4096), nullable=True),
         sa.Column('default_dataset_id', sa.Integer(), nullable=True),
-        sa.Column('results_repository_id', sa.Integer(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.ForeignKeyConstraint(['results_repository_id'], ['results_repositories.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('name'),
     )
@@ -108,14 +94,42 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=False),
         sa.Column('uri', sa.String(length=4096), nullable=False),
+        sa.Column('provider', sa.String(length=16), nullable=False),
+        sa.Column('api_uri', sa.String(length=4096), nullable=False),
+        sa.Column('secret_id', sa.Integer(), nullable=False),
         sa.Column('watch_dir', sa.String(length=4096), nullable=False),
         sa.Column('base_branch', sa.String(length=256), nullable=False, server_default='main'),
         sa.Column('initial_cursor', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.Column('created_at', sa.DateTime(timezone=False), nullable=True),
-        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
+        sa.ForeignKeyConstraint(
+            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'], ondelete='RESTRICT'
+        ),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('uri'),
+        sa.UniqueConstraint('project_id', 'uri', name='uq_trigger_repositories_project_uri'),
+    )
+
+    # Create results_repositories table
+    op.create_table(
+        'results_repositories',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('project_id', sa.Integer(), nullable=False),
+        sa.Column('uri', sa.String(length=4096), nullable=False),
+        sa.Column('provider', sa.String(length=16), nullable=False),
+        sa.Column('api_uri', sa.String(length=4096), nullable=False),
+        sa.Column('secret_id', sa.Integer(), nullable=False),
+        sa.Column('target_dir', sa.String(length=4096), nullable=False),
+        sa.Column('owned_by_federated_node', sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
+        sa.ForeignKeyConstraint(
+            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'], ondelete='RESTRICT'
+        ),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('project_id', name='uq_results_repositories_project'),
+        sa.UniqueConstraint('project_id', 'uri', name='uq_results_repositories_project_uri'),
     )
 
     # Create pull_request_status enum table (if needed)
@@ -330,11 +344,11 @@ def downgrade() -> None:
     op.drop_table('task_statuses')
     op.drop_table('pull_requests')
     op.drop_table('pull_request_statuses')
+    op.drop_table('results_repositories')
     op.drop_table('trigger_repositories')
     op.drop_table('datasets')
     op.drop_table('secrets')
     sa.Enum(name='secretprovidertype').drop(op.get_bind())
     op.drop_index('ix_projects_id', 'projects')
     op.drop_table('projects')
-    op.drop_table('results_repositories')
     op.drop_table('audit')

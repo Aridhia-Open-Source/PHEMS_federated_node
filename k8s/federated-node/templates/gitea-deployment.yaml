@@ -44,7 +44,7 @@ spec:
           [server]
           PROTOCOL = http
           DOMAIN = gitea.{{ .Release.Namespace }}.svc
-          ROOT_URL = http://gitea.{{ .Release.Namespace }}.svc:3000/
+          ROOT_URL = http://gitea.{{ .Release.Namespace }}.svc:4000/
           HTTP_ADDR = 0.0.0.0
           HTTP_PORT = 3000
           [database]
@@ -102,7 +102,7 @@ spec:
         - name: GITEA_SERVICE_ALLOW_ONLY_EXTERNAL_REGISTRATION
           value: "false"
         - name: ROOT_URL
-          value: "http://gitea.{{ .Release.Namespace }}.svc:3000"
+          value: "http://gitea.{{ .Release.Namespace }}.svc:4000"
         volumeMounts:
         - name: gitea-data
           mountPath: /data

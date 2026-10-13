@@ -3,6 +3,7 @@ import dagster as dg
 from app.backend import BackendAPI
 from app.utils import BackendAdapter, BackendSession
 from app.config import BackendConfig, SensorConfig, GithubConfig
+from app.definitions.sensors.git.base import GitAPIFactory
 from app.github import GithubAPI, GithubClient
 
 
@@ -36,10 +37,16 @@ def github_api(context) -> GithubAPI:
     return GithubAPI(client)
 
 
+@dg.resource
+def git_apis(context) -> GitAPIFactory:
+    return GitAPIFactory()
+
+
 RESOURCES = {
     "backend_config": backend_config,
     "sensor_config": sensor_config,
     "github_config": github_config,
     "backend_api": backend_api,
     "github_api": github_api,
+    "git_apis": git_apis,
 }

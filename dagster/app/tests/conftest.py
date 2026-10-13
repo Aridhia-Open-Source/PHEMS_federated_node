@@ -42,9 +42,12 @@ SAMPLE_DATASET = {
 SAMPLE_REPO = {
     "id": 1,
     "uri": "github.com/org/repo",
-    "path": "org/repo",
+    "provider": "github",
+    "api_uri": "https://api.github.com",
+    "secret": SAMPLE_SECRET,
     "base_branch": "main",
     "watch_dir": "specs/",
+    "project_id": 1,
     "dataset_id": 1,
     "pr_cursor": "2026-01-01T00:00:00Z",
 }
@@ -52,9 +55,12 @@ SAMPLE_REPO = {
 SAMPLE_REPOSITORY_OBJ = {
     "id": 1,
     "uri": "github.com/org/repo",
-    "path": "org/repo",
+    "provider": "github",
+    "api_uri": "https://api.github.com",
+    "secret": SAMPLE_SECRET,
     "base_branch": "main",
     "watch_dir": "specs/",
+    "project_id": 1,
     "dataset_id": 1,
     "initial_cursor": "2026-01-01T00:00:00Z",
     "pr_cursor": "2026-01-01T00:00:00Z",
