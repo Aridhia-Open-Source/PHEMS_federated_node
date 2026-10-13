@@ -8,6 +8,8 @@ on:
     branches:
       - main
       - develop
+      - dagster-main
+      - dagster-develop
       - dagster-develop-uc1-beta/azure
     paths-ignore:
       - '**/*.md'
@@ -26,6 +28,8 @@ on:
     branches:
       - main
       - develop
+      - dagster-main
+      - dagster-develop
     paths-ignore:
       - '**/*.md'
       - 'README'
