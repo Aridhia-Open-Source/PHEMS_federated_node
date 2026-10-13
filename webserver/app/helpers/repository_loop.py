@@ -3,8 +3,19 @@ from app.models.results_repository import ResultsRepository
 from app.models.trigger_repository import TriggerRepository
 
 
+def normalise_dir(directory: str) -> str:
+    """
+    Drops '.' and empty segments and the leading and trailing '/'. A '..' segment is refused,
+    as it would let a directory point outside the one it is written under.
+    """
+    segments = [s for s in directory.split('/') if s not in ('', '.')]
+    if '..' in segments:
+        raise InvalidRequest(f"Directory '{directory}' must not contain '..'")
+    return '/'.join(segments)
+
+
 def _segments(directory: str) -> list[str]:
-    return [s for s in directory.split('/') if s]
+    return [s for s in normalise_dir(directory).split('/') if s]
 
 
 def _overlaps(a: list[str], b: list[str]) -> bool:

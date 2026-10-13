@@ -23,7 +23,7 @@ from app.dtos.trigger_repository import PullRequestTriggerDTO, TriggerRepository
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.dtos.task_spec import TaskSpec
-from app.helpers.repository_loop import check_no_loop
+from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
 from app.models.secret import Secret
@@ -103,7 +103,7 @@ def post_repository():
             provider=body['provider'],
             api_uri=body.get('api_uri') or GitProvider(body['provider']).default_api_uri(uri),
             secret_id=secret.id,
-            watch_dir=body.get('watch_dir', ''),
+            watch_dir=normalise_dir(body.get('watch_dir', '')),
             project_id=body['project_id'],
             base_branch=body.get('base_branch', 'main'),
             initial_cursor=body.get('initial_cursor'),
@@ -142,9 +142,10 @@ def patch_repository(repo_id):
         repo.base_branch = body['base_branch']
 
     if 'watch_dir' in body:
-        if not body['watch_dir']:
+        watch_dir = normalise_dir(body['watch_dir'])
+        if not watch_dir:
             raise InvalidRequest("watch_dir cannot be empty")
-        repo.watch_dir = body['watch_dir']
+        repo.watch_dir = watch_dir
 
     if 'secret_label' in body:
         if not body['secret_label']:

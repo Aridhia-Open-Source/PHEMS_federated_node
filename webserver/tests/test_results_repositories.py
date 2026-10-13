@@ -2,6 +2,8 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.dtos.results_repository import ResultsRepositoryDTO
+from app.helpers.exceptions import InvalidRequest
+from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 from app.models.project import Project
@@ -270,3 +272,54 @@ class TestLoopGuard:
         make_trigger(project, secret, watch_dir="triggers")
         response = client.patch(f"/results_repositories/{results_repo.id}", json={"target_dir": "out"}, headers=post_json_admin_header)
         assert response.status_code == 200
+
+
+class TestDirectoryNormalisation:
+    @pytest.mark.parametrize("directory,expected", [
+        ("results", "results"),
+        ("/results/", "results"),
+        ("./results", "results"),
+        ("a//b/./c/", "a/b/c"),
+        (".", ""),
+        ("", ""),
+    ])
+    def test_normalise_dir(self, directory, expected):
+        assert normalise_dir(directory) == expected
+
+    @pytest.mark.parametrize("directory", ["../results", "tmp/../results", "a/.."])
+    def test_normalise_dir_refuses_parent_segments(self, directory):
+        with pytest.raises(InvalidRequest):
+            normalise_dir(directory)
+
+    def test_loop_guard_compares_normalised_directories(self, project, secret, results_repo):
+        make_trigger(project, secret, watch_dir="./results/")
+        with pytest.raises(InvalidRequest):
+            check_no_loop(project.id, "github.com/org/results")
+
+    def test_create_stores_the_normalised_directory(self, client, post_json_admin_header, results_post_body):
+        response = client.post("/results_repositories", json={**results_post_body, "target_dir": "./a//b/"}, headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["target_dir"] == "a/b"
+
+    @pytest.mark.parametrize("target_dir", ["tmp/../results", "..", "."])
+    def test_create_refuses_bad_directories(self, client, post_json_admin_header, results_post_body, target_dir):
+        response = client.post("/results_repositories", json={**results_post_body, "target_dir": target_dir}, headers=post_json_admin_header)
+        assert response.status_code == 400
+
+    def test_patch_normalises_and_refuses(self, client, post_json_admin_header, results_repo):
+        url = f"/results_repositories/{results_repo.id}"
+        response = client.patch(url, json={"target_dir": "./out/"}, headers=post_json_admin_header)
+        assert response.json["target_dir"] == "out"
+        response = client.patch(url, json={"target_dir": "out/../x"}, headers=post_json_admin_header)
+        assert response.status_code == 400
+        assert ResultsRepository.get_by_id(results_repo.id).target_dir == "out"
+
+    def test_trigger_create_and_patch(self, client, post_json_admin_header, project, secret):
+        body = {**REPO_FIELDS, "uri": "github.com/org/other", "project_id": project.id, "watch_dir": "./t//"}
+        response = client.post("/trigger_repositories", json=body, headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["watch_dir"] == "t"
+        url = f"/trigger_repositories/{response.json['id']}"
+        assert client.patch(url, json={"watch_dir": "/u/./v"}, headers=post_json_admin_header).json["watch_dir"] == "u/v"
+        assert client.patch(url, json={"watch_dir": "u/../v"}, headers=post_json_admin_header).status_code == 400
+        assert client.post("/trigger_repositories", json={**body, "uri": "github.com/org/third", "watch_dir": "../t"}, headers=post_json_admin_header).status_code == 400
