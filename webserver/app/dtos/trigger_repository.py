@@ -33,6 +33,19 @@ class TriggerRepositoryDTO(DTO):
             dataset_id=obj.dataset.id if obj.dataset else None,
             initial_cursor=obj.initial_cursor,
             pr_cursor=obj.get_pull_request_cursor(),
-            pr_count=len(obj.pull_requests),
+            pr_count=len(obj.pull_request_triggers),
         )
+
+
+class PullRequestTriggerDTO(DTO):
+    trigger_repository_id: int
+    number: int
+    title: str
+    raised_by: str
+    merge_commit_sha: str
+    merged_at: datetime | None
+    state: str
+    state_cause: str | None
+    task_id: int | None
+    payload: dict
 

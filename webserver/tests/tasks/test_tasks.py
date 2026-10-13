@@ -67,6 +67,29 @@ class TestValidateTask:
             assert response.status_code == 400
             assert response.json["error"] == "name is a mandatory field"
 
+    @pytest.mark.parametrize("executors", ["missing", []])
+    def test_validate_task_no_executors_fails(
+            self,
+            post_json_admin_header,
+            client,
+            task_body,
+            executors
+        ):
+        """
+        Tests validation returns an error when executors is missing or empty
+        """
+        if executors == "missing":
+            task_body.pop("executors")
+        else:
+            task_body["executors"] = executors
+        response = client.post(
+            '/tasks/validate',
+            json=task_body,
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert response.json["error"] == "executors must be a non-empty list of objects"
+
     def test_validate_task_space_name_fails(
             self,
             post_json_admin_header,
@@ -450,6 +473,7 @@ class TestValidateTask:
         assert response.status_code == 400
         assert "does not belong to project" in response.json["error"]
 
+    @pytest.mark.skip(reason="DAR disconnected for now, see TODO(DAR)")
     def test_validate_task_basic_user(
             self,
             client,

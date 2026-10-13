@@ -47,6 +47,10 @@
     {
       "name": "Users",
       "description": "Endpoints related to user management"
+    },
+    {
+      "name": "Task Requests",
+      "description": "Endpoints used by Dagster to launch task requests"
     }
   ],
   "paths": {
@@ -377,6 +381,61 @@
             "$ref": "#/components/responses/InternalError"
           }
         }
+      },
+      "patch": {
+        "operationId": "patch_task",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Record the progress of a task's run",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskPatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskById"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     },
     "/tasks": {
@@ -541,13 +600,10 @@
         "tags": [
           "Tasks"
         ],
-        "summary": "Get task results if available",
+        "summary": "List the delivery of a task's results to each destination",
         "responses": {
           "200": {
-            "$ref": "#/components/responses/TaskResults"
-          },
-          "400": {
-            "$ref": "#/components/responses/ReviewNeededOrBlocked"
+            "$ref": "#/components/responses/ResultList"
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
@@ -1525,6 +1581,541 @@
             "description": "Project not found"
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Enable or disable a project",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectPatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "enabled missing or not a boolean"
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Delete a project and everything under it",
+        "description": "Hard delete of the project and its tasks, requests, datasets (and their Keycloak entries), trigger and results repositories and secrets, including the stored secret values.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Project deleted"
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/healthcheck": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Check the project's trigger repositories can be reached",
+        "description": "Reads each repository's token from its cluster secret and calls the git provider's API with it. A failed check is reported in the body, with a 200.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The health of the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectHealthObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        }
+      }
+    },
+    "/task_requests": {
+      "get": {
+        "operationId": "get_task_requests",
+        "tags": [
+          "Task Requests"
+        ],
+        "summary": "List task requests",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          },
+          {
+            "in": "query",
+            "name": "queued",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Only task requests waiting (true) or not waiting (false) to be launched"
+          },
+          {
+            "in": "query",
+            "name": "project_id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Only task requests of this project"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of task requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TaskRequestObject"
+                      }
+                    },
+                    "page": {
+                      "type": "integer",
+                      "example": 1
+                    },
+                    "per_page": {
+                      "type": "integer",
+                      "example": 25
+                    },
+                    "total": {
+                      "type": "integer",
+                      "example": 100
+                    },
+                    "pages": {
+                      "type": "integer",
+                      "example": 4
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/task_requests/{id}": {
+      "get": {
+        "operationId": "get_task_request",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task request identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Task Requests"
+        ],
+        "summary": "Get a single task request",
+        "responses": {
+          "200": {
+            "description": "A task request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskRequestObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patch_task_request",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task request identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Task Requests"
+        ],
+        "summary": "Set whether a task request is waiting to be launched",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskRequestPatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated task request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskRequestObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/task_requests/{id}/task": {
+      "post": {
+        "operationId": "create_task_from_request",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task request identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Task Requests"
+        ],
+        "summary": "Create the task for a task request. Returns the existing task if there is one",
+        "responses": {
+          "200": {
+            "description": "The task already created for this request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskById"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Task created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskById"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/results/{id}": {
+      "get": {
+        "operationId": "get_result",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique result identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Get a single result by its id",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Result"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patch_result",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique result identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Record the progress of a task's delivery. A pull request result's state only moves forward: UNKNOWN, PUSHED, OPENED, then MERGED or CLOSED, both terminal. A backward move is a 400",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResultPatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultById"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/results": {
+      "get": {
+        "operationId": "get_results",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "description": "Only the pull request results in these states, repeated for several: ?state=PUSHED&state=OPENED",
+            "required": false,
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "UNKNOWN",
+                  "PUSHED",
+                  "OPENED",
+                  "MERGED",
+                  "CLOSED"
+                ]
+              }
+            }
+          }
+        ],
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "List results",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ResultList"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_result",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Create the delivery of a task's results to a results repository. If it exists already, it is returned",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResultPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultById"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The existing result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultById"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     }
   },
@@ -2205,6 +2796,29 @@
             }
           }
         }
+      },
+      "Result": {
+        "description": "Result",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ResultById"
+            }
+          }
+        }
+      },
+      "ResultList": {
+        "description": "Results, one per destination",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/ResultById"
+              }
+            }
+          }
+        }
       }
     },
     "schemas": {
@@ -2664,6 +3278,26 @@
           "project_id": {
             "type": "integer",
             "example": 1
+          },
+          "dagster_run_id": {
+            "type": "string",
+            "nullable": true,
+            "example": "8c6f2a52-5d1c-4e0b-9d57-3f0e8a1c2b44"
+          },
+          "exit_code": {
+            "type": "integer",
+            "nullable": true,
+            "example": 0
+          },
+          "started_at": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-01-01 10:00:00"
+          },
+          "completed_at": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-01-01 10:30:00"
           }
         }
       },
@@ -2883,6 +3517,11 @@
             "type": "string",
             "example": "Cardiac benchmarking"
           },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether sensors act on this project's repositories",
+            "example": false
+          },
           "default_dataset_id": {
             "type": "integer",
             "description": "Dataset a task runs against when it names only this project",
@@ -2911,8 +3550,390 @@
           "description": {
             "type": "string",
             "example": "Cardiac benchmarking"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether sensors act on this project's repositories. Defaults to false",
+            "example": false
           }
         }
+      },
+      "ProjectHealthObject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "cardio"
+          },
+          "enabled": {
+            "type": "boolean",
+            "example": true
+          },
+          "status": {
+            "type": "string",
+            "description": "ok only when there is at least one trigger repository and all repositories, the results one included, are reachable",
+            "enum": [
+              "ok",
+              "error"
+            ]
+          },
+          "results_repository": {
+            "type": "object",
+            "nullable": true,
+            "description": "Where the project's results go, or null if it has none. Its status counts towards the project's",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "example": 1
+              },
+              "uri": {
+                "type": "string",
+                "example": "github.com/org/results"
+              },
+              "owned_by_federated_node": {
+                "type": "boolean",
+                "example": true
+              },
+              "target_dir": {
+                "type": "string",
+                "example": "results"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "unauthorized",
+                  "not_found",
+                  "unreachable",
+                  "secret_missing",
+                  "error"
+                ]
+              },
+              "health_check": {
+                "type": "object",
+                "description": "What calling the provider's API for the repository returned",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "The provider's own message on an error, else the HTTP reason. If no request was made, why not",
+                    "example": "OK"
+                  },
+                  "status_code": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "The provider's HTTP status, or null if it could not be reached or no request was made",
+                    "example": 200
+                  },
+                  "latency_ms": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "How long the provider took to respond, or to fail. Null if no request was made",
+                    "example": 42
+                  }
+                }
+              }
+            }
+          },
+          "trigger_repositories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "uri": {
+                  "type": "string",
+                  "example": "github.com/org/repo"
+                },
+                "provider": {
+                  "type": "string",
+                  "example": "github"
+                },
+                "pr_count": {
+                  "type": "integer",
+                  "description": "Pull requests the backend has ingested for the repository",
+                  "example": 3
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "unauthorized",
+                    "not_found",
+                    "unreachable",
+                    "secret_missing",
+                    "error"
+                  ]
+                },
+                "health_check": {
+                  "type": "object",
+                  "description": "What calling the provider's API for the repository returned",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "description": "The provider's own message on an error, else the HTTP reason. If no request was made, why not",
+                      "example": "OK"
+                    },
+                    "status_code": {
+                      "type": "integer",
+                      "nullable": true,
+                      "description": "The provider's HTTP status, or null if it could not be reached or no request was made",
+                      "example": 200
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "nullable": true,
+                      "description": "How long the provider took to respond, or to fail. Null if no request was made",
+                      "example": 42
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "ProjectPatchBody": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "TaskRequestObject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "pull_request_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1
+          },
+          "api_request_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": null
+          },
+          "project_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "queued": {
+            "type": "boolean",
+            "example": true
+          },
+          "payload": {
+            "type": "object",
+            "description": "The normalised task spec"
+          }
+        }
+      },
+      "TaskRequestPatchBody": {
+        "type": "object",
+        "required": [
+          "queued"
+        ],
+        "properties": {
+          "queued": {
+            "type": "boolean",
+            "example": false
+          }
+        }
+      },
+      "TaskPatchBody": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "QUEUED",
+              "RUNNING",
+              "SUCCESS",
+              "FAILURE",
+              "CANCELLED"
+            ]
+          },
+          "dagster_run_id": {
+            "type": "string",
+            "example": "8c6f2a52-5d1c-4e0b-9d57-3f0e8a1c2b44"
+          },
+          "exit_code": {
+            "type": "integer",
+            "example": 0
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-01-01T10:00:00"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-01-01T10:30:00"
+          }
+        }
+      },
+      "ResultById": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PR"
+            ],
+            "example": "PR",
+            "description": "The way of delivering. PR: a pull request opened on the results repository"
+          },
+          "task_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "results_repository_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "attempts": {
+            "type": "integer",
+            "example": 0
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "example": "Mon, 19 Feb 2024 10:41:54 GMT"
+          },
+          "updated_at": {
+            "type": "string",
+            "example": "Mon, 19 Feb 2024 10:41:54 GMT"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "UNKNOWN",
+              "PUSHED",
+              "OPENED",
+              "MERGED",
+              "CLOSED"
+            ],
+            "example": "UNKNOWN",
+            "description": "Type PR only. The furthest delivery step reached, forward only"
+          },
+          "branch": {
+            "type": "string",
+            "nullable": true,
+            "example": "task-1-results"
+          },
+          "commit_sha": {
+            "type": "string",
+            "nullable": true
+          },
+          "number": {
+            "type": "integer",
+            "nullable": true
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "merged_at": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-01-01T10:30:00"
+          },
+          "merge_commit_sha": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ResultPostBody": {
+        "type": "object",
+        "required": [
+          "task_id",
+          "results_repository_id"
+        ],
+        "properties": {
+          "task_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "results_repository_id": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "ResultPatchBody": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "UNKNOWN",
+              "PUSHED",
+              "OPENED",
+              "MERGED",
+              "CLOSED"
+            ],
+            "example": "PUSHED"
+          },
+          "attempts": {
+            "type": "integer",
+            "example": 0
+          },
+          "branch": {
+            "type": "string",
+            "nullable": true,
+            "example": "task-1-results"
+          },
+          "commit_sha": {
+            "type": "string",
+            "nullable": true
+          },
+          "number": {
+            "type": "integer",
+            "nullable": true
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "merged_at": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-01-01T10:30:00"
+          },
+          "merge_commit_sha": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "description": "state, branch, commit_sha, number, url, merged_at and merge_commit_sha are only accepted for results of type PR"
       }
     }
   }

@@ -5,32 +5,50 @@ tasks-related endpoints:
 - POST /tasks
 - POST /tasks/validate
 - GET /tasks/id
+- PATCH /tasks/id
+- POST /tasks/id/retry
 - POST /tasks/id/cancel
 - GET /tasks/id/results
 - POST /tasks/id/results/approve
 - POST /tasks/id/results/block
 - GET /tasks/id/logs
 """
+from copy import deepcopy
+from datetime import datetime as dt
 from http import HTTPStatus
 
 from flask import Blueprint, request
 from sqlalchemy import text
 
 from app.helpers.base_model import db
-from app.helpers.exceptions import NotImplementedException, UnauthorizedError
+from app.helpers.exceptions import (
+    DBRecordNotFoundError, InvalidDBEntry, InvalidRequest, NotImplementedException, TaskImageException,
+    UnauthorizedError
+)
 from app.helpers.keycloak import Keycloak
+from app.dtos.task_spec import TaskSpec
 from app.helpers.wrappers import audit, auth
-from app.models.api_request import ApiRequest
+from app.dtos.task import NewTaskDTO, TaskDTO
+from app.dtos.result import dump_result
+from app.models.api_request_trigger import ApiRequestTrigger
 from app.models.project import Project
 from app.models.task import Task
+from app.models.task_status import TaskStatus
+from app.models.trigger_state import TriggerState
 
 bp = Blueprint('tasks', __name__, url_prefix='/tasks')
+
+# What a task request that fails validation raises. Such a request is kept, as REJECTED.
+VALIDATION_ERRORS = (
+    InvalidRequest, InvalidDBEntry, DBRecordNotFoundError, TaskImageException, UnauthorizedError
+)
 
 
 def does_user_own_task(task: Task):
     """
     Simple wrapper to check if the user is the one who
-    triggered the task, or is admin.
+    triggered the task, or is admin, or is the system user (Dagster, which reads tasks it
+    did not request).
 
     If they don't, an exception is raised with 403 status code
     """
@@ -39,7 +57,12 @@ def does_user_own_task(task: Task):
     dec_token = kc_client.decode_token(token)
     user_id = kc_client.get_user_by_email(dec_token["email"])["id"]
 
-    if task.requested_by != user_id and not kc_client.is_user_admin(token):
+    # TODO(auth): revisit with the Keycloak/authorization rework.
+    if (
+        task.requested_by != user_id
+        and not kc_client.is_user_admin(token)
+        and not kc_client.is_system_user(token)
+    ):
         raise UnauthorizedError("User does not have enough permissions")
 
 
@@ -56,38 +79,6 @@ def get_service_info():
     }, HTTPStatus.OK
 
 
-@bp.route('/health', methods=['GET'])
-def get_health():
-    """
-    GET /tasks/health endpoint. Integration test - checks DB connectivity and schema
-    """
-    try:
-        # Test database connection
-        db.session.execute(text("SELECT 1"))
-
-        # Get list of tables
-        inspector = db.inspect(db.engine)
-        tables = inspector.get_table_names()
-
-        # Check for new tables
-        new_tables = [t for t in ['results_repositories', 'results_backends', 'api_requests'] if t in tables]
-        legacy_tables = [t for t in ['delivery_targets', 'task_deliveries'] if t in tables]
-
-        return {
-            "status": "healthy",
-            "database": "connected",
-            "tables": len(tables),
-            "new_tables": new_tables,
-            "legacy_tables_found": legacy_tables,
-            "schema_version": "baseline",
-            "message": "DB schema migrated successfully" if len(new_tables) == 3 and len(legacy_tables) == 0 else "Schema migration incomplete"
-        }, HTTPStatus.OK
-    except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e)
-        }, HTTPStatus.SERVICE_UNAVAILABLE
-
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
 @audit
@@ -95,12 +86,30 @@ def get_health():
 def get_tasks():
     """
     GET /tasks/ endpoint. Gets the list of tasks with pagination
+    Query params:
+        - page: page number (default 1)
+        - per_page: items per page (default 10)
+        - status: filter by task status (optional)
+        - project_id: filter by project (optional)
     """
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
+    status = request.args.get('status', None)
+    project_id = request.args.get('project_id', None, type=int)
 
-    pagination = Task.query.paginate(page=page, per_page=per_page)
-    tasks = [t.sanitized_dict() if hasattr(t, 'sanitized_dict') else t.__dict__ for t in pagination.items]
+    query = Task.query
+
+    if status is not None:
+        if status not in [s.value for s in TaskStatus]:
+            valid = ', '.join([s.value for s in TaskStatus])
+            raise InvalidRequest(f"Invalid status: {status}. Must be one of: {valid}")
+        query = query.filter(Task.status == status)
+
+    if project_id is not None:
+        query = query.filter(Task.project_id == project_id)
+
+    pagination = query.order_by(Task.id).paginate(page=page, per_page=per_page)
+    tasks = [TaskDTO.from_model(t).dump() for t in pagination.items]
 
     return {
         "tasks": tasks,
@@ -124,8 +133,74 @@ def get_task_id(task_id):
 
     does_user_own_task(task)
 
-    task_data = task.sanitized_dict() if hasattr(task, 'sanitized_dict') else task.__dict__
-    return task_data, HTTPStatus.OK
+    return TaskDTO.from_model(task).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:task_id>', methods=['PATCH'])
+@audit
+@auth(scope='can_admin_dataset')
+def patch_task(task_id):
+    """
+    PATCH /tasks/id endpoint. Records the progress of a task's run
+    """
+    task = Task.get_by_id(task_id)
+
+    body = request.json or {}
+    if not body:
+        raise InvalidRequest("No fields provided to update")
+
+    unknown = set(body) - {"status", "dagster_run_id", "exit_code", "started_at", "completed_at"}
+    if unknown:
+        raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
+
+    if 'status' in body:
+        if body['status'] not in [s.value for s in TaskStatus]:
+            valid = ', '.join([s.value for s in TaskStatus])
+            raise InvalidRequest(f"Invalid status: {body['status']}. Must be one of: {valid}")
+        task.status = body['status']
+
+    if 'dagster_run_id' in body:
+        if not isinstance(body['dagster_run_id'], str):
+            raise InvalidRequest("dagster_run_id must be a string")
+        task.dagster_run_id = body['dagster_run_id']
+
+    if 'exit_code' in body:
+        if not isinstance(body['exit_code'], int) or isinstance(body['exit_code'], bool):
+            raise InvalidRequest("exit_code must be an integer")
+        task.exit_code = body['exit_code']
+
+    for field in ('started_at', 'completed_at'):
+        if field in body:
+            try:
+                setattr(task, field, dt.fromisoformat(body[field].rstrip('Z')))
+            except (ValueError, AttributeError):
+                raise InvalidRequest(f"{field} must be a valid ISO 8601 datetime string")
+
+    db.session.commit()
+    return TaskDTO.from_model(task).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:task_id>/retry', methods=['POST'])
+@audit
+@auth(scope='can_admin_task')
+def retry_task(task_id):
+    """
+    POST /tasks/id/retry endpoint. Queues a failed or canceled task for another attempt
+    """
+    task = Task.get_by_id(task_id)
+
+    if task.status not in (TaskStatus.FAILED.value, TaskStatus.CANCELED.value):
+        raise InvalidRequest(f"Only a {TaskStatus.FAILED} or {TaskStatus.CANCELED} task can be retried")
+
+    task.status = TaskStatus.PENDING.value
+    task.attempt += 1
+    task.dagster_run_id = None
+    task.started_at = None
+    task.completed_at = None
+    task.exit_code = None
+
+    db.session.commit()
+    return TaskDTO.from_model(task).dump(), HTTPStatus.OK
 
 
 @bp.route('/<task_id>/cancel', methods=['POST'])
@@ -147,13 +222,10 @@ def post_tasks():
     POST /tasks/ endpoint. Creates a new task from API request
     """
     req_body = request.json or {}
+    raw_body = deepcopy(req_body)
     project_name = request.headers.get("project-name")
     req_body["project_name"] = project_name
 
-    # Validate the task spec
-    Task.validate(req_body)
-
-    # Create ApiRequest record
     kc_client = Keycloak()
     token = kc_client.get_token_from_headers()
     dec_token = kc_client.decode_token(token)
@@ -163,25 +235,30 @@ def post_tasks():
     if not project:
         return {"error": f"Project '{project_name}' not found"}, HTTPStatus.NOT_FOUND
 
-    api_request = ApiRequest(
-        project_id=project.id,
-        user_id=user_id,
-        payload=req_body
-    )
-    api_request.add(commit=True)
+    # The request is recorded before it is evaluated. A rejected one is kept, with
+    # the reason: no task is created from it, so nothing can launch.
+    api_request = ApiRequestTrigger(project_id=project.id, user_id=user_id, payload=raw_body)
+    api_request.add()
 
-    # Create Task from ApiRequest
-    task = Task(
-        project_id=project.id,
-        api_request_id=api_request.id,
-        requested_by=user_id,
-        trigger_payload=req_body,
-        name=req_body.get("name", "Unnamed Task"),
-        docker_image=req_body.get("executors", {}).get("image", ""),
-        description=req_body.get("description"),
-        **req_body
-    )
-    task.add(commit=True)
+    session = db.session
+    try:
+        # Validate the task spec, and normalise it. The dataset it was validated
+        # against is the one the task runs on.
+        spec = TaskSpec.from_api_body(req_body)
+        req_body["docker_image"] = spec.image
+        validated = Task.validate(req_body)
+        spec.dataset = validated["dataset"].name
+        new_task = NewTaskDTO.from_spec(spec, api_request)
+    except VALIDATION_ERRORS as error:
+        api_request.set_state(TriggerState.REJECTED.value, str(error.description)[:1024])
+        session.commit()
+        raise
+
+    # The state and the task are one transaction
+    api_request.set_state(TriggerState.YIELDED.value, None)
+    task = Task(**new_task.model_dump())
+    task.add(commit=False)
+    session.commit()
 
     return {
         "id": task.id,
@@ -201,20 +278,23 @@ def post_tasks_validate():
     """
     req_body = request.json
     req_body["project_name"] = request.headers.get("project-name")
+    spec = TaskSpec.from_api_body(req_body)
+    req_body["docker_image"] = spec.image
     Task.validate(req_body)
     return "Ok", 200
 
 
-@bp.route('/<task_id>/results', methods=['GET'])
+@bp.route('/<int:task_id>/results', methods=['GET'])
 @audit
 @auth(scope='can_exec_task')
 def get_task_results(task_id):
     """
-    GET /tasks/id/results endpoint.
-        Allows to get tasks results if approved to be released
-        or, if an admin is trying to view them
+    GET /tasks/id/results endpoint. Lists the delivery of the task's results
+    to each of its destinations
     """
-    raise NotImplementedException()
+    task = Task.get_by_id(task_id)
+    does_user_own_task(task)
+    return [dump_result(r) for r in task.results], HTTPStatus.OK
 
 
 @bp.route('/<task_id>/logs', methods=['GET'])

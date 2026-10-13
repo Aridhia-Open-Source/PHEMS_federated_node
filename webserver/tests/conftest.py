@@ -15,13 +15,14 @@ from app.models.dataset import Dataset
 from app.models.extras.catalogue import Catalogue
 from app.models.extras.dictionary import Dictionary
 from app.models.project import Project
-from app.models.extras.request import Request
+from app.models.task import Task
+from app.models.extras.dar import DAR
+from app.models.trigger_repository import TriggerRepository
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
-from app.models.trigger_repository import TriggerRepository
 from app.models.results_repository import ResultsRepository
 from app.models.results_backend import ResultsBackend
-from app.models.api_request import ApiRequest
+from app.models.api_request_trigger import ApiRequestTrigger
 from app.helpers.exceptions import KeycloakError
 
 
@@ -202,6 +203,23 @@ def project(client) -> Project:
 
 
 @fixture
+def make_task(client, project):
+    """Factory for a task with its own ApiRequestTrigger trigger"""
+    def _make(project=project, **fields) -> Task:
+        api_request = ApiRequestTrigger(project_id=project.id, user_id="user", payload={})
+        api_request.add()
+        task = Task(
+            name="task", docker_image="img:1", requested_by="user", dataset_id=None,
+            project_id=project.id, trigger_id=api_request.id, spec={"image": "img:1"}
+        )
+        for field, value in fields.items():
+            setattr(task, field, value)
+        task.add()
+        return task
+    return _make
+
+
+@fixture
 def other_project(client) -> Project:
     """A second project, for checking one project cannot reach another's rows."""
     project = Project(name="OtherProject")
@@ -209,7 +227,6 @@ def other_project(client) -> Project:
     return project
 
 
-# Trigger repository fixtures
 # The secret the dataset and repository fixtures reference. sample_ds_body names it too.
 @fixture
 def secret(client, project) -> Secret:
@@ -218,6 +235,7 @@ def secret(client, project) -> Secret:
     return secret
 
 
+# Trigger repository fixtures
 @fixture
 def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> TriggerRepository:
     # Create a dataset first (required for TriggerRepository)
@@ -295,7 +313,7 @@ def dar_user():
 
 @fixture
 def access_request(dataset, user_uuid, k8s_client):
-    request = Request(
+    request = DAR(
         title="TestRequest",
         project_name="example.com",
         requested_by=user_uuid,
@@ -336,7 +354,7 @@ def request_base_body_name(dataset):
 @fixture
 def approve_request(mocker):
     return mocker.patch(
-        'app.models.extras.request.Request.approve',
+        'app.models.extras.dar.DAR.approve',
         return_value={"token": "somejwttoken"}
     )
 

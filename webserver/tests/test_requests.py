@@ -5,7 +5,7 @@ import os
 from datetime import datetime as dt, timedelta
 from sqlalchemy import update
 from app.helpers.base_model import db
-from app.models.extras.request import Request
+from app.models.extras.dar import DAR
 from app.helpers.keycloak import Keycloak
 
 pytestmark = pytest.mark.skip(reason="DAR disconnected for now, see TODO(DAR)")
@@ -184,9 +184,9 @@ class TestRequests:
         """
         Test the request fails if the dataset id is not found
         """
-        query = update(Request).\
-            where(Request.id == access_request.id).\
-            values(status=Request.STATUSES["denied"])
+        query = update(DAR).\
+            where(DAR.id == access_request.id).\
+            values(status=DAR.STATUSES["denied"])
         db.session.execute(query)
         db.session.commit()
         response_approval = self.approve_request(client, access_request.id, simple_admin_header, 500)
@@ -332,4 +332,4 @@ class TestRequests:
         response = self.create_request(client, request_base_body, post_json_admin_header, 404)
 
         assert response == {"error": "Dataset with id 100 does not exist"}
-        assert Request.get_all() == []
+        assert DAR.get_all() == []

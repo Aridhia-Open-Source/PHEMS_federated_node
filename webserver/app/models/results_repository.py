@@ -27,6 +27,7 @@ class ResultsRepository(GitRepositoryMixin, db.Model, BaseModel):
     )
 
     project = relationship("Project", back_populates="results_repositories")
+    results = relationship("Result", back_populates="results_repository")
     secret = relationship(
         "Secret", back_populates="results_repositories",
         overlaps="results_repositories,project,trigger_repositories,datasets"

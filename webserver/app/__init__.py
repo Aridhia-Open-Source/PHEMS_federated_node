@@ -7,6 +7,7 @@ All general configs are taken care in here:
 """
 import logging
 import traceback
+from flask import Flask
 from flask_swagger_ui import get_swaggerui_blueprint
 from sqlalchemy import exc
 from werkzeug.exceptions import HTTPException
@@ -18,7 +19,6 @@ from app import (
 )
 from app.helpers.base_model import build_sql_uri, db
 from app.helpers.exceptions import LogAndException
-from app.fn_flask import FNFlask
 
 
 logging.basicConfig(level=logging.WARN)
@@ -29,7 +29,7 @@ def create_app():
     """
     Standard Flask initialization function
     """
-    app = FNFlask(__name__)
+    app = Flask(__name__)
     app.config["SQLALCHEMY_DATABASE_URI"] = build_sql_uri()
     app.config["TRAP_HTTP_EXCEPTIONS"] = True
 

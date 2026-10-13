@@ -5,27 +5,19 @@ from http import HTTPStatus
 
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 
 from app.helpers.const import (
-    MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, TASK_REVIEW, ENABLE_IMAGE_WHITELIST
+    MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, ENABLE_IMAGE_WHITELIST
 )
 from app.helpers.base_model import BaseModel, db
 from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import InvalidRequest, NotImplementedException, TaskImageException
-from app.models import Models
-from app.models.task_status import TriggerSource
+from app.models import Models, sqla_column
+from app.models.task_status import TaskStatus
 
 
 logger = logging.getLogger('task_model')
 logger.setLevel(logging.INFO)
-
-
-REVIEW_STATUS = {
-    True: "Approved Release",
-    False: "Blocked Release",
-    None: "Pending Review"
-}
 
 
 class Task(db.Model, BaseModel):
@@ -36,83 +28,67 @@ class Task(db.Model, BaseModel):
     project_id = sa.Column(
         sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False, index=True
     )
-    pr_repository_id = sa.Column(sa.Integer, nullable=True)
-    pr_number = sa.Column(sa.Integer, nullable=True)
-    request_id = sa.Column(sa.Integer, sa.ForeignKey('requests.id', ondelete='SET NULL'), nullable=True)
-    api_request_id = sa.Column(sa.Integer, sa.ForeignKey('api_requests.id', ondelete='SET NULL'), nullable=True)
+    trigger_id = sa.Column(
+        sa.Integer, sa.ForeignKey('triggers.id', ondelete='RESTRICT'), nullable=False, unique=True
+    )
 
     name = sa.Column(sa.String(256), nullable=False)
     docker_image = sa.Column(sa.String(256), nullable=False)
-    description = sa.Column(sa.String(4096), nullable=True)
-    status = sa.Column(sa.String(256), default='scheduled')
+    status = sa.Column(sa.String(256), default=TaskStatus.PENDING.value)
+    # The run's attempt number. A retry is the same task with the next attempt.
+    attempt = sa.Column(sa.Integer, nullable=False, default=1, server_default='1')
     requested_by = sa.Column(sa.String(256), nullable=False)
-    trigger_source = sa.Column(sa.String(16), nullable=False, server_default=TriggerSource.API.value)
     dagster_run_id = sa.Column(sa.String(64), nullable=True, unique=True)
-    git_commit_sha = sa.Column(sa.String(40), nullable=True)
-    artifact_key = sa.Column(sa.String(512), nullable=True)
-    reason = sa.Column(sa.String(256), nullable=True)
-    reviewed_by = sa.Column(sa.String(256), nullable=True)
-    results_path = sa.Column(sa.String(512), nullable=True)
-
-    review_status = sa.Column(sa.Boolean, nullable=True)
     exit_code = sa.Column(sa.Integer, nullable=True)
 
-    created_at = sa.Column(sa.DateTime(timezone=False), nullable=False, server_default=func.now())
-    updated_at = sa.Column(
-        sa.DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now()
-    )
+    created_at = sqla_column.created_at()
+    updated_at = sqla_column.updated_at()
     started_at = sa.Column(sa.DateTime(timezone=False), nullable=True)
     completed_at = sa.Column(sa.DateTime(timezone=False), nullable=True)
-    reviewed_at = sa.Column(sa.DateTime(timezone=False), nullable=True)
 
     params = sa.Column(sa.JSON, nullable=False, server_default='{}')
-    trigger_payload = sa.Column(sa.JSON, nullable=True)
+    # The validated TaskSpec, stored once
+    spec = sa.Column(sa.JSON, nullable=False)
 
     dataset = relationship("Dataset")
     project = relationship("Project")
-    api_request = relationship("ApiRequest", back_populates="tasks")
+    trigger = relationship("Trigger", back_populates="task")
+    results = relationship("Result", back_populates="task", cascade="all, delete-orphan", passive_deletes=True)
 
     __table_args__ = (
-        sa.ForeignKeyConstraint(
-            ['pr_repository_id', 'pr_number'],
-            ['pull_requests.trigger_repository_id', 'pull_requests.number'],
-            ondelete='SET NULL',
-            name='fk_tasks_pull_request',
-        ),
-        sa.CheckConstraint(
-            '(pr_repository_id IS NULL) = (pr_number IS NULL)',
-            name='ck_tasks_pr_both_or_neither',
-        ),
         sa.Index('ix_tasks_dataset_status', 'dataset_id', 'status'),
         sa.Index('ix_tasks_requested_by', 'requested_by'),
-        sa.Index('ix_tasks_trigger_source_status', 'trigger_source', 'status'),
-        sa.Index('ix_tasks_pull_request', 'pr_repository_id', 'pr_number'),
+        sa.Index('ix_tasks_docker_image', 'docker_image'),
+        sa.Index('ix_tasks_status_project', 'status', 'project_id'),
     )
 
     def __init__(self,
                  name:str,
                  docker_image:str,
                  requested_by:str,
-                 dataset,
+                 dataset_id:int | None,
                  project_id:int,
-                 executors:list[dict] = [],
-                 tags:dict = {},
-                 resources:dict = {},
-                 description:str = '',
-                 **kwargs
+                 trigger_id:int,
+                 spec:dict,
+                 params:dict | None = None,
                  ):
         self.name = name
-        self.status = 'scheduled'
+        self.status = TaskStatus.PENDING.value
         self.docker_image = docker_image
         self.requested_by = requested_by
-        self.dataset = dataset
+        self.dataset_id = dataset_id
         self.project_id = project_id
-        self.description = description
+        self.attempt = 1
+        self.trigger_id = trigger_id
+        self.spec = spec
+        self.params = params or {}
         self.created_at = dt.now()
         self.updated_at = dt.now()
-        self.tags = tags
-        self.executors = executors
-        self.resources = resources
+
+    @classmethod
+    def _get_required_fields(cls) -> list[str]:
+        # Set when the task is created from its validated trigger, never in a request body
+        return [f for f in super()._get_required_fields() if f not in ("trigger_id", "spec")]
 
     @classmethod
     def validate(cls, data:dict):
@@ -125,11 +101,7 @@ class Task(db.Model, BaseModel):
 
         decoded_token = kc_client.decode_token(user_token)
         data["requested_by"] = kc_client.get_user_by_email(decoded_token["email"])["id"]
-        user = kc_client.get_user_by_id(data["requested_by"])
-        # Support only for one image at a time, the standard is executors == list
-        executors = data["executors"][0]
-        data["docker_image"] = executors["image"]
-        repository = data.pop("repository", None)
+        repository = data.get("repository")
 
         data = super().validate(data)
 
@@ -164,30 +136,17 @@ class Task(db.Model, BaseModel):
                     f"Dataset {requested_ds.name} does not belong to project {project.name}"
                 )
 
-        if repo:
-            # Same rule as the API path: the named dataset if the spec has one, and it has
-            # already been checked against the project, otherwise the project's default.
-            data["dataset"] = requested_ds or project.default_dataset
-            if data["dataset"] is None:
-                raise InvalidRequest(
-                    f"Project {project.name} has no default dataset. Provide "
-                    "`tags.dataset_id` or `tags.dataset_name`"
-                )
-        elif kc_client.is_user_admin(user_token):
-            data["dataset"] = requested_ds or project.default_dataset
-            if data["dataset"] is None:
-                raise InvalidRequest(
-                    f"Project {project.name} has no default dataset. Provide "
-                    "`tags.dataset_id` or `tags.dataset_name`"
-                )
-        else:
-            # Naming a dataset does not grant it: an active DAR still has to cover it.
-            # Without one, fall back to the single active DAR for the project.
-            data["dataset"] = Models.Request.get_active_project(
-                data["project_name"],
-                user["id"],
-                dataset_id=requested_ds.id if requested_ds else None
-            ).dataset
+        # The named dataset if the spec has one, and it has already been checked against
+        # the project, otherwise the project's default.
+        # TODO(DAR): DAR checking is disconnected for now. A non-admin caller used to need
+        # an active DAR covering the dataset, now they take the same path as admins and
+        # repositories. Revisit with the authorization rework.
+        data["dataset"] = requested_ds or project.default_dataset
+        if data["dataset"] is None:
+            raise InvalidRequest(
+                f"Project {project.name} has no default dataset. Provide "
+                "`tags.dataset_id` or `tags.dataset_name`"
+            )
 
         # Docker image validation
         Models.WhitelistedImage.validate_image_format(data["docker_image"], data["docker_image"])
@@ -318,33 +277,3 @@ class Task(db.Model, BaseModel):
         Returns the task's logs
         """
         raise NotImplementedException()
-
-    def get_review_status(self) -> str:
-        """
-        Simple method to get the review_status
-        By default None
-            None => not reviewed/needs review
-            True => approved
-            False => denied/blocked
-        """
-        return REVIEW_STATUS[self.review_status]
-
-    def sanitized_dict(self):
-        """
-        The response body, written out rather than derived from the columns.
-        """
-        return {
-            "id": self.id,
-            "name": self.name,
-            "docker_image": self.docker_image,
-            "description": self.description,
-            "status": self.status,
-            "created_at": self.created_at.strftime(self.WIRE_DATETIME_FORMAT),
-            "updated_at": self.updated_at.strftime(self.WIRE_DATETIME_FORMAT),
-            "requested_by": self.requested_by,
-            "review_status": (
-                self.get_review_status() if TASK_REVIEW else self.review_status
-            ),
-            "dataset_id": self.dataset_id,
-            "project_id": self.project_id,
-        }
