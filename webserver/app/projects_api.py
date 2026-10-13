@@ -100,8 +100,8 @@ def patch_project(project_id: int):
 def delete_project(project_id: int):
     """
     DELETE /projects/<project_id> endpoint. Deletes the project and everything under it:
-    tasks, datasets, repositories and secrets. The stored secret values go after
-    the database commit.
+    tasks, datasets, repositories and secrets. The stored secret values go before
+    the database commit, so a failed store delete leaves the project in place to retry.
     """
     # Hard delete for now, a soft delete option can come later. Keycloak entries of the
     # datasets are left behind, as with DELETE /datasets.
@@ -127,13 +127,20 @@ def delete_project(project_id: int):
         for secret in project_secrets:
             secret.delete(False)
         project.delete(False)
-        db.session.commit()
     except Exception as exc:
         db.session.rollback()
         raise InvalidRequest("Error while deleting the record") from exc
 
-    for provider, key, namespace in secrets:
-        SecretProvider(provider).delete(key, namespace)
+    # The rows are staged, not committed: if the store delete fails the project has to
+    # stay so a retry can finish the cleanup, and a rollback after a commit is a no-op.
+    try:
+        for provider, key, namespace in secrets:
+            SecretProvider(provider).delete(key, namespace)
+    except InvalidRequest:
+        db.session.rollback()
+        raise
+
+    db.session.commit()
     return '', HTTPStatus.NO_CONTENT
 
 
