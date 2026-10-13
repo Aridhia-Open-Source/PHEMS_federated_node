@@ -1,0 +1,40 @@
+[project]
+name = "fncli"
+description = "PHEMS Federated Node - dev tooling"
+authors = [{ name = "George Eddie", email = "george.eddie@aridhia.com" }]
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "click~=8.1",
+    "kubernetes~=35.0",
+    "pydantic~=2.0",
+    "pydantic-settings~=2.0",
+    "python-dotenv~=1.0",
+    "requests~=2.32",
+]
+
+[project.scripts]
+fncli = "fncli.cli:cli"
+
+[project.optional-dependencies]
+dev = [
+    "pytest~=8.3",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+# The directory is itself the package, so map it to `fncli` rather than let setuptools
+# treat cmds/ and dagster/ as top-level packages (dagster would shadow the real one).
+[tool.setuptools]
+package-dir = { "fncli" = "." }
+packages = [
+    "fncli",
+    "fncli.cmds",
+    "fncli.dagster",
+    "fncli.dagster.models",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
