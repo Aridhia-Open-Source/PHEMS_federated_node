@@ -25,7 +25,7 @@ spec:
         - -c
         - |
           for i in $(seq 1 60); do
-            if wget -q -O /dev/null http://gitea.{{ .Release.Namespace }}.svc.cluster.local:3000/ 2>/dev/null; then
+            if wget -q -O /dev/null http://gitea.{{ .Release.Namespace }}.svc.cluster.local:4000/ 2>/dev/null; then
               echo "Gitea is ready"
               exit 0
             fi

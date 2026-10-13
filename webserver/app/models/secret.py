@@ -42,6 +42,12 @@ class Secret(db.Model, BaseModel):
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
 
+    trigger_repositories = relationship(
+        "TriggerRepository", back_populates="secret", overlaps="trigger_repositories,project"
+    )
+    results_repositories = relationship(
+        "ResultsRepository", back_populates="secret", overlaps="results_repositories,project"
+    )
     datasets = relationship("Dataset", back_populates="secret", overlaps="datasets,project")
 
     @classmethod

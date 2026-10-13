@@ -13,6 +13,10 @@ def response(body, status_code=200):
     return resp
 
 
+def merged_pr(number, merged_at, updated_at=None):
+    return {"number": number, "merged_at": merged_at, "updated_at": updated_at or merged_at or "2026-01-01T00:00:00Z"}
+
+
 @pytest.fixture
 def client():
     return MagicMock()
@@ -51,29 +55,65 @@ class TestPullRequests:
         assert api.get_pull_request("org/repo", 5) == {"number": 5}
         assert client.request.call_args.args == ("GET", "repos/org/repo/pulls/5")
 
-    def test_merged_pulls_are_searched_by_branch_and_date(self, api, client):
-        client.request.side_effect = [response({"items": [{"number": 5}]}), response({"items": []})]
+    def test_closed_prs_of_the_base_branch_are_listed_newest_update_first(self, api, client):
+        client.request.return_value = response([])
 
-        results = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+        api.get_new_merged_pulls("org/repo", "dev", "2026-01-01T00:00:00Z")
 
-        assert [pr["number"] for pr in results] == [5]
-        query = client.request.call_args_list[0].kwargs["params"]["q"]
-        assert "repo:org/repo" in query
-        assert "is:pr is:merged" in query
-        assert "base:main" in query
-        assert "merged:>2026-01-01T00:00:00Z" in query
+        assert client.request.call_args.args == ("GET", "repos/org/repo/pulls")
+        assert client.request.call_args.kwargs["params"] == {
+            "state": "closed", "base": "dev", "sort": "updated", "direction": "desc",
+            "per_page": 100, "page": 1,
+        }
 
-    def test_merged_pulls_paginate_until_empty(self, api, client):
-        client.request.side_effect = [
-            response({"items": [{"number": 5}]}),
-            response({"items": [{"number": 6}]}),
-            response({"items": []}),
-        ]
+    def test_only_prs_merged_after_the_cursor_are_returned(self, api, client):
+        client.request.return_value = response([
+            merged_pr(3, "2026-03-01T00:00:00Z"),
+            merged_pr(2, "2026-02-01T00:00:00Z"),
+            # updated after the cursor, merged before it
+            merged_pr(1, "2026-01-01T00:00:00Z", updated_at="2026-04-01T00:00:00Z"),
+        ])
 
-        results = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-15T00:00:00Z")
 
-        assert [pr["number"] for pr in results] == [5, 6]
-        assert client.request.call_args_list[-1].kwargs["params"]["page"] == 3
+        assert [p["number"] for p in result] == [3, 2]
+
+    def test_a_pr_merged_exactly_at_the_cursor_is_not_new(self, api, client):
+        client.request.return_value = response([
+            merged_pr(1, "2026-01-01T00:00:00Z", updated_at="2026-02-01T00:00:00Z"),
+        ])
+
+        assert api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z") == []
+
+    def test_closed_but_unmerged_prs_are_dropped(self, api, client):
+        client.request.return_value = response([
+            merged_pr(2, None, updated_at="2026-03-01T00:00:00Z"),
+            merged_pr(1, "2026-02-01T00:00:00Z"),
+        ])
+
+        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+
+        assert [p["number"] for p in result] == [1]
+
+    def test_a_pr_updated_before_the_cursor_ends_the_listing(self, api, client):
+        full = [merged_pr(i, "2026-02-01T00:00:00Z") for i in range(99)]
+        full.append(merged_pr(99, "2025-12-01T00:00:00Z"))
+        client.request.return_value = response(full)
+
+        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+
+        assert len(result) == 99
+        assert client.request.call_count == 1
+
+    def test_a_full_page_fetches_the_next_one(self, api, client):
+        full = [merged_pr(i, "2026-02-01T00:00:00Z") for i in range(100)]
+        client.request.side_effect = [response(full), response([merged_pr(200, "2026-02-01T00:00:00Z")])]
+
+        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+
+        assert len(result) == 101
+        assert client.request.call_count == 2
+        assert client.request.call_args_list[1].kwargs["params"]["page"] == 2
 
 
 class TestPullRequestFiles:
@@ -87,45 +127,6 @@ class TestPullRequestFiles:
         files = api.get_pull_request_files("org/repo", 5)
 
         assert [f["filename"] for f in files] == ["a.json", "b.json"]
-
-    def test_watched_files_must_be_added_in_the_watch_dir(self, api):
-        files = [
-            {"filename": "specs/new.json", "status": "added"},
-            {"filename": "specs/changed.json", "status": "modified"},
-            {"filename": "other/new.json", "status": "added"},
-            {"filename": "specs/new.txt", "status": "added"},
-        ]
-
-        watched = api._filter_watched_dir(files, "specs/", ".json")
-
-        assert watched == ["specs/new.json"]
-
-    def test_any_extension_is_watched_by_default(self, api):
-        files = [{"filename": "specs/new.txt", "status": "added"}]
-
-        assert api._filter_watched_dir(files, "specs/") == ["specs/new.txt"]
-
-    def test_prs_without_watched_files_are_dropped(self, api, client):
-        prs = [{"number": 5, "base": {"repo": {"full_name": "org/repo"}}}]
-        client.request.side_effect = [
-            response({"number": 5}),
-            response([{"filename": "docs/readme.md", "status": "added"}]),
-            response([]),
-        ]
-
-        assert api.filter_prs_by_watch_dir(prs, "specs/", ".json") == []
-
-    def test_prs_with_watched_files_are_annotated(self, api, client):
-        prs = [{"number": 5, "base": {"repo": {"full_name": "org/repo"}}}]
-        client.request.side_effect = [
-            response({"number": 5}),
-            response([{"filename": "specs/new.json", "status": "added"}]),
-            response([]),
-        ]
-
-        results = api.filter_prs_by_watch_dir(prs, "specs/", ".json")
-
-        assert results[0]["watched_files"] == ["specs/new.json"]
 
 
 class TestContents:
@@ -159,14 +160,30 @@ class TestWrites:
         assert api.branch_exists("org/repo", "results/pr-5") is False
         assert client.request.call_args.kwargs["raise_for_status"] is False
 
-    def test_create_pull_request_returns_the_url(self, api, client):
+    def test_create_pull_request_returns_the_pr(self, api, client):
         client.request.return_value = response({"html_url": "https://github.com/org/repo/pull/6"})
 
-        url = api.create_pull_request(
-            "org/repo", head="results/pr-5", base="main", title="t", body="b"
+        pr = api.create_pull_request(
+            "org/repo", head_branch="results/pr-5", base_branch="main", title="t", body="b"
         )
 
-        assert url == "https://github.com/org/repo/pull/6"
+        assert pr["html_url"] == "https://github.com/org/repo/pull/6"
         assert client.request.call_args.kwargs["json"] == {
             "title": "t", "body": "b", "head": "results/pr-5", "base": "main",
         }
+
+
+class TestBranchPullRequests:
+    def test_find_returns_the_first_pr_of_the_branch(self, api, client):
+        client.request.return_value = response([{"number": 7}, {"number": 3}])
+
+        assert api.find_pull_request_by_branch("org/repo", "feature", "main") == {"number": 7}
+        assert client.request.call_args.args == ("GET", "repos/org/repo/pulls")
+        assert client.request.call_args.kwargs["params"] == {
+            "head": "org:feature", "base": "main", "state": "all",
+        }
+
+    def test_find_returns_none_without_one(self, api, client):
+        client.request.return_value = response([])
+
+        assert api.find_pull_request_by_branch("org/repo", "feature", "main") is None

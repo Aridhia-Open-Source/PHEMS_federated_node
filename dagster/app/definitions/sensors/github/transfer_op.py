@@ -194,7 +194,7 @@ class GithubTransferOperation:
             self.config.base_branch,
             title,
             body,
-        )
+        )["html_url"]
         self.log.info(f"Pull request created: {pr_url}")
         return pr_url
 

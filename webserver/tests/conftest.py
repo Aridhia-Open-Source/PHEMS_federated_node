@@ -224,7 +224,10 @@ def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret)
     dataset = Dataset(name="DefaultDatasetForRepo", host="example.com", secret_id=secret.id, project_id=project.id)
     dataset.add(user_id=user_uuid)
 
-    repo = TriggerRepository(uri=sample_repo_uri, watch_dir="", project_id=project.id)
+    repo = TriggerRepository(
+        uri=sample_repo_uri, provider="github", api_uri="https://api.github.com",
+        secret_id=secret.id, watch_dir="", project_id=project.id
+    )
     repo.add()
     return repo
 
@@ -252,7 +255,10 @@ def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, se
     dataset.add(user_id=user_uuid)
 
     # Then create repository with the dataset_id
-    repo = TriggerRepository(uri="organisation/repository", watch_dir="", project_id=project.id)
+    repo = TriggerRepository(
+        uri="organisation/repository", provider="github", api_uri="https://api.github.com",
+        secret_id=secret.id, watch_dir="", project_id=project.id
+    )
     repo.add()
 
     return dataset

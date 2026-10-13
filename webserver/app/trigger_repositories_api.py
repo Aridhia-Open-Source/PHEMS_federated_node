@@ -15,9 +15,13 @@ from http import HTTPStatus
 
 from flask import Blueprint, request
 
+from app.dtos.trigger_repository import TriggerRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
+from app.helpers.repository_loop import check_no_loop
 from app.helpers.wrappers import auth
+from app.models.git_provider import GitProvider
+from app.models.secret import Secret
 from app.models.project import Project
 from app.models.pull_request import PullRequest
 from app.models.pull_request_status import PullRequestStatus
@@ -40,7 +44,7 @@ def get_repositories():
     GET /trigger_repositories/ — list all repositories with their polling state
     """
     repos = TriggerRepository.query.all()
-    return [r.sanitized_dict() for r in repos], HTTPStatus.OK
+    return [TriggerRepositoryDTO.from_model(r).dump() for r in repos], HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['GET'])
@@ -49,7 +53,7 @@ def get_repository(repo_id):
     GET /trigger_repositories/<id> — get a single repository
     """
     repo = TriggerRepository.get_by_id(repo_id)
-    return repo.sanitized_dict(), HTTPStatus.OK
+    return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['DELETE'])
@@ -73,24 +77,40 @@ def post_repository():
         raise InvalidRequest("uri is required")
     if not body.get('project_id'):
         raise InvalidRequest("project_id is required")
+    for field in ('provider', 'secret_label'):
+        if not body.get(field):
+            raise InvalidRequest(f"{field} is required")
 
-    uri = body['uri'].lower().rstrip('/')
-    if TriggerRepository.query.filter(TriggerRepository.uri == uri).one_or_none():
-        raise InvalidRequest(f"Repository {uri} already exists")
+    uri = TriggerRepository.parse_repo_uri(body['uri'])
+    if TriggerRepository.query.filter_by(project_id=body['project_id'], uri=uri).one_or_none():
+        raise InvalidRequest(f"Repository {uri} already exists in project {body['project_id']}")
 
-    # Validate project exists
+    # Validate project and secret exist
     Project.get_by_id(body['project_id'])
+    secret = Secret.get_in_project(body['project_id'], body['secret_label'])
 
-    repo = TriggerRepository(
-        uri=uri,
-        watch_dir=body.get('watch_dir', ''),
-        project_id=body['project_id'],
-        base_branch=body.get('base_branch', 'main'),
-        initial_cursor=body.get('initial_cursor'),
-    )
-    repo.add()
+    try:
+        repo = TriggerRepository(
+            uri=uri,
+            provider=body['provider'],
+            api_uri=body.get('api_uri') or GitProvider(body['provider']).default_api_uri(uri),
+            secret_id=secret.id,
+            watch_dir=body.get('watch_dir', ''),
+            project_id=body['project_id'],
+            base_branch=body.get('base_branch', 'main'),
+            initial_cursor=body.get('initial_cursor'),
+        )
+    except ValueError as e:
+        raise InvalidRequest(str(e))
+    repo.add(commit=False)
+    try:
+        check_no_loop(repo.project_id, repo.uri)
+    except InvalidRequest:
+        session.rollback()
+        raise
+    session.commit()
 
-    return repo.sanitized_dict(), HTTPStatus.CREATED
+    return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.CREATED
 
 
 @bp.route('/<int:repo_id>', methods=['PATCH'])
@@ -118,11 +138,34 @@ def patch_repository(repo_id):
             raise InvalidRequest("watch_dir cannot be empty")
         repo.watch_dir = body['watch_dir']
 
-    if 'initial_cursor' in body:
-        repo.initial_cursor = body['initial_cursor']
+    if 'secret_label' in body:
+        if not body['secret_label']:
+            raise InvalidRequest("secret_label cannot be empty")
+        repo.secret_id = Secret.get_in_project(repo.project_id, body['secret_label']).id
 
+    for field in ('provider', 'api_uri'):
+        if field in body:
+            if not body[field]:
+                raise InvalidRequest(f"{field} cannot be empty")
+            try:
+                setattr(repo, field, body[field])
+            except ValueError as e:
+                raise InvalidRequest(str(e))
+
+    if 'initial_cursor' in body:
+        try:
+            repo.initial_cursor = body['initial_cursor']
+        except ValueError as e:
+            raise InvalidRequest(str(e))
+
+    session.flush()
+    try:
+        check_no_loop(repo.project_id, repo.uri)
+    except InvalidRequest:
+        session.rollback()
+        raise
     session.commit()
-    return repo.sanitized_dict(), HTTPStatus.OK
+    return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK
 
 
 @bp.route('/pull_requests', methods=['POST'])
