@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Self
 
 from flask import request
@@ -28,25 +27,6 @@ class BaseModel:
             raise InvalidRequest("page and per_page parameters should be integers") from ve
 
         return cls.query.paginate(page=page, per_page=per_page)
-
-    def sanitized_dict(self) -> dict[str, bool|int|str]:
-        """
-        Based on the list of column names, conditionally render the values
-        in a dictionary
-        """
-        jsonized = {}
-        for field in self._get_fields_name():
-            val = getattr(self, field)
-            match val:
-                case int() | bool() | None:
-                    jsonized[field] = val
-                case datetime():
-                    jsonized[field] = val.strftime(self.WIRE_DATETIME_FORMAT)
-                case BaseModel():
-                    pass
-                case _:
-                    jsonized[field] = str(val)
-        return jsonized
 
     def add(self, commit=True):
         db.session.add(self)
