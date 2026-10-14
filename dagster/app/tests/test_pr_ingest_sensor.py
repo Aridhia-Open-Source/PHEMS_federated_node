@@ -4,7 +4,7 @@ import dagster as dg
 import pytest
 
 from app.definitions.sensors.git.pr_ingest import PullRequestIngestSensor
-from app.models import Project, TriggerRepository
+from app.models import TriggerRepository
 from app.tests.conftest import SAMPLE_REPOSITORY_OBJ
 
 
@@ -28,13 +28,8 @@ def fake_git_api(merged_numbers):
     return git_api
 
 
-def project(id=1, enabled=True):
-    return Project(id=id, name=f"proj{id}", enabled=enabled)
-
-
-def run(repos, git_apis_by_repo_id, projects=None):
+def run(repos, git_apis_by_repo_id):
     backend_api = MagicMock()
-    backend_api.get_projects.return_value = projects or [project()]
     backend_api.get_repositories.return_value = repos
     git_apis = MagicMock()
     git_apis.for_repository.side_effect = lambda r: git_apis_by_repo_id[r.id]
@@ -50,18 +45,10 @@ def test_skips_when_there_are_no_repositories():
     backend_api.create_pull_requests_batch.assert_not_called()
 
 
-def test_repositories_of_disabled_projects_are_not_polled():
-    enabled_api, disabled_api = fake_git_api([5]), fake_git_api([9])
-    disabled_repo = TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "id": 2, "project_id": 2})
+def test_only_polls_repositories_of_enabled_projects():
+    _, backend_api = run([repo(1)], {1: fake_git_api([])})
 
-    _, backend_api = run(
-        [repo(1), disabled_repo], {1: enabled_api, 2: disabled_api},
-        projects=[project(1), project(2, enabled=False)],
-    )
-
-    disabled_api.get_new_merged_pulls.assert_not_called()
-    backend_api.create_pull_requests_batch.assert_called_once()
-    assert backend_api.create_pull_requests_batch.call_args.args[0] == 1
+    backend_api.get_repositories.assert_called_once_with(enabled_only=True)
 
 
 def test_posts_one_batch_per_repository_with_new_prs():
@@ -121,7 +108,6 @@ def test_a_failing_repository_aborts_the_tick_after_the_earlier_ones_were_saved(
     apis = {1: fake_git_api([5]), 2: broken, 3: fake_git_api([7])}
 
     backend_api = MagicMock()
-    backend_api.get_projects.return_value = [project()]
     backend_api.get_repositories.return_value = [repo(1), repo(2), repo(3)]
     git_apis = MagicMock()
     git_apis.for_repository.side_effect = lambda r: apis[r.id]

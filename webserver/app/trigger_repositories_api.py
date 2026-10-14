@@ -48,10 +48,13 @@ def auth_before():
 @bp.route('', methods=['GET'])
 def get_repositories():
     """
-    GET /trigger_repositories/ — list all repositories with their polling state
+    GET /trigger_repositories/ — list all repositories with their polling state,
+    optionally only those of enabled projects (?project_enabled=true)
     """
-    repos = TriggerRepository.query.all()
-    return [TriggerRepositoryDTO.from_model(r).dump() for r in repos], HTTPStatus.OK
+    query = TriggerRepository.query
+    if request.args.get('project_enabled', '').lower() == 'true':
+        query = query.join(Project, TriggerRepository.project_id == Project.id).filter(Project.enabled.is_(True))
+    return [TriggerRepositoryDTO.from_model(r).dump() for r in query.all()], HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['GET'])
