@@ -14,16 +14,7 @@ if __name__ == '__main__':
     try:
         from sqlalchemy import inspect
         from app.helpers.base_model import Base, db
-        import app.models.dataset
-        import app.models.project
-        import app.models.pull_request
-        import app.models.trigger
-        import app.models.task
-        import app.models.task_status
-        import app.models.trigger_repository
-        import app.models.results_repository
-        import app.models.results_backend
-        import app.models.api_request
+        import app.models
 
         print("✓ All models imported successfully")
         print(f"✓ {len(Base.metadata.tables)} tables in schema")
