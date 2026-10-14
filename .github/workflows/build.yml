@@ -109,6 +109,12 @@ jobs:
         run: |
           make pylint
 
+      # Runs even if the webserver lint fails, so both reports land in one run.
+      - name: Run pylint (dagster)
+        if: ${{ !cancelled() }}
+        run: |
+          make pylint_dagster
+
       - name: Run hadolint
         run: |
           make hadolint
@@ -119,6 +125,7 @@ jobs:
           name: lint-reports
           path: |
             artifacts/pylint.txt
+            artifacts/pylint-dagster.txt
             artifacts/hadolint.xml
           if-no-files-found: ignore
   tests:
@@ -153,6 +160,10 @@ jobs:
         working-directory: webserver
         run: |
           make tests_ci
+
+      - name: Run Dagster Tests
+        run: |
+          make tests_dagster
 
       - name: Run Keycloak Integration Tests
         working-directory: webserver
