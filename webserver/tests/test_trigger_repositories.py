@@ -115,6 +115,21 @@ class TestPostRepository:
         assert response.status_code == 400
         assert "Invalid repository uri" in response.json["error"]
 
+    @pytest.mark.parametrize("api_uri", [
+        "ftp://api.github.com", "https://user:pass@api.github.com", "https://evil.example.com/api", "https://github.com"
+    ])
+    def test_create_rejects_an_api_uri_not_on_the_repository_host(self, client, post_json_admin_header, repo_post_body, api_uri):
+        body = {**repo_post_body, "api_uri": api_uri}
+        response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
+        assert response.status_code == 400
+        assert "api_uri" in response.json["error"]
+
+    def test_create_accepts_a_gitea_api_uri_on_the_repository_host(self, client, post_json_admin_header, repo_post_body):
+        body = {**repo_post_body, "provider": "gitea", "uri": "http://gitea.fn.svc:4000/org/repo", "api_uri": "http://gitea.fn.svc:4000/api/v1"}
+        response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["api_uri"] == "http://gitea.fn.svc:4000/api/v1"
+
     def test_create_strips_the_git_suffix(self, client, post_json_admin_header, test_dataset):
         body = {**REPO_FIELDS, "uri": "https://github.com/Org/Repo.git", "project_id": test_dataset.project_id}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
@@ -148,7 +163,7 @@ class TestPostRepository:
         assert TriggerRepository.get_by_id(response.json["id"]).repo_path == "org/another-repo"
 
     def test_repo_path_is_the_last_two_segments_of_a_sub_path_uri(self, client, post_json_admin_header, repo_post_body):
-        body = {**repo_post_body, "uri": "host/gitea/owner/repo"}
+        body = {**repo_post_body, "uri": "host/gitea/owner/repo", "api_uri": "https://host/gitea/api/v1"}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
         assert response.status_code == 201
         assert response.json["uri"] == "host/gitea/owner/repo"
@@ -225,11 +240,20 @@ class TestPatchRepository:
     def test_update_provider_and_api_uri(self, client, post_json_admin_header, repository):
         response = self.patch(
             client, post_json_admin_header, repository,
-            {"provider": "gitea", "api_uri": "http://gitea.fn.svc:3000/api/v1"}
+            {"provider": "gitea", "api_uri": "https://api.github.com/api/v3"}
         )
         assert response.status_code == 200
         assert response.json["provider"] == "gitea"
-        assert response.json["api_uri"] == "http://gitea.fn.svc:3000/api/v1"
+        assert response.json["api_uri"] == "https://api.github.com/api/v3"
+
+    @pytest.mark.parametrize("api_uri", [
+        "ftp://api.github.com", "https://user:pass@api.github.com", "https://evil.example.com/api", "https://github.com"
+    ])
+    def test_update_rejects_an_api_uri_not_on_the_repository_host(self, client, post_json_admin_header, repository, api_uri):
+        response = self.patch(client, post_json_admin_header, repository, {"api_uri": api_uri})
+        assert response.status_code == 400
+        assert "api_uri" in response.json["error"]
+        assert repository.api_uri == "https://api.github.com"
 
     def test_update_rejects_an_unknown_provider(self, client, post_json_admin_header, repository):
         response = self.patch(client, post_json_admin_header, repository, {"provider": "gitlab"})

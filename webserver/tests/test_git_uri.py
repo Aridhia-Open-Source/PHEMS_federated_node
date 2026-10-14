@@ -1,6 +1,6 @@
 import pytest
 
-from app.helpers.git_uri import normalise_repo_uri
+from app.helpers.git_uri import normalise_repo_uri, validate_api_uri
 
 
 @pytest.mark.parametrize("uri", [
@@ -38,3 +38,28 @@ def test_a_uri_that_is_already_normalised_is_unchanged():
 def test_what_is_not_a_repository_address_is_rejected(uri):
     with pytest.raises(ValueError):
         normalise_repo_uri(uri)
+
+
+@pytest.mark.parametrize("api_uri, uri", [
+    ("https://api.github.com", "github.com/org/repo"),
+    ("https://API.GitHub.com/", "github.com/org/repo"),
+    ("http://gitea.fn.svc:4000/api/v1", "gitea.fn.svc:4000/org/repo"),
+    ("https://git.example.com/api/v1", "git.example.com/org/repo"),
+])
+def test_an_api_uri_on_the_repository_host_is_accepted(api_uri, uri):
+    assert validate_api_uri(api_uri, uri) == api_uri
+
+
+@pytest.mark.parametrize("api_uri, uri", [
+    ("ftp://git.example.com/api", "git.example.com/org/repo"),
+    ("git.example.com/api", "git.example.com/org/repo"),
+    ("https://user:pass@git.example.com/api", "git.example.com/org/repo"),
+    ("https://evil.example.com/api", "git.example.com/org/repo"),
+    ("http://gitea.fn.svc:3000/api/v1", "gitea.fn.svc:4000/org/repo"),
+    ("https://git.example.com.evil.com/api", "git.example.com/org/repo"),
+    ("https://github.com", "github.com/org/repo"),
+    ("https://git.example.com/api", "github.com/org/repo"),
+])
+def test_an_api_uri_that_is_not_on_the_repository_host_is_rejected(api_uri, uri):
+    with pytest.raises(ValueError):
+        validate_api_uri(api_uri, uri)

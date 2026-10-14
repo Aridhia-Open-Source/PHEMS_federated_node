@@ -104,10 +104,22 @@ class TestPostResultsRepository:
         assert response.json["api_uri"] == "https://gitea.fn.svc:4000/api/v1"
 
     def test_create_keeps_a_given_api_uri(self, client, post_json_admin_header, results_post_body):
-        body = {**results_post_body, "provider": "gitea", "api_uri": "http://gitea.fn.svc:4000/api/v1"}
+        body = {
+            **results_post_body, "provider": "gitea", "uri": "http://gitea.fn.svc:4000/org/results",
+            "api_uri": "http://gitea.fn.svc:4000/api/v1"
+        }
         response = client.post("/results_repositories", json=body, headers=post_json_admin_header)
         assert response.status_code == 201
         assert response.json["api_uri"] == "http://gitea.fn.svc:4000/api/v1"
+
+    @pytest.mark.parametrize("api_uri", [
+        "ftp://api.github.com", "https://user:pass@api.github.com", "https://evil.example.com/api", "https://github.com"
+    ])
+    def test_create_rejects_an_api_uri_not_on_the_repository_host(self, client, post_json_admin_header, results_post_body, api_uri):
+        response = client.post("/results_repositories", json={**results_post_body, "api_uri": api_uri}, headers=post_json_admin_header)
+        assert response.status_code == 400
+        assert "api_uri" in response.json["error"]
+        assert ResultsRepository.query.count() == 0
 
     @pytest.mark.parametrize("field", ["uri", "project_id", "provider", "secret_label", "target_dir"])
     def test_create_requires_field(self, client, post_json_admin_header, results_post_body, field):
@@ -158,12 +170,21 @@ class TestPostResultsRepository:
 
 class TestPatchResultsRepository:
     def test_update_fields(self, client, post_json_admin_header, results_repo):
-        body = {"target_dir": "out", "owned_by_federated_node": False, "api_uri": "https://git.example.com/api"}
+        body = {"target_dir": "out", "owned_by_federated_node": False, "api_uri": "https://api.github.com/v3"}
         response = client.patch(f"/results_repositories/{results_repo.id}", json=body, headers=post_json_admin_header)
         assert response.status_code == 200
         assert response.json["target_dir"] == "out"
         assert response.json["owned_by_federated_node"] is False
-        assert response.json["api_uri"] == "https://git.example.com/api"
+        assert response.json["api_uri"] == "https://api.github.com/v3"
+
+    @pytest.mark.parametrize("api_uri", [
+        "ftp://api.github.com", "https://user:pass@api.github.com", "https://evil.example.com/api", "https://github.com"
+    ])
+    def test_update_rejects_an_api_uri_not_on_the_repository_host(self, client, post_json_admin_header, results_repo, api_uri):
+        response = client.patch(f"/results_repositories/{results_repo.id}", json={"api_uri": api_uri}, headers=post_json_admin_header)
+        assert response.status_code == 400
+        assert "api_uri" in response.json["error"]
+        assert results_repo.api_uri == "https://api.github.com"
 
     def test_empty_body(self, client, post_json_admin_header, results_repo):
         response = client.patch(f"/results_repositories/{results_repo.id}", json={}, headers=post_json_admin_header)

@@ -6,7 +6,7 @@ from kubernetes.client.exceptions import ApiException
 from sqlalchemy.orm import validates
 
 from app.helpers.const import DEFAULT_NAMESPACE
-from app.helpers.git_uri import normalise_repo_uri
+from app.helpers.git_uri import normalise_repo_uri, validate_api_uri
 from app.helpers.kubernetes import KubernetesClient
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, GitProvider
 
@@ -40,6 +40,11 @@ class GitRepositoryMixin:
     def validate_uri(self, key, value):
         """Keep the uri in its normalised form (see normalise_repo_uri)."""
         return normalise_repo_uri(value)
+
+    @validates('api_uri')
+    def check_api_uri(self, key, value):
+        """Keep the api_uri on the repository's host (see validate_api_uri). Set after uri."""
+        return validate_api_uri(value, self.uri)
 
     @validates('provider')
     def validate_provider(self, key, value):
