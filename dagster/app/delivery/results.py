@@ -15,7 +15,8 @@ from app.backend import BackendAPI
 from app.config import ResultsDeliveryConfig
 from app.delivery import git_push
 from app.models import (
-    PullRequestResultState, PullRequestTrigger, ResultsRepository, Task, TriggerRepository, TriggerState,
+    PullRequestResultStep, PullRequestTrigger, ResultState, ResultsRepository, Task, TriggerRepository,
+    TriggerState,
 )
 from app.secrets import SecretProvider
 
@@ -24,7 +25,7 @@ METADATA_NAME = "metadata.json"
 SPEC_NAME = "spec.json"
 MAX_ERROR_LENGTH = 1000
 # Past these the pull request is opened, so there is nothing left to deliver.
-PAST_PUSHED = {PullRequestResultState.OPENED, PullRequestResultState.MERGED, PullRequestResultState.CLOSED}
+PAST_PUSHED = {PullRequestResultStep.OPENED, PullRequestResultStep.MERGED, PullRequestResultStep.CLOSED}
 
 
 class ResultsDelivery:
@@ -43,19 +44,21 @@ class ResultsDelivery:
 
     def __call__(self, task_id: int) -> None:
         """
-        Deliver the results of a task: record PUSHED once the branch is pushed, then OPENED
-        once its pull request is opened. A result past PUSHED is left alone, and one in
-        UNKNOWN or PUSHED resumes: a branch already on the remote is not pushed again, and
+        Deliver the results of a task: record the step PUSHED once the branch is pushed, then
+        OPENED and the state DELIVERED once its pull request is opened. A result past PUSHED
+        is left alone, and one in UNKNOWN or PUSHED resumes, a FAILED one back to IN_PROGRESS: a branch already on the remote is not pushed again, and
         its pull request is looked up before one is opened.
-        Any failure is recorded on the result as an error with one more attempt, its state
-        left where it was, and raised, so the Dagster run fails visibly.
+        Any failure is recorded on the result as an error with one more attempt, its step
+        left where it was and its state FAILED, and raised, so the Dagster run fails visibly.
         """
         task = self.backend_api.get_task(task_id)
         repository = self.backend_api.get_results_repository(task.project_id)
         result = self.backend_api.create_result(task.id, repository.id)
-        if result.state in PAST_PUSHED:
-            self.log.info(f"Results of task {task.id} are already delivered, {result.state.value}")
+        if result.step in PAST_PUSHED:
+            self.log.info(f"Results of task {task.id} are already delivered, {result.step.value}")
             return
+        if result.state == ResultState.FAILED:
+            self.backend_api.patch_result(result.id, {"state": ResultState.IN_PROGRESS.value})
 
         pushed = {}
         try:
@@ -63,22 +66,24 @@ class ResultsDelivery:
             title = f"{trigger_repository.repo_path} PR{pull_request.number} - task {task.id} - results"
             branch, commit_sha, base_branch = self._push(task, repository, trigger_repository, pull_request, title)
             pushed = {"branch": branch, "commit_sha": commit_sha}
-            self.backend_api.patch_result(result.id, {"state": PullRequestResultState.PUSHED.value, **pushed})
+            self.backend_api.patch_result(result.id, {"step": PullRequestResultStep.PUSHED.value, **pushed})
             results_pr = self._open_pull_request(repository, branch, base_branch, title, pull_request)
             # An earlier attempt's PR may be merged or closed already: record what it is
-            state = PullRequestResultState.from_git(results_pr)
+            step = PullRequestResultStep.from_git(results_pr)
             self.backend_api.patch_result(result.id, {
-                "state": state.value,
+                "step": step.value,
+                "state": ResultState.DELIVERED.value,
                 "attempts": result.attempts + 1,
                 "error": None,
                 "number": results_pr["number"],
                 "url": results_pr["html_url"],
                 "merged_at": results_pr["merged_at"],
                 # GitHub fills merge_commit_sha on an unmerged PR with its test merge
-                "merge_commit_sha": results_pr["merge_commit_sha"] if state == PullRequestResultState.MERGED else None,
+                "merge_commit_sha": results_pr["merge_commit_sha"] if step == PullRequestResultStep.MERGED else None,
             })
         except Exception as e:
             self.backend_api.patch_result(result.id, {
+                "state": ResultState.FAILED.value,
                 "attempts": result.attempts + 1,
                 "error": f"{type(e).__name__}: {e}"[:MAX_ERROR_LENGTH],
                 **pushed,

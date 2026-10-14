@@ -204,10 +204,10 @@ class BackendAPI:
         response = self.session.patch(f"/results/{result_id}", json=data)
         return PullRequestResult(**response.json())
 
-    def get_results_by_state(self, states: list[str]) -> list[PullRequestResult]:
-        """Get the results in any of the states"""
-        self.logger.info(f"Fetching results in {', '.join(states)}")
-        response = self.session.get("/results", params={"state": states})
+    def get_results_by_step(self, steps: list[str]) -> list[PullRequestResult]:
+        """Get the results at any of the steps"""
+        self.logger.info(f"Fetching results at {', '.join(steps)}")
+        response = self.session.get("/results", params={"step": steps})
         return [PullRequestResult(**result) for result in response.json()]
 
     def get_dataset_by_name(self, name: str) -> Dataset | None:

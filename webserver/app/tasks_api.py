@@ -234,6 +234,8 @@ def post_tasks():
     project = Project.query.filter_by(name=project_name).first()
     if not project:
         return {"error": f"Project '{project_name}' not found"}, HTTPStatus.NOT_FOUND
+    if project.locked:
+        raise InvalidRequest(f"Project '{project_name}' is locked", HTTPStatus.CONFLICT)
 
     # The request is recorded before it is evaluated. A rejected one is kept, with
     # the reason: no task is created from it, so nothing can launch.

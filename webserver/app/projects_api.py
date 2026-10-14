@@ -17,6 +17,7 @@ from app.dtos.base import page_of
 from app.dtos.project import (
     HealthCheckDTO, ProjectDTO, ProjectHealthDTO, RepositoryHealthDTO, ResultsRepositoryHealthDTO
 )
+from app.helpers.project_lock import require_drained
 from app.helpers.query_filters import parse_query_params
 from app.helpers.wrappers import audit, auth
 from app.models.git_provider import ConnectionStatus
@@ -79,17 +80,24 @@ def create_project():
 @auth(scope='can_admin_dataset')
 def patch_project(project_id: int):
     """
-    PATCH /projects/<project_id> endpoint. Enables or disables the project.
+    PATCH /projects/<project_id> endpoint. Enables or disables the project, locks or unlocks
+    it. Locking or unlocking is always allowed, any other change only once the project is
+    locked and drained, see require_drained.
     """
     project = Project.get_by_id(project_id)
 
     body = request.json or {}
-    if "enabled" not in body:
-        raise InvalidRequest("No fields provided to update")
-    if not isinstance(body["enabled"], bool):
-        raise InvalidRequest("enabled must be a boolean")
+    fields = {"enabled", "locked"}
+    if not body or not set(body) <= fields:
+        raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
+    for field in body:
+        if not isinstance(body[field], bool):
+            raise InvalidRequest(f"{field} must be a boolean")
 
-    project.enabled = body["enabled"]
+    if set(body) - {"locked"}:
+        require_drained(project)
+    for field in body:
+        setattr(project, field, body[field])
     db.session.commit()
     return ProjectDTO.from_model(project).dump(), HTTPStatus.OK
 
@@ -106,6 +114,7 @@ def delete_project(project_id: int):
     # Hard delete for now, a soft delete option can come later. Keycloak entries of the
     # datasets are left behind, as with DELETE /datasets.
     project = Project.get_by_id(project_id)
+    require_drained(project)
     project_secrets = Secret.query.filter_by(project_id=project.id).all()
     secrets = [(s.provider, s.key, s.namespace) for s in project_secrets]
 

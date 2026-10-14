@@ -9,7 +9,7 @@ from app.models import sqla_column
 class Result(db.Model, BaseModel):
     """
     One row per (task, destination). Each way of delivering is a child table sharing
-    this id, picked by `type`, and the child holds the state of its delivery.
+    this id, picked by `type`, and the child holds the step and state of its delivery.
     """
     __tablename__ = 'results'
     __mapper_args__ = {'polymorphic_on': 'type'}
@@ -25,7 +25,7 @@ class Result(db.Model, BaseModel):
     )
     # How many times the delivery ran to its end, failed or not. Bumped by Dagster.
     attempts = sa.Column(sa.Integer, nullable=False, default=0, server_default='0')
-    # Why the last attempt failed, cleared when one succeeds. The state is left where it was.
+    # Why the last attempt failed, cleared when one succeeds. The step is left where it was.
     error = sa.Column(sa.String(1024), nullable=True)
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()

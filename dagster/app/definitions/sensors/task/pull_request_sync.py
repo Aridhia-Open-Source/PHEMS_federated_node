@@ -14,20 +14,20 @@ from dagster import OpExecutionContext as OpExecCtx, SensorEvaluationContext
 from app.backend import BackendAPI
 from app.definitions.sensors.git.base import GitAPIFactory
 from app.definitions.sensors.git.pr_evaluate import IN_FLIGHT
-from app.models import PullRequestResult, PullRequestResultState
+from app.models import PullRequestResult, PullRequestResultStep, ResultState
 
 MIN_SENSOR_INTERVAL_SECONDS = 10
 # PUSHED may have a pull request its result missed, OPENED may be merged or closed since.
-SYNCED = [PullRequestResultState.PUSHED, PullRequestResultState.OPENED]
+SYNCED = [PullRequestResultStep.PUSHED, PullRequestResultStep.OPENED]
 
 
 def get_synced_results(backend_api: BackendAPI) -> list[PullRequestResult]:
     """
-    The results to sync. Filtered here as well: a backend that does not know the state
+    The results to sync. Filtered here as well: a backend that does not know the step
     filter ignores it and returns every result.
     """
-    results = backend_api.get_results_by_state([state.value for state in SYNCED])
-    return [result for result in results if result.state in SYNCED]
+    results = backend_api.get_results_by_step([step.value for step in SYNCED])
+    return [result for result in results if result.step in SYNCED]
 
 
 @dg.op(required_resource_keys={"backend_api", "git_apis"})
@@ -35,8 +35,8 @@ def sync_results_pull_requests(context: OpExecCtx):
     """
     Record what the git provider says of the results pull requests:
     - PUSHED: look the pull request up by the result's branch, and record its number, url and
-      state if there is one. None is left alone.
-    - OPENED: record the state of the pull request when it changed, MERGED or CLOSED.
+      step if there is one, with the state DELIVERED. None is left alone.
+    - OPENED: record the step of the pull request when it changed, MERGED or CLOSED.
       One deleted on the provider (404) is logged and skipped, not guessed CLOSED.
     """
     backend_api = cast(BackendAPI, context.resources.backend_api)
@@ -44,12 +44,12 @@ def sync_results_pull_requests(context: OpExecCtx):
     for result in get_synced_results(backend_api):
         repository = backend_api.get_results_repository(backend_api.get_task(result.task_id).project_id)
         git_api = git_apis.for_repository(repository)
-        if result.state == PullRequestResultState.PUSHED:
+        if result.step == PullRequestResultStep.PUSHED:
             base_branch = git_api.get_default_branch(repository.repo_path)
             pr = git_api.find_pull_request_by_branch(repository.repo_path, result.branch, base_branch)
             if pr is None:
                 continue
-            found = {"number": pr["number"], "url": pr["html_url"]}
+            found = {"number": pr["number"], "url": pr["html_url"], "state": ResultState.DELIVERED.value}
         else:
             try:
                 pr = git_api.get_pull_request(repository.repo_path, result.number)
@@ -59,22 +59,22 @@ def sync_results_pull_requests(context: OpExecCtx):
                 context.log.warning(f"Results pull request {result.url} is not found, skipped")
                 continue
             found = {}
-        state = PullRequestResultState.from_git(pr)
-        if not found and state == result.state:
+        step = PullRequestResultStep.from_git(pr)
+        if not found and step == result.step:
             continue
-        context.log.info(f"Results pull request {pr['html_url']} is {state.value}")
+        context.log.info(f"Results pull request {pr['html_url']} is {step.value}")
         backend_api.patch_result(result.id, {
             **found,
-            "state": state.value,
+            "step": step.value,
             "merged_at": pr["merged_at"],
             # GitHub fills merge_commit_sha on an unmerged PR with its test merge
-            "merge_commit_sha": pr["merge_commit_sha"] if state == PullRequestResultState.MERGED else None,
+            "merge_commit_sha": pr["merge_commit_sha"] if step == PullRequestResultStep.MERGED else None,
         })
 
 
 @dg.job
 def sync_results_pull_requests_job():
-    """Record the state of the pushed and opened results pull requests."""
+    """Record the step of the pushed and opened results pull requests."""
     sync_results_pull_requests()
 
 

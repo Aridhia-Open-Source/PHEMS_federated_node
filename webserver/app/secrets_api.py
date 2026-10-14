@@ -21,6 +21,7 @@ from app.helpers.base_model import db
 from app.helpers.const import DEFAULT_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
+from app.helpers.project_lock import require_drained
 from app.helpers.wrappers import audit, auth
 from app.models.project import Project
 from app.models.secret import Secret
@@ -173,7 +174,8 @@ def post_secret(project_id):
 def patch_secret(project_id, label):
     """
     PATCH /projects/<project_id>/secrets/<label> — set keys on the stored secret, e.g. to
-    rotate a token. Every repository that references it picks the new values up.
+    rotate a token. Every repository that references it picks the new values up. Exempt from
+    the project lock, as a rotation only.
     Body: {"values": {"KEY": "value", ...}}
     """
     secret = _get_secret(project_id, label)
@@ -198,6 +200,7 @@ def delete_secret(project_id, label):
     DELETE /projects/<project_id>/secrets/<label> — delete the reference and the stored
     secret. Refused while a repository or dataset still uses it.
     """
+    require_drained(Project.get_by_id(project_id))
     secret = _get_secret(project_id, label)
     users = len(secret.trigger_repositories) + len(secret.results_repositories) + len(secret.datasets)
     if users:

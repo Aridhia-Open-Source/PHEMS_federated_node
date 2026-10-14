@@ -8,7 +8,8 @@ from app.dtos.result import PullRequestResultDTO
 from app.models.pull_request_result import PullRequestResult
 from app.models.results_repository import ResultsRepository
 from app.models.result import Result
-from app.models.pull_request_result_state import PullRequestResultState
+from app.models.pull_request_result_step import PullRequestResultStep
+from app.models.result_state import ResultState
 
 
 @pytest.fixture
@@ -33,21 +34,26 @@ def result(task, results_repo):
     return result
 
 
-def make_result(make_task, results_repo, state):
+def make_result(make_task, results_repo, step, state=ResultState.IN_PROGRESS.value):
     result = PullRequestResult(task_id=make_task().id, results_repository_id=results_repo.id)
+    result.step = step
     result.state = state
     result.add()
     return result
 
 
 class TestResultModel:
-    def test_state_values(self):
-        assert [s.value for s in PullRequestResultState] == [
+    def test_step_values(self):
+        assert [s.value for s in PullRequestResultStep] == [
             "UNKNOWN", "PUSHED", "OPENED", "MERGED", "CLOSED"
         ]
 
+    def test_state_values(self):
+        assert [s.value for s in ResultState] == ["IN_PROGRESS", "DELIVERED", "FAILED"]
+
     def test_defaults(self, result):
-        assert result.state == PullRequestResultState.UNKNOWN.value
+        assert result.step == PullRequestResultStep.UNKNOWN.value
+        assert result.state == ResultState.IN_PROGRESS.value
         assert result.attempts == 0
         assert result.type == "PR"
         assert result.branch is None
@@ -78,7 +84,8 @@ class TestGetResults:
         response = client.get(f"/tasks/{task.id}/results", headers=simple_admin_header)
         assert response.status_code == 200
         assert response.json == [PullRequestResultDTO.from_model(result).dump()]
-        assert response.json[0]["state"] == "UNKNOWN"
+        assert response.json[0]["step"] == "UNKNOWN"
+        assert response.json[0]["state"] == "IN_PROGRESS"
         assert response.json[0]["type"] == "PR"
 
     def test_list_unknown_task(self, client, simple_admin_header):
@@ -99,23 +106,23 @@ class TestGetResults:
         assert response.status_code == 200
         assert response.json == [PullRequestResultDTO.from_model(result).dump()]
 
-    def test_list_by_state(self, client, simple_admin_header, make_task, results_repo, result):
+    def test_list_by_step(self, client, simple_admin_header, make_task, results_repo, result):
         opened = make_result(make_task, results_repo, "OPENED")
-        response = client.get("/results?state=OPENED", headers=simple_admin_header)
+        response = client.get("/results?step=OPENED", headers=simple_admin_header)
         assert response.status_code == 200
         assert [r["id"] for r in response.json] == [opened.id]
 
-    def test_list_by_several_states(self, client, simple_admin_header, make_task, results_repo, result):
+    def test_list_by_several_steps(self, client, simple_admin_header, make_task, results_repo, result):
         pushed = make_result(make_task, results_repo, "PUSHED")
         opened = make_result(make_task, results_repo, "OPENED")
         make_result(make_task, results_repo, "MERGED")
         make_result(make_task, results_repo, "CLOSED")
-        response = client.get("/results?state=PUSHED&state=OPENED", headers=simple_admin_header)
+        response = client.get("/results?step=PUSHED&step=OPENED", headers=simple_admin_header)
         assert response.status_code == 200
         assert [r["id"] for r in response.json] == [pushed.id, opened.id]
 
-    @pytest.mark.parametrize("query", ["state=opened", "state=OPEN", "state=OPENED&state=DELIVERED"])
-    def test_list_invalid_state(self, client, simple_admin_header, query):
+    @pytest.mark.parametrize("query", ["step=opened", "step=OPEN", "step=OPENED&step=DELIVERED"])
+    def test_list_invalid_step(self, client, simple_admin_header, query):
         response = client.get(f"/results?{query}", headers=simple_admin_header)
         assert response.status_code == 400
 
@@ -131,7 +138,8 @@ class TestPostResult:
         assert response.status_code == 201
         assert response.json["task_id"] == task.id
         assert response.json["results_repository_id"] == results_repo.id
-        assert response.json["state"] == "UNKNOWN"
+        assert response.json["step"] == "UNKNOWN"
+        assert response.json["state"] == "IN_PROGRESS"
         assert response.json["attempts"] == 0
         assert response.json["type"] == "PR"
         assert isinstance(Result.query.filter_by(task_id=task.id).one(), PullRequestResult)
@@ -166,12 +174,13 @@ class TestPatchResult:
 
     def test_update_all_fields(self, client, post_json_admin_header, result):
         response = self.patch(client, post_json_admin_header, result.id, {
-            "state": "MERGED", "attempts": 2, "branch": "task-1-results", "commit_sha": "a" * 40,
+            "step": "MERGED", "state": "DELIVERED", "attempts": 2, "branch": "task-1-results", "commit_sha": "a" * 40,
             "number": 7, "url": "https://example.com/pull/7", "error": None,
             "merged_at": "2026-10-08T10:30:00Z", "merge_commit_sha": "b" * 40,
         })
         assert response.status_code == 200
-        assert response.json["state"] == "MERGED"
+        assert response.json["step"] == "MERGED"
+        assert response.json["state"] == "DELIVERED"
         assert response.json["attempts"] == 2
         assert response.json["branch"] == "task-1-results"
         assert response.json["commit_sha"] == "a" * 40
@@ -180,15 +189,19 @@ class TestPatchResult:
         assert response.json["merged_at"] == "2026-10-08T10:30:00"
         assert response.json["merge_commit_sha"] == "b" * 40
         result = Result.query.get(result.id)
-        assert result.state == "MERGED"
+        assert result.step == "MERGED"
+        assert result.state == "DELIVERED"
         assert result.attempts == 2
         assert result.merged_at == datetime(2026, 10, 8, 10, 30)
 
-    def test_a_failure_keeps_the_state(self, client, post_json_admin_header, result):
-        response = self.patch(client, post_json_admin_header, result.id, {"attempts": 1, "error": "zip too big"})
+    def test_a_failure_keeps_the_step(self, client, post_json_admin_header, result):
+        response = self.patch(
+            client, post_json_admin_header, result.id, {"state": "FAILED", "attempts": 1, "error": "zip too big"}
+        )
         assert response.status_code == 200
         result = Result.query.get(result.id)
-        assert result.state == "UNKNOWN"
+        assert result.step == "UNKNOWN"
+        assert result.state == "FAILED"
         assert result.attempts == 1
         assert result.error == "zip too big"
         assert result.commit_sha is None
@@ -198,18 +211,18 @@ class TestPatchResult:
         ("PUSHED", "OPENED"), ("PUSHED", "MERGED"), ("PUSHED", "CLOSED"),
         ("OPENED", "MERGED"), ("OPENED", "CLOSED"),
     ])
-    def test_state_moves_forward(self, client, post_json_admin_header, make_task, results_repo, current, new):
+    def test_step_moves_forward(self, client, post_json_admin_header, make_task, results_repo, current, new):
         result = make_result(make_task, results_repo, current)
-        response = self.patch(client, post_json_admin_header, result.id, {"state": new})
+        response = self.patch(client, post_json_admin_header, result.id, {"step": new})
         assert response.status_code == 200
-        assert Result.query.get(result.id).state == new
+        assert Result.query.get(result.id).step == new
 
-    @pytest.mark.parametrize("state", ["UNKNOWN", "PUSHED", "OPENED", "MERGED", "CLOSED"])
-    def test_same_state_is_allowed(self, client, post_json_admin_header, make_task, results_repo, state):
-        result = make_result(make_task, results_repo, state)
-        response = self.patch(client, post_json_admin_header, result.id, {"state": state, "attempts": 3})
+    @pytest.mark.parametrize("step", ["UNKNOWN", "PUSHED", "OPENED", "MERGED", "CLOSED"])
+    def test_same_step_is_allowed(self, client, post_json_admin_header, make_task, results_repo, step):
+        result = make_result(make_task, results_repo, step)
+        response = self.patch(client, post_json_admin_header, result.id, {"step": step, "attempts": 3})
         assert response.status_code == 200
-        assert Result.query.get(result.id).state == state
+        assert Result.query.get(result.id).step == step
         assert Result.query.get(result.id).attempts == 3
 
     @pytest.mark.parametrize("current,new", [
@@ -218,21 +231,37 @@ class TestPatchResult:
         ("MERGED", "UNKNOWN"), ("MERGED", "PUSHED"), ("MERGED", "OPENED"), ("MERGED", "CLOSED"),
         ("CLOSED", "UNKNOWN"), ("CLOSED", "PUSHED"), ("CLOSED", "OPENED"), ("CLOSED", "MERGED"),
     ])
-    def test_state_cannot_move_back(self, client, post_json_admin_header, make_task, results_repo, current, new):
+    def test_step_cannot_move_back(self, client, post_json_admin_header, make_task, results_repo, current, new):
         result = make_result(make_task, results_repo, current)
-        response = self.patch(client, post_json_admin_header, result.id, {"state": new, "number": 7})
+        response = self.patch(client, post_json_admin_header, result.id, {"step": new, "number": 7})
         assert response.status_code == 400
-        assert Result.query.get(result.id).state == current
+        assert Result.query.get(result.id).step == current
         assert Result.query.get(result.id).number is None
 
+    @pytest.mark.parametrize("current,new", [
+        ("IN_PROGRESS", "DELIVERED"), ("IN_PROGRESS", "FAILED"), ("FAILED", "IN_PROGRESS"),
+    ])
+    def test_state_changes_and_leaves_the_step(
+        self, client, post_json_admin_header, make_task, results_repo, current, new
+    ):
+        result = make_result(make_task, results_repo, "PUSHED", current)
+        response = self.patch(client, post_json_admin_header, result.id, {"state": new})
+        assert response.status_code == 200
+        assert Result.query.get(result.id).state == new
+        assert Result.query.get(result.id).step == "PUSHED"
+
     def test_not_found(self, client, post_json_admin_header):
-        response = self.patch(client, post_json_admin_header, 9999, {"state": "PUSHED"})
+        response = self.patch(client, post_json_admin_header, 9999, {"step": "PUSHED"})
         assert response.status_code == 404
 
     @pytest.mark.parametrize("body", [
         {},
-        {"state": "pushed"},
-        {"state": "DELIVERED"},
+        {"step": "pushed"},
+        {"step": "DELIVERED"},
+        {"step": None},
+        {"state": "delivered"},
+        {"state": "PUSHED"},
+        {"state": "RETRYING"},
         {"state": None},
         {"status": "PUSHED"},
         {"merge_status": "OPEN"},
@@ -250,7 +279,8 @@ class TestPatchResult:
     def test_invalid_body(self, client, post_json_admin_header, result, body):
         response = self.patch(client, post_json_admin_header, result.id, body)
         assert response.status_code == 400
-        assert Result.query.get(result.id).state == "UNKNOWN"
+        assert Result.query.get(result.id).step == "UNKNOWN"
+        assert Result.query.get(result.id).state == "IN_PROGRESS"
 
 
 class TestResultWritesAuth:
@@ -283,6 +313,6 @@ class TestResultWritesAuth:
         result.add()
         response = client.patch(
             f"/results/{result.id}", headers=post_json_admin_header,
-            data=json.dumps({"state": "PUSHED"})
+            data=json.dumps({"step": "PUSHED"})
         )
         assert response.status_code == 403

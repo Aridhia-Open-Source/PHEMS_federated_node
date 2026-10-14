@@ -4,13 +4,14 @@ import dagster as dg
 import pytest
 
 from app.definitions.sensors.git.pr_ingest import PullRequestIngestSensor
-from app.models import TriggerRepository
+from app.models import Project, TriggerRepository
 from app.tests.conftest import SAMPLE_REPOSITORY_OBJ
 
 
-def repo(id=1, uri="github.com/org/repo", pr_cursor="2026-01-01T00:00:00Z", base_branch="main"):
+def repo(id=1, uri="github.com/org/repo", pr_cursor="2026-01-01T00:00:00Z", base_branch="main", project_id=1):
     return TriggerRepository(
-        **{**SAMPLE_REPOSITORY_OBJ, "id": id, "uri": uri, "pr_cursor": pr_cursor, "base_branch": base_branch}
+        **{**SAMPLE_REPOSITORY_OBJ, "id": id, "uri": uri, "pr_cursor": pr_cursor, "base_branch": base_branch,
+         "project_id": project_id}
     )
 
 
@@ -28,9 +29,12 @@ def fake_git_api(merged_numbers):
     return git_api
 
 
-def run(repos, git_apis_by_repo_id):
+def run(repos, git_apis_by_repo_id, locked=()):
     backend_api = MagicMock()
     backend_api.get_repositories.return_value = repos
+    backend_api.get_projects.return_value = [
+        Project(id=1, name="proj1", locked=1 in locked), Project(id=2, name="proj2", locked=2 in locked)
+    ]
     git_apis = MagicMock()
     git_apis.for_repository.side_effect = lambda r: git_apis_by_repo_id[r.id]
     sensor = PullRequestIngestSensor(context=MagicMock(), backend_api=backend_api, git_apis=git_apis)
@@ -43,6 +47,17 @@ def test_skips_when_there_are_no_repositories():
     assert len(results) == 1 and isinstance(results[0], dg.SkipReason)
     assert "No repositories" in results[0].skip_message
     backend_api.create_pull_requests_batch.assert_not_called()
+
+
+def test_a_locked_project_is_skipped_and_its_cursor_not_polled():
+    apis = {1: fake_git_api([5]), 2: fake_git_api([9])}
+
+    results, backend_api = run([repo(1), repo(2, uri="github.com/org/other", project_id=2)], apis, locked=(1,))
+
+    apis[1].get_new_merged_pulls.assert_not_called()
+    (call,) = backend_api.create_pull_requests_batch.call_args_list
+    assert call.args[0] == 2
+    assert "Saved 1 new pull requests" in results[0].skip_message
 
 
 def test_posts_one_batch_per_repository_with_new_prs():
@@ -103,6 +118,7 @@ def test_a_failing_repository_aborts_the_tick_after_the_earlier_ones_were_saved(
 
     backend_api = MagicMock()
     backend_api.get_repositories.return_value = [repo(1), repo(2), repo(3)]
+    backend_api.get_projects.return_value = [Project(id=1, name="proj1")]
     git_apis = MagicMock()
     git_apis.for_repository.side_effect = lambda r: apis[r.id]
     sensor = PullRequestIngestSensor(context=MagicMock(), backend_api=backend_api, git_apis=git_apis)

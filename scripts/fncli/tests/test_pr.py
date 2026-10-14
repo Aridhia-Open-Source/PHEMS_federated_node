@@ -82,14 +82,15 @@ class FakeBackend:
         self.deliveries = list(deliveries)
 
     def get_task_results(self, task_id):
-        """Each delivery is None (no result yet), a state, or a (state, error) of a failed attempt."""
+        """Each delivery is None (no result yet), a step, or a (step, error) of a failed attempt."""
         delivery = self.deliveries.pop(0) if len(self.deliveries) > 1 else self.deliveries[0]
         if delivery is None:
             return []
-        state, error = delivery if isinstance(delivery, tuple) else (delivery, None)
-        opened = state in ("OPENED", "MERGED", "CLOSED")
+        step, error = delivery if isinstance(delivery, tuple) else (delivery, None)
+        opened = step in ("OPENED", "MERGED", "CLOSED")
+        state = "FAILED" if error else "DELIVERED" if opened else "IN_PROGRESS"
         return [SimpleNamespace(
-            id=1, type="PR", task_id=task_id, state=state, attempts=1, commit_sha="abc", error=error,
+            id=1, type="PR", task_id=task_id, step=step, state=state, attempts=1, commit_sha="abc", error=error,
             number=3 if opened else None,
             url="http://gitea.fn.svc:4000/gitea_admin/results/pulls/3" if opened else None,
         )]

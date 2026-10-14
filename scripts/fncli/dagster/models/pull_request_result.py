@@ -15,6 +15,8 @@ class PullRequestResult(BaseModel):
     results_repository_id: int
     # The furthest delivery step reached: UNKNOWN, PUSHED, OPENED, then MERGED or CLOSED,
     # the last two kept fresh by results_pull_request_sync_sensor.
+    step: str
+    # How the delivery is going: IN_PROGRESS, DELIVERED or FAILED. A failure is final.
     state: str
     attempts: int
     error: str | None = None

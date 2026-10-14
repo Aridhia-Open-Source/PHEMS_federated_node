@@ -100,6 +100,7 @@ class TestPostDataset:
         assert Dataset.query.filter_by(secret_id=Dataset.query.first().secret_id).count() == 2
 
 
+@pytest.mark.usefixtures("lock_project")
 class TestPatchDataset:
     def create(self, client, headers, body):
         return post_dataset(client, headers, body)
@@ -161,6 +162,7 @@ class TestPatchDataset:
         assert "not a valid one" in response.json["error"]
 
 
+@pytest.mark.usefixtures("lock_project")
 class TestDeleteDataset:
     def test_delete_leaves_the_secret_alone(self, client, k8s_client, audited, post_json_admin_header, simple_admin_header, body):
         created = post_dataset(client, post_json_admin_header, body)

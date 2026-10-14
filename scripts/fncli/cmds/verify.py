@@ -29,7 +29,7 @@ RUN_TO_TASK_STATUS = {
     "CANCELED": "CANCELED",
 }
 TASK_JOB = "k8s_pipes_job"
-# The delivery states past PUSHED: its results PR is opened.
+# The delivery steps past PUSHED: its results PR is opened.
 PAST_PUSHED = ["OPENED", "MERGED", "CLOSED"]
 
 
@@ -234,20 +234,20 @@ def verify_delivery(report: Report, backend_api, task_id: int):
     results = report.check(
         f"Task {task_id} has one results delivery: GET /tasks/{task_id}/results",
         lambda: exactly_one(backend_api.get_task_results(task_id)),
-        lambda r: f"{r.state}, attempts {r.attempts}",
+        lambda r: f"{r.step}, {r.state}, attempts {r.attempts}",
     )
     if results is None:
         return
     report.record(
-        results.state in PAST_PUSHED,
+        results.step in PAST_PUSHED,
         "Results PR was opened",
-        f"{results.state}" + (f": {results.error}" if results.error else ""),
+        f"{results.step}, {results.state}" + (f": {results.error}" if results.error else ""),
     )
     report.record(results.commit_sha is not None, "Delivery has a commit_sha", str(results.commit_sha))
     report.record(
         results.number is not None and results.url is not None,
         "Delivery has a results PR",
-        f"#{results.number}, {results.state}",
+        f"#{results.number}, {results.step}",
     )
     if results.url is not None:
         report.link("Results PR", to_host_url(results.url))

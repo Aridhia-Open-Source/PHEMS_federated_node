@@ -17,12 +17,14 @@ from .dtos.base import page_of
 from .dtos.dataset import CatalogueDTO, DatasetDTO, DictionaryDTO
 from .helpers.base_model import db
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
+from .helpers.project_lock import require_drained
 from .helpers.query_validator import validate
 from .helpers.wrappers import audit, auth
 from .models.dataset import Dataset
 from .models.extras.catalogue import Catalogue
 from .models.secret import Secret
 from .models.extras.dictionary import Dictionary
+from .models.project import Project
 
 
 bp = Blueprint('datasets', __name__, url_prefix='/datasets')
@@ -132,6 +134,7 @@ def delete_datasets_by_id_or_name(
     """
     logger.error(f"deleting ({dataset_id or dataset_name})")
     ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
+    require_drained(Project.get_by_id(ds.project_id))
     try:
         ds.delete()
     except Exception as exc:
@@ -155,6 +158,9 @@ def patch_datasets_by_id_or_name(
 
     # Update validation doesn't have required fields
     body = request.json
+    require_drained(Project.get_by_id(ds.project_id))
+    if "project_id" in body:
+        require_drained(Project.get_by_id(body["project_id"]))
     body.pop("id", None)
     cata_body = body.pop("catalogue", {})
     dict_body = body.pop("dictionaries", [])

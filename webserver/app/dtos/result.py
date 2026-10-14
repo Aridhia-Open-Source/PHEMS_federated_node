@@ -16,6 +16,7 @@ class ResultDTO(DTO):
 
 
 class PullRequestResultDTO(ResultDTO):
+    step: str
     state: str
     branch: str | None
     commit_sha: str | None

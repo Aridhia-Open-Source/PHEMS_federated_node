@@ -13,6 +13,7 @@ from flask import Blueprint, request
 from app.dtos.results_repository import ResultsRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
+from app.helpers.project_lock import require_drained
 from app.helpers.repository_loop import check_no_loop
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
@@ -58,6 +59,7 @@ def delete_repository(repo_id):
     DELETE /results_repositories/<id> — delete a single repository
     """
     repo = ResultsRepository.get_by_id(repo_id)
+    require_drained(repo.project)
     repo.delete()
     return '', HTTPStatus.NO_CONTENT
 
@@ -66,15 +68,17 @@ def delete_repository(repo_id):
 @bp.route('', methods=['POST'])
 def post_repository():
     """
-    POST /results_repositories/ — create a new repository. A project has one.
+    POST /results_repositories/ — create a new repository. A project has one, and creating it
+    needs the project locked and drained, as changing it does.
     """
     body = request.json or {}
     for field in ('uri', 'project_id', 'provider', 'secret_label', 'target_dir'):
         if not body.get(field):
             raise InvalidRequest(f"{field} is required")
 
-    # Validate project and secret exist
-    Project.get_by_id(body['project_id'])
+    # Validate project and secret exist. A project has one results repository, so creating it
+    # changes where its in-flight tasks deliver.
+    require_drained(Project.get_by_id(body['project_id']))
     secret = Secret.get_in_project(body['project_id'], body['secret_label'])
 
     if ResultsRepository.query.filter_by(project_id=body['project_id']).first():
@@ -118,8 +122,12 @@ def patch_repository(repo_id):
     if not body:
         raise InvalidRequest("No fields provided to update")
 
+    # Rotating the credentials only is exempt from the lock, the uri is not changed
+    if set(body) != {'secret_label'}:
+        require_drained(repo.project)
+
     if 'project_id' in body:
-        Project.get_by_id(body['project_id'])
+        require_drained(Project.get_by_id(body['project_id']))
         repo.project_id = body['project_id']
 
     if 'target_dir' in body:

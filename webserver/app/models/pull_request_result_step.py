@@ -1,9 +1,9 @@
-"""Pull request result state enum."""
+"""Pull request result step enum."""
 
 from enum import Enum
 
 
-class PullRequestResultState(str, Enum):
+class PullRequestResultStep(str, Enum):
     """
     The furthest step the delivery of a task's results by pull request has reached. It only
     moves forward: UNKNOWN < PUSHED < OPENED < MERGED or CLOSED, the last two terminal and

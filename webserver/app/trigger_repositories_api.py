@@ -22,6 +22,7 @@ from app.dtos.trigger_repository import PullRequestTriggerDTO, TriggerRepository
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.dtos.task_spec import TaskSpec
+from app.helpers.project_lock import require_drained
 from app.helpers.repository_loop import check_no_loop
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
@@ -69,6 +70,7 @@ def delete_repository(repo_id):
     DELETE /trigger_repositories/<id> — delete a single repository
     """
     repo = TriggerRepository.get_by_id(repo_id)
+    require_drained(repo.project)
     repo.delete()
     return '', HTTPStatus.NO_CONTENT
 
@@ -131,8 +133,12 @@ def patch_repository(repo_id):
     if not body:
         raise InvalidRequest("No fields provided to update")
 
+    # Rotating the credentials only is exempt from the lock, the uri is not changed
+    if set(body) != {'secret_label'}:
+        require_drained(repo.project)
+
     if 'project_id' in body:
-        Project.get_by_id(body['project_id'])
+        require_drained(Project.get_by_id(body['project_id']))
         repo.project_id = body['project_id']
 
     if 'base_branch' in body:

@@ -7,8 +7,8 @@ from app.definitions.sensors.git.pr_evaluate import IN_FLIGHT, PullRequestEvalua
 from app.models import Project, TriggerState
 
 
-def project(id, enabled=True):
-    return Project(id=id, name=f"proj{id}", enabled=enabled)
+def project(id, enabled=True, locked=False):
+    return Project(id=id, name=f"proj{id}", enabled=enabled, locked=locked)
 
 
 def repo(id, project_id):
@@ -47,6 +47,14 @@ def test_the_run_key_includes_the_minute():
     result, _, _ = run([project(1)], [repo(10, 1)], unknown={10: ["a"]})
 
     assert re.fullmatch(r"evaluate/10/\d{12}", result[0].run_key)
+
+
+def test_a_locked_project_is_not_evaluated():
+    result, _, _ = run(
+        [project(1, locked=True), project(2)], [repo(10, 1), repo(11, 2)], unknown={10: ["a"], 11: ["b"]}
+    )
+
+    assert [r.tags["repo_id"] for r in result] == ["11"]
 
 
 def test_only_enabled_projects_are_evaluated():

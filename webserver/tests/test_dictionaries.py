@@ -3,6 +3,7 @@ from app.models.extras.dictionary import Dictionary
 from tests.test_datasets import MixinTestDataset
 
 
+@pytest.mark.usefixtures("lock_project")
 class TestDictionaries(MixinTestDataset):
     """
     Collection of tests for dictionaries requests

@@ -14,7 +14,7 @@ IN_FLIGHT = [dg.DagsterRunStatus.NOT_STARTED, dg.DagsterRunStatus.QUEUED, dg.Dag
 
 
 class PullRequestEvaluateSensor(GitSensor):
-    """Launches one evaluation run per trigger repository of an enabled project that has UNKNOWN PRs."""
+    """Launches one evaluation run per trigger repository of an enabled, unlocked project that has UNKNOWN PRs."""
 
     def __call__(self):
         """
@@ -24,7 +24,7 @@ class PullRequestEvaluateSensor(GitSensor):
         tick evaluated twice in the same minute does not double the run. A repository with
         a run still queued or started is skipped.
         """
-        enabled = {p.id for p in self.backend_api.get_projects() if p.enabled}
+        enabled = {p.id for p in self.backend_api.get_projects() if p.enabled and not p.locked}
         launched = 0
         for repo in self.backend_api.get_repositories():
             if repo.project_id not in enabled:

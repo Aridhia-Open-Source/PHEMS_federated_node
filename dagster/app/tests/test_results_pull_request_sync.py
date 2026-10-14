@@ -25,10 +25,11 @@ TASK = Task(
 )
 
 
-def result(id=9, state="OPENED", number=3):
-    opened = state != "PUSHED"
+def result(id=9, step="OPENED", number=3):
+    opened = step != "PUSHED"
     return PullRequestResult(
-        id=id, type="PR", task_id=7, results_repository_id=5, state=state, attempts=1,
+        id=id, type="PR", task_id=7, results_repository_id=5, step=step,
+        state="DELIVERED" if opened else "IN_PROGRESS", attempts=1,
         branch=f"branch-{id}", commit_sha="c", number=number if opened else None,
         url=f"http://g/pulls/{number}" if opened else None,
     )
@@ -49,7 +50,7 @@ def not_found(*args):
 
 def sync(results, prs_by_number=None, prs_by_branch=None):
     backend_api = MagicMock()
-    backend_api.get_results_by_state.return_value = results
+    backend_api.get_results_by_step.return_value = results
     backend_api.get_task.return_value = TASK
     backend_api.get_results_repository.return_value = REPOSITORY
     git_api = MagicMock()
@@ -74,19 +75,19 @@ def test_a_merged_pull_request_is_recorded():
         [result()], {3: lambda: git_pr("closed", "2026-10-08T10:00:00Z", "m1")}
     )
 
-    backend_api.get_results_by_state.assert_called_once_with(["PUSHED", "OPENED"])
+    backend_api.get_results_by_step.assert_called_once_with(["PUSHED", "OPENED"])
     backend_api.get_results_repository.assert_called_once_with(1)
     git_apis.for_repository.assert_called_once_with(REPOSITORY)
     git_api.get_pull_request.assert_called_once_with("fn/results", 3)
     assert patched(backend_api) == {9: {
-        "state": "MERGED", "merged_at": "2026-10-08T10:00:00Z", "merge_commit_sha": "m1",
+        "step": "MERGED", "merged_at": "2026-10-08T10:00:00Z", "merge_commit_sha": "m1",
     }}
 
 
 def test_a_closed_pull_request_is_recorded_without_a_merge_commit():
     backend_api, _, _ = sync([result()], {3: lambda: git_pr("closed")})
 
-    assert patched(backend_api) == {9: {"state": "CLOSED", "merged_at": None, "merge_commit_sha": None}}
+    assert patched(backend_api) == {9: {"step": "CLOSED", "merged_at": None, "merge_commit_sha": None}}
 
 
 def test_a_pull_request_still_open_is_left_alone():
@@ -122,7 +123,8 @@ def test_a_pushed_result_with_a_pull_request_records_it():
     git_api.find_pull_request_by_branch.assert_called_once_with("fn/results", "branch-9", "main")
     git_api.get_pull_request.assert_not_called()
     assert patched(backend_api) == {9: {
-        "number": 5, "url": "http://g/pulls/5", "state": "OPENED", "merged_at": None, "merge_commit_sha": None,
+        "number": 5, "url": "http://g/pulls/5", "state": "DELIVERED", "step": "OPENED", "merged_at": None,
+        "merge_commit_sha": None,
     }}
 
 
@@ -131,7 +133,8 @@ def test_a_pushed_result_whose_pull_request_is_merged_records_the_merge():
         [result(9, "PUSHED")], prs_by_branch={"branch-9": git_pr("closed", "2026-10-08T10:00:00Z", "m1", number=5)}
     )
 
-    assert patched(backend_api)[9]["state"] == "MERGED"
+    assert patched(backend_api)[9]["step"] == "MERGED"
+    assert patched(backend_api)[9]["state"] == "DELIVERED"
     assert patched(backend_api)[9]["merge_commit_sha"] == "m1"
 
 
@@ -141,9 +144,9 @@ def test_a_pushed_result_without_a_pull_request_is_left_alone():
     backend_api.patch_result.assert_not_called()
 
 
-@pytest.mark.parametrize("state", ["UNKNOWN", "MERGED", "CLOSED"])
-def test_results_in_other_states_are_ignored_when_the_backend_does_not_filter(state):
-    backend_api, git_apis, _ = sync([result(8, state), result(10, number=4)], {4: lambda: git_pr("closed", number=4)})
+@pytest.mark.parametrize("step", ["UNKNOWN", "MERGED", "CLOSED"])
+def test_results_at_other_steps_are_ignored_when_the_backend_does_not_filter(step):
+    backend_api, git_apis, _ = sync([result(8, step), result(10, number=4)], {4: lambda: git_pr("closed", number=4)})
 
     assert list(patched(backend_api)) == [10]
     backend_api.get_task.assert_called_once_with(7)
@@ -151,16 +154,16 @@ def test_results_in_other_states_are_ignored_when_the_backend_does_not_filter(st
 
 def run_sensor(results, in_flight=False):
     backend_api = MagicMock()
-    backend_api.get_results_by_state.return_value = results
+    backend_api.get_results_by_step.return_value = results
     context = MagicMock()
     context.resources.backend_api = backend_api
     context.instance.get_runs.return_value = [MagicMock()] if in_flight else []
     return results_pull_request_sync_sensor._raw_fn(context), context
 
 
-@pytest.mark.parametrize("state", ["PUSHED", "OPENED"])
-def test_the_sensor_requests_a_sync_when_results_are_pushed_or_opened(state):
-    request, context = run_sensor([result(state=state)])
+@pytest.mark.parametrize("step", ["PUSHED", "OPENED"])
+def test_the_sensor_requests_a_sync_when_results_are_pushed_or_opened(step):
+    request, context = run_sensor([result(step=step)])
 
     assert isinstance(request, dg.RunRequest)
     assert re.fullmatch(r"sync-results-prs/\d{12}", request.run_key)

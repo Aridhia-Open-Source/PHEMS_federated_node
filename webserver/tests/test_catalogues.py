@@ -3,6 +3,7 @@ from app.models.extras.catalogue import Catalogue
 from tests.test_datasets import MixinTestDataset
 
 
+@pytest.mark.usefixtures("lock_project")
 class TestCatalogues(MixinTestDataset):
     """
     Collection of tests for catalogues requests

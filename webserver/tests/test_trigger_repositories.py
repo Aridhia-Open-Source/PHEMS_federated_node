@@ -196,6 +196,7 @@ class TestPostRepository:
         assert response.status_code == 401
 
 
+@pytest.mark.usefixtures("lock_project")
 class TestPatchRepository:
     def test_update_base_branch(self, client, post_json_admin_header, repository):
         response = client.patch(
@@ -546,6 +547,7 @@ class TestPrCursor:
         assert response.json["pr_cursor"] == "2026-03-05T11:30:00Z"
         assert response.json["pr_count"] == 2
 
+    @pytest.mark.usefixtures("lock_project")
     def test_pr_cursor_falls_back_to_initial_cursor(self, client, post_json_admin_header, simple_admin_header, repository):
         client.patch(
             f"/trigger_repositories/{repository.id}",
@@ -554,6 +556,7 @@ class TestPrCursor:
         response = client.get(f"/trigger_repositories/{repository.id}", headers=simple_admin_header)
         assert response.json["pr_cursor"] == "2026-02-02T02:02:02Z"
 
+    @pytest.mark.usefixtures("lock_project")
     def test_initial_cursor_cannot_change_once_pull_requests_exist(
         self, client, post_json_admin_header, repository
     ):
@@ -568,6 +571,7 @@ class TestPrCursor:
         assert response.status_code == 400
 
 
+@pytest.mark.usefixtures("lock_project")
 class TestRepositoryDelete:
     def test_delete_removes_its_pull_requests(self, client, post_json_admin_header, simple_admin_header, repository):
         client.post(
