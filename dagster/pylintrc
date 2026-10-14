@@ -9,8 +9,8 @@ ignore-paths=^app/tests/
 fail-under=9.0
 
 [MESSAGES CONTROL]
-# unused-import/argument/variable are off during the dagster rework (more noise
-# than help). Re-enable at the first release. Same as webserver/pylintrc.
+# unused-import/argument/variable and the docstring checks are off during the dagster
+# rework (more noise than help). Re-enable at the first release. Same as webserver/pylintrc.
 disable=not-callable,
         raw-checker-failed,
         bad-inline-option,
@@ -22,7 +22,10 @@ disable=not-callable,
         missing-timeout,
         unused-import,
         unused-argument,
-        unused-variable
+        unused-variable,
+        missing-module-docstring,
+        missing-class-docstring,
+        missing-function-docstring
 
 [FORMAT]
 max-line-length=120

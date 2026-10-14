@@ -1,8 +1,8 @@
 from http import HTTPStatus
 from typing import cast
 
-import dagster as dg
 import requests
+import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx
 
 from app.backend import BackendAPI
@@ -44,7 +44,9 @@ def record_outcome(backend_api: BackendAPI, pr: PullRequestTrigger, parsed: Pars
             log.error(f"PR #{pr.number} spec rejected by the backend: {e.response.text}")
             parsed = ParsedPullRequest(outcome=PullRequestOutcome.REJECTED, state_cause=e.response.text)
 
-    backend_api.patch_pull_request(repo_id, pr.number, {"state": parsed.outcome.value, "state_cause": parsed.state_cause})
+    backend_api.patch_pull_request(
+        repo_id, pr.number, {"state": parsed.outcome.value, "state_cause": parsed.state_cause}
+    )
 
 
 @dg.op(

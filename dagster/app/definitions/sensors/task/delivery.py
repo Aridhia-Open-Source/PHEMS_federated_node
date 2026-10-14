@@ -49,7 +49,7 @@ def task_results_delivery_sensor(context: RunStatusSensorContext):
     """
     tags = context.dagster_run.tags
     if tags.get("trigger") != "task":
-        return
+        return None
 
     task_id = tags["task_id"]
     return dg.RunRequest(

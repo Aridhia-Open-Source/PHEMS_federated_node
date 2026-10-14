@@ -39,7 +39,7 @@ class HttpClient:
         if not self.auth_type:
             raise ValueError("Auth type must be specified for setup")
 
-        if not self.auth_type.lower() in self.SUPPORTED_AUTH_TYPES:
+        if self.auth_type.lower() not in self.SUPPORTED_AUTH_TYPES:
             raise ValueError(f"Unsupported auth type: {self.auth_type}")
 
         if self.auth_type.lower() == "bearer":

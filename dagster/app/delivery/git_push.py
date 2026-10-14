@@ -41,6 +41,7 @@ def git(args: list[str], cwd: str | Path | None = None, env: dict[str, str] | No
         env={**os.environ, **(env or {})},
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode:
         raise RuntimeError(f"git {args[0]} failed: {result.stderr.strip()}")

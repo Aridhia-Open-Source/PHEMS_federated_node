@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from http import HTTPStatus
 from typing import cast
 
-import dagster as dg
 import requests
+import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, SensorEvaluationContext
 
 from app.backend import BackendAPI
