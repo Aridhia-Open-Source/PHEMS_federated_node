@@ -217,7 +217,7 @@ class BackendAPI:
         try:
             response = self.session.get(f"/datasets/{name}")
             return Dataset(**response.json())
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught  # deliberate: any failure means "no dataset"
             self.logger.warning(f"Failed to fetch dataset {name}: {e}")
             return None
 

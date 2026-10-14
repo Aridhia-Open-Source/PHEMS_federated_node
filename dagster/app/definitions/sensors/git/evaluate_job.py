@@ -68,4 +68,6 @@ def evaluate_pull_request(context: OpExecCtx, pr: PullRequestTrigger):
 @dg.job(executor_def=dg.multiprocess_executor.configured({"max_concurrent": MAX_CONCURRENT_EVALUATIONS}))
 def evaluate_repository_pull_requests_job():
     """Evaluate the UNKNOWN pull requests of one repository (run config: repo_id)."""
+    # pylint: disable=no-member,no-value-for-parameter  # DynamicOutput .map; Dagster injects context
     load_unknown_pull_requests().map(evaluate_pull_request)
+    # pylint: enable=no-member,no-value-for-parameter

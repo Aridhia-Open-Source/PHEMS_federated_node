@@ -75,7 +75,7 @@ def sync_results_pull_requests(context: OpExecCtx):
 @dg.job
 def sync_results_pull_requests_job():
     """Record the state of the pushed and opened results pull requests."""
-    sync_results_pull_requests()
+    sync_results_pull_requests()  # pylint: disable=no-value-for-parameter  # Dagster injects context
 
 
 @dg.sensor(
