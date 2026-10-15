@@ -19,14 +19,14 @@ class BaseModel:
     WIRE_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
     @classmethod
-    def _query(cls) -> QueryPagination:
+    def _query(cls, **filters) -> QueryPagination:
         try:
             page = int(request.values.get("page", '1'))
             per_page = int(request.values.get("per_page", '25'))
         except ValueError as ve:
             raise InvalidRequest("page and per_page parameters should be integers") from ve
 
-        return cls.query.paginate(page=page, per_page=per_page)
+        return cls.query.filter_by(**filters).paginate(page=page, per_page=per_page)
 
     def add(self, commit=True):
         db.session.add(self)
@@ -41,8 +41,8 @@ class BaseModel:
             db.session.commit()
 
     @classmethod
-    def get_all(cls) -> QueryPagination:
-        return cls._query()
+    def get_all(cls, **filters) -> QueryPagination:
+        return cls._query(**filters)
 
     @classmethod
     def _get_fields(cls) -> list[Column]:

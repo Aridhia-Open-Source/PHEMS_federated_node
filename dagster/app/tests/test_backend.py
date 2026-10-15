@@ -144,6 +144,7 @@ class TestPullRequests:
         prs = api.create_pull_requests_batch(1, [SAMPLE_PR])
 
         assert session.post.call_args.args[0] == "/trigger_repositories/1/pull_requests/batch"
+        assert session.post.call_args.kwargs["json"] == {"pull_requests": [SAMPLE_PR]}
         assert len(prs) == 1
 
     def test_patch_pull_request(self, api, session):

@@ -51,9 +51,12 @@ def auth_before():
 def get_repositories():
     """
     GET /trigger_repositories/ — list all repositories with their polling state,
-    optionally only those of enabled projects (?project_enabled=true)
+    optionally only those of enabled projects (?project_enabled=true) or of one project (?project_id=<id>)
     """
     query = TriggerRepository.query
+    project_id = arg_get('project_id', type=int)
+    if project_id is not None:
+        query = query.filter(TriggerRepository.project_id == project_id)
     if request.args.get('project_enabled', '').lower() == 'true':
         query = query.join(Project, TriggerRepository.project_id == Project.id).filter(Project.enabled.is_(True))
     return [TriggerRepositoryDTO.from_model(r).dump() for r in query.all()], HTTPStatus.OK
@@ -216,14 +219,14 @@ def post_pull_request():
 def post_pull_requests_batch(repo_id):
     """
     POST /trigger_repositories/<repo_id>/pull_requests/batch — create multiple pull requests for a repo
-    Body: list of PR objects (up to 100)
+    Body: {"pull_requests": [PR objects, up to 100]}
     """
     repo = TriggerRepository.get_by_id(repo_id)  # Verify repo exists
 
-    body = request.json or []
+    body = (request.json or {}).get('pull_requests')
 
     if not isinstance(body, list):
-        raise InvalidRequest("Body must be a list of pull requests")
+        raise InvalidRequest("pull_requests must be a list of pull requests")
 
     if len(body) > 100:
         raise InvalidRequest("Maximum 100 pull requests per batch")

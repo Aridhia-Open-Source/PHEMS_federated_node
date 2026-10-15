@@ -125,7 +125,9 @@ class BackendAPI:
             raise ValueError("Maximum 100 pull requests per batch")
 
         self.logger.info(f"Creating batch of {len(pull_requests)} pull requests for repo {repo_id}")
-        response = self.session.post(f"/trigger_repositories/{repo_id}/pull_requests/batch", json=pull_requests)
+        response = self.session.post(
+            f"/trigger_repositories/{repo_id}/pull_requests/batch", json={"pull_requests": pull_requests}
+        )
         return [PullRequestTrigger(**pr) for pr in response.json()]
 
     def patch_pull_request(

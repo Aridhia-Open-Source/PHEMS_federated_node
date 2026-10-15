@@ -61,6 +61,36 @@ class TestGetRepositories:
         response = client.get(url, headers=simple_admin_header)
         assert [r["id"] for r in response.json] == [repository.id]
 
+    def test_list_filtered_by_project(self, client, simple_admin_header, repository, other_project):
+        other_secret = Secret(project_id=other_project.id, label="other-creds", provider=SecretProviderType.K8S)
+        other_secret.add()
+        other_repository = TriggerRepository(
+            uri="github.com/org/other", provider="github", api_uri="https://api.github.com",
+            secret_id=other_secret.id, watch_dir="", project_id=other_project.id
+        )
+        other_repository.add()
+
+        response = client.get(f"/trigger_repositories/?project_id={repository.project_id}", headers=simple_admin_header)
+        assert [r["id"] for r in response.json] == [repository.id]
+
+        response = client.get(f"/trigger_repositories/?project_id={other_project.id}", headers=simple_admin_header)
+        assert [r["id"] for r in response.json] == [other_repository.id]
+
+    def test_list_filtered_by_project_and_enabled(self, client, simple_admin_header, repository):
+        url = f"/trigger_repositories/?project_enabled=true&project_id={repository.project_id}"
+        assert client.get(url, headers=simple_admin_header).json == []
+
+        project = Project.query.get(repository.project_id)
+        project.enabled = True
+        db.session.commit()
+
+        assert [r["id"] for r in client.get(url, headers=simple_admin_header).json] == [repository.id]
+
+    def test_list_invalid_project_id(self, client, simple_admin_header, repository):
+        response = client.get("/trigger_repositories/?project_id=abc", headers=simple_admin_header)
+        assert response.status_code == 400
+        assert "project_id" in response.json["error"]
+
     def test_get_by_id(self, client, simple_admin_header, repository):
         response = client.get(f"/trigger_repositories/{repository.id}", headers=simple_admin_header)
         assert response.status_code == 200
@@ -408,7 +438,7 @@ class TestPostPullRequestsBatch:
         ]
         response = client.post(
             f"/trigger_repositories/{repository.id}/pull_requests/batch",
-            data=json.dumps(batch_data),
+            data=json.dumps({"pull_requests": batch_data}),
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -420,7 +450,7 @@ class TestPostPullRequestsBatch:
         """Test creating with empty list returns empty list"""
         response = client.post(
             f"/trigger_repositories/{repository.id}/pull_requests/batch",
-            data=json.dumps([]),
+            data=json.dumps({"pull_requests": []}),
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -441,7 +471,7 @@ class TestPostPullRequestsBatch:
         ]
         response = client.post(
             f"/trigger_repositories/{repository.id}/pull_requests/batch",
-            data=json.dumps(batch_data),
+            data=json.dumps({"pull_requests": batch_data}),
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -459,7 +489,7 @@ class TestPostPullRequestsBatch:
         ]
         response = client.post(
             f"/trigger_repositories/{repository.id}/pull_requests/batch",
-            data=json.dumps(batch_data),
+            data=json.dumps({"pull_requests": batch_data}),
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -479,7 +509,7 @@ class TestPostPullRequestsBatch:
         ]
         response = client.post(
             f"/trigger_repositories/{repository.id}/pull_requests/batch",
-            data=json.dumps(batch_data),
+            data=json.dumps({"pull_requests": batch_data}),
             headers=post_json_admin_header
         )
         # The batch PR endpoint should not error, dataset_id just gets ignored
@@ -503,16 +533,16 @@ class TestPostPullRequestsBatch:
         ]
         response = client.post(
             "/trigger_repositories/9999/pull_requests/batch",
-            data=json.dumps(batch_data),
+            data=json.dumps({"pull_requests": batch_data}),
             headers=post_json_admin_header
         )
         assert response.status_code == 404
 
-    def test_batch_body_not_list(self, client, post_json_admin_header, repository):
-        """Test that batch PR creation fails if body is not a list"""
+    def test_batch_pull_requests_not_list(self, client, post_json_admin_header, repository):
+        """Test that batch PR creation fails if pull_requests is not a list"""
         response = client.post(
             f"/trigger_repositories/{repository.id}/pull_requests/batch",
-            data=json.dumps({"number": 1, "title": "PR"}),
+            data=json.dumps({"pull_requests": {"number": 1, "title": "PR"}}),
             headers=post_json_admin_header
         )
         assert response.status_code == 400
@@ -530,7 +560,7 @@ class TestPullRequestBatchBehaviour:
     def post(self, client, headers, repository, body):
         return client.post(
             f"/trigger_repositories/{repository.id}/pull_requests/batch",
-            data=json.dumps(body), headers=headers
+            data=json.dumps({"pull_requests": body}), headers=headers
         )
 
     def test_new_pull_requests_are_unknown(self, client, post_json_admin_header, repository):
@@ -587,7 +617,7 @@ class TestPrCursor:
     def test_pr_cursor_is_the_latest_merge_time(self, client, post_json_admin_header, simple_admin_header, repository):
         client.post(
             f"/trigger_repositories/{repository.id}/pull_requests/batch",
-            data=json.dumps([pr_body(1, "2026-01-01T10:00:00Z"), pr_body(2, "2026-03-05T11:30:00Z")]),
+            data=json.dumps({"pull_requests": [pr_body(1, "2026-01-01T10:00:00Z"), pr_body(2, "2026-03-05T11:30:00Z")]}),
             headers=post_json_admin_header
         )
         response = client.get(f"/trigger_repositories/{repository.id}", headers=simple_admin_header)
@@ -607,7 +637,7 @@ class TestPrCursor:
     ):
         client.post(
             f"/trigger_repositories/{repository.id}/pull_requests/batch",
-            data=json.dumps([pr_body()]), headers=post_json_admin_header
+            data=json.dumps({"pull_requests": [pr_body()]}), headers=post_json_admin_header
         )
         response = client.patch(
             f"/trigger_repositories/{repository.id}",
@@ -620,7 +650,7 @@ class TestRepositoryDelete:
     def test_delete_removes_its_pull_requests(self, client, post_json_admin_header, simple_admin_header, repository):
         client.post(
             f"/trigger_repositories/{repository.id}/pull_requests/batch",
-            data=json.dumps([pr_body()]), headers=post_json_admin_header
+            data=json.dumps({"pull_requests": [pr_body()]}), headers=post_json_admin_header
         )
         response = client.delete(f"/trigger_repositories/{repository.id}", headers=simple_admin_header)
         assert response.status_code == 204
@@ -682,14 +712,14 @@ class TestTriggerRepositoryDTO:
 def pull_request(client, post_json_admin_header, repository):
     response = client.post(
         f"/trigger_repositories/{repository.id}/pull_requests/batch",
-        data=json.dumps([{
+        data=json.dumps({"pull_requests": [{
             "number": 1,
             "title": "A PR",
             "raised_by": "user1",
             "merged_at": "2026-01-01T10:00:00Z",
             "merge_commit_sha": "a" * 40,
             "payload": {"image": "example:latest"},
-        }]),
+        }]}),
         headers=post_json_admin_header
     )
     assert response.status_code == 201
