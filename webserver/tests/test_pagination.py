@@ -21,6 +21,7 @@ class TestPagination:
         Dataset(
             name="testnew",
             host="host.url",
+            port=5432,
             secret_id=dataset.secret_id,
             project_id=project.id
         ).add(user_id=user_uuid)

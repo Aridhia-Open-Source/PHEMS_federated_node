@@ -239,7 +239,7 @@ def secret(client, project) -> Secret:
 @fixture
 def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> TriggerRepository:
     # Create a dataset first (required for TriggerRepository)
-    dataset = Dataset(name="DefaultDatasetForRepo", host="example.com", secret_id=secret.id, project_id=project.id)
+    dataset = Dataset(name="DefaultDatasetForRepo", host="example.com", port=5432, secret_id=secret.id, project_id=project.id)
     dataset.add(user_id=user_uuid)
 
     repo = TriggerRepository(
@@ -260,7 +260,7 @@ def dataset_post_body(default_repo, project):
 
 @fixture
 def dataset(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> Dataset:
-    dataset = Dataset(name="TestDs", host="example.com", secret_id=secret.id, project_id=project.id)
+    dataset = Dataset(name="TestDs", host="example.com", port=5432, secret_id=secret.id, project_id=project.id)
     dataset.add(user_id=user_uuid)
     return dataset
 
@@ -269,7 +269,7 @@ def dataset(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> D
 def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> Dataset:
     from app.models.trigger_repository import TriggerRepository
     # Create dataset first
-    dataset = Dataset(name="TestDsRepo", host="example.com", secret_id=secret.id, project_id=project.id)
+    dataset = Dataset(name="TestDsRepo", host="example.com", port=5432, secret_id=secret.id, project_id=project.id)
     dataset.add(user_id=user_uuid)
 
     # Then create repository with the dataset_id
@@ -285,7 +285,7 @@ def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, se
 @fixture
 def dataset_oracle(mocker, client, user_uuid, k8s_client, project, secret)  -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
-    dataset = Dataset(name="AnotherDS", host="example.com", secret_id=secret.id, type="oracle", project_id=project.id)
+    dataset = Dataset(name="AnotherDS", host="example.com", port=5432, secret_id=secret.id, type="oracle", project_id=project.id)
     dataset.add(user_id=user_uuid)
     return dataset
 

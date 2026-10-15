@@ -3120,6 +3120,7 @@
           "name",
           "secret_label",
           "host",
+          "port",
           "project_id"
         ]
       },

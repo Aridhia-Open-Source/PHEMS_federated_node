@@ -152,7 +152,7 @@ class TestProjectDefaultDataset:
         ):
         from app.models.dataset import Dataset
         second = Dataset(
-            name="SecondDs", host="example.com", secret_id=dataset.secret_id,
+            name="SecondDs", host="example.com", port=5432, secret_id=dataset.secret_id,
             project_id=project.id
         )
         second.add(user_id=user_uuid)
@@ -171,7 +171,7 @@ class TestProjectDefaultDataset:
         from app.models.dataset import Dataset
         dataset.delete()
         replacement = Dataset(
-            name="Reseeded", host="example.com", secret_id=secret.id,
+            name="Reseeded", host="example.com", port=5432, secret_id=secret.id,
             project_id=project.id
         )
         replacement.add(user_id=user_uuid)

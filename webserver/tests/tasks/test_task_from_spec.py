@@ -36,7 +36,7 @@ def pull_request(client, project, dataset, default_repo):
 
 @pytest.fixture
 def second_dataset(client, user_uuid, project, secret):
-    ds = Dataset(name="SecondDs", host="example.com", secret_id=secret.id, project_id=project.id)
+    ds = Dataset(name="SecondDs", host="example.com", port=5432, secret_id=secret.id, project_id=project.id)
     ds.add(user_id=user_uuid)
     return ds
 
@@ -45,7 +45,7 @@ def second_dataset(client, user_uuid, project, secret):
 def other_project_dataset(client, user_uuid, other_project):
     secret = Secret(project_id=other_project.id, label="test-creds", provider=SecretProviderType.K8S)
     secret.add()
-    ds = Dataset(name="OtherDs", host="example.com", secret_id=secret.id, project_id=other_project.id)
+    ds = Dataset(name="OtherDs", host="example.com", port=5432, secret_id=secret.id, project_id=other_project.id)
     ds.add(user_id=user_uuid)
     return ds
 
