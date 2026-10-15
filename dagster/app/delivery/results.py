@@ -41,9 +41,10 @@ class ResultsDelivery:
         self.config = config
         self.log = log
 
-    def __call__(self, task_id: int) -> None:
+    def __call__(self, task_id: int, run_id: str) -> None:
         """
-        Deliver the results of a task: record PUSHED once the branch is pushed, then OPENED
+        Deliver the results of a task run, whose artifacts are in a folder named after run_id,
+        which the sensor read from the finished run: record PUSHED once the branch is pushed, then OPENED
         once its pull request is opened. A result past PUSHED is left alone, and one in
         UNKNOWN or PUSHED resumes: a branch already on the remote is not pushed again, and
         its pull request is looked up before one is opened.
@@ -61,7 +62,7 @@ class ResultsDelivery:
         try:
             trigger_repository, pull_request = self._find_pull_request(task)
             title = f"{trigger_repository.repo_path} PR{pull_request.number} - task {task.id} - results"
-            branch, commit_sha, base_branch = self._push(task, repository, trigger_repository, pull_request, title)
+            branch, commit_sha, base_branch = self._push(task, run_id, repository, trigger_repository, pull_request, title)
             pushed = {"branch": branch, "commit_sha": commit_sha}
             self.backend_api.patch_result(result.id, {"state": PullRequestResultState.PUSHED.value, **pushed})
             results_pr = self._open_pull_request(repository, branch, base_branch, title, pull_request)
@@ -89,6 +90,7 @@ class ResultsDelivery:
     def _push(
         self,
         task: Task,
+        run_id: str,
         repository: ResultsRepository,
         trigger_repository: TriggerRepository,
         pull_request: PullRequestTrigger,
@@ -118,7 +120,7 @@ class ResultsDelivery:
                 self.log.info(f"Branch {branch} is already pushed at {commit_sha}")
                 return branch, commit_sha, base_branch
 
-            artifacts = Path(self.config.artifact_mount_path) / task.dagster_run_id
+            artifacts = Path(self.config.artifact_mount_path) / run_id
             if not artifacts.is_dir():
                 raise FileNotFoundError(f"No artifacts at {artifacts}")
 
@@ -139,7 +141,7 @@ class ResultsDelivery:
                 "branch": branch,
                 "merge_commit_sha": pull_request.merge_commit_sha,
                 "task_id": task.id,
-                "dagster_run_id": task.dagster_run_id,
+                "dagster_run_id": run_id,
                 "trigger_repository_uri": trigger_repository.uri,
                 "number": pull_request.number,
                 "delivered_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
