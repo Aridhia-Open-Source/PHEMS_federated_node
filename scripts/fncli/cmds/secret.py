@@ -1,6 +1,6 @@
 """
 Commands for the secrets that hold credentials: a Gitea token for each repo and dummy
-database credentials for the dataset.
+database credentials for the dataset (dummies unless DATASET_USERNAME and DATASET_PASSWORD are set).
 """
 
 import logging
@@ -24,8 +24,6 @@ from fncli.dagster.models import Project
 
 logger = logging.getLogger("secret")
 
-# The dataset is a stand-in: nothing connects to it, so its credentials are dummies.
-DATASET_DUMMY_CREDENTIALS = {"USERNAME": "dummy", "PASSWORD": "dummy"}
 # What a git secret holds until init-git-secret writes a real token into it.
 GIT_PLACEHOLDER = {"TOKEN": "unset"}
 
@@ -66,10 +64,13 @@ def verify_gitea_accepts_bearer_token(config: RepoConfig, token: str, gitea_repo
     )
 
 
+def dataset_credentials(config: DatasetConfig) -> dict:
+    return {"USERNAME": config.dataset_username, "PASSWORD": config.dataset_password}
+
+
 def init_dataset_secret(config: DatasetConfig, backend_api: BackendAPI, project: Project) -> dict:
-    """The dataset is a stand-in, so its credentials are dummies."""
     secret = backend_api.upsert_secret(
-        project.id, config.secret_label, DATASET_DUMMY_CREDENTIALS
+        project.id, config.secret_label, dataset_credentials(config)
     )
     logger.info(f"Secret {config.secret_label} of project {project.id} is {secret['key']}")
     return secret
@@ -93,7 +94,7 @@ def init_git_secret_command(entity, from_backend, project):
 
 @click.command("init-dataset-secret")
 def init_dataset_secret_command():
-    """Store dummy database credentials in the K8s secret of the dataset."""
+    """Store the database credentials in the K8s secret of the dataset."""
     config = DatasetConfig()
     backend_api = build_backend_api(config)
     project = init_backend_project(config, backend_api)
@@ -106,7 +107,7 @@ def init_backend_secret(config: RepoConfig | DatasetConfig, backend_api: Backend
     if any(secret["label"] == label for secret in backend_api.get_secrets(project.id)):
         logger.info(f"Secret {label} of project {project.id} already exists")
         return
-    values = DATASET_DUMMY_CREDENTIALS if isinstance(config, DatasetConfig) else GIT_PLACEHOLDER
+    values = dataset_credentials(config) if isinstance(config, DatasetConfig) else GIT_PLACEHOLDER
     secret = backend_api.upsert_secret(project.id, label, values)
     logger.info(f"Secret {label} of project {project.id} is {secret['key']}, with placeholder values")
 

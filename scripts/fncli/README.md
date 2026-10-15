@@ -86,11 +86,11 @@ fncli teardown-gitea -y [--project NAME]
 fncli teardown-backend -y
 ```
 
-- `setup-project`: builds the dev project. Side effects: creates two Gitea repos (trigger and results), a Gitea token for each (`fn-sensor`, `fn-results`), the K8s secrets holding them and the dataset's dummy credentials (via the backend), and the backend project, repository and dataset records.
+- `setup-project`: builds the dev project. Side effects: creates two Gitea repos (trigger and results), a Gitea token for each (`fn-sensor`, `fn-results`), the K8s secrets holding them and the dataset's credentials (via the backend; dummies unless the `DATASET_*` env vars are set, see below), and the backend project, repository and dataset records.
 - `open-pr`: opens a PR in the trigger repo for the sensor to find. Side effects: a new branch, one new file and a PR in Gitea; with `--merge` the PR is merged, which is what the sensor picks up.
 - `teardown-project -y`: deletes the lot, side effects included: the backend records, the secrets (backend and K8s), the Gitea tokens and both Gitea repos with all their PRs. `-y` skips the prompt.
 
-- `setup-backend`: the backend only, no Gitea call. Side effects: the backend project, the three secrets (K8s, holding placeholders: git secrets `{"TOKEN": "unset"}`, the dataset's dummy credentials) and the trigger repository (watching `main`), results repository and dataset records.
+- `setup-backend`: the backend only, no Gitea call. Side effects: the backend project, the three secrets (K8s, holding placeholders: git secrets `{"TOKEN": "unset"}`, the dataset's credentials) and the trigger repository (watching `main`), results repository and dataset records.
 - `setup-gitea`: the Gitea side of an existing backend project, which is the reference (not the `TEST_*_REPO` env vars). Side effects: creates the Gitea repos its trigger and results repository records name, issues a Gitea token for each (`fn-sensor`, `fn-results`), writes it into that record's existing secret and checks Gitea accepts it.
 - `teardown-gitea -y`: deletes the Gitea tokens and repos (with all their PRs) named by the project's backend records. The backend is left alone.
 - `teardown-backend -y`: deletes the backend records, the secrets (backend and K8s) and the project. Gitea is left alone.
@@ -140,7 +140,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 |---|---|
 | `init-git-secret [--entity]` | Stores a fresh Gitea token in the repo's K8s secret (`read:repository` for trigger, `write:repository` for results) |
 | `init-backend-secret [--entity trigger\|results\|dataset]` | Creates the secret in the backend with placeholder values (`{"TOKEN": "unset"}`, or the dataset's dummies), with no Gitea call. An existing secret is left alone, so a real token is never overwritten |
-| `init-dataset-secret` | Stores dummy `USERNAME` and `PASSWORD` in the dataset's secret (`<project>-dataset-creds`) |
+| `init-dataset-secret` | Stores `USERNAME` and `PASSWORD` (`DATASET_USERNAME`, `DATASET_PASSWORD`, default `dummy`) in the dataset's secret (`<project>-dataset-creds`) |
 | `verify-git-secret [--entity]` | Checks Gitea accepts the token currently stored in the repo's secret |
 | `delete-secret [--entity trigger\|results\|dataset]` | Deletes the secret from the backend and K8s. Refused while a repo or dataset uses it |
 | `delete-gitea-token [--entity]` | Deletes the Gitea token `init-git-secret` created for the repo |
@@ -149,7 +149,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 
 | Command | What it does |
 |---|---|
-| `init-backend-dataset` | Registers the dummy dataset (needs the dataset secret) |
+| `init-backend-dataset` | Registers the dataset (needs the dataset secret) |
 | `delete-backend-dataset` | Deletes the dataset record from the backend |
 
 **Pull request** (`cmds/pr.py`; the file name, branch and title carry a timestamp, so it can be re-run)
@@ -195,7 +195,11 @@ all documented in `.dev.env.example`: the existing ones, plus `TEST_RESULTS_REPO
 `TEST_RESULTS_REPO_URI`, `TEST_RESULTS_TARGET_DIR`, `GITEA_RESULTS_TOKEN_NAME` (must differ
 from `GITEA_TOKEN_NAME`), `DEFAULT_PROJECT_DATASET` and `TEST_PR_IMAGE`.
 
-`dev.db/backend_seed.py` is stale and destructive. It is not part of fncli: do not use it.
+The dataset defaults to a dummy stand-in. These env vars point it at a real database (all optional, defaults in brackets): `CLUSTER_DATASET_HOST` (`db-datasets.fn.svc`), `DATASET_PORT` (`5432`), `DATASET_TYPE` (`postgres`), `DATASET_SCHEMA` (`cdm`, the read schema), `DATASET_SCHEMA_WRITE` (`results`), `DATASET_USERNAME` and `DATASET_PASSWORD` (`dummy`, stored in the dataset's secret). They are the names `dev.db/.env` uses.
+
+## UC1 seed
+
+`make uc1-seed` (`dev.db/uc1_make_seed.sh`) loads the UC1 OMOP data into the dataset database, then runs `fncli setup-project` with the `DATASET_*` values from `dev.db/.env` and `DEFAULT_PROJECT_DATASET` set to the database name. It needs `fncli` on PATH and `.dev.env` at the repo root. It only touches the project `TEST_PROJECT_NAME` names, so it is safe to re-run and never deletes other datasets or repositories. To remove what it registered, use `fncli teardown-project`.
 
 ## Maintenance
 

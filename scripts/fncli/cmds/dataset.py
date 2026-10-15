@@ -1,6 +1,7 @@
 """
-Commands for the dataset record in the backend. The dataset is a stand-in: nothing connects
-to it, so its details are dummies. It needs its secret first, see init-dataset-secret.
+Commands for the dataset record in the backend. Its details come from the env (DATASET_*,
+CLUSTER_DATASET_HOST), defaulting to a dummy stand-in that nothing connects to. It needs its
+secret first, see init-dataset-secret.
 """
 
 import logging
@@ -14,12 +15,6 @@ from fncli.dagster.models import Dataset, Project
 
 logger = logging.getLogger("dataset")
 
-DATASET_HOST = "db-datasets.fn.svc"
-DATASET_PORT = 5432
-DATASET_TYPE = "postgres"
-DATASET_READ_SCHEMA = "cdm"
-DATASET_WRITE_SCHEMA = "results"
-
 
 def init_backend_dataset(
     config: DatasetConfig, backend_api: BackendAPI, project: Project
@@ -27,12 +22,12 @@ def init_backend_dataset(
     dataset = backend_api.get_or_create_dataset(
         config.dataset_name,
         project.id,
-        host=DATASET_HOST,
-        port=DATASET_PORT,
-        db_type=DATASET_TYPE,
+        host=config.dataset_host,
+        port=config.dataset_port,
+        db_type=config.dataset_type,
         secret_label=config.secret_label,
-        read_schema=DATASET_READ_SCHEMA,
-        write_schema=DATASET_WRITE_SCHEMA,
+        read_schema=config.dataset_read_schema,
+        write_schema=config.dataset_write_schema,
     )
     logger.info(
         f"Backend dataset {dataset.id}: {dataset.name} ({dataset.type} at "
@@ -44,7 +39,7 @@ def init_backend_dataset(
 
 @click.command("init-backend-dataset")
 def init_backend_dataset_command():
-    """Register the dummy dataset with the backend (needs its secret, see init-dataset-secret)."""
+    """Register the dataset with the backend (needs its secret, see init-dataset-secret)."""
     config = DatasetConfig()
     backend_api = build_backend_api(config)
     project = init_backend_project(config, backend_api)
