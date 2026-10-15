@@ -32,7 +32,7 @@ class TaskLauncherSensor(BaseSensor):
             yield dg.SkipReason("No pending tasks found.")
 
     def _launch(self, project: Project, task: Task) -> dg.RunRequest:
-        dataset = self.backend_api.get_dataset(task.dataset_id)
+        dataset = self.backend_api.get_dataset(task.spec.dataset_id) if task.spec.dataset_id else None
         return dg.RunRequest(
             run_key=f"task/{task.id}/{task.attempt}",
             tags={

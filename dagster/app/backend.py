@@ -103,7 +103,6 @@ class BackendAPI:
         raised_by: str,
         merged_at: str,
         merge_commit_sha: str,
-        payload: dict,
     ) -> PullRequestTrigger:
         """Create a pull request"""
         self.logger.info(f"Creating PR #{number} in repo {trigger_repository_id}")
@@ -114,7 +113,6 @@ class BackendAPI:
             "raised_by": raised_by,
             "merged_at": merged_at,
             "merge_commit_sha": merge_commit_sha,
-            "payload": payload,
         }
         response = self.session.post("/trigger_repositories/pull_requests", json=data)
         return PullRequestTrigger(**response.json())
@@ -144,15 +142,16 @@ class BackendAPI:
         )
         return PullRequestTrigger(**response.json())
 
-    def create_task_for_pull_request(self, repo_id: int, number: int, payload: dict) -> tuple[Task, bool]:
+    def create_task_for_pull_request(self, repo_id: int, number: int, spec_raw: str) -> tuple[Task, bool]:
         """
-        Validate the spec of a pull request and create its task, marking the PR YIELDED.
+        Send the spec file of a pull request: the backend keeps it, validates it and creates
+        the task, marking the PR YIELDED, or rejects the PR.
         Returns the task and whether it was created (False: the PR already had one).
         """
         self.logger.info(f"Creating task for PR #{number} in repo {repo_id}")
         response = self.session.post(
             f"/trigger_repositories/{repo_id}/pull_requests/{number}/task",
-            json={"payload": payload},
+            json={"spec_raw": spec_raw},
         )
         return Task(**response.json()), response.status_code == HTTPStatus.CREATED
 

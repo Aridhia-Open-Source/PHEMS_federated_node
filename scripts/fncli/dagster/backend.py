@@ -85,7 +85,6 @@ class BackendAPI:
         raised_by: str,
         merged_at: str,
         merge_commit_sha: str,
-        payload: dict,
     ) -> PullRequestTrigger:
         """Create a pull request"""
         self.logger.info(f"Creating PR #{number} in repo {trigger_repository_id}")
@@ -96,7 +95,6 @@ class BackendAPI:
             "raised_by": raised_by,
             "merged_at": merged_at,
             "merge_commit_sha": merge_commit_sha,
-            "payload": payload,
         }
         response = self.session.post("/trigger_repositories/pull_requests", json=data)
         return PullRequestTrigger(**response.json())

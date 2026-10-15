@@ -13,7 +13,6 @@ tasks-related endpoints:
 - POST /tasks/id/results/block
 - GET /tasks/id/logs
 """
-from copy import deepcopy
 from datetime import datetime as dt
 from http import HTTPStatus
 
@@ -27,7 +26,7 @@ from app.helpers.exceptions import (
 )
 from app.helpers.keycloak import Keycloak
 from app.helpers.query_filters import arg_get
-from app.dtos.task_spec import TaskSpec
+from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.wrappers import audit, auth
 from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.result import dump_result
@@ -222,8 +221,8 @@ def post_tasks():
     """
     POST /tasks/ endpoint. Creates a new task from API request
     """
+    raw_body = request.get_data(as_text=True)
     req_body = request.json or {}
-    raw_body = deepcopy(req_body)
     project_name = request.headers.get("project-name")
     req_body["project_name"] = project_name
 
@@ -237,18 +236,20 @@ def post_tasks():
         return {"error": f"Project '{project_name}' not found"}, HTTPStatus.NOT_FOUND
 
     # The request is recorded before it is evaluated. A rejected one is kept, with
-    # the reason: no task is created from it, so nothing can launch.
-    api_request = ApiRequestTrigger(project_id=project.id, user_id=user_id, payload=raw_body)
-    api_request.add()
+    # the reason and the raw body: no task is created from it, so nothing can launch.
+    api_request = ApiRequestTrigger(project_id=project.id, user_id=user_id)
+    api_request.add(commit=False)
 
     session = db.session
     try:
+        api_request.set_spec_raw(raw_body)
+        session.commit()
         # Validate the task spec, and normalise it. The dataset it was validated
-        # against is the one the task runs on.
-        spec = TaskSpec.from_api_body(req_body)
+        # against, if any, is the one the task runs on.
+        spec = TaskSpecRequest.from_api_body(req_body)
         req_body["docker_image"] = spec.image
         validated = Task.validate(req_body)
-        spec.dataset = validated["dataset"].name
+        spec.dataset = validated["dataset"].name if validated["dataset"] else None
         new_task = NewTaskDTO.from_spec(spec, api_request)
     except VALIDATION_ERRORS as error:
         api_request.set_state(TriggerState.REJECTED.value, str(error.description)[:1024])
@@ -279,7 +280,7 @@ def post_tasks_validate():
     """
     req_body = request.json
     req_body["project_name"] = request.headers.get("project-name")
-    spec = TaskSpec.from_api_body(req_body)
+    spec = TaskSpecRequest.from_api_body(req_body)
     req_body["docker_image"] = spec.image
     Task.validate(req_body)
     return "Ok", 200

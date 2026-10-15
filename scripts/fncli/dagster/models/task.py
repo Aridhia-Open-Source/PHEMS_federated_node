@@ -1,5 +1,7 @@
 from pydantic import BaseModel, ConfigDict
 
+from fncli.dagster.models.task_spec import TaskSpec
+
 
 class Task(BaseModel):
     """Task data from backend API."""
@@ -7,7 +9,7 @@ class Task(BaseModel):
 
     id: int
     name: str
-    docker_image: str
+    spec: TaskSpec
     status: str | None = None
     attempt: int | None = None
     dagster_run_id: str | None = None
@@ -16,5 +18,4 @@ class Task(BaseModel):
     created_at: str | None = None
     updated_at: str | None = None
     requested_by: str
-    dataset_id: int | None = None
     project_id: int

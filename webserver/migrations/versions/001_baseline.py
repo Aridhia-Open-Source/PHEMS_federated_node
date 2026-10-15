@@ -196,7 +196,7 @@ def upgrade() -> None:
         sa.Column('raised_by', sa.String(length=256), nullable=False),
         sa.Column('merge_commit_sha', sa.String(length=40), nullable=False),
         sa.Column('merged_at', sa.DateTime(), nullable=False),
-        sa.Column('payload', sa.JSON(), nullable=False),
+        sa.Column('spec_raw', sa.Text(), nullable=True),
         sa.ForeignKeyConstraint(['trigger_id'], ['triggers.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['trigger_repository_id'], ['trigger_repositories.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('trigger_id'),
@@ -208,9 +208,20 @@ def upgrade() -> None:
         'api_request_triggers',
         sa.Column('trigger_id', sa.Integer(), nullable=False),
         sa.Column('user_id', sa.String(length=256), nullable=False),
-        sa.Column('payload', sa.JSON(), nullable=False, server_default='{}'),
+        sa.Column('spec_raw', sa.Text(), nullable=True),
         sa.ForeignKeyConstraint(['trigger_id'], ['triggers.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('trigger_id'),
+    )
+
+    # Create task_specs table (what a task runs)
+    op.create_table(
+        'task_specs',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('image', sa.String(length=256), nullable=False),
+        sa.Column('dataset_id', sa.Integer(), nullable=True),
+        sa.Column('env', sa.JSON(), nullable=False, server_default='{}'),
+        sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id'),
     )
 
     # Create tasks table
@@ -219,9 +230,8 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=False),
         sa.Column('trigger_id', sa.Integer(), nullable=False),
-        sa.Column('dataset_id', sa.Integer(), nullable=True),
+        sa.Column('task_spec_id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(length=256), nullable=False),
-        sa.Column('docker_image', sa.String(length=256), nullable=False),
         sa.Column('status', sa.String(length=256), nullable=True),
         sa.Column('attempt', sa.Integer(), nullable=False, server_default='1'),
         sa.Column('requested_by', sa.String(length=256), nullable=False),
@@ -230,10 +240,9 @@ def upgrade() -> None:
         sa.Column('completed_at', sa.DateTime(), nullable=True),
         sa.Column('exit_code', sa.Integer(), nullable=True),
         sa.Column('params', sa.JSON(), nullable=False, server_default='{}'),
-        sa.Column('spec', sa.JSON(), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['task_spec_id'], ['task_specs.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['trigger_id'], ['triggers.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
@@ -241,9 +250,7 @@ def upgrade() -> None:
         sa.UniqueConstraint('trigger_id'),
     )
     op.create_index('ix_tasks_project_id', 'tasks', ['project_id'])
-    op.create_index('ix_tasks_dataset_status', 'tasks', ['dataset_id', 'status'])
     op.create_index('ix_tasks_requested_by', 'tasks', ['requested_by'])
-    op.create_index('ix_tasks_docker_image', 'tasks', ['docker_image'])
     op.create_index('ix_tasks_status_project', 'tasks', ['status', 'project_id'])
 
     # Create results table
@@ -348,6 +355,7 @@ def downgrade() -> None:
     op.drop_table('pull_request_results')
     op.drop_table('results')
     op.drop_table('tasks')
+    op.drop_table('task_specs')
     op.drop_table('api_request_triggers')
     op.drop_table('pull_request_triggers')
     op.drop_index('ix_triggers_state', 'triggers')

@@ -29,20 +29,20 @@ def load_unknown_pull_requests(context: OpExecCtx):
 
 def record_outcome(backend_api: BackendAPI, pr: PullRequestTrigger, parsed: ParsedPullRequest, log):
     """
-    Write the outcome on the pull request: READY becomes its task (the backend marks it
-    YIELDED), IGNORED and REJECTED are stored with their state_cause. Backend failures raise.
+    Write the outcome on the pull request: READY sends the spec file to the backend, which
+    keeps it, parses it and either creates the task (marking the PR YIELDED) or rejects the
+    PR. IGNORED and REJECTED are stored with their state_cause. Backend failures raise.
     """
     repo_id = pr.trigger_repository_id
     if parsed.outcome is PullRequestOutcome.READY:
         try:
-            backend_api.create_task_for_pull_request(repo_id, pr.number, parsed.spec.model_dump())
-            return
+            backend_api.create_task_for_pull_request(repo_id, pr.number, parsed.spec_raw)
         except requests.HTTPError as e:
-            # The backend validates the spec again and rejects one it cannot run
+            # The backend rejected the PR itself, with the cause
             if e.response.status_code != HTTPStatus.BAD_REQUEST:
                 raise
             log.error(f"PR #{pr.number} spec rejected by the backend: {e.response.text}")
-            parsed = ParsedPullRequest(outcome=PullRequestOutcome.REJECTED, state_cause=e.response.text)
+        return
 
     backend_api.patch_pull_request(
         repo_id, pr.number, {"state": parsed.outcome.value, "state_cause": parsed.state_cause}

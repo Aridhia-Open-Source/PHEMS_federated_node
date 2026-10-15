@@ -3675,13 +3675,24 @@
             "type": "string",
             "example": "Custom task description"
           },
-          "docker_image": {
-            "type": "string",
-            "example": "registry/image:1.2"
-          },
-          "dataset_id": {
-            "type": "integer",
-            "example": 1
+          "spec": {
+            "type": "object",
+            "description": "What the task runs",
+            "properties": {
+              "image": {
+                "type": "string",
+                "example": "registry/image:1.2"
+              },
+              "dataset_id": {
+                "type": "integer",
+                "nullable": true,
+                "example": 1
+              },
+              "env": {
+                "type": "object",
+                "example": {"KEY": "value"}
+              }
+            }
           },
           "requested_by": {
             "type": "string",

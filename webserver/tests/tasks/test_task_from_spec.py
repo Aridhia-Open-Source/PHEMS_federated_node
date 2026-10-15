@@ -1,7 +1,10 @@
+import json
+
 import pytest
 
 from app.dtos.task import NewTaskDTO
-from app.dtos.task_spec import TaskSpec
+from app.dtos.task_spec import TaskSpecRequest
+from app.helpers.const import SPEC_RAW_MAX_BYTES, TASK_NAME_MAX_LENGTH
 from app.helpers.exceptions import InvalidRequest
 from app.models.api_request_trigger import ApiRequestTrigger
 from app.models.dataset import Dataset
@@ -9,6 +12,7 @@ from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.task import Task
+from app.models.task_spec import TaskSpec
 from app.models.trigger_state import TriggerState
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
@@ -18,7 +22,7 @@ SPEC = {"name": "TestTask", "image": "img:1", "env": {"K": "v"}, "params": {"p":
 
 @pytest.fixture
 def api_request(client, project, dataset):
-    api_request = ApiRequestTrigger(project_id=project.id, user_id="api-user", payload={"raw": True})
+    api_request = ApiRequestTrigger(project_id=project.id, user_id="api-user")
     api_request.add()
     return api_request
 
@@ -28,7 +32,6 @@ def pull_request(client, project, dataset, default_repo):
     pull_request = PullRequestTrigger(
         project_id=project.id, trigger_repository_id=default_repo.id, number=7, title="PR title",
         raised_by="pr-user", merged_at="2026-01-01T10:00:00", merge_commit_sha="a" * 40,
-        payload={"image": "img:1"},
     )
     pull_request.add()
     return pull_request
@@ -52,41 +55,39 @@ def other_project_dataset(client, user_uuid, other_project):
 
 class TestNewTaskDTOFromSpec:
     def test_api_task_derived_from_spec(self, api_request, dataset):
-        task = NewTaskDTO.from_spec(TaskSpec(**SPEC), api_request)
+        task = NewTaskDTO.from_spec(TaskSpecRequest(**SPEC), api_request)
         assert task.name == "TestTask"
-        assert task.docker_image == "img:1"
         assert task.params == {"p": 1}
-        assert task.spec == TaskSpec(**SPEC).model_dump()
-        assert task.dataset_id == dataset.id
+        assert task.spec == {"image": "img:1", "dataset_id": dataset.id, "env": {"K": "v"}}
         assert task.project_id == api_request.project_id
         assert task.requested_by == "api-user"
         assert task.trigger_id == api_request.id
 
     def test_pr_task_derived_from_spec(self, pull_request):
-        task = NewTaskDTO.from_spec(TaskSpec(image="img:1"), pull_request)
+        task = NewTaskDTO.from_spec(TaskSpecRequest(image="img:1"), pull_request)
         assert task.name == "PR title"
         assert task.requested_by == "pr-user"
         assert task.trigger_id == pull_request.id
 
     def test_dataset_override_in_same_project(self, api_request, second_dataset):
-        task = NewTaskDTO.from_spec(TaskSpec(**SPEC, dataset=second_dataset.name), api_request)
-        assert task.dataset_id == second_dataset.id
+        task = NewTaskDTO.from_spec(TaskSpecRequest(**SPEC, dataset=second_dataset.name), api_request)
+        assert task.spec["dataset_id"] == second_dataset.id
 
     def test_dataset_name_is_matched_exactly_within_the_project(self, api_request, second_dataset):
-        spec = TaskSpec(**SPEC, dataset=second_dataset.name.upper())
-        assert NewTaskDTO.from_spec(spec, api_request).dataset_id == second_dataset.id
-        spec = TaskSpec(**SPEC, dataset=second_dataset.name[:-1])
+        spec = TaskSpecRequest(**SPEC, dataset=second_dataset.name.upper())
+        assert NewTaskDTO.from_spec(spec, api_request).spec["dataset_id"] == second_dataset.id
+        spec = TaskSpecRequest(**SPEC, dataset=second_dataset.name[:-1])
         with pytest.raises(InvalidRequest, match="does not belong to project"):
             NewTaskDTO.from_spec(spec, api_request)
 
     def test_dataset_override_in_other_project_fails(self, api_request, other_project_dataset):
         with pytest.raises(InvalidRequest, match="does not belong to project"):
-            NewTaskDTO.from_spec(TaskSpec(**SPEC, dataset=other_project_dataset.name), api_request)
+            NewTaskDTO.from_spec(TaskSpecRequest(**SPEC, dataset=other_project_dataset.name), api_request)
 
     def test_no_dataset_and_no_default_is_allowed(self, api_request, project):
         project.default_dataset_id = None
         project.default_dataset = None
-        assert NewTaskDTO.from_spec(TaskSpec(**SPEC), api_request).dataset_id is None
+        assert NewTaskDTO.from_spec(TaskSpecRequest(**SPEC), api_request).spec["dataset_id"] is None
 
 
 class TestPostTasks:
@@ -108,16 +109,62 @@ class TestPostTasks:
         assert task.status == "PENDING"
         assert api_request.state == TriggerState.YIELDED.value
         assert api_request.state_cause is None
-        assert task.dataset is dataset
         assert task.name == "TestTask"
-        assert task.docker_image == task_body["executors"][0]["image"]
-        # The spec is stored once, normalised; the API request keeps the raw body
-        assert task.spec["image"] == task_body["executors"][0]["image"]
-        assert task.spec["env"] == task_body["executors"][0]["env"]
-        assert task.spec["dataset"] == dataset.name
-        assert "executors" not in task.spec
-        assert api_request.payload["executors"] == task_body["executors"]
-        assert api_request.payload["name"] == "Test Task"
+        # The spec is its own row, normalised; the API request keeps the raw body
+        spec = TaskSpec.query.one()
+        assert task.spec is spec
+        assert spec.image == task_body["executors"][0]["image"]
+        assert spec.env == task_body["executors"][0]["env"]
+        assert spec.dataset is dataset
+        assert json.loads(api_request.spec_raw) == task_body
+        assert response.json.keys().isdisjoint({"spec_raw", "payload"})
+
+    def test_response_of_the_task_has_its_spec_and_not_the_raw_body(
+            self, client, cr_client, registry_client, post_json_admin_header, task_body, project, dataset
+        ):
+        created = self.post(client, post_json_admin_header, project, task_body)
+        response = client.get(f"/tasks/{created.json['id']}", headers=post_json_admin_header)
+        assert response.status_code == 200
+        assert response.json["spec"] == {
+            "image": task_body["executors"][0]["image"], "dataset_id": dataset.id,
+            "env": task_body["executors"][0]["env"],
+        }
+        assert "spec_raw" not in response.json
+
+    def test_a_task_without_a_dataset_is_created(
+            self, client, cr_client, registry_client, post_json_admin_header, task_body, other_project
+        ):
+        task_body["tags"].pop("dataset_id")
+        task_body["project_id"] = other_project.id
+        response = self.post(client, post_json_admin_header, other_project, task_body)
+        assert response.status_code == 201, response.json
+        assert Task.query.one().spec.dataset_id is None
+
+    @pytest.mark.parametrize("env", [{"1BAD": "x"}, {"CDM_SCHEMA": "x"}, {"WRITE_SCHEMA": "x"}])
+    def test_invalid_env_keeps_a_rejected_request_with_the_raw_body(
+            self, client, cr_client, registry_client, post_json_admin_header, task_body, project, env
+        ):
+        task_body["executors"][0]["env"] = env
+        response = self.post(client, post_json_admin_header, project, task_body)
+        assert response.status_code == 400
+        assert Task.query.count() == 0
+        assert TaskSpec.query.count() == 0
+        api_request = ApiRequestTrigger.query.one()
+        assert api_request.state == TriggerState.REJECTED.value
+        assert api_request.state_cause == response.json["error"]
+        assert json.loads(api_request.spec_raw) == task_body
+
+    def test_body_over_the_cap_is_rejected_without_keeping_it(
+            self, client, cr_client, registry_client, post_json_admin_header, task_body, project
+        ):
+        task_body["tags"]["padding"] = "x" * SPEC_RAW_MAX_BYTES
+        response = self.post(client, post_json_admin_header, project, task_body)
+        assert response.status_code == 400
+        assert "limit" in response.json["error"]
+        api_request = ApiRequestTrigger.query.one()
+        assert api_request.state == TriggerState.REJECTED.value
+        assert api_request.spec_raw is None
+        assert Task.query.count() == 0
 
     def test_invalid_spec_keeps_a_rejected_request(
             self, client, cr_client, registry_client, post_json_admin_header, task_body, project
@@ -129,7 +176,16 @@ class TestPostTasks:
         api_request = ApiRequestTrigger.query.one()
         assert api_request.state == TriggerState.REJECTED.value
         assert api_request.state_cause == response.json["error"]
-        assert api_request.payload["resources"] == {"limits": {"cpu": "abc"}}
+        assert json.loads(api_request.spec_raw)["resources"] == {"limits": {"cpu": "abc"}}
+
+    def test_name_over_the_limit_keeps_a_rejected_request(
+            self, client, cr_client, registry_client, post_json_admin_header, task_body, project
+        ):
+        task_body["name"] = "a" * (TASK_NAME_MAX_LENGTH + 1)
+        response = self.post(client, post_json_admin_header, project, task_body)
+        assert response.status_code == 400
+        assert Task.query.count() == 0
+        assert ApiRequestTrigger.query.one().state == TriggerState.REJECTED.value
 
     def test_dataset_of_another_project_keeps_a_rejected_request(
             self, client, cr_client, registry_client, post_json_admin_header, task_body, project,

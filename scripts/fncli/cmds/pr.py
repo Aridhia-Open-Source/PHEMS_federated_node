@@ -76,7 +76,7 @@ def file_for(config: PrConfig, branch: str, kind: str) -> tuple[str, str]:
         return f"docs/{branch}.md", f"# {branch}\n\nNot a spec: outside the watch_dir.\n"
     spec = {"name": branch, "image": config.pr_image}
     if kind == "invalid":
-        # PullRequestSpec forbids unknown fields
+        # The backend's TaskSpecRequest forbids unknown fields
         spec["unknown_field"] = True
     return f"{config.watch_dir}{branch}.json", json.dumps({"spec": spec}, indent=2) + "\n"
 

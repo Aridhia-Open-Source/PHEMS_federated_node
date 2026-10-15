@@ -12,7 +12,7 @@ class PullRequestTrigger(Trigger):
     A pull request merged to a watched repository, the trigger of a task. Only merged pull
     requests are watched.
     Not to be confused with `PullRequestResult`, the pull request we open to deliver results.
-    Stores PR metadata and payload (the raw spec) for async processing by Dagster.
+    Stores PR metadata and `spec_raw` (the spec file as read) for async processing by Dagster.
     `state`, `state_cause` and `project_id` are columns of the Trigger it extends.
     """
     __tablename__ = 'pull_request_triggers'
@@ -29,7 +29,7 @@ class PullRequestTrigger(Trigger):
     raised_by = sa.Column(sa.String(256), nullable=False)
     merge_commit_sha = sa.Column(sa.String(40), nullable=False)
     merged_at = sa.Column(sa.DateTime(timezone=False), nullable=False)
-    payload = sa.Column(sa.JSON, nullable=False, default={})
+    spec_raw = sa.Column(sa.Text, nullable=True)
 
     trigger_repository_id = sa.Column(
         sa.Integer, sa.ForeignKey('trigger_repositories.id', ondelete='CASCADE'),
@@ -57,7 +57,6 @@ class PullRequestTrigger(Trigger):
         raised_by: str,
         merged_at: dt,
         merge_commit_sha: str,
-        payload: dict | None = None,
     ):
         super().__init__(project_id)
         self.trigger_repository_id = trigger_repository_id
@@ -65,7 +64,6 @@ class PullRequestTrigger(Trigger):
         self.title = title
         self.raised_by = raised_by
         self.merged_at = merged_at
-        self.payload = payload or {}
         self.merge_commit_sha = merge_commit_sha
 
     @property

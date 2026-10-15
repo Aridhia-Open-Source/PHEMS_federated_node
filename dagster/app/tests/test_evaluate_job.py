@@ -19,7 +19,7 @@ SPEC_FILE = json.dumps({"spec": {"docker_image": "a/b:1"}})
 def pull_request(number=5, merged_at="2026-01-01T00:00:00Z"):
     return PullRequestTrigger(
         trigger_repository_id=1, number=number, title="t", raised_by="dev",
-        merged_at=merged_at, merge_commit_sha="abc", state="UNKNOWN", payload={},
+        merged_at=merged_at, merge_commit_sha="abc", state="UNKNOWN",
     )
 
 
@@ -40,12 +40,10 @@ def run_evaluate(files=(WATCHED,), contents=SPEC_FILE, backend_api=None):
     return backend_api
 
 
-def test_a_ready_pr_creates_its_task_and_patches_nothing():
+def test_a_ready_pr_sends_its_spec_file_and_patches_nothing():
     backend_api = run_evaluate()
 
-    backend_api.create_task_for_pull_request.assert_called_once()
-    args = backend_api.create_task_for_pull_request.call_args.args
-    assert args[:2] == (1, 5) and args[2]["image"] == "a/b:1"
+    backend_api.create_task_for_pull_request.assert_called_once_with(1, 5, SPEC_FILE)
     backend_api.patch_pull_request.assert_not_called()
 
 
@@ -58,23 +56,21 @@ def test_an_ignored_pr_is_patched_with_its_reason():
     assert data["state"] == "IGNORED" and "specs/" in data["state_cause"]
 
 
-def test_a_rejected_pr_is_patched_with_its_reason():
-    backend_api = run_evaluate(contents="not json")
+def test_a_pr_with_several_spec_files_is_patched_as_rejected():
+    backend_api = run_evaluate(files=[WATCHED, {"filename": "specs/b.json", "status": "added"}])
 
     backend_api.create_task_for_pull_request.assert_not_called()
     data = backend_api.patch_pull_request.call_args.args[2]
     assert data["state"] == "REJECTED" and data["state_cause"]
 
 
-def test_a_400_from_the_task_endpoint_rejects_with_its_message():
+def test_a_400_from_the_task_endpoint_is_left_as_the_backend_rejected_it():
     backend_api = MagicMock()
     backend_api.create_task_for_pull_request.side_effect = http_error(400, "no such dataset")
 
     run_evaluate(backend_api=backend_api)
 
-    backend_api.patch_pull_request.assert_called_once_with(
-        1, 5, {"state": "REJECTED", "state_cause": "no such dataset"}
-    )
+    backend_api.patch_pull_request.assert_not_called()
 
 
 def test_a_backend_failure_raises_and_leaves_the_pr_untouched():

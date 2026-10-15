@@ -69,7 +69,7 @@ def test_the_batch_carries_only_the_fields_the_server_does_not_own():
     body = backend_api.create_pull_requests_batch.call_args.args[1][0]
     assert body == {
         "number": 5, "title": "PR 5", "raised_by": "dev",
-        "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "sha5", "payload": {},
+        "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "sha5"
     }
 
 

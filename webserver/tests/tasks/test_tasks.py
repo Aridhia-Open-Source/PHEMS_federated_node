@@ -439,7 +439,7 @@ class TestValidateTask:
             other_project,
         ):
         """
-        A project with no datasets has no default, so the dataset has to be named.
+        A project with no datasets has no default, and a task may have no dataset.
         """
         task_body["tags"].pop("dataset_id")
         task_body["project_id"] = other_project.id
@@ -448,8 +448,7 @@ class TestValidateTask:
             json=task_body,
             headers=post_json_admin_header
         )
-        assert response.status_code == 400
-        assert "has no default dataset" in response.json["error"]
+        assert response.status_code == 200, response.json
 
     def test_validate_task_dataset_from_another_project(
             self,

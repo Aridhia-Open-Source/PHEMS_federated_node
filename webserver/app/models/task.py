@@ -14,6 +14,7 @@ from app.helpers.base_model import BaseModel, db
 from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import InvalidRequest, NotImplementedException, TaskImageException
 from app.models import Models, sqla_column
+from app.models.task_spec import TaskSpec
 from app.models.task_status import TaskStatus
 
 
@@ -25,16 +26,15 @@ class Task(db.Model, BaseModel):
     __tablename__ = 'tasks'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    dataset_id = sa.Column(sa.Integer, sa.ForeignKey('datasets.id', ondelete='CASCADE'), nullable=True)
     project_id = sa.Column(
         sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False, index=True
     )
     trigger_id = sa.Column(
         sa.Integer, sa.ForeignKey('triggers.id', ondelete='RESTRICT'), nullable=False, unique=True
     )
+    task_spec_id = sa.Column(sa.Integer, sa.ForeignKey('task_specs.id', ondelete='CASCADE'), nullable=False)
 
     name = sa.Column(sa.String(256), nullable=False)
-    docker_image = sa.Column(sa.String(256), nullable=False)
     status = sa.Column(sa.String(256), default=TaskStatus.PENDING.value)
     # The run's attempt number. A retry is the same task with the next attempt.
     attempt = sa.Column(sa.Integer, nullable=False, default=1, server_default='1')
@@ -48,26 +48,21 @@ class Task(db.Model, BaseModel):
     completed_at = sa.Column(sa.DateTime(timezone=False), nullable=True)
 
     params = sa.Column(sa.JSON, nullable=False, server_default='{}')
-    # The validated TaskSpec, stored once
-    spec = sa.Column(sa.JSON, nullable=False)
 
-    dataset = relationship("Dataset")
+    # The spec is the task's own: it goes when the task does
+    spec = relationship("TaskSpec", cascade="all, delete-orphan", single_parent=True)
     project = relationship("Project")
     trigger = relationship("Trigger", back_populates="task")
     results = relationship("Result", back_populates="task", cascade="all, delete-orphan", passive_deletes=True)
 
     __table_args__ = (
-        sa.Index('ix_tasks_dataset_status', 'dataset_id', 'status'),
         sa.Index('ix_tasks_requested_by', 'requested_by'),
-        sa.Index('ix_tasks_docker_image', 'docker_image'),
         sa.Index('ix_tasks_status_project', 'status', 'project_id'),
     )
 
     def __init__(self,
                  name:str,
-                 docker_image:str,
                  requested_by:str,
-                 dataset_id:int | None,
                  project_id:int,
                  trigger_id:int,
                  spec:dict,
@@ -75,13 +70,11 @@ class Task(db.Model, BaseModel):
                  ):
         self.name = name
         self.status = TaskStatus.PENDING.value
-        self.docker_image = docker_image
         self.requested_by = requested_by
-        self.dataset_id = dataset_id
         self.project_id = project_id
         self.attempt = 1
         self.trigger_id = trigger_id
-        self.spec = spec
+        self.spec = TaskSpec(**spec)
         self.params = params or {}
         self.created_at = dt.now()
         self.updated_at = dt.now()
@@ -89,7 +82,7 @@ class Task(db.Model, BaseModel):
     @classmethod
     def _get_required_fields(cls) -> list[str]:
         # Set when the task is created from its validated trigger, never in a request body
-        return [f for f in super()._get_required_fields() if f not in ("trigger_id", "spec")]
+        return [f for f in super()._get_required_fields() if f not in ("trigger_id", "task_spec_id")]
 
     @classmethod
     def validate(cls, data:dict):
@@ -138,16 +131,11 @@ class Task(db.Model, BaseModel):
                 )
 
         # The named dataset if the spec has one, and it has already been checked against
-        # the project, otherwise the project's default.
+        # the project, otherwise the project's default. A task may have none.
         # TODO(DAR): DAR checking is disconnected for now. A non-admin caller used to need
         # an active DAR covering the dataset, now they take the same path as admins and
         # repositories. Revisit with the authorization rework.
         data["dataset"] = requested_ds or project.default_dataset
-        if data["dataset"] is None:
-            raise InvalidRequest(
-                f"Project {project.name} has no default dataset. Provide "
-                "`tags.dataset_id` or `tags.dataset_name`"
-            )
 
         # Docker image validation
         Models.WhitelistedImage.validate_image_format(data["docker_image"], data["docker_image"])
