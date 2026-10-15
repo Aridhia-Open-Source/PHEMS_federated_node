@@ -4,6 +4,7 @@ import dagster as dg
 
 from app.definitions import defs
 from app.definitions.jobs import JOBS, k8s_pipes_job, noop_job
+from app.config import DEFAULT_SENSOR_STATUS
 from app.definitions.sensors import SENSORS
 
 
@@ -51,5 +52,8 @@ class TestCodeLocation:
     def test_jobs_are_exported(self):
         assert {job.name for job in JOBS} == {"noop_job", "k8s_pipes_job"}
 
+    def test_every_sensor_uses_the_configured_initial_status(self):
+        assert all(s.default_status == DEFAULT_SENSOR_STATUS for s in SENSORS)
+
     def test_every_sensor_is_stopped_by_default(self):
-        assert all(s.default_status == dg.DefaultSensorStatus.STOPPED for s in SENSORS)
+        assert DEFAULT_SENSOR_STATUS == dg.DefaultSensorStatus.STOPPED

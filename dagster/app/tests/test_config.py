@@ -1,3 +1,4 @@
+import dagster as dg
 import pytest
 from pydantic import ValidationError
 
@@ -6,6 +7,7 @@ from app.config import (
     GithubConfig,
     PipesSecurityContextConfig,
     SensorConfig,
+    SensorStatusConfig,
 )
 
 
@@ -17,6 +19,7 @@ def clean_env(monkeypatch):
         "GH_API_URI", "GH_DELIVERY_REPO", "GH_DELIVERY_BASE_BRANCH",
         "DAGSTER_PIPES_FS_GROUP", "DAGSTER_PIPES_RUN_AS_USER",
         "DAGSTER_PIPES_RUN_AS_GROUP", "DAGSTER_PIPES_SUPPLEMENTAL_GROUPS",
+        "DAGSTER_SENSORS_INITIAL_STATUS",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -55,6 +58,22 @@ class TestEnvConfig:
 
         with pytest.raises(ValidationError):
             SensorConfig()
+
+
+class TestSensorStatusConfig:
+    def test_stopped_by_default(self):
+        assert SensorStatusConfig().initial_status == dg.DefaultSensorStatus.STOPPED
+
+    def test_running_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_SENSORS_INITIAL_STATUS", "RUNNING")
+
+        assert SensorStatusConfig().initial_status == dg.DefaultSensorStatus.RUNNING
+
+    def test_any_other_status_fails_loudly(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_SENSORS_INITIAL_STATUS", "PAUSED")
+
+        with pytest.raises(ValidationError):
+            SensorStatusConfig()
 
 
 class TestPipesSecurityContext:

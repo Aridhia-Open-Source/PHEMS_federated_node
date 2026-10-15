@@ -1,3 +1,4 @@
+import dagster as dg
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -27,6 +28,16 @@ class SensorConfig(EnvConfig):
     artifact_mount_path: str = Field(default="", alias="DAGSTER_ARTIFACT_MOUNT_PATH")
     results_dir: str = Field(default="", alias="GH_RESULTS_DIR")
     token: str = Field(default="", alias="GH_TOKEN")
+
+
+class SensorStatusConfig(EnvConfig):
+    initial_status: dg.DefaultSensorStatus = Field(
+        default=dg.DefaultSensorStatus.STOPPED, alias="DAGSTER_SENSORS_INITIAL_STATUS"
+    )
+
+
+# Read once, at import: every sensor's default_status.
+DEFAULT_SENSOR_STATUS = SensorStatusConfig().initial_status
 
 
 class ResultsDeliveryConfig(EnvConfig):

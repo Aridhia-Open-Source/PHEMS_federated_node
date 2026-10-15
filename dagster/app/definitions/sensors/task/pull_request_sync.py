@@ -12,6 +12,7 @@ import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, SensorEvaluationContext
 
 from app.backend import BackendAPI
+from app.config import DEFAULT_SENSOR_STATUS
 from app.definitions.sensors.git.base import GitAPIFactory
 from app.definitions.sensors.git.pr_evaluate import IN_FLIGHT
 from app.models import PullRequestResult, PullRequestResultState
@@ -86,7 +87,7 @@ def sync_results_pull_requests_job():
 
 @dg.sensor(
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
-    default_status=dg.DefaultSensorStatus.STOPPED,
+    default_status=DEFAULT_SENSOR_STATUS,
     required_resource_keys={"backend_api"},
     job=sync_results_pull_requests_job,
 )
