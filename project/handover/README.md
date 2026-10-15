@@ -4,21 +4,15 @@ Written at the end of a long design session, for the next Claude (or person) who
 
 ## Branches
 
+You are on `dagster-moonshot`: `dagster-develop-preview` plus the design docs. That is all you need.
+
 | Branch | What it is |
 |---|---|
-| `ccr-417a04ba-ugt8hk` | Design docs only, cut from `dagster-develop`. ADRs 0018, 0019, 0020 and this handover. **Start here.** |
-| `dagster-develop-preview` | `dagster-develop` plus all 15 open PRs merged (#526, #528, #529, #530, #531, #532, #533, #534, #535, #543, #544, #545, #546, #547, #548). Not #523, the promotion PR. The base for the moonshot. |
-| `dagster-moonshot` | **Does not exist yet.** The feature branch for the schema rewrite. Cut it from `dagster-develop-preview`, then merge `ccr-417a04ba-ugt8hk` into it for the docs. |
+| `dagster-moonshot` | The feature branch for the schema rewrite. Work here. Contains ADRs 0018, 0019, 0020 and this handover. |
+| `dagster-develop-preview` | `dagster-develop` plus all 15 open PRs merged (#526, #528, #529, #530, #531, #532, #533, #534, #535, #543, #544, #545, #546, #547, #548). Not #523, the promotion PR. The base of the moonshot. |
+| `ccr-417a04ba-ugt8hk` | The docs-only branch the ADRs were written on, cut from `dagster-develop`. Already merged into `dagster-moonshot`; ignore it. |
 
-Setup:
-
-```
-git fetch origin
-git checkout -b dagster-moonshot origin/dagster-develop-preview
-git merge origin/ccr-417a04ba-ugt8hk      # docs only; the README index may need a trivial merge
-```
-
-If the open PRs land on `dagster-develop` first, rebase onto that instead; the preview branch is only a stand-in.
+If the open PRs land on `dagster-develop` first, rebase onto that; the preview branch is only a stand-in.
 
 ## What we are doing
 
@@ -49,7 +43,7 @@ The moonshot is **not needed for the beta demo**. It is a branch being built in 
 
 ## Suggested first steps
 
-1. Cut `dagster-moonshot`, get the webserver tests running and green.
+1. Get the webserver tests running and green on this branch.
 2. Write the contract tests from ADR 0019 ("Contract tests to add first") and land them with no behaviour change. They pin the flat API shape, plus a JSON fixture check that the Dagster and fncli models parse the same responses.
 3. Ask the owner to settle the eight "Decisions still needed" in ADR 0019, at least 1 to 5 before stages 5 and 6.
 4. Work the stages in order, one commit per stage: global secrets, then datasets, results repositories, trigger repositories, `pull_requests` and fan-out, the `enabled`/`revoked` behaviour, the ingest sensor, and last fncli, `openapi.json`, docs and ADR updates.
