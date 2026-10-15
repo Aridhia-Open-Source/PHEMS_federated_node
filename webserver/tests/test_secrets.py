@@ -202,7 +202,7 @@ class TestPostSecret:
         )
         assert response.status_code == 201, response.json
 
-    @pytest.mark.parametrize("name", ["", "Bad_Name", "-x", "x" * 254])
+    @pytest.mark.parametrize("name", ["", "Bad_Name", "x-", "a..b", "a.-b", "a-.b", ".a", "a.", 5, "x" * 254])
     def test_invalid_name(self, client, k8s_client, audited, post_json_admin_header, name, project):
         response = client.post(
             f"/projects/{project.id}/secrets",
@@ -213,7 +213,7 @@ class TestPostSecret:
         k8s_client["create_namespaced_secret_mock"].assert_not_called()
 
     @pytest.mark.parametrize("values", [
-        None, {}, "TOKEN", ["TOKEN"], {"": "x"}, {"bad key": "x"}, {"TOKEN": ""}, {"TOKEN": 5},
+        None, {}, "TOKEN", ["TOKEN"], {"": "x"}, {"bad key": "x"}, {"a/b": "x"}, {"k" * 254: "x"}, {"TOKEN": ""}, {"TOKEN": 5},
     ])
     def test_invalid_values(self, client, k8s_client, audited, post_json_admin_header, values, project):
         response = client.post(

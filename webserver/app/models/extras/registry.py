@@ -11,6 +11,7 @@ from app.helpers.container_registries import AzureRegistry, BaseRegistry, Docker
 from app.helpers.base_model import BaseModel, db
 from app.helpers.exceptions import ContainerRegistryException, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
+from app.helpers.kubernetes_names import validate_dns_subdomain
 
 logger = logging.getLogger("registry_model")
 logger.setLevel(logging.INFO)
@@ -42,8 +43,12 @@ class Registry(db.Model, BaseModel):
     def validate(cls, data:dict):
         data = super().validate(data)
 
+        # The url names the registry's pull secret, so it has to make a valid secret name
+        registry = cls(**data)
+        validate_dns_subdomain(registry.slugify_name(), "url")
+
         # Test credentials
-        _class = cls(**data).get_registry_class()
+        _class = registry.get_registry_class()
         _class.login()
         return data
 
