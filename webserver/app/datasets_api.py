@@ -164,6 +164,10 @@ def patch_datasets_by_id_or_name(
         session.rollback()
         raise InvalidRequest("dictionaries should be a list.")
 
+    # port is non-nullable, so an explicit null would hit the DB constraint
+    if "port" in body and (not isinstance(body["port"], int) or isinstance(body["port"], bool)):
+        raise InvalidRequest("port must be an integer")
+
     if "secret_label" in body:
         _resolve_secret(body, body.get("project_id", ds.project_id))
 
