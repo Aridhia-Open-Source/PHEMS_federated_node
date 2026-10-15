@@ -9,7 +9,6 @@ addressed by its label within it:
 - DELETE /projects/<project_id>/secrets/<label>
 """
 import logging
-import re
 from datetime import datetime as dt
 from http import HTTPStatus
 
@@ -21,6 +20,7 @@ from app.helpers.base_model import db
 from app.helpers.const import DEFAULT_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
+from app.helpers.kubernetes_names import validate_secret_key
 from app.helpers.wrappers import audit, auth
 from app.models.project import Project
 from app.models.secret import Secret
@@ -31,7 +31,6 @@ bp = Blueprint('secrets', __name__, url_prefix='/projects/<int:project_id>/secre
 session = db.session
 
 SECRET_LABELS = {"type": "k8s_secret"}
-SECRET_KEY = re.compile(r'[-._a-zA-Z0-9]+')
 
 
 @bp.before_request
@@ -45,8 +44,7 @@ def _get_values(body: dict) -> dict[str, str]:
     if not isinstance(values, dict) or not values:
         raise InvalidRequest("values is required and must be a non-empty object")
     for key, value in values.items():
-        if not SECRET_KEY.fullmatch(key):
-            raise InvalidRequest(f"Invalid key {key!r}: use letters, digits, '-', '_' or '.'")
+        validate_secret_key(key, f"Key {key!r}")
         if not isinstance(value, str) or not value:
             raise InvalidRequest(f"The value for {key} must be a non-empty string")
     # create_secret encodes the values in place, so it gets a copy
@@ -137,8 +135,8 @@ def post_secret(project_id):
     The description is optional.
     """
     body = request.json or {}
-    if not body.get('label'):
-        raise InvalidRequest("label is required")
+    if not body.get('label') or not isinstance(body['label'], str):
+        raise InvalidRequest("label is required and must be a string")
     try:
         provider = SecretProviderType(body.get('provider'))
     except ValueError:

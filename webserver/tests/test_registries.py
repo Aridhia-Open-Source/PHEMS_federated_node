@@ -155,6 +155,26 @@ class TestPostRegistriesApi:
             )
         assert resp.status_code == 201
 
+    @pytest.mark.parametrize("url", ["shiny.azurecr.io/", "Shiny.azurecr.io", "-shiny.azurecr.io", "a" * 254])
+    def test_create_registry_invalid_secret_name(
+        self,
+        client,
+        k8s_client,
+        post_json_admin_header,
+        url
+    ):
+        """
+        The url becomes the pull secret's name, so one that cannot be a secret name is a 400
+        """
+        resp = client.post(
+            "/registries",
+            json={"url": url, "username": "blabla", "password": "secret"},
+            headers=post_json_admin_header
+        )
+        assert resp.status_code == 400
+        assert resp.json["error"].startswith("url must be")
+        k8s_client["create_namespaced_secret_mock"].assert_not_called()
+
     def test_create_registry_incorrect_creds(
         self,
         client,

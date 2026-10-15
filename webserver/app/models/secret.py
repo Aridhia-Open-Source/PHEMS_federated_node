@@ -1,10 +1,9 @@
-import re
-
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship, validates
 
 from app.helpers.base_model import BaseModel, db
 from app.helpers.exceptions import InvalidRequest
+from app.helpers.kubernetes_names import validate_dns_subdomain
 from app.models import sqla_column
 from app.models.secret_provider_type import SecretProviderType
 
@@ -60,13 +59,10 @@ class Secret(db.Model, BaseModel):
 
     @validates('label')
     def validate_label(self, key, value):
-        """The label is part of the key, which is a store secret name (a Kubernetes one today): a DNS subdomain, so it can be created as-is."""
-        if not value or len(value) > 253 - len(self._store_prefix(self.project_id)) or not re.fullmatch(r'[a-z0-9]([-a-z0-9.]*[a-z0-9])?', value):
-            raise ValueError(
-                "label must be lowercase alphanumerics, '-' or '.', starting and "
-                "ending with an alphanumeric, and short enough to fit the project prefix "
-                "in 253 characters"
-            )
+        """The key, "<project_id>-<label>", is a store secret name (a Kubernetes one today): a DNS subdomain, so it can be created as-is."""
+        if not isinstance(value, str):
+            raise InvalidRequest("label must be a string")
+        validate_dns_subdomain(f"{self._store_prefix(self.project_id)}{value}", "label")
         return value
 
     @staticmethod

@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.helpers.base_model import db
 from app.helpers.const import DEFAULT_NAMESPACE
+from app.helpers.exceptions import InvalidRequest
 from app.models.extras.audit import Audit
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
@@ -202,7 +203,7 @@ class TestPostSecret:
         )
         assert response.status_code == 201, response.json
 
-    @pytest.mark.parametrize("name", ["", "Bad_Name", "-x", "x" * 254])
+    @pytest.mark.parametrize("name", ["", "Bad_Name", "x-", "a..b", "a.-b", "a-.b", ".a", "a.", 5, "x" * 254])
     def test_invalid_name(self, client, k8s_client, audited, post_json_admin_header, name, project):
         response = client.post(
             f"/projects/{project.id}/secrets",
@@ -212,8 +213,12 @@ class TestPostSecret:
         assert response.status_code == 400
         k8s_client["create_namespaced_secret_mock"].assert_not_called()
 
+    def test_a_non_string_label_is_refused_by_the_model(self, project):
+        with pytest.raises(InvalidRequest, match="label must be a string"):
+            Secret(project_id=project.id, label=5, provider=SecretProviderType.K8S)
+
     @pytest.mark.parametrize("values", [
-        None, {}, "TOKEN", ["TOKEN"], {"": "x"}, {"bad key": "x"}, {"TOKEN": ""}, {"TOKEN": 5},
+        None, {}, "TOKEN", ["TOKEN"], {"": "x"}, {"bad key": "x"}, {"a/b": "x"}, {"k" * 254: "x"}, {"TOKEN": ""}, {"TOKEN": 5},
     ])
     def test_invalid_values(self, client, k8s_client, audited, post_json_admin_header, values, project):
         response = client.post(
