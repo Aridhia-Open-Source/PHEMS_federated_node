@@ -4,6 +4,7 @@ import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx
 
 from app.backend import BackendAPI
+from app.config import DEFAULT_SENSOR_STATUS
 from app.definitions.sensors.git.base import GitAPIFactory
 from app.definitions.sensors.git.pr_ingest import PullRequestIngestSensor
 from app.definitions.sensors.git.evaluate_job import evaluate_repository_pull_requests_job
@@ -14,7 +15,7 @@ MIN_SENSOR_INTERVAL_SECONDS = 10
 
 @dg.sensor(
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
-    default_status=dg.DefaultSensorStatus.STOPPED,
+    default_status=DEFAULT_SENSOR_STATUS,
     required_resource_keys={"backend_api", "git_apis"},
 )
 def git_pull_request_ingest_sensor(context: OpExecCtx):
@@ -38,7 +39,7 @@ def git_pull_request_ingest_sensor(context: OpExecCtx):
 
 @dg.sensor(
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
-    default_status=dg.DefaultSensorStatus.STOPPED,
+    default_status=DEFAULT_SENSOR_STATUS,
     required_resource_keys={"backend_api", "git_apis"},
     job=evaluate_repository_pull_requests_job,
 )

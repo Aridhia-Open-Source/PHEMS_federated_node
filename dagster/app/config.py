@@ -1,3 +1,4 @@
+import dagster as dg
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -21,6 +22,16 @@ class BackendConfig(EnvConfig):
     uri: str = Field(default="", alias="BACKEND_API_URI")
     user: str = Field(default="", alias="DAGSTER_KC_USER")
     password: str = Field(default="", alias="DAGSTER_KC_PASSWORD")
+
+
+class SensorStatusConfig(EnvConfig):
+    initial_status: dg.DefaultSensorStatus = Field(
+        default=dg.DefaultSensorStatus.STOPPED, alias="DAGSTER_SENSORS_INITIAL_STATUS"
+    )
+
+
+# Read once, at import: every sensor's default_status.
+DEFAULT_SENSOR_STATUS = SensorStatusConfig().initial_status
 
 
 class ResultsDeliveryConfig(EnvConfig):

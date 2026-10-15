@@ -4,7 +4,7 @@ import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
 from app.backend import BackendAPI
-from app.config import ResultsDeliveryConfig
+from app.config import DEFAULT_SENSOR_STATUS, ResultsDeliveryConfig
 from app.definitions.jobs import k8s_pipes_job
 from app.definitions.sensors.git.base import GitAPIFactory
 from app.delivery.results import ResultsDelivery
@@ -36,7 +36,7 @@ def deliver_results_job():
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.SUCCESS,
-    default_status=dg.DefaultSensorStatus.STOPPED,
+    default_status=DEFAULT_SENSOR_STATUS,
     monitored_jobs=[k8s_pipes_job],
     request_job=deliver_results_job,
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
