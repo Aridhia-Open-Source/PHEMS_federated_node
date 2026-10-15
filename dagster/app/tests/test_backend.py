@@ -193,14 +193,14 @@ class TestDatasets:
         session.post.return_value = make_response(SAMPLE_DATASET)
 
         api.create_dataset(
-            name="cdm", host="db.host", port=5432, secret_label="cdm-creds",
-            read_schema="cdm", db_type="postgres",
+            project_id=1, name="cdm", host="db.host", port=5432, db_type="postgres",
+            secret_label="cdm-creds", read_schema="cdm",
         )
 
         assert session.post.call_args.args == ("/datasets",)
         assert session.post.call_args.kwargs["json"] == {
-            "name": "cdm", "host": "db.host", "port": 5432, "secret_label": "cdm-creds",
-            "read_schema": "cdm", "type": "postgres",
+            "project_id": 1, "name": "cdm", "host": "db.host", "port": 5432, "type": "postgres",
+            "secret_label": "cdm-creds", "read_schema": "cdm", "write_schema": None,
         }
 
 
