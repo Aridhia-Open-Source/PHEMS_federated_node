@@ -153,4 +153,15 @@ tests:
     asserts:
       - equal:
           path: data.DAGSTER_WEBSERVER_URI
-          value: http://federatednode-dagster-webserver.federatednode.svc:80
+          value: http://fn-dev-dagster-webserver.fn.svc:80
+
+  - it: takes the Dagster webserver address from fnDagster.webserver.uri
+    template: backend-configmap.yaml
+    set:
+      fnDagster:
+        webserver:
+          uri: http://custom-dagster-webserver.ns.svc:80
+    asserts:
+      - equal:
+          path: data.DAGSTER_WEBSERVER_URI
+          value: http://custom-dagster-webserver.ns.svc:80

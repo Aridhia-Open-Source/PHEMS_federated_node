@@ -262,8 +262,9 @@ fnDagster:
     initialStatus: STOPPED
   webserver:
     # In-cluster URL the Federated Node API uses to reach the Dagster webserver's GraphQL
-    # API. Leave empty to derive it from the release name (the dagster subchart's service).
-    uri: ""
+    # API: http://<release>-dagster-webserver.<namespace>.svc:80, so set it to match the
+    # release name and namespace.
+    uri: http://fn-dev-dagster-webserver.fn.svc:80
   # The code location (gRPC) server, owned by this chart rather than the
   # dagster-user-deployments subchart. `name` is the gRPC host in the workspace file.
   codeServer:
