@@ -750,6 +750,12 @@ class TestListPullRequests:
         )
         assert response.status_code == 400
 
+    def test_invalid_page_fails(self, client, simple_admin_header, repository):
+        response = client.get(
+            f"/trigger_repositories/{repository.id}/pull_requests?page=x", headers=simple_admin_header
+        )
+        assert response.status_code == 400
+
 
 class TestPostPullRequestTask:
     def url(self, repository, pull_request):

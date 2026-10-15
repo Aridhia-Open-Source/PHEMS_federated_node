@@ -23,6 +23,7 @@ from app.dtos.trigger_repository import PullRequestTriggerDTO, TriggerRepository
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.dtos.task_spec import TaskSpec
+from app.helpers.query_filters import arg_get
 from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
@@ -275,8 +276,8 @@ def get_pull_requests(repo_id):
     """
     TriggerRepository.get_by_id(repo_id)
 
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
+    page = arg_get('page', 1, type=int)
+    per_page = arg_get('per_page', 20, type=int)
     state = request.args.get('state', None)
 
     query = PullRequestTrigger.query.filter(PullRequestTrigger.trigger_repository_id == repo_id)
