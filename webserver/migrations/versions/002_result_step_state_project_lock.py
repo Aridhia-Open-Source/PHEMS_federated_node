@@ -22,6 +22,11 @@ def upgrade() -> None:
         'pull_request_results',
         sa.Column('state', sa.String(length=32), nullable=False, server_default='IN_PROGRESS'),
     )
+    # A delivery that got as far as the pull request is delivered; the rest are not yet.
+    # The failed ones were not recorded as such, so they resume as IN_PROGRESS.
+    op.execute(
+        "UPDATE pull_request_results SET state = 'DELIVERED' WHERE step IN ('OPENED', 'MERGED', 'CLOSED')"
+    )
     op.add_column(
         'projects',
         sa.Column('locked', sa.Boolean(), nullable=False, server_default=sa.false()),

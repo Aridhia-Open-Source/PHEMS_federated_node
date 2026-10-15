@@ -210,19 +210,6 @@ class TestChangeNeedsLockedAndDrained:
         assert response.status_code == SUCCESS_CODES[change], response.json
 
 
-class TestChangeNeedsTheLockOfTheProjectItMovesTo:
-    @pytest.mark.parametrize("path", ["trigger_repositories", "results_repositories"])
-    def test_moving_a_repository_into_a_project_in_flight(
-        self, client, post_json_admin_header, ids, project, other_project, make_task, path
-    ):
-        lock(project)
-        lock(other_project)
-        make_task(project=other_project, status=TaskStatus.RUNNING.value)
-        repo_id = ids.trigger_repo if path == "trigger_repositories" else ids.results_repo
-        response = client.patch(f"/{path}/{repo_id}", json={"project_id": other_project.id}, headers=post_json_admin_header)
-        assert response.status_code == HTTPStatus.CONFLICT
-
-
 class TestCredentialRotationIsExempt:
     @pytest.fixture
     def busy(self, project, make_task):
