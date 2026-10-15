@@ -70,10 +70,12 @@ tests:
 
   - it: owns the code server, so its image tag follows appVersion
     template: dagster-code-server.yaml
+    chart:
+      appVersion: 9.9.9
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: ghcr.io/aridhia-open-source/dagster_fn:1.18.0
+          value: ghcr.io/aridhia-open-source/dagster_fn:9.9.9
         documentSelector:
           path: kind
           value: Deployment
@@ -86,7 +88,7 @@ tests:
           value: Deployment
       - equal:
           path: spec.template.spec.containers[0].env[0].value
-          value: ghcr.io/aridhia-open-source/dagster_fn:1.18.0
+          value: ghcr.io/aridhia-open-source/dagster_fn:9.9.9
         documentSelector:
           path: kind
           value: Deployment
