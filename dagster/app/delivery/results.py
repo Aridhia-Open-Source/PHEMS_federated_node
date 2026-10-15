@@ -46,8 +46,9 @@ class ResultsDelivery:
         """
         Deliver the results of a task: record the step PUSHED once the branch is pushed, then
         OPENED and the state DELIVERED once its pull request is opened. A result past PUSHED
-        is left alone, and one in UNKNOWN or PUSHED resumes, a FAILED one back to IN_PROGRESS: a branch already on the remote is not pushed again, and
-        its pull request is looked up before one is opened.
+        is left alone, and one in UNKNOWN or PUSHED resumes, a FAILED one back to IN_PROGRESS:
+        a branch already on the remote is not pushed again, and its pull request is looked up
+        before one is opened.
         Any failure is recorded on the result as an error with one more attempt, its step
         left where it was and its state FAILED, and raised, so the Dagster run fails visibly.
         """

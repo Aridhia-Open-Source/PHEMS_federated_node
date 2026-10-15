@@ -84,7 +84,7 @@ def test_a_result_is_synced_against_its_own_repository_fetched_once():
     other = REPOSITORY.model_copy(update={"id": 6, "uri": "gitea.fn.svc:4000/fn/other"})
     old = result(9).model_copy(update={"results_repository_id": 6})
     backend_api = MagicMock()
-    backend_api.get_results_by_state.return_value = [old, result(10, number=4), result(11, number=5)]
+    backend_api.get_results_by_step.return_value = [old, result(10, number=4), result(11, number=5)]
     backend_api.get_results_repository_by_id.side_effect = lambda id: {5: REPOSITORY, 6: other}[id]
     git_api = MagicMock()
     git_api.get_pull_request.side_effect = lambda repo_path, number: git_pr(number=number)
