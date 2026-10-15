@@ -18,6 +18,11 @@ helm search repo federated-node --devel --versions
 
 Now you should be all set to pull the chart from GitHub.
 
+The helm repo only receives released versions. Every build, including releases, is also published as an OCI chart, so development builds can be installed directly from GHCR, without adding a repo:
+```sh
+helm install federatednode oci://ghcr.io/aridhia-open-source/charts/federated-node --version <version> -f <custom_value.yaml>
+```
+
 ### Pre-existing Secrets (optional)
 In order to not store credentials in plain text within the `values.yaml` file, there is an option to pre-populate secrets in a safe matter.
 
