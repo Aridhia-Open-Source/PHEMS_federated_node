@@ -306,6 +306,7 @@ jobs:
     secrets:
       CHART_APP_SECRET: ${{ secrets.CHART_APP_SECRET }}
   summary:
+    if: always() && !failure() && !cancelled()
     needs:
       - init
       - release
