@@ -13,6 +13,13 @@ dashboard:
 pylint:
 	./scripts/pylint.sh
 
+pylint_dagster:
+	PROJECT=dagster ./scripts/pylint.sh
+
+tests_dagster:
+	docker build dagster -f dagster/build/test.Dockerfile -t dagster_test
+	docker run --rm dagster_test pytest -v
+
 chart:
 	helm package k8s/federated-node -d artifacts/
 

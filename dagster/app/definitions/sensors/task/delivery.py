@@ -31,7 +31,7 @@ def deliver_results_job():
     sensors act on those, and a run of this job must not change the task or be mistaken
     for its run.
     """
-    deliver_results()
+    deliver_results()  # pylint: disable=no-value-for-parameter  # Dagster injects context
 
 
 @dg.run_status_sensor(
@@ -49,7 +49,7 @@ def task_results_delivery_sensor(context: RunStatusSensorContext):
     """
     tags = context.dagster_run.tags
     if tags.get("trigger") != "task":
-        return
+        return None
 
     task_id = tags["task_id"]
     return dg.RunRequest(

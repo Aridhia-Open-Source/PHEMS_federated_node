@@ -2,7 +2,9 @@ import logging
 from http import HTTPStatus
 
 from app.utils import BackendSession
-from app.models import TriggerRepository, PullRequestTrigger, Project, ResultsRepository, Task, PullRequestResult, Dataset
+from app.models import (
+    TriggerRepository, PullRequestTrigger, Project, ResultsRepository, Task, PullRequestResult, Dataset
+)
 
 default_logger = logging.getLogger(__name__)
 
@@ -90,7 +92,7 @@ class BackendAPI:
 
             page += 1
 
-        self.logger.info(f"Fetched all {len(all_prs)} pull requests for repo {repo_id}")
+        self.logger.info("Fetched all %s pull requests for repo %s", len(all_prs), repo_id)
         return all_prs
 
     def create_pull_request(
@@ -224,7 +226,7 @@ class BackendAPI:
         try:
             response = self.session.get(f"/datasets/{name}")
             return Dataset(**response.json())
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught  # deliberate: any failure means "no dataset"
             self.logger.warning(f"Failed to fetch dataset {name}: {e}")
             return None
 

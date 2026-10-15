@@ -89,6 +89,7 @@ class PipesSecurityContextConfig(BaseSettings):
             ctx["runAsGroup"] = self.run_as_group
         if self.supplemental_groups:
             ctx["supplementalGroups"] = [
-                int(g) for g in self.supplemental_groups.split(",") if g.strip()
+                int(g) for g in self.supplemental_groups.split(",")  # pylint: disable=no-member  # pydantic FieldInfo
+                if g.strip()
             ]
         return ctx

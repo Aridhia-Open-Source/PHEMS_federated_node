@@ -1,4 +1,5 @@
-from typing import Protocol, Union
+from abc import abstractmethod
+from typing import Any, Protocol, Union
 
 from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
@@ -59,3 +60,7 @@ class GitSensor(BaseSensor):
         super().__init__(context)
         self.backend_api = backend_api
         self.git_apis = git_apis
+
+    @abstractmethod
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        """GitSensor is abstract: the concrete git sensors implement this."""
