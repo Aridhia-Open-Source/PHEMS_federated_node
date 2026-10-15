@@ -48,8 +48,8 @@ class TestTriggerModels:
     def test_one_task_per_trigger(self, make_task, project):
         task = make_task()
         duplicate = Task(
-            name="task", docker_image="img:1", requested_by="user", dataset_id=None,
-            project_id=project.id, trigger_id=task.trigger_id, spec={"image": "img:1"}
+            name="task", requested_by="user", project_id=project.id, trigger_id=task.trigger_id,
+            spec={"image": "img:1", "dataset_id": None, "env": {}}
         )
         with pytest.raises(IntegrityError):
             duplicate.add()

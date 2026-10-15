@@ -206,12 +206,13 @@ def project(client) -> Project:
 def make_task(client, project):
     """Factory for a task with its own ApiRequestTrigger trigger"""
     def _make(project=project, **fields) -> Task:
-        api_request = ApiRequestTrigger(project_id=project.id, user_id="user", payload={})
+        api_request = ApiRequestTrigger(project_id=project.id, user_id="user")
         api_request.add()
         task = Task(
-            name="task", docker_image="img:1", requested_by="user", dataset_id=None,
-            project_id=project.id, trigger_id=api_request.id, spec={"image": "img:1"}
+            name="task", requested_by="user", project_id=project.id, trigger_id=api_request.id,
+            spec={"image": "img:1", "dataset_id": None, "env": {}}
         )
+        task.spec.dataset_id = fields.pop("dataset_id", None)
         for field, value in fields.items():
             setattr(task, field, value)
         task.add()

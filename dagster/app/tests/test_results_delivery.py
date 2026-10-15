@@ -16,7 +16,7 @@ from app.tests.conftest import SAMPLE_SECRET
 
 RUN_ID = "run-1"
 TASK = Task(
-    id=7, name="t", docker_image="img", spec={"image": "img"}, attempt=1, requested_by="u",
+    id=7, name="t", spec={"image": "img", "dataset_id": None, "env": {}}, attempt=1, requested_by="u",
     project_id=1, trigger_id=3, dagster_run_id=RUN_ID,
 )
 REPOSITORY = ResultsRepository(
@@ -30,7 +30,7 @@ TRIGGER_REPOSITORY = TriggerRepository(
 )
 PULL_REQUEST = PullRequestTrigger(
     trigger_repository_id=2, number=12, title="t", raised_by="u", merged_at="2026-01-01T00:00:00Z",
-    payload={}, merge_commit_sha="abc", state="YIELDED", task_id=7,
+    merge_commit_sha="abc", state="YIELDED", task_id=7,
 )
 LAYOUT = "results/analysis/12/7"
 BRANCH = "results/analysis/12/7-abc"
@@ -136,7 +136,7 @@ def test_success_pushes_a_branch_with_the_layout_and_records_pushed_then_opened(
     out = check / LAYOUT
     with zipfile.ZipFile(out / "results.zip") as zf:
         assert sorted(zf.namelist()) == ["out.txt", "sub/b.csv"]
-    assert json.loads((out / "spec.json").read_text()) == {"image": "img"}
+    assert json.loads((out / "spec.json").read_text()) == {"image": "img", "dataset_id": None, "env": {}}
     assert git("rev-list", "--count", "main", cwd=remote) == "1"
     metadata = json.loads((out / "metadata.json").read_text())
     assert metadata["branch"] == BRANCH

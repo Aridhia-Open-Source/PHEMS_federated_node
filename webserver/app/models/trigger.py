@@ -2,6 +2,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
 from app.helpers.base_model import BaseModel, db
+from app.helpers.const import SPEC_RAW_MAX_BYTES
 from app.helpers.exceptions import InvalidRequest
 from app.models import sqla_column
 from app.models.trigger_state import TriggerState
@@ -57,6 +58,15 @@ class Trigger(db.Model, BaseModel):
     @property
     def task_id(self) -> int | None:
         return self.task.id if self.task else None
+
+    def set_spec_raw(self, spec_raw: str):
+        """
+        Keep the spec exactly as received, before it is parsed. Over the cap it is
+        refused and not kept.
+        """
+        if len(spec_raw.encode()) > SPEC_RAW_MAX_BYTES:
+            raise InvalidRequest(f"The task spec is over the {SPEC_RAW_MAX_BYTES} bytes limit")
+        self.spec_raw = spec_raw
 
     def set_state(self, state: str, state_cause: str | None):
         """

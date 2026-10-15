@@ -127,7 +127,6 @@ class TestPullRequests:
             raised_by="dev",
             merged_at="2026-06-26T10:00:00Z",
             merge_commit_sha="abc",
-            payload={},
         )
 
         body = session.post.call_args.kwargs["json"]
@@ -158,11 +157,11 @@ class TestPullRequests:
     def test_create_task_for_pull_request(self, api, session, status_code, created):
         session.post.return_value = make_response(SAMPLE_TASK, status_code)
 
-        task, was_created = api.create_task_for_pull_request(1, 5, {"image": "a/b:1"})
+        task, was_created = api.create_task_for_pull_request(1, 5, '{"spec": {"image": "a/b:1"}}')
 
         assert task.id == 9 and was_created is created
         assert session.post.call_args.args == ("/trigger_repositories/1/pull_requests/5/task",)
-        assert session.post.call_args.kwargs["json"] == {"payload": {"image": "a/b:1"}}
+        assert session.post.call_args.kwargs["json"] == {"spec_raw": '{"spec": {"image": "a/b:1"}}'}
 
 
 class TestDatasets:
@@ -206,8 +205,8 @@ class TestDatasets:
 
 SAMPLE_PROJECT = {"id": 1, "name": "proj", "enabled": True, "default_dataset_id": 1}
 SAMPLE_TASK = {
-    "id": 9, "name": "t", "docker_image": "a/b:1", "spec": {"image": "a/b:1"}, "attempt": 1, "trigger_id": 4, "status": "PENDING", "requested_by": "u",
-    "dataset_id": 1, "project_id": 1, "dagster_run_id": None, "exit_code": None,
+    "id": 9, "name": "t", "spec": {"image": "a/b:1", "dataset_id": 1, "env": {}}, "attempt": 1, "trigger_id": 4, "status": "PENDING", "requested_by": "u",
+    "project_id": 1, "dagster_run_id": None, "exit_code": None,
     "started_at": None, "completed_at": None,
 }
 

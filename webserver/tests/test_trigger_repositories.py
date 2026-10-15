@@ -3,7 +3,9 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from app.dtos.trigger_repository import TriggerRepositoryDTO
 from app.models.pull_request_trigger import PullRequestTrigger
+from app.helpers.const import SPEC_RAW_MAX_BYTES, TASK_ENV_MAX_BYTES
 from app.models.task import Task
+from app.models.task_spec import TaskSpec
 from app.models.trigger_repository import TriggerRepository
 from app.helpers.base_model import db
 from app.models.dataset import Dataset
@@ -394,16 +396,14 @@ class TestPostPullRequestsBatch:
                 "title": "First PR",
                 "raised_by": "user1",
                 "merged_at": "2026-01-01T10:00:00Z",
-                "merge_commit_sha": "abc123",
-                "payload": {"key": "value1"}
+                "merge_commit_sha": "abc123"
             },
             {
                 "number": 2,
                 "title": "Second PR",
                 "raised_by": "user2",
                 "merged_at": "2026-01-02T10:00:00Z",
-                "merge_commit_sha": "def456",
-                "payload": {"key": "value2"}
+                "merge_commit_sha": "def456"
             }
         ]
         response = client.post(
@@ -434,8 +434,7 @@ class TestPostPullRequestsBatch:
                 "title": f"PR {i}",
                 "raised_by": "user",
                 "merged_at": "2026-01-01T10:00:00Z",
-                "merge_commit_sha": f"sha{i}",
-                "payload": {}
+                "merge_commit_sha": f"sha{i}"
             }
             for i in range(101)
         ]
@@ -453,8 +452,7 @@ class TestPostPullRequestsBatch:
             {
                 "number": 1,
                 "title": "PR without raised_by",
-                # Missing 'raised_by', 'merged_at', 'merge_commit_sha', 'payload'
-                "payload": {}
+                # Missing 'raised_by', 'merged_at', 'merge_commit_sha'
             }
         ]
         response = client.post(
@@ -473,7 +471,6 @@ class TestPostPullRequestsBatch:
                 "raised_by": "user",
                 "merged_at": "2026-01-01T10:00:00Z",
                 "merge_commit_sha": "sha1",
-                "payload": {},
                 "dataset_id": 999  # This should be ignored
             }
         ]
@@ -497,8 +494,7 @@ class TestPostPullRequestsBatch:
                 "title": "PR",
                 "raised_by": "user",
                 "merged_at": "2026-01-01T10:00:00Z",
-                "merge_commit_sha": "sha1",
-                "payload": {}
+                "merge_commit_sha": "sha1"
             }
         ]
         response = client.post(
@@ -522,7 +518,7 @@ class TestPostPullRequestsBatch:
 def pr_body(number=1, merged_at="2026-01-01T10:00:00Z", **fields):
     return {
         "number": number, "title": f"PR {number}", "raised_by": "user", "merged_at": merged_at,
-        "merge_commit_sha": "a" * 40, "payload": {}, **fields,
+        "merge_commit_sha": "a" * 40, **fields,
     }
 
 
@@ -558,7 +554,7 @@ class TestPullRequestBatchBehaviour:
         assert response.status_code >= 400
         assert PullRequestTrigger.query.count() == 1
 
-    @pytest.mark.parametrize("field", ["number", "title", "raised_by", "merged_at", "merge_commit_sha", "payload"])
+    @pytest.mark.parametrize("field", ["number", "title", "raised_by", "merged_at", "merge_commit_sha"])
     def test_each_required_field(self, client, post_json_admin_header, repository, field):
         body = pr_body()
         del body[field]
@@ -688,7 +684,6 @@ def pull_request(client, post_json_admin_header, repository):
             "raised_by": "user1",
             "merged_at": "2026-01-01T10:00:00Z",
             "merge_commit_sha": "a" * 40,
-            "payload": {"image": "example:latest"},
         }]),
         headers=post_json_admin_header
     )
@@ -730,13 +725,6 @@ class TestPatchPullRequest:
         response = self.patch(client, post_json_admin_header, repository, pull_request, {"state": state})
         assert response.status_code == 400
 
-    def test_patch_payload(self, client, post_json_admin_header, repository, pull_request):
-        response = self.patch(
-            client, post_json_admin_header, repository, pull_request, {"payload": {"image": "other:latest"}}
-        )
-        assert response.status_code == 200
-        assert response.json["payload"] == {"image": "other:latest"}
-
 
 class TestListPullRequests:
     def test_filter_by_state(self, client, post_json_admin_header, simple_admin_header, repository, pull_request):
@@ -751,63 +739,114 @@ class TestListPullRequests:
         assert response.status_code == 400
 
 
+def spec_file(**spec) -> str:
+    return json.dumps({"spec": spec})
+
+
 class TestPostPullRequestTask:
     def url(self, repository, pull_request):
         return f"/trigger_repositories/{repository.id}/pull_requests/{pull_request['number']}/task"
 
-    def post(self, client, headers, repository, pull_request, payload):
+    def post(self, client, headers, repository, pull_request, spec_raw):
         return client.post(
-            self.url(repository, pull_request), data=json.dumps({"payload": payload}), headers=headers
+            self.url(repository, pull_request), data=json.dumps({"spec_raw": spec_raw}), headers=headers
         )
 
     def get_pr(self, repository, pull_request):
         return PullRequestTrigger.query.filter_by(trigger_repository_id=repository.id, number=pull_request["number"]).one()
 
-    def test_create(self, client, post_json_admin_header, repository, pull_request):
-        response = self.post(
-            client, post_json_admin_header, repository, pull_request,
-            {"image": "example:latest", "env": {"KEY": "value"}}
-        )
+    def test_create(self, client, post_json_admin_header, repository, pull_request, test_dataset):
+        spec_raw = spec_file(image="example:latest", env={"KEY": "value"})
+        response = self.post(client, post_json_admin_header, repository, pull_request, spec_raw)
         assert response.status_code == 201
         assert response.json["status"] == "PENDING"
         assert response.json["attempt"] == 1
         assert response.json["project_id"] == repository.project_id
-        assert response.json["spec"]["image"] == "example:latest"
+        # The task's spec is its own row, on the project's default dataset
+        assert response.json["spec"] == {
+            "image": "example:latest", "dataset_id": test_dataset.id, "env": {"KEY": "value"}
+        }
         pr = self.get_pr(repository, pull_request)
         assert pr.state == "YIELDED"
-        assert pr.payload == {"image": "example:latest", "env": {"KEY": "value"}}
+        assert pr.spec_raw == spec_raw
         assert pr.task.id == response.json["id"]
         assert response.json["trigger_id"] == pr.id
+        spec = TaskSpec.query.one()
+        assert (spec.image, spec.dataset_id, spec.env) == ("example:latest", test_dataset.id, {"KEY": "value"})
+        assert pr.task.task_spec_id == spec.id
 
     def test_create_twice_is_idempotent(self, client, post_json_admin_header, repository, pull_request):
-        payload = {"image": "example:latest"}
-        first = self.post(client, post_json_admin_header, repository, pull_request, payload)
-        second = self.post(client, post_json_admin_header, repository, pull_request, payload)
+        spec_raw = spec_file(image="example:latest")
+        first = self.post(client, post_json_admin_header, repository, pull_request, spec_raw)
+        second = self.post(client, post_json_admin_header, repository, pull_request, spec_raw)
         assert first.status_code == 201
         assert second.status_code == 200
         assert second.json["id"] == first.json["id"]
         assert Task.query.filter_by(trigger_id=self.get_pr(repository, pull_request).id).count() == 1
+        assert TaskSpec.query.count() == 1
 
-    @pytest.mark.parametrize("body", [{}, {"payload": None}, {"payload": "not-an-object"}, {"payload": []}])
+    def test_a_spec_without_a_dataset_is_valid(self, client, post_json_admin_header, repository, pull_request):
+        repository.project.default_dataset_id = None
+        response = self.post(
+            client, post_json_admin_header, repository, pull_request, spec_file(image="example:latest")
+        )
+        assert response.status_code == 201
+        assert response.json["spec"]["dataset_id"] is None
+
+    @pytest.mark.parametrize("body", [{}, {"spec_raw": None}, {"spec_raw": {"image": "x"}}, {"spec_raw": []}])
     def test_invalid_body_fails(self, client, post_json_admin_header, repository, pull_request, body):
         response = client.post(
             self.url(repository, pull_request), data=json.dumps(body), headers=post_json_admin_header
         )
         assert response.status_code == 400
-
-    @pytest.mark.parametrize("payload", [
-        {},
-        {"env": {"A": "b"}},
-        {"image": "example:latest", "unknown_field": 1},
-        {"image": "example:latest", "env": "not-a-dict"},
-    ])
-    def test_invalid_spec_leaves_pr_unknown_and_no_task(
-        self, client, post_json_admin_header, repository, pull_request, payload
-    ):
-        response = self.post(client, post_json_admin_header, repository, pull_request, payload)
-        assert response.status_code == 400
         assert self.get_pr(repository, pull_request).state == "UNKNOWN"
+
+    @pytest.mark.parametrize("spec_raw", [
+        "not json",
+        "{}",
+        spec_file(),
+        spec_file(env={"A": "b"}),
+        spec_file(image="example:latest", unknown_field=1),
+        spec_file(image="example:latest", env="not-a-dict"),
+        spec_file(image="a" * 257),
+        spec_file(image="example:latest", env={"1BAD": "x"}),
+        spec_file(image="example:latest", env={"CDM_SCHEMA": "x"}),
+        spec_file(image="example:latest", env={"WRITE_SCHEMA": "x"}),
+        spec_file(image="example:latest", env={"K": "v" * TASK_ENV_MAX_BYTES}),
+    ])
+    def test_invalid_spec_rejects_the_pr_and_keeps_the_spec(
+        self, client, post_json_admin_header, repository, pull_request, spec_raw
+    ):
+        response = self.post(client, post_json_admin_header, repository, pull_request, spec_raw)
+        assert response.status_code == 400
+        pr = self.get_pr(repository, pull_request)
+        assert pr.state == "REJECTED"
+        assert pr.state_cause == response.json["error"][:1024]
+        assert pr.spec_raw == spec_raw
         assert Task.query.count() == 0
+        assert TaskSpec.query.count() == 0
+
+    def test_spec_over_the_cap_rejects_the_pr_without_keeping_it(
+        self, client, post_json_admin_header, repository, pull_request
+    ):
+        padding = SPEC_RAW_MAX_BYTES - len(spec_file(image="example:latest", params={"p": ""}).encode())
+        at_cap = spec_file(image="example:latest", params={"p": "x" * padding})
+        assert len(at_cap.encode()) == SPEC_RAW_MAX_BYTES
+
+        response = self.post(client, post_json_admin_header, repository, pull_request, at_cap + " ")
+        assert response.status_code == 400
+        assert "limit" in response.json["error"]
+        pr = self.get_pr(repository, pull_request)
+        assert pr.state == "REJECTED"
+        assert pr.spec_raw is None
+        assert Task.query.count() == 0
+
+    def test_spec_at_the_cap_is_accepted(self, client, post_json_admin_header, repository, pull_request):
+        padding = SPEC_RAW_MAX_BYTES - len(spec_file(image="example:latest", params={"p": ""}).encode())
+        at_cap = spec_file(image="example:latest", params={"p": "x" * padding})
+        response = self.post(client, post_json_admin_header, repository, pull_request, at_cap)
+        assert response.status_code == 201
+        assert self.get_pr(repository, pull_request).spec_raw == at_cap
 
     def test_dataset_override_in_other_project_fails(
             self, client, post_json_admin_header, repository, pull_request, other_project, user_uuid
@@ -818,18 +857,19 @@ class TestPostPullRequestTask:
             name="OtherDs", host="example.com", secret_id=other_secret.id, project_id=other_project.id
         )
         other_ds.add(user_id=user_uuid)
-        response = self.post(
-            client, post_json_admin_header, repository, pull_request,
-            {"image": "example:latest", "dataset": other_ds.name}
-        )
+        spec_raw = spec_file(image="example:latest", dataset=other_ds.name)
+        response = self.post(client, post_json_admin_header, repository, pull_request, spec_raw)
         assert response.status_code == 400
         assert "does not belong to project" in response.json["error"]
         assert Task.query.count() == 0
+        pr = self.get_pr(repository, pull_request)
+        assert pr.state == "REJECTED"
+        assert pr.spec_raw == spec_raw
 
     def test_pull_request_not_found(self, client, post_json_admin_header, repository):
         response = client.post(
             f"/trigger_repositories/{repository.id}/pull_requests/999/task",
-            data=json.dumps({"payload": {}}),
+            data=json.dumps({"spec_raw": ""}),
             headers=post_json_admin_header
         )
         assert response.status_code == 404
@@ -837,7 +877,7 @@ class TestPostPullRequestTask:
     def test_requires_auth(self, client, repository, pull_request):
         response = client.post(
             self.url(repository, pull_request),
-            data=json.dumps({"payload": {}}),
+            data=json.dumps({"spec_raw": ""}),
             headers={"Content-Type": "application/json"}
         )
         assert response.status_code == 401
@@ -847,12 +887,11 @@ class TestPullRequestTriggerDTO:
     def test_fields(self, pull_request):
         """Dagster's PullRequestTrigger wire model requires these"""
         expected_fields = ['trigger_repository_id', 'number', 'title', 'raised_by', 'merged_at',
-                           'payload', 'merge_commit_sha', 'state', 'state_cause', 'task_id']
+                           'merge_commit_sha', 'state', 'state_cause', 'task_id']
         assert set(pull_request) == set(expected_fields)
 
     def test_values(self, repository, pull_request):
         assert pull_request["trigger_repository_id"] == repository.id
-        assert pull_request["payload"] == {"image": "example:latest"}
         assert pull_request["state"] == "UNKNOWN"
         assert pull_request["state_cause"] is None
         assert pull_request["task_id"] is None

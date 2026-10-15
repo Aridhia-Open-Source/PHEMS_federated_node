@@ -66,20 +66,19 @@ erDiagram
         string raised_by
         string merge_commit_sha
         datetime merged_at
-        json payload
+        text spec_raw "the spec file as read, max 64 KiB"
     }
     api_request_triggers {
         int trigger_id PK, FK
         string user_id
-        json payload
+        text spec_raw "the request body as received, max 64 KiB"
     }
     tasks {
         int id PK
         int project_id FK
         int trigger_id FK, UK "one task per trigger"
-        int dataset_id FK
+        int task_spec_id FK
         string name
-        string docker_image
         string status
         int attempt
         string requested_by
@@ -87,8 +86,13 @@ erDiagram
         datetime started_at
         datetime completed_at
         int exit_code
-        json spec
         json params
+    }
+    task_specs {
+        int id PK
+        string image
+        int dataset_id FK "optional"
+        json env
     }
     results {
         int id PK
@@ -151,11 +155,11 @@ classDiagram
         +string raised_by
         +string merge_commit_sha
         +datetime merged_at
-        +dict payload
+        +string spec_raw
     }
     class ApiRequestTrigger {
         +string user_id
-        +dict payload
+        +string spec_raw
     }
     Trigger <|-- PullRequestTrigger : type PR
     Trigger <|-- ApiRequestTrigger : type API

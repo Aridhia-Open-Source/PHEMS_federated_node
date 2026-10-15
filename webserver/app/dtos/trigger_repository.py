@@ -47,5 +47,4 @@ class PullRequestTriggerDTO(DTO):
     state: str
     state_cause: str | None
     task_id: int | None
-    payload: dict
 

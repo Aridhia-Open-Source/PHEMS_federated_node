@@ -22,7 +22,7 @@ from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.trigger_repository import PullRequestTriggerDTO, TriggerRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
-from app.dtos.task_spec import TaskSpec
+from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
@@ -188,7 +188,7 @@ def post_pull_request():
     POST /trigger_repositories/pull_requests — create a new pull request
     """
     body = request.json or {}
-    required = ['trigger_repository_id', 'number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha', 'payload']
+    required = ['trigger_repository_id', 'number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha']
     missing = [f for f in required if f not in body]
     if missing:
         raise InvalidRequest(f"Missing required fields: {', '.join(missing)}")
@@ -203,7 +203,6 @@ def post_pull_request():
         raised_by=body['raised_by'],
         merged_at=body['merged_at'],
         merge_commit_sha=body['merge_commit_sha'],
-        payload=body.get('payload', {}),
     )
     pr.add()
 
@@ -234,7 +233,7 @@ def post_pull_requests_batch(repo_id):
     for pr_data in body:
         try:
             # Validate required fields
-            required = ['number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha', 'payload']
+            required = ['number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha']
             missing = [f for f in required if f not in pr_data]
             if missing:
                 raise InvalidRequest(f"Missing required fields in PR: {', '.join(missing)}")
@@ -248,7 +247,6 @@ def post_pull_requests_batch(repo_id):
                 raised_by=pr_data['raised_by'],
                 merged_at=pr_data['merged_at'],
                 merge_commit_sha=pr_data['merge_commit_sha'],
-                payload=pr_data.get('payload', {}),
             )
             pr.add(commit=False)  # Don't commit yet, batch commit at end
             created_prs.append(pr)
@@ -320,7 +318,7 @@ def get_pull_request(repo_id, number):
 @bp.route('/<int:repo_id>/pull_requests/<int:number>', methods=['PATCH'])
 def patch_pull_request(repo_id, number):
     """
-    PATCH /trigger_repositories/<repo_id>/pull_requests/<number> — update PR state, state_cause and payload
+    PATCH /trigger_repositories/<repo_id>/pull_requests/<number> — update PR state and state_cause
     """
     TriggerRepository.get_by_id(repo_id)
     pr = PullRequestTrigger.query.filter(
@@ -336,9 +334,6 @@ def patch_pull_request(repo_id, number):
     if 'state' in body or 'state_cause' in body:
         pr.set_state(body.get('state', pr.state), body.get('state_cause'))
 
-    if 'payload' in body:
-        pr.payload = body['payload']
-
     session.commit()
     return PullRequestTriggerDTO.from_model(pr).dump(), HTTPStatus.OK
 
@@ -350,7 +345,8 @@ def post_task(repo_id, number):
     POST /trigger_repositories/<repo_id>/pull_requests/<number>/task — validate the pull
     request's spec and, in one transaction, mark it YIELDED and create its task. The project
     comes from the repository.
-    Body: {"payload": {...}}, the pull request's flat task spec.
+    Body: {"spec_raw": "..."}, the pull request's spec file as read. It is kept on the pull
+    request before it is parsed, so a rejected pull request keeps it too.
     Idempotent: if the pull request already has a task it is returned with a 200.
     """
     TriggerRepository.get_by_id(repo_id)
@@ -366,16 +362,22 @@ def post_task(repo_id, number):
         return TaskDTO.from_model(pr.task).dump(), HTTPStatus.OK
 
     body = request.json or {}
-    payload = body.get('payload')
-    if not isinstance(payload, dict):
-        raise InvalidRequest("payload is required and must be an object")
+    spec_raw = body.get('spec_raw')
+    if not isinstance(spec_raw, str):
+        raise InvalidRequest("spec_raw is required and must be a string")
 
-    spec = TaskSpec.from_pr_spec(payload)
-    # A bad dataset override fails now, before anything is written
-    new_task = NewTaskDTO.from_spec(spec, pr)
+    try:
+        pr.set_spec_raw(spec_raw)
+        session.commit()
+        spec = TaskSpecRequest.from_pr_spec(spec_raw)
+        # A bad dataset override fails now, before anything is written
+        new_task = NewTaskDTO.from_spec(spec, pr)
+    except InvalidRequest as error:
+        pr.set_state(TriggerState.REJECTED.value, str(error.description)[:1024])
+        session.commit()
+        raise
 
     pr.set_state(TriggerState.YIELDED.value, None)
-    pr.payload = payload
     task = Task(**new_task.model_dump())
     try:
         task.add(commit=False)

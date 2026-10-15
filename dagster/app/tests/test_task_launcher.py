@@ -17,9 +17,8 @@ def project(id=1, enabled=True):
 
 def task(id=9, project_id=1, attempt=1, dataset_id=7):
     return Task(
-        id=id, name="t", docker_image="ghcr.io/o/i:1", spec={"image": "ghcr.io/o/i:1", "env": {"K": "v"}},
-        attempt=attempt, requested_by="u", project_id=project_id, trigger_id=4, dataset_id=dataset_id,
-        status="PENDING",
+        id=id, name="t", spec={"image": "ghcr.io/o/i:1", "dataset_id": dataset_id, "env": {"K": "v"}},
+        attempt=attempt, requested_by="u", project_id=project_id, trigger_id=4, status="PENDING",
     )
 
 
@@ -57,6 +56,18 @@ def test_launches_a_pending_task():
     assert config["dataset"]["name"] == "cdm"
     backend_api.get_dataset.assert_called_once_with(7)
     backend_api.get_tasks.assert_called_once_with(status="PENDING", project_id=1)
+
+
+def test_a_task_without_a_dataset_is_launched_without_fetching_one():
+    backend_api = make_backend([project()], {1: [task(dataset_id=None)]})
+
+    result = run(backend_api)
+
+    assert isinstance(result[0], RunRequest)
+    config = result[0].run_config["ops"]["k8s_pipes_op"]["config"]
+    assert config["docker_image"] == "ghcr.io/o/i:1"
+    assert "dataset" not in config
+    backend_api.get_dataset.assert_not_called()
 
 
 def test_the_run_key_includes_the_attempt():

@@ -12,7 +12,6 @@ class PullRequestTrigger(BaseModel):
     title: str
     raised_by: str
     merged_at: str
-    payload: dict
     merge_commit_sha: str
     state: TriggerState
     state_cause: str | None = None

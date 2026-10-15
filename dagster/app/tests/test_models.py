@@ -109,7 +109,7 @@ class TestPullRequest:
         pr = PullRequestTrigger.from_git(4, git_pr)
 
         assert (pr.trigger_repository_id, pr.number, pr.raised_by) == (4, 12, "dev")
-        assert pr.state.value == "UNKNOWN" and pr.payload == {}
+        assert pr.state.value == "UNKNOWN"
 
     def test_dump_new_leaves_out_the_server_fields(self):
         pr = PullRequestTrigger.from_git(4, {
@@ -119,5 +119,5 @@ class TestPullRequest:
 
         assert pr.dump_new() == {
             "number": 12, "title": "t", "raised_by": "dev",
-            "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "abc", "payload": {},
+            "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "abc"
         }

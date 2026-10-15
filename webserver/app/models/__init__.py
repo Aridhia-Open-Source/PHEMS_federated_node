@@ -53,6 +53,11 @@ class ModelRegistry:
         return Task
 
     @cached_property
+    def TaskSpec(self):
+        from app.models.task_spec import TaskSpec
+        return TaskSpec
+
+    @cached_property
     def WhitelistedImage(self):
         from app.models.extras.whitelisted_image import WhitelistedImage
         return WhitelistedImage

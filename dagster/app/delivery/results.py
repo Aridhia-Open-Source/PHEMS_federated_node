@@ -134,7 +134,7 @@ class ResultsDelivery:
             out_dir = clone_dir / layout
             out_dir.mkdir(parents=True, exist_ok=True)
             zip_path.replace(out_dir / ZIP_NAME)
-            (out_dir / SPEC_NAME).write_text(json.dumps(task.spec, indent=2) + "\n")
+            (out_dir / SPEC_NAME).write_text(json.dumps(task.spec.model_dump(), indent=2) + "\n")
             (out_dir / METADATA_NAME).write_text(json.dumps({
                 "branch": branch,
                 "merge_commit_sha": pull_request.merge_commit_sha,

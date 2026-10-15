@@ -75,10 +75,6 @@ SAMPLE_PR = {
     "merged_at": "2026-06-26T10:00:00Z",
     "merge_commit_sha": "abc123def456",
     "state": "UNKNOWN",
-    "payload": {
-        "docker_image": "ghcr.io/org/experiment:latest",
-        "env": {"KEY": "value"},
-    },
 }
 
 SAMPLE_INVALID_PR = {
@@ -89,7 +85,6 @@ SAMPLE_INVALID_PR = {
     "merged_at": "2026-06-27T10:00:00Z",
     "merge_commit_sha": "xyz789abc123",
     "state": "UNKNOWN",
-    "payload": {},
 }
 
 SAMPLE_IN_PROGRESS_PR = {
@@ -100,10 +95,6 @@ SAMPLE_IN_PROGRESS_PR = {
     "merged_at": "2026-06-28T10:00:00Z",
     "merge_commit_sha": "pqr456xyz789",
     "state": "UNKNOWN",
-    "payload": {
-        "docker_image": "ghcr.io/org/experiment:v2",
-        "env": {"KEY": "value2"},
-    },
 }
 
 
@@ -185,7 +176,7 @@ def mock_pr_files():
 
 @pytest.fixture
 def mock_spec_content():
-    return json.dumps(SAMPLE_PR["payload"])
+    return json.dumps({"spec": {"docker_image": "ghcr.io/org/experiment:latest", "env": {"KEY": "value"}}})
 
 
 def make_github_search_response(prs):
