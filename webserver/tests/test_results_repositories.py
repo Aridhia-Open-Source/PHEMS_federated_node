@@ -202,6 +202,22 @@ class TestPatchResultsRepository:
         )
         assert response.status_code == 400
 
+    def test_move_to_another_project_fails(self, client, post_json_admin_header, results_repo, other_project):
+        project_id = results_repo.project_id
+        response = client.patch(
+            f"/results_repositories/{results_repo.id}", json={"project_id": other_project.id},
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert ResultsRepository.query.get(results_repo.id).project_id == project_id
+
+    def test_same_project_id_is_allowed(self, client, post_json_admin_header, results_repo):
+        response = client.patch(
+            f"/results_repositories/{results_repo.id}", json={"project_id": results_repo.project_id},
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 200
+
     def test_not_found(self, client, post_json_admin_header):
         response = client.patch("/results_repositories/9999", json={"target_dir": "x"}, headers=post_json_admin_header)
         assert response.status_code == 404

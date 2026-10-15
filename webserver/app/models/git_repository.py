@@ -1,4 +1,6 @@
 import time
+from collections.abc import Callable
+from functools import partial
 
 import requests
 import sqlalchemy as sa
@@ -74,25 +76,37 @@ class GitRepositoryMixin:
         return KubernetesClient.decode_secret_value(secret.data['TOKEN'])
 
     def check_connection(self) -> ConnectionCheck:
+        return self.prepare_connection_check()()
+
+    def prepare_connection_check(self) -> Callable[[], ConnectionCheck]:
         """
         Whether the repository can be reached with its token, the way the sensors reach it:
         through api_uri (not uri, which is the address people use), authenticating as a
         bearer token. Nothing returned includes the token.
+
+        Reads the token (the database and the cluster) now, and returns the network call
+        to make later, which touches neither so it can run in a thread.
         """
         try:
             token = self.get_token()
         except KeyError:
-            return ConnectionCheck(
+            check = ConnectionCheck(
                 ConnectionStatus.SECRET_MISSING, f"Secret {self.secret.label} has no TOKEN"
             )
+            return lambda: check
         except ApiException as e:
             if e.status != 404:
                 raise
-            return ConnectionCheck(
+            check = ConnectionCheck(
                 ConnectionStatus.SECRET_MISSING, f"Secret {self.secret.label} not found"
             )
+            return lambda: check
 
         url = f"{self.api_uri.rstrip('/')}/{GitProvider(self.provider).repo_api_path(self.repo_path)}"
+        return partial(self._request_check, url, token)
+
+    @classmethod
+    def _request_check(cls, url: str, token: str) -> ConnectionCheck:
         started = time.perf_counter()
         try:
             response = requests.get(
@@ -106,8 +120,8 @@ class GitRepositoryMixin:
         latency_ms = round((time.perf_counter() - started) * 1000)
 
         return ConnectionCheck(
-            self._status_of(response.status_code, response.ok),
-            self._message_of(response),
+            cls._status_of(response.status_code, response.ok),
+            cls._message_of(response),
             status_code=response.status_code,
             latency_ms=latency_ms,
         )

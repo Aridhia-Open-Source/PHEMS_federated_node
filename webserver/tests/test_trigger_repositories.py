@@ -7,6 +7,7 @@ from app.models.task import Task
 from app.models.trigger_repository import TriggerRepository
 from app.helpers.base_model import db
 from app.models.dataset import Dataset
+from app.models.project import Project
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 
@@ -48,6 +49,17 @@ class TestGetRepositories:
         assert response.status_code == 200
         assert len(response.json) == 1
         assert response.json[0]["uri"] == repository.uri
+
+    def test_list_filtered_by_enabled_project(self, client, simple_admin_header, repository):
+        url = "/trigger_repositories/?project_enabled=true"
+        assert client.get(url, headers=simple_admin_header).json == []
+
+        project = Project.query.get(repository.project_id)
+        project.enabled = True
+        db.session.commit()
+
+        response = client.get(url, headers=simple_admin_header)
+        assert [r["id"] for r in response.json] == [repository.id]
 
     def test_get_by_id(self, client, simple_admin_header, repository):
         response = client.get(f"/trigger_repositories/{repository.id}", headers=simple_admin_header)
@@ -292,18 +304,17 @@ class TestPatchRepository:
         assert response.status_code == 400
         assert f"{field} cannot be empty" in response.json["error"]
 
-    def test_update_project_id(self, client, post_json_admin_header, repository, user_uuid, k8s_client, mock_kc_client, project):
-        # Create a new dataset
-        new_dataset = Dataset(name="NewDatasetForRepo", host="example.com", secret_id=repository.secret_id, project_id=project.id)
-        new_dataset.add(user_id=user_uuid)
+    def test_move_to_another_project_fails(self, client, post_json_admin_header, repository, other_project):
+        project_id = repository.project_id
+        response = self.patch(client, post_json_admin_header, repository, {"project_id": other_project.id})
+        assert response.status_code == 400
+        assert "can't be moved" in response.json["error"]
+        assert TriggerRepository.query.get(repository.id).project_id == project_id
 
-        response = client.patch(
-            f"/trigger_repositories/{repository.id}",
-            data=json.dumps({"project_id": new_dataset.project_id}),
-            headers=post_json_admin_header
-        )
+    def test_same_project_id_is_allowed(self, client, post_json_admin_header, repository):
+        response = self.patch(client, post_json_admin_header, repository, {"project_id": repository.project_id})
         assert response.status_code == 200
-        assert response.json["project_id"] == new_dataset.project_id
+        assert response.json["project_id"] == repository.project_id
 
     def test_update_project_id_invalid_fails(self, client, post_json_admin_header, repository):
         response = client.patch(

@@ -51,6 +51,10 @@
     {
       "name": "Task Requests",
       "description": "Endpoints used by Dagster to launch task requests"
+    },
+    {
+      "name": "Secrets",
+      "description": "Endpoints related to the project secrets. Values are write-only"
     }
   ],
   "paths": {
@@ -1686,6 +1690,233 @@
         }
       }
     },
+    "/projects/{project_id}/secrets": {
+      "get": {
+        "operationId": "get_secrets",
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "List the project's secrets",
+        "description": "The secret values are never returned. Requires the can_admin_dataset scope.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project's secrets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SecretObject"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_secret",
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Create a secret",
+        "description": "Writes the values to the secret store and records a reference to them. The secret is stored under the generated key \"<project_id>-<label>\", which never changes. Requires the can_admin_dataset scope.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "label missing or not a valid Kubernetes name, provider not a known provider, or values is missing, empty or not an object, a key is not letters, digits, '-', '_' or '.', or a value is not a non-empty string"
+          },
+          "404": {
+            "description": "Project not found"
+          },
+          "409": {
+            "description": "A secret with this label already exists in the project"
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/secrets/{label}": {
+      "get": {
+        "operationId": "get_secret",
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Get a secret",
+        "description": "The secret values are never returned. Requires the can_admin_dataset scope.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "label",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The secret's label, local to the project"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project or secret not found"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patch_secret",
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Set keys on a secret",
+        "description": "Writes the given keys to the stored secret, e.g. to rotate a token. Every repository or dataset that references the secret picks the new values up. Keys not in the request are left as they are. Requires the can_admin_dataset scope.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "label",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The secret's label, local to the project"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretPatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Values is missing, empty or not an object, a key is not letters, digits, '-', '_' or '.', or a value is not a non-empty string, or the secret store could not be written"
+          },
+          "404": {
+            "description": "Project or secret not found"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_secret",
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Delete a secret",
+        "description": "Deletes the reference and the stored secret. Refused while a trigger repository, results repository or dataset still uses it. Requires the can_admin_dataset scope.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "label",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The secret's label, local to the project"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Secret deleted"
+          },
+          "400": {
+            "description": "The secret could not be removed from the secret store"
+          },
+          "404": {
+            "description": "Project or secret not found"
+          },
+          "409": {
+            "description": "The secret is still used by a repository or dataset"
+          }
+        }
+      }
+    },
     "/task_requests": {
       "get": {
         "operationId": "get_task_requests",
@@ -2940,6 +3171,14 @@
             "description": "The project this dataset belongs to",
             "example": 1
           },
+          "secret": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SecretObject"
+              }
+            ],
+            "description": "The secret holding the DB credentials, without its values"
+          },
           "created_at": {
             "type": "string",
             "example": "2026-08-18 09:30:00"
@@ -3934,6 +4173,118 @@
           }
         },
         "description": "state, branch, commit_sha, number, url, merged_at and merge_commit_sha are only accepted for results of type PR"
+      },
+      "SecretObject": {
+        "type": "object",
+        "description": "A secret's metadata. The values are never returned",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "The project this secret belongs to",
+            "example": 1
+          },
+          "label": {
+            "type": "string",
+            "description": "Name of the secret within its project",
+            "example": "warehouse-db"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "example": "Credentials for the warehouse DB"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "K8S"
+            ],
+            "example": "K8S"
+          },
+          "key": {
+            "type": "string",
+            "description": "Name of the secret in the store, \"<project_id>-<label>\". Fixed at creation",
+            "example": "1-warehouse-db"
+          },
+          "namespace": {
+            "type": "string",
+            "nullable": true,
+            "description": "Namespace holding the secret in the store",
+            "example": "default"
+          },
+          "created_at": {
+            "type": "string",
+            "example": "2026-08-18 09:30:00"
+          },
+          "updated_at": {
+            "type": "string",
+            "example": "2026-08-18 09:30:00"
+          }
+        }
+      },
+      "SecretPostBody": {
+        "type": "object",
+        "required": [
+          "label",
+          "provider",
+          "values"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Name of the secret within the project. It becomes part of the Kubernetes secret name, so it must be lowercase alphanumerics, '-' or '.', starting and ending with an alphanumeric, and short enough that \"<project_id>-<label>\" fits in 253 characters",
+            "example": "warehouse-db"
+          },
+          "description": {
+            "type": "string",
+            "example": "Credentials for the warehouse DB"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "K8S"
+            ],
+            "description": "The store that holds the values",
+            "example": "K8S"
+          },
+          "values": {
+            "type": "object",
+            "description": "Secret keys and their values. Keys use letters, digits, '-', '_' or '.'; values are non-empty strings",
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minProperties": 1,
+            "example": {
+              "USERNAME": "dbuser",
+              "PASSWORD": "s3cret"
+            }
+          }
+        }
+      },
+      "SecretPatchBody": {
+        "type": "object",
+        "required": [
+          "values"
+        ],
+        "properties": {
+          "values": {
+            "type": "object",
+            "description": "Secret keys and their values. Keys use letters, digits, '-', '_' or '.'; values are non-empty strings",
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minProperties": 1,
+            "example": {
+              "USERNAME": "dbuser",
+              "PASSWORD": "s3cret"
+            }
+          }
+        }
       }
     }
   }

@@ -55,6 +55,13 @@ class TestRepositories:
         assert [type(r) for r in repos] == [TriggerRepository]
         assert repos[0].repo_path == "org/repo"
 
+    def test_get_repositories_of_enabled_projects(self, api, session):
+        session.get.return_value = make_response([SAMPLE_REPOSITORY_OBJ])
+
+        api.get_repositories(enabled_only=True)
+
+        session.get.assert_called_once_with("/trigger_repositories", params={"project_enabled": "true"})
+
     def test_get_repository(self, api, session):
         session.get.return_value = make_response(SAMPLE_REPOSITORY_OBJ)
 
