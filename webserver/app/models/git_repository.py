@@ -1,5 +1,4 @@
 import time
-import urllib.parse
 from collections.abc import Callable
 from functools import partial
 
@@ -9,6 +8,7 @@ from kubernetes.client.exceptions import ApiException
 from sqlalchemy.orm import validates
 
 from app.helpers.const import DEFAULT_NAMESPACE
+from app.helpers.git_uri import normalise_repo_uri, validate_api_uri
 from app.helpers.kubernetes import KubernetesClient
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, GitProvider
 
@@ -40,10 +40,13 @@ class GitRepositoryMixin:
 
     @validates('uri')
     def validate_uri(self, key, value):
-        """Strip http/https schema from URI on save/update."""
-        if value:
-            value = self.parse_repo_uri(value)
-        return value
+        """Keep the uri in its normalised form (see normalise_repo_uri)."""
+        return normalise_repo_uri(value)
+
+    @validates('api_uri')
+    def check_api_uri(self, key, value):
+        """Keep the api_uri on the repository's host (see validate_api_uri). Set after uri."""
+        return validate_api_uri(value, self.uri)
 
     @validates('provider')
     def validate_provider(self, key, value):
@@ -53,16 +56,6 @@ class GitRepositoryMixin:
         except ValueError:
             valid = ', '.join(p.value for p in GitProvider)
             raise ValueError(f"provider must be one of: {valid}")
-
-    @classmethod
-    def parse_repo_uri(cls, uri: str) -> str:
-        """
-        Parse the repository URI to extract the host and path. Safe to apply twice: a URI
-        that already lost its scheme ('host:3000/owner/repo') has none to strip, and
-        urlparse alone would read the host as the scheme.
-        """
-        parsed = urllib.parse.urlparse(uri if '://' in uri else f'//{uri}')
-        return (parsed.netloc + parsed.path).lower().rstrip('/')
 
     @property
     def repo_path(self) -> str:

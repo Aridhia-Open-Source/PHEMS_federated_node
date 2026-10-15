@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.git_uri import normalise_repo_uri
 from app.models.secret import Secret
 from app.models.pull_request_trigger import PullRequestTrigger
 
@@ -35,4 +36,4 @@ class TriggerRepository(BaseModel):
         segments of the uri. Right for GitHub and Gitea; GitLab nested groups, Bitbucket
         Server and Azure DevOps need provider-specific handling.
         """
-        return "/".join(self.uri.removesuffix("/").removesuffix(".git").split("/")[-2:])
+        return "/".join(normalise_repo_uri(self.uri).split("/")[-2:])
