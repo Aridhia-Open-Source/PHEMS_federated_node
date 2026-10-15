@@ -39,7 +39,7 @@ class HttpClient:
         if not self.auth_type:
             raise ValueError("Auth type must be specified for setup")
 
-        if not self.auth_type.lower() in self.SUPPORTED_AUTH_TYPES:
+        if self.auth_type.lower() not in self.SUPPORTED_AUTH_TYPES:
             raise ValueError(f"Unsupported auth type: {self.auth_type}")
 
         if self.auth_type.lower() == "bearer":
@@ -106,9 +106,12 @@ class BaseHttpAdapter(HTTPAdapter):
             status_forcelist=self.retry_status_forcelist
         )
 
-    def send(self, request, **kwargs):
-        kwargs["timeout"] = kwargs.pop("timeout", self.timeout)
-        return super().send(request, **kwargs)
+    def send(self, request, stream=False, timeout=None, verify=True, cert=None, proxies=None):
+        if timeout is None:
+            timeout = self.timeout
+        return super().send(
+            request, stream=stream, timeout=timeout, verify=verify, cert=cert, proxies=proxies
+        )
 
 
 class BaseSession(Session):
@@ -134,9 +137,9 @@ class BaseSession(Session):
         kwargs["timeout"] = kwargs.pop("timeout", self.timeout)
         return super().send(request, **kwargs)
 
-    def request(self, method, url, raise_for_status: bool | None = None, **kwargs):
+    def request(self, method, url, *args, raise_for_status: bool | None = None, **kwargs):
         full_url = f"{self.base_url}/{url.lstrip('/')}"
-        response = super().request(method, full_url, **kwargs)
+        response = super().request(method, full_url, *args, **kwargs)
         return self.handle_response(response, raise_for_status)
 
     def handle_response(self, response, raise_for_status: bool | None = None):
@@ -179,16 +182,18 @@ class OAuthAdapter(BaseHttpAdapter):
         """Refresh tokens"""
         raise NotImplementedError
 
-    def send(self, request, **kwargs):
+    def send(self, request, stream=False, timeout=None, verify=True, cert=None, proxies=None):
         if self.access_token:
             request.headers["Authorization"] = f"Bearer {self.access_token}"
 
-        timeout = kwargs.pop("timeout", self.timeout)
-        response = super().send(request, timeout=timeout, **kwargs)
+        if timeout is None:
+            timeout = self.timeout
+        options = {"stream": stream, "verify": verify, "cert": cert, "proxies": proxies}
+        response = super().send(request, timeout=timeout, **options)
         if response.status_code not in self.oauth_status_codes:
             return response
 
-        return self._retry_on_auth_failure(request, response, timeout, **kwargs)
+        return self._retry_on_auth_failure(request, response, timeout, **options)
 
     def _send_request(self, request, **kwargs):
         """Send request without OAuth refresh logic."""

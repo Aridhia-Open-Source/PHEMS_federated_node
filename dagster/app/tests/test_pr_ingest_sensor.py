@@ -60,6 +60,12 @@ def test_a_locked_project_is_skipped_and_its_cursor_not_polled():
     assert "Saved 1 new pull requests" in results[0].skip_message
 
 
+def test_only_polls_repositories_of_enabled_projects():
+    _, backend_api = run([repo(1)], {1: fake_git_api([])})
+
+    backend_api.get_repositories.assert_called_once_with(enabled_only=True)
+
+
 def test_posts_one_batch_per_repository_with_new_prs():
     apis = {1: fake_git_api([5, 6]), 2: fake_git_api([9])}
 

@@ -2,7 +2,9 @@ import logging
 from http import HTTPStatus
 
 from app.utils import BackendSession
-from app.models import TriggerRepository, PullRequestTrigger, Project, ResultsRepository, Task, PullRequestResult, Dataset
+from app.models import (
+    TriggerRepository, PullRequestTrigger, Project, ResultsRepository, Task, PullRequestResult, Dataset
+)
 
 default_logger = logging.getLogger(__name__)
 
@@ -40,10 +42,13 @@ class BackendAPI:
                 return projects
             page += 1
 
-    def get_repositories(self) -> list[TriggerRepository]:
-        """Get all repositories"""
+    def get_repositories(self, enabled_only: bool = False) -> list[TriggerRepository]:
+        """Get all repositories, optionally only those of enabled projects"""
         self.logger.info("Fetching repositories")
-        response = self.session.get("/trigger_repositories")
+        if enabled_only:
+            response = self.session.get("/trigger_repositories", params={"project_enabled": "true"})
+        else:
+            response = self.session.get("/trigger_repositories")
         repos = response.json()
         return [TriggerRepository(**repo) for repo in repos]
 
@@ -87,7 +92,7 @@ class BackendAPI:
 
             page += 1
 
-        self.logger.info(f"Fetched all {len(all_prs)} pull requests for repo {repo_id}")
+        self.logger.info("Fetched all %s pull requests for repo %s", len(all_prs), repo_id)
         return all_prs
 
     def create_pull_request(
@@ -183,6 +188,12 @@ class BackendAPI:
         (repository,) = response.json()
         return ResultsRepository(**repository)
 
+    def get_results_repository_by_id(self, repository_id: int) -> ResultsRepository:
+        """Get a results repository by id"""
+        self.logger.info(f"Fetching results repository {repository_id}")
+        response = self.session.get(f"/results_repositories/{repository_id}")
+        return ResultsRepository(**response.json())
+
     def get_task_results(self, task_id: int) -> list[PullRequestResult]:
         """Get the deliveries of a task's results"""
         self.logger.info(f"Fetching results of task {task_id}")
@@ -215,7 +226,7 @@ class BackendAPI:
         try:
             response = self.session.get(f"/datasets/{name}")
             return Dataset(**response.json())
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught  # deliberate: any failure means "no dataset"
             self.logger.warning(f"Failed to fetch dataset {name}: {e}")
             return None
 

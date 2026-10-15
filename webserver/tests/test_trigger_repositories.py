@@ -7,6 +7,7 @@ from app.models.task import Task
 from app.models.trigger_repository import TriggerRepository
 from app.helpers.base_model import db
 from app.models.dataset import Dataset
+from app.models.project import Project
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 
@@ -48,6 +49,17 @@ class TestGetRepositories:
         assert response.status_code == 200
         assert len(response.json) == 1
         assert response.json[0]["uri"] == repository.uri
+
+    def test_list_filtered_by_enabled_project(self, client, simple_admin_header, repository):
+        url = "/trigger_repositories/?project_enabled=true"
+        assert client.get(url, headers=simple_admin_header).json == []
+
+        project = Project.query.get(repository.project_id)
+        project.enabled = True
+        db.session.commit()
+
+        response = client.get(url, headers=simple_admin_header)
+        assert [r["id"] for r in response.json] == [repository.id]
 
     def test_get_by_id(self, client, simple_admin_header, repository):
         response = client.get(f"/trigger_repositories/{repository.id}", headers=simple_admin_header)
@@ -108,6 +120,34 @@ class TestPostRepository:
         assert response.json["uri"] == "github.com/org/repo"
         assert response.json["dataset_id"] == test_dataset.id
 
+    @pytest.mark.parametrize("uri", ["github.com/org", "ssh://github.com/org/repo", "https://u:p@github.com/org/repo"])
+    def test_create_rejects_an_unparsable_uri(self, client, post_json_admin_header, test_dataset, uri):
+        body = {**REPO_FIELDS, "uri": uri, "project_id": test_dataset.project_id}
+        response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
+        assert response.status_code == 400
+        assert "Invalid repository uri" in response.json["error"]
+
+    @pytest.mark.parametrize("api_uri", [
+        "ftp://api.github.com", "https://user:pass@api.github.com", "https://evil.example.com/api", "https://github.com"
+    ])
+    def test_create_rejects_an_api_uri_not_on_the_repository_host(self, client, post_json_admin_header, repo_post_body, api_uri):
+        body = {**repo_post_body, "api_uri": api_uri}
+        response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
+        assert response.status_code == 400
+        assert "api_uri" in response.json["error"]
+
+    def test_create_accepts_a_gitea_api_uri_on_the_repository_host(self, client, post_json_admin_header, repo_post_body):
+        body = {**repo_post_body, "provider": "gitea", "uri": "http://gitea.fn.svc:4000/org/repo", "api_uri": "http://gitea.fn.svc:4000/api/v1"}
+        response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["api_uri"] == "http://gitea.fn.svc:4000/api/v1"
+
+    def test_create_strips_the_git_suffix(self, client, post_json_admin_header, test_dataset):
+        body = {**REPO_FIELDS, "uri": "https://github.com/Org/Repo.git", "project_id": test_dataset.project_id}
+        response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["uri"] == "github.com/org/repo"
+
     def test_create_duplicate_uri_fails(self, client, post_json_admin_header, repository):
         body = {**REPO_FIELDS, "uri": repository.uri, "project_id": repository.project_id}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
@@ -135,7 +175,7 @@ class TestPostRepository:
         assert TriggerRepository.get_by_id(response.json["id"]).repo_path == "org/another-repo"
 
     def test_repo_path_is_the_last_two_segments_of_a_sub_path_uri(self, client, post_json_admin_header, repo_post_body):
-        body = {**repo_post_body, "uri": "host/gitea/owner/repo"}
+        body = {**repo_post_body, "uri": "host/gitea/owner/repo", "api_uri": "https://host/gitea/api/v1"}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
         assert response.status_code == 201
         assert response.json["uri"] == "host/gitea/owner/repo"
@@ -213,11 +253,20 @@ class TestPatchRepository:
     def test_update_provider_and_api_uri(self, client, post_json_admin_header, repository):
         response = self.patch(
             client, post_json_admin_header, repository,
-            {"provider": "gitea", "api_uri": "http://gitea.fn.svc:3000/api/v1"}
+            {"provider": "gitea", "api_uri": "https://api.github.com/api/v3"}
         )
         assert response.status_code == 200
         assert response.json["provider"] == "gitea"
-        assert response.json["api_uri"] == "http://gitea.fn.svc:3000/api/v1"
+        assert response.json["api_uri"] == "https://api.github.com/api/v3"
+
+    @pytest.mark.parametrize("api_uri", [
+        "ftp://api.github.com", "https://user:pass@api.github.com", "https://evil.example.com/api", "https://github.com"
+    ])
+    def test_update_rejects_an_api_uri_not_on_the_repository_host(self, client, post_json_admin_header, repository, api_uri):
+        response = self.patch(client, post_json_admin_header, repository, {"api_uri": api_uri})
+        assert response.status_code == 400
+        assert "api_uri" in response.json["error"]
+        assert repository.api_uri == "https://api.github.com"
 
     def test_update_rejects_an_unknown_provider(self, client, post_json_admin_header, repository):
         response = self.patch(client, post_json_admin_header, repository, {"provider": "gitlab"})
@@ -256,18 +305,17 @@ class TestPatchRepository:
         assert response.status_code == 400
         assert f"{field} cannot be empty" in response.json["error"]
 
-    def test_update_project_id(self, client, post_json_admin_header, repository, user_uuid, k8s_client, mock_kc_client, project):
-        # Create a new dataset
-        new_dataset = Dataset(name="NewDatasetForRepo", host="example.com", secret_id=repository.secret_id, project_id=project.id)
-        new_dataset.add(user_id=user_uuid)
+    def test_move_to_another_project_fails(self, client, post_json_admin_header, repository, other_project):
+        project_id = repository.project_id
+        response = self.patch(client, post_json_admin_header, repository, {"project_id": other_project.id})
+        assert response.status_code == 400
+        assert "can't be moved" in response.json["error"]
+        assert TriggerRepository.query.get(repository.id).project_id == project_id
 
-        response = client.patch(
-            f"/trigger_repositories/{repository.id}",
-            data=json.dumps({"project_id": new_dataset.project_id}),
-            headers=post_json_admin_header
-        )
+    def test_same_project_id_is_allowed(self, client, post_json_admin_header, repository):
+        response = self.patch(client, post_json_admin_header, repository, {"project_id": repository.project_id})
         assert response.status_code == 200
-        assert response.json["project_id"] == new_dataset.project_id
+        assert response.json["project_id"] == repository.project_id
 
     def test_update_project_id_invalid_fails(self, client, post_json_admin_header, repository):
         response = client.patch(

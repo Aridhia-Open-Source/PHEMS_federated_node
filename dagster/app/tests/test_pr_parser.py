@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.definitions.sensors.git.pr_parser import PullRequestOutcome, PullRequestParser
+from app.definitions.sensors.git.pr_parser import PullRequestOutcome, PullRequestParser, is_under_dir
 from app.models import PullRequestTrigger, PullRequestSpec
 
 WATCHED = {"filename": "specs/a.json", "status": "added"}
@@ -31,6 +31,7 @@ def parse(files, contents=None):
         [{"filename": "docs/a.json", "status": "added"}],
         [{"filename": "specs/a.txt", "status": "added"}],
         [{"filename": "specs/a.json", "status": "modified"}],
+        [{"filename": "specs-old/a.json", "status": "added"}],
     ],
 )
 def test_no_watched_file_is_ignored_with_a_reason(files):
@@ -79,3 +80,22 @@ def test_a_git_failure_raises_instead_of_rejecting():
 
     with pytest.raises(ConnectionError):
         PullRequestParser(git_api, repo, MagicMock()).parse(pr())
+
+
+@pytest.mark.parametrize(
+    "watch_dir,filename,expected",
+    [
+        ("data", "data/x.json", True),
+        ("data", "database/x.json", False),
+        ("data/", "data/x.json", True),
+        ("./data", "data/x.json", True),
+        ("dagster/triggers", "dagster/triggers-results/x.json", False),
+        ("dagster/triggers", "dagster/triggers/x.json", True),
+        ("dagster/triggers", "dagster/triggers/sub/x.json", True),
+        ("dagster/triggers", "dagster/x.json", False),
+        ("", "x.json", True),
+        ("", "a/b/x.json", True),
+    ],
+)
+def test_files_are_watched_by_path_segment(watch_dir, filename, expected):
+    assert is_under_dir(filename, watch_dir) is expected

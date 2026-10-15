@@ -8,6 +8,7 @@ project endpoints:
 - GET /projects/<project_id>/healthcheck
 """
 
+from concurrent.futures import ThreadPoolExecutor
 from http import HTTPStatus
 from flask import Blueprint, request
 
@@ -27,6 +28,8 @@ from app.models.secret import Secret
 from app.models.task import Task
 from app.secrets_api import SecretProvider
 
+
+HEALTHCHECK_MAX_WORKERS = 8
 
 bp = Blueprint('projects', __name__, url_prefix='/projects')
 
@@ -108,8 +111,8 @@ def patch_project(project_id: int):
 def delete_project(project_id: int):
     """
     DELETE /projects/<project_id> endpoint. Deletes the project and everything under it:
-    tasks, datasets, repositories and secrets. The stored secret values go after
-    the database commit.
+    tasks, datasets, repositories and secrets. The stored secret values go before
+    the database commit, so a failed store delete leaves the project in place to retry.
     """
     # Hard delete for now, a soft delete option can come later. Keycloak entries of the
     # datasets are left behind, as with DELETE /datasets.
@@ -136,13 +139,20 @@ def delete_project(project_id: int):
         for secret in project_secrets:
             secret.delete(False)
         project.delete(False)
-        db.session.commit()
     except Exception as exc:
         db.session.rollback()
         raise InvalidRequest("Error while deleting the record") from exc
 
-    for provider, key, namespace in secrets:
-        SecretProvider(provider).delete(key, namespace)
+    # The rows are staged, not committed: if the store delete fails the project has to
+    # stay so a retry can finish the cleanup, and a rollback after a commit is a no-op.
+    try:
+        for provider, key, namespace in secrets:
+            SecretProvider(provider).delete(key, namespace)
+    except InvalidRequest:
+        db.session.rollback()
+        raise
+
+    db.session.commit()
     return '', HTTPStatus.NO_CONTENT
 
 
@@ -157,9 +167,17 @@ def project_healthcheck(project_id: int):
     """
     project = Project.get_by_id(project_id)
 
+    # Tokens are read here, in the request; only the network calls run in the threads.
+    trigger_repos = list(project.trigger_repositories)
+    results_repo = project.get_results_repository()
+    checks = [repo.prepare_connection_check() for repo in trigger_repos]
+    if results_repo:
+        checks.append(results_repo.prepare_connection_check())
+    with ThreadPoolExecutor(max_workers=HEALTHCHECK_MAX_WORKERS) as executor:
+        results = list(executor.map(lambda check: check(), checks))
+
     repositories = []
-    for repo in project.trigger_repositories:
-        check = repo.check_connection()
+    for repo, check in zip(trigger_repos, results):
         repositories.append(RepositoryHealthDTO(
             id=repo.id,
             uri=repo.uri,
@@ -173,10 +191,9 @@ def project_healthcheck(project_id: int):
             ),
         ))
 
-    results_repo = project.get_results_repository()
     results_health = None
     if results_repo:
-        check = results_repo.check_connection()
+        check = results[-1]
         results_health = ResultsRepositoryHealthDTO(
             id=results_repo.id,
             uri=results_repo.uri,

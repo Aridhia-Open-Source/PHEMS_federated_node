@@ -6,6 +6,7 @@ from http import HTTPStatus
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
+from app.dtos.repository_uri import RepositoryUriRequest
 from app.helpers.const import (
     MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, ENABLE_IMAGE_WHITELIST
 )
@@ -110,7 +111,7 @@ class Task(db.Model, BaseModel):
         repo = None
         if repository:
             repo = Models.TriggerRepository.query.filter(
-                Models.TriggerRepository.uri == repository.lower()
+                Models.TriggerRepository.uri == RepositoryUriRequest.normalised(repository)
             ).one_or_none()
             if repo is None:
                 raise InvalidRequest(f"No datasets linked with the repository {repository}")

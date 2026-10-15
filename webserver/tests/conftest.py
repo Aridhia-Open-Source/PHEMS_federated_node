@@ -282,7 +282,7 @@ def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, se
 
     # Then create repository with the dataset_id
     repo = TriggerRepository(
-        uri="organisation/repository", provider="github", api_uri="https://api.github.com",
+        uri="github.com/organisation/repository", provider="github", api_uri="https://api.github.com",
         secret_id=secret.id, watch_dir="", project_id=project.id
     )
     repo.add()

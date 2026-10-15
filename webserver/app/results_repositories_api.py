@@ -10,11 +10,12 @@ from http import HTTPStatus
 
 from flask import Blueprint, request
 
+from app.dtos.repository_uri import RepositoryUriRequest
 from app.dtos.results_repository import ResultsRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.project_lock import require_drained
-from app.helpers.repository_loop import check_no_loop
+from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
 from app.models.secret import Secret
@@ -75,6 +76,11 @@ def post_repository():
     for field in ('uri', 'project_id', 'provider', 'secret_label', 'target_dir'):
         if not body.get(field):
             raise InvalidRequest(f"{field} is required")
+    target_dir = normalise_dir(body['target_dir'])
+    if not target_dir:
+        raise InvalidRequest("target_dir is required")
+
+    uri = RepositoryUriRequest.normalised(body['uri'])
 
     # Validate project and secret exist. A project has one results repository, so creating it
     # changes where its in-flight tasks deliver.
@@ -88,13 +94,12 @@ def post_repository():
         )
 
     try:
-        uri = ResultsRepository.parse_repo_uri(body['uri'])
         repo = ResultsRepository(
             uri=uri,
             provider=body['provider'],
             api_uri=body.get('api_uri') or GitProvider(body['provider']).default_api_uri(uri),
             secret_id=secret.id,
-            target_dir=body['target_dir'],
+            target_dir=target_dir,
             project_id=body['project_id'],
             owned_by_federated_node=body.get('owned_by_federated_node', True),
         )
@@ -127,13 +132,15 @@ def patch_repository(repo_id):
         require_drained(repo.project)
 
     if 'project_id' in body:
-        require_drained(Project.get_by_id(body['project_id']))
-        repo.project_id = body['project_id']
+        Project.get_by_id(body['project_id'])
+        if body['project_id'] != repo.project_id:
+            raise InvalidRequest("A repository can't be moved to another project; create it in the new project instead")
 
     if 'target_dir' in body:
-        if not body['target_dir']:
+        target_dir = normalise_dir(body['target_dir'])
+        if not target_dir:
             raise InvalidRequest("target_dir cannot be empty")
-        repo.target_dir = body['target_dir']
+        repo.target_dir = target_dir
 
     if 'secret_label' in body:
         if not body['secret_label']:

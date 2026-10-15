@@ -442,10 +442,10 @@ class TestPostDataset(MixinTestDataset):
         from app.models.trigger_repository import TriggerRepository
         data_body = dataset_post_body.copy()
         data_body['name'] = 'TestDs78'
-        data_body['repository'] = 'organisation/repository'
+        data_body['repository'] = 'github.com/organisation/repository'
         self.post_dataset(client, post_json_admin_header, data_body)
 
-        assert TriggerRepository.query.filter_by(uri='organisation/repository').one_or_none() is None
+        assert TriggerRepository.query.filter_by(uri='github.com/organisation/repository').one_or_none() is None
 
     @pytest.mark.usefixtures("lock_project")
     def test_patch_dataset_rejects_repository_field(
@@ -460,7 +460,7 @@ class TestPostDataset(MixinTestDataset):
         """
         response = client.patch(
             f"/datasets/{dataset.id}",
-            json={"repository": "organisation/repository"},
+            json={"repository": "github.com/organisation/repository"},
             headers=post_json_admin_header
         )
         assert response.status_code == 400, response.json

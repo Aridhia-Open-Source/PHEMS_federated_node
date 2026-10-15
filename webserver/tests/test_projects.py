@@ -403,6 +403,26 @@ class TestProjectHealthcheck:
         response = client.get(f"/projects/{project.id + 100}/healthcheck", headers=simple_admin_header)
         assert response.status_code == HTTPStatus.NOT_FOUND
 
+    def test_mixed_repositories_are_reported_in_order(
+        self, client, k8s_client, project, secret, git_api, simple_admin_header
+    ):
+        uris = [f"host/gitea/owner/repo{i}" for i in range(4)]
+        for uri in uris:
+            TriggerRepository(
+                uri=uri, provider="gitea", api_uri="https://host/gitea/api/v1",
+                secret_id=secret.id, watch_dir="", project_id=project.id
+            ).add()
+        git_api.side_effect = lambda url, **kwargs: Mock(
+            status_code=200 if url.endswith(("repo0", "repo2")) else 503,
+            ok=url.endswith(("repo0", "repo2")), reason="Rejected",
+        )
+        response = self.get(client, project, simple_admin_header)
+        assert response.status_code == HTTPStatus.OK
+        assert response.json["status"] == "error"
+        repos = response.json["trigger_repositories"]
+        assert [r["uri"] for r in repos] == uris
+        assert [r["status"] for r in repos] == ["ok", "error", "ok", "error"]
+
 
 @pytest.mark.usefixtures("lock_project")
 class TestDeleteProject:
@@ -455,6 +475,19 @@ class TestDeleteProject:
     def test_a_missing_cluster_secret_is_fine(self, client, k8s_client, simple_admin_header, full_project):
         k8s_client["delete_namespaced_secret_mock"].side_effect = ApiException(status=404)
         assert self.delete(client, simple_admin_header, full_project).status_code == HTTPStatus.NO_CONTENT
+
+    def test_a_failed_secret_delete_keeps_the_project_and_can_be_retried(
+        self, client, k8s_client, simple_admin_header, full_project
+    ):
+        mock = k8s_client["delete_namespaced_secret_mock"]
+        mock.side_effect = ApiException(status=500)
+        response = self.delete(client, simple_admin_header, full_project)
+        assert response.status_code == HTTPStatus.BAD_REQUEST
+        assert Project.query.filter_by(id=full_project.id).count() == 1
+
+        mock.side_effect = None
+        assert self.delete(client, simple_admin_header, full_project).status_code == HTTPStatus.NO_CONTENT
+        assert Project.query.filter_by(id=full_project.id).count() == 0
 
     def test_deletes_a_project_with_pull_requests(
         self, client, k8s_client, simple_admin_header, full_project, default_repo

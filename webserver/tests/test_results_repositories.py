@@ -2,6 +2,8 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.dtos.results_repository import ResultsRepositoryDTO
+from app.helpers.exceptions import InvalidRequest
+from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 from app.models.project import Project
@@ -76,6 +78,19 @@ class TestPostResultsRepository:
         assert response.status_code == 201
         assert response.json["uri"] == "github.com/org/results"
 
+    def test_create_strips_the_git_suffix(self, client, post_json_admin_header, results_post_body):
+        body = {**results_post_body, "uri": "https://github.com/org/results.git"}
+        response = client.post("/results_repositories", json=body, headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["uri"] == "github.com/org/results"
+
+    @pytest.mark.parametrize("uri", ["github.com/org", "ssh://github.com/org/results"])
+    def test_create_rejects_an_unparsable_uri(self, client, post_json_admin_header, results_post_body, uri):
+        response = client.post("/results_repositories", json={**results_post_body, "uri": uri}, headers=post_json_admin_header)
+        assert response.status_code == 400
+        assert "Invalid repository uri" in response.json["error"]
+        assert ResultsRepository.query.count() == 0
+
     def test_create_defaults_the_api_uri(self, client, post_json_admin_header, results_post_body):
         del results_post_body["api_uri"]
         response = client.post("/results_repositories", json=results_post_body, headers=post_json_admin_header)
@@ -90,10 +105,22 @@ class TestPostResultsRepository:
         assert response.json["api_uri"] == "https://gitea.fn.svc:4000/api/v1"
 
     def test_create_keeps_a_given_api_uri(self, client, post_json_admin_header, results_post_body):
-        body = {**results_post_body, "provider": "gitea", "api_uri": "http://gitea.fn.svc:4000/api/v1"}
+        body = {
+            **results_post_body, "provider": "gitea", "uri": "http://gitea.fn.svc:4000/org/results",
+            "api_uri": "http://gitea.fn.svc:4000/api/v1"
+        }
         response = client.post("/results_repositories", json=body, headers=post_json_admin_header)
         assert response.status_code == 201
         assert response.json["api_uri"] == "http://gitea.fn.svc:4000/api/v1"
+
+    @pytest.mark.parametrize("api_uri", [
+        "ftp://api.github.com", "https://user:pass@api.github.com", "https://evil.example.com/api", "https://github.com"
+    ])
+    def test_create_rejects_an_api_uri_not_on_the_repository_host(self, client, post_json_admin_header, results_post_body, api_uri):
+        response = client.post("/results_repositories", json={**results_post_body, "api_uri": api_uri}, headers=post_json_admin_header)
+        assert response.status_code == 400
+        assert "api_uri" in response.json["error"]
+        assert ResultsRepository.query.count() == 0
 
     @pytest.mark.parametrize("field", ["uri", "project_id", "provider", "secret_label", "target_dir"])
     def test_create_requires_field(self, client, post_json_admin_header, results_post_body, field):
@@ -145,12 +172,21 @@ class TestPostResultsRepository:
 @pytest.mark.usefixtures("lock_project")
 class TestPatchResultsRepository:
     def test_update_fields(self, client, post_json_admin_header, results_repo):
-        body = {"target_dir": "out", "owned_by_federated_node": False, "api_uri": "https://git.example.com/api"}
+        body = {"target_dir": "out", "owned_by_federated_node": False, "api_uri": "https://api.github.com/v3"}
         response = client.patch(f"/results_repositories/{results_repo.id}", json=body, headers=post_json_admin_header)
         assert response.status_code == 200
         assert response.json["target_dir"] == "out"
         assert response.json["owned_by_federated_node"] is False
-        assert response.json["api_uri"] == "https://git.example.com/api"
+        assert response.json["api_uri"] == "https://api.github.com/v3"
+
+    @pytest.mark.parametrize("api_uri", [
+        "ftp://api.github.com", "https://user:pass@api.github.com", "https://evil.example.com/api", "https://github.com"
+    ])
+    def test_update_rejects_an_api_uri_not_on_the_repository_host(self, client, post_json_admin_header, results_repo, api_uri):
+        response = client.patch(f"/results_repositories/{results_repo.id}", json={"api_uri": api_uri}, headers=post_json_admin_header)
+        assert response.status_code == 400
+        assert "api_uri" in response.json["error"]
+        assert results_repo.api_uri == "https://api.github.com"
 
     def test_empty_body(self, client, post_json_admin_header, results_repo):
         response = client.patch(f"/results_repositories/{results_repo.id}", json={}, headers=post_json_admin_header)
@@ -167,6 +203,22 @@ class TestPatchResultsRepository:
             headers=post_json_admin_header
         )
         assert response.status_code == 400
+
+    def test_move_to_another_project_fails(self, client, post_json_admin_header, results_repo, other_project):
+        project_id = results_repo.project_id
+        response = client.patch(
+            f"/results_repositories/{results_repo.id}", json={"project_id": other_project.id},
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert ResultsRepository.query.get(results_repo.id).project_id == project_id
+
+    def test_same_project_id_is_allowed(self, client, post_json_admin_header, results_repo):
+        response = client.patch(
+            f"/results_repositories/{results_repo.id}", json={"project_id": results_repo.project_id},
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 200
 
     def test_not_found(self, client, post_json_admin_header):
         response = client.patch("/results_repositories/9999", json={"target_dir": "x"}, headers=post_json_admin_header)
@@ -261,3 +313,54 @@ class TestLoopGuard:
         make_trigger(project, secret, watch_dir="triggers")
         response = client.patch(f"/results_repositories/{results_repo.id}", json={"target_dir": "out"}, headers=post_json_admin_header)
         assert response.status_code == 200
+
+
+class TestDirectoryNormalisation:
+    @pytest.mark.parametrize("directory,expected", [
+        ("results", "results"),
+        ("/results/", "results"),
+        ("./results", "results"),
+        ("a//b/./c/", "a/b/c"),
+        (".", ""),
+        ("", ""),
+    ])
+    def test_normalise_dir(self, directory, expected):
+        assert normalise_dir(directory) == expected
+
+    @pytest.mark.parametrize("directory", ["../results", "tmp/../results", "a/.."])
+    def test_normalise_dir_refuses_parent_segments(self, directory):
+        with pytest.raises(InvalidRequest):
+            normalise_dir(directory)
+
+    def test_loop_guard_compares_normalised_directories(self, project, secret, results_repo):
+        make_trigger(project, secret, watch_dir="./results/")
+        with pytest.raises(InvalidRequest):
+            check_no_loop(project.id, "github.com/org/results")
+
+    def test_create_stores_the_normalised_directory(self, client, post_json_admin_header, results_post_body):
+        response = client.post("/results_repositories", json={**results_post_body, "target_dir": "./a//b/"}, headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["target_dir"] == "a/b"
+
+    @pytest.mark.parametrize("target_dir", ["tmp/../results", "..", "."])
+    def test_create_refuses_bad_directories(self, client, post_json_admin_header, results_post_body, target_dir):
+        response = client.post("/results_repositories", json={**results_post_body, "target_dir": target_dir}, headers=post_json_admin_header)
+        assert response.status_code == 400
+
+    def test_patch_normalises_and_refuses(self, client, post_json_admin_header, results_repo):
+        url = f"/results_repositories/{results_repo.id}"
+        response = client.patch(url, json={"target_dir": "./out/"}, headers=post_json_admin_header)
+        assert response.json["target_dir"] == "out"
+        response = client.patch(url, json={"target_dir": "out/../x"}, headers=post_json_admin_header)
+        assert response.status_code == 400
+        assert ResultsRepository.get_by_id(results_repo.id).target_dir == "out"
+
+    def test_trigger_create_and_patch(self, client, post_json_admin_header, project, secret):
+        body = {**REPO_FIELDS, "uri": "github.com/org/other", "project_id": project.id, "watch_dir": "./t//"}
+        response = client.post("/trigger_repositories", json=body, headers=post_json_admin_header)
+        assert response.status_code == 201
+        assert response.json["watch_dir"] == "t"
+        url = f"/trigger_repositories/{response.json['id']}"
+        assert client.patch(url, json={"watch_dir": "/u/./v"}, headers=post_json_admin_header).json["watch_dir"] == "u/v"
+        assert client.patch(url, json={"watch_dir": "u/../v"}, headers=post_json_admin_header).status_code == 400
+        assert client.post("/trigger_repositories", json={**body, "uri": "github.com/org/third", "watch_dir": "../t"}, headers=post_json_admin_header).status_code == 400
