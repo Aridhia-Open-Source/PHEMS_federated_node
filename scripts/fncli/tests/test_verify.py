@@ -32,7 +32,7 @@ class FakeDagster:
 
 def result_of(**fields):
     result = dict(
-        id=1, type="PR", task_id=9, state="OPENED", attempts=1, commit_sha="abc123", error=None,
+        id=1, type="PR", task_id=9, step="OPENED", state="DELIVERED", attempts=1, commit_sha="abc123", error=None,
         number=3, url="http://gitea.fn.svc:4000/gitea_admin/results/pulls/3",
     )
     return SimpleNamespace(**(result | fields))
@@ -126,9 +126,9 @@ def test_each_mismatch_is_reported(task_fields, run_fields, failed):
 
 
 @pytest.mark.parametrize("results, failed", [
-    ([result_of(state="PUSHED", error="provider down", number=None, url=None)],
+    ([result_of(step="PUSHED", state="FAILED", error="provider down", number=None, url=None)],
      ["Results PR was opened", "Delivery has a results PR"]),
-    ([result_of(state="UNKNOWN", commit_sha=None, number=None, url=None)],
+    ([result_of(step="UNKNOWN", state="IN_PROGRESS", commit_sha=None, number=None, url=None)],
      ["Results PR was opened", "Delivery has a commit_sha", "Delivery has a results PR"]),
     ([result_of(commit_sha=None)], ["Delivery has a commit_sha"]),
     ([result_of(number=None)], ["Delivery has a results PR"]),
@@ -143,17 +143,17 @@ def test_each_delivery_problem_is_reported(results, failed):
 
 
 def test_a_failed_delivery_shows_its_error():
-    report = verify(pr_of(), task_of(), run_of(), [result_of(state="UNKNOWN", error="zip too big")])
+    report = verify(pr_of(), task_of(), run_of(), [result_of(step="UNKNOWN", state="FAILED", error="zip too big")])
 
-    assert ("FAIL", "Results PR was opened", "UNKNOWN: zip too big") in report.rows
+    assert ("FAIL", "Results PR was opened", "UNKNOWN, FAILED: zip too big") in report.rows
 
 
 @pytest.mark.parametrize("state", ["OPENED", "MERGED", "CLOSED"])
 def test_a_results_pr_past_pushed_is_delivered_and_shows_its_state(state):
-    report = verify(pr_of(), task_of(), run_of(), [result_of(state=state)])
+    report = verify(pr_of(), task_of(), run_of(), [result_of(step=state)])
 
     assert failures(report) == []
-    assert ("ok", "Results PR was opened", state) in report.rows
+    assert ("ok", "Results PR was opened", f"{state}, DELIVERED") in report.rows
     assert ("ok", "Delivery has a results PR", f"#3, {state}") in report.rows
 
 

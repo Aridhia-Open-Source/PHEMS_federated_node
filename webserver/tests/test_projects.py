@@ -95,6 +95,7 @@ class TestPostProject:
         assert Project.query.filter_by(name="bad").one_or_none() is None
 
 
+@pytest.mark.usefixtures("lock_project")
 class TestPatchProject:
     def test_enable_project(self, client, project, post_json_admin_header):
         assert project.enabled is False
@@ -423,6 +424,7 @@ class TestProjectHealthcheck:
         assert [r["status"] for r in repos] == ["ok", "error", "ok", "error"]
 
 
+@pytest.mark.usefixtures("lock_project")
 class TestDeleteProject:
     @pytest.fixture
     def full_project(self, client, k8s_client, project, dataset, default_repo, secret, make_task, results_repo_for):

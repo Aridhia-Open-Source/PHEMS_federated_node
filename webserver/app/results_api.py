@@ -14,7 +14,8 @@ from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.wrappers import audit, auth
 from app.models.pull_request_result import PullRequestResult
-from app.models.pull_request_result_state import PullRequestResultState
+from app.models.pull_request_result_step import PullRequestResultStep
+from app.models.result_state import ResultState
 from app.models.results_repository import ResultsRepository
 from app.models.task import Task
 from app.models.result import Result
@@ -24,7 +25,7 @@ bp = Blueprint('results', __name__, url_prefix='/results')
 
 BASE_FIELDS = {"attempts", "error"}
 PULL_REQUEST_FIELDS = {
-    "state", "branch", "commit_sha", "number", "url", "merged_at", "merge_commit_sha"
+    "step", "state", "branch", "commit_sha", "number", "url", "merged_at", "merge_commit_sha"
 }
 
 
@@ -36,17 +37,17 @@ def get_results():
     """
     GET /results endpoint. Lists results
     Query params:
-        - state: only the pull request results in this state, repeated for several,
-          e.g. ?state=PUSHED&state=OPENED (optional)
+        - step: only the pull request results at this step, repeated for several,
+          e.g. ?step=PUSHED&step=OPENED (optional)
     """
     query = Result.query
-    states = request.args.getlist('state')
-    if states:
-        valid = [s.value for s in PullRequestResultState]
-        for state in states:
-            if state not in valid:
-                raise InvalidRequest(f"Invalid state: {state}. Must be one of: {', '.join(valid)}")
-        query = PullRequestResult.query.filter(PullRequestResult.state.in_(states))
+    steps = request.args.getlist('step')
+    if steps:
+        valid = [s.value for s in PullRequestResultStep]
+        for step in steps:
+            if step not in valid:
+                raise InvalidRequest(f"Invalid step: {step}. Must be one of: {', '.join(valid)}")
+        query = PullRequestResult.query.filter(PullRequestResult.step.in_(steps))
     return [dump_result(r) for r in query.order_by(Result.id).all()], HTTPStatus.OK
 
 
@@ -95,7 +96,7 @@ def post_result():
 def patch_result(result_id):
     """
     PATCH /results/id endpoint. Records the progress of a task's delivery.
-    A pull request result's state only moves forward, see PullRequestResult.set_state
+    A pull request result's step only moves forward, see PullRequestResult.set_step
     """
     result = Result.get_by_id(result_id)
     does_user_own_task(result.task)
@@ -111,8 +112,14 @@ def patch_result(result_id):
     if unknown:
         raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
 
+    if 'step' in body:
+        result.set_step(body['step'])
+
     if 'state' in body:
-        result.set_state(body['state'])
+        valid = [s.value for s in ResultState]
+        if body['state'] not in valid:
+            raise InvalidRequest(f"Invalid state: {body['state']}. Must be one of: {', '.join(valid)}")
+        result.state = body['state']
 
     if 'merged_at' in body:
         if body['merged_at'] is not None and not isinstance(body['merged_at'], str):

@@ -514,6 +514,7 @@ class TestPostDataset(MixinTestDataset):
 
         assert TriggerRepository.query.filter_by(uri='github.com/organisation/repository').one_or_none() is None
 
+    @pytest.mark.usefixtures("lock_project")
     def test_patch_dataset_rejects_repository_field(
             self,
             post_json_admin_header,
@@ -750,6 +751,7 @@ class TestPostDataset(MixinTestDataset):
             assert len(query)== 1
 
 
+@pytest.mark.usefixtures("lock_project")
 class TestPatchDataset(MixinTestDataset):
     def test_patch_dataset_name_is_successful(
             self,
@@ -885,6 +887,7 @@ class TestPatchDataset(MixinTestDataset):
         assert response.status_code == 404
 
 
+@pytest.mark.usefixtures("lock_project")
 class TestDeleteDataset(MixinTestDataset):
     def test_delete_dataset_leaves_its_secret(
             self,

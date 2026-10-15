@@ -67,6 +67,7 @@ class TestGetResultsRepositories:
         assert response.status_code == 404
 
 
+@pytest.mark.usefixtures("lock_project")
 class TestPostResultsRepository:
     def test_create(self, client, post_json_admin_header, results_post_body):
         response = client.post("/results_repositories", json=results_post_body, headers=post_json_admin_header)
@@ -172,6 +173,7 @@ class TestPostResultsRepository:
             ).add()
 
 
+@pytest.mark.usefixtures("lock_project")
 class TestPatchResultsRepository:
     def test_update_fields(self, client, post_json_admin_header, results_repo):
         body = {"target_dir": "out", "owned_by_federated_node": False, "api_uri": "https://api.github.com/v3"}
@@ -227,6 +229,7 @@ class TestPatchResultsRepository:
         assert response.status_code == 404
 
 
+@pytest.mark.usefixtures("lock_project")
 class TestDeleteResultsRepository:
     def test_delete(self, client, simple_admin_header, results_repo):
         response = client.delete(f"/results_repositories/{results_repo.id}", headers=simple_admin_header)
@@ -244,6 +247,7 @@ class TestDeleteResultsRepository:
         assert project.get_results_repository() is None
 
 
+@pytest.mark.usefixtures("lock_project")
 class TestLoopGuard:
     """A results repository and a trigger repository that are the same repository must not overlap."""
 

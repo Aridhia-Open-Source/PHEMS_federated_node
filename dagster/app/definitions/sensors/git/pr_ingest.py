@@ -5,13 +5,17 @@ from app.models import PullRequestTrigger, TriggerRepository
 
 
 class PullRequestIngestSensor(GitSensor):
-    """Polls the git provider for new merged PRs and saves them to the database."""
+    """
+    Polls the git provider for new merged PRs and saves them to the database. A locked
+    project is skipped: its cursor does not move, so its PRs are picked up once it is unlocked.
+    """
 
     def __call__(self):
         """Execute the sensor. Yields a SkipReason summarising what was saved."""
-        repositories = self.backend_api.get_repositories(enabled_only=True)
+        unlocked = {p.id for p in self.backend_api.get_projects() if not p.locked}
+        repositories = [r for r in self.backend_api.get_repositories(enabled_only=True) if r.project_id in unlocked]
         if not repositories:
-            yield dg.SkipReason("No repositories of enabled projects found in database.")
+            yield dg.SkipReason("No repositories of enabled, unlocked projects found in database.")
             return
 
         saved = 0

@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class PullRequestResultState(str, Enum):
+class PullRequestResultStep(str, Enum):
     """
     The furthest step the delivery of a task's results by pull request has reached, as the
     webserver defines it. It only moves forward, and the webserver rejects a move back.
@@ -20,8 +20,8 @@ class PullRequestResultState(str, Enum):
     CLOSED = "CLOSED"
 
     @classmethod
-    def from_git(cls, pr: dict) -> "PullRequestResultState":
-        """The state of an opened pull request, from the git provider's response."""
+    def from_git(cls, pr: dict) -> "PullRequestResultStep":
+        """The step of an opened pull request, from the git provider's response."""
         if pr["merged_at"]:
             return cls.MERGED
         if pr["state"] == "closed":

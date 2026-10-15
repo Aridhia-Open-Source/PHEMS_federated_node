@@ -136,20 +136,21 @@ def stuck_sensors(dagster_api: DagsterAPI, stage: str) -> list[str]:
 
 def wait_for_delivery(backend_api, dagster_api: DagsterAPI, task_id: int):
     """
-    Print each change of the task's delivery state until its results PR is opened or the
-    delivery fails (it records an error and leaves the state), or the wait ends.
+    Print each change of the task's delivery step until its results PR is opened or the
+    delivery fails (its state is FAILED, with an error, and its step is left), or the wait ends.
     """
     deadline = time.monotonic() + DELIVERY_SECONDS
     last = ""
     while time.monotonic() < deadline:
         results = backend_api.get_task_results(task_id)
+        step = results[0].step if results else None
         state = results[0].state if results else None
         error = results[0].error if results else None
-        seen = f"{state}: {error}" if error else state
+        seen = f"{step}: {error}" if error else step
         if seen != last:
             last = seen
             logger.info(f"Delivery: {seen or 'waiting for the delivery sensor'}")
-        if state in PAST_PUSHED or error:
+        if step in PAST_PUSHED or state == "FAILED":
             return
         time.sleep(POLL_SECONDS)
     logger.info(f"Delivery not finished after {DELIVERY_SECONDS}s, last seen: {last or None}")

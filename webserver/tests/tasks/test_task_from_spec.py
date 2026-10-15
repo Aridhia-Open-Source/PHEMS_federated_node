@@ -166,6 +166,14 @@ class TestPostTasks:
         assert api_request.spec_raw is None
         assert Task.query.count() == 0
 
+    def test_a_locked_project_rejects_the_task(
+            self, client, cr_client, registry_client, post_json_admin_header, task_body, lock_project
+        ):
+        response = self.post(client, post_json_admin_header, lock_project, task_body)
+        assert response.status_code == 409
+        assert Task.query.count() == 0
+        assert ApiRequestTrigger.query.count() == 0
+
     def test_invalid_spec_keeps_a_rejected_request(
             self, client, cr_client, registry_client, post_json_admin_header, task_body, project
         ):

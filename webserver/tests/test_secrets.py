@@ -319,6 +319,7 @@ class TestPatchSecret:
         assert response.status_code == 404
 
 
+@pytest.mark.usefixtures("lock_project")
 class TestDeleteSecret:
     def test_delete(self, client, k8s_client, audited, simple_admin_header, secret):
         store_name = secret.key

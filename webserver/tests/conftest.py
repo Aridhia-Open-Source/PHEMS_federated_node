@@ -203,6 +203,14 @@ def project(client) -> Project:
 
 
 @fixture
+def lock_project(project) -> Project:
+    """The project locked and with nothing in flight, as changing its configuration needs."""
+    project.locked = True
+    db.session.commit()
+    return project
+
+
+@fixture
 def make_task(client, project):
     """Factory for a task with its own ApiRequestTrigger trigger"""
     def _make(project=project, **fields) -> Task:

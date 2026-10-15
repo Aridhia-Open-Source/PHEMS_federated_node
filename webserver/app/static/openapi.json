@@ -214,6 +214,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "409": {
+            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
+          },
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
@@ -250,6 +253,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
@@ -1364,6 +1370,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "409": {
+            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
+          },
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
@@ -1395,6 +1404,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
@@ -1602,7 +1614,7 @@
         "tags": [
           "Projects"
         ],
-        "summary": "Enable or disable a project",
+        "summary": "Enable or disable a project, lock or unlock it",
         "parameters": [
           {
             "in": "path",
@@ -1635,19 +1647,23 @@
             }
           },
           "400": {
-            "description": "enabled missing or not a boolean"
+            "description": "Fields other than enabled and locked, or one not a boolean"
           },
           "404": {
             "description": "Project not found"
+          },
+          "409": {
+            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
           }
-        }
+        },
+        "description": "Setting only locked is always allowed. Any other change needs the project locked and drained: no task in flight, that is PENDING, QUEUED or RUNNING, SUCCESS with no result yet, or with a result IN_PROGRESS. While locked, ingest and evaluation skip the project and API tasks are rejected with 409."
       },
       "delete": {
         "tags": [
           "Projects"
         ],
         "summary": "Delete a project and everything under it",
-        "description": "Hard delete of the project and its tasks, requests, datasets (and their Keycloak entries), trigger and results repositories and secrets, including the stored secret values.",
+        "description": "Hard delete of the project and its tasks, requests, datasets (and their Keycloak entries), trigger and results repositories and secrets, including the stored secret values. Needs the project locked and drained, see PATCH.",
         "parameters": [
           {
             "in": "path",
@@ -1664,6 +1680,9 @@
           },
           "404": {
             "description": "Project not found"
+          },
+          "409": {
+            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
           }
         }
       }
@@ -2218,7 +2237,7 @@
         "tags": [
           "Tasks"
         ],
-        "summary": "Record the progress of a task's delivery. A pull request result's state only moves forward: UNKNOWN, PUSHED, OPENED, then MERGED or CLOSED, both terminal. A backward move is a 400",
+        "summary": "Record the progress of a task's delivery. A pull request result's step only moves forward: UNKNOWN, PUSHED, OPENED, then MERGED or CLOSED, both terminal. A backward move is a 400",
         "requestBody": {
           "required": true,
           "content": {
@@ -2264,8 +2283,8 @@
         "parameters": [
           {
             "in": "query",
-            "name": "state",
-            "description": "Only the pull request results in these states, repeated for several: ?state=PUSHED&state=OPENED",
+            "name": "step",
+            "description": "Only the pull request results at these steps, repeated for several: ?step=PUSHED&step=OPENED",
             "required": false,
             "style": "form",
             "explode": true,
@@ -3979,6 +3998,11 @@
           "updated_at": {
             "type": "string",
             "example": "2026-08-18 09:30:00"
+          },
+          "locked": {
+            "type": "boolean",
+            "description": "While locked, ingest and evaluation skip the project and API tasks are rejected. Its configuration changes only once locked and drained",
+            "example": false
           }
         }
       },
@@ -4146,11 +4170,12 @@
       },
       "ProjectPatchBody": {
         "type": "object",
-        "required": [
-          "enabled"
-        ],
         "properties": {
           "enabled": {
+            "type": "boolean",
+            "example": true
+          },
+          "locked": {
             "type": "boolean",
             "example": true
           }
@@ -4272,7 +4297,7 @@
             "type": "string",
             "example": "Mon, 19 Feb 2024 10:41:54 GMT"
           },
-          "state": {
+          "step": {
             "type": "string",
             "enum": [
               "UNKNOWN",
@@ -4283,6 +4308,16 @@
             ],
             "example": "UNKNOWN",
             "description": "Type PR only. The furthest delivery step reached, forward only"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "IN_PROGRESS",
+              "DELIVERED",
+              "FAILED"
+            ],
+            "example": "IN_PROGRESS",
+            "description": "Type PR only. How the delivery is going. DELIVERED once the pull request is opened, FAILED when the delivery fails, IN_PROGRESS again when it is re-launched"
           },
           "branch": {
             "type": "string",
@@ -4332,7 +4367,7 @@
       "ResultPatchBody": {
         "type": "object",
         "properties": {
-          "state": {
+          "step": {
             "type": "string",
             "enum": [
               "UNKNOWN",
@@ -4342,6 +4377,15 @@
               "CLOSED"
             ],
             "example": "PUSHED"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "IN_PROGRESS",
+              "DELIVERED",
+              "FAILED"
+            ],
+            "example": "DELIVERED"
           },
           "attempts": {
             "type": "integer",
@@ -4378,7 +4422,7 @@
             "nullable": true
           }
         },
-        "description": "state, branch, commit_sha, number, url, merged_at and merge_commit_sha are only accepted for results of type PR"
+        "description": "step, state, branch, commit_sha, number, url, merged_at and merge_commit_sha are only accepted for results of type PR"
       },
       "SecretObject": {
         "type": "object",
