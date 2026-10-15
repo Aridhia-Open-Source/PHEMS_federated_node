@@ -17,7 +17,7 @@ from app.tests.conftest import SAMPLE_SECRET
 RUN_ID = "run-1"
 TASK = Task(
     id=7, name="t", docker_image="img", spec={"image": "img"}, attempt=1, requested_by="u",
-    project_id=1, trigger_id=3, dagster_run_id=RUN_ID,
+    project_id=1, trigger_id=3, dagster_run_id="stale-run",
 )
 REPOSITORY = ResultsRepository(
     id=5, uri="gitea.fn.svc:3000/fn/results", provider="gitea",
@@ -107,7 +107,7 @@ def deliver(backend_api, remote, artifacts, git_apis=None, max_zip_bytes=1048576
     with patch("app.delivery.results.SecretProvider") as provider, \
             patch.object(git_push, "clone_url", return_value=str(remote)):
         provider.return_value.get.return_value = "tok"
-        ResultsDelivery(backend_api, git_apis or MagicMock(), config, MagicMock())(7)
+        ResultsDelivery(backend_api, git_apis or MagicMock(), config, MagicMock())(7, RUN_ID)
     return provider
 
 
@@ -322,14 +322,14 @@ def test_the_token_stays_out_of_the_command_line():
 
 
 def test_the_sensor_requests_a_delivery_run_for_a_successful_task_run():
-    run = MagicMock(tags={"trigger": "task", "task_id": "7", "attempt": "2"})
+    run = MagicMock(tags={"trigger": "task", "task_id": "7", "attempt": "2"}, run_id=RUN_ID)
     context = MagicMock(dagster_run=run)
 
     result = task_results_delivery_sensor._run_status_sensor_fn(context)
 
     assert result.run_key == "deliver/7/2"
     assert result.tags == {"trigger": "delivery", "delivery_task_id": "7"}
-    assert result.run_config == {"ops": {"deliver_results": {"config": {"task_id": 7}}}}
+    assert result.run_config == {"ops": {"deliver_results": {"config": {"task_id": 7, "run_id": RUN_ID}}}}
 
 
 def test_the_sensor_ignores_runs_that_are_not_task_runs():

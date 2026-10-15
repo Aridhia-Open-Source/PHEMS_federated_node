@@ -12,7 +12,7 @@ from app.delivery.results import ResultsDelivery
 MIN_SENSOR_INTERVAL_SECONDS = 10
 
 
-@dg.op(config_schema={"task_id": dg.Field(int)}, required_resource_keys={"backend_api", "git_apis"})
+@dg.op(config_schema={"task_id": dg.Field(int), "run_id": dg.Field(str)}, required_resource_keys={"backend_api", "git_apis"})
 def deliver_results(context: OpExecCtx):
     """Deliver the results of a task to its project's results repository."""
     ResultsDelivery(
@@ -20,7 +20,7 @@ def deliver_results(context: OpExecCtx):
         git_apis=cast(GitAPIFactory, context.resources.git_apis),
         config=ResultsDeliveryConfig(),
         log=context.log,
-    )(context.op_config["task_id"])
+    )(context.op_config["task_id"], context.op_config["run_id"])
 
 
 @dg.job
@@ -55,5 +55,5 @@ def task_results_delivery_sensor(context: RunStatusSensorContext):
     return dg.RunRequest(
         run_key=f"deliver/{task_id}/{tags['attempt']}",
         tags={"trigger": "delivery", "delivery_task_id": task_id},
-        run_config={"ops": {"deliver_results": {"config": {"task_id": int(task_id)}}}},
+        run_config={"ops": {"deliver_results": {"config": {"task_id": int(task_id), "run_id": context.dagster_run.run_id}}}},
     )
