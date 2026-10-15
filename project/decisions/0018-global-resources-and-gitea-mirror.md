@@ -1,6 +1,6 @@
 # 0018. Global resources assigned to projects, and a Gitea mirror of GitHub (design note)
 
-- Status: Proposed (nothing is built; the mirror is parked until the schema change lands). The schema names and assignment model are superseded by [0019](0019-global-resources-and-shared-pull-requests.md); this note now only holds the parked mirror design.
+- Status: Proposed (nothing is built; the mirror is parked until the schema change lands). The schema names and assignment model are superseded by [0019](0019-global-resources-and-shared-pull-requests.md); the mirror design is superseded by [0020](0020-gitea-mirror-service.md).
 
 ## Context
 
