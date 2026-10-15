@@ -701,8 +701,7 @@
                     "properties": {
                         "uri": {
                             "type": "string",
-                            "default": "http://fn-dev-dagster-webserver.fn.svc:80",
-                            "description": "In-cluster URL of the Dagster webserver, used by the API to read and toggle sensors. Must match the release name and namespace"
+                            "description": "In-cluster URL of the Dagster webserver, used by the API to read and toggle sensors. Empty derives it from the release name and namespace"
                         }
                     }
                 },
