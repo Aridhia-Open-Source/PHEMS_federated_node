@@ -60,6 +60,8 @@ class Secret(db.Model, BaseModel):
     @validates('label')
     def validate_label(self, key, value):
         """The key, "<project_id>-<label>", is a store secret name (a Kubernetes one today): a DNS subdomain, so it can be created as-is."""
+        if not isinstance(value, str):
+            raise InvalidRequest("label must be a string")
         validate_dns_subdomain(f"{self._store_prefix(self.project_id)}{value}", "label")
         return value
 
