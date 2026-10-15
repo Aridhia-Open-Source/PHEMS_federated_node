@@ -10,7 +10,6 @@ on:
       - develop
       - dagster-main
       - dagster-develop
-      - dagster-develop-uc1-beta/azure
     paths-ignore:
       - '**/*.md'
       - 'README'
@@ -83,8 +82,13 @@ jobs:
             echo "CHART_VERSION=${version}" >> ${GITHUB_OUTPUT}
             echo "TAG=${appVersion}" >> ${GITHUB_OUTPUT}
           else
-            echo "CHART_VERSION=${version}-v${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
-            echo "TAG=${appVersion}-v${GITHUB_SHA::6}" >> ${GITHUB_OUTPUT}
+            # dagster-* builds (pushes and PRs into them) are marked so they can't be mistaken for develop builds
+            suffix="-v${GITHUB_SHA::6}"
+            if [[ "${{ github.base_ref || github.ref_name }}" == dagster-* ]]; then
+              suffix="-dagster${suffix}"
+            fi
+            echo "CHART_VERSION=${version}${suffix}" >> ${GITHUB_OUTPUT}
+            echo "TAG=${appVersion}${suffix}" >> ${GITHUB_OUTPUT}
           fi
       - name: set lower case owner name
         run: |
