@@ -120,7 +120,8 @@ def patch_repository(repo_id):
 
     if 'project_id' in body:
         Project.get_by_id(body['project_id'])
-        repo.project_id = body['project_id']
+        if body['project_id'] != repo.project_id:
+            raise InvalidRequest("A repository can't be moved to another project; create it in the new project instead")
 
     if 'target_dir' in body:
         if not body['target_dir']:
