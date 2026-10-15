@@ -21,7 +21,10 @@ from fncli.dagster.models import TriggerState
 from fncli.dagster.sensors import DagsterAPI
 
 # The task status the run-status sensors give each Dagster run status.
+# NOT_STARTED and STARTING come before the run is picked up, so the task is still QUEUED.
 RUN_TO_TASK_STATUS = {
+    "NOT_STARTED": "QUEUED",
+    "STARTING": "QUEUED",
     "QUEUED": "QUEUED",
     "STARTED": "RUNNING",
     "SUCCESS": "SUCCESS",

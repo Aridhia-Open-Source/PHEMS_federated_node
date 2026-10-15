@@ -71,10 +71,6 @@ class TestGetOrCreateRepository:
         assert repo.id == 1
         session.post.assert_not_called()
 
-    @pytest.mark.xfail(
-        reason="BUG: find_repository mistakes the host of 'host:3000/org/repo' for a URL scheme",
-        strict=False,
-    )
     def test_a_scheme_less_uri_with_a_port_is_matched(self, api, session):
         session.get.return_value = response([{**REPO, "uri": "gitea.fn.svc:3000/gitea_admin/trigger"}])
 

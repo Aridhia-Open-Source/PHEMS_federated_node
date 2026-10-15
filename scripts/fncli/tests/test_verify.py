@@ -163,9 +163,10 @@ def test_a_failed_run_matching_its_task_still_fails_the_run_check():
     assert failures(report) == ["Run succeeded"]
 
 
-def test_a_queued_run_needs_no_start_or_end_time():
+@pytest.mark.parametrize("status", ["QUEUED", "NOT_STARTED", "STARTING"])
+def test_a_run_not_yet_started_needs_no_start_or_end_time(status):
     report = verify(
-        pr_of(), task_of(status="QUEUED", started_at=None, completed_at=None), run_of(status="QUEUED")
+        pr_of(), task_of(status="QUEUED", started_at=None, completed_at=None), run_of(status=status)
     )
 
     assert failures(report) == ["Run succeeded"]
