@@ -1,4 +1,5 @@
 import os
+import pytest
 import responses
 from unittest import mock
 from requests.exceptions import ConnectionError
@@ -40,6 +41,41 @@ class TestLogin:
             }
         )
         assert login_request.status_code == 401
+
+    def test_login_ignores_extra_fields(self, client, mock_kc_client):
+        """
+        Only username and password are passed to Keycloak
+        """
+        login_request = client.post(
+            "/login",
+            data={
+                "username": "user",
+                "password": "pass123",
+                "raise_on_temp_pass": "false",
+                "token_type": "access_token"
+            },
+            headers={
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        )
+        assert login_request.status_code == 200
+        mock_kc_client["main_kc"].return_value.get_token.assert_called_once_with(
+            username="user", password="pass123"
+        )
+
+    @pytest.mark.parametrize("data", [{"username": "user"}, {"password": "pass123"}])
+    def test_login_missing_field(self, client, mock_kc_client, data):
+        """
+        /login returns 400 when username or password is missing
+        """
+        login_request = client.post(
+            "/login",
+            data=data,
+            headers={
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        )
+        assert login_request.status_code == 400
 
 
 class TestHealthCheck:
