@@ -232,22 +232,26 @@ class BackendAPI:
 
     def create_dataset(
         self,
+        project_id: int,
         name: str,
         host: str,
         port: int,
-        secret_label: str,
-        read_schema: str,
         db_type: str,
+        secret_label: str,
+        read_schema: str | None = None,
+        write_schema: str | None = None,
     ) -> Dataset:
-        """Create a dataset"""
+        """Create a dataset. secret_label names an existing secret of the project."""
         self.logger.info(f"Creating dataset {name}")
         data = {
+            "project_id": project_id,
             "name": name,
             "host": host,
             "port": port,
+            "type": db_type,
             "secret_label": secret_label,
             "read_schema": read_schema,
-            "type": db_type,
+            "write_schema": write_schema,
         }
         response = self.session.post("/datasets", json=data)
         return Dataset(**response.json())

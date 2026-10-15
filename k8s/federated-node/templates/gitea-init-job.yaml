@@ -51,11 +51,17 @@ spec:
         - sh
         - -c
         - |
+          set -e
+          users=$(gitea -C /data/gitea admin user list)
+          if echo "$users" | awk -v u="$GITEA_ADMIN_USER" '$2 == u { found = 1 } END { exit !found }'; then
+            echo "Admin user $GITEA_ADMIN_USER already exists"
+            exit 0
+          fi
           gitea -C /data/gitea admin user create \
             --username "$GITEA_ADMIN_USER" \
             --password "$GITEA_ADMIN_PASS" \
             --email "$GITEA_ADMIN_EMAIL" \
-            --admin 2>&1 || true
+            --admin
         env:
         - name: GITEA_ADMIN_USER
           value: {{ .Values.gitea.admin.user | default "gitea_admin" | quote }}

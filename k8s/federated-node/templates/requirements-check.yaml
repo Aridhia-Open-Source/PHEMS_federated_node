@@ -78,7 +78,7 @@
 {{- $s := lookup "v1" "Secret" .Release.Namespace "github-token" }}
 {{- if not (index (($s).data | default dict) "GH_TOKEN") }}
 {{- $missing = append $missing (dict "name" "github-token" "key" "GH_TOKEN"
-      "what" "a GitHub PAT, read on the repositories you register and write on fnDagster.gh.delivery_repo") }}
+      "what" "a GitHub PAT, read on the repositories you register and write on each project's results repository") }}
 {{- end }}
 {{- end }}
 
