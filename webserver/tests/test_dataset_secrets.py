@@ -30,6 +30,7 @@ def body(project, secret):
     return {
         "name": "cdm",
         "host": "db.example.com",
+        "port": 5432,
         "secret_label": secret.label,
         "read_schema": "cdm",
         "write_schema": "results",
