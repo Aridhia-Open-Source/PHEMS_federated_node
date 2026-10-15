@@ -57,6 +57,7 @@ MEMORY_UNITS = {
 
 # Task spec limits. Sizes are in bytes: the spec exactly as received, and the env as JSON.
 SPEC_RAW_MAX_BYTES = 64 * 1024
+TASK_NAME_MAX_LENGTH = 256
 TASK_IMAGE_MAX_LENGTH = 256
 TASK_ENV_KEY_REGEX = r'^[A-Za-z_][A-Za-z0-9_]*$'
 # Set by the run itself from the dataset

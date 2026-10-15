@@ -4,7 +4,8 @@ import re
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from app.helpers.const import (
-    TASK_ENV_KEY_REGEX, TASK_ENV_MAX_BYTES, TASK_ENV_RESERVED_KEYS, TASK_IMAGE_MAX_LENGTH
+    TASK_ENV_KEY_REGEX, TASK_ENV_MAX_BYTES, TASK_ENV_RESERVED_KEYS,
+    TASK_IMAGE_MAX_LENGTH, TASK_NAME_MAX_LENGTH
 )
 from app.helpers.exceptions import InvalidRequest
 
@@ -16,7 +17,7 @@ class TaskSpecRequest(BaseModel):
     """
     model_config = ConfigDict(extra="forbid")
 
-    name: str | None = None
+    name: str | None = Field(default=None, max_length=TASK_NAME_MAX_LENGTH)
     image: str = Field(max_length=TASK_IMAGE_MAX_LENGTH)
     env: dict = {}
     params: dict = {}

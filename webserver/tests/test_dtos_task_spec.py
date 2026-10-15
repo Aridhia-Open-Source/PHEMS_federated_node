@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from app.helpers.const import TASK_ENV_MAX_BYTES, TASK_IMAGE_MAX_LENGTH
+from app.helpers.const import TASK_ENV_MAX_BYTES, TASK_IMAGE_MAX_LENGTH, TASK_NAME_MAX_LENGTH
 from app.helpers.exceptions import InvalidRequest
 from app.dtos.task_spec import TaskSpecRequest
 
@@ -102,6 +102,16 @@ class TestValidation:
         else:
             with pytest.raises(InvalidRequest, match="image"):
                 self.build(image="a" * length)
+
+    @pytest.mark.parametrize("length, valid", [
+        (TASK_NAME_MAX_LENGTH - 1, True), (TASK_NAME_MAX_LENGTH, True), (TASK_NAME_MAX_LENGTH + 1, False),
+    ])
+    def test_name_length(self, length, valid):
+        if valid:
+            assert len(self.build(name="a" * length).name) == length
+        else:
+            with pytest.raises(InvalidRequest, match="name"):
+                self.build(name="a" * length)
 
     @pytest.mark.parametrize("key", ["K", "_k", "KEY_1", "a1_B2"])
     def test_env_key_accepted(self, key):

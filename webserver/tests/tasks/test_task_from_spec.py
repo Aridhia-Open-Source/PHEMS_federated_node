@@ -4,7 +4,7 @@ import pytest
 
 from app.dtos.task import NewTaskDTO
 from app.dtos.task_spec import TaskSpecRequest
-from app.helpers.const import SPEC_RAW_MAX_BYTES
+from app.helpers.const import SPEC_RAW_MAX_BYTES, TASK_NAME_MAX_LENGTH
 from app.helpers.exceptions import InvalidRequest
 from app.models.api_request_trigger import ApiRequestTrigger
 from app.models.dataset import Dataset
@@ -177,6 +177,15 @@ class TestPostTasks:
         assert api_request.state == TriggerState.REJECTED.value
         assert api_request.state_cause == response.json["error"]
         assert json.loads(api_request.spec_raw)["resources"] == {"limits": {"cpu": "abc"}}
+
+    def test_name_over_the_limit_keeps_a_rejected_request(
+            self, client, cr_client, registry_client, post_json_admin_header, task_body, project
+        ):
+        task_body["name"] = "a" * (TASK_NAME_MAX_LENGTH + 1)
+        response = self.post(client, post_json_admin_header, project, task_body)
+        assert response.status_code == 400
+        assert Task.query.count() == 0
+        assert ApiRequestTrigger.query.one().state == TriggerState.REJECTED.value
 
     def test_dataset_of_another_project_keeps_a_rejected_request(
             self, client, cr_client, registry_client, post_json_admin_header, task_body, project,
