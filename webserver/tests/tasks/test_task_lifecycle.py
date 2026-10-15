@@ -32,6 +32,14 @@ class TestGetTasks:
         response = client.get("/tasks?status=queued", headers=simple_admin_header)
         assert response.status_code == 400
 
+    def test_filter_invalid_project_id(self, client, simple_admin_header):
+        response = client.get("/tasks?project_id=abc", headers=simple_admin_header)
+        assert response.status_code == 400
+
+    def test_invalid_page(self, client, simple_admin_header):
+        response = client.get("/tasks?page=x", headers=simple_admin_header)
+        assert response.status_code == 400
+
     def test_filter_project_id(self, make_task, client, simple_admin_header, project, other_project):
         make_task(project=project)
         other = make_task(project=other_project)

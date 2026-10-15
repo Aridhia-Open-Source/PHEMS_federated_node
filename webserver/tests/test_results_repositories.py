@@ -50,6 +50,10 @@ class TestGetResultsRepositories:
         response = client.get(f"/results_repositories?project_id={other_project.id}", headers=simple_admin_header)
         assert response.json == []
 
+    def test_list_invalid_project_id(self, client, simple_admin_header):
+        response = client.get("/results_repositories?project_id=abc", headers=simple_admin_header)
+        assert response.status_code == 400
+
     def test_get_by_id(self, client, simple_admin_header, results_repo):
         response = client.get(f"/results_repositories/{results_repo.id}", headers=simple_admin_header)
         assert response.status_code == 200

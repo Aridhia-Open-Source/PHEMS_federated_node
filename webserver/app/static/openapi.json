@@ -71,6 +71,14 @@
           },
           {
             "$ref": "#/components/parameters/paginationPerPage"
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "description": "Only the datasets of this project",
+            "schema": {
+              "type": "integer"
+            }
           }
         ],
         "responses": {

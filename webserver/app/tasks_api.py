@@ -26,6 +26,7 @@ from app.helpers.exceptions import (
     UnauthorizedError
 )
 from app.helpers.keycloak import Keycloak
+from app.helpers.query_filters import arg_get
 from app.dtos.task_spec import TaskSpec
 from app.helpers.wrappers import audit, auth
 from app.dtos.task import NewTaskDTO, TaskDTO
@@ -92,10 +93,10 @@ def get_tasks():
         - status: filter by task status (optional)
         - project_id: filter by project (optional)
     """
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 10, type=int)
+    page = arg_get('page', 1, type=int)
+    per_page = arg_get('per_page', 10, type=int)
     status = request.args.get('status', None)
-    project_id = request.args.get('project_id', None, type=int)
+    project_id = arg_get('project_id', None, type=int)
 
     query = Task.query
 

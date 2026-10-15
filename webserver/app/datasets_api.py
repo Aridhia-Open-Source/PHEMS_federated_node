@@ -17,6 +17,7 @@ from .dtos.base import page_of
 from .dtos.dataset import CatalogueDTO, DatasetDTO, DictionaryDTO
 from .helpers.base_model import db
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
+from .helpers.query_filters import arg_get
 from .helpers.query_validator import validate
 from .helpers.wrappers import audit, auth
 from .models.dataset import Dataset
@@ -38,9 +39,11 @@ logger.setLevel(logging.INFO)
 @auth(scope='can_access_dataset')
 def get_datasets():
     """
-    GET /datasets/ endpoint. Returns a list of all datasets
+    GET /datasets/ endpoint. Returns a list of all datasets, optionally only those of one project (?project_id=<id>)
     """
-    return page_of(Dataset.get_all(), DatasetDTO), HTTPStatus.OK
+    project_id = arg_get('project_id', type=int)
+    filters = {} if project_id is None else {"project_id": project_id}
+    return page_of(Dataset.get_all(**filters), DatasetDTO), HTTPStatus.OK
 
 
 def _reject_credentials(body: dict | None):

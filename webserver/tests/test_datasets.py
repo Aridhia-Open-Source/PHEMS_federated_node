@@ -124,6 +124,32 @@ class TestDatasets(MixinTestDataset):
         assert response.status_code == 200
         assert response.json == self.expected_ds_entry(dataset)
 
+    def test_get_all_datasets_filtered_by_project(
+            self,
+            simple_admin_header,
+            client,
+            dataset,
+            other_project
+        ):
+        other_secret = Secret(project_id=other_project.id, label="other-creds", provider=SecretProviderType.K8S)
+        other_secret.add()
+        other_dataset = Dataset(
+            name="OtherDs", host="example.com", secret_id=other_secret.id, project_id=other_project.id
+        )
+        other_dataset.add(user_id="user")
+
+        response = client.get(f"/datasets/?project_id={dataset.project_id}", headers=simple_admin_header)
+        assert response.status_code == 200
+        assert [item["id"] for item in response.json["items"]] == [dataset.id]
+
+        response = client.get(f"/datasets/?project_id={other_project.id}", headers=simple_admin_header)
+        assert [item["id"] for item in response.json["items"]] == [other_dataset.id]
+
+    def test_get_all_datasets_invalid_project_id(self, simple_admin_header, client, dataset):
+        response = client.get("/datasets/?project_id=abc", headers=simple_admin_header)
+        assert response.status_code == 400
+        assert "project_id" in response.json["error"]
+
     def test_get_all_datasets_no_token(
             self,
             client

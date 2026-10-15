@@ -14,6 +14,7 @@ from app.dtos.repository_uri import RepositoryUriRequest
 from app.dtos.results_repository import ResultsRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
+from app.helpers.query_filters import arg_get
 from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
@@ -38,7 +39,7 @@ def get_repositories():
     GET /results_repositories/ — list repositories, optionally of one project (?project_id=)
     """
     query = ResultsRepository.query
-    project_id = request.args.get('project_id', type=int)
+    project_id = arg_get('project_id', type=int)
     if project_id is not None:
         query = query.filter_by(project_id=project_id)
     return [ResultsRepositoryDTO.from_model(r).dump() for r in query.all()], HTTPStatus.OK

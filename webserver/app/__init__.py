@@ -7,7 +7,7 @@ All general configs are taken care in here:
 """
 import logging
 import traceback
-from flask import Flask
+from flask import Flask, request
 from flask_swagger_ui import get_swaggerui_blueprint
 from sqlalchemy import exc
 from werkzeug.exceptions import HTTPException
@@ -18,7 +18,7 @@ from app import (
     secrets_api, results_repositories_api, results_api
 )
 from app.helpers.base_model import build_sql_uri, db
-from app.helpers.exceptions import LogAndException
+from app.helpers.exceptions import InvalidRequest, LogAndException
 
 
 logging.basicConfig(level=logging.WARN)
@@ -63,6 +63,12 @@ def create_app():
         logger.error("\n".join(traceback.format_exception(e)))
         db.session.rollback()
         return {"error": "Internal Error"}, 500
+
+    @app.before_request
+    def json_body_is_an_object():
+        """Handlers index into the body, so every JSON body this API takes is an object."""
+        if request.is_json and request.data and not isinstance(request.get_json(silent=True), dict):
+            raise InvalidRequest("The request body must be a JSON object")
 
     app.register_blueprint(swagger_ui_blueprint, url_prefix="/docs")
     app.config["PROPAGATE_EXCEPTIONS"] = True
