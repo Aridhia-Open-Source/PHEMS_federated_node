@@ -76,9 +76,9 @@ Run commands from anywhere inside the repo: `.dev.env` is found by searching up 
 
 ```bash
 fncli setup-project                 # build a whole dev project
-fncli open-pr [--kind watched|unwatched|invalid] [--merge]
-fncli teardown-project -y           # delete it all again
 fncli start-sensor --sensor all     # ingest -> evaluate -> launcher, plus the run-status sensors (fncli sensor-status to watch)
+fncli open-pr [--kind watched|unwatched|invalid] [--merge]
+fncli teardown-project -y           # delete it all again, last
 
 fncli setup-backend                 # or the two halves separately:
 fncli setup-gitea [--project NAME]

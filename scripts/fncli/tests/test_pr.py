@@ -67,10 +67,15 @@ def test_repo_path_is_the_admin_user_and_repo():
     assert PrConfig(gitea_admin_user="admin").repo_path == "admin/trigger"
 
 
-def test_branch_names_are_prefixed_with_the_time():
+def test_branch_names_are_prefixed_with_the_time_and_a_random_suffix():
     name = new_branch_name()
 
-    assert name.startswith("pr-") and name[3:].isdigit()
+    prefix, stamp, suffix = name.split("-")
+    assert prefix == "pr" and stamp.isdigit() and len(suffix) == 6
+
+
+def test_branch_names_made_in_the_same_second_differ():
+    assert new_branch_name() != new_branch_name()
 
 
 # --watch

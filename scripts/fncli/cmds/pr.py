@@ -6,6 +6,7 @@ that ties the steps together: the file and the PR title are derived from it.
 
 import json
 import logging
+import secrets
 import time
 from datetime import datetime, timezone
 
@@ -65,8 +66,8 @@ branch_option = click.option(
 
 
 def new_branch_name() -> str:
-    """Unique per run, so every command can be re-run."""
-    return f"pr-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+    """Unique per run, so every command can be re-run, even twice in one second."""
+    return f"pr-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{secrets.token_hex(3)}"
 
 
 def file_for(config: PrConfig, branch: str, kind: str) -> tuple[str, str]:
