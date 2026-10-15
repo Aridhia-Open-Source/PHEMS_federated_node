@@ -286,7 +286,6 @@ jobs:
             docker buildx imagetools create -t "${repo}:${TAG}" "${repo}:${RC_TAG}"
           done
   release:
-    uses: Aridhia-Open-Source/pipelines/.github/workflows/helm-build.yml@main
     if: always() && !failure() && !cancelled()
     needs:
       - init
@@ -296,6 +295,39 @@ jobs:
       - build-alpine-image
       - build-kc-init-image
       - build-dagster-image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build chart dependencies
+        working-directory: k8s/federated-node
+        run: |
+          helm dependency build || helm dependency update
+      - name: Package chart
+        working-directory: k8s/federated-node
+        run: |
+          helm package . -d ${{ github.workspace }}/artifacts --version "${CHART_VERSION}" --app-version "${APP_VERSION}"
+        env:
+          CHART_VERSION: ${{ needs.init.outputs.chart_version }}
+          APP_VERSION: ${{ needs.init.outputs.tag }}
+      - name: Push chart to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ${{ vars.DOCKER_CR }} -u ${{ github.actor }} --password-stdin
+          helm push artifacts/federated-node-${CHART_VERSION}.tgz oci://${{ vars.DOCKER_CR }}/${OWNER,,}/charts
+        env:
+          OWNER: ${{ github.repository_owner }}
+          CHART_VERSION: ${{ needs.init.outputs.chart_version }}
+  release-gh-pages:
+    needs:
+      - init
+      - release
+    if: needs.init.outputs.is_tag == 'true'
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/helm-build.yml@main
     with:
       VERSION: ${{ needs.init.outputs.chart_version }}
       APP_VERSION: ${{ needs.init.outputs.tag }}
@@ -317,4 +349,4 @@ jobs:
           echo "# Docker Images Tags:" >> $GITHUB_STEP_SUMMARY
           echo "- ${{ needs.init.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "# Helm Chart:" >> $GITHUB_STEP_SUMMARY
-          echo "- federated-node:${{ needs.init.outputs.chart_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- oci://ghcr.io/aridhia-open-source/charts/federated-node --version ${{ needs.init.outputs.chart_version }}" >> $GITHUB_STEP_SUMMARY
