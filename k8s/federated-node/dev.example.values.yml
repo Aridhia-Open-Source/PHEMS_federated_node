@@ -1,6 +1,6 @@
 # Example values for LOCAL DEVELOPMENT on kind.
 #
-#   cp .dev.env.example .dev.env                 # then fill in GH_TOKEN etc.
+#   cp .dev.env.example .dev.env                 # then fill it in
 #   cp dev.example.values.yml dev.values.yaml    # dev.values.yaml is gitignored
 #   ./scripts/cluster.sh up && make deploy
 #

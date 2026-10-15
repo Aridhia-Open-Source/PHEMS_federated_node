@@ -107,8 +107,6 @@ spec:
             - configMapRef:
                 name: dagster-env-config
             - secretRef:
-                name: github-token
-            - secretRef:
                 name: dagster-keycloak-creds
           {{- with ((.Values.fnDagster).codeServer).resources }}
           resources:

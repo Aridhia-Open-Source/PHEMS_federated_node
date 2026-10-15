@@ -3,9 +3,7 @@ from pydantic import ValidationError
 
 from app.config import (
     BackendConfig,
-    GithubConfig,
     PipesSecurityContextConfig,
-    SensorConfig,
 )
 
 
@@ -43,18 +41,6 @@ class TestEnvConfig:
 
         with pytest.raises(ValidationError):
             BackendConfig()
-
-    def test_github_api_uri_has_a_default(self, monkeypatch):
-        monkeypatch.setenv("GH_TOKEN", "abc")
-
-        assert GithubConfig().base_uri == "https://api.github.com"
-
-    def test_sensor_config_requires_its_paths(self, monkeypatch):
-        monkeypatch.setenv("GH_TOKEN", "abc")
-        monkeypatch.setenv("GH_RESULTS_DIR", "results")
-
-        with pytest.raises(ValidationError):
-            SensorConfig()
 
 
 class TestPipesSecurityContext:

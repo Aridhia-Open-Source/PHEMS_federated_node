@@ -125,7 +125,6 @@ def sensor_context():
     """Build a sensor context with mocked resources."""
     context = build_sensor_context()
     context.resources.backend_api = MagicMock()
-    context.resources.github_api = MagicMock()
     return context
 
 

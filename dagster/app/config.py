@@ -23,35 +23,9 @@ class BackendConfig(EnvConfig):
     password: str = Field(default="", alias="DAGSTER_KC_PASSWORD")
 
 
-class SensorConfig(EnvConfig):
-    artifact_mount_path: str = Field(default="", alias="DAGSTER_ARTIFACT_MOUNT_PATH")
-    results_dir: str = Field(default="", alias="GH_RESULTS_DIR")
-    token: str = Field(default="", alias="GH_TOKEN")
-
-
 class ResultsDeliveryConfig(EnvConfig):
     artifact_mount_path: str = Field(default="", alias="DAGSTER_ARTIFACT_MOUNT_PATH")
     max_zip_bytes: int = Field(default=10485760, alias="RESULTS_MAX_ZIP_BYTES")
-
-
-class GithubConfig(EnvConfig):
-    token: str = Field(default="", alias="GH_TOKEN")
-    base_uri: str = Field(
-        default="https://api.github.com",
-        alias="GH_API_URI",
-    )
-
-
-class GiteaConfig(EnvConfig):
-    token: str = Field(default="", alias="GITEA_TOKEN")
-    base_uri: str = Field(
-        default="http://gitea.fn.svc:4000/api/v1",
-        alias="GITEA_API_URI",
-    )
-
-
-class KubernetesConfig(EnvConfig):
-    namespace: str = Field(default="", alias="DAGSTER_DEPLOYMENT_NAMESPACE")
 
 
 class PipesSecurityContextConfig(BaseSettings):
