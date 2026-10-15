@@ -47,7 +47,6 @@ env:
   OWNER_LC: ''
   HELM_CHANNEL: stable
   IS_TAG: ${{ github.ref_type == 'tag' }}
-  DEV_BUILD: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: write
@@ -58,17 +57,18 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       is_tag: ${{ steps.vars.outputs.IS_TAG }}
-      dev_build: ${{ steps.vars.outputs.DEV_BUILD }}
       chart_version: ${{ steps.vars.outputs.CHART_VERSION }}
       tag: ${{ steps.vars.outputs.TAG }}
+      rc_tag: ${{ steps.vars.outputs.RC_TAG }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the version suffix counts merges
       - name: Setting global values
         id: vars
         run: |
           echo "IS_TAG=${{ env.IS_TAG }}" >> ${GITHUB_OUTPUT}
-          echo "DEV_BUILD=${{ env.DEV_BUILD }}" >> ${GITHUB_OUTPUT}
 
           echo "Setting version according to the Chart.yaml"
           cd k8s/federated-node
@@ -78,18 +78,32 @@ jobs:
           appVersion=$(grep '^appVersion:.*' Chart.yaml | sed 's/^.*: \"//'| sed 's/\"//')
           echo "Chart appVersion: ${appVersion}"
 
-          if [[ "${{ env.DEV_BUILD }}" == "false" ]]; then
-            echo "CHART_VERSION=${version}" >> ${GITHUB_OUTPUT}
-            echo "TAG=${appVersion}" >> ${GITHUB_OUTPUT}
+          # N counts the merges since the chart version last changed, so it restarts at 1 after
+          # every version bump and the same commit always gets the same N.
+          base=$(git log -1 --first-parent --format=%H -G'^version:' -- Chart.yaml)
+          n=$(( $(git rev-list --count --first-parent "${base}..HEAD") + 1 ))
+          # "g" (as in git describe) stops an all-digit sha being an invalid semver part.
+          sha="${{ github.event.pull_request.head.sha || github.sha }}"
+          sha="g${sha::6}"
+
+          if [[ "${{ env.IS_TAG }}" == "true" ]]; then
+            # Releases reuse the images main built for the tagged commit (see the promote job)
+            suffix=""
+            echo "RC_TAG=${appVersion}-rc.${n}" >> ${GITHUB_OUTPUT}
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            suffix="-pr.${{ github.event.pull_request.number }}.${sha}"
           else
-            # dagster-* builds (pushes and PRs into them) are marked so they can't be mistaken for develop builds
-            suffix="-v${GITHUB_SHA::6}"
-            if [[ "${{ github.base_ref || github.ref_name }}" == dagster-* ]]; then
-              suffix="-dagster${suffix}"
-            fi
-            echo "CHART_VERSION=${version}${suffix}" >> ${GITHUB_OUTPUT}
-            echo "TAG=${appVersion}${suffix}" >> ${GITHUB_OUTPUT}
+            case "${{ github.ref_name }}" in
+              main) suffix="-rc.${n}" ;;
+              develop) suffix="-beta.${n}" ;;
+              # The dagster prefix stays until the dagster line merges into develop and main
+              dagster-main) suffix="-dagster-beta.${n}" ;;
+              dagster-develop) suffix="-dagster-alpha.${n}" ;;
+              *) suffix="-branch.${sha}" ;;
+            esac
           fi
+          echo "CHART_VERSION=${version}${suffix}" >> ${GITHUB_OUTPUT}
+          echo "TAG=${appVersion}${suffix}" >> ${GITHUB_OUTPUT}
       - name: set lower case owner name
         run: |
           echo "OWNER_LC=${OWNER,,}" >> ${GITHUB_ENV}
@@ -250,11 +264,33 @@ jobs:
       DOCKER_ACR: ${{ vars.DOCKER_CR }}
     secrets:
       DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  promote:
+    needs: init
+    if: needs.init.outputs.is_tag == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.DOCKER_CR }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag the release candidate images with the release version
+        env:
+          REGISTRY: ${{ vars.DOCKER_CR }}
+          OWNER: ${{ github.repository_owner }}
+          RC_TAG: ${{ needs.init.outputs.rc_tag }}
+          TAG: ${{ needs.init.outputs.tag }}
+        run: |
+          for image in federated_node_run federated_keycloak alpine keycloak_initializer dagster_fn; do
+            repo="${REGISTRY}/${OWNER,,}/${image}"
+            docker buildx imagetools create -t "${repo}:${TAG}" "${repo}:${RC_TAG}"
+          done
   release:
     uses: Aridhia-Open-Source/pipelines/.github/workflows/helm-build.yml@main
     if: always() && !failure() && !cancelled()
     needs:
       - init
+      - promote
       - build-flask-image
       - build-keycloak-image
       - build-alpine-image
