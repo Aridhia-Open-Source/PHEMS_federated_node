@@ -454,6 +454,19 @@ class TestDeleteProject:
         k8s_client["delete_namespaced_secret_mock"].side_effect = ApiException(status=404)
         assert self.delete(client, simple_admin_header, full_project).status_code == HTTPStatus.NO_CONTENT
 
+    def test_a_failed_secret_delete_keeps_the_project_and_can_be_retried(
+        self, client, k8s_client, simple_admin_header, full_project
+    ):
+        mock = k8s_client["delete_namespaced_secret_mock"]
+        mock.side_effect = ApiException(status=500)
+        response = self.delete(client, simple_admin_header, full_project)
+        assert response.status_code == HTTPStatus.BAD_REQUEST
+        assert Project.query.filter_by(id=full_project.id).count() == 1
+
+        mock.side_effect = None
+        assert self.delete(client, simple_admin_header, full_project).status_code == HTTPStatus.NO_CONTENT
+        assert Project.query.filter_by(id=full_project.id).count() == 0
+
     def test_deletes_a_project_with_pull_requests(
         self, client, k8s_client, simple_admin_header, full_project, default_repo
     ):
