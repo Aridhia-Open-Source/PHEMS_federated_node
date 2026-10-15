@@ -402,6 +402,26 @@ class TestProjectHealthcheck:
         response = client.get(f"/projects/{project.id + 100}/healthcheck", headers=simple_admin_header)
         assert response.status_code == HTTPStatus.NOT_FOUND
 
+    def test_mixed_repositories_are_reported_in_order(
+        self, client, k8s_client, project, secret, git_api, simple_admin_header
+    ):
+        uris = [f"host/gitea/owner/repo{i}" for i in range(4)]
+        for uri in uris:
+            TriggerRepository(
+                uri=uri, provider="gitea", api_uri="https://host/gitea/api/v1",
+                secret_id=secret.id, watch_dir="", project_id=project.id
+            ).add()
+        git_api.side_effect = lambda url, **kwargs: Mock(
+            status_code=200 if url.endswith(("repo0", "repo2")) else 503,
+            ok=url.endswith(("repo0", "repo2")), reason="Rejected",
+        )
+        response = self.get(client, project, simple_admin_header)
+        assert response.status_code == HTTPStatus.OK
+        assert response.json["status"] == "error"
+        repos = response.json["trigger_repositories"]
+        assert [r["uri"] for r in repos] == uris
+        assert [r["status"] for r in repos] == ["ok", "error", "ok", "error"]
+
 
 class TestDeleteProject:
     @pytest.fixture
