@@ -11,6 +11,8 @@ from app.git_uri import normalise_repo_uri
 
 COMMITTER_NAME = "phems-bot"
 COMMITTER_EMAIL = "phems-federated-node@users.noreply.github.com"
+# Per git command: delivery clones the results repository and pushes up to 10MB zipped
+GIT_TIMEOUT_SECONDS = 60
 
 
 def clone_url(uri: str, api_uri: str) -> str:
@@ -36,15 +38,19 @@ def auth_env(token: str) -> dict[str, str]:
 
 
 def git(args: list[str], cwd: str | Path | None = None, env: dict[str, str] | None = None) -> str:
-    """Run a git command and return its stdout. A failure raises with git's own message."""
-    result = subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        env={**os.environ, **(env or {})},
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    """Run a git command and return its stdout. A failure or a timeout raises."""
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            env={**os.environ, **(env or {})},
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=GIT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"git {args[0]} timed out after {GIT_TIMEOUT_SECONDS}s") from e
     if result.returncode:
         raise RuntimeError(f"git {args[0]} failed: {result.stderr.strip()}")
     return result.stdout.strip()
