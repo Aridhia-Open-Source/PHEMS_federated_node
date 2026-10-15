@@ -383,7 +383,7 @@ gitea:
   replicaCount: 1
   image:
     repository: gitea/gitea
-    tag: latest
+    tag: 28.1.0
     pullPolicy: IfNotPresent
 
   service:
