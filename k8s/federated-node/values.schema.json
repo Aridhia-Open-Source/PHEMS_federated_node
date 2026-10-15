@@ -690,19 +690,6 @@
                     "default": false,
                     "description": "Run the dagster-db-init job to create the dagster database and role. Needs a reachable superuser login, see db.superuser"
                 },
-                "gh": {
-                    "type": "object",
-                    "properties": {
-                        "delivery_repo": {
-                            "type": "string",
-                            "description": "Repository results are delivered to"
-                        },
-                        "resultsDir": {
-                            "type": "string",
-                            "description": "Path within the delivery repo where results are written"
-                        }
-                    }
-                },
                 "image": {
                     "type": "string",
                     "default": "ghcr.io/aridhia-open-source/dagster_fn",

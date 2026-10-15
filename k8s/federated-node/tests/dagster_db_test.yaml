@@ -11,9 +11,6 @@ set:
       postgresqlHost: db.default.svc   # values-local's db.host
   fnDagster:
     createDB: true
-    gh:
-      delivery_repo: https://github.com/org/repo
-      resultsDir: mgmt/results
 tests:
   - it: derives Dagster's database from the dagster block, not a second copy of it
     template: dagster-env-config.yaml
