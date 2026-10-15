@@ -277,6 +277,17 @@ class TestResults:
         session.get.assert_called_once_with("/results_repositories", params={"project_id": 1})
         assert result.id == 5
 
+    def test_the_results_repository_is_fetched_by_id(self, api, session):
+        session.get.return_value = make_response({
+            "id": 5, "uri": "h/o/r", "provider": "gitea", "api_uri": "http://h/api/v1",
+            "secret": SAMPLE_SECRET, "target_dir": "results", "project_id": 1,
+        })
+
+        result = api.get_results_repository_by_id(5)
+
+        session.get.assert_called_once_with("/results_repositories/5")
+        assert result.id == 5
+
     def test_create_posts_the_task_and_repository(self, api, session):
         session.post.return_value = make_response(self.RESULT)
 

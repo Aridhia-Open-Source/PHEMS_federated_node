@@ -13,15 +13,12 @@ from app.definitions.sensors.task.pull_request_sync import (
     sync_results_pull_requests,
     sync_results_pull_requests_job,
 )
-from app.models import PullRequestResult, ResultsRepository, Task
+from app.models import PullRequestResult, ResultsRepository
 from app.tests.conftest import SAMPLE_SECRET
 
 REPOSITORY = ResultsRepository(
     id=5, uri="gitea.fn.svc:4000/fn/results", provider="gitea",
     api_uri="http://gitea.fn.svc:4000/api/v1", secret=SAMPLE_SECRET, target_dir="results", project_id=1,
-)
-TASK = Task(
-    id=7, name="t", docker_image="img", spec={}, attempt=1, requested_by="u", project_id=1, trigger_id=3,
 )
 
 
@@ -50,8 +47,7 @@ def not_found(*args):
 def sync(results, prs_by_number=None, prs_by_branch=None):
     backend_api = MagicMock()
     backend_api.get_results_by_state.return_value = results
-    backend_api.get_task.return_value = TASK
-    backend_api.get_results_repository.return_value = REPOSITORY
+    backend_api.get_results_repository_by_id.return_value = REPOSITORY
     git_api = MagicMock()
     git_api.get_pull_request.side_effect = lambda repo_path, number: (prs_by_number or {})[number]()
     git_api.get_default_branch.return_value = "main"
@@ -75,12 +71,31 @@ def test_a_merged_pull_request_is_recorded():
     )
 
     backend_api.get_results_by_state.assert_called_once_with(["PUSHED", "OPENED"])
-    backend_api.get_results_repository.assert_called_once_with(1)
+    backend_api.get_results_repository_by_id.assert_called_once_with(5)
     git_apis.for_repository.assert_called_once_with(REPOSITORY)
     git_api.get_pull_request.assert_called_once_with("fn/results", 3)
     assert patched(backend_api) == {9: {
         "state": "MERGED", "merged_at": "2026-10-08T10:00:00Z", "merge_commit_sha": "m1",
     }}
+
+
+def test_a_result_is_synced_against_its_own_repository_fetched_once():
+    other = REPOSITORY.model_copy(update={"id": 6, "uri": "gitea.fn.svc:4000/fn/other"})
+    old = result(9).model_copy(update={"results_repository_id": 6})
+    backend_api = MagicMock()
+    backend_api.get_results_by_state.return_value = [old, result(10, number=4), result(11, number=5)]
+    backend_api.get_results_repository_by_id.side_effect = lambda id: {5: REPOSITORY, 6: other}[id]
+    git_api = MagicMock()
+    git_api.get_pull_request.side_effect = lambda repo_path, number: git_pr(number=number)
+    git_apis = MagicMock()
+    git_apis.for_repository.return_value = git_api
+    context = dg.build_op_context(resources={"backend_api": backend_api, "git_apis": git_apis})
+
+    sync_results_pull_requests(context)
+
+    assert [c.args[0] for c in backend_api.get_results_repository_by_id.call_args_list] == [6, 5]
+    backend_api.get_results_repository.assert_not_called()
+    assert [c.args[0] for c in git_apis.for_repository.call_args_list] == [other, REPOSITORY, REPOSITORY]
 
 
 def test_a_closed_pull_request_is_recorded_without_a_merge_commit():
@@ -146,7 +161,7 @@ def test_results_in_other_states_are_ignored_when_the_backend_does_not_filter(st
     backend_api, git_apis, _ = sync([result(8, state), result(10, number=4)], {4: lambda: git_pr("closed", number=4)})
 
     assert list(patched(backend_api)) == [10]
-    backend_api.get_task.assert_called_once_with(7)
+    backend_api.get_results_repository_by_id.assert_called_once_with(5)
 
 
 def run_sensor(results, in_flight=False):
