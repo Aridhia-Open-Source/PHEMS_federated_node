@@ -91,6 +91,14 @@ class ResultsRepoConfig(RepoConfig):
 
 class DatasetConfig(ProjectConfig):
     dataset_name: str = Field(default="", alias="DEFAULT_PROJECT_DATASET")
+    # The defaults are the dummy stand-in dataset. `make uc1-seed` sets these from dev.db/.env.
+    dataset_host: str = Field(default="db-datasets.fn.svc", alias="CLUSTER_DATASET_HOST")
+    dataset_port: int = Field(default=5432, alias="DATASET_PORT")
+    dataset_type: str = Field(default="postgres", alias="DATASET_TYPE")
+    dataset_read_schema: str = Field(default="cdm", alias="DATASET_SCHEMA")
+    dataset_write_schema: str = Field(default="results", alias="DATASET_SCHEMA_WRITE")
+    dataset_username: str = Field(default="dummy", alias="DATASET_USERNAME")
+    dataset_password: str = Field(default="dummy", alias="DATASET_PASSWORD")
 
     @property
     def secret_label(self) -> str:
