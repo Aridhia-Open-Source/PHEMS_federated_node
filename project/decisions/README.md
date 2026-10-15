@@ -16,7 +16,7 @@ New records are numbered in sequence as `NNNN-short-title.md` and added to the t
 | [0001](0001-polymorphic-triggers.md) | Polymorphic Trigger with PullRequestTrigger and ApiRequestTrigger | Accepted |
 | [0002](0002-task-spec-and-derivation.md) | TaskSpec, and a Task derived from spec and trigger | Accepted |
 | [0003](0003-project-scoped-git-repositories.md) | Project-scoped trigger and results repositories | Accepted |
-| [0004](0004-secrets-and-secret-providers.md) | Generic Secret model and SecretProvider; per-repository tokens | Accepted (the `GH_TOKEN` leftovers are a known follow-up) |
+| [0004](0004-secrets-and-secret-providers.md) | Generic Secret model and SecretProvider; per-repository tokens | Accepted |
 | [0005](0005-git-api-protocol-and-factory.md) | GitAPI protocol and GitAPIFactory over Gitea and GitHub | Accepted |
 | [0006](0006-github-ingest-pulls-endpoint.md) | Ingest merged pull requests through the pulls endpoint, not search | Accepted |
 | [0007](0007-results-delivered-as-branch-and-pull-request.md) | Results delivered as a pushed branch plus a results pull request | Accepted (size cap and layout are tuneable) |

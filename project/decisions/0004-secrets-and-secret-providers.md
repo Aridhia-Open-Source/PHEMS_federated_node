@@ -1,6 +1,6 @@
 # 0004. Generic Secret model and SecretProvider; per-repository tokens
 
-- Status: Accepted (the `GH_TOKEN` leftovers are a known follow-up)
+- Status: Accepted
 
 ## Context
 
@@ -18,7 +18,6 @@ Dataset credentials and git tokens must not live in the database or in a single 
 
 - Each repository authenticates as itself; tokens can be scoped (`read:repository` for trigger, `write:repository` for results in fncli).
 - A secret in use cannot be deleted (RESTRICT foreign keys).
-- Leftover: `GH_TOKEN`/`GITEA_TOKEN` config classes, the `github-token` chart secret and `GH_*` chart values remain although the sensors no longer use them.
 - Reading the token still uses the node's own Kubernetes access; this is marked `TODO(auth)` pending the authorization rework ([0014](0014-dar-rename-and-detached-auth.md)).
 
 ## Alternatives considered

@@ -346,7 +346,6 @@ dagster:
           - name: dagster-env-config
 
         envSecrets:
-          - name: github-token
           - name: dagster-keycloak-creds
 
         # Add volumes and volume mounts for artifacts-pvc

@@ -74,14 +74,6 @@
 {{- end }}
 {{- end }}
 
-{{- if .Values.dagster.enabled }}
-{{- $s := lookup "v1" "Secret" .Release.Namespace "github-token" }}
-{{- if not (index (($s).data | default dict) "GH_TOKEN") }}
-{{- $missing = append $missing (dict "name" "github-token" "key" "GH_TOKEN"
-      "what" "a GitHub PAT, read on the repositories you register and write on fnDagster.gh.delivery_repo") }}
-{{- end }}
-{{- end }}
-
 {{- /* Something else owns the password Secrets, so they have to be there already. */ -}}
 {{- if and .Values.db.manageRolesAndDatabases (not .Values.db.createPasswordSecrets) }}
 {{- $needed := list
