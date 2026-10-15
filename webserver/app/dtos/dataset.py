@@ -10,7 +10,7 @@ class DatasetDTO(DTO):
     secret: SecretDTO
     name: str
     host: str
-    port: int | None
+    port: int
     read_schema: str | None
     write_schema: str | None
     type: str

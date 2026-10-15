@@ -33,7 +33,7 @@ class Dataset(db.Model, BaseModel):
 
     name = sa.Column(sa.String(256), unique=True, nullable=False)
     host = sa.Column(sa.String(256), nullable=False)
-    port = sa.Column(sa.Integer, default=5432)
+    port = sa.Column(sa.Integer, nullable=False)
     read_schema = sa.Column(sa.String(256), nullable=True)
     write_schema = sa.Column(sa.String(256), nullable=True)
     type = sa.Column(sa.String(256), server_default="postgres", nullable=False)
@@ -59,7 +59,7 @@ class Dataset(db.Model, BaseModel):
         name: str,
         host: str,
         secret_id: int,
-        port: int = 5432,
+        port: int,
         read_schema: str | None = None,
         write_schema: str | None = None,
         type: str = "postgres",

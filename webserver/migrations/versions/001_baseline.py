@@ -73,7 +73,7 @@ def upgrade() -> None:
         sa.Column('secret_id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('host', sa.String(length=256), nullable=False),
-        sa.Column('port', sa.Integer(), nullable=True),
+        sa.Column('port', sa.Integer(), nullable=False),
         sa.Column('read_schema', sa.String(length=256), nullable=True),
         sa.Column('write_schema', sa.String(length=256), nullable=True),
         sa.Column('type', sa.String(length=256), nullable=False, server_default='postgres'),

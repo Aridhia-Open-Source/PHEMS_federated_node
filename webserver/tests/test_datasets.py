@@ -404,6 +404,27 @@ class TestPostDataset(MixinTestDataset):
         query = self.run_query(select(Dataset).where(Dataset.name == data_body["name"].lower(), Dataset.type == "mssql"))
         assert len(query) == 1
 
+    @pytest.mark.parametrize("port", [None, "missing"])
+    def test_post_dataset_requires_port(
+            self,
+            post_json_admin_header,
+            client,
+            dataset,
+            dataset_post_body,
+            port
+        ):
+        """
+        /datasets POST fails with 400 if the port is missing or null
+        """
+        data_body = dataset_post_body.copy()
+        data_body['name'] = 'TestDs78'
+        if port == "missing":
+            del data_body['port']
+        else:
+            data_body['port'] = port
+        self.post_dataset(client, post_json_admin_header, data_body, 400)
+        self.assert_datasets_by_name(data_body['name'], 0)
+
     def test_post_dataset_with_extra_args(
             self,
             post_json_admin_header,

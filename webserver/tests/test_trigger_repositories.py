@@ -18,7 +18,7 @@ REPO_FIELDS = {"provider": "github", "api_uri": "https://api.github.com", "secre
 @pytest.fixture
 def test_dataset(client, user_uuid, k8s_client, mock_kc_client, project, secret):
     """Create a test dataset for repository tests"""
-    dataset = Dataset(name="TestDatasetForRepo", host="example.com", secret_id=secret.id, project_id=project.id)
+    dataset = Dataset(name="TestDatasetForRepo", host="example.com", port=5432, secret_id=secret.id, project_id=project.id)
     dataset.add(user_id=user_uuid)
     return dataset
 
@@ -815,7 +815,7 @@ class TestPostPullRequestTask:
         other_secret = Secret(project_id=other_project.id, label="test-creds", provider=SecretProviderType.K8S)
         other_secret.add()
         other_ds = Dataset(
-            name="OtherDs", host="example.com", secret_id=other_secret.id, project_id=other_project.id
+            name="OtherDs", host="example.com", port=5432, secret_id=other_secret.id, project_id=other_project.id
         )
         other_ds.add(user_id=user_uuid)
         response = self.post(
