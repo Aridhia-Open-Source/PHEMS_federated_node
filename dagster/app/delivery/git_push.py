@@ -11,8 +11,8 @@ from app.git_uri import normalise_repo_uri
 
 COMMITTER_NAME = "phems-bot"
 COMMITTER_EMAIL = "phems-federated-node@users.noreply.github.com"
-# Delivery clones the results repository and pushes up to 10MB zipped
-GIT_TIMEOUT_SECONDS = 300
+# Per git command: delivery clones the results repository and pushes up to 10MB zipped
+GIT_TIMEOUT_SECONDS = 60
 
 
 def clone_url(uri: str, api_uri: str) -> str:

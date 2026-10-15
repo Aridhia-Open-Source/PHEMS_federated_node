@@ -333,8 +333,8 @@ def test_the_sensor_requests_a_delivery_run_for_a_successful_task_run():
 
 
 def test_a_hung_git_command_fails_with_a_timeout():
-    with patch.object(subprocess, "run", side_effect=subprocess.TimeoutExpired("git", 300)) as run:
-        with pytest.raises(RuntimeError, match="git clone timed out after 300s"):
+    with patch.object(subprocess, "run", side_effect=subprocess.TimeoutExpired("git", 60)) as run:
+        with pytest.raises(RuntimeError, match="git clone timed out after 60s"):
             git_push.git(["clone", "url"])
 
     assert run.call_args.kwargs["timeout"] == git_push.GIT_TIMEOUT_SECONDS
