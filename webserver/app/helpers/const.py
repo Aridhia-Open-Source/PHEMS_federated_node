@@ -35,6 +35,7 @@ PUBLIC_URL = os.getenv("PUBLIC_URL")
 
 DEFAULT_NAMESPACE = os.getenv("DEFAULT_NAMESPACE")
 TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
+DAGSTER_WEBSERVER_URI = os.getenv("DAGSTER_WEBSERVER_URI")
 
 # Pod resource validation constants
 CPU_RESOURCE_REGEX = r'^\d*(m|\.\d+){0,1}$'

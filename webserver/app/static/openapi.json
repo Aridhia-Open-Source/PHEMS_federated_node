@@ -55,6 +55,10 @@
     {
       "name": "Secrets",
       "description": "Endpoints related to the project secrets. Values are write-only"
+    },
+    {
+      "name": "Dagster",
+      "description": "Admin-only endpoints to read and toggle the Dagster sensors"
     }
   ],
   "paths": {
@@ -2348,6 +2352,149 @@
           }
         }
       }
+    },
+    "/dagster/sensors": {
+      "get": {
+        "operationId": "get_sensors",
+        "parameters": [],
+        "tags": [
+          "Dagster"
+        ],
+        "summary": "List the Dagster sensors with their status and latest tick",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/SensorList"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "502": {
+            "$ref": "#/components/responses/502_dagster"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patch_sensors",
+        "parameters": [],
+        "tags": [
+          "Dagster"
+        ],
+        "summary": "Start or stop every sensor, or only those named. Returns every sensor after the change",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SensorsPatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/SensorList"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "502": {
+            "$ref": "#/components/responses/502_dagster"
+          }
+        }
+      }
+    },
+    "/dagster/sensors/{name}": {
+      "get": {
+        "operationId": "get_sensor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "tags": [
+          "Dagster"
+        ],
+        "summary": "Get a Dagster sensor with its status and latest tick",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/SensorById"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "502": {
+            "$ref": "#/components/responses/502_dagster"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patch_sensor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "tags": [
+          "Dagster"
+        ],
+        "summary": "Start or stop a single sensor",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SensorPatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/SensorById"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "502": {
+            "$ref": "#/components/responses/502_dagster"
+          }
+        }
+      }
     }
   },
   "security": [
@@ -3046,6 +3193,45 @@
               "type": "array",
               "items": {
                 "$ref": "#/components/schemas/ResultById"
+              }
+            }
+          }
+        }
+      },
+      "SensorList": {
+        "description": "Every sensor",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/Sensor"
+              }
+            }
+          }
+        }
+      },
+      "SensorById": {
+        "description": "A sensor",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Sensor"
+            }
+          }
+        }
+      },
+      "502_dagster": {
+        "description": "Dagster is unreachable or returned an error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "example": "Dagster is unreachable: connection refused"
+                }
               }
             }
           }
@@ -4283,6 +4469,69 @@
               "USERNAME": "dbuser",
               "PASSWORD": "s3cret"
             }
+          }
+        }
+      },
+      "Sensor": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "task_launcher_sensor"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "RUNNING",
+              "STOPPED"
+            ]
+          },
+          "last_tick": {
+            "type": "string",
+            "nullable": true,
+            "example": "2025-10-09T08:53:20+00:00",
+            "description": "Time of the latest evaluation, null if it never ran"
+          },
+          "error": {
+            "type": "boolean",
+            "description": "Whether the latest evaluation failed"
+          }
+        }
+      },
+      "SensorsPatchBody": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "RUNNING",
+              "STOPPED"
+            ]
+          },
+          "names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Sensors to change. Omit to change every sensor. If any name is unknown nothing is changed"
+          }
+        }
+      },
+      "SensorPatchBody": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "RUNNING",
+              "STOPPED"
+            ]
           }
         }
       }
