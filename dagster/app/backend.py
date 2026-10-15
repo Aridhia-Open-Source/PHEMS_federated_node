@@ -40,10 +40,13 @@ class BackendAPI:
                 return projects
             page += 1
 
-    def get_repositories(self) -> list[TriggerRepository]:
-        """Get all repositories"""
+    def get_repositories(self, enabled_only: bool = False) -> list[TriggerRepository]:
+        """Get all repositories, optionally only those of enabled projects"""
         self.logger.info("Fetching repositories")
-        response = self.session.get("/trigger_repositories")
+        if enabled_only:
+            response = self.session.get("/trigger_repositories", params={"project_enabled": "true"})
+        else:
+            response = self.session.get("/trigger_repositories")
         repos = response.json()
         return [TriggerRepository(**repo) for repo in repos]
 

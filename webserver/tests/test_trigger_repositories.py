@@ -7,6 +7,7 @@ from app.models.task import Task
 from app.models.trigger_repository import TriggerRepository
 from app.helpers.base_model import db
 from app.models.dataset import Dataset
+from app.models.project import Project
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 
@@ -48,6 +49,17 @@ class TestGetRepositories:
         assert response.status_code == 200
         assert len(response.json) == 1
         assert response.json[0]["uri"] == repository.uri
+
+    def test_list_filtered_by_enabled_project(self, client, simple_admin_header, repository):
+        url = "/trigger_repositories/?project_enabled=true"
+        assert client.get(url, headers=simple_admin_header).json == []
+
+        project = Project.query.get(repository.project_id)
+        project.enabled = True
+        db.session.commit()
+
+        response = client.get(url, headers=simple_admin_header)
+        assert [r["id"] for r in response.json] == [repository.id]
 
     def test_get_by_id(self, client, simple_admin_header, repository):
         response = client.get(f"/trigger_repositories/{repository.id}", headers=simple_admin_header)

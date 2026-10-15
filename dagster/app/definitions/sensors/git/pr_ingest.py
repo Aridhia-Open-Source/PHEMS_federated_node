@@ -9,9 +9,9 @@ class PullRequestIngestSensor(GitSensor):
 
     def __call__(self):
         """Execute the sensor. Yields a SkipReason summarising what was saved."""
-        repositories = self.backend_api.get_repositories()
+        repositories = self.backend_api.get_repositories(enabled_only=True)
         if not repositories:
-            yield dg.SkipReason("No repositories found in database.")
+            yield dg.SkipReason("No repositories of enabled projects found in database.")
             return
 
         saved = 0
