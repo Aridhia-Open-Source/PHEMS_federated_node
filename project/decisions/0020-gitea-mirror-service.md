@@ -29,7 +29,7 @@ After a PR is mirrored it POSTs a small normalized event to a webserver endpoint
 - Idempotent: `unique(trigger_repository_id, number)` makes duplicates harmless.
 - The service retries with backoff and records what it has sent. A missed event is repaired by the next sync, and a slow reconcile poll is the backstop.
 - The event is defined by a written JSON schema both sides test against. The service does not import webserver code.
-- The webserver maps the event to its global `trigger_repositories` row, stores the PR in `pull_requests` and fans out to projects ([0019](0019-global-resources-and-shared-pull-requests.md)).
+- The webserver maps the event to its global `trigger_repositories` row, stores the PR in `pull_requests` and fans out to projects, using the same upsert-plus-fan-out logic as the batch ingest endpoint ([0019](0019-global-resources-and-shared-pull-requests.md) sections 3 and 4). It needs 0019 stages 1 to 5 (global trigger repositories, `pull_requests`, fan-out and backfill) before it can be built.
 
 ### Configuration
 
