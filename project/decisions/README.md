@@ -30,4 +30,5 @@ New records are numbered in sequence as `NNNN-short-title.md` and added to the t
 | [0015](0015-fncli-dev-ops-tool.md) | fncli as a dev/ops tool | Accepted (scope is deliberately small) |
 | [0016](0016-tilt-dev-loop.md) | Tilt dev loop, with the tilt-run image for run pods | Accepted |
 | [0017](0017-task-status-written-by-run-status-sensors.md) | Task status is written only by run-status sensors | Accepted |
-| [0018](0018-global-resources-and-gitea-mirror.md) | Global resources assigned to projects, and a Gitea mirror of GitHub (design note) | Proposed |
+| [0018](0018-global-resources-and-gitea-mirror.md) | Global resources assigned to projects, and a Gitea mirror of GitHub (design note) | Proposed (schema naming superseded by 0019; mirror parked) |
+| [0019](0019-global-resources-and-shared-pull-requests.md) | Global resources assigned to projects, with pull requests stored once per repository | Proposed |
