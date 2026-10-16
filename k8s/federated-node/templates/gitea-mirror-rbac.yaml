@@ -1,0 +1,46 @@
+{{- if .Values.giteaMirror.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitea-mirror
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: gitea-mirror
+{{- range $i, $grant := .Values.giteaMirror.secretAccess }}
+{{- if $grant.names }}
+{{- $ns := $grant.namespace | default $.Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitea-mirror-secrets
+  namespace: {{ $ns }}
+  labels:
+    app: gitea-mirror
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      {{- range $grant.names }}
+      - {{ . | quote }}
+      {{- end }}
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitea-mirror-secrets
+  namespace: {{ $ns }}
+  labels:
+    app: gitea-mirror
+subjects:
+  - kind: ServiceAccount
+    name: gitea-mirror
+    namespace: {{ $.Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitea-mirror-secrets
+{{- end }}
+{{- end }}
+{{- end }}

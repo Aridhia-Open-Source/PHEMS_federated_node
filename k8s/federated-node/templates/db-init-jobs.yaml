@@ -210,6 +210,22 @@ spec:
         "dbname" .Values.gitea.db.name
         "secret" .Values.gitea.db.secret))) }}
 {{- end }}
+{{- if .Values.giteaMirror.enabled }}
+---
+{{ include "fn.dbInitJob" (dict
+      "ctx" .
+      "jobName" "gitea-mirror-db-init"
+      "namespace" .Release.Namespace
+      "inCluster" .Values.create_db_deployment
+      "host" (include "dbHost" .)
+      "port" (include "dbPort" .)
+      "superuser" .Values.db.superuser
+      "superuserSecret" $superuserSecret
+      "roles" (list (dict
+        "user" .Values.giteaMirror.db.user
+        "dbname" .Values.giteaMirror.db.name
+        "secret" .Values.giteaMirror.db.secret))) }}
+{{- end }}
 {{- else }}
 {{- /* Nothing to create, so verify what the DBA created instead. */}}
 {{- $checkRoles := list
@@ -228,6 +244,12 @@ spec:
       "user" .Values.gitea.db.user
       "dbname" .Values.gitea.db.name
       "secret" .Values.gitea.db.secret) -}}
+{{- end }}
+{{- if .Values.giteaMirror.enabled -}}
+{{- $checkRoles = append $checkRoles (dict
+      "user" .Values.giteaMirror.db.user
+      "dbname" .Values.giteaMirror.db.name
+      "secret" .Values.giteaMirror.db.secret) -}}
 {{- end }}
 {{- include "fn.dbCheckJob" (dict
       "ctx" .
