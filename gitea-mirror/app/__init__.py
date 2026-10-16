@@ -2,7 +2,7 @@ import os
 from flask import Flask
 from app.helpers.base_model import db
 from app.helpers.const import build_sql_uri
-from app import main, mirrors
+from app import main, mirrors, webhooks
 from app.clients import UnconfiguredGiteaClient
 from app.github import GithubRestClient
 from app.helpers.auth import check_bearer_token
@@ -22,6 +22,7 @@ def create_app(github_client=None, gitea_client=None):
     app.before_request(lambda: check_bearer_token(api_token))
     app.register_blueprint(main.bp)
     app.register_blueprint(mirrors.bp)
+    app.register_blueprint(webhooks.bp)
 
     @app.teardown_appcontext
     def shutdown_session(exception=None):
