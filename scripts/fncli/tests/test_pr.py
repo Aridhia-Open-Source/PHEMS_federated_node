@@ -86,8 +86,8 @@ class FakeBackend:
     def find_repository(self, uri, project_id):
         return SimpleNamespace(id=7, repo_path="gitea_admin/trigger")
 
-    def get_pull_requests(self, repo_id):
-        assert repo_id == 7
+    def get_pull_requests(self, project_id, repo_id):
+        assert (project_id, repo_id) == (1, 7)
         return self.prs.pop(0) if len(self.prs) > 1 else self.prs[0]
 
     def get_task(self, task_id):

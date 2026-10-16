@@ -15,7 +15,8 @@ from app.backend import BackendAPI
 from app.config import ResultsDeliveryConfig
 from app.delivery import git_push
 from app.models import (
-    ProjectResultsRepository, PullRequestResultStep, PullRequestTrigger, ResultState, Task, TriggerRepository,
+    ProjectResultsRepository, ProjectTriggerRepository, PullRequestResultStep, PullRequestTrigger, ResultState, Task,
+    TriggerRepository,
     TriggerState,
 )
 from app.secrets import SecretProvider
@@ -64,9 +65,9 @@ class ResultsDelivery:
 
         pushed = {}
         try:
-            trigger_repository, pull_request = self._find_pull_request(task)
-            title = f"{trigger_repository.repo_path} PR{pull_request.number} - task {task.id} - results"
-            branch, commit_sha, base_branch = self._push(task, run_id, repository, trigger_repository, pull_request, title)
+            trigger_assignment, pull_request = self._find_pull_request(task)
+            title = f"{trigger_assignment.repo_path} PR{pull_request.number} - task {task.id} - results"
+            branch, commit_sha, base_branch = self._push(task, run_id, repository, trigger_assignment.trigger_repository, pull_request, title)
             pushed = {"branch": branch, "commit_sha": commit_sha}
             self.backend_api.patch_result(result.id, {"step": PullRequestResultStep.PUSHED.value, **pushed})
             results_pr = self._open_pull_request(repository, branch, base_branch, title, pull_request)
@@ -172,14 +173,16 @@ class ResultsDelivery:
         )
         return git_api.create_pull_request(results_repository.repo_path, branch, base_branch, title, body)
 
-    def _find_pull_request(self, task: Task) -> tuple[TriggerRepository, PullRequestTrigger]:
-        """The trigger repository and pull request that yielded the task."""
-        for repository in self.backend_api.get_repositories():
-            if repository.project_id != task.project_id:
+    def _find_pull_request(self, task: Task) -> tuple[ProjectTriggerRepository, PullRequestTrigger]:
+        """The project's trigger repository assignment and pull request that yielded the task."""
+        for assignment in self.backend_api.get_repositories():
+            if assignment.project_id != task.project_id:
                 continue
-            for pull_request in self.backend_api.get_pull_requests(repository.id, TriggerState.YIELDED.value):
+            for pull_request in self.backend_api.get_pull_requests(
+                assignment.project_id, assignment.id, TriggerState.YIELDED.value
+            ):
                 if pull_request.task_id == task.id:
-                    return repository, pull_request
+                    return assignment, pull_request
         raise LookupError(f"Task {task.id} has no pull request, so its results have no place in the layout")
 
     @staticmethod

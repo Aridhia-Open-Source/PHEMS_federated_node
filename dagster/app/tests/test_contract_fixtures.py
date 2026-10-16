@@ -9,8 +9,8 @@ from pathlib import Path
 import pytest
 
 from app.models import (
-    Dataset, Project, ProjectDataset, ProjectResultsRepository, PullRequestResult, PullRequestTrigger,
-    ResultsRepository, Secret, Task, TriggerRepository,
+    Dataset, Project, ProjectDataset, ProjectResultsRepository, ProjectTriggerRepository, PullRequestResult,
+    PullRequestTrigger, ResultsRepository, Secret, Task, TriggerRepository,
 )
 
 CONTRACTS_DIR = Path(__file__).parent / "contracts"
@@ -27,6 +27,8 @@ def items_of(name: str) -> list[dict]:
 
 @pytest.mark.parametrize("name, model", [
     ("trigger_repositories_list", TriggerRepository),
+    ("project_trigger_repositories", ProjectTriggerRepository),
+    ("project_trigger_repositories_active", ProjectTriggerRepository),
     ("results_repositories", ResultsRepository),
     ("project_results_repositories", ProjectResultsRepository),
     ("datasets_page", Dataset),
@@ -71,9 +73,19 @@ def test_task_spec_has_the_dataset_id():
 def test_trigger_repository_values():
     repository = TriggerRepository(**load("trigger_repository"))
 
-    assert repository.pr_cursor == "2026-01-01T00:00:00Z"
     assert repository.secret.label == "test-creds"
     assert repository.repo_path == "org/test-repo"
+
+
+def test_a_trigger_repository_assignment_nests_the_global_repository():
+    [assignment] = items_of("project_trigger_repositories")
+    parsed = ProjectTriggerRepository(**assignment)
+
+    assert parsed.repo_path == "org/test-repo"
+    assert parsed.trigger_repository.secret.label == "test-creds"
+    assert parsed.pr_cursor == "2026-01-01T00:00:00Z"
+    assert (parsed.enabled, parsed.revoked, parsed.active) == (True, False, True)
+    assert "project_id" not in assignment["trigger_repository"]
 
 
 def test_a_global_secret_parses():

@@ -15,14 +15,16 @@ MAX_CONCURRENT_EVALUATIONS = 3
 
 
 @dg.op(
-    config_schema={"repo_id": dg.Field(int)},
+    config_schema={"project_id": dg.Field(int), "repo_id": dg.Field(int)},
     required_resource_keys={"backend_api"},
     out=dg.DynamicOut(PullRequestTrigger),
 )
 def load_unknown_pull_requests(context: OpExecCtx):
     """Emit the UNKNOWN pull requests of the repository, oldest first."""
     backend_api = cast(BackendAPI, context.resources.backend_api)
-    pull_requests = backend_api.get_pull_requests(context.op_config["repo_id"], TriggerState.UNKNOWN.value)
+    pull_requests = backend_api.get_pull_requests(
+        context.op_config["project_id"], context.op_config["repo_id"], TriggerState.UNKNOWN.value
+    )
     for pr in sorted(pull_requests, key=lambda p: p.merged_at):
         yield dg.DynamicOutput(pr, mapping_key=str(pr.number))
 
@@ -33,10 +35,10 @@ def record_outcome(backend_api: BackendAPI, pr: PullRequestTrigger, parsed: Pars
     keeps it, parses it and either creates the task (marking the PR YIELDED) or rejects the
     PR. IGNORED and REJECTED are stored with their state_cause. Backend failures raise.
     """
-    repo_id = pr.trigger_repository_id
+    project_id, repo_id = pr.project_id, pr.project_trigger_repository_id
     if parsed.outcome is PullRequestOutcome.READY:
         try:
-            backend_api.create_task_for_pull_request(repo_id, pr.number, parsed.spec_raw)
+            backend_api.create_task_for_pull_request(project_id, repo_id, pr.number, parsed.spec_raw)
         except requests.HTTPError as e:
             # The backend rejected the PR itself, with the cause
             if e.response.status_code != HTTPStatus.BAD_REQUEST:
@@ -45,7 +47,7 @@ def record_outcome(backend_api: BackendAPI, pr: PullRequestTrigger, parsed: Pars
         return
 
     backend_api.patch_pull_request(
-        repo_id, pr.number, {"state": parsed.outcome.value, "state_cause": parsed.state_cause}
+        project_id, repo_id, pr.number, {"state": parsed.outcome.value, "state_cause": parsed.state_cause}
     )
 
 
@@ -60,8 +62,8 @@ def evaluate_pull_request(context: OpExecCtx, pr: PullRequestTrigger):
     """
     backend_api = cast(BackendAPI, context.resources.backend_api)
     git_apis = cast(GitAPIFactory, context.resources.git_apis)
-    repo = backend_api.get_repository(pr.trigger_repository_id)
-    parsed = PullRequestParser(git_apis.for_repository(repo), repo, context.log).parse(pr)
+    repo = backend_api.get_repository(pr.project_id, pr.project_trigger_repository_id)
+    parsed = PullRequestParser(git_apis.for_repository(repo.trigger_repository), repo, context.log).parse(pr)
     record_outcome(backend_api, pr, parsed, context.log)
 
 

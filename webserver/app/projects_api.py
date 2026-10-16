@@ -42,6 +42,7 @@ from app.models.project_results_repository import ProjectResultsRepository
 from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.results_repository import ResultsRepository
 from app.models.task import Task
+from app.models.trigger import Trigger
 
 
 HEALTHCHECK_MAX_WORKERS = 8
@@ -126,7 +127,7 @@ def patch_project(project_id: int):
 def delete_project(project_id: int):
     """
     DELETE /projects/<project_id> endpoint. Deletes the project and everything under it:
-    tasks, dataset and results repository assignments and trigger repositories. Secrets,
+    tasks, triggers, and dataset, results repository and trigger repository assignments. Secrets,
     datasets and results repositories belong to no project: they, and their stored values,
     are left alone.
     """
@@ -145,8 +146,12 @@ def delete_project(project_id: int):
         # project's default with it if it was the default.
         for assignment in list(project.dataset_assignments):
             assignment.delete(False)
-        for repo in project.trigger_repositories:
-            repo.delete(False)
+        # The pull requests and their triggers, which RESTRICT the assignments. The tasks they
+        # yielded are gone by now.
+        for trigger in Trigger.query.filter_by(project_id=project.id):
+            trigger.delete(False)
+        for assignment in list(project.trigger_repository_assignments):
+            assignment.delete(False)
         # Likewise the project's grant of a results repository, not the repository
         for assignment in list(project.results_repository_assignments):
             assignment.delete(False)
@@ -164,28 +169,29 @@ def delete_project(project_id: int):
 @auth(scope='can_admin_dataset')
 def project_healthcheck(project_id: int):
     """
-    GET /projects/<project_id>/healthcheck endpoint. Checks each trigger repository can be
+    GET /projects/<project_id>/healthcheck endpoint. Checks each trigger repository assignment can be
     reached with its token, and reports its pull request count and the project's results
     repository. A failed check is reported in the body, still with a 200.
     """
     project = Project.get_by_id(project_id)
 
     # Tokens are read here, in the request; only the network calls run in the threads.
-    trigger_repos = list(project.trigger_repositories)
+    trigger_assignments = list(project.trigger_repository_assignments)
     results_assignment = project.get_results_repository()
-    checks = [repo.prepare_connection_check() for repo in trigger_repos]
+    checks = [a.trigger_repository.prepare_connection_check() for a in trigger_assignments]
     if results_assignment:
         checks.append(results_assignment.results_repository.prepare_connection_check())
     with ThreadPoolExecutor(max_workers=HEALTHCHECK_MAX_WORKERS) as executor:
         results = list(executor.map(lambda check: check(), checks))
 
     repositories = []
-    for repo, check in zip(trigger_repos, results):
+    for assignment, check in zip(trigger_assignments, results):
+        repo = assignment.trigger_repository
         repositories.append(RepositoryHealthDTO(
-            id=repo.id,
+            id=assignment.id,
             uri=repo.uri,
             provider=repo.provider,
-            pr_count=PullRequestTrigger.query.filter_by(trigger_repository_id=repo.id).count(),
+            pr_count=PullRequestTrigger.query.filter_by(project_trigger_repository_id=assignment.id).count(),
             status=check.status.value,
             health_check=HealthCheckDTO(
                 message=check.message,

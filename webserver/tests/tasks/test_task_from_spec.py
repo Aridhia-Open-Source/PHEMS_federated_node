@@ -32,7 +32,7 @@ def api_request(client, project, dataset):
 @pytest.fixture
 def pull_request(client, project, dataset, default_repo):
     pull_request = PullRequestTrigger(
-        project_id=project.id, trigger_repository_id=default_repo.id, number=7, title="PR title",
+        project_id=project.id, project_trigger_repository_id=default_repo.id, number=7, title="PR title",
         raised_by="pr-user", merged_at="2026-01-01T10:00:00", merge_commit_sha="a" * 40,
     )
     pull_request.add()

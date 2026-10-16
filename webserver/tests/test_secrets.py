@@ -48,8 +48,6 @@ def repository(client, project, secret):
         provider="gitea",
         api_uri="http://gitea.fn.svc:3000/api/v1",
         secret_id=secret.id,
-        watch_dir="",
-        project_id=project.id,
     )
     repo.add()
     return repo
@@ -331,7 +329,7 @@ class TestDeleteSecret:
     ):
         second = TriggerRepository(
             uri="gitea.fn.svc:3000/org/other", provider="gitea", api_uri="http://gitea.fn.svc:3000/api/v1",
-            secret_id=repository.secret_id, watch_dir="", project_id=project.id,
+            secret_id=repository.secret_id,
         )
         second.add()
 
@@ -371,12 +369,12 @@ class TestDeleteSecret:
 
 
 class TestRepositoryReference:
-    def test_projects_share_one_secret(self, client, k8s_client, post_json_admin_header, project, other_project, secret):
-        for proj in (project, other_project):
+    def test_repositories_share_one_secret(self, client, k8s_client, post_json_admin_header, project, other_project, secret):
+        for name in ("repo", "other"):
             response = client.post(
                 "/trigger_repositories",
                 data=json.dumps({
-                    "uri": "http://gitea.fn.svc:3000/org/repo", "project_id": proj.id, "provider": "gitea",
+                    "uri": f"http://gitea.fn.svc:3000/org/{name}", "provider": "gitea",
                     "api_uri": "http://gitea.fn.svc:3000/api/v1", "secret_label": secret.label,
                 }),
                 headers=post_json_admin_header
@@ -387,7 +385,7 @@ class TestRepositoryReference:
     def test_the_database_rejects_a_missing_secret(self, client, k8s_client, project):
         repo = TriggerRepository(
             uri="gitea.fn.svc:3000/org/repo", provider="gitea", api_uri="http://gitea.fn.svc:3000/api/v1",
-            secret_id=9999, watch_dir="", project_id=project.id,
+            secret_id=9999,
         )
         with pytest.raises(IntegrityError):
             repo.add()
@@ -399,7 +397,7 @@ class TestRepositoryReference:
         response = client.post(
             "/trigger_repositories",
             data=json.dumps({
-                "uri": "http://gitea.fn.svc:3000/org/repo", "project_id": project.id, "provider": "gitea",
+                "uri": "http://gitea.fn.svc:3000/org/repo", "provider": "gitea",
                 "api_uri": "http://gitea.fn.svc:3000/api/v1", "secret_label": secret.label,
             }),
             headers=post_json_admin_header
@@ -416,7 +414,7 @@ class TestRepositoryReference:
         response = client.post(
             "/trigger_repositories",
             data=json.dumps({
-                "uri": "http://gitea.fn.svc:3000/org/repo", "project_id": project.id, "provider": "gitea",
+                "uri": "http://gitea.fn.svc:3000/org/repo", "provider": "gitea",
                 "api_uri": "http://gitea.fn.svc:3000/api/v1", "secret_label": "missing",
             }),
             headers=post_json_admin_header
@@ -428,7 +426,7 @@ class TestRepositoryReference:
         response = client.post(
             "/trigger_repositories",
             data=json.dumps({
-                "uri": "http://gitea.fn.svc:3000/org/repo", "project_id": project.id, "provider": "gitea",
+                "uri": "http://gitea.fn.svc:3000/org/repo", "provider": "gitea",
                 "api_uri": "http://gitea.fn.svc:3000/api/v1", "secret_label": secret.label,
             }),
             headers=post_json_admin_header

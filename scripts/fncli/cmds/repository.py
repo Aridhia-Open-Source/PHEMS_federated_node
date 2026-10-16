@@ -21,7 +21,7 @@ from fncli.cmds.project import find_project, init_backend_project
 from fncli.dagster.backend import BackendAPI
 from fncli.dagster.git_uri import normalise_repo_uri
 from fncli.dagster.gitea import GiteaAdminAPI
-from fncli.dagster.models import Project, ProjectResultsRepository, TriggerRepository
+from fncli.dagster.models import Project, ProjectResultsRepository, ProjectTriggerRepository
 
 logger = logging.getLogger("repository")
 
@@ -34,23 +34,23 @@ def init_gitea_repo(config: RepoConfig, gitea_api: GiteaAdminAPI) -> dict:
 
 def init_backend_trigger_repo(
     config: TriggerRepoConfig, backend_api: BackendAPI, project: Project, base_branch: str
-) -> TriggerRepository:
-    repo = backend_api.get_or_create_repository(
+) -> ProjectTriggerRepository:
+    repo = backend_api.get_or_create_trigger_repository(
         uri=config.repo_uri,
         provider="gitea",
         api_uri=config.gitea_api_uri,
         secret_label=config.secret_label,
-        watch_dir=config.watch_dir,
-        base_branch=base_branch,
-        project_id=project.id,
+    )
+    assignment = backend_api.get_or_assign_repository(
+        project.id, repo, watch_dir=config.watch_dir, base_branch=base_branch
     )
     logger.info(
         f"Backend trigger repository {repo.id}: {repo.uri} "
-        f"(provider {repo.provider}, api_uri {repo.api_uri}, secret {repo.secret.label}, "
-        f"branch {repo.base_branch}, watch_dir {repo.watch_dir}, project {repo.project_id}, "
-        f"pr_cursor {repo.pr_cursor})"
+        f"(provider {repo.provider}, api_uri {repo.api_uri}, secret {repo.secret.label}), "
+        f"assigned to project {assignment.project_id} as {assignment.id} (branch {assignment.base_branch}, "
+        f"watch_dir {assignment.watch_dir}, pr_cursor {assignment.pr_cursor})"
     )
-    return repo
+    return assignment
 
 
 def init_backend_results_repo(
@@ -86,7 +86,7 @@ def backend_source_options(command):
 
 
 def get_backend_repo_record(entity: str, backend_api: BackendAPI, project: Project):
-    """The project's one trigger or results repository record."""
+    """The project's one trigger or results repository assignment."""
     if entity == "trigger":
         records = [r for r in backend_api.get_repositories() if r.project_id == project.id]
     else:
@@ -118,8 +118,8 @@ def load_repo_config(entity: str, from_backend: bool, project: str | None) -> Re
             f"(run setup-backend first)"
         )
     record = get_backend_repo_record(entity, backend_api, backend_project)
-    # A results record is the project's assignment, with the repository nested
-    repository = record if entity == "trigger" else record.results_repository
+    # A record is the project's assignment, with the repository nested
+    repository = record.trigger_repository if entity == "trigger" else record.results_repository
     owner, name = normalise_repo_uri(repository.uri).split("/")[-2:]
     # The configs insist on every field, so carry over the one only this entity has.
     own_field = {"watch_dir": record.watch_dir} if entity == "trigger" else {"target_dir": record.target_dir}
@@ -181,13 +181,10 @@ def init_backend_results_repo_command():
 
 @click.command("delete-backend-trigger-repo")
 def delete_backend_trigger_repo_command():
-    """Delete the trigger repository from the backend, with its pull requests."""
+    """Delete the trigger repository from the backend, and with it every project's assignment of it."""
     config = TriggerRepoConfig()
     backend_api = build_backend_api(config)
-    project = find_project(config, backend_api)
-    if project is None:
-        return
-    repo = backend_api.find_repository(config.repo_uri, project.id)
+    repo = backend_api.find_trigger_repository(config.repo_uri)
     if repo is None:
         logger.info(f"Backend trigger repository {config.repo_uri} does not exist")
         return

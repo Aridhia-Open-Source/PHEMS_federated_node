@@ -1,5 +1,6 @@
 from app.helpers.exceptions import InvalidRequest
 from app.models.project_results_repository import ProjectResultsRepository
+from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.results_repository import ResultsRepository
 from app.models.trigger_repository import TriggerRepository
 
@@ -32,16 +33,16 @@ def check_no_loop(uri: str):
     and the trigger must watch a directory of its own.
     """
     results = ProjectResultsRepository.query.join(ResultsRepository).filter(ResultsRepository.uri == uri).all()
-    triggers = TriggerRepository.query.filter_by(uri=uri).all()
+    triggers = ProjectTriggerRepository.query.join(TriggerRepository).filter(TriggerRepository.uri == uri).all()
     for results_assignment in results:
-        for trigger_repo in triggers:
-            if not _segments(trigger_repo.watch_dir):
+        for trigger_assignment in triggers:
+            if not _segments(trigger_assignment.watch_dir):
                 raise InvalidRequest(
-                    f"Trigger repository {trigger_repo.uri} watches the whole repository, "
+                    f"Trigger repository {trigger_assignment.trigger_repository.uri} watches the whole repository, "
                     "which a results repository also writes to"
                 )
-            if _overlaps(_segments(trigger_repo.watch_dir), _segments(results_assignment.target_dir)):
+            if _overlaps(_segments(trigger_assignment.watch_dir), _segments(results_assignment.target_dir)):
                 raise InvalidRequest(
-                    f"Trigger watch_dir '{trigger_repo.watch_dir}' and results target_dir "
+                    f"Trigger watch_dir '{trigger_assignment.watch_dir}' and results target_dir "
                     f"'{results_assignment.target_dir}' overlap in repository {uri}"
                 )

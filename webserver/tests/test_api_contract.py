@@ -39,10 +39,11 @@ SECRET = {
     "id": int, "label": str, "description": (str, NONE), "provider": str,
     "key": str, "namespace": (str, NONE), "created_at": str, "updated_at": str,
 }
-TRIGGER_REPOSITORY = {
-    "id": int, "uri": str, "provider": str, "api_uri": str, "secret": SECRET, "watch_dir": str,
-    "base_branch": str, "project_id": int, "dataset_id": (int, NONE), "initial_cursor": (str, NONE),
-    "pr_cursor": str, "pr_count": int,
+TRIGGER_REPOSITORY = {"id": int, "uri": str, "provider": str, "api_uri": str, "secret": SECRET}
+PROJECT_TRIGGER_REPOSITORY = {
+    "id": int, "project_id": int, "trigger_repository": TRIGGER_REPOSITORY, "watch_dir": str,
+    "base_branch": str, "dataset_id": (int, NONE), "initial_cursor": (str, NONE), "pr_cursor": str,
+    "pr_count": int, "enabled": bool, "revoked": bool, "active": bool,
 }
 RESULTS_REPOSITORY = {"id": int, "uri": str, "provider": str, "api_uri": str, "secret": SECRET}
 PROJECT_RESULTS_REPOSITORY = {
@@ -62,7 +63,7 @@ PROJECT = {
     "default_dataset_id": (int, NONE), "created_at": str, "updated_at": str,
 }
 PULL_REQUEST = {
-    "trigger_repository_id": int, "number": int, "title": str, "raised_by": str, "merged_at": (str, NONE),
+    "project_id": int, "project_trigger_repository_id": int, "number": int, "title": str, "raised_by": str, "merged_at": (str, NONE),
     "merge_commit_sha": str, "state": str, "state_cause": (str, NONE), "task_id": (int, NONE),
 }
 TASK = {
@@ -169,7 +170,7 @@ def pr_body(number, merged_at):
 def pull_requests(client, post_json_admin_header, repo):
     """Two merged pull requests, ingested through the batch endpoint."""
     response = client.post(
-        f"/trigger_repositories/{repo.id}/pull_requests/batch",
+        f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests/batch",
         json={"pull_requests": [pr_body(1, "2026-01-01T10:00:00Z"), pr_body(2, "2026-03-05T11:30:00Z")]},
         headers=post_json_admin_header,
     )
@@ -182,79 +183,67 @@ def spec_file(**spec) -> str:
 
 
 class TestTriggerRepositories:
-    def test_list(self, client, simple_admin_header, repo, contract):
+    def test_global_list(self, client, simple_admin_header, repo, contract):
         response = client.get("/trigger_repositories", headers=simple_admin_header)
         assert response.status_code == HTTPStatus.OK
         assert_shape(response.json, [TRIGGER_REPOSITORY])
-        assert len(response.json) == 1
+        assert [r["id"] for r in response.json] == [repo.trigger_repository_id]
         contract("trigger_repositories_list", response.json)
 
     def test_by_id(self, client, simple_admin_header, repo, contract):
-        response = client.get(f"/trigger_repositories/{repo.id}", headers=simple_admin_header)
+        response = client.get(f"/trigger_repositories/{repo.trigger_repository_id}", headers=simple_admin_header)
         assert response.status_code == HTTPStatus.OK
         assert_shape(response.json, TRIGGER_REPOSITORY)
-        assert response.json["id"] == repo.id
-        assert response.json["project_id"] == repo.project_id
-        assert response.json["dataset_id"] == repo.project.default_dataset_id
+        assert response.json["id"] == repo.trigger_repository_id
         contract("trigger_repository", response.json)
 
+    def test_project_assignments(self, client, simple_admin_header, repo, contract):
+        response = client.get(f"/projects/{repo.project_id}/trigger_repositories", headers=simple_admin_header)
+        assert response.status_code == HTTPStatus.OK
+        assert_shape(response.json, [PROJECT_TRIGGER_REPOSITORY])
+        [assignment] = response.json
+        assert assignment["id"] == repo.id
+        assert assignment["trigger_repository"]["uri"] == repo.trigger_repository.uri
+        assert (assignment["enabled"], assignment["revoked"], assignment["active"]) == (True, False, True)
+        assert assignment["dataset_id"] == repo.project.default_dataset_id
+        contract("project_trigger_repositories", response.json)
+
     def test_pr_cursor_is_the_initial_cursor_then_the_latest_merge(self, client, simple_admin_header, repo):
-        url = f"/trigger_repositories/{repo.id}"
+        url = f"/projects/{repo.project_id}/trigger_repositories/{repo.id}"
         body = client.get(url, headers=simple_admin_header).json
         assert (body["pr_cursor"], body["pr_count"]) == ("2026-01-01T00:00:00Z", 0)
         assert body["initial_cursor"] == "2026-01-01T00:00:00"
 
     def test_pr_cursor_after_pull_requests(self, client, simple_admin_header, repo, pull_requests):
-        body = client.get(f"/trigger_repositories/{repo.id}", headers=simple_admin_header).json
+        body = client.get(f"/projects/{repo.project_id}/trigger_repositories/{repo.id}", headers=simple_admin_header).json
         assert (body["pr_cursor"], body["pr_count"]) == ("2026-03-05T11:30:00Z", 2)
         assert body["initial_cursor"] == "2026-01-01T00:00:00"
 
-    def test_filter_by_project(self, client, simple_admin_header, repo, other_project):
-        url = "/trigger_repositories?project_id={}"
-        assert [r["id"] for r in client.get(url.format(repo.project_id), headers=simple_admin_header).json] == [repo.id]
-        assert client.get(url.format(other_project.id), headers=simple_admin_header).json == []
+    def test_the_active_assignments_of_every_project(self, client, simple_admin_header, repo, contract):
+        response = client.get("/project_trigger_repositories?active=true", headers=simple_admin_header)
+        assert response.status_code == HTTPStatus.OK
+        assert_shape(response.json, [PROJECT_TRIGGER_REPOSITORY])
+        assert [a["id"] for a in response.json] == [repo.id]
+        contract("project_trigger_repositories_active", response.json)
 
-    def test_filter_by_enabled_project(self, client, simple_admin_header, repo):
-        url = "/trigger_repositories?project_enabled=true"
-        assert client.get(url, headers=simple_admin_header).json == []
-        repo.project.enabled = True
+    def test_an_inactive_assignment_is_still_listed_for_the_project(self, client, simple_admin_header, repo):
+        repo.revoked = True
         db.session.commit()
-        assert [r["id"] for r in client.get(url, headers=simple_admin_header).json] == [repo.id]
-
-    @pytest.mark.xfail(strict=True, reason="ADR 0019 stage 4")
-    def test_target_global_list(self, client, simple_admin_header, repo):
-        """A global resource: no project, no polling state, its `id` is the resource id."""
-        response = client.get("/trigger_repositories", headers=simple_admin_header)
-        assert response.status_code == HTTPStatus.OK
-        assert_shape(
-            response.json,
-            [{"id": int, "uri": str, "provider": str, "api_uri": str, "secret": SECRET}]
-        )
-
-    @pytest.mark.xfail(strict=True, reason="ADR 0019 stage 4")
-    def test_target_project_assignments(self, client, simple_admin_header, repo):
-        """The project's assignments, with the global repository nested and `id` the assignment id."""
-        response = client.get(f"/projects/{repo.project_id}/trigger_repositories", headers=simple_admin_header)
-        assert response.status_code == HTTPStatus.OK
-        [assignment] = response.json
-        assert set(assignment) >= {
-            "id", "project_id", "watch_dir", "base_branch", "initial_cursor", "pr_cursor", "enabled",
-            "revoked", "active", "trigger_repository",
-        }
-        assert (assignment["enabled"], assignment["revoked"], assignment["active"]) == (True, False, True)
-        assert assignment["trigger_repository"]["uri"] == repo.uri
+        [assignment] = client.get(f"/projects/{repo.project_id}/trigger_repositories", headers=simple_admin_header).json
+        assert (assignment["revoked"], assignment["active"]) == (True, False)
+        assert client.get("/project_trigger_repositories?active=true", headers=simple_admin_header).json == []
 
 
 class TestPullRequests:
     def test_batch_create(self, client, repo, pull_requests, contract):
         assert_shape(pull_requests, [PULL_REQUEST])
         assert [pr["number"] for pr in pull_requests] == [1, 2]
-        assert {pr["trigger_repository_id"] for pr in pull_requests} == {repo.id}
+        assert {pr["project_trigger_repository_id"] for pr in pull_requests} == {repo.id}
         assert {(pr["state"], pr["state_cause"], pr["task_id"]) for pr in pull_requests} == {("UNKNOWN", None, None)}
         contract("pull_requests_batch", pull_requests)
 
     def test_list_is_paged_and_filtered_by_state(self, client, simple_admin_header, repo, pull_requests, contract):
-        url = f"/trigger_repositories/{repo.id}/pull_requests"
+        url = f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests"
         response = client.get(url, headers=simple_admin_header)
         assert response.status_code == HTTPStatus.OK
         assert_shape(response.json, PULL_REQUESTS_PAGE)
@@ -277,18 +266,18 @@ class TestPullRequests:
         assert_shape(invalid.json, ERROR)
 
     def test_get(self, client, simple_admin_header, repo, pull_requests, contract):
-        response = client.get(f"/trigger_repositories/{repo.id}/pull_requests/1", headers=simple_admin_header)
+        response = client.get(f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests/1", headers=simple_admin_header)
         assert response.status_code == HTTPStatus.OK
         assert_shape(response.json, PULL_REQUEST)
         assert (response.json["number"], response.json["merged_at"]) == (1, "2026-01-01T10:00:00")
         contract("pull_request", response.json)
 
-        missing = client.get(f"/trigger_repositories/{repo.id}/pull_requests/99", headers=simple_admin_header)
+        missing = client.get(f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests/99", headers=simple_admin_header)
         assert missing.status_code == HTTPStatus.NOT_FOUND
         assert_shape(missing.json, ERROR)
 
     def test_patch_state(self, client, post_json_admin_header, repo, pull_requests, contract):
-        url = f"/trigger_repositories/{repo.id}/pull_requests/1"
+        url = f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests/1"
         response = client.patch(url, json={"state": "IGNORED", "state_cause": "no spec file"}, headers=post_json_admin_header)
         assert response.status_code == HTTPStatus.OK
         assert_shape(response.json, PULL_REQUEST)
@@ -297,7 +286,7 @@ class TestPullRequests:
         assert client.get(url, headers=post_json_admin_header).json["state"] == "IGNORED"
 
     def test_task_is_created_then_returned(self, client, post_json_admin_header, repo, pull_requests, contract):
-        url = f"/trigger_repositories/{repo.id}/pull_requests/1/task"
+        url = f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests/1/task"
         body = {"spec_raw": spec_file(image="example:latest", env={"KEY": "value"})}
 
         created = client.post(url, json=body, headers=post_json_admin_header)
@@ -313,36 +302,36 @@ class TestPullRequests:
         assert again.status_code == HTTPStatus.OK
         assert again.json == created.json
 
-        pr = client.get(f"/trigger_repositories/{repo.id}/pull_requests/1", headers=post_json_admin_header).json
+        pr = client.get(f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests/1", headers=post_json_admin_header).json
         assert (pr["state"], pr["task_id"]) == ("YIELDED", created.json["id"])
 
     def test_a_bad_spec_is_rejected_and_recorded(self, client, post_json_admin_header, repo, pull_requests):
         response = client.post(
-            f"/trigger_repositories/{repo.id}/pull_requests/1/task",
+            f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests/1/task",
             json={"spec_raw": "not a spec"}, headers=post_json_admin_header,
         )
         assert response.status_code == HTTPStatus.BAD_REQUEST
         assert_shape(response.json, ERROR)
-        pr = client.get(f"/trigger_repositories/{repo.id}/pull_requests/1", headers=post_json_admin_header).json
+        pr = client.get(f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests/1", headers=post_json_admin_header).json
         assert (pr["state"], pr["task_id"]) == ("REJECTED", None)
         assert isinstance(pr["state_cause"], str) and pr["state_cause"]
 
     def test_batch_of_a_duplicate_number_is_a_400_today(self, client, post_json_admin_header, repo, pull_requests):
         response = client.post(
-            f"/trigger_repositories/{repo.id}/pull_requests/batch",
+            f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests/batch",
             json={"pull_requests": [pr_body(3, "2026-04-01T10:00:00Z"), pr_body(1, "2026-01-01T10:00:00Z")]},
             headers=post_json_admin_header,
         )
         assert response.status_code == HTTPStatus.BAD_REQUEST
         assert_shape(response.json, ERROR)
         # Nothing of the batch is kept
-        total = client.get(f"/trigger_repositories/{repo.id}/pull_requests", headers=post_json_admin_header).json["total"]
+        total = client.get(f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests", headers=post_json_admin_header).json["total"]
         assert total == 2
 
     @pytest.mark.xfail(strict=True, reason="ADR 0019 stage 5")
     def test_target_batch_of_a_known_number_is_an_upsert(self, client, post_json_admin_header, repo, pull_requests):
         response = client.post(
-            f"/trigger_repositories/{repo.id}/pull_requests/batch",
+            f"/trigger_repositories/{repo.trigger_repository_id}/pull_requests/batch",
             json={"pull_requests": [pr_body(1, "2026-01-01T10:00:00Z")]},
             headers=post_json_admin_header,
         )
@@ -353,14 +342,13 @@ class TestPullRequests:
             self, client, simple_admin_header, repo, pull_requests
         ):
         """Stored once per repository: no evaluation state, that is the project's trigger."""
-        response = client.get(f"/trigger_repositories/{repo.id}/pull_requests", headers=simple_admin_header)
+        response = client.get(f"/trigger_repositories/{repo.trigger_repository_id}/pull_requests", headers=simple_admin_header)
         assert response.status_code == HTTPStatus.OK
         assert set(response.json["items"][0]) == {
             "id", "trigger_repository_id", "number", "title", "raised_by", "merged_at", "merge_commit_sha",
         }
 
-    @pytest.mark.xfail(strict=True, reason="ADR 0019 stage 5")
-    def test_target_per_project_triggers_are_addressed_by_assignment(
+    def test_per_project_triggers_are_addressed_by_assignment(
             self, client, simple_admin_header, repo, pull_requests
         ):
         url = f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests/1"
@@ -588,20 +576,20 @@ class TestTasks:
         ProjectDataset(other_project.id, other_dataset.id).add()
 
         response = client.post(
-            f"/trigger_repositories/{repo.id}/pull_requests/1/task",
+            f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests/1/task",
             json={"spec_raw": spec_file(image="example:latest", dataset=other_dataset.name)},
             headers=post_json_admin_header,
         )
         assert response.status_code == HTTPStatus.BAD_REQUEST
         assert "does not belong to project" in response.json["error"]
-        pr = client.get(f"/trigger_repositories/{repo.id}/pull_requests/1", headers=post_json_admin_header).json
+        pr = client.get(f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests/1", headers=post_json_admin_header).json
         assert pr["state"] == "REJECTED"
 
     def test_pull_request_falls_back_to_the_default_dataset(
             self, client, post_json_admin_header, repo, pull_requests
         ):
         response = client.post(
-            f"/trigger_repositories/{repo.id}/pull_requests/1/task",
+            f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests/1/task",
             json={"spec_raw": spec_file(image="example:latest")}, headers=post_json_admin_header,
         )
         assert response.status_code == HTTPStatus.CREATED

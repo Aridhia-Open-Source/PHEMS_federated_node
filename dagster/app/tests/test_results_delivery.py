@@ -12,7 +12,8 @@ from app.definitions.sensors.task.delivery import deliver_results_job, task_resu
 from app.delivery import git_push
 from app.delivery.results import ResultsDelivery
 from app.models import (
-    ProjectResultsRepository, PullRequestResult, PullRequestTrigger, ResultsRepository, Task, TriggerRepository
+    ProjectResultsRepository, ProjectTriggerRepository, PullRequestResult, PullRequestTrigger, ResultsRepository, Task,
+    TriggerRepository
 )
 from app.tests.conftest import SAMPLE_SECRET
 
@@ -31,10 +32,14 @@ REPOSITORY = ProjectResultsRepository(
 )
 TRIGGER_REPOSITORY = TriggerRepository(
     id=2, uri="gitea.fn.svc:3000/fn/analysis", provider="gitea", api_uri="http://x/api/v1",
-    secret=SAMPLE_SECRET, watch_dir="w", base_branch="main", project_id=1, pr_cursor="c",
+    secret=SAMPLE_SECRET,
+)
+TRIGGER_ASSIGNMENT = ProjectTriggerRepository(
+    id=8, project_id=1, trigger_repository=TRIGGER_REPOSITORY, watch_dir="w", base_branch="main", pr_cursor="c",
+    enabled=True, revoked=False, active=True,
 )
 PULL_REQUEST = PullRequestTrigger(
-    trigger_repository_id=2, number=12, title="t", raised_by="u", merged_at="2026-01-01T00:00:00Z",
+    project_id=1, project_trigger_repository_id=8, number=12, title="t", raised_by="u", merged_at="2026-01-01T00:00:00Z",
     merge_commit_sha="abc", state="YIELDED", task_id=7,
 )
 LAYOUT = "results/analysis/12/7"
@@ -81,7 +86,7 @@ def backend_api():
     api = MagicMock()
     api.get_task.return_value = TASK
     api.get_results_repository.return_value = REPOSITORY
-    api.get_repositories.return_value = [TRIGGER_REPOSITORY]
+    api.get_repositories.return_value = [TRIGGER_ASSIGNMENT]
     api.get_pull_requests.return_value = [PULL_REQUEST]
     api.create_result.return_value = result()
     return api

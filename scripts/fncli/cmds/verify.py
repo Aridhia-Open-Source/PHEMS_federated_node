@@ -164,13 +164,13 @@ def verify_project(report: Report, config: ProjectConfig, dataset_config: Datase
 
 
 def verify_task(
-    report: Report, backend_api, dagster_api: DagsterAPI, links: Links, repo_id: int, number: int
+    report: Report, backend_api, dagster_api: DagsterAPI, links: Links, project_id: int, repo_id: int, number: int
 ):
     """Compare a merged PR's task in the backend with its run in Dagster."""
     pr = report.check(
-        f"PR #{number} is in the backend: GET /trigger_repositories/{repo_id}/pull_requests",
+        f"PR #{number} is in the backend: GET /projects/{project_id}/trigger_repositories/{repo_id}/pull_requests",
         lambda: require(
-            next((p for p in backend_api.get_pull_requests(repo_id) if p.number == number), None),
+            next((p for p in backend_api.get_pull_requests(project_id, repo_id) if p.number == number), None),
             f"PR #{number}",
         ),
         lambda p: p.state.value,
@@ -258,14 +258,14 @@ def verify_delivery(report: Report, backend_api, task_id: int):
 
 
 def verify_repo(
-    backend_api, dagster_api: DagsterAPI, links: Links, repo_id: int, tail: int | None
+    backend_api, dagster_api: DagsterAPI, links: Links, project_id: int, repo_id: int, tail: int | None
 ) -> int:
     """
     Print a report per PR of the trigger repo, the last `tail` by number if given, and a
     summary. Returns how many checks failed. A PR the sensor ignored or rejected has no task
     to check, which is the right outcome for it. One still UNKNOWN has not been evaluated.
     """
-    prs = sorted(backend_api.get_pull_requests(repo_id), key=lambda pr: pr.number)
+    prs = sorted(backend_api.get_pull_requests(project_id, repo_id), key=lambda pr: pr.number)
     if tail:
         prs = prs[-tail:]
     if not prs:
@@ -298,7 +298,7 @@ def verify_repo_command(tail):
     repo = backend_api.find_repository(config.repo_uri, project.id)
     dagster_url = DagsterConfig().dagster_url
     links = Links(config.gitea_url, dagster_url, repo.repo_path)
-    if verify_repo(backend_api, DagsterAPI(dagster_url), links, repo.id, tail):
+    if verify_repo(backend_api, DagsterAPI(dagster_url), links, project.id, repo.id, tail):
         raise click.exceptions.Exit(1)
 
 

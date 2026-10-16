@@ -96,24 +96,39 @@ def upgrade() -> None:
         sa.UniqueConstraint('project_id', 'dataset_id', name='uq_project_datasets_project_dataset'),
     )
 
-    # Create trigger_repositories table
+    # Create trigger_repositories table (global: a project is assigned to one)
     op.create_table(
         'trigger_repositories',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('project_id', sa.Integer(), nullable=False),
         sa.Column('uri', sa.String(length=4096), nullable=False),
         sa.Column('provider', sa.String(length=16), nullable=False),
         sa.Column('api_uri', sa.String(length=4096), nullable=False),
         sa.Column('secret_id', sa.Integer(), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('uri', name='uq_trigger_repositories_uri'),
+    )
+
+    # Create project_trigger_repositories table (a project's grant of a trigger repository)
+    op.create_table(
+        'project_trigger_repositories',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('project_id', sa.Integer(), nullable=False),
+        sa.Column('trigger_repository_id', sa.Integer(), nullable=False),
         sa.Column('watch_dir', sa.String(length=4096), nullable=False),
         sa.Column('base_branch', sa.String(length=256), nullable=False, server_default='main'),
         sa.Column('initial_cursor', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column('revoked', sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
-        sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
+        sa.ForeignKeyConstraint(['trigger_repository_id'], ['trigger_repositories.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('project_id', 'uri', name='uq_trigger_repositories_project_uri'),
+        sa.UniqueConstraint(
+            'project_id', 'trigger_repository_id', 'watch_dir',
+            name='uq_project_trigger_repositories_project_repo_dir'
+        ),
     )
 
     # Create results_repositories table (global: a project is assigned to one)
@@ -205,7 +220,7 @@ def upgrade() -> None:
     op.create_table(
         'pull_request_triggers',
         sa.Column('trigger_id', sa.Integer(), nullable=False),
-        sa.Column('trigger_repository_id', sa.Integer(), nullable=False),
+        sa.Column('project_trigger_repository_id', sa.Integer(), nullable=False),
         sa.Column('number', sa.Integer(), nullable=False),
         sa.Column('title', sa.String(length=256), nullable=False),
         sa.Column('raised_by', sa.String(length=256), nullable=False),
@@ -213,9 +228,9 @@ def upgrade() -> None:
         sa.Column('merged_at', sa.DateTime(), nullable=False),
         sa.Column('spec_raw', sa.Text(), nullable=True),
         sa.ForeignKeyConstraint(['trigger_id'], ['triggers.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['trigger_repository_id'], ['trigger_repositories.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['project_trigger_repository_id'], ['project_trigger_repositories.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('trigger_id'),
-        sa.UniqueConstraint('trigger_repository_id', 'number', name='uq_pr_repo_number'),
+        sa.UniqueConstraint('project_trigger_repository_id', 'number', name='uq_pr_repo_number'),
     )
 
     # Create api_request_triggers table (a trigger)
@@ -381,6 +396,7 @@ def downgrade() -> None:
     op.drop_table('dars')
     op.drop_table('project_results_repositories')
     op.drop_table('results_repositories')
+    op.drop_table('project_trigger_repositories')
     op.drop_table('trigger_repositories')
     op.drop_table('project_datasets')
     op.drop_table('datasets')

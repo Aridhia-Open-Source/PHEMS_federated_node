@@ -18,6 +18,7 @@ from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
 from app.models.task import Task
 from app.models.extras.dar import DAR
+from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.trigger_repository import TriggerRepository
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
@@ -255,18 +256,40 @@ def secret(client) -> Secret:
 
 # Trigger repository fixtures
 @fixture
-def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> TriggerRepository:
-    # Create a dataset first (required for TriggerRepository)
+def trigger_repo(client, secret) -> TriggerRepository:
+    """A global trigger repository, assigned to no project."""
+    repo = TriggerRepository(
+        uri=sample_repo_uri, provider="github", api_uri="https://api.github.com", secret_id=secret.id
+    )
+    repo.add()
+    return repo
+
+
+@fixture
+def assign_trigger(client, project, secret):
+    """Factory for a global trigger repository and its assignment to a project."""
+    def _assign(uri, watch_dir="", project=project, provider="github", api_uri="https://api.github.com"):
+        repo = TriggerRepository.query.filter_by(uri=uri).one_or_none()
+        if repo is None:
+            repo = TriggerRepository(uri=uri, provider=provider, api_uri=api_uri, secret_id=secret.id)
+            repo.add()
+        assignment = ProjectTriggerRepository(project.id, repo.id, watch_dir=watch_dir)
+        assignment.add()
+        return assignment
+    return _assign
+
+
+@fixture
+def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret, trigger_repo) -> ProjectTriggerRepository:
+    """The project's assignment of the trigger repository, watching the whole repository."""
+    # The project's default dataset, which a pull request of the repository runs against
     dataset = Dataset(name="DefaultDatasetForRepo", host="example.com", port=5432, secret_id=secret.id)
     dataset.add(user_id=user_uuid)
     ProjectDataset(project.id, dataset.id).add()
 
-    repo = TriggerRepository(
-        uri=sample_repo_uri, provider="github", api_uri="https://api.github.com",
-        secret_id=secret.id, watch_dir="", project_id=project.id
-    )
-    repo.add()
-    return repo
+    assignment = ProjectTriggerRepository(project.id, trigger_repo.id, watch_dir="")
+    assignment.add()
+    return assignment
 
 
 # Results repository fixtures
@@ -305,18 +328,18 @@ def dataset(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> D
 
 @fixture
 def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> Dataset:
-    from app.models.trigger_repository import TriggerRepository
     # Create dataset first
     dataset = Dataset(name="TestDsRepo", host="example.com", port=5432, secret_id=secret.id)
     dataset.add(user_id=user_uuid)
     ProjectDataset(project.id, dataset.id).add()
 
-    # Then create repository with the dataset_id
+    # Then the repository, assigned to the project
     repo = TriggerRepository(
         uri="github.com/organisation/repository", provider="github", api_uri="https://api.github.com",
-        secret_id=secret.id, watch_dir="", project_id=project.id
+        secret_id=secret.id
     )
     repo.add()
+    ProjectTriggerRepository(project.id, repo.id, watch_dir="").add()
 
     return dataset
 

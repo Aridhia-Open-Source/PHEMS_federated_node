@@ -9,8 +9,8 @@ from pathlib import Path
 import pytest
 
 from fncli.dagster.models import (
-    Dataset, Project, ProjectDataset, ProjectResultsRepository, PullRequestResult, PullRequestTrigger,
-    ResultsRepository, Secret, Task, TriggerRepository,
+    Dataset, Project, ProjectDataset, ProjectResultsRepository, ProjectTriggerRepository, PullRequestResult,
+    PullRequestTrigger, ResultsRepository, Secret, Task, TriggerRepository,
 )
 
 CONTRACTS_DIR = Path(__file__).resolve().parents[3] / "webserver" / "tests" / "contracts"
@@ -27,6 +27,8 @@ def items_of(name: str) -> list[dict]:
 
 @pytest.mark.parametrize("name, model", [
     ("trigger_repositories_list", TriggerRepository),
+    ("project_trigger_repositories", ProjectTriggerRepository),
+    ("project_trigger_repositories_active", ProjectTriggerRepository),
     ("results_repositories", ResultsRepository),
     ("project_results_repositories", ProjectResultsRepository),
     ("datasets_page", Dataset),

@@ -11,7 +11,7 @@ from app.models.trigger import Trigger
 
 def make_pull_request(project, repo_id=1) -> PullRequestTrigger:
     pr = PullRequestTrigger(
-        project_id=project.id, trigger_repository_id=repo_id, number=1, title="t",
+        project_id=project.id, project_trigger_repository_id=repo_id, number=1, title="t",
         raised_by="user", merged_at="2026-01-01T10:00:00Z", merge_commit_sha="a" * 40,
     )
     pr.add()

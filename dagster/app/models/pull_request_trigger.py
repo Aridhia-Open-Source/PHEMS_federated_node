@@ -9,7 +9,8 @@ class PullRequestTrigger(BaseModel):
     """A merged pull request recorded as a trigger, from the backend API."""
     model_config = ConfigDict(extra="allow")
 
-    trigger_repository_id: int
+    project_id: int
+    project_trigger_repository_id: int
     number: int
     title: str
     raised_by: str
@@ -20,13 +21,14 @@ class PullRequestTrigger(BaseModel):
     task_id: int | None = None
 
     # The server owns these: it records a new PR as UNKNOWN
-    SERVER_FIELDS: ClassVar[set[str]] = {"trigger_repository_id", "state", "state_cause", "task_id"}
+    SERVER_FIELDS: ClassVar[set[str]] = {"project_id", "project_trigger_repository_id", "state", "state_cause", "task_id"}
 
     @classmethod
-    def from_git(cls, trigger_repository_id: int, pr: dict) -> "PullRequestTrigger":
+    def from_git(cls, project_id: int, project_trigger_repository_id: int, pr: dict) -> "PullRequestTrigger":
         """A newly merged pull request, from the git provider's response."""
         return cls(
-            trigger_repository_id=trigger_repository_id,
+            project_id=project_id,
+            project_trigger_repository_id=project_trigger_repository_id,
             number=pr["number"],
             title=pr["title"],
             raised_by=pr["user"]["login"],

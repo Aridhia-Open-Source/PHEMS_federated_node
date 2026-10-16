@@ -30,6 +30,7 @@ import app.models.task
 import app.models.task_status
 import app.models.result
 import app.models.trigger_repository
+import app.models.project_trigger_repository
 import app.models.results_repository
 import app.models.results_backend
 import app.models.api_request_trigger

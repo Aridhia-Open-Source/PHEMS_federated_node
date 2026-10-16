@@ -8,6 +8,7 @@ from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.models.project import Project
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.results_repository import ResultsRepository
+from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.trigger_repository import TriggerRepository
 
 # What a repository needs to say about its git host. The secret is the conftest secret.
@@ -20,12 +21,26 @@ def results_post_body(secret):
 
 
 def make_trigger(project, secret, uri="github.com/org/results", watch_dir="triggers"):
-    repo = TriggerRepository(
-        uri=uri, provider="github", api_uri="https://api.github.com",
-        secret_id=secret.id, watch_dir=watch_dir, project_id=project.id
-    )
-    repo.add()
-    return repo
+    repo = TriggerRepository.query.filter_by(uri=uri).one_or_none()
+    if repo is None:
+        repo = TriggerRepository(
+            uri=uri, provider="github", api_uri="https://api.github.com", secret_id=secret.id
+        )
+        repo.add()
+    assignment = ProjectTriggerRepository(project.id, repo.id, watch_dir=watch_dir)
+    assignment.add()
+    return assignment
+
+
+def create_trigger(client, header, project, uri="github.com/org/results", **changes):
+    """The global repository (made once) and the project's assignment of it."""
+    repo = TriggerRepository.query.filter_by(uri=uri).one_or_none()
+    if repo is None:
+        repo_id = client.post("/trigger_repositories", json={**REPO_FIELDS, "uri": uri}, headers=header).json["id"]
+    else:
+        repo_id = repo.id
+    body = {"trigger_repository_id": repo_id, "watch_dir": "triggers", **changes}
+    return client.post(f"/projects/{project.id}/trigger_repositories", json=body, headers=header)
 
 
 class TestGetResultsRepositories:
@@ -396,10 +411,6 @@ class TestLoopGuard:
         body = {"results_repository_id": repo.id, "target_dir": "results", **changes}
         return client.post(f"/projects/{project.id}/results_repositories", json=body, headers=header)
 
-    def create_trigger(self, client, header, project, **changes):
-        body = {**REPO_FIELDS, "uri": "github.com/org/results", "project_id": project.id, "watch_dir": "triggers", **changes}
-        return client.post("/trigger_repositories", json=body, headers=header)
-
     @pytest.mark.parametrize("watch_dir,target_dir,ok", [
         ("triggers", "results", True),
         ("triggers", "triggers", False),
@@ -424,29 +435,28 @@ class TestLoopGuard:
         ("", False),
     ])
     def test_trigger_created_after_assignment(self, client, post_json_admin_header, project, results_assignment, watch_dir, ok):
-        response = self.create_trigger(client, post_json_admin_header, project, watch_dir=watch_dir)
+        response = create_trigger(client, post_json_admin_header, project, watch_dir=watch_dir)
         assert (response.status_code == 201) is ok
-        assert TriggerRepository.query.count() == (1 if ok else 0)
+        assert ProjectTriggerRepository.query.count() == (1 if ok else 0)
 
     def test_trigger_without_watch_dir_is_refused_with_a_clear_message(self, client, post_json_admin_header, project, results_assignment):
-        body = {**REPO_FIELDS, "uri": "github.com/org/results", "project_id": project.id}
-        response = client.post("/trigger_repositories", json=body, headers=post_json_admin_header)
+        response = create_trigger(client, post_json_admin_header, project, watch_dir="")
         assert response.status_code == 400
         assert "whole repository" in response.json["error"]
 
     def test_different_remotes_are_fine(self, client, post_json_admin_header, project, results_assignment):
-        response = self.create_trigger(client, post_json_admin_header, project, uri="github.com/org/elsewhere", watch_dir="results")
+        response = create_trigger(client, post_json_admin_header, project, uri="github.com/org/elsewhere", watch_dir="results")
         assert response.status_code == 201
 
     def test_a_trigger_in_another_project_is_refused_too(self, client, post_json_admin_header, results_assignment, other_project):
-        response = self.create_trigger(client, post_json_admin_header, other_project, watch_dir="results")
+        response = create_trigger(client, post_json_admin_header, other_project, watch_dir="results")
         assert response.status_code == 400
-        assert TriggerRepository.query.count() == 0
+        assert ProjectTriggerRepository.query.count() == 0
 
     def test_a_trigger_in_another_project_on_a_clear_directory_is_fine(
         self, client, post_json_admin_header, results_assignment, other_project
     ):
-        response = self.create_trigger(client, post_json_admin_header, other_project, watch_dir="elsewhere")
+        response = create_trigger(client, post_json_admin_header, other_project, watch_dir="elsewhere")
         assert response.status_code == 201
 
     def test_an_assignment_overlapping_another_projects_trigger_is_refused(
@@ -459,9 +469,12 @@ class TestLoopGuard:
 
     def test_patching_watch_dir_into_the_results_dir_is_refused(self, client, post_json_admin_header, project, secret, results_assignment):
         trigger = make_trigger(project, secret, watch_dir="triggers")
-        response = client.patch(f"/trigger_repositories/{trigger.id}", json={"watch_dir": "results/x"}, headers=post_json_admin_header)
+        response = client.patch(
+            f"/projects/{project.id}/trigger_repositories/{trigger.id}", json={"watch_dir": "results/x"},
+            headers=post_json_admin_header
+        )
         assert response.status_code == 400
-        assert TriggerRepository.get_by_id(trigger.id).watch_dir == "triggers"
+        assert ProjectTriggerRepository.get_by_id(trigger.id).watch_dir == "triggers"
 
     def test_patching_target_dir_into_the_watch_dir_is_refused(self, client, post_json_admin_header, project, secret, results_assignment):
         make_trigger(project, secret, watch_dir="triggers")
@@ -505,11 +518,12 @@ class TestDirectoryNormalisation:
             check_no_loop("github.com/org/results")
 
     def test_trigger_create_and_patch(self, client, post_json_admin_header, project, secret):
-        body = {**REPO_FIELDS, "uri": "github.com/org/other", "project_id": project.id, "watch_dir": "./t//"}
-        response = client.post("/trigger_repositories", json=body, headers=post_json_admin_header)
+        response = create_trigger(client, post_json_admin_header, project, uri="github.com/org/other", watch_dir="./t//")
         assert response.status_code == 201
         assert response.json["watch_dir"] == "t"
-        url = f"/trigger_repositories/{response.json['id']}"
+        url = f"/projects/{project.id}/trigger_repositories/{response.json['id']}"
         assert client.patch(url, json={"watch_dir": "/u/./v"}, headers=post_json_admin_header).json["watch_dir"] == "u/v"
         assert client.patch(url, json={"watch_dir": "u/../v"}, headers=post_json_admin_header).status_code == 400
-        assert client.post("/trigger_repositories", json={**body, "uri": "github.com/org/third", "watch_dir": "../t"}, headers=post_json_admin_header).status_code == 400
+        assert create_trigger(
+            client, post_json_admin_header, project, uri="github.com/org/third", watch_dir="../t"
+        ).status_code == 400

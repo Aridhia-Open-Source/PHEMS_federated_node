@@ -19,7 +19,7 @@ def run(projects, repos, unknown=None, in_flight=()):
     backend_api = MagicMock()
     backend_api.get_projects.return_value = projects
     backend_api.get_repositories.return_value = repos
-    backend_api.get_pull_requests.side_effect = lambda repo_id, state: (unknown or {}).get(repo_id, [])
+    backend_api.get_pull_requests.side_effect = lambda project_id, repo_id, state: (unknown or {}).get(repo_id, [])
     context = MagicMock()
     context.instance.get_runs.side_effect = lambda filters, limit: [MagicMock()] if filters.tags["repo_id"] in in_flight else []
     sensor = PullRequestEvaluateSensor(context=context, backend_api=backend_api, git_apis=MagicMock())
@@ -33,14 +33,14 @@ def test_one_run_per_repository_with_unknown_prs():
 
     assert [r.tags["repo_id"] for r in result] == ["10", "12"]
     assert all(isinstance(r, dg.RunRequest) for r in result)
-    backend_api.get_pull_requests.assert_any_call(10, TriggerState.UNKNOWN.value)
+    backend_api.get_pull_requests.assert_any_call(1, 10, TriggerState.UNKNOWN.value)
 
 
 def test_the_run_is_configured_and_tagged_for_its_repository():
     result, _, _ = run([project(3)], [repo(10, 3)], unknown={10: ["a"]})
 
     assert result[0].tags == {"repo_id": "10", "project_id": "3"}
-    assert result[0].run_config == {"ops": {"load_unknown_pull_requests": {"config": {"repo_id": 10}}}}
+    assert result[0].run_config == {"ops": {"load_unknown_pull_requests": {"config": {"project_id": 3, "repo_id": 10}}}}
 
 
 def test_the_run_key_includes_the_minute():

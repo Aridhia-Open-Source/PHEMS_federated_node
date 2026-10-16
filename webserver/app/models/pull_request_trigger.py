@@ -18,7 +18,7 @@ class PullRequestTrigger(Trigger):
     __tablename__ = 'pull_request_triggers'
     __mapper_args__ = {'polymorphic_identity': 'PR'}
     __table_args__ = (
-        sa.UniqueConstraint('trigger_repository_id', 'number', name='uq_pr_repo_number'),
+        sa.UniqueConstraint('project_trigger_repository_id', 'number', name='uq_pr_repo_number'),
     )
 
     trigger_id = sa.Column(
@@ -31,12 +31,15 @@ class PullRequestTrigger(Trigger):
     merged_at = sa.Column(sa.DateTime(timezone=False), nullable=False)
     spec_raw = sa.Column(sa.Text, nullable=True)
 
-    trigger_repository_id = sa.Column(
-        sa.Integer, sa.ForeignKey('trigger_repositories.id', ondelete='CASCADE'),
+    # RESTRICT: an assignment with pull requests cannot be deleted from under their triggers
+    project_trigger_repository_id = sa.Column(
+        sa.Integer, sa.ForeignKey('project_trigger_repositories.id', ondelete='RESTRICT'),
         nullable=False
     )
 
-    trigger_repository = orm.relationship("TriggerRepository", back_populates="pull_request_triggers")
+    project_trigger_repository = orm.relationship(
+        "ProjectTriggerRepository", back_populates="pull_request_triggers"
+    )
 
     @validates('merged_at')
     def validate_merged_at(self, key, value):
@@ -51,7 +54,7 @@ class PullRequestTrigger(Trigger):
     def __init__(
         self,
         project_id: int,
-        trigger_repository_id: int,
+        project_trigger_repository_id: int,
         number: int,
         title: str,
         raised_by: str,
@@ -59,7 +62,7 @@ class PullRequestTrigger(Trigger):
         merge_commit_sha: str,
     ):
         super().__init__(project_id)
-        self.trigger_repository_id = trigger_repository_id
+        self.project_trigger_repository_id = project_trigger_repository_id
         self.number = number
         self.title = title
         self.raised_by = raised_by
@@ -71,4 +74,4 @@ class PullRequestTrigger(Trigger):
         return self.raised_by
 
     def __repr__(self):
-        return f'<PullRequestTrigger (repo_id={self.trigger_repository_id}, pr={self.number})>'
+        return f'<PullRequestTrigger (assignment_id={self.project_trigger_repository_id}, pr={self.number})>'

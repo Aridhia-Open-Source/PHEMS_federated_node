@@ -6,11 +6,11 @@ from app.definitions.sensors.git.base import GitAPIFactory
 from app.gitea import GiteaAPI
 from app.github import GithubAPI
 from app.models import TriggerRepository
-from app.tests.conftest import SAMPLE_REPOSITORY_OBJ
+from app.tests.conftest import SAMPLE_TRIGGER_REPOSITORY
 
 
 def repo(provider, api_uri):
-    return TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "provider": provider, "api_uri": api_uri})
+    return TriggerRepository(**{**SAMPLE_TRIGGER_REPOSITORY, "provider": provider, "api_uri": api_uri})
 
 
 @pytest.fixture

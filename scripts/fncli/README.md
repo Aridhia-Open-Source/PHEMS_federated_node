@@ -132,7 +132,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 | `delete-gitea-repo [--entity] [-y]` | Deletes the repo from Gitea, after asking. Backend records are left alone |
 | `init-backend-trigger-repo [--base-branch]` | Registers the trigger repo with the backend so the sensor polls it. Without `--base-branch` the branch is the repo's default branch in Gitea (a Gitea call) |
 | `init-backend-results-repo` | Registers the results repo as the project's results repository |
-| `delete-backend-trigger-repo`, `delete-backend-results-repo` | Delete that record from the backend |
+| `delete-backend-trigger-repo`, `delete-backend-results-repo` | Delete that global repository from the backend, and with it every project's assignment of it. The trigger one is refused while any of its assignments has pull requests (delete the project first) |
 
 **Secret** (`cmds/secret.py`)
 

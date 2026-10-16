@@ -3,7 +3,7 @@ from enum import Enum
 from pydantic import BaseModel
 
 from app.definitions.sensors.git.base import GitAPI
-from app.models import PullRequestTrigger, TriggerRepository
+from app.models import ProjectTriggerRepository, PullRequestTrigger
 
 
 class PullRequestOutcome(str, Enum):
@@ -40,7 +40,7 @@ class PullRequestParser:
     watch_dir and reads it at the merge commit. The backend parses and validates the spec.
     """
 
-    def __init__(self, git_api: GitAPI, repo: TriggerRepository, log):
+    def __init__(self, git_api: GitAPI, repo: ProjectTriggerRepository, log):
         self.git_api = git_api
         self.repo = repo
         self.log = log

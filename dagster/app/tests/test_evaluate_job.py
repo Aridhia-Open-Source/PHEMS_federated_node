@@ -18,7 +18,7 @@ SPEC_FILE = json.dumps({"spec": {"docker_image": "a/b:1"}})
 
 def pull_request(number=5, merged_at="2026-01-01T00:00:00Z"):
     return PullRequestTrigger(
-        trigger_repository_id=1, number=number, title="t", raised_by="dev",
+        project_id=4, project_trigger_repository_id=1, number=number, title="t", raised_by="dev",
         merged_at=merged_at, merge_commit_sha="abc", state="UNKNOWN",
     )
 
@@ -43,7 +43,8 @@ def run_evaluate(files=(WATCHED,), contents=SPEC_FILE, backend_api=None):
 def test_a_ready_pr_sends_its_spec_file_and_patches_nothing():
     backend_api = run_evaluate()
 
-    backend_api.create_task_for_pull_request.assert_called_once_with(1, 5, SPEC_FILE)
+    backend_api.get_repository.assert_called_once_with(4, 1)
+    backend_api.create_task_for_pull_request.assert_called_once_with(4, 1, 5, SPEC_FILE)
     backend_api.patch_pull_request.assert_not_called()
 
 
@@ -51,8 +52,8 @@ def test_an_ignored_pr_is_patched_with_its_reason():
     backend_api = run_evaluate(files=[])
 
     backend_api.create_task_for_pull_request.assert_not_called()
-    (repo_id, number, data), _ = backend_api.patch_pull_request.call_args
-    assert (repo_id, number) == (1, 5)
+    (project_id, repo_id, number, data), _ = backend_api.patch_pull_request.call_args
+    assert (project_id, repo_id, number) == (4, 1, 5)
     assert data["state"] == "IGNORED" and "specs/" in data["state_cause"]
 
 
@@ -60,7 +61,7 @@ def test_a_pr_with_several_spec_files_is_patched_as_rejected():
     backend_api = run_evaluate(files=[WATCHED, {"filename": "specs/b.json", "status": "added"}])
 
     backend_api.create_task_for_pull_request.assert_not_called()
-    data = backend_api.patch_pull_request.call_args.args[2]
+    data = backend_api.patch_pull_request.call_args.args[3]
     assert data["state"] == "REJECTED" and data["state_cause"]
 
 
@@ -103,11 +104,11 @@ def test_the_load_op_emits_the_unknown_prs_oldest_first():
     backend_api.get_pull_requests.return_value = [
         pull_request(7, "2026-03-01T00:00:00Z"), pull_request(5, "2026-01-01T00:00:00Z"),
     ]
-    context = dg.build_op_context(resources={"backend_api": backend_api}, op_config={"repo_id": 1})
+    context = dg.build_op_context(resources={"backend_api": backend_api}, op_config={"project_id": 4, "repo_id": 1})
 
     outputs = list(load_unknown_pull_requests(context))
 
-    backend_api.get_pull_requests.assert_called_once_with(1, "UNKNOWN")
+    backend_api.get_pull_requests.assert_called_once_with(4, 1, "UNKNOWN")
     assert [o.mapping_key for o in outputs] == ["5", "7"]
 
 

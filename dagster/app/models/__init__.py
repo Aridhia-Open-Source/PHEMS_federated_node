@@ -13,7 +13,7 @@ from app.models.task import Task
 from app.models.task_spec import TaskSpec
 from app.models.task_status import TaskStatus
 from app.models.trigger_state import TriggerState
-from app.models.trigger_repository import TriggerRepository
+from app.models.trigger_repository import ProjectTriggerRepository, TriggerRepository
 
 __all__ = [
     "Catalogue",
@@ -22,6 +22,7 @@ __all__ = [
     "Project",
     "ProjectDataset",
     "ProjectResultsRepository",
+    "ProjectTriggerRepository",
     "PullRequestResult",
     "PullRequestResultStep",
     "PullRequestTrigger",

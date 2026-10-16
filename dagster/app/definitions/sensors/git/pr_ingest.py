@@ -1,7 +1,7 @@
 import dagster as dg
 
 from app.definitions.sensors.git.base import GitAPI, GitSensor
-from app.models import PullRequestTrigger, TriggerRepository
+from app.models import ProjectTriggerRepository, PullRequestTrigger
 
 
 class PullRequestIngestSensor(GitSensor):
@@ -20,7 +20,7 @@ class PullRequestIngestSensor(GitSensor):
 
         saved = 0
         for repo in repositories:
-            git_api = self.git_apis.for_repository(repo)
+            git_api = self.git_apis.for_repository(repo.trigger_repository)
             self.log.info(f"Fetching PRs for {repo.repo_path} since {repo.pr_cursor}")
             merged = git_api.get_new_merged_pulls(
                 repo_path=repo.repo_path,
@@ -34,6 +34,7 @@ class PullRequestIngestSensor(GitSensor):
             pull_requests = [self._fetch_pr(git_api, repo, pr["number"]) for pr in merged]
             self.log.info(f"Saving batch of {len(pull_requests)} PRs for repo {repo.id}")
             self.backend_api.create_pull_requests_batch(
+                repo.project_id,
                 repo.id,
                 [pr.dump_new() for pr in pull_requests],
             )
@@ -45,6 +46,6 @@ class PullRequestIngestSensor(GitSensor):
 
         yield dg.SkipReason(f"Saved {saved} new pull requests to database.")
 
-    def _fetch_pr(self, git_api: GitAPI, repo: TriggerRepository, pr_number: int) -> PullRequestTrigger:
+    def _fetch_pr(self, git_api: GitAPI, repo: ProjectTriggerRepository, pr_number: int) -> PullRequestTrigger:
         pr = git_api.get_pull_request(repo.repo_path, pr_number)
-        return PullRequestTrigger.from_git(repo.id, pr)
+        return PullRequestTrigger.from_git(repo.project_id, repo.id, pr)

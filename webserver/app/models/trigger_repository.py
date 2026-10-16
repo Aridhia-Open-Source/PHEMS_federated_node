@@ -1,84 +1,28 @@
-from datetime import datetime as dt
-from datetime import timezone as tz
-from typing import cast
-
+"""Trigger repository model, global: projects are assigned to it."""
 import sqlalchemy as sa
-from sqlalchemy.orm import relationship, validates
-from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 
 from app.helpers.base_model import BaseModel, db
-from app.models import Models, sqla_column
+from app.models import sqla_column
 from app.models.git_repository import GitRepositoryMixin
-
-
-def now_ts():
-    return dt.now(tz=tz.utc)
 
 
 class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
     __tablename__ = 'trigger_repositories'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    project_id = sa.Column(
-        sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False
-    )
-    watch_dir = sa.Column(sa.String(4096), nullable=False)
-    base_branch = sa.Column(sa.String(256), nullable=False, default='main')
-    initial_cursor = sa.Column(
-        sa.DateTime, nullable=False, server_default=func.now(), default=now_ts
-    )
 
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
 
     __table_args__ = (
-        sa.UniqueConstraint('project_id', 'uri', name='uq_trigger_repositories_project_uri'),
+        sa.UniqueConstraint('uri', name='uq_trigger_repositories_uri'),
     )
 
-    project = relationship("Project", back_populates="trigger_repositories")
+    project_assignments = relationship("ProjectTriggerRepository", back_populates="trigger_repository")
     secret = relationship(
         "Secret", back_populates="trigger_repositories"
     )
-    pull_request_triggers = relationship(
-        "PullRequestTrigger", back_populates="trigger_repository", cascade="all, delete"
-    )
-
-    @validates('initial_cursor')
-    def validate_initial_cursor(self, key, value):
-        """Convert ISO 8601 string to datetime if needed."""
-        if isinstance(value, str):
-            try:
-                value = dt.fromisoformat(value.rstrip('Z'))
-            except (ValueError, TypeError):
-                raise ValueError("initial_cursor must be a valid ISO 8601 datetime string")
-
-        if self.id is not None and self.pull_request_triggers:
-            raise ValueError(
-                "Cannot change initial_cursor while pull requests exist. "
-                "Delete all pull requests first if you want to adjust the cursor."
-            )
-
-        return value
-
-    @property
-    def dataset(self):
-        """
-        Which dataset a PR from this repository runs against by default
-        """
-        return self.project.default_dataset
-
-    def get_pull_request_cursor(self) -> str:
-        """
-        Get latest PR merge time from all ingested pull requests.
-        If no pull requests exist, use initial_cursor as the starting point.
-        """
-        pr_cursor = db.session.query(func.max(Models.PullRequestTrigger.merged_at))\
-            .filter_by(trigger_repository_id=self.id)\
-            .scalar()
-
-        initial_cursor = cast(dt, self.initial_cursor)
-
-        return (pr_cursor or initial_cursor).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def __init__(
         self,
@@ -86,19 +30,11 @@ class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
         provider: str,
         api_uri: str,
         secret_id: int,
-        watch_dir: str,
-        project_id: int,
-        base_branch: str = 'main',
-        initial_cursor: dt | None = None,
     ):
         self.uri = uri
         self.provider = provider
         self.api_uri = api_uri
         self.secret_id = secret_id
-        self.watch_dir = watch_dir
-        self.project_id = project_id
-        self.base_branch = base_branch
-        self.initial_cursor = initial_cursor
 
     def __repr__(self):
         return f'<TriggerRepository ({self.uri})>'

@@ -33,7 +33,7 @@ fncli logs in first with `POST /login` on the backend, then makes its backend ca
   - Backend: stores each token as a secret (`POST /secrets`, or `PATCH /secrets/{label}` if it exists).
   - Backend: stores dummy dataset credentials as a secret (same call).
   - K8s: reads the secret back to check it holds the new token.
-  - Backend: registers the trigger repo (`POST /trigger_repositories`).
+  - Backend: registers the trigger repo (`POST /trigger_repositories`) and assigns it to the project (`POST /projects/{id}/trigger_repositories`).
   - Backend: registers the results repo (`POST /results_repositories`) if it is missing, then assigns it to the project (`POST /projects/{id}/results_repositories`).
   - Backend: registers the dataset (`POST /datasets`) if it is missing, then assigns it to the project (`POST /projects/{id}/datasets`), which makes it the project's default if it is the first.
   - Gitea: checks each token is accepted.
@@ -70,7 +70,7 @@ Each command opens a PR and merges it, using the Gitea API only. fncli makes no 
 Add `--watch` to follow the merged PR in real time (and `--timeout <seconds>`, default 300). It prints a timestamped line each time something changes (including a link to the Dagster run once it starts), and exits 1 on REJECTED, a FAILURE or CANCELED run, or a timeout. On a timeout it also lists the sensors that are not running at the stage it is stuck at. A dropped connection (Dagster reloading, say) is retried; it gives up after 10 failed polls in a row.
 
 - `fncli open-pr --kind watched --merge --watch`, or `fncli merge-gitea-pr --number <n> --watch`
-  - Backend: `GET /trigger_repositories/{repo_id}/pull_requests`, until the PR shows up ("waiting for ingest") and shows its state (UNKNOWN, then YIELDED, IGNORED or REJECTED, with its state_cause).
+  - Backend: `GET /projects/{project_id}/trigger_repositories/{repo_id}/pull_requests`, until the PR shows up ("waiting for ingest") and shows its state (UNKNOWN, then YIELDED, IGNORED or REJECTED, with its state_cause).
   - Backend: `GET /tasks/{task_id}` for a YIELDED PR, showing the task's status.
   - Dagster: GraphQL `runsOrError` filtered by the task_id tag, showing the run's id and status until SUCCESS, FAILURE or CANCELED.
   - Exits 0 on IGNORED or SUCCESS.

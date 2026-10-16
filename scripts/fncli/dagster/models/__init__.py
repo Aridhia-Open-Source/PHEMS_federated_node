@@ -9,7 +9,7 @@ from fncli.dagster.models.secret import Secret
 from fncli.dagster.models.secret_provider_type import SecretProviderType
 from fncli.dagster.models.task import Task
 from fncli.dagster.models.task_spec import TaskSpec
-from fncli.dagster.models.trigger_repository import TriggerRepository
+from fncli.dagster.models.trigger_repository import ProjectTriggerRepository, TriggerRepository
 from fncli.dagster.models.trigger_state import TriggerState
 
 __all__ = [
@@ -21,6 +21,7 @@ __all__ = [
     "PullRequestResult",
     "PullRequestTrigger",
     "ProjectResultsRepository",
+    "ProjectTriggerRepository",
     "ResultsRepository",
     "Secret",
     "SecretProviderType",

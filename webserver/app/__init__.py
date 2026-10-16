@@ -14,7 +14,7 @@ from werkzeug.exceptions import HTTPException
 
 from app import (
     main, admin_api, datasets_api, tasks_api, projects_api,
-    registries_api, users_api, trigger_repositories_api,
+    registries_api, users_api, trigger_repositories_api, project_trigger_repositories_api,
     secrets_api, results_repositories_api, results_api, dagster_api
 )
 from app.helpers.base_model import build_sql_uri, db
@@ -85,6 +85,7 @@ def create_app():
     app.register_blueprint(registries_api.bp)
     app.register_blueprint(users_api.bp)
     app.register_blueprint(trigger_repositories_api.bp)
+    app.register_blueprint(project_trigger_repositories_api.bp)
     app.register_blueprint(secrets_api.bp)
     app.register_blueprint(results_repositories_api.bp)
     app.register_blueprint(dagster_api.bp)

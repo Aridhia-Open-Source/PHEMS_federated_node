@@ -38,36 +38,36 @@ SAMPLE_DATASET = {
     "url": "https://db.host/cdm",
 }
 
-SAMPLE_REPO = {
+SAMPLE_TRIGGER_REPOSITORY = {
     "id": 1,
     "uri": "github.com/org/repo",
     "provider": "github",
     "api_uri": "https://api.github.com",
     "secret": SAMPLE_SECRET,
+}
+
+SAMPLE_REPO = {
+    "id": 1,
+    "project_id": 1,
+    "trigger_repository": SAMPLE_TRIGGER_REPOSITORY,
     "base_branch": "main",
     "watch_dir": "specs/",
-    "project_id": 1,
     "dataset_id": 1,
     "pr_cursor": "2026-01-01T00:00:00Z",
+    "enabled": True,
+    "revoked": False,
+    "active": True,
 }
 
 SAMPLE_REPOSITORY_OBJ = {
-    "id": 1,
-    "uri": "github.com/org/repo",
-    "provider": "github",
-    "api_uri": "https://api.github.com",
-    "secret": SAMPLE_SECRET,
-    "base_branch": "main",
-    "watch_dir": "specs/",
-    "project_id": 1,
-    "dataset_id": 1,
+    **SAMPLE_REPO,
     "initial_cursor": "2026-01-01T00:00:00Z",
-    "pr_cursor": "2026-01-01T00:00:00Z",
     "pull_requests": [],
 }
 
 SAMPLE_PR = {
-    "trigger_repository_id": 1,
+    "project_id": 1,
+    "project_trigger_repository_id": 1,
     "number": 5,
     "title": "Add experiment spec",
     "raised_by": "developer",
@@ -77,7 +77,8 @@ SAMPLE_PR = {
 }
 
 SAMPLE_INVALID_PR = {
-    "trigger_repository_id": 1,
+    "project_id": 1,
+    "project_trigger_repository_id": 1,
     "number": 6,
     "title": "Invalid spec",
     "raised_by": "developer",
@@ -87,7 +88,8 @@ SAMPLE_INVALID_PR = {
 }
 
 SAMPLE_IN_PROGRESS_PR = {
-    "trigger_repository_id": 1,
+    "project_id": 1,
+    "project_trigger_repository_id": 1,
     "number": 7,
     "title": "Currently processing",
     "raised_by": "developer",

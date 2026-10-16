@@ -31,7 +31,8 @@ def spare_secret(client, project):
 def ids(client, k8s_client, audited, project, secret, spare_secret, default_repo, results_repo, results_assignment):
     assignment = ProjectDataset.query.filter_by(project_id=project.id).one()
     return SimpleNamespace(
-        project=project.id, trigger_repo=default_repo.id, results_repo=results_repo.id,
+        project=project.id, trigger_repo=default_repo.trigger_repository_id, trigger_assignment=default_repo.id,
+        results_repo=results_repo.id,
         results_assignment=results_assignment.id,
         dataset=assignment.dataset_id, assignment=assignment.id, secret=secret.label, spare_secret=spare_secret.label,
     )
@@ -42,9 +43,15 @@ GUARDED = {
     "patch_project": lambda c, h, i: c.patch(f"/projects/{i.project}", json={"enabled": True}, headers=h),
     "delete_project": lambda c, h, i: c.delete(f"/projects/{i.project}", headers=h),
     "patch_trigger_repo": lambda c, h, i: c.patch(
-        f"/trigger_repositories/{i.trigger_repo}", json={"base_branch": "dev"}, headers=h
+        f"/trigger_repositories/{i.trigger_repo}", json={"api_uri": "https://api.github.com/v3"}, headers=h
     ),
     "delete_trigger_repo": lambda c, h, i: c.delete(f"/trigger_repositories/{i.trigger_repo}", headers=h),
+    "patch_trigger_assignment": lambda c, h, i: c.patch(
+        f"/projects/{i.project}/trigger_repositories/{i.trigger_assignment}", json={"base_branch": "dev"}, headers=h
+    ),
+    "delete_trigger_assignment": lambda c, h, i: c.delete(
+        f"/projects/{i.project}/trigger_repositories/{i.trigger_assignment}", headers=h
+    ),
     "patch_results_repo": lambda c, h, i: c.patch(
         f"/results_repositories/{i.results_repo}", json={"api_uri": "https://api.github.com/v3"}, headers=h
     ),
@@ -65,6 +72,7 @@ GUARDED = {
 SUCCESS_CODES = {
     "patch_project": HTTPStatus.OK, "delete_project": HTTPStatus.NO_CONTENT,
     "patch_trigger_repo": HTTPStatus.OK, "delete_trigger_repo": HTTPStatus.NO_CONTENT,
+    "patch_trigger_assignment": HTTPStatus.OK, "delete_trigger_assignment": HTTPStatus.NO_CONTENT,
     "patch_results_repo": HTTPStatus.OK, "delete_results_repo": HTTPStatus.NO_CONTENT,
     "patch_results_assignment": HTTPStatus.OK, "delete_results_assignment": HTTPStatus.NO_CONTENT,
     "patch_dataset": HTTPStatus.ACCEPTED, "delete_dataset": HTTPStatus.NO_CONTENT,
@@ -270,7 +278,10 @@ class TestCreatingChildren:
         make_task(status=TaskStatus.RUNNING.value)
         response = client.post("/trigger_repositories", json={
             "uri": "github.com/org/new", "provider": "github", "secret_label": secret.label,
-            "project_id": project.id,
+        }, headers=post_json_admin_header)
+        assert response.status_code == HTTPStatus.CREATED, response.json
+        response = client.post(f"/projects/{project.id}/trigger_repositories", json={
+            "trigger_repository_id": response.json["id"], "watch_dir": "triggers",
         }, headers=post_json_admin_header)
         assert response.status_code == HTTPStatus.CREATED, response.json
 

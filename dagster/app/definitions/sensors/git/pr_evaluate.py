@@ -7,7 +7,7 @@ from app.definitions.sensors.git.evaluate_job import (
     evaluate_repository_pull_requests_job,
     load_unknown_pull_requests,
 )
-from app.models import TriggerRepository, TriggerState
+from app.models import ProjectTriggerRepository, TriggerState
 
 IN_FLIGHT = [dg.DagsterRunStatus.NOT_STARTED, dg.DagsterRunStatus.QUEUED, dg.DagsterRunStatus.STARTING,
              dg.DagsterRunStatus.STARTED]
@@ -32,7 +32,7 @@ class PullRequestEvaluateSensor(GitSensor):
             if self._run_in_flight(repo):
                 self.log.info(f"Evaluation of repo {repo.id} is already in flight")
                 continue
-            if not self.backend_api.get_pull_requests(repo.id, TriggerState.UNKNOWN.value):
+            if not self.backend_api.get_pull_requests(repo.project_id, repo.id, TriggerState.UNKNOWN.value):
                 continue
             yield self._run_request(repo)
             launched += 1
@@ -40,7 +40,7 @@ class PullRequestEvaluateSensor(GitSensor):
         if not launched:
             yield dg.SkipReason("No repositories with unknown pull requests to evaluate.")
 
-    def _run_in_flight(self, repo: TriggerRepository) -> bool:
+    def _run_in_flight(self, repo: ProjectTriggerRepository) -> bool:
         runs = self.context.instance.get_runs(
             filters=dg.RunsFilter(
                 job_name=evaluate_repository_pull_requests_job.name,
@@ -51,10 +51,10 @@ class PullRequestEvaluateSensor(GitSensor):
         )
         return bool(runs)
 
-    def _run_request(self, repo: TriggerRepository) -> dg.RunRequest:
+    def _run_request(self, repo: ProjectTriggerRepository) -> dg.RunRequest:
         minute = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
         return dg.RunRequest(
             run_key=f"evaluate/{repo.id}/{minute}",
             tags={"repo_id": str(repo.id), "project_id": str(repo.project_id)},
-            run_config={"ops": {load_unknown_pull_requests.name: {"config": {"repo_id": repo.id}}}},
+            run_config={"ops": {load_unknown_pull_requests.name: {"config": {"project_id": repo.project_id, "repo_id": repo.id}}}},
         )

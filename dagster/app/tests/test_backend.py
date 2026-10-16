@@ -3,8 +3,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.backend import BackendAPI
-from app.models import Dataset, ProjectDataset, PullRequestResultStep, PullRequestTrigger, TriggerRepository
-from app.tests.conftest import SAMPLE_SECRET, SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, make_response
+from app.models import (
+    Dataset, ProjectDataset, ProjectTriggerRepository, PullRequestResultStep, PullRequestTrigger, TriggerRepository,
+)
+from app.tests.conftest import SAMPLE_SECRET, SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_TRIGGER_REPOSITORY, make_response
 
 
 
@@ -52,7 +54,7 @@ class TestRepositories:
 
         repos = api.get_repositories()
 
-        assert [type(r) for r in repos] == [TriggerRepository]
+        assert [type(r) for r in repos] == [ProjectTriggerRepository]
         assert repos[0].repo_path == "org/repo"
 
     def test_get_repositories_of_enabled_projects(self, api, session):
@@ -60,22 +62,40 @@ class TestRepositories:
 
         api.get_repositories(enabled_only=True)
 
-        session.get.assert_called_once_with("/trigger_repositories", params={"project_enabled": "true"})
+        session.get.assert_called_once_with("/project_trigger_repositories", params={"project_enabled": "true"})
 
     def test_get_repository(self, api, session):
         session.get.return_value = make_response(SAMPLE_REPOSITORY_OBJ)
 
-        assert api.get_repository(1).id == 1
-        session.get.assert_called_once_with("/trigger_repositories/1")
+        assert api.get_repository(4, 1).id == 1
+        session.get.assert_called_once_with("/projects/4/trigger_repositories/1")
 
     def test_patch_repository(self, api, session):
         session.patch.return_value = make_response(SAMPLE_REPOSITORY_OBJ)
 
-        api.patch_repository(1, {"pr_cursor": "2026-07-01T00:00:00Z"})
+        api.patch_repository(4, 1, {"base_branch": "dev"})
 
-        assert session.patch.call_args.args[0] == "/trigger_repositories/1"
-        assert session.patch.call_args.kwargs["json"] == {
-            "pr_cursor": "2026-07-01T00:00:00Z"
+        assert session.patch.call_args.args[0] == "/projects/4/trigger_repositories/1"
+        assert session.patch.call_args.kwargs["json"] == {"base_branch": "dev"}
+
+    def test_create_repository_is_global(self, api, session):
+        session.post.return_value = make_response(SAMPLE_TRIGGER_REPOSITORY)
+
+        repo = api.create_repository("github.com/org/repo", "github", "https://api.github.com", "creds")
+
+        assert type(repo) is TriggerRepository
+        assert session.post.call_args.args == ("/trigger_repositories",)
+        assert set(session.post.call_args.kwargs["json"]) == {"uri", "provider", "api_uri", "secret_label"}
+
+    def test_assign_repository_posts_under_the_project(self, api, session):
+        session.post.return_value = make_response(SAMPLE_REPOSITORY_OBJ)
+
+        assignment = api.assign_repository(4, 1, "specs", "main")
+
+        assert type(assignment) is ProjectTriggerRepository
+        assert session.post.call_args.args == ("/projects/4/trigger_repositories",)
+        assert session.post.call_args.kwargs["json"] == {
+            "trigger_repository_id": 1, "watch_dir": "specs", "base_branch": "main", "initial_cursor": None,
         }
 
     def test_delete_repository(self, api, session):
@@ -91,7 +111,7 @@ class TestPullRequests:
     def test_single_page(self, api, session):
         session.get.return_value = self._page([SAMPLE_PR], 1)
 
-        prs = api.get_pull_requests(repo_id=1, state="UNKNOWN")
+        prs = api.get_pull_requests(project_id=1, repo_id=1, state="UNKNOWN")
 
         assert [type(p) for p in prs] == [PullRequestTrigger]
         assert session.get.call_count == 1
@@ -100,7 +120,7 @@ class TestPullRequests:
         second = {**SAMPLE_PR, "number": 6}
         session.get.side_effect = [self._page([SAMPLE_PR], 2), self._page([second], 2)]
 
-        prs = api.get_pull_requests(repo_id=1, state="UNKNOWN")
+        prs = api.get_pull_requests(project_id=1, repo_id=1, state="UNKNOWN")
 
         assert [p.number for p in prs] == [5, 6]
         assert session.get.call_args_list[1].kwargs["params"]["page"] == 2
@@ -108,12 +128,12 @@ class TestPullRequests:
     def test_pagination_stops_on_an_empty_page(self, api, session):
         session.get.side_effect = [self._page([SAMPLE_PR], 99), self._page([], 99)]
 
-        assert len(api.get_pull_requests(repo_id=1, state="UNKNOWN")) == 1
+        assert len(api.get_pull_requests(project_id=1, repo_id=1, state="UNKNOWN")) == 1
 
     def test_the_state_is_sent_as_a_query_param(self, api, session):
         session.get.return_value = self._page([], 0)
 
-        api.get_pull_requests(repo_id=1, state="UNKNOWN")
+        api.get_pull_requests(project_id=1, repo_id=1, state="UNKNOWN")
 
         assert session.get.call_args.kwargs["params"]["state"] == "UNKNOWN"
 
@@ -121,7 +141,8 @@ class TestPullRequests:
         session.post.return_value = make_response(SAMPLE_PR)
 
         api.create_pull_request(
-            trigger_repository_id=1,
+            project_id=1,
+            project_trigger_repository_id=1,
             number=5,
             title="t",
             raised_by="dev",
@@ -135,33 +156,33 @@ class TestPullRequests:
 
     def test_batch_creation_is_capped(self, api):
         with pytest.raises(ValueError, match="Maximum 100"):
-            api.create_pull_requests_batch(1, [SAMPLE_PR] * 101)
+            api.create_pull_requests_batch(1, 1, [SAMPLE_PR] * 101)
 
     def test_batch_creation(self, api, session):
         session.post.return_value = make_response([SAMPLE_PR])
 
-        prs = api.create_pull_requests_batch(1, [SAMPLE_PR])
+        prs = api.create_pull_requests_batch(4, 1, [SAMPLE_PR])
 
-        assert session.post.call_args.args[0] == "/trigger_repositories/1/pull_requests/batch"
+        assert session.post.call_args.args[0] == "/projects/4/trigger_repositories/1/pull_requests/batch"
         assert session.post.call_args.kwargs["json"] == {"pull_requests": [SAMPLE_PR]}
         assert len(prs) == 1
 
     def test_patch_pull_request(self, api, session):
         session.patch.return_value = make_response(SAMPLE_PR)
 
-        api.patch_pull_request(1, 5, {"state": "IGNORED", "state_cause": "no spec"})
+        api.patch_pull_request(4, 1, 5, {"state": "IGNORED", "state_cause": "no spec"})
 
-        assert session.patch.call_args.args[0] == "/trigger_repositories/1/pull_requests/5"
+        assert session.patch.call_args.args[0] == "/projects/4/trigger_repositories/1/pull_requests/5"
         assert session.patch.call_args.kwargs["json"] == {"state": "IGNORED", "state_cause": "no spec"}
 
     @pytest.mark.parametrize("status_code,created", [(201, True), (200, False)])
     def test_create_task_for_pull_request(self, api, session, status_code, created):
         session.post.return_value = make_response(SAMPLE_TASK, status_code)
 
-        task, was_created = api.create_task_for_pull_request(1, 5, '{"spec": {"image": "a/b:1"}}')
+        task, was_created = api.create_task_for_pull_request(4, 1, 5, '{"spec": {"image": "a/b:1"}}')
 
         assert task.id == 9 and was_created is created
-        assert session.post.call_args.args == ("/trigger_repositories/1/pull_requests/5/task",)
+        assert session.post.call_args.args == ("/projects/4/trigger_repositories/1/pull_requests/5/task",)
         assert session.post.call_args.kwargs["json"] == {"spec_raw": '{"spec": {"image": "a/b:1"}}'}
 
 

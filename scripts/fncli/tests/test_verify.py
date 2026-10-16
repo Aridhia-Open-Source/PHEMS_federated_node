@@ -15,7 +15,7 @@ class FakeBackend:
     def get_task_results(self, task_id):
         return self.results
 
-    def get_pull_requests(self, repo_id):
+    def get_pull_requests(self, project_id, repo_id):
         return [self.pr] if self.pr else []
 
     def get_task(self, task_id):
@@ -63,7 +63,7 @@ LINKS = Links("http://localhost:4000", "http://localhost:3000", "gitea_admin/tri
 
 def verify(pr=None, task=None, run=None, results=None):
     report = Report()
-    verify_task(report, FakeBackend(pr, task, results), FakeDagster(run), LINKS, 7, 5)
+    verify_task(report, FakeBackend(pr, task, results), FakeDagster(run), LINKS, 3, 7, 5)
     return report
 
 
@@ -180,7 +180,7 @@ class RepoBackend:
     def get_task_results(self, task_id):
         return [result_of()]
 
-    def get_pull_requests(self, repo_id):
+    def get_pull_requests(self, project_id, repo_id):
         return self.prs
 
     def get_task(self, task_id):
@@ -194,7 +194,7 @@ def numbered(number, state="YIELDED", cause=None):
 
 
 def verify_all(prs, run=None, tail=None):
-    return verify_repo(RepoBackend(prs), FakeDagster(run or run_of()), LINKS, 7, tail)
+    return verify_repo(RepoBackend(prs), FakeDagster(run or run_of()), LINKS, 3, 7, tail)
 
 
 def test_repo_with_every_pr_fine_has_no_failures(capsys):

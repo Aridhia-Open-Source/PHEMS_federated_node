@@ -3,7 +3,8 @@ from http import HTTPStatus
 
 from app.utils import BackendSession
 from app.models import (
-    TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository, Task, PullRequestResult, Dataset, ProjectDataset
+    ProjectTriggerRepository, TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository, Task,
+    PullRequestResult, Dataset, ProjectDataset
 )
 
 default_logger = logging.getLogger(__name__)
@@ -42,30 +43,30 @@ class BackendAPI:
                 return projects
             page += 1
 
-    def get_repositories(self, enabled_only: bool = False) -> list[TriggerRepository]:
-        """Get all repositories, optionally only those of enabled projects"""
+    def get_repositories(self, enabled_only: bool = False) -> list[ProjectTriggerRepository]:
+        """Get every project's trigger repository assignments, optionally only those of enabled projects"""
         self.logger.info("Fetching repositories")
         if enabled_only:
-            response = self.session.get("/trigger_repositories", params={"project_enabled": "true"})
+            response = self.session.get("/project_trigger_repositories", params={"project_enabled": "true"})
         else:
-            response = self.session.get("/trigger_repositories")
+            response = self.session.get("/project_trigger_repositories")
         repos = response.json()
-        return [TriggerRepository(**repo) for repo in repos]
+        return [ProjectTriggerRepository(**repo) for repo in repos]
 
-    def get_repository(self, repo_id: int) -> TriggerRepository:
-        """Get single repository"""
-        self.logger.info(f"Fetching repository {repo_id}")
-        response = self.session.get(f"/trigger_repositories/{repo_id}")
-        return TriggerRepository(**response.json())
+    def get_repository(self, project_id: int, repo_id: int) -> ProjectTriggerRepository:
+        """Get a project's trigger repository assignment"""
+        self.logger.info(f"Fetching repository {repo_id} of project {project_id}")
+        response = self.session.get(f"/projects/{project_id}/trigger_repositories/{repo_id}")
+        return ProjectTriggerRepository(**response.json())
 
-    def patch_repository(self, repo_id: int, data: dict) -> TriggerRepository:
-        """Update repository"""
-        self.logger.info(f"Updating repository {repo_id}")
-        response = self.session.patch(f"/trigger_repositories/{repo_id}", json=data)
-        return TriggerRepository(**response.json())
+    def patch_repository(self, project_id: int, repo_id: int, data: dict) -> ProjectTriggerRepository:
+        """Update a project's trigger repository assignment"""
+        self.logger.info(f"Updating repository {repo_id} of project {project_id}")
+        response = self.session.patch(f"/projects/{project_id}/trigger_repositories/{repo_id}", json=data)
+        return ProjectTriggerRepository(**response.json())
 
-    def get_pull_requests(self, repo_id: int, state: str) -> list[PullRequestTrigger]:
-        """Get all pull requests of a repository in a state, automatically handling pagination"""
+    def get_pull_requests(self, project_id: int, repo_id: int, state: str) -> list[PullRequestTrigger]:
+        """Get all pull requests of a trigger repository assignment in a state, automatically handling pagination"""
         self.logger.info(f"Fetching all {state} pull requests for repo {repo_id}")
         all_prs = []
         page = 1
@@ -74,7 +75,7 @@ class BackendAPI:
         while True:
             params = {"state": state, "page": page, "per_page": per_page}
             response = self.session.get(
-                f"/trigger_repositories/{repo_id}/pull_requests",
+                f"/projects/{project_id}/trigger_repositories/{repo_id}/pull_requests",
                 params=params,
             )
             data = response.json()
@@ -97,7 +98,8 @@ class BackendAPI:
 
     def create_pull_request(
         self,
-        trigger_repository_id: int,
+        project_id: int,
+        project_trigger_repository_id: int,
         number: int,
         title: str,
         raised_by: str,
@@ -105,31 +107,36 @@ class BackendAPI:
         merge_commit_sha: str,
     ) -> PullRequestTrigger:
         """Create a pull request"""
-        self.logger.info(f"Creating PR #{number} in repo {trigger_repository_id}")
+        self.logger.info(f"Creating PR #{number} in repo {project_trigger_repository_id}")
         data = {
-            "trigger_repository_id": trigger_repository_id,
             "number": number,
             'title': title,
             "raised_by": raised_by,
             "merged_at": merged_at,
             "merge_commit_sha": merge_commit_sha,
         }
-        response = self.session.post("/trigger_repositories/pull_requests", json=data)
+        response = self.session.post(
+            f"/projects/{project_id}/trigger_repositories/{project_trigger_repository_id}/pull_requests", json=data
+        )
         return PullRequestTrigger(**response.json())
 
-    def create_pull_requests_batch(self, repo_id: int, pull_requests: list[dict]) -> list[PullRequestTrigger]:
-        """Create multiple pull requests for a repository in one request (up to 100)"""
+    def create_pull_requests_batch(
+        self, project_id: int, repo_id: int, pull_requests: list[dict]
+    ) -> list[PullRequestTrigger]:
+        """Create multiple pull requests for a trigger repository assignment in one request (up to 100)"""
         if len(pull_requests) > 100:
             raise ValueError("Maximum 100 pull requests per batch")
 
         self.logger.info(f"Creating batch of {len(pull_requests)} pull requests for repo {repo_id}")
         response = self.session.post(
-            f"/trigger_repositories/{repo_id}/pull_requests/batch", json={"pull_requests": pull_requests}
+            f"/projects/{project_id}/trigger_repositories/{repo_id}/pull_requests/batch",
+            json={"pull_requests": pull_requests}
         )
         return [PullRequestTrigger(**pr) for pr in response.json()]
 
     def patch_pull_request(
         self,
+        project_id: int,
         repo_id: int,
         number: int,
         data: dict,
@@ -137,12 +144,14 @@ class BackendAPI:
         """Update pull request"""
         self.logger.info(f"Updating PR #{number} in repo {repo_id}")
         response = self.session.patch(
-            f"/trigger_repositories/{repo_id}/pull_requests/{number}",
+            f"/projects/{project_id}/trigger_repositories/{repo_id}/pull_requests/{number}",
             json=data,
         )
         return PullRequestTrigger(**response.json())
 
-    def create_task_for_pull_request(self, repo_id: int, number: int, spec_raw: str) -> tuple[Task, bool]:
+    def create_task_for_pull_request(
+        self, project_id: int, repo_id: int, number: int, spec_raw: str
+    ) -> tuple[Task, bool]:
         """
         Send the spec file of a pull request: the backend keeps it, validates it and creates
         the task, marking the PR YIELDED, or rejects the PR.
@@ -150,7 +159,7 @@ class BackendAPI:
         """
         self.logger.info(f"Creating task for PR #{number} in repo {repo_id}")
         response = self.session.post(
-            f"/trigger_repositories/{repo_id}/pull_requests/{number}/task",
+            f"/projects/{project_id}/trigger_repositories/{repo_id}/pull_requests/{number}/task",
             json={"spec_raw": spec_raw},
         )
         return Task(**response.json()), response.status_code == HTTPStatus.CREATED
@@ -282,31 +291,31 @@ class BackendAPI:
         self.logger.info(f"Deleting dataset {dataset_id}")
         self.session.delete(f"/datasets/{dataset_id}")
 
-    def create_repository(
+    def create_repository(self, uri: str, provider: str, api_uri: str, secret_label: str) -> TriggerRepository:
+        """Create a global trigger repository"""
+        self.logger.info(f"Creating repository {uri}")
+        data = {"uri": uri, "provider": provider, "api_uri": api_uri, "secret_label": secret_label}
+        response = self.session.post("/trigger_repositories", json=data)
+        return TriggerRepository(**response.json())
+
+    def assign_repository(
         self,
-        uri: str,
-        provider: str,
-        api_uri: str,
-        secret_label: str,
+        project_id: int,
+        trigger_repository_id: int,
         watch_dir: str,
         base_branch: str,
-        project_id: int,
         initial_cursor: str | None = None,
-    ) -> TriggerRepository:
-        """Create a repository"""
-        self.logger.info(f"Creating repository {uri}")
+    ) -> ProjectTriggerRepository:
+        """Assign a global trigger repository to a project"""
+        self.logger.info(f"Assigning repository {trigger_repository_id} to project {project_id}")
         data = {
-            "uri": uri,
-            "provider": provider,
-            "api_uri": api_uri,
-            "secret_label": secret_label,
+            "trigger_repository_id": trigger_repository_id,
             "watch_dir": watch_dir,
             "base_branch": base_branch,
             "initial_cursor": initial_cursor,
-            "project_id": project_id,
         }
-        response = self.session.post("/trigger_repositories", json=data)
-        return TriggerRepository(**response.json())
+        response = self.session.post(f"/projects/{project_id}/trigger_repositories", json=data)
+        return ProjectTriggerRepository(**response.json())
 
     def delete_repository(self, repo_id: int) -> None:
         """Delete a repository"""

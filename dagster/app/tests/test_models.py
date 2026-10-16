@@ -1,7 +1,11 @@
 import pytest
 
-from app.models import Dataset, PullRequestTrigger, Secret, SecretProviderType, TriggerRepository
-from app.tests.conftest import SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_SECRET
+from app.models import (
+    Dataset, ProjectTriggerRepository, PullRequestTrigger, Secret, SecretProviderType, TriggerRepository,
+)
+from app.tests.conftest import (
+    SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_SECRET, SAMPLE_TRIGGER_REPOSITORY,
+)
 
 
 class TestSecret:
@@ -48,30 +52,40 @@ class TestDataset:
         assert dataset.extra_field == "value"
 
 
-class TestTriggerRepository:
+class TestProjectTriggerRepository:
     def test_parses_a_webserver_payload(self):
-        repo = TriggerRepository(**SAMPLE_REPOSITORY_OBJ)
+        repo = ProjectTriggerRepository(**SAMPLE_REPOSITORY_OBJ)
 
-        assert isinstance(repo.secret, Secret)
+        assert isinstance(repo.trigger_repository, TriggerRepository)
+        assert isinstance(repo.trigger_repository.secret, Secret)
         assert repo.repo_path == "org/repo"
         assert repo.pull_requests == []
         assert repo.pr_count == 0
+        assert (repo.enabled, repo.revoked, repo.active) == (True, False, True)
 
     def test_dataset_id_and_initial_cursor_are_optional(self):
         payload = {k: v for k, v in SAMPLE_REPOSITORY_OBJ.items() if k not in ("dataset_id", "initial_cursor")}
 
-        repo = TriggerRepository(**payload)
+        repo = ProjectTriggerRepository(**payload)
 
         assert repo.dataset_id is None and repo.initial_cursor is None
 
     def test_nested_pull_requests_are_parsed(self):
-        repo = TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "pull_requests": [SAMPLE_PR]})
+        repo = ProjectTriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "pull_requests": [SAMPLE_PR]})
 
         assert isinstance(repo.pull_requests[0], PullRequestTrigger)
         assert repo.pull_requests[0].number == 5
 
     def test_unknown_fields_are_kept(self):
-        assert TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "extra": 1}).extra == 1
+        assert ProjectTriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "extra": 1}).extra == 1
+
+
+class TestTriggerRepository:
+    def test_parses_a_webserver_payload(self):
+        repo = TriggerRepository(**SAMPLE_TRIGGER_REPOSITORY)
+
+        assert isinstance(repo.secret, Secret)
+        assert repo.repo_path == "org/repo"
 
     @pytest.mark.parametrize("uri,expected", [
         ("github.com/org/repo", "org/repo"),
@@ -80,16 +94,16 @@ class TestTriggerRepository:
         ("gitea.fn.svc:3000/org/repo", "org/repo"),
     ])
     def test_repo_path_is_the_last_two_segments(self, uri, expected):
-        assert TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "uri": uri}).repo_path == expected
+        assert TriggerRepository(**{**SAMPLE_TRIGGER_REPOSITORY, "uri": uri}).repo_path == expected
 
     def test_repo_path_of_a_nested_path_keeps_the_last_two_segments(self):
-        repo = TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "uri": "gitlab.com/group/sub/repo"})
+        repo = TriggerRepository(**{**SAMPLE_TRIGGER_REPOSITORY, "uri": "gitlab.com/group/sub/repo"})
 
         assert repo.repo_path == "sub/repo"
 
     @pytest.mark.parametrize("uri", ["github.com/org/repo/", "github.com/org/repo.git"])
     def test_repo_path_ignores_a_trailing_slash_and_git_suffix(self, uri):
-        assert TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "uri": uri}).repo_path == "org/repo"
+        assert TriggerRepository(**{**SAMPLE_TRIGGER_REPOSITORY, "uri": uri}).repo_path == "org/repo"
 
 
 class TestPullRequest:
@@ -106,13 +120,13 @@ class TestPullRequest:
             "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "abc", "extra": "ignored",
         }
 
-        pr = PullRequestTrigger.from_git(4, git_pr)
+        pr = PullRequestTrigger.from_git(2, 4, git_pr)
 
-        assert (pr.trigger_repository_id, pr.number, pr.raised_by) == (4, 12, "dev")
+        assert (pr.project_id, pr.project_trigger_repository_id, pr.number, pr.raised_by) == (2, 4, 12, "dev")
         assert pr.state.value == "UNKNOWN"
 
     def test_dump_new_leaves_out_the_server_fields(self):
-        pr = PullRequestTrigger.from_git(4, {
+        pr = PullRequestTrigger.from_git(2, 4, {
             "number": 12, "title": "t", "user": {"login": "dev"},
             "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "abc",
         })

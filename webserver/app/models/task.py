@@ -103,13 +103,15 @@ class Task(db.Model, BaseModel):
         # allow-list are both scoped to it, so neither resolves without one.
         repo = None
         if repository:
-            repo = Models.TriggerRepository.query.filter(
+            assignments = Models.ProjectTriggerRepository.query.join(Models.TriggerRepository).filter(
                 Models.TriggerRepository.uri == RepositoryUriRequest.normalised(repository)
-            ).one_or_none()
-            if repo is None:
+            ).all()
+            if not assignments:
                 raise InvalidRequest(f"No datasets linked with the repository {repository}")
+            if len(assignments) > 1:
+                raise InvalidRequest(f"The repository {repository} is assigned to several projects")
             # The sensor sends no project, so a PR-driven task takes its repository's.
-            project = repo.project
+            project = assignments[0].project
         else:
             project = Models.Project.query.filter(
                 Models.Project.id == data.get("project_id")

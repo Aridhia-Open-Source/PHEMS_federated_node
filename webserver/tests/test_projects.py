@@ -18,6 +18,7 @@ from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
 from app.models.task import Task
 from app.models.task_status import TaskStatus
+from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.trigger_repository import TriggerRepository
 
 
@@ -255,7 +256,7 @@ class TestProjectHealthcheck:
         assert response.json["status"] == "ok"
         [repo] = response.json["trigger_repositories"]
         assert repo["id"] == default_repo.id
-        assert repo["uri"] == default_repo.uri
+        assert repo["uri"] == default_repo.trigger_repository.uri
         assert repo["provider"] == "github"
         assert repo["status"] == "ok"
         assert repo["health_check"]["message"] == "OK"
@@ -271,12 +272,9 @@ class TestProjectHealthcheck:
         )
 
     def test_checks_the_repo_path_derived_from_a_sub_path_uri(
-        self, client, k8s_client, project, secret, git_api, simple_admin_header
+        self, client, k8s_client, project, assign_trigger, git_api, simple_admin_header
     ):
-        TriggerRepository(
-            uri="host/gitea/owner/repo", provider="gitea", api_uri="https://host/gitea/api/v1",
-            secret_id=secret.id, watch_dir="", project_id=project.id
-        ).add()
+        assign_trigger("host/gitea/owner/repo", provider="gitea", api_uri="https://host/gitea/api/v1")
         self.get(client, project, simple_admin_header)
         git_api.assert_called_once_with(
             "https://host/gitea/api/v1/repos/owner/repo",
@@ -354,11 +352,8 @@ class TestProjectHealthcheck:
         [repo] = response.json["trigger_repositories"]
         assert repo["status"] == "secret_missing"
 
-    def test_one_bad_repository_makes_the_project_unhealthy(self, client, project, default_repo, secret, git_api, simple_admin_header):
-        TriggerRepository(
-            uri="github.com/org/other", provider="github", api_uri="https://api.github.com",
-            secret_id=secret.id, watch_dir="", project_id=project.id,
-        ).add()
+    def test_one_bad_repository_makes_the_project_unhealthy(self, client, project, default_repo, assign_trigger, git_api, simple_admin_header):
+        assign_trigger("github.com/org/other")
         git_api.side_effect = [
             Mock(status_code=200, ok=True, reason="OK"),
             Mock(status_code=404, ok=False, reason="Not Found"),
@@ -374,12 +369,8 @@ class TestProjectHealthcheck:
         assert response.json["status"] == "error"
         git_api.assert_not_called()
 
-    def test_reports_pull_request_count_per_repository(self, client, project, default_repo, secret, git_api, simple_admin_header):
-        other = TriggerRepository(
-            uri="github.com/org/other", provider="github", api_uri="https://api.github.com",
-            secret_id=secret.id, watch_dir="", project_id=project.id,
-        )
-        other.add()
+    def test_reports_pull_request_count_per_repository(self, client, project, default_repo, assign_trigger, git_api, simple_admin_header):
+        other = assign_trigger("github.com/org/other")
         merged_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
         for repo, numbers in ((default_repo, (1, 2, 3)), (other, (1,))):
             for number in numbers:
@@ -430,14 +421,11 @@ class TestProjectHealthcheck:
         assert response.status_code == HTTPStatus.NOT_FOUND
 
     def test_mixed_repositories_are_reported_in_order(
-        self, client, k8s_client, project, secret, git_api, simple_admin_header
+        self, client, k8s_client, project, assign_trigger, git_api, simple_admin_header
     ):
         uris = [f"host/gitea/owner/repo{i}" for i in range(4)]
         for uri in uris:
-            TriggerRepository(
-                uri=uri, provider="gitea", api_uri="https://host/gitea/api/v1",
-                secret_id=secret.id, watch_dir="", project_id=project.id
-            ).add()
+            assign_trigger(uri, provider="gitea", api_uri="https://host/gitea/api/v1")
         git_api.side_effect = lambda url, **kwargs: Mock(
             status_code=200 if url.endswith(("repo0", "repo2")) else 503,
             ok=url.endswith(("repo0", "repo2")), reason="Rejected",
@@ -470,9 +458,10 @@ class TestDeleteProject:
 
         assert response.status_code == HTTPStatus.NO_CONTENT
         assert Project.query.filter_by(id=project_id).count() == 0
-        for model in (Task, ProjectDataset, TriggerRepository, ProjectResultsRepository):
+        for model in (Task, ProjectDataset, ProjectTriggerRepository, ProjectResultsRepository):
             assert model.query.filter_by(project_id=project_id).count() == 0
-        # Results repositories are global too
+        # Trigger and results repositories are global too
+        assert TriggerRepository.query.count() == 1
         assert ResultsRepository.query.count() == 1
         # Datasets are global: only the project's assignment of one goes
         assert Dataset.query.filter_by(id=dataset.id).count() == 1
@@ -501,7 +490,7 @@ class TestDeleteProject:
         self, client, k8s_client, simple_admin_header, full_project, default_repo
     ):
         PullRequestTrigger(
-            project_id=full_project.id, trigger_repository_id=default_repo.id, number=1, title="t",
+            project_id=full_project.id, project_trigger_repository_id=default_repo.id, number=1, title="t",
             raised_by="u", merged_at="2026-01-01T10:00:00Z", merge_commit_sha="a" * 40
         ).add()
         assert self.delete(client, simple_admin_header, full_project).status_code == HTTPStatus.NO_CONTENT

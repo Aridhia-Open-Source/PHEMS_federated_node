@@ -4,14 +4,15 @@ import dagster as dg
 import pytest
 
 from app.definitions.sensors.git.pr_ingest import PullRequestIngestSensor
-from app.models import Project, TriggerRepository
+from app.models import Project, ProjectTriggerRepository
 from app.tests.conftest import SAMPLE_REPOSITORY_OBJ
 
 
 def repo(id=1, uri="github.com/org/repo", pr_cursor="2026-01-01T00:00:00Z", base_branch="main", project_id=1):
-    return TriggerRepository(
-        **{**SAMPLE_REPOSITORY_OBJ, "id": id, "uri": uri, "pr_cursor": pr_cursor, "base_branch": base_branch,
-         "project_id": project_id}
+    return ProjectTriggerRepository(
+        **{**SAMPLE_REPOSITORY_OBJ, "id": id, "pr_cursor": pr_cursor, "base_branch": base_branch,
+         "project_id": project_id,
+         "trigger_repository": {**SAMPLE_REPOSITORY_OBJ["trigger_repository"], "id": id, "uri": uri}}
     )
 
 
@@ -56,7 +57,7 @@ def test_a_locked_project_is_skipped_and_its_cursor_not_polled():
 
     apis[1].get_new_merged_pulls.assert_not_called()
     (call,) = backend_api.create_pull_requests_batch.call_args_list
-    assert call.args[0] == 2
+    assert call.args[:2] == (2, 2)
     assert "Saved 1 new pull requests" in results[0].skip_message
 
 
@@ -73,15 +74,15 @@ def test_posts_one_batch_per_repository_with_new_prs():
 
     assert backend_api.create_pull_requests_batch.call_count == 2
     first, second = backend_api.create_pull_requests_batch.call_args_list
-    assert first.args[0] == 1 and [p["number"] for p in first.args[1]] == [5, 6]
-    assert second.args[0] == 2 and [p["number"] for p in second.args[1]] == [9]
+    assert first.args[:2] == (1, 1) and [p["number"] for p in first.args[2]] == [5, 6]
+    assert second.args[:2] == (1, 2) and [p["number"] for p in second.args[2]] == [9]
     assert "Saved 3 new pull requests" in results[0].skip_message
 
 
 def test_the_batch_carries_only_the_fields_the_server_does_not_own():
     _, backend_api = run([repo(1)], {1: fake_git_api([5])})
 
-    body = backend_api.create_pull_requests_batch.call_args.args[1][0]
+    body = backend_api.create_pull_requests_batch.call_args.args[2][0]
     assert body == {
         "number": 5, "title": "PR 5", "raised_by": "dev",
         "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "sha5"
@@ -106,7 +107,7 @@ def test_a_repository_without_new_prs_posts_nothing():
     _, backend_api = run([repo(1), repo(2)], apis)
 
     backend_api.create_pull_requests_batch.assert_called_once()
-    assert backend_api.create_pull_requests_batch.call_args.args[0] == 2
+    assert backend_api.create_pull_requests_batch.call_args.args[1] == 2
 
 
 def test_skips_when_no_repository_has_new_prs():
@@ -132,4 +133,4 @@ def test_a_failing_repository_aborts_the_tick_after_the_earlier_ones_were_saved(
     with pytest.raises(RuntimeError, match="provider down"):
         list(sensor())
 
-    assert [c.args[0] for c in backend_api.create_pull_requests_batch.call_args_list] == [1]
+    assert [c.args[1] for c in backend_api.create_pull_requests_batch.call_args_list] == [1]
