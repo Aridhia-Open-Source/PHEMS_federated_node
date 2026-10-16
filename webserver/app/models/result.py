@@ -20,8 +20,10 @@ class Result(db.Model, BaseModel):
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     type = sa.Column(sa.String(16), nullable=False)
     task_id = sa.Column(sa.Integer, sa.ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False)
+    # The project's assignment of the results repository, so each project's deliveries are
+    # tracked against its own grant.
     results_repository_id = sa.Column(
-        sa.Integer, sa.ForeignKey('results_repositories.id', ondelete='RESTRICT'), nullable=False
+        sa.Integer, sa.ForeignKey('project_results_repositories.id', ondelete='RESTRICT'), nullable=False
     )
     # How many times the delivery ran to its end, failed or not. Bumped by Dagster.
     attempts = sa.Column(sa.Integer, nullable=False, default=0, server_default='0')
@@ -31,4 +33,8 @@ class Result(db.Model, BaseModel):
     updated_at = sqla_column.updated_at()
 
     task = relationship("Task", back_populates="results")
-    results_repository = relationship("ResultsRepository", back_populates="results")
+    assignment = relationship("ProjectResultsRepository", back_populates="results")
+
+    @property
+    def project_id(self) -> int:
+        return self.assignment.project_id

@@ -12,6 +12,7 @@ class PullRequestResult(BaseModel):
     id: int
     type: str
     task_id: int
+    project_id: int
     results_repository_id: int
     # The furthest delivery step reached: UNKNOWN, PUSHED, OPENED, then MERGED or CLOSED,
     # the last two kept fresh by results_pull_request_sync_sensor.

@@ -11,7 +11,9 @@ from app.definitions.sensors.task import JOBS, SENSORS
 from app.definitions.sensors.task.delivery import deliver_results_job, task_results_delivery_sensor
 from app.delivery import git_push
 from app.delivery.results import ResultsDelivery
-from app.models import PullRequestResult, PullRequestTrigger, ResultsRepository, Task, TriggerRepository
+from app.models import (
+    ProjectResultsRepository, PullRequestResult, PullRequestTrigger, ResultsRepository, Task, TriggerRepository
+)
 from app.tests.conftest import SAMPLE_SECRET
 
 RUN_ID = "run-1"
@@ -19,10 +21,13 @@ TASK = Task(
     id=7, name="t", spec={"image": "img", "dataset_id": None, "env": {}}, attempt=1, requested_by="u",
     project_id=1, trigger_id=3, dagster_run_id="stale-run",
 )
-REPOSITORY = ResultsRepository(
-    id=5, uri="gitea.fn.svc:3000/fn/results", provider="gitea",
-    api_uri="http://gitea.fn.svc:3000/api/v1", secret=SAMPLE_SECRET, target_dir="/results/",
-    project_id=1,
+GLOBAL_REPOSITORY = ResultsRepository(
+    id=2, uri="gitea.fn.svc:3000/fn/results", provider="gitea",
+    api_uri="http://gitea.fn.svc:3000/api/v1", secret=SAMPLE_SECRET,
+)
+REPOSITORY = ProjectResultsRepository(
+    id=5, project_id=1, results_repository=GLOBAL_REPOSITORY, target_dir="/results/",
+    owned_by_federated_node=True, enabled=True, revoked=False, active=True,
 )
 TRIGGER_REPOSITORY = TriggerRepository(
     id=2, uri="gitea.fn.svc:3000/fn/analysis", provider="gitea", api_uri="http://x/api/v1",
@@ -65,7 +70,7 @@ def artifacts(tmp_path):
 
 def result(**fields):
     return PullRequestResult(**{
-        "id": 9, "type": "PR", "task_id": 7, "results_repository_id": 5, "step": "UNKNOWN",
+        "id": 9, "type": "PR", "task_id": 7, "project_id": 1, "results_repository_id": 5, "step": "UNKNOWN",
         "state": "IN_PROGRESS", "attempts": 0,
         **fields,
     })
@@ -222,7 +227,7 @@ def test_a_retry_after_a_failure_delivers_and_counts_the_attempt(backend_api, re
 def test_the_pull_request_is_opened_into_the_default_branch_and_recorded(backend_api, remote, artifacts, git_api, git_apis):
     deliver(backend_api, remote, artifacts, git_apis)
 
-    git_apis.for_repository.assert_called_once_with(REPOSITORY)
+    git_apis.for_repository.assert_called_once_with(GLOBAL_REPOSITORY)
     git_api.find_pull_request_by_branch.assert_called_once_with("fn/results", BRANCH, "main")
     repo_path, head, base, title, _ = git_api.create_pull_request.call_args.args
     assert (repo_path, head, base) == ("fn/results", BRANCH, "main")

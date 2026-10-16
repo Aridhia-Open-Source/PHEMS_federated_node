@@ -15,7 +15,7 @@ from app.backend import BackendAPI
 from app.config import ResultsDeliveryConfig
 from app.delivery import git_push
 from app.models import (
-    PullRequestResultStep, PullRequestTrigger, ResultState, ResultsRepository, Task, TriggerRepository,
+    ProjectResultsRepository, PullRequestResultStep, PullRequestTrigger, ResultState, Task, TriggerRepository,
     TriggerState,
 )
 from app.secrets import SecretProvider
@@ -97,7 +97,7 @@ class ResultsDelivery:
         self,
         task: Task,
         run_id: str,
-        repository: ResultsRepository,
+        repository: ProjectResultsRepository,
         trigger_repository: TriggerRepository,
         pull_request: PullRequestTrigger,
         message: str,
@@ -108,7 +108,7 @@ class ResultsDelivery:
         so a branch already on the remote is from an earlier attempt and is not pushed again.
         """
         # TODO(auth): the token read and the Keycloak system user are being reworked
-        secret = repository.secret
+        secret = repository.results_repository.secret
         token = SecretProvider(secret.provider).get(secret.key, secret.namespace, "TOKEN")
         env = git_push.auth_env(token)
 
@@ -119,7 +119,7 @@ class ResultsDelivery:
 
         with tempfile.TemporaryDirectory(prefix="phems-results-") as work:
             clone_dir = Path(work) / "repo"
-            git_push.clone(git_push.clone_url(repository.uri, repository.api_uri), clone_dir, env)
+            git_push.clone(git_push.clone_url(repository.results_repository.uri, repository.results_repository.api_uri), clone_dir, env)
             base_branch = git_push.current_branch(clone_dir)
             commit_sha = git_push.remote_branch_sha(clone_dir, branch, env)
             if commit_sha:
@@ -157,11 +157,12 @@ class ResultsDelivery:
             return branch, git_push.commit_and_push(clone_dir, message, env), base_branch
 
     def _open_pull_request(
-        self, repository: ResultsRepository, branch: str, base_branch: str, title: str, pull_request: PullRequestTrigger
+        self, repository: ProjectResultsRepository, branch: str, base_branch: str, title: str, pull_request: PullRequestTrigger
     ) -> dict:
         """Open the pull request of the branch, or return the one an earlier attempt opened."""
-        git_api = self.git_apis.for_repository(repository)
-        existing = git_api.find_pull_request_by_branch(repository.repo_path, branch, base_branch)
+        results_repository = repository.results_repository
+        git_api = self.git_apis.for_repository(results_repository)
+        existing = git_api.find_pull_request_by_branch(results_repository.repo_path, branch, base_branch)
         if existing:
             self.log.info(f"Branch {branch} already has pull request #{existing['number']}")
             return existing
@@ -169,7 +170,7 @@ class ResultsDelivery:
             f"Results of the task run for pull request #{pull_request.number}, "
             f"merged at {pull_request.merge_commit_sha}."
         )
-        return git_api.create_pull_request(repository.repo_path, branch, base_branch, title, body)
+        return git_api.create_pull_request(results_repository.repo_path, branch, base_branch, title, body)
 
     def _find_pull_request(self, task: Task) -> tuple[TriggerRepository, PullRequestTrigger]:
         """The trigger repository and pull request that yielded the task."""

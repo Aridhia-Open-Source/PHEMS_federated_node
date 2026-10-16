@@ -19,6 +19,9 @@ class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
     __tablename__ = 'trigger_repositories'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    project_id = sa.Column(
+        sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False
+    )
     watch_dir = sa.Column(sa.String(4096), nullable=False)
     base_branch = sa.Column(sa.String(256), nullable=False, default='main')
     initial_cursor = sa.Column(

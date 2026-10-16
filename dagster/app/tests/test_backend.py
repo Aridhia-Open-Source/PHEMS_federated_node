@@ -281,30 +281,36 @@ class TestTasks:
 
 
 class TestResults:
-    RESULT = {"id": 9, "type": "PR", "task_id": 7, "results_repository_id": 5, "step": "UNKNOWN", "state": "IN_PROGRESS",
+    RESULT = {"id": 9, "type": "PR", "task_id": 7, "project_id": 1, "results_repository_id": 5, "step": "UNKNOWN", "state": "IN_PROGRESS",
               "attempts": 0}
 
-    def test_the_results_repository_is_the_one_of_the_project(self, api, session):
-        repository = {
-            "id": 5, "uri": "h/o/r", "provider": "gitea", "api_uri": "http://h/api/v1",
-            "secret": SAMPLE_SECRET, "target_dir": "results", "project_id": 1,
-        }
-        session.get.return_value = make_response([repository])
+    ASSIGNMENT = {
+        "id": 5, "project_id": 1,
+        "results_repository": {
+            "id": 2, "uri": "h/o/r", "provider": "gitea", "api_uri": "http://h/api/v1", "secret": SAMPLE_SECRET,
+        },
+        "target_dir": "results", "owned_by_federated_node": True, "enabled": True, "revoked": False, "active": True,
+    }
+
+    def test_the_results_repository_is_the_assignment_of_the_project(self, api, session):
+        session.get.return_value = make_response([self.ASSIGNMENT])
 
         result = api.get_results_repository(1)
 
-        session.get.assert_called_once_with("/results_repositories", params={"project_id": 1})
-        assert result.id == 5
+        session.get.assert_called_once_with("/projects/1/results_repositories")
+        assert (result.id, result.results_repository.id, result.target_dir) == (5, 2, "results")
 
-    def test_the_results_repository_is_fetched_by_id(self, api, session):
-        session.get.return_value = make_response({
-            "id": 5, "uri": "h/o/r", "provider": "gitea", "api_uri": "http://h/api/v1",
-            "secret": SAMPLE_SECRET, "target_dir": "results", "project_id": 1,
-        })
+    def test_an_inactive_assignment_is_still_returned(self, api, session):
+        session.get.return_value = make_response([{**self.ASSIGNMENT, "revoked": True, "active": False}])
 
-        result = api.get_results_repository_by_id(5)
+        assert api.get_results_repository(1).active is False
 
-        session.get.assert_called_once_with("/results_repositories/5")
+    def test_the_results_repository_is_fetched_by_project_and_assignment_id(self, api, session):
+        session.get.return_value = make_response(self.ASSIGNMENT)
+
+        result = api.get_results_repository_by_id(1, 5)
+
+        session.get.assert_called_once_with("/projects/1/results_repositories/5")
         assert result.id == 5
 
     def test_create_posts_the_task_and_repository(self, api, session):

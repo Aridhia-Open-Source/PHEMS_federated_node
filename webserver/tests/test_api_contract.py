@@ -26,7 +26,6 @@ import pytest
 from app.helpers.base_model import db
 from app.models.dataset import Dataset
 from app.models.project_dataset import ProjectDataset
-from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 from tests.fixtures.azure_cr_fixtures import *
@@ -45,9 +44,10 @@ TRIGGER_REPOSITORY = {
     "base_branch": str, "project_id": int, "dataset_id": (int, NONE), "initial_cursor": (str, NONE),
     "pr_cursor": str, "pr_count": int,
 }
-RESULTS_REPOSITORY = {
-    "id": int, "uri": str, "provider": str, "api_uri": str, "secret": SECRET, "target_dir": str,
-    "project_id": int, "owned_by_federated_node": bool,
+RESULTS_REPOSITORY = {"id": int, "uri": str, "provider": str, "api_uri": str, "secret": SECRET}
+PROJECT_RESULTS_REPOSITORY = {
+    "id": int, "project_id": int, "results_repository": RESULTS_REPOSITORY, "target_dir": str,
+    "owned_by_federated_node": bool, "enabled": bool, "revoked": bool, "active": bool,
 }
 DATASET = {
     "id": int, "secret": SECRET, "name": str, "host": str, "port": int,
@@ -73,7 +73,7 @@ TASK = {
 }
 NEW_API_TASK = {"id": int, "api_request_id": int, "status": str, "created_at": str}
 RESULT = {
-    "id": int, "type": str, "task_id": int, "results_repository_id": int, "attempts": int,
+    "id": int, "type": str, "task_id": int, "project_id": int, "results_repository_id": int, "attempts": int,
     "error": (str, NONE), "created_at": str, "updated_at": str, "step": str, "state": str,
     "branch": (str, NONE), "commit_sha": (str, NONE), "number": (int, NONE), "url": (str, NONE),
     "merged_at": (str, NONE), "merge_commit_sha": (str, NONE),
@@ -156,16 +156,6 @@ def repo(default_repo):
     default_repo.initial_cursor = "2026-01-01T00:00:00"
     db.session.commit()
     return default_repo
-
-
-@pytest.fixture
-def results_repo(client, project, secret):
-    repo = ResultsRepository(
-        uri="github.com/org/results", provider="github", api_uri="https://api.github.com",
-        secret_id=secret.id, target_dir="results", project_id=project.id
-    )
-    repo.add()
-    return repo
 
 
 def pr_body(number, merged_at):
@@ -380,49 +370,44 @@ class TestPullRequests:
 
 
 class TestResultsRepositories:
-    def test_by_project_is_exactly_one(self, client, simple_admin_header, results_repo, contract):
-        response = client.get(f"/results_repositories?project_id={results_repo.project_id}", headers=simple_admin_header)
+    def test_global_list(self, client, simple_admin_header, results_repo, results_assignment, contract):
+        response = client.get("/results_repositories", headers=simple_admin_header)
         assert response.status_code == HTTPStatus.OK
         assert_shape(response.json, [RESULTS_REPOSITORY])
         assert [r["id"] for r in response.json] == [results_repo.id]
-        contract("results_repositories_by_project", response.json)
-
-    def test_other_project_has_none(self, client, simple_admin_header, results_repo, other_project):
-        response = client.get(f"/results_repositories?project_id={other_project.id}", headers=simple_admin_header)
-        assert response.json == []
+        contract("results_repositories", response.json)
 
     def test_by_id(self, client, simple_admin_header, results_repo, contract):
         response = client.get(f"/results_repositories/{results_repo.id}", headers=simple_admin_header)
         assert response.status_code == HTTPStatus.OK
         assert_shape(response.json, RESULTS_REPOSITORY)
-        assert (response.json["target_dir"], response.json["owned_by_federated_node"]) == ("results", True)
         contract("results_repository", response.json)
 
-    @pytest.mark.xfail(strict=True, reason="ADR 0019 stage 3")
-    def test_target_global_list(self, client, simple_admin_header, results_repo):
-        response = client.get("/results_repositories", headers=simple_admin_header)
+    def test_project_assignments(self, client, simple_admin_header, results_repo, results_assignment, contract):
+        response = client.get(f"/projects/{results_assignment.project_id}/results_repositories", headers=simple_admin_header)
         assert response.status_code == HTTPStatus.OK
-        assert_shape(
-            response.json,
-            [{"id": int, "uri": str, "provider": str, "api_uri": str, "secret": SECRET}]
-        )
-
-    @pytest.mark.xfail(strict=True, reason="ADR 0019 stage 3")
-    def test_target_project_assignments(self, client, simple_admin_header, results_repo):
-        response = client.get(f"/projects/{results_repo.project_id}/results_repositories", headers=simple_admin_header)
-        assert response.status_code == HTTPStatus.OK
+        assert_shape(response.json, [PROJECT_RESULTS_REPOSITORY])
         [assignment] = response.json
-        assert set(assignment) >= {
-            "id", "project_id", "target_dir", "owned_by_federated_node", "enabled", "revoked", "active",
-            "results_repository",
-        }
         assert assignment["results_repository"]["uri"] == results_repo.uri
+        assert (assignment["target_dir"], assignment["owned_by_federated_node"], assignment["active"]) == ("results", True, True)
+        contract("project_results_repositories", response.json)
+
+    def test_an_inactive_assignment_is_still_listed(self, client, simple_admin_header, results_assignment):
+        results_assignment.revoked = True
+        db.session.commit()
+        response = client.get(f"/projects/{results_assignment.project_id}/results_repositories", headers=simple_admin_header)
+        [assignment] = response.json
+        assert (assignment["revoked"], assignment["active"]) == (True, False)
+
+    def test_other_project_has_none(self, client, simple_admin_header, results_assignment, other_project):
+        response = client.get(f"/projects/{other_project.id}/results_repositories", headers=simple_admin_header)
+        assert response.json == []
 
 
 class TestResults:
-    def test_round_trip(self, client, post_json_admin_header, make_task, results_repo, contract):
+    def test_round_trip(self, client, post_json_admin_header, make_task, results_assignment, contract):
         task = make_task()
-        body = {"task_id": task.id, "results_repository_id": results_repo.id}
+        body = {"task_id": task.id, "results_repository_id": results_assignment.id}
 
         created = client.post("/results", json=body, headers=post_json_admin_header)
         assert created.status_code == HTTPStatus.CREATED
@@ -447,11 +432,11 @@ class TestResults:
         assert fetched.status_code == HTTPStatus.OK
         assert fetched.json == patched.json
 
-    def test_step_filter(self, client, post_json_admin_header, make_task, results_repo, contract):
+    def test_step_filter(self, client, post_json_admin_header, make_task, results_assignment, contract):
         first, second = make_task(), make_task()
         for task, step in ((first, "PUSHED"), (second, "OPENED")):
             result = client.post(
-                "/results", json={"task_id": task.id, "results_repository_id": results_repo.id},
+                "/results", json={"task_id": task.id, "results_repository_id": results_assignment.id},
                 headers=post_json_admin_header,
             )
             client.patch(f"/results/{result.json['id']}", json={"step": step}, headers=post_json_admin_header)
@@ -527,7 +512,7 @@ class TestProjects:
 
 
 class TestHealthcheck:
-    def test_body(self, client, mocker, simple_admin_header, repo, results_repo, pull_requests, contract):
+    def test_body(self, client, mocker, simple_admin_header, repo, results_assignment, pull_requests, contract):
         mocker.patch(
             "app.models.git_repository.requests.get", return_value=Mock(status_code=200, ok=True, reason="OK")
         )

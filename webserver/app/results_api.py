@@ -16,7 +16,7 @@ from app.helpers.wrappers import audit, auth
 from app.models.pull_request_result import PullRequestResult
 from app.models.pull_request_result_step import PullRequestResultStep
 from app.models.result_state import ResultState
-from app.models.results_repository import ResultsRepository
+from app.models.project_results_repository import ProjectResultsRepository
 from app.models.task import Task
 from app.models.result import Result
 from app.tasks_api import does_user_own_task
@@ -70,7 +70,7 @@ def get_result(result_id):
 def post_result():
     """
     POST /results endpoint. Creates the delivery of a task's results to a results
-    repository, by pull request. If it exists already, that one is returned.
+    repository assignment, by pull request. If it exists already, that one is returned.
     """
     body = request.json or {}
     for field in ('task_id', 'results_repository_id'):
@@ -79,13 +79,16 @@ def post_result():
 
     task = Task.get_by_id(body['task_id'])
     does_user_own_task(task)
-    repo = ResultsRepository.get_by_id(body['results_repository_id'])
+    # The id of the project's assignment of a results repository, which has to be the task's own
+    assignment = ProjectResultsRepository.get_by_id(body['results_repository_id'])
+    if assignment.project_id != task.project_id:
+        raise InvalidRequest(f"Results repository assignment {assignment.id} does not belong to the task's project")
 
-    result = Result.query.filter_by(task_id=task.id, results_repository_id=repo.id).first()
+    result = Result.query.filter_by(task_id=task.id, results_repository_id=assignment.id).first()
     if result:
         return dump_result(result), HTTPStatus.OK
 
-    result = PullRequestResult(task_id=task.id, results_repository_id=repo.id)
+    result = PullRequestResult(task_id=task.id, results_repository_id=assignment.id)
     result.add()
     return dump_result(result), HTTPStatus.CREATED
 

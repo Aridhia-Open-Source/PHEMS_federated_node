@@ -47,7 +47,7 @@ class Project(db.Model, BaseModel):
     whitelisted_images = relationship(
         "WhitelistedImage", back_populates="project", cascade="all, delete", passive_deletes=True
     )
-    results_repositories = relationship("ResultsRepository", back_populates="project")
+    results_repository_assignments = relationship("ProjectResultsRepository", back_populates="project")
     results_backend = relationship(
         "ResultsBackend", back_populates="project", uselist=False,
         cascade="all, delete", passive_deletes=True
@@ -84,10 +84,10 @@ class Project(db.Model, BaseModel):
 
     def get_results_repository(self):
         """
-        The project's results repository, or None. One per project for now: the only place
-        that assumes it.
+        The project's assignment of a results repository, active or not, or None. One per
+        project for now: the only place that assumes it.
         """
-        return self.results_repositories[0] if self.results_repositories else None
+        return self.results_repository_assignments[0] if self.results_repository_assignments else None
 
     @property
     def datasets(self) -> list:

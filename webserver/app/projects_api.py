@@ -11,6 +11,11 @@ project endpoints:
 - GET /projects/<project_id>/datasets/<assignment_id>
 - PATCH /projects/<project_id>/datasets/<assignment_id>
 - DELETE /projects/<project_id>/datasets/<assignment_id>
+- GET /projects/<project_id>/results_repositories
+- POST /projects/<project_id>/results_repositories
+- GET /projects/<project_id>/results_repositories/<assignment_id>
+- PATCH /projects/<project_id>/results_repositories/<assignment_id>
+- DELETE /projects/<project_id>/results_repositories/<assignment_id>
 """
 
 from concurrent.futures import ThreadPoolExecutor
@@ -21,17 +26,21 @@ from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
 from app.dtos.base import page_of
 from app.dtos.dataset import ProjectDatasetDTO
+from app.dtos.results_repository import ProjectResultsRepositoryDTO
 from app.dtos.project import (
     HealthCheckDTO, ProjectDTO, ProjectHealthDTO, RepositoryHealthDTO, ResultsRepositoryHealthDTO
 )
 from app.helpers.project_lock import require_drained
+from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.query_filters import parse_query_params
 from app.helpers.wrappers import audit, auth
 from app.models.dataset import Dataset
 from app.models.git_provider import ConnectionStatus
 from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
+from app.models.project_results_repository import ProjectResultsRepository
 from app.models.pull_request_trigger import PullRequestTrigger
+from app.models.results_repository import ResultsRepository
 from app.models.task import Task
 
 
@@ -117,8 +126,9 @@ def patch_project(project_id: int):
 def delete_project(project_id: int):
     """
     DELETE /projects/<project_id> endpoint. Deletes the project and everything under it:
-    tasks, dataset assignments and repositories. Secrets and datasets belong to no project:
-    they, and their stored values, are left alone.
+    tasks, dataset and results repository assignments and trigger repositories. Secrets,
+    datasets and results repositories belong to no project: they, and their stored values,
+    are left alone.
     """
     # Hard delete for now, a soft delete option can come later. Keycloak entries of the
     # datasets are left behind, as with DELETE /datasets.
@@ -137,8 +147,9 @@ def delete_project(project_id: int):
             assignment.delete(False)
         for repo in project.trigger_repositories:
             repo.delete(False)
-        for repo in project.results_repositories:
-            repo.delete(False)
+        # Likewise the project's grant of a results repository, not the repository
+        for assignment in list(project.results_repository_assignments):
+            assignment.delete(False)
         project.delete(False)
     except Exception as exc:
         db.session.rollback()
@@ -161,10 +172,10 @@ def project_healthcheck(project_id: int):
 
     # Tokens are read here, in the request; only the network calls run in the threads.
     trigger_repos = list(project.trigger_repositories)
-    results_repo = project.get_results_repository()
+    results_assignment = project.get_results_repository()
     checks = [repo.prepare_connection_check() for repo in trigger_repos]
-    if results_repo:
-        checks.append(results_repo.prepare_connection_check())
+    if results_assignment:
+        checks.append(results_assignment.results_repository.prepare_connection_check())
     with ThreadPoolExecutor(max_workers=HEALTHCHECK_MAX_WORKERS) as executor:
         results = list(executor.map(lambda check: check(), checks))
 
@@ -184,13 +195,13 @@ def project_healthcheck(project_id: int):
         ))
 
     results_health = None
-    if results_repo:
+    if results_assignment:
         check = results[-1]
         results_health = ResultsRepositoryHealthDTO(
-            id=results_repo.id,
-            uri=results_repo.uri,
-            owned_by_federated_node=results_repo.owned_by_federated_node,
-            target_dir=results_repo.target_dir,
+            id=results_assignment.id,
+            uri=results_assignment.results_repository.uri,
+            owned_by_federated_node=results_assignment.owned_by_federated_node,
+            target_dir=results_assignment.target_dir,
             status=check.status.value,
             health_check=HealthCheckDTO(
                 message=check.message,
@@ -309,4 +320,142 @@ def delete_project_dataset(project_id: int, assignment_id: int):
     assignment = _assignment(project_id, assignment_id)
     require_drained(assignment.project)
     assignment.delete()
+    return '', HTTPStatus.NO_CONTENT
+
+
+def _results_assignment(project_id: int, assignment_id: int) -> ProjectResultsRepository:
+    assignment = ProjectResultsRepository.query.filter_by(id=assignment_id, project_id=project_id).one_or_none()
+    if assignment is None:
+        raise DBRecordNotFoundError(
+            f"Results repository assignment {assignment_id} not found in project {project_id}"
+        )
+    return assignment
+
+
+def _check_results_loop(assignment: ProjectResultsRepository):
+    """Refuses the change, rolling it back, if the results would land where a trigger watches."""
+    try:
+        check_no_loop(assignment.results_repository.uri)
+    except InvalidRequest:
+        db.session.rollback()
+        raise
+
+
+@bp.route('/<int:project_id>/results_repositories', methods=['GET'])
+@audit
+@auth(scope='can_admin_dataset')
+def list_project_results_repositories(project_id: int):
+    """
+    GET /projects/<project_id>/results_repositories endpoint. The project's results repository
+    assignment, an inactive one included with its flags, so a project always lists exactly one.
+    """
+    Project.get_by_id(project_id)
+    assignments = ProjectResultsRepository.query.filter_by(project_id=project_id).order_by(ProjectResultsRepository.id)
+    return [ProjectResultsRepositoryDTO.from_model(a).dump() for a in assignments], HTTPStatus.OK
+
+
+@bp.route('/<int:project_id>/results_repositories', methods=['POST'])
+@audit
+@auth(scope='can_admin_dataset')
+def assign_project_results_repository(project_id: int):
+    """
+    POST /projects/<project_id>/results_repositories endpoint. Assigns a global results
+    repository to the project, which has one. It changes where the project's in-flight tasks
+    deliver, so the project has to be locked and drained.
+    Body: {"results_repository_id": 1, "target_dir": "results", "owned_by_federated_node": true,
+    "enabled": true}, the last two are optional.
+    """
+    project = Project.get_by_id(project_id)
+    body = request.json or {}
+    if not set(body) <= {"results_repository_id", "target_dir", "owned_by_federated_node", "enabled"} or \
+            not isinstance(body.get("results_repository_id"), int) or not body.get("target_dir"):
+        raise InvalidRequest(
+            "Provide results_repository_id (an integer), target_dir and, optionally, "
+            "owned_by_federated_node and enabled"
+        )
+    for field in ("owned_by_federated_node", "enabled"):
+        if not isinstance(body.get(field, True), bool):
+            raise InvalidRequest(f"{field} must be a boolean")
+    target_dir = normalise_dir(body["target_dir"])
+    if not target_dir:
+        raise InvalidRequest("target_dir is required")
+
+    require_drained(project)
+    repo = ResultsRepository.get_by_id(body["results_repository_id"])
+    if ProjectResultsRepository.query.filter_by(project_id=project.id).first():
+        raise InvalidRequest(f"Project {project.id} already has a results repository", HTTPStatus.CONFLICT)
+
+    assignment = ProjectResultsRepository(
+        project.id, repo.id, target_dir,
+        owned_by_federated_node=body.get("owned_by_federated_node", True),
+        enabled=body.get("enabled", True),
+    )
+    assignment.add(commit=False)
+    _check_results_loop(assignment)
+    db.session.commit()
+    return ProjectResultsRepositoryDTO.from_model(assignment).dump(), HTTPStatus.CREATED
+
+
+@bp.route('/<int:project_id>/results_repositories/<int:assignment_id>', methods=['GET'])
+@audit
+@auth(scope='can_admin_dataset')
+def get_project_results_repository(project_id: int, assignment_id: int):
+    """
+    GET /projects/<project_id>/results_repositories/<assignment_id> endpoint.
+    """
+    return ProjectResultsRepositoryDTO.from_model(_results_assignment(project_id, assignment_id)).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:project_id>/results_repositories/<int:assignment_id>', methods=['PATCH'])
+@audit
+@auth(scope='can_admin_dataset')
+def patch_project_results_repository(project_id: int, assignment_id: int):
+    """
+    PATCH /projects/<project_id>/results_repositories/<assignment_id> endpoint. Changes where
+    the project's results go (target_dir, owned_by_federated_node) or turns the assignment on or
+    off (enabled), which needs the project locked and drained, or revokes and re-grants it
+    (revoked), which is admin only and takes effect at once.
+    """
+    assignment = _results_assignment(project_id, assignment_id)
+    body = request.json or {}
+    fields = {"target_dir", "owned_by_federated_node", "enabled", "revoked"}
+    if not body or not set(body) <= fields:
+        raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
+    for field in body.keys() - {"target_dir"}:
+        if not isinstance(body[field], bool):
+            raise InvalidRequest(f"{field} must be a boolean")
+    if "revoked" in body and not g.caller_is_admin:
+        raise UnauthorizedError("Only an admin can revoke or re-grant a results repository")
+
+    if set(body) - {"revoked"}:
+        require_drained(assignment.project)
+    if "target_dir" in body:
+        target_dir = normalise_dir(body["target_dir"] or "")
+        if not target_dir:
+            raise InvalidRequest("target_dir cannot be empty")
+        body["target_dir"] = target_dir
+    for field in body:
+        setattr(assignment, field, body[field])
+    db.session.flush()
+    _check_results_loop(assignment)
+    db.session.commit()
+    return ProjectResultsRepositoryDTO.from_model(assignment).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:project_id>/results_repositories/<int:assignment_id>', methods=['DELETE'])
+@audit
+@auth(scope='can_admin_dataset')
+def delete_project_results_repository(project_id: int, assignment_id: int):
+    """
+    DELETE /projects/<project_id>/results_repositories/<assignment_id> endpoint. Removes the
+    assignment, not the repository, once the project is locked and drained. Refused while a
+    task delivered to it.
+    """
+    assignment = _results_assignment(project_id, assignment_id)
+    require_drained(assignment.project)
+    try:
+        assignment.delete()
+    except Exception as exc:
+        db.session.rollback()
+        raise InvalidRequest("Error while deleting the record") from exc
     return '', HTTPStatus.NO_CONTENT

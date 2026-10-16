@@ -1,5 +1,8 @@
 """
-results repository endpoints:
+results repository endpoints, global: a project is assigned to one under
+/projects/<id>/results_repositories (see projects_api.py). Create, edit and delete are admin
+only, and editing or deleting needs every project the repository is assigned to locked and
+drained.
 - GET /results_repositories
 - GET /results_repositories/<id>
 - POST /results_repositories
@@ -14,14 +17,11 @@ from app.dtos.repository_uri import RepositoryUriRequest
 from app.dtos.results_repository import ResultsRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.query_filters import arg_get
-from app.helpers.project_lock import require_drained
-from app.helpers.repository_loop import check_no_loop, normalise_dir
+from app.helpers.project_lock import require_all_drained
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
-from app.models.secret import Secret
-from app.models.project import Project
 from app.models.results_repository import ResultsRepository
+from app.models.secret import Secret
 
 bp = Blueprint('results_repositories', __name__, url_prefix='/results_repositories')
 session = db.session
@@ -37,13 +37,9 @@ def auth_before():
 @bp.route('', methods=['GET'])
 def get_repositories():
     """
-    GET /results_repositories/ — list repositories, optionally of one project (?project_id=)
+    GET /results_repositories/ — list the repositories
     """
-    query = ResultsRepository.query
-    project_id = arg_get('project_id', type=int)
-    if project_id is not None:
-        query = query.filter_by(project_id=project_id)
-    return [ResultsRepositoryDTO.from_model(r).dump() for r in query.all()], HTTPStatus.OK
+    return [ResultsRepositoryDTO.from_model(r).dump() for r in ResultsRepository.query.order_by(ResultsRepository.id)], HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['GET'])
@@ -56,43 +52,44 @@ def get_repository(repo_id):
 
 
 @bp.route('/<int:repo_id>', methods=['DELETE'])
+@auth(scope='can_do_admin', check_dataset=False)
 def delete_repository(repo_id):
     """
-    DELETE /results_repositories/<id> — delete a single repository
+    DELETE /results_repositories/<id> — delete the repository and its assignments, once every
+    project it is assigned to is locked and drained. Refused while a task delivered to it.
     """
     repo = ResultsRepository.get_by_id(repo_id)
-    require_drained(repo.project)
-    repo.delete()
+    assignments = list(repo.project_assignments)
+    require_all_drained([a.project for a in assignments])
+    try:
+        for assignment in assignments:
+            assignment.delete(False)
+        repo.delete()
+    except Exception as exc:
+        session.rollback()
+        raise InvalidRequest("Error while deleting the record") from exc
     return '', HTTPStatus.NO_CONTENT
 
 
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
+@auth(scope='can_do_admin', check_dataset=False)
 def post_repository():
     """
-    POST /results_repositories/ — create a new repository. A project has one, and creating it
-    needs the project locked and drained, as changing it does.
+    POST /results_repositories/ — create a new repository, assigned to no project yet.
     """
     body = request.json or {}
-    for field in ('uri', 'project_id', 'provider', 'secret_label', 'target_dir'):
+    if "project_id" in body or "target_dir" in body:
+        raise InvalidRequest(
+            "project_id and target_dir are not accepted, results repositories are global. "
+            "Assign one with POST /projects/<id>/results_repositories"
+        )
+    for field in ('uri', 'provider', 'secret_label'):
         if not body.get(field):
             raise InvalidRequest(f"{field} is required")
-    target_dir = normalise_dir(body['target_dir'])
-    if not target_dir:
-        raise InvalidRequest("target_dir is required")
 
     uri = RepositoryUriRequest.normalised(body['uri'])
-
-    # Validate project and secret exist. A project has one results repository, so creating it
-    # changes where its in-flight tasks deliver.
-    require_drained(Project.get_by_id(body['project_id']))
     secret = Secret.get_by_label(body['secret_label'])
-
-    if ResultsRepository.query.filter_by(project_id=body['project_id']).first():
-        raise InvalidRequest(
-            f"Project {body['project_id']} already has a results repository",
-            code=HTTPStatus.CONFLICT
-        )
 
     try:
         repo = ResultsRepository(
@@ -100,56 +97,40 @@ def post_repository():
             provider=body['provider'],
             api_uri=body.get('api_uri') or GitProvider(body['provider']).default_api_uri(uri),
             secret_id=secret.id,
-            target_dir=target_dir,
-            project_id=body['project_id'],
-            owned_by_federated_node=body.get('owned_by_federated_node', True),
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
-    repo.add(commit=False)
-    try:
-        check_no_loop(repo.project_id, repo.uri)
-    except InvalidRequest:
-        session.rollback()
-        raise
-    session.commit()
+    if ResultsRepository.query.filter_by(uri=repo.uri).first():
+        raise InvalidRequest(f"Results repository {repo.uri} already exists", code=HTTPStatus.CONFLICT)
+    repo.add()
 
     return ResultsRepositoryDTO.from_model(repo).dump(), HTTPStatus.CREATED
 
 
 @bp.route('/<int:repo_id>', methods=['PATCH'])
+@auth(scope='can_do_admin', check_dataset=False)
 def patch_repository(repo_id):
     """
-    PATCH /results_repositories/<id> — update repository
+    PATCH /results_repositories/<id> — update repository. Every project it is assigned to has
+    to be locked and drained, except to rotate the credentials only.
     """
     repo = ResultsRepository.get_by_id(repo_id)
 
     body = request.json or {}
     if not body:
         raise InvalidRequest("No fields provided to update")
+    unknown = set(body) - {'provider', 'api_uri', 'secret_label'}
+    if unknown:
+        raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
 
     # Rotating the credentials only is exempt from the lock, the uri is not changed
     if set(body) != {'secret_label'}:
-        require_drained(repo.project)
-
-    if 'project_id' in body:
-        Project.get_by_id(body['project_id'])
-        if body['project_id'] != repo.project_id:
-            raise InvalidRequest("A repository can't be moved to another project; create it in the new project instead")
-
-    if 'target_dir' in body:
-        target_dir = normalise_dir(body['target_dir'])
-        if not target_dir:
-            raise InvalidRequest("target_dir cannot be empty")
-        repo.target_dir = target_dir
+        require_all_drained([a.project for a in repo.project_assignments])
 
     if 'secret_label' in body:
         if not body['secret_label']:
             raise InvalidRequest("secret_label cannot be empty")
         repo.secret_id = Secret.get_by_label(body['secret_label']).id
-
-    if 'owned_by_federated_node' in body:
-        repo.owned_by_federated_node = body['owned_by_federated_node']
 
     for field in ('provider', 'api_uri'):
         if field in body:
@@ -160,11 +141,5 @@ def patch_repository(repo_id):
             except ValueError as e:
                 raise InvalidRequest(str(e))
 
-    session.flush()
-    try:
-        check_no_loop(repo.project_id, repo.uri)
-    except InvalidRequest:
-        session.rollback()
-        raise
     session.commit()
     return ResultsRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK

@@ -78,6 +78,11 @@ class ModelRegistry:
         return ResultsRepository
 
     @cached_property
+    def ProjectResultsRepository(self):
+        from app.models.project_results_repository import ProjectResultsRepository
+        return ProjectResultsRepository
+
+    @cached_property
     def ResultsBackend(self):
         from app.models.results_backend import ResultsBackend
         return ResultsBackend
@@ -144,6 +149,7 @@ _ = (
     Models.WhitelistedImage,
     Models.TriggerRepository,
     Models.ResultsRepository,
+    Models.ProjectResultsRepository,
     Models.ResultsBackend,
     Models.ApiRequestTrigger,
     Models.Trigger,

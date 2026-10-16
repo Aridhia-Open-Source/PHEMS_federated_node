@@ -2,7 +2,7 @@ import logging
 
 from fncli.dagster.git_uri import normalise_repo_uri
 from fncli.dagster.utils import BackendSession
-from fncli.dagster.models import Dataset, Project, ProjectDataset, PullRequestResult, PullRequestTrigger, ResultsRepository, Task, TriggerRepository
+from fncli.dagster.models import Dataset, Project, ProjectDataset, ProjectResultsRepository, PullRequestResult, PullRequestTrigger, ResultsRepository, Task, TriggerRepository
 
 default_logger = logging.getLogger(__name__)
 
@@ -351,45 +351,63 @@ class BackendAPI:
             return repo
         return self.create_repository(uri=uri, project_id=project_id, **kwargs)
 
-    def get_results_repositories(self, project_id: int) -> list[ResultsRepository]:
-        """The project's results repositories (it has at most one)"""
-        response = self.session.get("/results_repositories", params={"project_id": project_id})
+    def get_results_repositories(self) -> list[ResultsRepository]:
+        """The global results repositories"""
+        response = self.session.get("/results_repositories")
         return [ResultsRepository(**repo) for repo in response.json()]
+
+    def find_results_repository(self, uri: str) -> ResultsRepository | None:
+        """The global results repository with that uri, if any"""
+        stored_uri = normalise_repo_uri(uri)
+        for repo in self.get_results_repositories():
+            if repo.uri == stored_uri:
+                return repo
+        return None
 
     def create_results_repository(
         self,
         uri: str,
-        project_id: int,
         provider: str,
         api_uri: str,
         secret_label: str,
-        target_dir: str,
-        owned_by_federated_node: bool | None = None,
     ) -> ResultsRepository:
-        """Create a results repository"""
+        """Create a global results repository"""
         self.logger.info(f"Creating results repository {uri}")
-        data = {
-            "uri": uri,
-            "project_id": project_id,
-            "provider": provider,
-            "api_uri": api_uri,
-            "secret_label": secret_label,
-            "target_dir": target_dir,
-        }
-        if owned_by_federated_node is not None:
-            data["owned_by_federated_node"] = owned_by_federated_node
+        data = {"uri": uri, "provider": provider, "api_uri": api_uri, "secret_label": secret_label}
         response = self.session.post("/results_repositories", json=data)
         return ResultsRepository(**response.json())
 
-    def get_or_create_results_repository(self, project_id: int, **kwargs) -> ResultsRepository:
-        """Reuse the project's results repository if there is one, else create it from kwargs"""
-        repos = self.get_results_repositories(project_id)
-        if repos:
-            self.logger.info(f"Reusing existing results repository {repos[0].uri} ({repos[0].id})")
-            return repos[0]
-        return self.create_results_repository(project_id=project_id, **kwargs)
+    def get_or_create_results_repository(self, uri: str, **kwargs) -> ResultsRepository:
+        """Reuse the global results repository with that uri if there is one, else create it from kwargs"""
+        repo = self.find_results_repository(uri)
+        if repo:
+            self.logger.info(f"Reusing existing results repository {repo.uri} ({repo.id})")
+            return repo
+        return self.create_results_repository(uri=uri, **kwargs)
+
+    def get_project_results_repositories(self, project_id: int) -> list[ProjectResultsRepository]:
+        """The project's results repository assignments (it has at most one), inactive ones included"""
+        response = self.session.get(f"/projects/{project_id}/results_repositories")
+        return [ProjectResultsRepository(**a) for a in response.json()]
+
+    def get_or_assign_results_repository(
+        self, project_id: int, repo: ResultsRepository, target_dir: str, owned_by_federated_node: bool | None = None
+    ) -> ProjectResultsRepository:
+        """Reuse the project's results repository assignment if there is one, else assign the repository"""
+        assignments = self.get_project_results_repositories(project_id)
+        if assignments:
+            self.logger.info(
+                f"Reusing existing results repository assignment {assignments[0].id} of project {project_id}"
+            )
+            return assignments[0]
+        self.logger.info(f"Assigning results repository {repo.uri} to project {project_id}")
+        data = {"results_repository_id": repo.id, "target_dir": target_dir}
+        if owned_by_federated_node is not None:
+            data["owned_by_federated_node"] = owned_by_federated_node
+        response = self.session.post(f"/projects/{project_id}/results_repositories", json=data)
+        return ProjectResultsRepository(**response.json())
 
     def delete_results_repository(self, repo_id: int) -> None:
-        """Delete a results repository"""
+        """Delete a global results repository, and with it every project's assignment of it"""
         self.logger.info(f"Deleting results repository {repo_id}")
         self.session.delete(f"/results_repositories/{repo_id}")

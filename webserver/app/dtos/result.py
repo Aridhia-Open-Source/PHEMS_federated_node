@@ -8,6 +8,7 @@ class ResultDTO(DTO):
     id: int
     type: str
     task_id: int
+    project_id: int
     results_repository_id: int
     attempts: int
     error: str | None

@@ -21,6 +21,7 @@ from app.models.extras.dar import DAR
 from app.models.trigger_repository import TriggerRepository
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
+from app.models.project_results_repository import ProjectResultsRepository
 from app.models.results_repository import ResultsRepository
 from app.models.results_backend import ResultsBackend
 from app.models.api_request_trigger import ApiRequestTrigger
@@ -266,6 +267,26 @@ def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret)
     )
     repo.add()
     return repo
+
+
+# Results repository fixtures
+@fixture
+def results_repo(client, secret) -> ResultsRepository:
+    """A global results repository, assigned to no project."""
+    repo = ResultsRepository(
+        uri="github.com/org/results", provider="github", api_uri="https://api.github.com",
+        secret_id=secret.id
+    )
+    repo.add()
+    return repo
+
+
+@fixture
+def results_assignment(client, project, results_repo) -> ProjectResultsRepository:
+    """The project's assignment of the results repository."""
+    assignment = ProjectResultsRepository(project.id, results_repo.id, target_dir="results")
+    assignment.add()
+    return assignment
 
 
 # Dataset Mocking

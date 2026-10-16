@@ -121,7 +121,7 @@ def post_repository():
         raise InvalidRequest(str(e))
     repo.add(commit=False)
     try:
-        check_no_loop(repo.project_id, repo.uri)
+        check_no_loop(repo.uri)
     except InvalidRequest:
         session.rollback()
         raise
@@ -183,7 +183,7 @@ def patch_repository(repo_id):
 
     session.flush()
     try:
-        check_no_loop(repo.project_id, repo.uri)
+        check_no_loop(repo.uri)
     except InvalidRequest:
         session.rollback()
         raise

@@ -21,7 +21,7 @@ from fncli.cmds.project import find_project, init_backend_project
 from fncli.dagster.backend import BackendAPI
 from fncli.dagster.git_uri import normalise_repo_uri
 from fncli.dagster.gitea import GiteaAdminAPI
-from fncli.dagster.models import Project, ResultsRepository, TriggerRepository
+from fncli.dagster.models import Project, ProjectResultsRepository, TriggerRepository
 
 logger = logging.getLogger("repository")
 
@@ -55,21 +55,20 @@ def init_backend_trigger_repo(
 
 def init_backend_results_repo(
     config: ResultsRepoConfig, backend_api: BackendAPI, project: Project
-) -> ResultsRepository:
+) -> ProjectResultsRepository:
     repo = backend_api.get_or_create_results_repository(
-        project.id,
         uri=config.repo_uri,
         provider="gitea",
         api_uri=config.gitea_api_uri,
         secret_label=config.secret_label,
-        target_dir=config.target_dir,
     )
+    assignment = backend_api.get_or_assign_results_repository(project.id, repo, config.target_dir)
     logger.info(
         f"Backend results repository {repo.id}: {repo.uri} "
-        f"(provider {repo.provider}, api_uri {repo.api_uri}, secret {repo.secret.label}, "
-        f"target_dir {repo.target_dir}, project {repo.project_id})"
+        f"(provider {repo.provider}, api_uri {repo.api_uri}, secret {repo.secret.label}), "
+        f"assigned to project {assignment.project_id} as {assignment.id} (target_dir {assignment.target_dir})"
     )
-    return repo
+    return assignment
 
 
 def backend_source_options(command):
@@ -91,7 +90,7 @@ def get_backend_repo_record(entity: str, backend_api: BackendAPI, project: Proje
     if entity == "trigger":
         records = [r for r in backend_api.get_repositories() if r.project_id == project.id]
     else:
-        records = backend_api.get_results_repositories(project.id)
+        records = backend_api.get_project_results_repositories(project.id)
     if len(records) != 1:
         raise click.ClickException(
             f"Project {project.name} has {len(records)} backend {entity} repositories, "
@@ -119,20 +118,22 @@ def load_repo_config(entity: str, from_backend: bool, project: str | None) -> Re
             f"(run setup-backend first)"
         )
     record = get_backend_repo_record(entity, backend_api, backend_project)
-    owner, name = normalise_repo_uri(record.uri).split("/")[-2:]
+    # A results record is the project's assignment, with the repository nested
+    repository = record if entity == "trigger" else record.results_repository
+    owner, name = normalise_repo_uri(repository.uri).split("/")[-2:]
     # The configs insist on every field, so carry over the one only this entity has.
     own_field = {"watch_dir": record.watch_dir} if entity == "trigger" else {"target_dir": record.target_dir}
     config = config_class(
         **own_field,
         project_name=backend_project.name,
         repo=name,
-        repo_uri=record.uri,
-        gitea_api_uri=record.api_uri,
-        backend_secret_label=record.secret.label,
+        repo_uri=repository.uri,
+        gitea_api_uri=repository.api_uri,
+        backend_secret_label=repository.secret.label,
     )
     if owner != config.gitea_admin_user:
         raise click.ClickException(
-            f"Backend {entity} repository {record.uri} is owned by {owner}, not the Gitea "
+            f"Backend {entity} repository {repository.uri} is owned by {owner}, not the Gitea "
             f"admin user {config.gitea_admin_user}: it is not a repo this tool can manage"
         )
     return config
@@ -196,18 +197,15 @@ def delete_backend_trigger_repo_command():
 
 @click.command("delete-backend-results-repo")
 def delete_backend_results_repo_command():
-    """Delete the results repository from the backend."""
+    """Delete the results repository from the backend, and with it every project's assignment of it."""
     config = ResultsRepoConfig()
     backend_api = build_backend_api(config)
-    project = find_project(config, backend_api)
-    if project is None:
+    repo = backend_api.find_results_repository(config.repo_uri)
+    if repo is None:
+        logger.info(f"Backend results repository {config.repo_uri} does not exist")
         return
-    repos = backend_api.get_results_repositories(project.id)
-    if not repos:
-        logger.info(f"Project {project.id} has no backend results repository")
-    for repo in repos:
-        backend_api.delete_results_repository(repo.id)
-        logger.info(f"Deleted backend results repository {repo.uri} ({repo.id})")
+    backend_api.delete_results_repository(repo.id)
+    logger.info(f"Deleted backend results repository {repo.uri} ({repo.id})")
 
 
 @click.command("delete-gitea-repo")

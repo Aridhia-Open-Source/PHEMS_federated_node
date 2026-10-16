@@ -1,4 +1,4 @@
-"""Results repository model for task output storage."""
+"""Results repository model for task output storage, global: projects are assigned to it."""
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
@@ -11,19 +11,14 @@ class ResultsRepository(GitRepositoryMixin, db.Model, BaseModel):
     __tablename__ = 'results_repositories'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    target_dir = sa.Column(sa.String(4096), nullable=False)
-    owned_by_federated_node = sa.Column(sa.Boolean, nullable=False, server_default='true')
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
 
     __table_args__ = (
-        # One results repository per project for now.
-        sa.UniqueConstraint('project_id', name='uq_results_repositories_project'),
-        sa.UniqueConstraint('project_id', 'uri', name='uq_results_repositories_project_uri'),
+        sa.UniqueConstraint('uri', name='uq_results_repositories_uri'),
     )
 
-    project = relationship("Project", back_populates="results_repositories")
-    results = relationship("Result", back_populates="results_repository")
+    project_assignments = relationship("ProjectResultsRepository", back_populates="results_repository")
     secret = relationship(
         "Secret", back_populates="results_repositories"
     )
@@ -34,17 +29,11 @@ class ResultsRepository(GitRepositoryMixin, db.Model, BaseModel):
         provider: str,
         api_uri: str,
         secret_id: int,
-        target_dir: str,
-        project_id: int,
-        owned_by_federated_node: bool = True,
     ):
         self.uri = uri
         self.provider = provider
         self.api_uri = api_uri
         self.secret_id = secret_id
-        self.target_dir = target_dir
-        self.project_id = project_id
-        self.owned_by_federated_node = owned_by_federated_node
 
     def __repr__(self):
         return f'<ResultsRepository ({self.uri})>'

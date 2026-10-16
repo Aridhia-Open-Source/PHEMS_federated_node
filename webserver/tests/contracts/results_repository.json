@@ -1,8 +1,6 @@
 {
   "api_uri": "https://api.github.com",
   "id": 1,
-  "owned_by_federated_node": true,
-  "project_id": 1,
   "provider": "github",
   "secret": {
     "created_at": "2026-01-01 00:00:00",
@@ -14,6 +12,5 @@
     "provider": "K8S",
     "updated_at": "2026-01-01 00:00:00"
   },
-  "target_dir": "results",
   "uri": "github.com/org/results"
 }

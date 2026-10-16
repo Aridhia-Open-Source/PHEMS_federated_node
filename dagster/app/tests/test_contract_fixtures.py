@@ -9,8 +9,8 @@ from pathlib import Path
 import pytest
 
 from app.models import (
-    Dataset, Project, ProjectDataset, PullRequestResult, PullRequestTrigger, ResultsRepository, Secret, Task,
-    TriggerRepository,
+    Dataset, Project, ProjectDataset, ProjectResultsRepository, PullRequestResult, PullRequestTrigger,
+    ResultsRepository, Secret, Task, TriggerRepository,
 )
 
 CONTRACTS_DIR = Path(__file__).parent / "contracts"
@@ -27,7 +27,8 @@ def items_of(name: str) -> list[dict]:
 
 @pytest.mark.parametrize("name, model", [
     ("trigger_repositories_list", TriggerRepository),
-    ("results_repositories_by_project", ResultsRepository),
+    ("results_repositories", ResultsRepository),
+    ("project_results_repositories", ProjectResultsRepository),
     ("datasets_page", Dataset),
     ("project_datasets", ProjectDataset),
     ("projects_page", Project),
@@ -81,3 +82,12 @@ def test_a_global_secret_parses():
 
     assert "project_id" not in secret
     Secret(**secret)
+
+
+def test_a_results_repository_assignment_nests_the_global_repository():
+    [assignment] = items_of("project_results_repositories")
+    parsed = ProjectResultsRepository(**assignment)
+
+    assert parsed.results_repository.repo_path == "org/results"
+    assert (parsed.target_dir, parsed.active) == ("results", True)
+    assert "project_id" not in assignment["results_repository"]

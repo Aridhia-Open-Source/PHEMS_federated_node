@@ -6,7 +6,7 @@ from app.models.pull_request_result import PullRequestResult
 from app.models.pull_request_result_step import PullRequestResultStep
 from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.result_state import ResultState
-from app.models.results_repository import ResultsRepository
+from app.models.results_repository import ProjectResultsRepository, ResultsRepository
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 from app.models.task import Task
@@ -21,6 +21,7 @@ __all__ = [
     "Dictionary",
     "Project",
     "ProjectDataset",
+    "ProjectResultsRepository",
     "PullRequestResult",
     "PullRequestResultStep",
     "PullRequestTrigger",

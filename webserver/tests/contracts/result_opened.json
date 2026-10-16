@@ -8,6 +8,7 @@
   "merge_commit_sha": null,
   "merged_at": null,
   "number": 5,
+  "project_id": 1,
   "results_repository_id": 1,
   "state": "IN_PROGRESS",
   "step": "OPENED",

@@ -116,24 +116,35 @@ def upgrade() -> None:
         sa.UniqueConstraint('project_id', 'uri', name='uq_trigger_repositories_project_uri'),
     )
 
-    # Create results_repositories table
+    # Create results_repositories table (global: a project is assigned to one)
     op.create_table(
         'results_repositories',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('project_id', sa.Integer(), nullable=False),
         sa.Column('uri', sa.String(length=4096), nullable=False),
         sa.Column('provider', sa.String(length=16), nullable=False),
         sa.Column('api_uri', sa.String(length=4096), nullable=False),
         sa.Column('secret_id', sa.Integer(), nullable=False),
-        sa.Column('target_dir', sa.String(length=4096), nullable=False),
-        sa.Column('owned_by_federated_node', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('project_id', name='uq_results_repositories_project'),
-        sa.UniqueConstraint('project_id', 'uri', name='uq_results_repositories_project_uri'),
+        sa.UniqueConstraint('uri', name='uq_results_repositories_uri'),
+    )
+
+    # Create project_results_repositories table (a project's grant of a results repository)
+    op.create_table(
+        'project_results_repositories',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('project_id', sa.Integer(), nullable=False),
+        sa.Column('results_repository_id', sa.Integer(), nullable=False),
+        sa.Column('target_dir', sa.String(length=4096), nullable=False),
+        sa.Column('owned_by_federated_node', sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column('revoked', sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
+        sa.ForeignKeyConstraint(['results_repository_id'], ['results_repositories.id'], ondelete='RESTRICT'),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('project_id'),
     )
 
     # Create dars table (Data Access Requests - separate from the api_request_triggers trigger)
@@ -269,7 +280,7 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['task_id'], ['tasks.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['results_repository_id'], ['results_repositories.id'], ondelete='RESTRICT'),
+        sa.ForeignKeyConstraint(['results_repository_id'], ['project_results_repositories.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('task_id', 'results_repository_id', name='uq_results_task_repository'),
     )
@@ -368,6 +379,7 @@ def downgrade() -> None:
     op.drop_table('triggers')
     op.drop_table('results_backends')
     op.drop_table('dars')
+    op.drop_table('project_results_repositories')
     op.drop_table('results_repositories')
     op.drop_table('trigger_repositories')
     op.drop_table('project_datasets')

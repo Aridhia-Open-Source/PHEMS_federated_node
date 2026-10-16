@@ -44,11 +44,11 @@ def sync_results_pull_requests(context: OpExecCtx):
     git_apis = cast(GitAPIFactory, context.resources.git_apis)
     repositories = {}
     for result in get_synced_results(backend_api):
-        # The repository the result was delivered to, which may not be the project's current one
+        # The assignment the result was delivered to, which may not be the project's current one
         if result.results_repository_id not in repositories:
             repositories[result.results_repository_id] = backend_api.get_results_repository_by_id(
-                result.results_repository_id
-            )
+                result.project_id, result.results_repository_id
+            ).results_repository
         repository = repositories[result.results_repository_id]
         git_api = git_apis.for_repository(repository)
         if result.step == PullRequestResultStep.PUSHED:

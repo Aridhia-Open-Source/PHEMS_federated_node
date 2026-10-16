@@ -34,7 +34,7 @@ fncli logs in first with `POST /login` on the backend, then makes its backend ca
   - Backend: stores dummy dataset credentials as a secret (same call).
   - K8s: reads the secret back to check it holds the new token.
   - Backend: registers the trigger repo (`POST /trigger_repositories`).
-  - Backend: registers the results repo (`POST /results_repositories`).
+  - Backend: registers the results repo (`POST /results_repositories`) if it is missing, then assigns it to the project (`POST /projects/{id}/results_repositories`).
   - Backend: registers the dataset (`POST /datasets`) if it is missing, then assigns it to the project (`POST /projects/{id}/datasets`), which makes it the project's default if it is the first.
   - Gitea: checks each token is accepted.
   - Backend: `GET /projects/{id}/healthcheck`.
@@ -122,8 +122,8 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
 ### 5. Tear down
 
 - `fncli teardown-project -y`
-  - Backend: `DELETE /projects/{id}`, which also removes the tasks, dataset assignments and repos under it. Datasets and secrets are global and stay.
-  - Backend: the per-record deletes that follow (`DELETE /datasets/{id}`, `DELETE /trigger_repositories/{id}`, `DELETE /results_repositories/{id}`, `DELETE /secrets/{label}`) delete what is left (a record already gone is skipped). `DELETE /datasets/{id}` also drops any remaining assignments, and needs each project it is assigned to locked and drained.
+  - Backend: `DELETE /projects/{id}`, which also removes the tasks, dataset and results repository assignments and trigger repos under it. Datasets, results repositories and secrets are global and stay.
+  - Backend: the per-record deletes that follow (`DELETE /datasets/{id}`, `DELETE /trigger_repositories/{id}`, `DELETE /results_repositories/{id}`, `DELETE /secrets/{label}`) delete what is left (a record already gone is skipped). `DELETE /datasets/{id}` and `DELETE /results_repositories/{id}` also drop any remaining assignments, and need each project they are assigned to locked and drained.
   - Gitea: deletes the tokens (`DELETE users/{user}/tokens/{name}`).
   - Gitea: deletes both repos (`DELETE repos/{user}/{name}`).
   - Does not prompt, because of `-y`.

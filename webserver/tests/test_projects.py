@@ -13,6 +13,7 @@ from app.models.dataset import Dataset
 from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
 from app.models.pull_request_trigger import PullRequestTrigger
+from app.models.project_results_repository import ProjectResultsRepository
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
 from app.models.task import Task
@@ -391,13 +392,10 @@ class TestProjectHealthcheck:
         response = self.get(client, project, simple_admin_header)
         assert response.json["trigger_repositories"][0]["pr_count"] == 0
 
-    def test_reports_the_results_repository(self, client, project, secret, git_api, k8s_client, simple_admin_header):
-        results = ResultsRepository(
-            uri="github.com/org/results", provider="github", api_uri="https://api.github.com",
-            secret_id=secret.id, target_dir="results", project_id=project.id,
-            owned_by_federated_node=False,
-        )
-        results.add()
+    def test_reports_the_results_repository(self, client, project, results_assignment, git_api, k8s_client, simple_admin_header):
+        results_assignment.owned_by_federated_node = False
+        results_assignment.add()
+        results = results_assignment
         response = self.get(client, project, simple_admin_header)
         assert response.json["results_repository"] == {
             "id": results.id, "uri": "github.com/org/results", "owned_by_federated_node": False,
@@ -405,11 +403,7 @@ class TestProjectHealthcheck:
             "health_check": {"message": "OK", "status_code": 200, "latency_ms": ANY},
         }
 
-    def test_bad_results_repository_makes_the_project_unhealthy(self, client, project, default_repo, secret, git_api, simple_admin_header):
-        ResultsRepository(
-            uri="github.com/org/results", provider="github", api_uri="https://api.github.com",
-            secret_id=secret.id, target_dir="results", project_id=project.id,
-        ).add()
+    def test_bad_results_repository_makes_the_project_unhealthy(self, client, project, default_repo, results_assignment, git_api, simple_admin_header):
         git_api.side_effect = [
             Mock(status_code=200, ok=True, reason="OK"),
             Mock(status_code=404, ok=False, reason="Not Found"),
@@ -419,11 +413,7 @@ class TestProjectHealthcheck:
         assert response.json["trigger_repositories"][0]["status"] == "ok"
         assert response.json["results_repository"]["status"] == "not_found"
 
-    def test_good_results_repository_keeps_the_project_healthy(self, client, project, default_repo, secret, git_api, simple_admin_header):
-        ResultsRepository(
-            uri="github.com/org/results", provider="github", api_uri="https://api.github.com",
-            secret_id=secret.id, target_dir="results", project_id=project.id,
-        ).add()
+    def test_good_results_repository_keeps_the_project_healthy(self, client, project, default_repo, results_assignment, git_api, simple_admin_header):
         response = self.get(client, project, simple_admin_header)
         assert response.json["status"] == "ok"
 
@@ -463,18 +453,9 @@ class TestProjectHealthcheck:
 @pytest.mark.usefixtures("lock_project")
 class TestDeleteProject:
     @pytest.fixture
-    def full_project(self, client, k8s_client, project, dataset, default_repo, secret, make_task, results_repo_for):
+    def full_project(self, client, k8s_client, project, dataset, default_repo, secret, make_task, results_assignment):
         make_task(project=project, dataset_id=dataset.id, status=TaskStatus.FAILED.value)
         return project
-
-    @pytest.fixture
-    def results_repo_for(self, client, project, secret):
-        repo = ResultsRepository(
-            uri="github.com/org/results", provider="github", api_uri="https://api.github.com",
-            secret_id=secret.id, target_dir="results", project_id=project.id
-        )
-        repo.add()
-        return repo
 
     def delete(self, client, headers, project):
         return client.delete(f"/projects/{project.id}", headers=headers)
@@ -489,8 +470,10 @@ class TestDeleteProject:
 
         assert response.status_code == HTTPStatus.NO_CONTENT
         assert Project.query.filter_by(id=project_id).count() == 0
-        for model in (Task, ProjectDataset, TriggerRepository, ResultsRepository):
+        for model in (Task, ProjectDataset, TriggerRepository, ProjectResultsRepository):
             assert model.query.filter_by(project_id=project_id).count() == 0
+        # Results repositories are global too
+        assert ResultsRepository.query.count() == 1
         # Datasets are global: only the project's assignment of one goes
         assert Dataset.query.filter_by(id=dataset.id).count() == 1
         assert Trigger.query.filter_by(project_id=project_id).count() == 0

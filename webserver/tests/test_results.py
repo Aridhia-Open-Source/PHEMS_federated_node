@@ -5,8 +5,8 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.dtos.result import PullRequestResultDTO
+from app.models.project_results_repository import ProjectResultsRepository
 from app.models.pull_request_result import PullRequestResult
-from app.models.results_repository import ResultsRepository
 from app.models.result import Result
 from app.models.pull_request_result_step import PullRequestResultStep
 from app.models.result_state import ResultState
@@ -18,24 +18,14 @@ def task(make_task):
 
 
 @pytest.fixture
-def results_repo(client, project, secret):
-    repo = ResultsRepository(
-        uri="github.com/org/results", provider="github", api_uri="https://api.github.com",
-        secret_id=secret.id, target_dir="results", project_id=project.id
-    )
-    repo.add()
-    return repo
-
-
-@pytest.fixture
-def result(task, results_repo):
-    result = PullRequestResult(task_id=task.id, results_repository_id=results_repo.id)
+def result(task, results_assignment):
+    result = PullRequestResult(task_id=task.id, results_repository_id=results_assignment.id)
     result.add()
     return result
 
 
-def make_result(make_task, results_repo, step, state=ResultState.IN_PROGRESS.value):
-    result = PullRequestResult(task_id=make_task().id, results_repository_id=results_repo.id)
+def make_result(make_task, results_assignment, step, state=ResultState.IN_PROGRESS.value):
+    result = PullRequestResult(task_id=make_task().id, results_repository_id=results_assignment.id)
     result.step = step
     result.state = state
     result.add()
@@ -62,16 +52,27 @@ class TestResultModel:
     def test_base_query_returns_the_child(self, result):
         assert isinstance(Result.query.get(result.id), PullRequestResult)
 
-    def test_unique_per_task_and_destination(self, task, results_repo, result):
+    def test_unique_per_task_and_destination(self, task, results_assignment, result):
         with pytest.raises(IntegrityError):
-            PullRequestResult(task_id=task.id, results_repository_id=results_repo.id).add()
+            PullRequestResult(task_id=task.id, results_repository_id=results_assignment.id).add()
 
     def test_results_relationship(self, task, result):
         assert task.results == [result]
 
-    def test_results_repository_with_results_cannot_be_deleted(self, results_repo, result):
+    def test_assignment_with_results_cannot_be_deleted(self, results_assignment, result):
         with pytest.raises(IntegrityError):
-            results_repo.delete()
+            results_assignment.delete()
+
+    def test_result_tracks_the_assignment(self, results_assignment, result):
+        assert result.assignment == results_assignment
+        assert result.project_id == results_assignment.project_id
+        assert results_assignment.results == [result]
+
+    def test_the_foreign_key_points_at_the_assignment_not_the_repository(self, task, results_repo, results_assignment):
+        # Both ids are 1 in a fresh database, so make them differ
+        assert ProjectResultsRepository.query.get(results_assignment.id).results_repository_id == results_repo.id
+        with pytest.raises(IntegrityError):
+            PullRequestResult(task_id=task.id, results_repository_id=results_assignment.id + 100).add()
 
 
 class TestGetResults:
@@ -106,17 +107,17 @@ class TestGetResults:
         assert response.status_code == 200
         assert response.json == [PullRequestResultDTO.from_model(result).dump()]
 
-    def test_list_by_step(self, client, simple_admin_header, make_task, results_repo, result):
-        opened = make_result(make_task, results_repo, "OPENED")
+    def test_list_by_step(self, client, simple_admin_header, make_task, results_assignment, result):
+        opened = make_result(make_task, results_assignment, "OPENED")
         response = client.get("/results?step=OPENED", headers=simple_admin_header)
         assert response.status_code == 200
         assert [r["id"] for r in response.json] == [opened.id]
 
-    def test_list_by_several_steps(self, client, simple_admin_header, make_task, results_repo, result):
-        pushed = make_result(make_task, results_repo, "PUSHED")
-        opened = make_result(make_task, results_repo, "OPENED")
-        make_result(make_task, results_repo, "MERGED")
-        make_result(make_task, results_repo, "CLOSED")
+    def test_list_by_several_steps(self, client, simple_admin_header, make_task, results_assignment, result):
+        pushed = make_result(make_task, results_assignment, "PUSHED")
+        opened = make_result(make_task, results_assignment, "OPENED")
+        make_result(make_task, results_assignment, "MERGED")
+        make_result(make_task, results_assignment, "CLOSED")
         response = client.get("/results?step=PUSHED&step=OPENED", headers=simple_admin_header)
         assert response.status_code == 200
         assert [r["id"] for r in response.json] == [pushed.id, opened.id]
@@ -131,32 +132,42 @@ class TestPostResult:
     def post(self, client, headers, body):
         return client.post("/results", data=json.dumps(body), headers=headers)
 
-    def test_create(self, client, post_json_admin_header, task, results_repo):
+    def test_create(self, client, post_json_admin_header, task, results_assignment):
         response = self.post(
-            client, post_json_admin_header, {"task_id": task.id, "results_repository_id": results_repo.id}
+            client, post_json_admin_header, {"task_id": task.id, "results_repository_id": results_assignment.id}
         )
         assert response.status_code == 201
         assert response.json["task_id"] == task.id
-        assert response.json["results_repository_id"] == results_repo.id
+        assert response.json["results_repository_id"] == results_assignment.id
+        assert response.json["project_id"] == task.project_id
         assert response.json["step"] == "UNKNOWN"
         assert response.json["state"] == "IN_PROGRESS"
         assert response.json["attempts"] == 0
         assert response.json["type"] == "PR"
         assert isinstance(Result.query.filter_by(task_id=task.id).one(), PullRequestResult)
 
-    def test_create_is_idempotent(self, client, post_json_admin_header, task, results_repo, result):
+    def test_create_is_idempotent(self, client, post_json_admin_header, task, results_assignment, result):
         response = self.post(
-            client, post_json_admin_header, {"task_id": task.id, "results_repository_id": results_repo.id}
+            client, post_json_admin_header, {"task_id": task.id, "results_repository_id": results_assignment.id}
         )
         assert response.status_code == 200
         assert response.json == PullRequestResultDTO.from_model(result).dump()
         assert Result.query.filter_by(task_id=task.id).count() == 1
 
-    def test_unknown_task(self, client, post_json_admin_header, results_repo):
+    def test_unknown_task(self, client, post_json_admin_header, results_assignment):
         response = self.post(
-            client, post_json_admin_header, {"task_id": 9999, "results_repository_id": results_repo.id}
+            client, post_json_admin_header, {"task_id": 9999, "results_repository_id": results_assignment.id}
         )
         assert response.status_code == 404
+
+    def test_assignment_of_another_project(
+        self, client, post_json_admin_header, task, secret, results_repo, other_project
+    ):
+        other = ProjectResultsRepository(other_project.id, results_repo.id, target_dir="results")
+        other.add()
+        response = self.post(client, post_json_admin_header, {"task_id": task.id, "results_repository_id": other.id})
+        assert response.status_code == 400
+        assert Result.query.count() == 0
 
     def test_unknown_repository(self, client, post_json_admin_header, task):
         response = self.post(client, post_json_admin_header, {"task_id": task.id, "results_repository_id": 9999})
@@ -211,15 +222,15 @@ class TestPatchResult:
         ("PUSHED", "OPENED"), ("PUSHED", "MERGED"), ("PUSHED", "CLOSED"),
         ("OPENED", "MERGED"), ("OPENED", "CLOSED"),
     ])
-    def test_step_moves_forward(self, client, post_json_admin_header, make_task, results_repo, current, new):
-        result = make_result(make_task, results_repo, current)
+    def test_step_moves_forward(self, client, post_json_admin_header, make_task, results_assignment, current, new):
+        result = make_result(make_task, results_assignment, current)
         response = self.patch(client, post_json_admin_header, result.id, {"step": new})
         assert response.status_code == 200
         assert Result.query.get(result.id).step == new
 
     @pytest.mark.parametrize("step", ["UNKNOWN", "PUSHED", "OPENED", "MERGED", "CLOSED"])
-    def test_same_step_is_allowed(self, client, post_json_admin_header, make_task, results_repo, step):
-        result = make_result(make_task, results_repo, step)
+    def test_same_step_is_allowed(self, client, post_json_admin_header, make_task, results_assignment, step):
+        result = make_result(make_task, results_assignment, step)
         response = self.patch(client, post_json_admin_header, result.id, {"step": step, "attempts": 3})
         assert response.status_code == 200
         assert Result.query.get(result.id).step == step
@@ -231,8 +242,8 @@ class TestPatchResult:
         ("MERGED", "UNKNOWN"), ("MERGED", "PUSHED"), ("MERGED", "OPENED"), ("MERGED", "CLOSED"),
         ("CLOSED", "UNKNOWN"), ("CLOSED", "PUSHED"), ("CLOSED", "OPENED"), ("CLOSED", "MERGED"),
     ])
-    def test_step_cannot_move_back(self, client, post_json_admin_header, make_task, results_repo, current, new):
-        result = make_result(make_task, results_repo, current)
+    def test_step_cannot_move_back(self, client, post_json_admin_header, make_task, results_assignment, current, new):
+        result = make_result(make_task, results_assignment, current)
         response = self.patch(client, post_json_admin_header, result.id, {"step": new, "number": 7})
         assert response.status_code == 400
         assert Result.query.get(result.id).step == current
@@ -242,9 +253,9 @@ class TestPatchResult:
         ("IN_PROGRESS", "DELIVERED"), ("IN_PROGRESS", "FAILED"), ("FAILED", "IN_PROGRESS"),
     ])
     def test_state_changes_and_leaves_the_step(
-        self, client, post_json_admin_header, make_task, results_repo, current, new
+        self, client, post_json_admin_header, make_task, results_assignment, current, new
     ):
-        result = make_result(make_task, results_repo, "PUSHED", current)
+        result = make_result(make_task, results_assignment, "PUSHED", current)
         response = self.patch(client, post_json_admin_header, result.id, {"state": new})
         assert response.status_code == 200
         assert Result.query.get(result.id).state == new
@@ -291,20 +302,20 @@ class TestResultWritesAuth:
         kc.is_system_user.return_value = False
         return kc
 
-    def test_the_system_user_writes(self, client, post_json_admin_header, make_task, results_repo, tasks_kc):
+    def test_the_system_user_writes(self, client, post_json_admin_header, make_task, results_assignment, tasks_kc):
         tasks_kc.is_system_user.return_value = True
         task = make_task(requested_by="someone-else")
         response = client.post(
             "/results", headers=post_json_admin_header,
-            data=json.dumps({"task_id": task.id, "results_repository_id": results_repo.id})
+            data=json.dumps({"task_id": task.id, "results_repository_id": results_assignment.id})
         )
         assert response.status_code == 201
 
-    def test_another_user_is_forbidden(self, client, post_json_admin_header, make_task, results_repo, tasks_kc):
+    def test_another_user_is_forbidden(self, client, post_json_admin_header, make_task, results_assignment, tasks_kc):
         task = make_task(requested_by="someone-else")
         response = client.post(
             "/results", headers=post_json_admin_header,
-            data=json.dumps({"task_id": task.id, "results_repository_id": results_repo.id})
+            data=json.dumps({"task_id": task.id, "results_repository_id": results_assignment.id})
         )
         assert response.status_code == 403
 

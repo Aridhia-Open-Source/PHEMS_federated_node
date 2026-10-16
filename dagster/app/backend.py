@@ -3,7 +3,7 @@ from http import HTTPStatus
 
 from app.utils import BackendSession
 from app.models import (
-    TriggerRepository, PullRequestTrigger, Project, ResultsRepository, Task, PullRequestResult, Dataset, ProjectDataset
+    TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository, Task, PullRequestResult, Dataset, ProjectDataset
 )
 
 default_logger = logging.getLogger(__name__)
@@ -181,19 +181,18 @@ class BackendAPI:
         response = self.session.get(f"/tasks/{task_id}")
         return Task(**response.json())
 
-    def get_results_repository(self, project_id: int) -> ResultsRepository:
-        """Get the results repository of a project. A project has exactly one."""
+    def get_results_repository(self, project_id: int) -> ProjectResultsRepository:
+        """Get the project's assignment of a results repository, active or not. A project has exactly one."""
         self.logger.info(f"Fetching the results repository of project {project_id}")
-        # Route is a placeholder for the project's results repository: change it here only
-        response = self.session.get("/results_repositories", params={"project_id": project_id})
-        (repository,) = response.json()
-        return ResultsRepository(**repository)
+        response = self.session.get(f"/projects/{project_id}/results_repositories")
+        (assignment,) = response.json()
+        return ProjectResultsRepository(**assignment)
 
-    def get_results_repository_by_id(self, repository_id: int) -> ResultsRepository:
-        """Get a results repository by id"""
-        self.logger.info(f"Fetching results repository {repository_id}")
-        response = self.session.get(f"/results_repositories/{repository_id}")
-        return ResultsRepository(**response.json())
+    def get_results_repository_by_id(self, project_id: int, assignment_id: int) -> ProjectResultsRepository:
+        """Get a project's assignment of a results repository by its id"""
+        self.logger.info(f"Fetching results repository assignment {assignment_id} of project {project_id}")
+        response = self.session.get(f"/projects/{project_id}/results_repositories/{assignment_id}")
+        return ProjectResultsRepository(**response.json())
 
     def get_task_results(self, task_id: int) -> list[PullRequestResult]:
         """Get the deliveries of a task's results"""
@@ -202,8 +201,8 @@ class BackendAPI:
         return [PullRequestResult(**result) for result in response.json()]
 
     def create_result(self, task_id: int, results_repository_id: int) -> PullRequestResult:
-        """Create the delivery of a task's results to a repository, or return the existing one"""
-        self.logger.info(f"Creating result of task {task_id} for repository {results_repository_id}")
+        """Create the delivery of a task's results to a project's results repository assignment, or return the existing one"""
+        self.logger.info(f"Creating result of task {task_id} for results repository assignment {results_repository_id}")
         response = self.session.post(
             "/results",
             json={"task_id": task_id, "results_repository_id": results_repository_id},

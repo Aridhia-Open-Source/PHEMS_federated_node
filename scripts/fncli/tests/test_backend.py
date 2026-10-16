@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from fncli.dagster.backend import BackendAPI
-from fncli.dagster.models import Dataset
+from fncli.dagster.models import Dataset, ResultsRepository
 
 SECRET = {"id": 3, "project_id": 1, "label": "l", "provider": "K8S", "key": "k", "namespace": "fn"}
 REPO = {
@@ -77,6 +77,64 @@ class TestProjectDatasets:
         assert session.post.call_args.kwargs["json"] == {"dataset_id": 1}
 
 
+RESULTS_REPOSITORY = {
+    "id": 2, "uri": "gitea.fn.svc:4000/fn/results", "provider": "gitea", "api_uri": "http://gitea.fn.svc:4000/api/v1",
+    "secret": {
+        "id": 1, "label": "creds", "description": None, "provider": "K8S", "key": "fn-creds", "namespace": None,
+        "created_at": "2026-01-01 00:00:00", "updated_at": "2026-01-01 00:00:00",
+    },
+}
+RESULTS_ASSIGNMENT = {
+    "id": 5, "project_id": 7, "results_repository": RESULTS_REPOSITORY, "target_dir": "results",
+    "owned_by_federated_node": True, "enabled": True, "revoked": False, "active": True,
+}
+
+
+class TestResultsRepositories:
+    def test_find_is_global_and_by_normalised_uri(self, api, session):
+        session.get.return_value = response([RESULTS_REPOSITORY])
+
+        assert api.find_results_repository("http://gitea.fn.svc:4000/fn/results.git").id == 2
+        assert api.find_results_repository("gitea.fn.svc:4000/fn/other") is None
+        assert session.get.call_args.args == ("/results_repositories",)
+
+    def test_get_or_create_reuses_an_existing_repository(self, api, session):
+        session.get.return_value = response([RESULTS_REPOSITORY])
+
+        assert api.get_or_create_results_repository("gitea.fn.svc:4000/fn/results").id == 2
+        session.post.assert_not_called()
+
+    def test_create_posts_no_project(self, api, session):
+        session.get.return_value = response([])
+        session.post.return_value = response(RESULTS_REPOSITORY)
+
+        api.get_or_create_results_repository(
+            "gitea.fn.svc:4000/fn/results", provider="gitea", api_uri="http://x/api/v1", secret_label="creds"
+        )
+
+        assert session.post.call_args.args == ("/results_repositories",)
+        assert session.post.call_args.kwargs["json"] == {
+            "uri": "gitea.fn.svc:4000/fn/results", "provider": "gitea", "api_uri": "http://x/api/v1",
+            "secret_label": "creds",
+        }
+
+    def test_assign_reuses_the_projects_assignment(self, api, session):
+        session.get.return_value = response([RESULTS_ASSIGNMENT])
+
+        assert api.get_or_assign_results_repository(7, ResultsRepository(**RESULTS_REPOSITORY), "results").id == 5
+        assert session.get.call_args.args == ("/projects/7/results_repositories",)
+        session.post.assert_not_called()
+
+    def test_assign_posts_to_the_project(self, api, session):
+        session.get.return_value = response([])
+        session.post.return_value = response(RESULTS_ASSIGNMENT)
+        repository = ResultsRepository(**RESULTS_REPOSITORY)
+
+        assert api.get_or_assign_results_repository(7, repository, "results").project_id == 7
+        assert session.post.call_args.args == ("/projects/7/results_repositories",)
+        assert session.post.call_args.kwargs["json"] == {"results_repository_id": 2, "target_dir": "results"}
+
+
 class TestGetOrCreateRepository:
     def create(self, api, uri):
         return api.get_or_create_repository(
@@ -129,7 +187,7 @@ class TestGetOrCreateRepository:
 
 def test_get_task_results_lists_the_tasks_deliveries(api, session):
     body = [{
-        "id": 4, "type": "PR", "task_id": 9, "results_repository_id": 2, "step": "OPENED", "state": "DELIVERED",
+        "id": 4, "type": "PR", "task_id": 9, "project_id": 1, "results_repository_id": 2, "step": "OPENED", "state": "DELIVERED",
         "attempts": 1,
         "branch": None, "commit_sha": "abc", "number": None, "url": None,
         "error": None, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z",

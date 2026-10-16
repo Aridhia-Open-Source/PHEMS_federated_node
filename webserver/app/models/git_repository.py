@@ -24,10 +24,6 @@ class GitRepositoryMixin:
     secret relationship itself.
     """
 
-    project_id = sa.Column(
-        sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False
-    )
-
     uri = sa.Column(sa.String(4096), nullable=False)
     provider = sa.Column(sa.String(16), nullable=False)
     # The scheme is stripped from uri, so the provider's API base URL is kept explicitly.

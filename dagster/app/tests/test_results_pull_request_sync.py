@@ -13,19 +13,23 @@ from app.definitions.sensors.task.pull_request_sync import (
     sync_results_pull_requests,
     sync_results_pull_requests_job,
 )
-from app.models import PullRequestResult, ResultsRepository
+from app.models import ProjectResultsRepository, PullRequestResult, ResultsRepository
 from app.tests.conftest import SAMPLE_SECRET
 
-REPOSITORY = ResultsRepository(
-    id=5, uri="gitea.fn.svc:4000/fn/results", provider="gitea",
-    api_uri="http://gitea.fn.svc:4000/api/v1", secret=SAMPLE_SECRET, target_dir="results", project_id=1,
+GLOBAL_REPOSITORY = ResultsRepository(
+    id=2, uri="gitea.fn.svc:4000/fn/results", provider="gitea",
+    api_uri="http://gitea.fn.svc:4000/api/v1", secret=SAMPLE_SECRET,
+)
+REPOSITORY = ProjectResultsRepository(
+    id=5, project_id=1, results_repository=GLOBAL_REPOSITORY, target_dir="results",
+    owned_by_federated_node=True, enabled=True, revoked=False, active=True,
 )
 
 
 def result(id=9, step="OPENED", number=3):
     opened = step != "PUSHED"
     return PullRequestResult(
-        id=id, type="PR", task_id=7, results_repository_id=5, step=step,
+        id=id, type="PR", task_id=7, project_id=1, results_repository_id=5, step=step,
         state="DELIVERED" if opened else "IN_PROGRESS", attempts=1,
         branch=f"branch-{id}", commit_sha="c", number=number if opened else None,
         url=f"http://g/pulls/{number}" if opened else None,
@@ -72,8 +76,8 @@ def test_a_merged_pull_request_is_recorded():
     )
 
     backend_api.get_results_by_step.assert_called_once_with(["PUSHED", "OPENED"])
-    backend_api.get_results_repository_by_id.assert_called_once_with(5)
-    git_apis.for_repository.assert_called_once_with(REPOSITORY)
+    backend_api.get_results_repository_by_id.assert_called_once_with(1, 5)
+    git_apis.for_repository.assert_called_once_with(GLOBAL_REPOSITORY)
     git_api.get_pull_request.assert_called_once_with("fn/results", 3)
     assert patched(backend_api) == {9: {
         "step": "MERGED", "merged_at": "2026-10-08T10:00:00Z", "merge_commit_sha": "m1",
@@ -81,11 +85,12 @@ def test_a_merged_pull_request_is_recorded():
 
 
 def test_a_result_is_synced_against_its_own_repository_fetched_once():
-    other = REPOSITORY.model_copy(update={"id": 6, "uri": "gitea.fn.svc:4000/fn/other"})
+    other_global = GLOBAL_REPOSITORY.model_copy(update={"id": 3, "uri": "gitea.fn.svc:4000/fn/other"})
+    other = REPOSITORY.model_copy(update={"id": 6, "results_repository": other_global})
     old = result(9).model_copy(update={"results_repository_id": 6})
     backend_api = MagicMock()
     backend_api.get_results_by_step.return_value = [old, result(10, number=4), result(11, number=5)]
-    backend_api.get_results_repository_by_id.side_effect = lambda id: {5: REPOSITORY, 6: other}[id]
+    backend_api.get_results_repository_by_id.side_effect = lambda project_id, id: {5: REPOSITORY, 6: other}[id]
     git_api = MagicMock()
     git_api.get_pull_request.side_effect = lambda repo_path, number: git_pr(number=number)
     git_apis = MagicMock()
@@ -94,9 +99,9 @@ def test_a_result_is_synced_against_its_own_repository_fetched_once():
 
     sync_results_pull_requests(context)
 
-    assert [c.args[0] for c in backend_api.get_results_repository_by_id.call_args_list] == [6, 5]
+    assert [c.args for c in backend_api.get_results_repository_by_id.call_args_list] == [(1, 6), (1, 5)]
     backend_api.get_results_repository.assert_not_called()
-    assert [c.args[0] for c in git_apis.for_repository.call_args_list] == [other, REPOSITORY, REPOSITORY]
+    assert [c.args[0] for c in git_apis.for_repository.call_args_list] == [other_global, GLOBAL_REPOSITORY, GLOBAL_REPOSITORY]
 
 
 def test_a_closed_pull_request_is_recorded_without_a_merge_commit():
@@ -164,7 +169,7 @@ def test_results_at_other_steps_are_ignored_when_the_backend_does_not_filter(ste
     backend_api, git_apis, _ = sync([result(8, step), result(10, number=4)], {4: lambda: git_pr("closed", number=4)})
 
     assert list(patched(backend_api)) == [10]
-    backend_api.get_results_repository_by_id.assert_called_once_with(5)
+    backend_api.get_results_repository_by_id.assert_called_once_with(1, 5)
 
 
 def run_sensor(results, in_flight=False):
