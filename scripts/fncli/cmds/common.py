@@ -102,7 +102,7 @@ class DatasetConfig(ProjectConfig):
 
     @property
     def secret_label(self) -> str:
-        return f"{self.project_name}-dataset-creds"
+        return f"{self.dataset_name}-dataset-creds"
 
 
 ENTITY_CONFIGS = {"trigger": TriggerRepoConfig, "results": ResultsRepoConfig}

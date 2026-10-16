@@ -73,8 +73,8 @@ def test_secret_label_prefers_the_backend_record():
     assert config.secret_label == "from-backend"
 
 
-def test_dataset_secret_label_is_derived_from_the_project():
-    assert DatasetConfig().secret_label == "proj-dataset-creds"
+def test_dataset_secret_label_is_derived_from_the_dataset():
+    assert DatasetConfig().secret_label == "cdm-dataset-creds"
 
 
 def test_repo_config_is_abstract_about_the_token_scope():

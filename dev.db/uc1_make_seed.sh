@@ -58,8 +58,9 @@ echo ""
 echo -e "${BLUE}[3/3] Registering project, dataset and repositories in backend...${NC}"
 # fncli finds .dev.env from the current directory, so run from the repo root. It reads the
 # DATASET_* and CLUSTER_DATASET_HOST values exported from dev.db/.env above. The backend
-# dataset is named after the database. setup-project is idempotent and only touches the
-# project named by TEST_PROJECT_NAME.
+# dataset is named after the database. setup-project is idempotent: it reuses the global
+# secrets, dataset and repositories if they exist, and assigns them to the project named by
+# TEST_PROJECT_NAME.
 cd "$SCRIPT_DIR/.."
 DEFAULT_PROJECT_DATASET="$DATASET_NAME" fncli setup-project
 echo ""

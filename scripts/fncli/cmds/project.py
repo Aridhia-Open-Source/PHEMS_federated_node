@@ -1,5 +1,5 @@
 """
-Commands for the webserver Project. Deleting what is already gone is logged, not an error.
+Commands for the webserver Project. Its datasets and repositories are global, the project only holds assignments of them. Deleting what is already gone is logged, not an error.
 """
 
 import json
@@ -44,7 +44,7 @@ def init_backend_project_command():
 
 @click.command("delete-backend-project")
 def delete_backend_project_command():
-    """Delete the project from the backend, with everything still under it."""
+    """Delete the project from the backend, with its assignments. Global datasets, repositories and secrets stay."""
     config = ProjectConfig()
     backend_api = build_backend_api(config)
     project = find_project(config, backend_api)

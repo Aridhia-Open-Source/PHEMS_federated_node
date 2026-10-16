@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ###############################################################################
-# Show the Project and TriggerRepository DB objects (as the backend API
+# Show the Project, global TriggerRepository and the project's assignment (as the backend API
 # currently sees them) for the trigger-repository simulation set up by
 # init_repo.sh.
 ###############################################################################
@@ -35,15 +35,26 @@ else
 fi
 
 echo
-echo -e "${BLUE}=== Trigger repository: $GITEA_ADMIN_USER/$TEST_TRIGGER_REPO ===${NC}"
+echo -e "${BLUE}=== Trigger repository (global): $GITEA_ADMIN_USER/$TEST_TRIGGER_REPO ===${NC}"
 repo=$(curl -sf "$BACKEND_URL/trigger_repositories" \
   --header "Authorization: Bearer $BACKEND_TOKEN" \
-  | jq --arg path "$GITEA_ADMIN_USER/$TEST_TRIGGER_REPO" '.[] | select(.path == $path)')
+  | jq --arg path "$GITEA_ADMIN_USER/$TEST_TRIGGER_REPO" '.[] | select(.uri | endswith($path))')
 
 if [ -z "$repo" ]; then
   echo "Not found. Run init_repo.sh first."
 else
   echo "$repo" | jq .
+  repo_id=$(echo "$repo" | jq -r '.id')
+fi
+
+echo
+echo -e "${BLUE}=== Project's assignment of it ===${NC}"
+if [ -z "${project_id:-}" ] || [ -z "${repo_id:-}" ]; then
+  echo "Not found. Run init_repo.sh first."
+else
+  curl -sf "$BACKEND_URL/projects/$project_id/trigger_repositories" \
+    --header "Authorization: Bearer $BACKEND_TOKEN" \
+    | jq --argjson repo "$repo_id" '.[] | select(.trigger_repository.id == $repo)'
 fi
 
 echo

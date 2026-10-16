@@ -1,6 +1,7 @@
 """
 Commands for the secrets that hold credentials: a Gitea token for each repo and dummy
 database credentials for the dataset (dummies unless DATASET_USERNAME and DATASET_PASSWORD are set).
+Secrets are global, they belong to no project.
 """
 
 import logging
@@ -15,12 +16,10 @@ from fncli.cmds.common import (
     build_gitea_api,
     entity_option,
 )
-from fncli.cmds.project import init_backend_project
 from fncli.cmds.repository import backend_source_options, init_gitea_repo, load_repo_config
 from fncli.dagster.backend import BackendAPI
 from fncli.dagster.gitea import GiteaAdminAPI, GiteaAPI, GiteaClient
 from fncli.dagster.k8s import get_k8s_secret
-from fncli.dagster.models import Project
 
 logger = logging.getLogger("secret")
 
@@ -28,9 +27,7 @@ logger = logging.getLogger("secret")
 GIT_PLACEHOLDER = {"TOKEN": "unset"}
 
 
-def init_git_secret(
-    config: RepoConfig, gitea_api: GiteaAdminAPI, backend_api: BackendAPI, project: Project
-) -> str:
+def init_git_secret(config: RepoConfig, gitea_api: GiteaAdminAPI, backend_api: BackendAPI) -> str:
     """Store a fresh Gitea token where the backend reads it."""
     token = gitea_api.replace_token(config.token_name, [config.token_scope])
     secret = backend_api.upsert_secret(config.secret_label, {"TOKEN": token})
@@ -42,7 +39,7 @@ def init_git_secret(
             f"Secret {secret['key']} in {secret['namespace']} does not hold the new token"
         )
     logger.info(
-        f"Secret {config.secret_label} of project {project.id} is {secret['key']} "
+        f"Secret {config.secret_label} is {secret['key']} "
         f"in namespace {secret['namespace']} and holds the new token "
         f"(Gitea token {config.token_name!r}, scope {config.token_scope})"
     )
@@ -68,7 +65,7 @@ def dataset_credentials(config: DatasetConfig) -> dict:
     return {"USERNAME": config.dataset_username, "PASSWORD": config.dataset_password}
 
 
-def init_dataset_secret(config: DatasetConfig, backend_api: BackendAPI, project: Project) -> dict:
+def init_dataset_secret(config: DatasetConfig, backend_api: BackendAPI) -> dict:
     secret = backend_api.upsert_secret(config.secret_label, dataset_credentials(config))
     logger.info(f"Secret {config.secret_label} is {secret['key']}")
     return secret
@@ -80,13 +77,10 @@ def init_dataset_secret(config: DatasetConfig, backend_api: BackendAPI, project:
 def init_git_secret_command(entity, from_backend, project):
     """Store a fresh Gitea token in the K8s secret of a repo (read for trigger, write for results)."""
     config = load_repo_config(entity, from_backend, project)
-    backend_api = build_backend_api(config)
-    project = init_backend_project(config, backend_api)
     init_git_secret(
         config=config,
         gitea_api=build_gitea_api(config),
-        backend_api=backend_api,
-        project=project,
+        backend_api=build_backend_api(config),
     )
 
 
@@ -94,12 +88,10 @@ def init_git_secret_command(entity, from_backend, project):
 def init_dataset_secret_command():
     """Store the database credentials in the K8s secret of the dataset."""
     config = DatasetConfig()
-    backend_api = build_backend_api(config)
-    project = init_backend_project(config, backend_api)
-    init_dataset_secret(config, backend_api, project)
+    init_dataset_secret(config, build_backend_api(config))
 
 
-def init_backend_secret(config: RepoConfig | DatasetConfig, backend_api: BackendAPI, project: Project):
+def init_backend_secret(config: RepoConfig | DatasetConfig, backend_api: BackendAPI):
     """Create the secret with placeholder values unless it exists, so a real token is kept."""
     label = config.secret_label
     if any(secret["label"] == label for secret in backend_api.get_secrets()):
@@ -121,9 +113,7 @@ def init_backend_secret(config: RepoConfig | DatasetConfig, backend_api: Backend
 def init_backend_secret_command(entity):
     """Create a secret in the backend with placeholder values, with no Gitea call (see init-git-secret)."""
     config = SECRET_CONFIGS[entity]()
-    backend_api = build_backend_api(config)
-    project = init_backend_project(config, backend_api)
-    init_backend_secret(config, backend_api, project)
+    init_backend_secret(config, build_backend_api(config))
 
 
 @click.command("verify-git-secret")
@@ -133,9 +123,7 @@ def verify_git_secret_command(entity, from_backend, project):
     """Check Gitea accepts the token currently stored in a repo's secret."""
     config = load_repo_config(entity, from_backend, project)
     gitea_repo = init_gitea_repo(config, build_gitea_api(config))
-    backend_api = build_backend_api(config)
-    project = init_backend_project(config, backend_api)
-    secret = backend_api.get_secret(config.secret_label)
+    secret = build_backend_api(config).get_secret(config.secret_label)
     token = get_k8s_secret(
         secret_name=secret["key"], namespace=secret["namespace"], key="TOKEN"
     )

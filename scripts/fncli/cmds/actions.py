@@ -70,9 +70,9 @@ def setup_project_command(ctx):
         ctx.invoke(step, **options)
 
 
-# Each step with the options it runs with. delete_backend_project_command deletes all project
-# contents (tasks, datasets, repos, secrets) in the right order, so it runs first. Per-record
-# deletes after it log 'already gone' and skip. Gitea token/repo deletes come last.
+# Each step with the options it runs with. delete_backend_project_command deletes the project
+# with its tasks and assignments only, so it runs first. The global dataset, repos and secrets
+# are then deleted, users before the secrets they use. Gitea token/repo deletes come last.
 TEARDOWN_STEPS = [
     (delete_backend_project_command, {}),
     (delete_backend_dataset_command, {}),
