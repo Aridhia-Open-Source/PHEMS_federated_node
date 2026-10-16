@@ -1,0 +1,20 @@
+[
+  {
+    "attempts": 0,
+    "branch": null,
+    "commit_sha": null,
+    "created_at": "2026-01-01 00:00:00",
+    "error": null,
+    "id": 2,
+    "merge_commit_sha": null,
+    "merged_at": null,
+    "number": null,
+    "results_repository_id": 1,
+    "state": "IN_PROGRESS",
+    "step": "OPENED",
+    "task_id": 2,
+    "type": "PR",
+    "updated_at": "2026-01-01 00:00:00",
+    "url": null
+  }
+]
