@@ -1,0 +1,56 @@
+{{- if .Values.giteaMirror.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gitea-mirror
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: gitea-mirror
+spec:
+  podSelector:
+    matchLabels:
+      app: gitea-mirror
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.giteaMirror.port }}
+  egress:
+    # DNS
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # GitHub (api and git over https)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+    # Gitea
+    - to:
+        - podSelector:
+            matchLabels:
+              app: gitea
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Postgres: no destination, as the server may be in-cluster or external
+    - ports:
+        - protocol: TCP
+          port: {{ include "dbPort" . }}
+    # In-cluster webhook receivers
+    - to:
+        - podSelector: {}
+      ports:
+        {{- range .Values.giteaMirror.networkPolicy.webhookPorts }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+{{- end }}

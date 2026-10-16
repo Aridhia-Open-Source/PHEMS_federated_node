@@ -1,0 +1,19 @@
+{{- if .Values.giteaMirror.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitea-mirror
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: gitea-mirror
+    release: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.giteaMirror.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: gitea-mirror
+{{- end }}
