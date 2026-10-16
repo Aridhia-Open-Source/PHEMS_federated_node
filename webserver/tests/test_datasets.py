@@ -56,7 +56,7 @@ def test_patch_and_delete_when_locked(client, admin_headers, linked_dataset, loc
     url = f"{G}/{linked_dataset['dataset']['id']}"
 
     patch = client.patch(url, json={"host": "new"}, headers=admin_headers)
-    assert patch.status_code == 202
+    assert patch.status_code == 200
     assert patch.json["host"] == "new"
 
     delete = client.delete(url, headers=admin_headers)

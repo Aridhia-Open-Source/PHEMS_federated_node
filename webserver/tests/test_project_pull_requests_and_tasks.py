@@ -14,12 +14,16 @@ def test_list_and_get_pr(client, admin_headers, project, global_trigger_repo, pr
 
 def test_list_filter_by_state(client, admin_headers, project, global_trigger_repo, pr_trigger, ingest_prs):
     list_url = f"/projects/{project.id}/repositories/triggers/{global_trigger_repo.id}/pull_requests"
-    ingest_prs(global_trigger_repo.id, 2, base_branch="dev")
+    ingest_prs(global_trigger_repo.id, 2)
+    ingest_prs(global_trigger_repo.id, 3, base_branch="dev")  # non-matching: no trigger
 
-    ignored = client.get(f"{list_url}?state=IGNORED", headers=admin_headers)
-    assert ignored.status_code == 200
-    assert ignored.json["total"] == 1
-    assert ignored.json["items"][0]["number"] == 2
+    client.patch(f"{list_url}/2", json={"state": "REJECTED", "state_cause": "bad"}, headers=admin_headers)
+    rejected = client.get(f"{list_url}?state=REJECTED", headers=admin_headers)
+    assert rejected.status_code == 200
+    assert rejected.json["total"] == 1
+    assert rejected.json["items"][0]["number"] == 2
+
+    assert client.get(f"{list_url}?state=IGNORED", headers=admin_headers).status_code == 400
 
     invalid = client.get(f"{list_url}?state=NOPE", headers=admin_headers)
     assert invalid.status_code == 400

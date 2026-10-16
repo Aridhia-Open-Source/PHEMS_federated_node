@@ -277,7 +277,8 @@ def test_tasks_page_past_the_end_is_empty_200(client, admin_headers, make_task):
 def test_tasks_zero_or_negative_pagination(client, admin_headers, make_task, query):
     make_tasks(make_task, 2)
     r = client.get(f"/tasks?{query}", headers=admin_headers)
-    assert r.status_code in (200, 400), r.status_code
+    assert r.status_code == 200, r.status_code
+    assert r.json["page"] >= 1 and r.json["per_page"] >= 1
 
 
 def test_tasks_filter_by_each_status(client, admin_headers, make_task):
@@ -472,9 +473,9 @@ def test_project_pr_list_state_filter_all_values(client, admin_headers, project,
     ingest_prs(global_trigger_repo.id, 1, 2)
     ingest_prs(global_trigger_repo.id, 3, base_branch="dev")
     unknown = pr_list(client, admin_headers, project.id, global_trigger_repo.id, "?state=UNKNOWN")
-    assert sorted(i["number"] for i in unknown.json["items"]) == [1, 2]
+    assert sorted(i["number"] for i in unknown.json["items"]) == [1, 2]  # non-matching PR 3 creates no trigger
     ignored = pr_list(client, admin_headers, project.id, global_trigger_repo.id, "?state=IGNORED")
-    assert [i["number"] for i in ignored.json["items"]] == [3]
+    assert ignored.status_code == 400
     for state in ("REJECTED", "YIELDED"):
         r = pr_list(client, admin_headers, project.id, global_trigger_repo.id, f"?state={state}")
         assert r.status_code == 200
@@ -545,7 +546,7 @@ def test_global_pr_list_has_pages(client, admin_headers, global_trigger_repo, in
 # ---------------------------------------------------------------- results ?step=
 
 def make_result_at(client, admin_headers, project, make_task, repo_id, step=None):
-    task = make_task()
+    task = make_task(status="SUCCESS")
     r = client.post(f"/projects/{project.id}/results",
                     json={"task_id": task.id, "results_repository_id": repo_id}, headers=admin_headers)
     assert r.status_code == 201, r.json

@@ -239,18 +239,47 @@ def test_referencing_disabled_secret_on_create(client, admin_headers, make_globa
     secret.enabled = False
     db.session.commit()
     response = client.post(TRIG, json=repo_body(secret_label="off-creds"), headers=admin_headers)
-    # Not specified by the ADR: disabled secrets are rejected or accepted, but never a 500
-    assert response.status_code in (201, 400, 409), response.json
-    assert response.status_code != 500
+    assert_error(response, 400)
 
 
-@pytest.mark.xfail(reason="creating a repository on a disabled secret is accepted (201); a disabled "
-                          "secret should arguably be refused (400)", strict=False)
-def test_referencing_disabled_secret_is_refused(client, admin_headers, make_global_secret):
+@pytest.mark.parametrize("url,body", [
+    (TRIG, lambda: repo_body(secret_label="off-creds")),
+    (RES, lambda: repo_body(secret_label="off-creds")),
+    (DS, lambda: ds_body(secret_label="off-creds")),
+])
+def test_referencing_disabled_secret_is_refused(client, admin_headers, make_global_secret, url, body):
     secret = make_global_secret(label="off-creds")
     secret.enabled = False
     db.session.commit()
-    assert client.post(TRIG, json=repo_body(secret_label="off-creds"), headers=admin_headers).status_code == 400
+    assert_error(client.post(url, json=body(), headers=admin_headers), 400)
+
+
+def test_dataset_patch_to_disabled_secret_is_refused(client, admin_headers, global_dataset, make_global_secret):
+    secret = make_global_secret(label="off-creds")
+    secret.enabled = False
+    db.session.commit()
+    assert_error(client.patch(f"{DS}/{global_dataset.id}", json={"secret_label": "off-creds"},
+                              headers=admin_headers), 400)
+
+
+@pytest.mark.parametrize("base,make", [(TRIG, "global_trigger_repo"), (RES, "global_results_repo")])
+def test_repo_patch_keeping_disabled_secret_is_allowed(client, admin_headers, request, base, make):
+    repo = request.getfixturevalue(make)
+    label = repo.secret.label
+    repo.secret.enabled = False
+    db.session.commit()
+    response = client.patch(f"{base}/{repo.id}", json={"secret_label": label}, headers=admin_headers)
+    assert response.status_code == 200, response.json
+
+
+def test_dataset_patch_keeping_disabled_secret_is_allowed(client, admin_headers, global_dataset, global_secret):
+    global_dataset.secret.enabled = False
+    db.session.commit()
+    response = client.patch(f"{DS}/{global_dataset.id}",
+                            json={"secret_label": global_dataset.secret.label, "host": "newhost"},
+                            headers=admin_headers)
+    assert response.status_code == 200, response.json
+    assert response.json["host"] == "newhost"
 
 
 # ---------------------------------------------------------------- datasets
@@ -324,7 +353,7 @@ def test_dataset_patch_invalid_bodies(client, admin_headers, global_dataset, bod
 def test_dataset_patch_name_case_and_duplicate(client, admin_headers, global_dataset, make_global_dataset):
     make_global_dataset(name="Second")
     renamed = client.patch(f"{DS}/{global_dataset.id}", json={"name": "Renamed"}, headers=admin_headers)
-    assert renamed.status_code == 202, renamed.json
+    assert renamed.status_code == 200, renamed.json
     assert renamed.json["name"] == "renamed"
 
 
@@ -337,14 +366,14 @@ def test_dataset_patch_enabled_and_secret_label(client, admin_headers, global_da
     make_global_secret(label="other-creds")
     response = client.patch(f"{DS}/{global_dataset.id}", json={"enabled": False, "secret_label": "other-creds"},
                             headers=admin_headers)
-    assert response.status_code == 202, response.json
+    assert response.status_code == 200, response.json
     assert response.json["enabled"] is False
     assert response.json["secret"]["label"] == "other-creds"
 
 
 def test_dataset_patch_empty_body_is_not_500(client, admin_headers, global_dataset):
     response = client.patch(f"{DS}/{global_dataset.id}", json={}, headers=admin_headers)
-    assert response.status_code in (202, 400), response.json
+    assert response.status_code in (200, 400), response.json
 
 
 # ---------------------------------------------------------------- secrets
