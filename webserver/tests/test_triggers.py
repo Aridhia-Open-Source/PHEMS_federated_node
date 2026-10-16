@@ -7,15 +7,11 @@ from app.models.api_request_trigger import ApiRequestTrigger
 from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.task import Task
 from app.models.trigger import Trigger
+from tests.helpers.pull_requests import add_pull_request_trigger
 
 
-def make_pull_request(project, repo_id=1) -> PullRequestTrigger:
-    pr = PullRequestTrigger(
-        project_id=project.id, project_trigger_repository_id=repo_id, number=1, title="t",
-        raised_by="user", merged_at="2026-01-01T10:00:00Z", merge_commit_sha="a" * 40,
-    )
-    pr.add()
-    return pr
+def make_pull_request(project, repo) -> PullRequestTrigger:
+    return add_pull_request_trigger(repo, 1, title="t")
 
 
 class TestTriggerModels:
@@ -29,7 +25,7 @@ class TestTriggerModels:
         assert loaded.requested_by == "user"
 
     def test_pull_request_requested_by_is_raiser(self, project, default_repo):
-        pr = make_pull_request(project, default_repo.id)
+        pr = make_pull_request(project, default_repo)
         assert Trigger.query.filter_by(id=pr.id).one().type == "PR"
         assert pr.requested_by == "user"
 

@@ -43,6 +43,11 @@ class ModelRegistry:
         return PullRequestTrigger
 
     @cached_property
+    def PullRequest(self):
+        from app.models.pull_request import PullRequest
+        return PullRequest
+
+    @cached_property
     def PullRequestResult(self):
         from app.models.pull_request_result import PullRequestResult
         return PullRequestResult
@@ -148,6 +153,7 @@ _ = (
     Models.ProjectDataset,
     Models.Dictionary,
     Models.Project,
+    Models.PullRequest,
     Models.PullRequestTrigger,
     Models.Registry,
     Models.Task,

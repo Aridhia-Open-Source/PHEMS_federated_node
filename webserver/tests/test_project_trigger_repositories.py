@@ -11,7 +11,9 @@ from app.models.dataset import Dataset
 from app.models.project_dataset import ProjectDataset
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.project_trigger_repository import ProjectTriggerRepository
+from app.models.pull_request import PullRequest
 from app.models.pull_request_trigger import PullRequestTrigger
+from tests.helpers.pull_requests import add_pull_request_trigger, pr_body
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
@@ -308,15 +310,17 @@ class TestInitialCursor:
         item = client.get(url(project, repository.id), headers=simple_admin_header).json
         assert item["pr_cursor"] == "2026-02-02T02:02:02Z"
 
-    def test_initial_cursor_cannot_change_once_pull_requests_exist(
+    def test_initial_cursor_can_only_move_earlier_once_pull_requests_exist(
         self, client, post_json_admin_header, project, repository, lock_project
     ):
         client.post(
             url(project, repository.id, "pull_requests", "batch"),
             json={"pull_requests": [pr_body()]}, headers=post_json_admin_header
         )
-        response = client.patch(url(project, repository.id), json={"initial_cursor": "2026-02-02T02:02:02"}, headers=post_json_admin_header)
-        assert response.status_code == 400
+        later = client.patch(url(project, repository.id), json={"initial_cursor": "2026-02-02T02:02:02"}, headers=post_json_admin_header)
+        assert later.status_code == 400
+        earlier = client.patch(url(project, repository.id), json={"initial_cursor": "2025-12-01T00:00:00"}, headers=post_json_admin_header)
+        assert earlier.status_code == 200
 
 
 class TestDeleteAssignment:
@@ -343,7 +347,7 @@ class TestDeleteAssignment:
         assert Trigger.query.count() == 1
 
     def test_the_database_restricts_it_too(self, project, repository):
-        PullRequestTrigger(project.id, repository.id, 1, "t", "u", "2026-01-01T10:00:00Z", "a" * 40).add()
+        add_pull_request_trigger(repository, 1, title="t", raised_by="u")
         with pytest.raises(IntegrityError):
             db.session.delete(repository)
             db.session.commit()
@@ -414,20 +418,8 @@ class TestPostPullRequestsBatch:
     def test_batch_create_multiple_prs(self, client, post_json_admin_header, repository):
         """Test creating multiple PRs in a single batch request"""
         batch_data = [
-            {
-                "number": 1,
-                "title": "First PR",
-                "raised_by": "user1",
-                "merged_at": "2026-01-01T10:00:00Z",
-                "merge_commit_sha": "abc123"
-            },
-            {
-                "number": 2,
-                "title": "Second PR",
-                "raised_by": "user2",
-                "merged_at": "2026-01-02T10:00:00Z",
-                "merge_commit_sha": "def456"
-            }
+            pr_body(1, "2026-01-01T10:00:00Z", title="First PR", raised_by="user1"),
+            pr_body(2, "2026-01-02T10:00:00Z", title="Second PR", raised_by="user2"),
         ]
         response = client.post(
             f"/projects/{repository.project_id}/trigger_repositories/{repository.id}/pull_requests/batch",
@@ -451,16 +443,7 @@ class TestPostPullRequestsBatch:
 
     def test_batch_exceeds_max_count(self, client, post_json_admin_header, repository):
         """Test that batch creation fails if more than 100 PRs"""
-        batch_data = [
-            {
-                "number": i,
-                "title": f"PR {i}",
-                "raised_by": "user",
-                "merged_at": "2026-01-01T10:00:00Z",
-                "merge_commit_sha": f"sha{i}"
-            }
-            for i in range(101)
-        ]
+        batch_data = [pr_body(i) for i in range(101)]
         response = client.post(
             f"/projects/{repository.project_id}/trigger_repositories/{repository.id}/pull_requests/batch",
             data=json.dumps({"pull_requests": batch_data}),
@@ -486,40 +469,27 @@ class TestPostPullRequestsBatch:
         assert response.status_code == 400
 
     def test_batch_does_not_accept_dataset_id(self, client, post_json_admin_header, repository):
-        """Test that batch PR creation ignores dataset_id in PR objects"""
-        batch_data = [
-            {
-                "number": 1,
-                "title": "PR with dataset_id",
-                "raised_by": "user",
-                "merged_at": "2026-01-01T10:00:00Z",
-                "merge_commit_sha": "sha1",
-                "dataset_id": 999  # This should be ignored
-            }
-        ]
+        """Test that batch PR creation refuses fields it does not know, dataset_id among them"""
+        batch_data = [pr_body(1, dataset_id=999)]
         response = client.post(
             f"/projects/{repository.project_id}/trigger_repositories/{repository.id}/pull_requests/batch",
             data=json.dumps({"pull_requests": batch_data}),
             headers=post_json_admin_header
         )
-        # The batch PR endpoint should not error, dataset_id just gets ignored
-        # (it's taken from the URL, not the body)
+        assert response.status_code == 400
+        assert PullRequestTrigger.query.count() == 0
+
+    def test_batch_triggers_belong_to_the_assignment_in_the_url(self, client, post_json_admin_header, repository):
+        response = client.post(
+            f"/projects/{repository.project_id}/trigger_repositories/{repository.id}/pull_requests/batch",
+            data=json.dumps({"pull_requests": [pr_body(1)]}), headers=post_json_admin_header
+        )
         assert response.status_code == 201
-        assert len(response.json) == 1
-        # Verify the PR was created with the repository_id from the URL
         assert response.json[0]["project_trigger_repository_id"] == repository.id
 
     def test_batch_not_found_repository(self, client, post_json_admin_header):
         """Test that batch PR creation fails if repository doesn't exist"""
-        batch_data = [
-            {
-                "number": 1,
-                "title": "PR",
-                "raised_by": "user",
-                "merged_at": "2026-01-01T10:00:00Z",
-                "merge_commit_sha": "sha1"
-            }
-        ]
+        batch_data = [pr_body(1)]
         response = client.post(
             "/projects/1/trigger_repositories/9999/pull_requests/batch",
             data=json.dumps({"pull_requests": batch_data}),
@@ -536,13 +506,6 @@ class TestPostPullRequestsBatch:
         )
         assert response.status_code == 400
         assert "must be a list" in response.json.get("error", "")
-
-
-def pr_body(number=1, merged_at="2026-01-01T10:00:00Z", **fields):
-    return {
-        "number": number, "title": f"PR {number}", "raised_by": "user", "merged_at": merged_at,
-        "merge_commit_sha": "a" * 40, **fields,
-    }
 
 
 class TestPullRequestBatchBehaviour:
@@ -564,20 +527,22 @@ class TestPullRequestBatchBehaviour:
         assert response.status_code == 201
         assert len(response.json) == 100
 
-    def test_duplicate_number_in_a_batch_is_rejected_and_nothing_is_kept(
-        self, client, post_json_admin_header, repository
-    ):
+    def test_duplicate_number_in_a_batch_is_stored_once(self, client, post_json_admin_header, repository):
         response = self.post(client, post_json_admin_header, repository, [pr_body(1), pr_body(1)])
-        assert response.status_code >= 400
-        assert PullRequestTrigger.query.count() == 0
-
-    def test_number_already_ingested_is_rejected(self, client, post_json_admin_header, repository):
-        assert self.post(client, post_json_admin_header, repository, [pr_body(1)]).status_code == 201
-        response = self.post(client, post_json_admin_header, repository, [pr_body(1)])
-        assert response.status_code >= 400
+        assert response.status_code == 201
         assert PullRequestTrigger.query.count() == 1
 
-    @pytest.mark.parametrize("field", ["number", "title", "raised_by", "merged_at", "merge_commit_sha"])
+    def test_number_already_ingested_is_left_as_it_is(self, client, post_json_admin_header, repository):
+        assert self.post(client, post_json_admin_header, repository, [pr_body(1)]).status_code == 201
+        response = self.post(client, post_json_admin_header, repository, [pr_body(1, title="changed")])
+        assert response.status_code == 201
+        assert [pr["title"] for pr in response.json] == ["PR 1"]
+        assert PullRequestTrigger.query.count() == 1
+
+    @pytest.mark.parametrize("field", [
+        "number", "title", "raised_by", "merged_at", "merge_commit_sha", "base_branch", "files_truncated",
+        "changed_files",
+    ])
     def test_each_required_field(self, client, post_json_admin_header, repository, field):
         body = pr_body()
         del body[field]
@@ -606,13 +571,7 @@ class TestPullRequestBatchBehaviour:
 def pull_request(client, post_json_admin_header, repository):
     response = client.post(
         f"/projects/{repository.project_id}/trigger_repositories/{repository.id}/pull_requests/batch",
-        data=json.dumps({"pull_requests": [{
-            "number": 1,
-            "title": "A PR",
-            "raised_by": "user1",
-            "merged_at": "2026-01-01T10:00:00Z",
-            "merge_commit_sha": "a" * 40,
-        }]}),
+        data=json.dumps({"pull_requests": [pr_body(1, title="A PR", raised_by="user1", merge_commit_sha="a" * 40)]}),
         headers=post_json_admin_header
     )
     assert response.status_code == 201
@@ -687,7 +646,9 @@ class TestPostPullRequestTask:
         )
 
     def get_pr(self, repository, pull_request):
-        return PullRequestTrigger.query.filter_by(project_trigger_repository_id=repository.id, number=pull_request["number"]).one()
+        return PullRequestTrigger.query.join(PullRequest).filter(
+            PullRequestTrigger.project_trigger_repository_id == repository.id, PullRequest.number == pull_request["number"]
+        ).one()
 
     def test_create(self, client, post_json_admin_header, repository, pull_request, default_dataset):
         spec_raw = spec_file(image="example:latest", env={"KEY": "value"})

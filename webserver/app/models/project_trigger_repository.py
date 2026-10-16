@@ -33,6 +33,10 @@ class ProjectTriggerRepository(db.Model, BaseModel):
     initial_cursor = sa.Column(
         sa.DateTime, nullable=False, server_default=func.now(), default=now_ts
     )
+    # Where the cursor stands within initial_cursor's timestamp: the assignment starts after
+    # (initial_cursor, initial_cursor_number). 0 starts at the timestamp itself, as pull
+    # request numbers begin at 1; the number of the latest pull request starts after it.
+    initial_cursor_number = sa.Column(sa.Integer, nullable=False, default=0, server_default='0')
     # A person turned the repository on or off for the project
     enabled = sa.Column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
     # The controller withdrew the project's access. Never touches enabled, so a re-grant
@@ -62,10 +66,10 @@ class ProjectTriggerRepository(db.Model, BaseModel):
             except (ValueError, TypeError):
                 raise ValueError("initial_cursor must be a valid ISO 8601 datetime string")
 
-        if self.id is not None and self.pull_request_triggers:
+        if self.id is not None and self.pull_request_triggers and value > self.initial_cursor:
             raise ValueError(
-                "Cannot change initial_cursor while pull requests exist. "
-                "Delete all pull requests first if you want to adjust the cursor."
+                "initial_cursor can only be moved earlier while pull requests exist, "
+                "a later one would leave triggers before the cursor"
             )
 
         return value
@@ -86,8 +90,9 @@ class ProjectTriggerRepository(db.Model, BaseModel):
         Get latest PR merge time from all ingested pull requests.
         If no pull requests exist, use initial_cursor as the starting point.
         """
-        pr_cursor = db.session.query(func.max(Models.PullRequestTrigger.merged_at))\
-            .filter_by(project_trigger_repository_id=self.id)\
+        pr_cursor = db.session.query(func.max(Models.PullRequest.merged_at))\
+            .join(Models.PullRequestTrigger, Models.PullRequestTrigger.pull_request_id == Models.PullRequest.id)\
+            .filter(Models.PullRequestTrigger.project_trigger_repository_id == self.id)\
             .scalar()
 
         initial_cursor = cast(dt, self.initial_cursor)

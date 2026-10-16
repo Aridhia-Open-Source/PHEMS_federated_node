@@ -2,6 +2,7 @@
 
 from app.models.dataset import Catalogue, Dataset, Dictionary, ProjectDataset
 from app.models.project import Project
+from app.models.pull_request import ChangedFile, NewPullRequest, PullRequest
 from app.models.pull_request_result import PullRequestResult
 from app.models.pull_request_result_step import PullRequestResultStep
 from app.models.pull_request_trigger import PullRequestTrigger
@@ -17,12 +18,15 @@ from app.models.trigger_repository import ProjectTriggerRepository, TriggerRepos
 
 __all__ = [
     "Catalogue",
+    "ChangedFile",
     "Dataset",
     "Dictionary",
+    "NewPullRequest",
     "Project",
     "ProjectDataset",
     "ProjectResultsRepository",
     "ProjectTriggerRepository",
+    "PullRequest",
     "PullRequestResult",
     "PullRequestResultStep",
     "PullRequestTrigger",

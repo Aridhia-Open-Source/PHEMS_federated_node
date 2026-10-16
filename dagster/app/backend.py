@@ -97,26 +97,13 @@ class BackendAPI:
         return all_prs
 
     def create_pull_request(
-        self,
-        project_id: int,
-        project_trigger_repository_id: int,
-        number: int,
-        title: str,
-        raised_by: str,
-        merged_at: str,
-        merge_commit_sha: str,
+        self, project_id: int, project_trigger_repository_id: int, pull_request: dict
     ) -> PullRequestTrigger:
-        """Create a pull request"""
-        self.logger.info(f"Creating PR #{number} in repo {project_trigger_repository_id}")
-        data = {
-            "number": number,
-            'title': title,
-            "raised_by": raised_by,
-            "merged_at": merged_at,
-            "merge_commit_sha": merge_commit_sha,
-        }
+        """Ingest a pull request through an assignment: stored on its repository, fanned out to every active assignment"""
+        self.logger.info(f"Creating PR #{pull_request['number']} in repo {project_trigger_repository_id}")
         response = self.session.post(
-            f"/projects/{project_id}/trigger_repositories/{project_trigger_repository_id}/pull_requests", json=data
+            f"/projects/{project_id}/trigger_repositories/{project_trigger_repository_id}/pull_requests",
+            json=pull_request,
         )
         return PullRequestTrigger(**response.json())
 
@@ -133,6 +120,20 @@ class BackendAPI:
             json={"pull_requests": pull_requests}
         )
         return [PullRequestTrigger(**pr) for pr in response.json()]
+
+    def create_repository_pull_requests_batch(self, repository_id: int, pull_requests: list[dict]) -> dict:
+        """
+        Ingest up to 100 pull requests on a global trigger repository, once for all projects: the numbers
+        stored and those already there. Not used until the ingest polls per repository.
+        """
+        if len(pull_requests) > 100:
+            raise ValueError("Maximum 100 pull requests per batch")
+
+        self.logger.info(f"Creating batch of {len(pull_requests)} pull requests for trigger repository {repository_id}")
+        response = self.session.post(
+            f"/trigger_repositories/{repository_id}/pull_requests/batch", json={"pull_requests": pull_requests}
+        )
+        return response.json()
 
     def patch_pull_request(
         self,

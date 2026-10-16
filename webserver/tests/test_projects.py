@@ -13,6 +13,7 @@ from app.models.dataset import Dataset
 from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
 from app.models.pull_request_trigger import PullRequestTrigger
+from tests.helpers.pull_requests import add_pull_request_trigger
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
@@ -374,7 +375,7 @@ class TestProjectHealthcheck:
         merged_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
         for repo, numbers in ((default_repo, (1, 2, 3)), (other, (1,))):
             for number in numbers:
-                PullRequestTrigger(project.id, repo.id, number, f"PR {number}", "user", merged_at, f"sha{number}").add()
+                add_pull_request_trigger(repo, number, merged_at.replace(tzinfo=None).isoformat(), sha=f"{number}" * 40)
         response = self.get(client, project, simple_admin_header)
         counts = {r["id"]: r["pr_count"] for r in response.json["trigger_repositories"]}
         assert counts == {default_repo.id: 3, other.id: 1}
@@ -489,9 +490,6 @@ class TestDeleteProject:
     def test_deletes_a_project_with_pull_requests(
         self, client, k8s_client, simple_admin_header, full_project, default_repo
     ):
-        PullRequestTrigger(
-            project_id=full_project.id, project_trigger_repository_id=default_repo.id, number=1, title="t",
-            raised_by="u", merged_at="2026-01-01T10:00:00Z", merge_commit_sha="a" * 40
-        ).add()
+        add_pull_request_trigger(default_repo, 1, title="t", raised_by="u")
         assert self.delete(client, simple_admin_header, full_project).status_code == HTTPStatus.NO_CONTENT
         assert PullRequestTrigger.query.count() == 0

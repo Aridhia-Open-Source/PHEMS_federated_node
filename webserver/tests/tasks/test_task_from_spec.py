@@ -13,6 +13,7 @@ from app.models.project_dataset import ProjectDataset
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 from app.models.pull_request_trigger import PullRequestTrigger
+from tests.helpers.pull_requests import add_pull_request_trigger
 from app.models.task import Task
 from app.models.task_spec import TaskSpec
 from app.models.trigger_state import TriggerState
@@ -31,12 +32,7 @@ def api_request(client, project, dataset):
 
 @pytest.fixture
 def pull_request(client, project, dataset, default_repo):
-    pull_request = PullRequestTrigger(
-        project_id=project.id, project_trigger_repository_id=default_repo.id, number=7, title="PR title",
-        raised_by="pr-user", merged_at="2026-01-01T10:00:00", merge_commit_sha="a" * 40,
-    )
-    pull_request.add()
-    return pull_request
+    return add_pull_request_trigger(default_repo, 7, title="PR title", raised_by="pr-user")
 
 
 @pytest.fixture

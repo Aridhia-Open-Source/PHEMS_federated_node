@@ -1,8 +1,10 @@
 import pytest
 
 from app.models import (
-    Dataset, ProjectTriggerRepository, PullRequestTrigger, Secret, SecretProviderType, TriggerRepository,
+    Dataset, NewPullRequest, ProjectTriggerRepository, PullRequest, PullRequestTrigger, Secret, SecretProviderType,
+    TriggerRepository,
 )
+from app.models.pull_request import PROVIDER_FILES_CAP
 from app.tests.conftest import (
     SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_SECRET, SAMPLE_TRIGGER_REPOSITORY,
 )
@@ -114,24 +116,40 @@ class TestPullRequest:
         assert pr.task_id is None and pr.state_cause is None
         assert pr.id == 77
 
-    def test_from_git_reads_the_provider_response(self):
-        git_pr = {
-            "number": 12, "title": "Add spec", "user": {"login": "dev"},
-            "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "abc", "extra": "ignored",
+
+class TestNewPullRequest:
+    GIT_PR = {
+        "number": 12, "title": "Add spec", "user": {"login": "dev"}, "base": {"ref": "main"},
+        "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "abc", "extra": "ignored",
+    }
+    FILES = [
+        {"filename": "triggers/spec.json", "status": "added", "patch": "content"},
+        {"filename": "README.md", "status": "modified"},
+    ]
+
+    def test_from_git_reads_the_provider_response_and_the_files_as_paths_with_status(self):
+        pr = NewPullRequest.from_git(self.GIT_PR, self.FILES)
+
+        assert pr.model_dump() == {
+            "number": 12, "title": "Add spec", "raised_by": "dev", "merged_at": "2026-06-26T10:00:00Z",
+            "merge_commit_sha": "abc", "base_branch": "main", "files_truncated": False,
+            "changed_files": [
+                {"path": "triggers/spec.json", "status": "added"}, {"path": "README.md", "status": "modified"},
+            ],
         }
 
-        pr = PullRequestTrigger.from_git(2, 4, git_pr)
+    def test_a_list_as_long_as_the_providers_cap_is_truncated(self):
+        files = [{"filename": f"f{n}.json", "status": "added"} for n in range(PROVIDER_FILES_CAP)]
 
-        assert (pr.project_id, pr.project_trigger_repository_id, pr.number, pr.raised_by) == (2, 4, 12, "dev")
-        assert pr.state.value == "UNKNOWN"
+        assert NewPullRequest.from_git(self.GIT_PR, files).files_truncated is True
+        assert NewPullRequest.from_git(self.GIT_PR, files[:-1]).files_truncated is False
 
-    def test_dump_new_leaves_out_the_server_fields(self):
-        pr = PullRequestTrigger.from_git(2, 4, {
-            "number": 12, "title": "t", "user": {"login": "dev"},
-            "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "abc",
-        })
 
-        assert pr.dump_new() == {
-            "number": 12, "title": "t", "raised_by": "dev",
-            "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "abc"
-        }
+class TestPullRequestFacts:
+    def test_parses_a_webserver_payload(self):
+        facts = PullRequest(
+            id=3, trigger_repository_id=1, number=5, title="t", raised_by="u", merged_at="2026-01-01T10:00:00",
+            merge_commit_sha="a" * 40, base_branch="main", files_truncated=False,
+        )
+
+        assert (facts.id, facts.base_branch, facts.files_truncated) == (3, "main", False)

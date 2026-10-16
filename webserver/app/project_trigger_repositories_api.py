@@ -22,15 +22,17 @@ from sqlalchemy.exc import IntegrityError
 
 from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.task_spec import TaskSpecRequest
-from app.dtos.trigger_repository import ProjectTriggerRepositoryDTO, PullRequestTriggerDTO
+from app.dtos.trigger_repository import ProjectTriggerRepositoryDTO, PullRequestRequest, PullRequestTriggerDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
 from app.helpers.project_lock import require_drained
+from app.helpers.pull_request_fanout import backfill, ingest_pull_requests
 from app.helpers.query_filters import arg_get
 from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.wrappers import audit, auth
 from app.models.project import Project
 from app.models.project_trigger_repository import ProjectTriggerRepository
+from app.models.pull_request import PullRequest
 from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.task import Task
 from app.models.trigger_repository import TriggerRepository
@@ -134,9 +136,20 @@ def assign_project_trigger_repository(project_id: int):
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
+    if "initial_cursor" not in body:
+        # History is not replayed: start after the latest pull request stored
+        latest = PullRequest.query.filter_by(trigger_repository_id=repo.id)\
+            .order_by(PullRequest.merged_at.desc(), PullRequest.number.desc()).first()
+        if latest:
+            assignment.initial_cursor = latest.merged_at
+            assignment.initial_cursor_number = latest.number
     assignment.add(commit=False)
     _check_loop(assignment)
+    # Committed first, so the cursor is read back as stored
     session.commit()
+    if assignment.active:
+        backfill(assignment)
+        session.commit()
     return ProjectTriggerRepositoryDTO.from_model(assignment).dump(), HTTPStatus.CREATED
 
 
@@ -174,6 +187,7 @@ def patch_project_trigger_repository(project_id: int, assignment_id: int):
     if set(body) - {"revoked"}:
         require_drained(assignment.project)
 
+    was_active = assignment.active
     if "base_branch" in body:
         if not body["base_branch"]:
             raise InvalidRequest("base_branch cannot be empty")
@@ -194,10 +208,17 @@ def patch_project_trigger_repository(project_id: int, assignment_id: int):
             assignment.initial_cursor = body["initial_cursor"]
         except ValueError as e:
             raise InvalidRequest(str(e))
+        # The timestamp itself is in scope
+        assignment.initial_cursor_number = 0
 
     session.flush()
     _check_loop(assignment)
     session.commit()
+    # An assignment that is active now has to catch up on what it missed: after it was
+    # enabled or un-revoked, or when its cursor moved earlier
+    if assignment.active and (not was_active or "initial_cursor" in body):
+        backfill(assignment)
+        session.commit()
     return ProjectTriggerRepositoryDTO.from_model(assignment).dump(), HTTPStatus.OK
 
 
@@ -222,9 +243,9 @@ def delete_project_trigger_repository(project_id: int, assignment_id: int):
 
 def _pull_request(project_id: int, assignment_id: int, number: int) -> PullRequestTrigger:
     _assignment(project_id, assignment_id)
-    pr = PullRequestTrigger.query.filter(
+    pr = PullRequestTrigger.query.join(PullRequest).filter(
         PullRequestTrigger.project_trigger_repository_id == assignment_id,
-        PullRequestTrigger.number == number
+        PullRequest.number == number
     ).one_or_none()
     if not pr:
         raise InvalidRequest(
@@ -233,33 +254,39 @@ def _pull_request(project_id: int, assignment_id: int, number: int) -> PullReque
     return pr
 
 
+def _ingest(assignment: ProjectTriggerRepository, bodies: list) -> list[PullRequestTrigger]:
+    """
+    Stores the pull requests on the assignment's repository and fans them out to every active
+    assignment of it, and returns the assignment's own triggers for them, in the order given.
+    Stays until the ingest posts once per repository (stage 7).
+    """
+    requests = [PullRequestRequest.parse(body) for body in bodies]
+    ingest_pull_requests(assignment.trigger_repository_id, requests)
+    session.commit()
+    triggers = {
+        pr.number: pr for pr in PullRequestTrigger.query.join(PullRequest).filter(
+            PullRequestTrigger.project_trigger_repository_id == assignment.id,
+            PullRequest.number.in_([r.number for r in requests]),
+        )
+    }
+    return [triggers[r.number] for r in requests if r.number in triggers]
+
+
 # TODO: the pull_requests routes below are called by Dagster only. No user or admin is
 # expected to touch them, so they should be restricted to internal callers.
 @bp.route(f'{ASSIGNMENT_URL}/<int:assignment_id>/pull_requests', methods=['POST'])
 @auth(scope='can_admin_dataset')
 def post_pull_request(project_id: int, assignment_id: int):
     """
-    POST /projects/<project_id>/trigger_repositories/<assignment_id>/pull_requests — create a new pull request
+    POST /projects/<project_id>/trigger_repositories/<assignment_id>/pull_requests — ingest a
+    pull request: store it on the repository and fan it out. Returns the assignment's trigger.
+    Body: a pull request, see PullRequestRequest.
     """
     assignment = _assignment(project_id, assignment_id)
-    body = request.json or {}
-    required = ['number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha']
-    missing = [f for f in required if f not in body]
-    if missing:
-        raise InvalidRequest(f"Missing required fields: {', '.join(missing)}")
-
-    pr = PullRequestTrigger(
-        project_id=assignment.project_id,
-        project_trigger_repository_id=assignment.id,
-        number=body['number'],
-        title=body['title'],
-        raised_by=body['raised_by'],
-        merged_at=body['merged_at'],
-        merge_commit_sha=body['merge_commit_sha'],
-    )
-    pr.add()
-
-    return PullRequestTriggerDTO.from_model(pr).dump(), HTTPStatus.CREATED
+    triggers = _ingest(assignment, [request.json])
+    if not triggers:
+        raise InvalidRequest("The pull request is before the assignment's cursor, it has no trigger here")
+    return PullRequestTriggerDTO.from_model(triggers[0]).dump(), HTTPStatus.CREATED
 
 
 @bp.route(f'{ASSIGNMENT_URL}/<int:assignment_id>/pull_requests/batch', methods=['POST'])
@@ -267,8 +294,9 @@ def post_pull_request(project_id: int, assignment_id: int):
 def post_pull_requests_batch(project_id: int, assignment_id: int):
     """
     POST /projects/<project_id>/trigger_repositories/<assignment_id>/pull_requests/batch —
-    create multiple pull requests for an assignment
-    Body: {"pull_requests": [PR objects, up to 100]}
+    ingest up to 100 pull requests: store them on the repository and fan them out. Posting
+    known pull requests again changes nothing. Returns the assignment's triggers for them.
+    Body: {"pull_requests": [pull requests, see PullRequestRequest]}
     """
     assignment = _assignment(project_id, assignment_id)
 
@@ -280,38 +308,8 @@ def post_pull_requests_batch(project_id: int, assignment_id: int):
     if len(body) > 100:
         raise InvalidRequest("Maximum 100 pull requests per batch")
 
-    if not body:
-        return [], HTTPStatus.CREATED
-
-    created_prs = []
-    for pr_data in body:
-        try:
-            # Validate required fields
-            required = ['number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha']
-            missing = [f for f in required if f not in pr_data]
-            if missing:
-                raise InvalidRequest(f"Missing required fields in PR: {', '.join(missing)}")
-
-            # Create PR (assignment always from URL)
-            pr = PullRequestTrigger(
-                project_id=assignment.project_id,
-                project_trigger_repository_id=assignment.id,
-                number=pr_data['number'],
-                title=pr_data['title'],
-                raised_by=pr_data['raised_by'],
-                merged_at=pr_data['merged_at'],
-                merge_commit_sha=pr_data['merge_commit_sha'],
-            )
-            pr.add(commit=False)  # Don't commit yet, batch commit at end
-            created_prs.append(pr)
-        except Exception as e:
-            session.rollback()
-            raise InvalidRequest(f"Error creating PR #{pr_data.get('number', '?')}: {str(e)}")
-
-    # Batch commit all PRs
-    session.commit()
-
-    return [PullRequestTriggerDTO.from_model(pr).dump() for pr in created_prs], HTTPStatus.CREATED
+    triggers = _ingest(assignment, body)
+    return [PullRequestTriggerDTO.from_model(pr).dump() for pr in triggers], HTTPStatus.CREATED
 
 
 @bp.route(f'{ASSIGNMENT_URL}/<int:assignment_id>/pull_requests', methods=['GET'])
@@ -332,7 +330,9 @@ def get_pull_requests(project_id: int, assignment_id: int):
     per_page = arg_get('per_page', 20, type=int)
     state = request.args.get('state', None)
 
-    query = PullRequestTrigger.query.filter(PullRequestTrigger.project_trigger_repository_id == assignment_id)
+    query = PullRequestTrigger.query.join(PullRequest).filter(
+        PullRequestTrigger.project_trigger_repository_id == assignment_id
+    )
 
     if state is not None:
         if state not in [s.value for s in TriggerState]:
@@ -340,7 +340,7 @@ def get_pull_requests(project_id: int, assignment_id: int):
             raise InvalidRequest(f"Invalid state: {state}. Must be one of: {valid}")
         query = query.filter(PullRequestTrigger.state == state)
 
-    query = query.order_by(PullRequestTrigger.merged_at.desc())
+    query = query.order_by(PullRequest.merged_at.desc(), PullRequest.number.desc())
     paginated = query.paginate(page=page, per_page=per_page, error_out=False)
 
     return {

@@ -8,18 +8,23 @@ drained.
 - POST /trigger_repositories
 - PATCH /trigger_repositories/<id>
 - DELETE /trigger_repositories/<id>
+- GET /trigger_repositories/<id>/pull_requests
+- POST /trigger_repositories/<id>/pull_requests/batch
 """
 from http import HTTPStatus
 
 from flask import Blueprint, request
 
 from app.dtos.repository_uri import RepositoryUriRequest
-from app.dtos.trigger_repository import TriggerRepositoryDTO
+from app.dtos.trigger_repository import PullRequestDTO, PullRequestRequest, TriggerRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
+from app.helpers.query_filters import arg_get
 from app.helpers.project_lock import require_all_drained
+from app.helpers.pull_request_fanout import ingest_pull_requests
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
+from app.models.pull_request import PullRequest
 from app.models.trigger_repository import TriggerRepository
 from app.models.secret import Secret
 
@@ -49,6 +54,51 @@ def get_repository(repo_id):
     """
     repo = TriggerRepository.get_by_id(repo_id)
     return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:repo_id>/pull_requests', methods=['GET'])
+def get_pull_requests(repo_id):
+    """
+    GET /trigger_repositories/<id>/pull_requests — the provider's facts of the pull requests
+    stored for the repository, most recent merge first.
+    Query params: page (default 1), per_page (default 20)
+    """
+    TriggerRepository.get_by_id(repo_id)
+    page = arg_get('page', 1, type=int)
+    per_page = arg_get('per_page', 20, type=int)
+    paginated = PullRequest.query.filter_by(trigger_repository_id=repo_id)\
+        .order_by(PullRequest.merged_at.desc(), PullRequest.number.desc())\
+        .paginate(page=page, per_page=per_page, error_out=False)
+    return {
+        'items': [PullRequestDTO.from_model(pr).dump() for pr in paginated.items],
+        'page': page,
+        'per_page': per_page,
+        'total': paginated.total,
+    }, HTTPStatus.OK
+
+
+# TODO: called by Dagster only, like the per-project pull request routes
+@bp.route('/<int:repo_id>/pull_requests/batch', methods=['POST'])
+def post_pull_requests_batch(repo_id):
+    """
+    POST /trigger_repositories/<id>/pull_requests/batch — store up to 100 pull requests of the
+    repository and create their triggers for every active assignment. Idempotent: a number
+    already stored is left as it is. Responds with the numbers stored and those already there.
+    Body: {"pull_requests": [pull requests, see PullRequestRequest]}
+    """
+    repo = TriggerRepository.get_by_id(repo_id)
+    body = (request.json or {}).get('pull_requests')
+    if not isinstance(body, list):
+        raise InvalidRequest("pull_requests must be a list of pull requests")
+    if len(body) > 100:
+        raise InvalidRequest("Maximum 100 pull requests per batch")
+
+    created, existing = ingest_pull_requests(repo.id, [PullRequestRequest.parse(pr) for pr in body])
+    session.commit()
+    return {
+        'created': [pr.number for pr in created],
+        'existing': [pr.number for pr in existing],
+    }, HTTPStatus.CREATED
 
 
 @bp.route('/<int:repo_id>', methods=['DELETE'])

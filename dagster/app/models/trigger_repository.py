@@ -19,6 +19,8 @@ class TriggerRepository(BaseModel):
     api_uri: str
     # The secret holding the git token, under the key TOKEN.
     secret: Secret
+    # The latest merge among the stored pull requests, None while there are none
+    pr_cursor: str | None = None
 
     @property
     def repo_path(self) -> str:

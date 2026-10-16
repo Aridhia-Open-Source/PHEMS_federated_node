@@ -287,7 +287,9 @@ def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret,
     dataset.add(user_id=user_uuid)
     ProjectDataset(project.id, dataset.id).add()
 
-    assignment = ProjectTriggerRepository(project.id, trigger_repo.id, watch_dir="")
+    assignment = ProjectTriggerRepository(
+        project.id, trigger_repo.id, watch_dir="", initial_cursor="2026-01-01T00:00:00"
+    )
     assignment.add()
     return assignment
 

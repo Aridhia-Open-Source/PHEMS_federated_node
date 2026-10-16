@@ -120,6 +120,7 @@ def upgrade() -> None:
         sa.Column('watch_dir', sa.String(length=4096), nullable=False),
         sa.Column('base_branch', sa.String(length=256), nullable=False, server_default='main'),
         sa.Column('initial_cursor', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column('initial_cursor_number', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('revoked', sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
@@ -216,21 +217,50 @@ def upgrade() -> None:
     )
     op.create_index('ix_triggers_state', 'triggers', ['state'])
 
-    # Create pull_request_triggers table (a trigger)
+    # Create pull_requests table (the provider's facts of a merged pull request, once per repository)
     op.create_table(
-        'pull_request_triggers',
-        sa.Column('trigger_id', sa.Integer(), nullable=False),
-        sa.Column('project_trigger_repository_id', sa.Integer(), nullable=False),
+        'pull_requests',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('trigger_repository_id', sa.Integer(), nullable=False),
         sa.Column('number', sa.Integer(), nullable=False),
         sa.Column('title', sa.String(length=256), nullable=False),
         sa.Column('raised_by', sa.String(length=256), nullable=False),
         sa.Column('merge_commit_sha', sa.String(length=40), nullable=False),
         sa.Column('merged_at', sa.DateTime(), nullable=False),
+        sa.Column('base_branch', sa.String(length=256), nullable=False),
+        sa.Column('files_truncated', sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.ForeignKeyConstraint(['trigger_repository_id'], ['trigger_repositories.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('trigger_repository_id', 'number', name='uq_pull_requests_repo_number'),
+    )
+    op.create_index(
+        'ix_pull_requests_repo_merged_at_number', 'pull_requests', ['trigger_repository_id', 'merged_at', 'number']
+    )
+
+    # Create pull_request_files table (the paths a pull request changed, and how)
+    op.create_table(
+        'pull_request_files',
+        sa.Column('pull_request_id', sa.Integer(), nullable=False),
+        sa.Column('path', sa.String(length=1024), nullable=False),
+        sa.Column('status', sa.String(length=32), nullable=False),
+        sa.ForeignKeyConstraint(['pull_request_id'], ['pull_requests.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('pull_request_id', 'path'),
+    )
+
+    # Create pull_request_triggers table (a trigger: a project's evaluation of a pull request)
+    op.create_table(
+        'pull_request_triggers',
+        sa.Column('trigger_id', sa.Integer(), nullable=False),
+        sa.Column('pull_request_id', sa.Integer(), nullable=False),
+        sa.Column('project_trigger_repository_id', sa.Integer(), nullable=False),
         sa.Column('spec_raw', sa.Text(), nullable=True),
         sa.ForeignKeyConstraint(['trigger_id'], ['triggers.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['pull_request_id'], ['pull_requests.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['project_trigger_repository_id'], ['project_trigger_repositories.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('trigger_id'),
-        sa.UniqueConstraint('project_trigger_repository_id', 'number', name='uq_pr_repo_number'),
+        sa.UniqueConstraint(
+            'project_trigger_repository_id', 'pull_request_id', name='uq_pr_triggers_assignment_pull_request'
+        ),
     )
 
     # Create api_request_triggers table (a trigger)
@@ -390,6 +420,9 @@ def downgrade() -> None:
     op.drop_table('task_specs')
     op.drop_table('api_request_triggers')
     op.drop_table('pull_request_triggers')
+    op.drop_table('pull_request_files')
+    op.drop_index('ix_pull_requests_repo_merged_at_number', 'pull_requests')
+    op.drop_table('pull_requests')
     op.drop_index('ix_triggers_state', 'triggers')
     op.drop_table('triggers')
     op.drop_table('results_backends')

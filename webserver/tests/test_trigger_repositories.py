@@ -6,6 +6,7 @@ from app.dtos.trigger_repository import TriggerRepositoryDTO
 from app.helpers.base_model import db
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request_trigger import PullRequestTrigger
+from tests.helpers.pull_requests import add_pull_request_trigger
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 from app.models.trigger_repository import TriggerRepository
@@ -28,7 +29,7 @@ class TestGetRepositories:
     def test_list_is_global(self, client, simple_admin_header, trigger_repo, default_repo):
         response = client.get("/trigger_repositories", headers=simple_admin_header)
         assert [r["id"] for r in response.json] == [trigger_repo.id]
-        assert set(response.json[0]) == {"id", "uri", "provider", "api_uri", "secret"}
+        assert set(response.json[0]) == {"id", "uri", "provider", "api_uri", "secret", "pr_cursor"}
 
     def test_list_includes_an_unassigned_repository(self, client, simple_admin_header, trigger_repo):
         response = client.get("/trigger_repositories", headers=simple_admin_header)
@@ -54,7 +55,7 @@ class TestPostRepository:
         response = client.post("/trigger_repositories/", json=repo_post_body, headers=post_json_admin_header)
         assert response.status_code == 201
         assert response.json["uri"] == repo_post_body["uri"]
-        assert set(response.json) == {"id", "uri", "provider", "api_uri", "secret"}
+        assert set(response.json) == {"id", "uri", "provider", "api_uri", "secret", "pr_cursor"}
         assert TriggerRepository.query.count() == 1
         assert ProjectTriggerRepository.query.count() == 0
 
@@ -300,9 +301,7 @@ class TestDeleteRepository:
     def test_delete_is_refused_while_pull_requests_exist(
         self, client, simple_admin_header, trigger_repo, default_repo, lock_project
     ):
-        PullRequestTrigger(
-            lock_project.id, default_repo.id, 1, "t", "user", "2026-01-01T10:00:00Z", "a" * 40
-        ).add()
+        add_pull_request_trigger(default_repo, 1, title="t")
         response = client.delete(f"/trigger_repositories/{trigger_repo.id}", headers=simple_admin_header)
         assert response.status_code == 400
         assert (TriggerRepository.query.count(), ProjectTriggerRepository.query.count()) == (1, 1)
@@ -318,4 +317,4 @@ class TestDeleteRepository:
 class TestTriggerRepositoryDTO:
     def test_fields(self, trigger_repo):
         sanitized = TriggerRepositoryDTO.from_model(trigger_repo).dump()
-        assert set(sanitized) == {"id", "uri", "provider", "api_uri", "secret"}
+        assert set(sanitized) == {"id", "uri", "provider", "api_uri", "secret", "pr_cursor"}

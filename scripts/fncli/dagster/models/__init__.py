@@ -2,6 +2,7 @@
 
 from fncli.dagster.models.dataset import Catalogue, Dataset, Dictionary, ProjectDataset
 from fncli.dagster.models.project import Project
+from fncli.dagster.models.pull_request import PullRequest
 from fncli.dagster.models.pull_request_result import PullRequestResult
 from fncli.dagster.models.pull_request_trigger import PullRequestTrigger
 from fncli.dagster.models.results_repository import ProjectResultsRepository, ResultsRepository
@@ -18,6 +19,7 @@ __all__ = [
     "Dictionary",
     "Project",
     "ProjectDataset",
+    "PullRequest",
     "PullRequestResult",
     "PullRequestTrigger",
     "ProjectResultsRepository",

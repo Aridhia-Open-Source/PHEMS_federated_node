@@ -18,7 +18,7 @@ def repo(id=1, uri="github.com/org/repo", pr_cursor="2026-01-01T00:00:00Z", base
 
 def git_pr(number):
     return {
-        "number": number, "title": f"PR {number}", "user": {"login": "dev"},
+        "number": number, "title": f"PR {number}", "user": {"login": "dev"}, "base": {"ref": "main"},
         "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": f"sha{number}",
     }
 
@@ -27,6 +27,7 @@ def fake_git_api(merged_numbers):
     git_api = MagicMock()
     git_api.get_new_merged_pulls.return_value = [{"number": n} for n in merged_numbers]
     git_api.get_pull_request.side_effect = lambda repo_path, number: git_pr(number)
+    git_api.get_pull_request_files.return_value = [{"filename": "spec.json", "status": "added"}]
     return git_api
 
 
@@ -79,14 +80,18 @@ def test_posts_one_batch_per_repository_with_new_prs():
     assert "Saved 3 new pull requests" in results[0].skip_message
 
 
-def test_the_batch_carries_only_the_fields_the_server_does_not_own():
-    _, backend_api = run([repo(1)], {1: fake_git_api([5])})
+def test_the_batch_carries_the_facts_and_the_changed_paths():
+    git_api = fake_git_api([5])
+
+    _, backend_api = run([repo(1)], {1: git_api})
 
     body = backend_api.create_pull_requests_batch.call_args.args[2][0]
     assert body == {
-        "number": 5, "title": "PR 5", "raised_by": "dev",
-        "merged_at": "2026-06-26T10:00:00Z", "merge_commit_sha": "sha5"
+        "number": 5, "title": "PR 5", "raised_by": "dev", "merged_at": "2026-06-26T10:00:00Z",
+        "merge_commit_sha": "sha5", "base_branch": "main", "files_truncated": False,
+        "changed_files": [{"path": "spec.json", "status": "added"}],
     }
+    git_api.get_pull_request_files.assert_called_once_with("org/repo", 5)
 
 
 def test_queries_the_provider_from_the_repository_cursor():

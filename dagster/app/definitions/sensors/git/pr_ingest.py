@@ -1,7 +1,7 @@
 import dagster as dg
 
 from app.definitions.sensors.git.base import GitAPI, GitSensor
-from app.models import ProjectTriggerRepository, PullRequestTrigger
+from app.models import NewPullRequest, ProjectTriggerRepository
 
 
 class PullRequestIngestSensor(GitSensor):
@@ -36,7 +36,7 @@ class PullRequestIngestSensor(GitSensor):
             self.backend_api.create_pull_requests_batch(
                 repo.project_id,
                 repo.id,
-                [pr.dump_new() for pr in pull_requests],
+                [pr.model_dump() for pr in pull_requests],
             )
             saved += len(pull_requests)
 
@@ -46,6 +46,8 @@ class PullRequestIngestSensor(GitSensor):
 
         yield dg.SkipReason(f"Saved {saved} new pull requests to database.")
 
-    def _fetch_pr(self, git_api: GitAPI, repo: ProjectTriggerRepository, pr_number: int) -> PullRequestTrigger:
+    def _fetch_pr(self, git_api: GitAPI, repo: ProjectTriggerRepository, pr_number: int) -> NewPullRequest:
+        """The pull request and the files it changed, which the backend matches against each watcher's watch_dir."""
         pr = git_api.get_pull_request(repo.repo_path, pr_number)
-        return PullRequestTrigger.from_git(repo.project_id, repo.id, pr)
+        files = git_api.get_pull_request_files(repo.repo_path, pr_number)
+        return NewPullRequest.from_git(pr, files)

@@ -10,7 +10,7 @@ import pytest
 
 from fncli.dagster.models import (
     Dataset, Project, ProjectDataset, ProjectResultsRepository, ProjectTriggerRepository, PullRequestResult,
-    PullRequestTrigger, ResultsRepository, Secret, Task, TriggerRepository,
+    PullRequest, PullRequestTrigger, ResultsRepository, Secret, Task, TriggerRepository,
 )
 
 CONTRACTS_DIR = Path(__file__).resolve().parents[3] / "webserver" / "tests" / "contracts"
@@ -36,6 +36,7 @@ def items_of(name: str) -> list[dict]:
     ("projects_page", Project),
     ("pull_requests_batch", PullRequestTrigger),
     ("pull_requests_page", PullRequestTrigger),
+    ("repository_pull_requests_page", PullRequest),
     ("results_by_step", PullRequestResult),
     ("secrets_list", Secret),
 ])
