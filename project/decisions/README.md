@@ -34,4 +34,4 @@ Handover for the moonshot and mirror work: [../handover/README.md](../handover/R
 | [0017](0017-task-status-written-by-run-status-sensors.md) | Task status is written only by run-status sensors | Accepted |
 | [0018](0018-global-resources-and-gitea-mirror.md) | Global resources assigned to projects, and a Gitea mirror of GitHub (design note) | Proposed (schema naming superseded by 0019; mirror superseded by 0020) |
 | [0019](0019-global-resources-and-shared-pull-requests.md) | Global resources assigned to projects, with pull requests stored once per repository | Proposed (reviewed against the preview branch; eight decisions open) |
-| [0020](0020-gitea-mirror-service.md) | Gitea mirror service: a self-contained GitHub mirror that fires webhooks at the webserver | Proposed (depends on 0019; gated on a Gitea spike) |
+| [0020](0020-gitea-mirror-service.md) | Gitea mirror service: a self-contained GitHub mirror with no knowledge of the node | Proposed (gated on a Gitea spike) |
