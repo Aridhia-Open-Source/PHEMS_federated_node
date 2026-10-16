@@ -1,17 +1,75 @@
-# Gitea Mirror Service
+# Gitea mirror service
 
-Stage m1 skeleton: Flask + SQLAlchemy + Alembic service for ADR 0020 (gitea-mirror-service).
+Mirrors the merged pull requests of GitHub repositories into the node's own Gitea, so the evaluation path reads locally. It knows nothing about the federated node: no webserver calls, no shared schema. Design: [ADR 0020](../project/decisions/0020-gitea-mirror-service.md). Spike findings: [SPIKE.md](SPIKE.md).
 
-## What it is
+It is outbound only. It polls GitHub, pushes to a normal Gitea repository, and tells registered webhook endpoints when a pull request has been mirrored.
 
-A minimal skeleton service that mirrors GitHub repositories into Gitea. This stage includes:
+## Configuration
 
-- Flask app factory with SQLAlchemy ORM
-- Alembic database migrations (baseline with 5 tables)
-- GET /health endpoint (checks DB connection)
-- Dockerfile and requirements (pinned)
-- Test runner with Postgres in Docker
-- First test: /health returns 200 and migration creates all 5 tables
+Environment variables, all required unless noted:
+
+- `GITEA_MIRROR_API_TOKEN`: the bearer token every API route (except `/health`) checks. The app fails at startup if it is unset.
+- `GITEA_MIRROR_DB_USER`, `GITEA_MIRROR_DB_PASSWORD`, `GITEA_MIRROR_DB_HOST`, `GITEA_MIRROR_DB_PORT`, `GITEA_MIRROR_DB_NAME`: the `gitea_mirror` Postgres database.
+- `GITEA_MIRROR_DB_SSL` (optional): SSL mode for the connection.
+
+GitHub tokens and webhook HMAC keys are not env vars. A mirror or webhook names a Kubernetes secret (`secret_namespace`, `secret_key`) and the service reads its `token` field through the in-cluster API.
+
+## API
+
+All routes need `Authorization: Bearer <GITEA_MIRROR_API_TOKEN>`, except `GET /health`. Bodies are JSON; unknown fields are rejected with 400. `fncli mirror` wraps these.
+
+Mirrors (`upstream_uri` is an https URL; fields are `upstream_uri`, `secret_namespace`, `secret_key`, `gitea_owner`, `gitea_repo`, `base_branch`, `enabled`):
+
+- `GET /mirrors`, `POST /mirrors`, `GET|PATCH|DELETE /mirrors/<id>`. Creating a mirror starts its cursor at now (no backfill of old pull requests) and preloads shadow users; the response has `users_sync` (ok, skipped or failed). A duplicate upstream URI or Gitea repository is 409.
+- `GET /mirrors/<id>/status`: `cursor`, `last_sync_at`, `last_success_at`, `last_error`, `prs_mirrored`, `token_expired`.
+- `POST /mirrors/<id>/resync`: runs a sync for the mirror now.
+- `POST /mirrors/<id>/users/sync`: creates shadow users for the upstream contributors and collaborators. Returns `users`, `created`, `existing`.
+
+Webhooks (fields `url` (http or https), `secret_namespace`, `secret_key`, `mirror_id` (null for all mirrors), `enabled`):
+
+- `GET /webhooks`, `POST /webhooks`, `GET|PATCH|DELETE /webhooks/<id>`.
+- `POST /webhooks/<id>/test`: sends a signed `ping` now; 502 if it fails.
+- `GET /webhooks/<id>/deliveries[?status=pending|delivered|failed]`: the latest 100, newest first.
+
+## Sync algorithm
+
+Per mirror, under a per-mirror lock, from the cursor (an `updated_at` time, starting at mirror creation):
+
+1. Fetch merged pull requests into the base branch from GitHub (conditional requests, oldest first) and the refs `refs/pull/*/head`.
+2. Push the branches to the Gitea repository as they are, and each PR head as a `pr/<n>` branch. A normal repository rejects pushes into `refs/pull/*`, and Gitea writes its own refs there.
+3. Replay the PRs in `merged_at` order. For each: force-push the Gitea base branch to `merge_commit_sha^1`, open the Gitea pull request from `pr/<n>` as the shadow user (admin `Sudo` header), fast-forward the base to `merge_commit_sha`, and mark the PR `manually-merged` at that commit. The order matters: if the base already holds the head, the PR files endpoint is empty for merge-commit and fast-forward merges.
+4. Record the pull request row (`unique(mirror_id, number)`, storing both numbers) before the cursor advances, so a repeat after a crash is harmless.
+5. Enqueue a webhook delivery for each matching webhook.
+
+The repository is created with `allow_manual_merge` on. Gitea's own PR number differs from GitHub's, and `merged_at` in Gitea is the sync time, which cannot be set, so the event carries GitHub's.
+
+## Webhook event
+
+`POST` to the endpoint with the JSON body defined in [schema/pull_request.mirrored.json](schema/pull_request.mirrored.json):
+
+```json
+{
+  "event": "pull_request.mirrored",
+  "delivery_id": "17",
+  "mirror": {"upstream_uri": "https://github.com/org/repo", "gitea_owner": "mirrors", "gitea_repo": "repo"},
+  "number": 126,
+  "gitea_pr_number": 1,
+  "title": "...",
+  "author": "github-login",
+  "merged_at": "2025-01-30T19:03:52Z",
+  "merge_commit_sha": "02fbd091..."
+}
+```
+
+`number` and `merged_at` are GitHub's. Read the files with `gitea_pr_number` (`/pulls/{index}/files`).
+
+Headers:
+
+- `X-Gitea-Mirror-Signature`: `sha256=<hex>`, the HMAC-SHA256 of the raw body keyed with the webhook's secret.
+- `X-Gitea-Mirror-Delivery`: the delivery id, the same as `delivery_id`. Drop repeats of an id you have handled.
+- `X-Gitea-Mirror-Event`: `pull_request.mirrored`, or `ping` for a test.
+
+Deliveries come from an outbox: at-least-once, 5 attempts with backoff from 30 seconds, doubling. Receivers must be idempotent. A 2xx response counts as delivered.
 
 ## Running tests
 
@@ -20,24 +78,8 @@ cd gitea-mirror
 ./run_tests.sh
 ```
 
-Each test run creates its own Docker Compose project to avoid collisions with parallel runs. The test database is automatically cleaned up after each run.
+Postgres runs in Docker. Each run uses its own Compose project (`gm-test-*`) so parallel runs do not collide. The dev requirements add `jsonschema` and `rfc3339-validator` for the event schema tests.
 
-## Configuration
+## Database
 
-Environment variables required for the app:
-
-- `GITEA_MIRROR_DB_USER`: Database user
-- `GITEA_MIRROR_DB_PASSWORD`: Database password
-- `GITEA_MIRROR_DB_HOST`: Database host
-- `GITEA_MIRROR_DB_PORT`: Database port
-- `GITEA_MIRROR_DB_NAME`: Database name
-
-## Database schema
-
-The baseline migration creates 5 tables:
-
-- `mirrors`: upstream repositories to mirror
-- `mirror_state`: cursor and sync state per mirror
-- `mirrored_pull_requests`: merged PRs replicated to Gitea
-- `webhooks`: subscriptions to mirror events
-- `webhook_deliveries`: delivery status and retry queue
+Alembic migrations (`migrations/`) create `mirrors`, `mirror_state`, `mirrored_pull_requests`, `webhooks` and `webhook_deliveries`.
