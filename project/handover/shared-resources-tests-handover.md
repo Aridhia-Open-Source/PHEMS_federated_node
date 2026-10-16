@@ -5,7 +5,7 @@ from the laptop agent's `HANDOVER.md` and `webserver/tests/TEST_PLAN.md`. Delete
 
 ## State
 
-- **Webserver tests (condensed, this branch):** 605 passed, 1 xfailed, 0 failed in about 2m45s (full run of `webserver/tests`; the xfail
+- **Webserver tests (condensed, this branch):** 605 passed, 1 skipped, 0 failed in about 2m45s (full run of `webserver/tests`; the skip
   is the audit-overflow test below). The new files are `test_trigger_repositories_and_links.py`, `test_pull_requests_and_tasks.py`,
   `test_global_resources.py`, `test_projects_api.py`, `test_pagination_and_filters.py`, `test_results_and_delivery.py`,
   `test_healthchecks_all.py`, `test_e2e_flow.py` and `test_live_client_integration.py` (the live-server test runs the real fncli and
@@ -28,7 +28,7 @@ from the laptop agent's `HANDOVER.md` and `webserver/tests/TEST_PLAN.md`. Delete
 - **Auth, audit and normal-user permissions.** Decision: auth gets a full rewrite later; for now only the super user and the Dagster
   system user matter, and the rewrite adds granular permissions back. No auth tests, no `@auth`/`@audit` changes. Known gaps, not
   fixed: `PATCH /global/secrets/<label>` has no `can_do_admin` check (POST and DELETE do); a 4096-char `url` on `POST /results` gives a
-  500 because the audit row's details column overflows (one `xfail` test, `test_url_at_limit_ok`).
+  500 because the audit row's details column overflows (one skipped test, `test_url_at_limit_ok`, marked out of scope).
 - Dagster ingest redesign, lock/drain/enabled guard questions and the FastAPI move stay parked, as in the original handover.
 
 ## Owner decisions (made in the review session, implemented)

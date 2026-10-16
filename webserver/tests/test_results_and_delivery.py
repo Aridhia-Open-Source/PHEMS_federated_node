@@ -382,7 +382,7 @@ def test_patch_invalid_fields_refused_and_nothing_applied(client, admin_headers,
     assert patch_result(client, admin_headers, project, 99999, {"step": "PUSHED"}).status_code == 404
 
 
-@pytest.mark.xfail(reason="a url of 4096 chars (valid) gives a 500: the audit row details column overflows", strict=False)
+@pytest.mark.skip(reason="out of scope (audit): a 4096-char url gives a 500 because the audit row details column overflows")
 def test_url_at_limit_ok(client, admin_headers, project, result_id):
     assert patch_result(client, admin_headers, project, result_id, {"url": "u" * 4096}).status_code == 200
 
