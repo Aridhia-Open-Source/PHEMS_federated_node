@@ -141,3 +141,23 @@ Optional, to tear down one side only:
 - Unwatched PR: `IGNORED`.
 - Invalid PR: `REJECTED`, with the validation error.
 - `teardown-project -y`: nothing is left behind.
+
+## Mirror a GitHub repository into Gitea
+
+Needs the gitea-mirror service port-forwarded (`MIRROR_URL`, default `http://localhost:5050`) and `MIRROR_API_TOKEN` set. The GitHub token and the webhook HMAC key live in Kubernetes secrets, in the `token` field.
+
+```bash
+fncli mirror add --upstream-uri https://github.com/org/repo \
+  --secret-namespace fn --secret-key github-token \
+  --gitea-owner mirrors --gitea-repo repo --base-branch main
+fncli mirror list
+fncli mirror resync 1          # runs a sync now
+fncli mirror status 1          # cursor, last error, PRs mirrored, token_expired
+fncli mirror users-sync 1      # refresh the shadow Gitea users
+
+fncli mirror webhook add --url http://backend.fn.svc/mirror/events \
+  --secret-namespace fn --secret-key mirror-hmac --mirror-id 1
+fncli mirror webhook deliveries 1 --status failed
+```
+
+A new mirror starts from the current time: only pull requests merged after it was added are mirrored.
