@@ -1,10 +1,12 @@
 from datetime import datetime, timezone
 from http import HTTPStatus
+import requests
 from flask import Blueprint, current_app, request
 from sqlalchemy import func, select
 
 from app import sync
 from app.clients import UserSyncError
+from app.gitea import GiteaError
 from app.helpers.base_model import db
 from app.helpers.errors import Conflict, NotFound
 from app.helpers.validation import validate_mirror
@@ -134,11 +136,15 @@ def status(mirror_id):
 @bp.post('/<int:mirror_id>/resync')
 def resync(mirror_id):
     get_mirror(mirror_id)
+    ext = current_app.extensions
     try:
-        sync.resync(mirror_id)
-    except NotImplementedError as err:
-        return {'error': str(err)}, HTTPStatus.NOT_IMPLEMENTED
-    return {'status': 'ok'}, HTTPStatus.OK
+        mirrored = sync.resync(mirror_id, ext['github_client'], ext['gitea_client'], ext['git_cache'])
+    except sync.MirrorBusy as err:
+        return {'error': str(err)}, HTTPStatus.CONFLICT
+    except (UserSyncError, GiteaError, sync.GitError, requests.RequestException) as err:
+        # Already recorded on mirror_state (status shows it, incl. token_expired).
+        return {'error': str(err)}, HTTPStatus.BAD_GATEWAY
+    return {'status': 'ok', 'mirrored': mirrored}, HTTPStatus.OK
 
 
 @bp.post('/<int:mirror_id>/users/sync')

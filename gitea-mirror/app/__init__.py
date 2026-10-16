@@ -3,19 +3,21 @@ from flask import Flask
 from app.helpers.base_model import db
 from app.helpers.const import build_sql_uri
 from app import main, mirrors, webhooks
-from app.clients import UnconfiguredGiteaClient
+from app.gitea import HttpGiteaClient
 from app.github import GithubRestClient
+from app.sync import GitCache
 from app.helpers.auth import check_bearer_token
 from app.helpers.errors import register_error_handlers
 
 
-def create_app(github_client=None, gitea_client=None):
+def create_app(github_client=None, gitea_client=None, git_cache=None):
     app = Flask(__name__)
     app.config['SQLALCHEMY_DATABASE_URI'] = build_sql_uri()
 
     api_token = os.environ['GITEA_MIRROR_API_TOKEN']
     app.extensions['github_client'] = github_client or GithubRestClient()
-    app.extensions['gitea_client'] = gitea_client or UnconfiguredGiteaClient()
+    app.extensions['gitea_client'] = gitea_client or HttpGiteaClient.from_env()
+    app.extensions['git_cache'] = git_cache or GitCache.from_env()
 
     db.init_app(app)
     register_error_handlers(app)

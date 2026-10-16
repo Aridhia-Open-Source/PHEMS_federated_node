@@ -13,6 +13,7 @@ RUN apt-get update \
         libpq-dev \
         python3-dev \
         gcc \
+        git \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -28,4 +29,4 @@ USER ${USER_UID}
 
 EXPOSE 5000
 
-ENTRYPOINT ["waitress-serve", "--host=0.0.0.0", "--port=5000", "--call", "app:create_app"]
+ENTRYPOINT ["python", "-m", "app.runner"]
