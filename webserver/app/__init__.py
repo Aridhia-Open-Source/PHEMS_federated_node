@@ -6,6 +6,7 @@ All general configs are taken care in here:
     - pre and post request handlers
 """
 import logging
+from http import HTTPStatus
 import traceback
 from flask import Flask, request
 from flask_swagger_ui import get_swaggerui_blueprint
@@ -55,7 +56,7 @@ def create_app():
     def handle_db_exceptions(error):
         logging.error(error)
         db.session.rollback()
-        return {"error": "Record already exists"}, 500
+        return {"error": "Record already exists"}, HTTPStatus.CONFLICT
 
     @app.errorhandler(Exception)
     # Special case, just so we won't return stacktraces

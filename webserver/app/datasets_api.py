@@ -16,7 +16,7 @@ from http import HTTPStatus
 from flask import Blueprint, request
 
 from .dtos.base import page_of
-from .dtos.dataset import DatasetDTO
+from .dtos.dataset import DatasetDTO, DatasetPatchRequest, DatasetRequest
 from .helpers.base_model import db
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from .helpers.project_lock import require_all_drained
@@ -48,7 +48,7 @@ def get_datasets():
 
 def _reject_project(body: dict | None):
     """A dataset belongs to no project, so naming one is a mistake, not something to ignore."""
-    if body and "project_id" in body:
+    if isinstance(body, dict) and "project_id" in body:
         raise InvalidRequest(
             "project_id is not accepted, datasets are global. Link one with "
             "PUT /projects/<id>/datasets/<dataset id>"
@@ -57,19 +57,20 @@ def _reject_project(body: dict | None):
 
 def _reject_credentials(body: dict | None):
     """Credentials live in a k8s secret, so sending them here is a mistake, not something to ignore."""
-    if body and ("username" in body or "password" in body):
+    if isinstance(body, dict) and ("username" in body or "password" in body):
         raise InvalidRequest(
             "username and password are not accepted. Create a secret with POST /global/secrets "
             "(values USERNAME and PASSWORD) and pass its label as secret_label"
         )
 
 
-def _resolve_secret(body: dict) -> dict:
-    """Swaps the secret_label a request carries for the secret's id."""
-    if not body.get("secret_label"):
-        raise InvalidRequest("secret_label is required")
-    body["secret_id"] = Secret.get_by_label(body.pop("secret_label")).id
-    return body
+def _reject_taken_name(name: str, own_id: int | None = None):
+    """Dataset names are unique. The name is already lowercased, as it is stored."""
+    taken = Dataset.query.filter(Dataset.name == name)
+    if own_id is not None:
+        taken = taken.filter(Dataset.id != own_id)
+    if taken.first():
+        raise InvalidRequest(f"Dataset {name} already exists", HTTPStatus.CONFLICT)
 
 
 @bp.route('/', methods=['POST'])
@@ -78,28 +79,25 @@ def _resolve_secret(body: dict) -> dict:
 @auth(scope='can_do_admin')
 def post_datasets():
     """
-    POST /global/datasets/ endpoint. Creates a new global dataset. Admin only
+    POST /global/datasets/ endpoint. Creates a new global dataset. Admin only. A name
+    already taken (case-insensitive) is a 409
     """
     try:
         _reject_credentials(request.json)
         _reject_project(request.json)
-        body = Dataset.validate(_resolve_secret(dict(request.json)))
-        if not isinstance(body.get("enabled", True), bool):
-            raise InvalidRequest("enabled must be a boolean")
-        cata_body = body.pop("catalogue", {})
-        dict_body = body.pop("dictionaries", [])
-        dataset = Dataset(**body)
+        req = DatasetRequest.parse(request.json)
+        _reject_taken_name(req.name)
+        secret = Secret.get_by_label(req.secret_label)
+        body = req.model_dump(exclude={"secret_label", "catalogue", "dictionaries"})
+        cata_body = req.catalogue
+        dict_body = req.dictionaries
+        dataset = Dataset(secret_id=secret.id, **body)
 
         dataset.add(commit=False)
         if cata_body:
             cata_data = Catalogue.validate(cata_body)
             catalogue = Catalogue(dataset=dataset, **cata_data)
             catalogue.add(commit=False)
-
-        # Dictionary should be a list of dict. If not raise an error and revert changes
-        if not isinstance(dict_body, list):
-            session.rollback()
-            raise InvalidRequest("dictionaries should be a list.")
 
         for d in dict_body:
             dict_data = Dictionary.validate(d)
@@ -161,32 +159,20 @@ def patch_dataset(dataset_id: int):
     """
     ds = Dataset.get_by_id(dataset_id)
 
-    # Update validation doesn't have required fields
     body = request.json
     _reject_project(body)
+    _reject_credentials(body)
+    req = DatasetPatchRequest.parse(body)
+    if not req.model_fields_set:
+        raise InvalidRequest("No field to update")
     require_all_drained([a.project for a in ds.project_assignments])
-    body.pop("id", None)
-    cata_body = body.pop("catalogue", {})
-    dict_body = body.pop("dictionaries", [])
-
-    # Dictionary should be a list of dict. If not raise an error and revert changes
-    if not isinstance(dict_body, list):
-        session.rollback()
-        raise InvalidRequest("dictionaries should be a list.")
-
-    # port is non-nullable, so an explicit null would hit the DB constraint
-    if "port" in body and (not isinstance(body["port"], int) or isinstance(body["port"], bool)):
-        raise InvalidRequest("port must be an integer")
-
-    if "enabled" in body and not isinstance(body["enabled"], bool):
-        raise InvalidRequest("enabled must be a boolean")
-
-    if "secret_label" in body:
-        _resolve_secret(body)
-
-    for k in body:
-        if not hasattr(ds, k):
-            raise InvalidRequest(f"Field {k} is not a valid one")
+    body = req.model_dump(exclude_unset=True, exclude={"catalogue", "dictionaries", "secret_label"})
+    cata_body = req.catalogue
+    dict_body = req.dictionaries or []
+    if req.name is not None:
+        _reject_taken_name(req.name, ds.id)
+    if req.secret_label is not None:
+        body["secret_id"] = Secret.get_by_label(req.secret_label).id
 
     try:
         ds.update(**body)

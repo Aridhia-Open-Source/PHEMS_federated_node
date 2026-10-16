@@ -78,5 +78,5 @@ def parse_query_params(model: Base, query_params: dict): # type: ignore
             # We are in the = case
             current_query = current_query.filter(getattr(model, field) == qp_v)
 
-    return current_query.paginate(page=page, per_page=per_page)
+    return current_query.paginate(page=page, per_page=per_page, error_out=False)
 

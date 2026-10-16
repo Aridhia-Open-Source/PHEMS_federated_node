@@ -14,7 +14,7 @@ from http import HTTPStatus
 
 from flask import Blueprint, request
 
-from app.dtos.repository_uri import RepositoryUriRequest
+from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest, RepositoryUriRequest
 from app.dtos.results_repository import ResultsRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
@@ -85,23 +85,18 @@ def post_repository():
             "project_id and target_dir are not accepted, results repositories are global. "
             "Link one with PUT /projects/<id>/repositories/results/<repository id>"
         )
-    for field in ('uri', 'provider', 'secret_label'):
-        if not body.get(field):
-            raise InvalidRequest(f"{field} is required")
+    req = RepositoryRequest.parse(body)
 
-    if not isinstance(body.get("enabled", True), bool):
-        raise InvalidRequest("enabled must be a boolean")
-
-    uri = RepositoryUriRequest.normalised(body['uri'])
-    secret = Secret.get_by_label(body['secret_label'])
+    uri = RepositoryUriRequest.normalised(req.uri)
+    secret = Secret.get_by_label(req.secret_label)
 
     try:
         repo = ResultsRepository(
             uri=uri,
-            provider=body['provider'],
-            api_uri=body.get('api_uri') or GitProvider(body['provider']).default_api_uri(uri),
+            provider=req.provider,
+            api_uri=req.api_uri or GitProvider(req.provider).default_api_uri(uri),
             secret_id=secret.id,
-            enabled=body.get('enabled', True),
+            enabled=req.enabled,
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
@@ -127,27 +122,22 @@ def patch_repository(repo_id):
     unknown = set(body) - {'provider', 'api_uri', 'secret_label', 'enabled'}
     if unknown:
         raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
+    req = RepositoryPatchRequest.parse(body)
 
     # Rotating the credentials only is exempt from the lock, the uri is not changed
     if set(body) != {'secret_label'}:
         require_all_drained([a.project for a in repo.project_assignments])
 
     if 'secret_label' in body:
-        if not body['secret_label']:
-            raise InvalidRequest("secret_label cannot be empty")
-        repo.secret_id = Secret.get_by_label(body['secret_label']).id
+        repo.secret_id = Secret.get_by_label(req.secret_label).id
 
     if 'enabled' in body:
-        if not isinstance(body['enabled'], bool):
-            raise InvalidRequest("enabled must be a boolean")
-        repo.enabled = body['enabled']
+        repo.enabled = req.enabled
 
     for field in ('provider', 'api_uri'):
         if field in body:
-            if not body[field]:
-                raise InvalidRequest(f"{field} cannot be empty")
             try:
-                setattr(repo, field, body[field])
+                setattr(repo, field, getattr(req, field))
             except ValueError as e:
                 raise InvalidRequest(str(e))
 

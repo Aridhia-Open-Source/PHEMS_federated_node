@@ -10,6 +10,8 @@ def normalise_dir(directory: str) -> str:
     Drops '.' and empty segments and the leading and trailing '/'. A '..' segment is refused,
     as it would let a directory point outside the one it is written under.
     """
+    if not isinstance(directory, str):
+        raise InvalidRequest("Directory must be a string")
     segments = [s for s in directory.split('/') if s not in ('', '.')]
     if '..' in segments:
         raise InvalidRequest(f"Directory '{directory}' must not contain '..'")

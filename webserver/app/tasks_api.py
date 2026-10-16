@@ -94,6 +94,8 @@ def get_tasks():
     """
     page = arg_get('page', 1, type=int)
     per_page = arg_get('per_page', 10, type=int)
+    if page < 1 or per_page < 1:
+        raise InvalidRequest("page and per_page must be positive")
     status = request.args.get('status', None)
     project_id = arg_get('project_id', None, type=int)
 
@@ -108,14 +110,14 @@ def get_tasks():
     if project_id is not None:
         query = query.filter(Task.project_id == project_id)
 
-    pagination = query.order_by(Task.id).paginate(page=page, per_page=per_page)
+    pagination = query.order_by(Task.id).paginate(page=page, per_page=per_page, error_out=False)
     tasks = [TaskDTO.from_model(t).dump() for t in pagination.items]
 
     return {
         "tasks": tasks,
         "total": pagination.total,
-        "page": page,
-        "per_page": per_page,
+        "page": pagination.page,
+        "per_page": pagination.per_page,
         "pages": pagination.pages
     }, HTTPStatus.OK
 

@@ -30,7 +30,7 @@ from app.dtos.base import page_of
 from app.dtos.dataset import ProjectDatasetDTO
 from app.dtos.results_repository import ProjectResultsRepositoryDTO
 from app.dtos.secret import ProjectSecretDTO
-from app.dtos.project import ProjectDTO
+from app.dtos.project import ProjectDTO, ProjectRequest
 from app.helpers.project_lock import require_drained
 from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.query_filters import parse_query_params
@@ -81,12 +81,9 @@ def create_project():
     """
     POST /projects endpoint.
     """
-    body = Project.validate(request.json)
+    body = ProjectRequest.parse(request.json).model_dump(exclude_unset=True)
     if Project.query.filter(Project.name == body["name"]).one_or_none():
         raise InvalidRequest(f"Project {body["name"]} already exists", HTTPStatus.CONFLICT)
-
-    if not isinstance(body.get("enabled", False), bool):
-        raise InvalidRequest("enabled must be a boolean")
 
     project = Project(**body)
     project.add()

@@ -134,13 +134,19 @@ def patch_result(project_id: int, result_id: int):
     if unknown:
         raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
 
-    if 'step' in body:
-        result.set_step(body['step'])
-
     if 'state' in body:
         valid = [s.value for s in ResultState]
         if body['state'] not in valid:
             raise InvalidRequest(f"Invalid state: {body['state']}. Must be one of: {', '.join(valid)}")
+
+    for field in ('attempts', 'number'):
+        if field in body and (not isinstance(body[field], int) or isinstance(body[field], bool) or body[field] < 0):
+            raise InvalidRequest(f"{field} must be a non-negative integer")
+
+    if 'step' in body:
+        result.set_step(body['step'])
+
+    if 'state' in body:
         result.state = body['state']
 
     if 'merged_at' in body:
@@ -153,8 +159,6 @@ def patch_result(project_id: int, result_id: int):
 
     for field in ('attempts', 'number'):
         if field in body:
-            if not isinstance(body[field], int) or isinstance(body[field], bool):
-                raise InvalidRequest(f"{field} must be an integer")
             setattr(result, field, body[field])
 
     for field, size in (

@@ -26,7 +26,7 @@ class BaseModel:
         except ValueError as ve:
             raise InvalidRequest("page and per_page parameters should be integers") from ve
 
-        return cls.query.filter_by(**filters).paginate(page=page, per_page=per_page)
+        return cls.query.filter_by(**filters).paginate(page=page, per_page=per_page, error_out=False)
 
     def add(self, commit=True):
         db.session.add(self)

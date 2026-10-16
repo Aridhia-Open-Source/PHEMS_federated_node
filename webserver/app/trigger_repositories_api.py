@@ -17,7 +17,8 @@ from http import HTTPStatus
 import sqlalchemy as sa
 from flask import Blueprint, request
 
-from app.dtos.repository_uri import RepositoryUriRequest
+from app.dtos.base import page_of
+from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest, RepositoryUriRequest
 from app.dtos.trigger_repository import PullRequestDTO, PullRequestRequest, TriggerRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
@@ -74,20 +75,16 @@ def get_pull_requests(repo_id):
     """
     GET /global/repositories/triggers/<id>/pull_requests — the provider's facts of the pull requests
     stored for the repository, most recent merge first.
-    Query params: page (default 1), per_page (default 20)
+    Query params: page (default 1), per_page (default 20), both clamped to at least 1.
+    Responds with page, per_page, total, pages and items.
     """
     TriggerRepository.get_by_id(repo_id)
-    page = arg_get('page', 1, type=int)
-    per_page = arg_get('per_page', 20, type=int)
+    page = max(arg_get('page', 1, type=int), 1)
+    per_page = max(arg_get('per_page', 20, type=int), 1)
     paginated = PullRequest.query.filter_by(trigger_repository_id=repo_id)\
         .order_by(PullRequest.merged_at.desc(), PullRequest.number.desc())\
         .paginate(page=page, per_page=per_page, error_out=False)
-    return {
-        'items': [PullRequestDTO.from_model(pr).dump() for pr in paginated.items],
-        'page': page,
-        'per_page': per_page,
-        'total': paginated.total,
-    }, HTTPStatus.OK
+    return page_of(paginated, PullRequestDTO), HTTPStatus.OK
 
 
 # TODO: called by Dagster only, like the per-project pull request routes
@@ -152,23 +149,18 @@ def post_repository():
             "project_id, watch_dir and base_branch are not accepted, trigger "
             "repositories are global. Link one with PUT /projects/<id>/repositories/triggers/<repository id>"
         )
-    for field in ('uri', 'provider', 'secret_label'):
-        if not body.get(field):
-            raise InvalidRequest(f"{field} is required")
+    req = RepositoryRequest.parse(body)
 
-    if not isinstance(body.get("enabled", True), bool):
-        raise InvalidRequest("enabled must be a boolean")
-
-    uri = RepositoryUriRequest.normalised(body['uri'])
-    secret = Secret.get_by_label(body['secret_label'])
+    uri = RepositoryUriRequest.normalised(req.uri)
+    secret = Secret.get_by_label(req.secret_label)
 
     try:
         repo = TriggerRepository(
             uri=uri,
-            provider=body['provider'],
-            api_uri=body.get('api_uri') or GitProvider(body['provider']).default_api_uri(uri),
+            provider=req.provider,
+            api_uri=req.api_uri or GitProvider(req.provider).default_api_uri(uri),
             secret_id=secret.id,
-            enabled=body.get('enabled', True),
+            enabled=req.enabled,
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
@@ -194,27 +186,22 @@ def patch_repository(repo_id):
     unknown = set(body) - {'provider', 'api_uri', 'secret_label', 'enabled'}
     if unknown:
         raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
+    req = RepositoryPatchRequest.parse(body)
 
     # Rotating the credentials only is exempt from the lock, the uri is not changed
     if set(body) != {'secret_label'}:
         require_all_drained([a.project for a in repo.project_assignments])
 
     if 'secret_label' in body:
-        if not body['secret_label']:
-            raise InvalidRequest("secret_label cannot be empty")
-        repo.secret_id = Secret.get_by_label(body['secret_label']).id
+        repo.secret_id = Secret.get_by_label(req.secret_label).id
 
     if 'enabled' in body:
-        if not isinstance(body['enabled'], bool):
-            raise InvalidRequest("enabled must be a boolean")
-        repo.enabled = body['enabled']
+        repo.enabled = req.enabled
 
     for field in ('provider', 'api_uri'):
         if field in body:
-            if not body[field]:
-                raise InvalidRequest(f"{field} cannot be empty")
             try:
-                setattr(repo, field, body[field])
+                setattr(repo, field, getattr(req, field))
             except ValueError as e:
                 raise InvalidRequest(str(e))
 

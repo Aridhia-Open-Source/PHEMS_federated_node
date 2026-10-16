@@ -262,9 +262,10 @@ def get_pull_requests(project_id: int, repo_id: int):
 
     return {
         'items': [PullRequestTriggerDTO.from_model(pr).dump() for pr in paginated.items],
-        'page': page,
-        'per_page': per_page,
+        'page': paginated.page,
+        'per_page': paginated.per_page,
         'total': paginated.total,
+        'pages': paginated.pages,
     }, HTTPStatus.OK
 
 

@@ -99,7 +99,7 @@ class PullRequestRequest(BaseModel):
     """A merged pull request as ingested: the provider's facts and the paths it changed."""
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    number: int
+    number: int = Field(ge=1)
     title: str = Field(max_length=256)
     raised_by: str = Field(max_length=256)
     merged_at: datetime

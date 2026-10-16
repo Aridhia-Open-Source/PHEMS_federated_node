@@ -69,7 +69,7 @@ class PullRequestResult(Result):
         current step again is allowed. Stops a late write, e.g. a delivery retry recording
         OPENED, from undoing what the sync sensor found.
         """
-        if step not in STEP_RANK:
+        if not isinstance(step, str) or step not in STEP_RANK:
             valid = ', '.join([s.value for s in PullRequestResultStep])
             raise InvalidRequest(f"Invalid step: {step}. Must be one of: {valid}")
         terminal = STEP_RANK[self.step] == STEP_RANK[PullRequestResultStep.MERGED.value]

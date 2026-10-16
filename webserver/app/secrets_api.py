@@ -191,6 +191,9 @@ def patch_secret(label):
     """
     secret = _get_secret(label)
     body = request.json or {}
+    unknown = set(body) - {"values", "enabled"}
+    if unknown and ("values" in body or "enabled" in body):
+        raise InvalidRequest(f"Unknown fields: {', '.join(sorted(unknown))}")
     if "enabled" in body:
         if not isinstance(body["enabled"], bool):
             raise InvalidRequest("enabled must be a boolean")

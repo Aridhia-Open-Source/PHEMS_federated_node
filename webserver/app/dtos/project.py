@@ -1,4 +1,7 @@
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+
 from app.dtos.base import DTO, WireDatetime
+from app.helpers.exceptions import InvalidRequest
 
 
 class ProjectDTO(DTO):
@@ -45,3 +48,26 @@ class ProjectHealthDTO(DTO):
     status: str
     results_repository: ResultsRepositoryHealthDTO | None
     trigger_repositories: list[RepositoryHealthDTO]
+
+
+class ProjectRequest(BaseModel):
+    """A project as created. Fields it does not name, e.g. locked, are ignored."""
+    model_config = ConfigDict(strict=True)
+
+    name: str = Field(min_length=1, max_length=256)
+    description: str | None = Field(default=None, max_length=4096)
+    enabled: bool = False
+
+    @field_validator("name")
+    @classmethod
+    def not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("name must not be blank")
+        return value
+
+    @classmethod
+    def parse(cls, body) -> "ProjectRequest":
+        try:
+            return cls.model_validate(body)
+        except ValidationError as ve:
+            raise InvalidRequest(f"Invalid project: {ve}") from ve
