@@ -226,3 +226,5 @@ echo "Run './scripts/cluster.sh down' to delete the cluster."
 echo "Run './scripts/cluster.sh up' to create the cluster."
 echo "Run './scripts/deploy.sh' to deploy the helm project"
 echo
+
+./scripts/deploy_owner.sh release
