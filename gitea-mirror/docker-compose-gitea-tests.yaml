@@ -1,0 +1,20 @@
+name: gitea_mirror_tests
+services:
+  gitea:
+    image: 'gitea/gitea:28.1.0'  # keep in step with k8s/federated-node/values.yaml
+    environment:
+      GITEA__security__INSTALL_LOCK: "true"
+      GITEA__database__DB_TYPE: sqlite3
+      GITEA__server__ROOT_URL: http://gitea:3000/
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:3000/api/healthz"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+  app:
+    depends_on:
+      gitea:
+        condition: service_healthy
+    environment:
+      GITEA_MIRROR_GITEA_URL:
+      GITEA_MIRROR_GITEA_TOKEN:
