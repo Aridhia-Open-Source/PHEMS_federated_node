@@ -41,7 +41,7 @@ class TestDatasetDTO:
     def test_fields(self, dataset):
         assert set(DatasetDTO.from_model(dataset).dump()) == {
             "id", "secret", "name", "host", "port", "read_schema", "write_schema", "type",
-            "extra_connection_args", "created_at", "updated_at", "slug", "url",
+            "extra_connection_args", "created_at", "updated_at", "slug", "url", "enabled",
         }
 
     def test_never_exposes_credentials(self, dataset):
@@ -52,7 +52,7 @@ class TestDatasetDTO:
     def test_slug_and_url_are_derived(self, dataset):
         dumped = DatasetDTO.from_model(dataset).dump()
         assert dumped["slug"] == dataset.slugify_name()
-        assert dumped["url"].endswith(f"/datasets/{dumped['slug']}")
+        assert dumped["url"].endswith(f"/global/datasets/{dataset.id}")
 
     def test_datetimes_use_the_wire_format(self, dataset):
         dumped = DatasetDTO.from_model(dataset).dump()
