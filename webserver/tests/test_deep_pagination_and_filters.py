@@ -77,8 +77,6 @@ def test_projects_ordering_is_stable_across_requests(client, admin_headers):
     assert flat == sorted(flat)
 
 
-@pytest.mark.xfail(reason="GET /projects?page=<past the end> is 404 (paginate with error_out) instead of 200 "
-                          "with empty items", strict=False)
 def test_projects_page_past_the_end_is_empty_200(client, admin_headers):
     make_projects(2)
     r = client.get("/projects?page=9", headers=admin_headers)
@@ -94,8 +92,6 @@ def test_projects_non_numeric_pagination_is_400(client, admin_headers, query):
     assert "error" in r.json
 
 
-@pytest.mark.xfail(reason="non-positive page/per_page on parse_query_params lists gives 404 instead of 400 or "
-                          "clamping", strict=False)
 @pytest.mark.parametrize("query", ["page=0", "page=-1", "per_page=0", "per_page=-5"])
 def test_projects_zero_or_negative_pagination_is_400_or_clamped(client, admin_headers, query):
     make_projects(3)
@@ -203,8 +199,6 @@ def test_datasets_non_numeric_page_is_400(client, admin_headers):
     assert r.status_code == 400
 
 
-@pytest.mark.xfail(reason="GET /global/datasets?page=<past the end> is 404 instead of 200 with empty items",
-                   strict=False)
 def test_datasets_page_past_the_end_is_empty_200(client, admin_headers, global_dataset):
     r = client.get("/global/datasets?page=5", headers=admin_headers)
     assert r.status_code == 200, r.json
@@ -271,8 +265,6 @@ def test_tasks_non_numeric_params_are_400(client, admin_headers, query):
     assert "error" in r.json
 
 
-@pytest.mark.xfail(reason="/tasks?page=<past the end> is 404 (paginate without error_out=False); "
-                          "a list endpoint should answer 200 with empty tasks like the PR lists do", strict=False)
 def test_tasks_page_past_the_end_is_empty_200(client, admin_headers, make_task):
     make_tasks(make_task, 2)
     r = client.get("/tasks?page=7", headers=admin_headers)
@@ -281,7 +273,6 @@ def test_tasks_page_past_the_end_is_empty_200(client, admin_headers, make_task):
     assert r.json["total"] == 2
 
 
-@pytest.mark.xfail(reason="/tasks?page=0 / per_page=0 / negatives give 404 instead of 400 or clamping", strict=False)
 @pytest.mark.parametrize("query", ["page=0", "page=-1", "per_page=0", "per_page=-3"])
 def test_tasks_zero_or_negative_pagination(client, admin_headers, make_task, query):
     make_tasks(make_task, 2)
@@ -468,8 +459,6 @@ def test_project_pr_list_non_numeric_is_400(client, admin_headers, project, link
     assert r.status_code == 400
 
 
-@pytest.mark.xfail(reason="page=0/per_page=0/negative on PR lists is 200 echoing the bad value (page 0, per_page -1) instead of "
-                          "400 or clamping to a valid page", strict=False)
 @pytest.mark.parametrize("query", ["?page=0", "?page=-1", "?per_page=0", "?per_page=-1"])
 def test_project_pr_list_zero_or_negative_pagination(client, admin_headers, project, linked_trigger_repo,
                                                       global_trigger_repo, ingest_prs, query):
@@ -546,7 +535,6 @@ def test_global_pr_list_bad_params(client, admin_headers, global_trigger_repo):
     assert client.get("/global/repositories/triggers/999/pull_requests", headers=admin_headers).status_code == 404
 
 
-@pytest.mark.xfail(reason="the global PR list has no `pages` field, unlike every other paginated list", strict=False)
 def test_global_pr_list_has_pages(client, admin_headers, global_trigger_repo, ingest_prs):
     ingest_prs(global_trigger_repo.id, 1, 2, 3)
     base = f"/global/repositories/triggers/{global_trigger_repo.id}/pull_requests"

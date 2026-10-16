@@ -31,10 +31,6 @@ def secret_body(**fields):
     return body
 
 
-def xf(reason):
-    return pytest.mark.xfail(reason=reason, strict=False)
-
-
 def assert_error(response, status):
     assert response.status_code == status, response.json
     assert isinstance(response.json, dict)
@@ -101,12 +97,10 @@ def test_repo_bad_uri_is_400(client, admin_headers, global_secret, base, bad_uri
 @pytest.mark.parametrize("field,value", [
     ("uri", 123), ("uri", None), ("uri", ["github.com/org/new"]), ("uri", ""),
     ("provider", 5), ("provider", ""), ("provider", "GitHub "),
-    pytest.param("secret_label", 5, marks=xf(
-        "POST repo secret_label=5 -> 500 (DB varchar = integer), expected 400")),
+    ("secret_label", 5),
     ("secret_label", ""), ("secret_label", None),
     ("enabled", "yes"), ("enabled", 1), ("enabled", None),
-    pytest.param("api_uri", 5, marks=xf(
-        "POST repo api_uri=5 -> 500 ('int' has no attribute 'strip'), expected 400")),
+    ("api_uri", 5),
 ])
 def test_repo_create_wrong_typed_or_empty_fields(client, admin_headers, global_secret, base, field, value):
     response = client.post(base, json=repo_body(**{field: value}), headers=admin_headers)
@@ -124,7 +118,7 @@ def test_repo_create_missing_field(client, admin_headers, global_secret, base, m
 
 
 @pytest.mark.parametrize("base", [
-    pytest.param(b, marks=xf("POST repo with unknown field 'bogus' -> 201 (ignored), expected 400"))
+    b
     for b in REPO_BASES])
 def test_repo_create_unknown_field_is_not_silently_accepted(client, admin_headers, global_secret, base):
     response = client.post(base, json=repo_body(bogus="x"), headers=admin_headers)
@@ -132,7 +126,7 @@ def test_repo_create_unknown_field_is_not_silently_accepted(client, admin_header
 
 
 @pytest.mark.parametrize("base", [
-    pytest.param(b, marks=xf("POST repo with 5000-char uri -> 500 (varchar(4096) overflow), expected 400"))
+    b
     for b in REPO_BASES])
 def test_repo_very_long_uri_is_not_a_500(client, admin_headers, global_secret, base):
     uri = "github.com/org/" + "a" * 5000
@@ -193,8 +187,7 @@ def test_api_uri_custom_on_repo_host_accepted(client, admin_headers, global_secr
 @pytest.mark.parametrize("body,status", [
     ({"api_uri": "https://evil.example.com"}, 400),
     ({"api_uri": ""}, 400),
-    pytest.param({"api_uri": 5}, 400, marks=xf(
-        "PATCH repo api_uri=5 -> 500 ('int' has no attribute 'strip'), expected 400")),
+    ({"api_uri": 5}, 400),
     ({"provider": "bogus"}, 400),
     ({"provider": ""}, 400),
     ({"provider": 5}, 400),
@@ -268,7 +261,6 @@ def test_dataset_name_stored_lowercase_and_unquoted(client, admin_headers, globa
     assert response.json["name"] == "my ds"
 
 
-@pytest.mark.xfail(reason="duplicate dataset name returns 500 'Record already exists', expected 409", strict=False)
 @pytest.mark.parametrize("second", ["NewDs", "newds", "NEWDS"])
 def test_dataset_duplicate_name_is_409_case_insensitive(client, admin_headers, global_secret, second):
     assert client.post(DS, json=ds_body(), headers=admin_headers).status_code == 201
@@ -291,18 +283,17 @@ def test_dataset_special_character_names_are_not_500(client, admin_headers, glob
         assert client.get(f"{DS}/{response.json['id']}", headers=admin_headers).status_code == 200
 
 
-@xf("POST dataset with 300-char name -> 500 (varchar(256) overflow), expected 400")
 def test_dataset_very_long_name_is_400_not_500(client, admin_headers, global_secret):
     assert_error(client.post(DS, json=ds_body(name="a" * 300), headers=admin_headers), 400)
 
 
 @pytest.mark.parametrize("field,value", [
-    pytest.param("name", "", marks=xf("POST dataset name='' -> 201, expected 400")), ("name", None), pytest.param("name", 5, marks=xf("POST dataset name=5 -> 500 (int has no attribute), expected 400")), pytest.param("name", ["x"], marks=xf("POST dataset name=['x'] -> 500 (list has no attribute split), expected 400")),
-    pytest.param("host", "", marks=xf("POST dataset host='' -> 201, expected 400")), ("host", None), pytest.param("host", 5, marks=xf("POST dataset host=5 -> 201 (stored as '5'), expected 400")),
-    pytest.param("port", "5432", marks=xf("POST dataset port='5432' (string) -> 201, expected 400")), ("port", None), pytest.param("port", 1.5, marks=xf("POST dataset port=1.5 -> 201, expected 400")), pytest.param("port", True, marks=xf("POST dataset port=true -> 500 (boolean into integer column), expected 400")), pytest.param("port", -1, marks=xf("POST dataset port=-1 -> 201, expected 400")), pytest.param("port", 70000, marks=xf("POST dataset port=70000 -> 201, expected 400")),
-    ("type", "nosql"), pytest.param("type", 5, marks=xf("POST dataset type=5 -> 500 (int has no attribute lower), expected 400")),
+    ("name", ""), ("name", None), ("name", 5), ("name", ["x"]),
+    ("host", ""), ("host", None), ("host", 5),
+    ("port", "5432"), ("port", None), ("port", 1.5), ("port", True), ("port", -1), ("port", 70000),
+    ("type", "nosql"), ("type", 5),
     ("enabled", "true"), ("enabled", 1),
-    ("secret_label", ""), ("secret_label", "nope"), pytest.param("secret_label", 5, marks=xf("POST dataset secret_label=5 -> 500 (DB varchar = integer), expected 400")),
+    ("secret_label", ""), ("secret_label", "nope"), ("secret_label", 5),
     ("dictionaries", "x"),
 ])
 def test_dataset_create_invalid_fields(client, admin_headers, global_secret, field, value):
@@ -323,14 +314,13 @@ def test_dataset_create_empty_body(client, admin_headers, global_secret):
 @pytest.mark.parametrize("body", [
     {"bogus": 1}, {"port": "x"}, {"port": None}, {"enabled": "no"}, {"secret_label": "nope"},
     {"secret_label": ""},
-    pytest.param({"type": "nosql"}, marks=xf("PATCH dataset type='nosql' -> 202 (unsupported engine accepted), expected 400")),
+    {"type": "nosql"},
     {"project_id": 1}, {"dictionaries": "x"},
 ])
 def test_dataset_patch_invalid_bodies(client, admin_headers, global_dataset, body):
     assert_error(client.patch(f"{DS}/{global_dataset.id}", json=body, headers=admin_headers), 400)
 
 
-@xf("PATCH dataset name='Renamed' -> 202 stored as 'Renamed' (POST lowercases; PATCH does not), expected 'renamed'")
 def test_dataset_patch_name_case_and_duplicate(client, admin_headers, global_dataset, make_global_dataset):
     make_global_dataset(name="Second")
     renamed = client.patch(f"{DS}/{global_dataset.id}", json={"name": "Renamed"}, headers=admin_headers)
@@ -338,7 +328,6 @@ def test_dataset_patch_name_case_and_duplicate(client, admin_headers, global_dat
     assert renamed.json["name"] == "renamed"
 
 
-@pytest.mark.xfail(reason="renaming a dataset onto an existing name is a 500, expected 409", strict=False)
 def test_dataset_patch_rename_to_existing_name_is_409(client, admin_headers, global_dataset, make_global_dataset):
     make_global_dataset(name="Second")
     assert_error(client.patch(f"{DS}/{global_dataset.id}", json={"name": "SECOND"}, headers=admin_headers), 409)
@@ -424,8 +413,6 @@ def test_secret_patch_unknown_field_only(client, admin_headers, k8s_client, glob
     assert_error(response, 400)
 
 
-@pytest.mark.xfail(reason="PATCH cannot change the label (not in ADR either); unknown fields ignored/400 "
-                          "is unspecified; a label change must never be a silent 200", strict=False)
 def test_secret_patch_label_is_not_silently_ignored(client, admin_headers, k8s_client, global_secret):
     response = client.patch(f"{SEC}/test-creds",
                             json={"label": "renamed", "values": {"TOKEN": "t"}}, headers=admin_headers)

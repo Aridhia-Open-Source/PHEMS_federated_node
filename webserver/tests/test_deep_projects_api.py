@@ -76,20 +76,17 @@ def test_create_enabled_must_be_boolean(client, admin_headers):
     assert Project.query.filter_by(name="Bad").count() == 0
 
 
-@pytest.mark.xfail(reason="blank project names are accepted", strict=False)
 @pytest.mark.parametrize("name", ["", "   "])
 def test_create_blank_name_is_rejected(client, admin_headers, name):
     r = _create(client, admin_headers, name=name)
     assert r.status_code == 400, r.json
 
 
-@pytest.mark.xfail(reason="name longer than the 256-char column gives a 500/DB error instead of 400", strict=False)
 def test_create_overlong_name_is_400_not_500(client, admin_headers):
     r = _create(client, admin_headers, name="x" * 300)
     assert r.status_code == 400, r.json
 
 
-@pytest.mark.xfail(reason="non-string name reaches the DB query and errors (500) instead of 400", strict=False)
 def test_create_non_string_name_is_400_not_500(client, admin_headers):
     r = _create(client, admin_headers, name=123)
     assert r.status_code == 400, r.json

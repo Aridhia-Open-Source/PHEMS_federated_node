@@ -125,7 +125,6 @@ def test_link_nested_target_dir_ok(client, admin_headers, lock_project, global_r
     assert response.json["project_id"] == lock_project.id
 
 
-@pytest.mark.xfail(reason="non-string target_dir is not validated (expected 400)", strict=False)
 @pytest.mark.parametrize("target_dir", [123, ["a"], {"a": 1}, True])
 def test_link_non_string_target_dir_refused(client, admin_headers, lock_project, global_results_repo, target_dir):
     response = client.put(
@@ -543,7 +542,6 @@ def test_invalid_step_values_refused(client, admin_headers, project, result_id, 
     assert patch_result(client, admin_headers, project, result_id, {"step": step}).status_code == 400
 
 
-@pytest.mark.xfail(reason="unhashable step (list/object) gives a 500 instead of 400", strict=False)
 @pytest.mark.parametrize("step", [["OPENED"], {"a": 1}])
 def test_unhashable_step_refused(client, admin_headers, project, result_id, step):
     assert patch_result(client, admin_headers, project, result_id, {"step": step}).status_code == 400
@@ -584,7 +582,6 @@ def test_step_and_state_together_and_error_with_attempts(client, admin_headers, 
     assert response.json["error"] == "boom" and response.json["step"] == "OPENED"
 
 
-@pytest.mark.xfail(reason="PATCH {step valid, state invalid} returns 400 but the step change is persisted", strict=False)
 def test_failed_patch_applies_nothing(client, admin_headers, project, result_id):
     """A request with a bad field must not leave the valid ones half-applied."""
     response = patch_result(client, admin_headers, project, result_id, {"step": "PUSHED", "state": "NOPE"})
@@ -612,7 +609,6 @@ def test_attempts_must_be_integer(client, admin_headers, project, result_id, att
     assert patch_result(client, admin_headers, project, result_id, {"attempts": attempts}).status_code == 400
 
 
-@pytest.mark.xfail(reason="negative number/attempts are accepted (expected 400)", strict=False)
 @pytest.mark.parametrize("field", ["number", "attempts"])
 def test_negative_counters_refused(client, admin_headers, project, result_id, field):
     assert patch_result(client, admin_headers, project, result_id, {field: -1}).status_code == 400

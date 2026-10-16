@@ -5,10 +5,14 @@ from the laptop agent's `HANDOVER.md` and `webserver/tests/TEST_PLAN.md`. Delete
 
 ## State
 
-- **Tests:** `webserver/tests` has 1287 passing and 75 xfailed, 0 failed (full run, 8 min). The 83 basic tests from `TEST_PLAN.md` are
+- **Tests:** last complete full run (with the app fixes in): 1287 passed, 14 xfailed, 61 xpassed, 0 failed (8 min). The 61 xpassed
+  tests then had their xfail markers removed; the five affected files were re-run on their own with 0 failed and 0 xpass, but the
+  whole suite was not re-run afterwards, so expect 1348 passed and 14 xfailed and **run the full suite once to confirm**. The 83 basic tests from `TEST_PLAN.md` are
   in 9 files. A second wave of in-depth files is `test_deep_*.py`, plus `test_live_client_integration.py`.
-- **No app code was changed.** Every test that exposes an app bug keeps the correct expectation and is `xfail(strict=False)` with the
-  request, actual and expected result in the reason. Fixing a bug turns its xfail into an xpass: delete the marker then.
+- **App code changed after the tests found bugs** (commit "Validate request bodies and fix error statuses found by the new tests",
+  17 files, +229 -117): request DTOs reuse the `PullRequestRequest.parse` -> `InvalidRequest` pattern, see "App bugs" below. The
+  tests first went in with the correct expectation marked `xfail(strict=False)`; 61 of the 75 now pass and lost their marker.
+  The 14 left are the decisions below.
 - **Two stale tests fixed** in `test_dtos.py` (dataset `enabled` field; url is `/global/datasets/<id>`).
 - **Not run anywhere:** the k8s, Keycloak and Gitea end to end (no cluster in the cloud session). Use `scripts/e2e_shared_resources.sh`.
 
@@ -41,30 +45,29 @@ Cloud-session notes (only matter if you use a Claude cloud environment): `docker
 Docker Hub rate-limits anonymous pulls (429), so pull `python:3.13.5-slim` from `mirror.gcr.io` and retag; build steps need the proxy
 and `apt` over HTTPS (the proxy refuses plain HTTP). The compose build was never completed there, so the tests ran from a venv.
 
-## App bugs found (the xfails), by root cause
+## App bugs found by the tests
 
-Detail for each is in the xfail reason; grep `xfail` in `webserver/tests`.
+**Fixed** (tests now plain passes):
+1. Create/PATCH bodies had no type or length validation: new strict models `RepositoryRequest`/`RepositoryPatchRequest`
+   (`dtos/repository_uri.py`), `DatasetRequest`/`DatasetPatchRequest` (`dtos/dataset.py`), `ProjectRequest` (`dtos/project.py`);
+   wrong types, bad ports, blank or 300-char names and 5000-char uris now give 400 (were 500 or accepted); unknown field on repository
+   POST gives 400. Dataset names are lowercased in the DTO, so POST and PATCH agree.
+2. Unique violations are 409 (`IntegrityError` handler in `app/__init__.py`), and dataset POST/PATCH pre-check the lowercased name.
+3. `PATCH /global/datasets/<id>`: empty or non-object body gives 400, `type` is checked, `name` lowercased. **Still returns 202**
+   (the other PATCH routes return 200; left as an owner decision).
+4. Pagination: `paginate(error_out=False)`, so a page past the end is 200 with empty items and `page`/`per_page` below 1 clamp. The
+   project and global PR lists return pagination values and `pages`. **Inconsistency left in:** `GET /tasks` returns 400 for `page` or
+   `per_page` below 1 (a pre-existing test expects it), the other lists clamp.
+5. PR ingest `number` must be >= 1. Result PATCH validates everything before applying, refuses negative `number`/`attempts` and a
+   non-string `step`. `normalise_dir` refuses a non-string directory (results link `target_dir`). Secret PATCH refuses unknown keys.
 
-1. **No input validation on create/PATCH bodies** (dataset, trigger and results repositories). Wrong types and bad values give 500 or
-   are accepted: `name=5`, `name=["x"]`, `name=""`, 300-char name, `host=""`/`5`, `port` as string/float/bool/-1/70000, `type=5`,
-   `secret_label=5`, `api_uri=5`, 5000-char uri, unknown field accepted on repository POST. Expected 400. Project create has the same
-   shape: blank name 201, 300-char name 500, `name=123` 500.
-2. **Duplicate dataset name gives 500, expected 409** (POST, and PATCH renaming onto an existing name). The other global resources
-   return 409.
-3. **`PATCH /global/datasets/<id>`:** returns 202 (others 200); `type="nosql"` accepted; name not lowercased (POST lowercases, and
-   `Project.resolve_dataset` compares lowercase, so a mixed-case name can never be resolved); empty body gives 500.
-4. **FK failures on delete return a generic 400, expected 409 with a reason:** trigger link with PRs, dataset a task ran on, results
-   link with results, global repositories.
-5. **Pagination:** past-the-end page and `page`/`per_page` of 0 or negative give 404 on `/projects`, `/global/datasets`, `/tasks`
-   (`paginate()` with `error_out=True`); the project PR list returns 200 and echoes `page: 0`; the global PR list has no `pages` field.
-   List shapes are inconsistent (`items` vs `tasks` vs plain arrays): asserted as is.
-6. **PR ingest:** PR `number` 0 or -1 is stored (no lower bound on `PullRequestRequest.number`).
-7. **State rules not enforced:**
-   - `POST .../pull_requests/<n>/task` creates a task for an IGNORED/REJECTED PR, and on a revoked or project-disabled link.
-   - A task in SUCCESS/FAILED/CANCELED can be PATCHed back to RUNNING.
-   - `POST /results` is accepted for a FAILED/CANCELED task, a revoked link, a project-disabled link and a globally disabled repo.
-   - Results PATCH with an invalid `state` returns 400 but still saves the `step`.
-8. **Results:** non-string `target_dir` accepted; unhashable `step` gives 500; negative `number`/`attempts` accepted.
+**Still open, needs an owner decision** (14 `xfail` tests, reasons in the markers):
+- `POST .../pull_requests/<n>/task` creates a task for an IGNORED/REJECTED PR, and on a revoked or project-disabled link. (A REJECTED
+  PR taking a corrected spec looks intended: that case may be the test being wrong.)
+- A task in SUCCESS/FAILED/CANCELED can be PATCHed back to RUNNING (no forward-only rule; `/retry` exists).
+- `POST /results` is accepted for a FAILED/CANCELED task, a revoked link, a project-disabled link and a globally disabled repo.
+- A repository or dataset can reference a disabled secret.
+- `POST /results` with a 4096-char `url` gives 500 (audit row overflow; audit is out of scope).
 
 Confirmed from the original handover's list: ingest creates triggers for disabled projects while `?active_link=true` omits them;
 duplicate dataset name 500; dataset PATCH 202; trigger-link delete with PRs gives a raw FK 400; secret PATCH not admin-only (out of
@@ -109,7 +112,7 @@ after the PRs are evaluated. It needs the dev cluster from `scripts/fncli/EXAMPL
 ## Suggested next steps
 
 1. Run the e2e script and the full suite locally.
-2. Fix app bugs 1 to 6 and 8 (mechanical: reuse the DTO and `InvalidRequest` patterns, `page_of`/`parse_query_params`); decide the
-   state rules in section 7.
+2. Decide the state rules under "Still open" and flip the 14 xfails; the other dataset PATCH detail (202 vs 200) and the `/tasks`
+   400-vs-clamp inconsistency.
 3. Add the Dagster-side tests (the Dagster and fncli unit tests still use the old routes) and the missing query options.
 4. Review the Gitea moonshot work (not started).

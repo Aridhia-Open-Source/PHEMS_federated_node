@@ -616,7 +616,6 @@ def test_wrong_typed_or_out_of_range_fields_are_400(client, admin_headers, globa
     assert r.status_code == 400, r.json
 
 
-@pytest.mark.xfail(reason="PullRequestRequest.number has no ge=1 bound: 0 and -1 are stored (201)", strict=False)
 @pytest.mark.parametrize("number", [0, -1])
 def test_non_positive_pr_number_is_refused(client, admin_headers, global_trigger_repo, number):
     """PR numbers start at 1 at the provider; 0 and negatives are not real numbers."""
