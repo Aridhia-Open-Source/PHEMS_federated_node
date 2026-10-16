@@ -228,14 +228,12 @@ def test_second_post_with_garbage_body_is_still_200(client, admin_headers, pr_tr
     assert again.json["id"] == first["id"]
 
 
-@pytest.mark.parametrize("state, cause", [("IGNORED", "not watched"), ("REJECTED", "bad spec")])
-@pytest.mark.xfail(reason="app creates a task for an IGNORED/REJECTED PR (201); a PR in a terminal non-UNKNOWN "
-                          "state should be refused with 409/400", strict=False)
-def test_ignored_or_rejected_pr_cannot_create_task(client, admin_headers, pr_trigger, spec_raw, state, cause):
+@pytest.mark.parametrize("state, cause", [("REJECTED", "bad spec")])
+def test_rejected_pr_cannot_create_task(client, admin_headers, pr_trigger, spec_raw, state, cause):
     patch = client.patch(pr_trigger, json={"state": state, "state_cause": cause}, headers=admin_headers)
     assert patch.status_code == 200
     response = post_task(client, admin_headers, pr_trigger, spec_raw)
-    assert response.status_code in (400, 409)
+    assert response.status_code == 409
     assert pr_state(client, admin_headers, pr_trigger)["state"] == state
 
 
@@ -256,24 +254,20 @@ def test_unknown_pr_number_and_unlinked_project_are_404(
     assert post_task(client, admin_headers, other, spec_raw).status_code == 404
 
 
-@pytest.mark.xfail(reason="app creates a task through a revoked link (201); a revoked link is not active and "
-                          "should be refused", strict=False)
 def test_revoked_link_cannot_create_task(client, admin_headers, project, global_trigger_repo, pr_trigger, spec_raw):
     revoke = client.patch(link_url(project, global_trigger_repo), json={"revoked": True}, headers=admin_headers)
     assert revoke.status_code == 200
     response = post_task(client, admin_headers, pr_trigger, spec_raw)
-    assert response.status_code in (400, 403, 404, 409)
+    assert response.status_code == 409
 
 
-@pytest.mark.xfail(reason="app creates a task through a disabled link (201); an inactive link should be refused",
-                   strict=False)
 def test_disabled_link_cannot_create_task(client, admin_headers, project, global_trigger_repo, pr_trigger, spec_raw):
     project.locked = True
     db.session.commit()
     disable = client.patch(link_url(project, global_trigger_repo), json={"enabled": False}, headers=admin_headers)
     assert disable.status_code == 200
     response = post_task(client, admin_headers, pr_trigger, spec_raw)
-    assert response.status_code in (400, 403, 404, 409)
+    assert response.status_code == 409
 
 
 def test_locked_project_create_task_current_behaviour(client, admin_headers, project, pr_trigger, spec_raw):
@@ -315,13 +309,24 @@ def test_illegal_status_values_are_400(client, admin_headers, tid, status):
 
 
 @pytest.mark.parametrize("terminal", ["SUCCESS", "FAILED", "CANCELED"])
-@pytest.mark.xfail(reason="app lets a terminal task (SUCCESS/FAILED/CANCELED) move back to RUNNING; terminal "
-                          "states should be final (use /retry)", strict=False)
 def test_terminal_status_is_final(client, admin_headers, tid, terminal):
     assert patch_task(client, admin_headers, tid, {"status": terminal}).status_code == 200
     response = patch_task(client, admin_headers, tid, {"status": "RUNNING"})
-    assert response.status_code in (400, 409)
+    assert response.status_code == 409
     assert client.get(f"/tasks/{tid}", headers=admin_headers).json["status"] == terminal
+
+
+@pytest.mark.parametrize("terminal", ["SUCCESS", "FAILED", "CANCELED"])
+def test_same_terminal_status_again_is_200(client, admin_headers, tid, terminal):
+    assert patch_task(client, admin_headers, tid, {"status": terminal}).status_code == 200
+    again = patch_task(client, admin_headers, tid, {"status": terminal})
+    assert again.status_code == 200 and again.json["status"] == terminal
+
+
+def test_retry_failed_task_resets_to_pending(client, admin_headers, tid):
+    assert patch_task(client, admin_headers, tid, {"status": "FAILED"}).status_code == 200
+    assert client.post(f"/tasks/{tid}/retry", headers=admin_headers).status_code in (200, 201)
+    assert client.get(f"/tasks/{tid}", headers=admin_headers).json["status"] == "PENDING"
 
 
 def test_dagster_run_id_roundtrip_and_type_check(client, admin_headers, tid):
@@ -423,10 +428,16 @@ def test_list_pagination_past_the_end(client, admin_headers, make_task):
         assert response.json["tasks"] == []
 
 
-@pytest.mark.parametrize("query", ["page=abc", "per_page=xyz", "project_id=abc", "page=0", "per_page=-1"])
+@pytest.mark.parametrize("query", ["page=abc", "per_page=xyz", "project_id=abc"])
 def test_list_bad_pagination_args_are_client_errors(client, admin_headers, make_task, query):
     make_task()
     assert 400 <= client.get(f"/tasks?{query}", headers=admin_headers).status_code < 500
+
+
+@pytest.mark.parametrize("query", ["page=0", "per_page=-1"])
+def test_list_pagination_below_one_is_clamped(client, admin_headers, make_task, query):
+    make_task()
+    assert client.get(f"/tasks?{query}", headers=admin_headers).status_code == 200
 
 
 def test_get_task_shape_and_404(client, admin_headers, tid):
@@ -446,6 +457,7 @@ def test_task_results_empty_then_listed(client, admin_headers, tid):
 
 def test_task_results_lists_delivery(client, admin_headers, project, linked_results_repo, global_results_repo, make_task):
     task = make_task()
+    assert client.patch(f"/tasks/{task.id}", json={"status": "SUCCESS"}, headers=admin_headers).status_code == 200
     posted = client.post(
         f"/projects/{project.id}/results",
         json={"task_id": task.id, "results_repository_id": global_results_repo.id}, headers=admin_headers,

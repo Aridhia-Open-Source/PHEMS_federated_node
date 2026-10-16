@@ -90,8 +90,18 @@ def test_link_into_watched_dir_refused(
     assert "overlap" in response.json["error"]
 
 
+def finish(client, admin_headers, task):
+    """A result can only be posted for a SUCCESS task."""
+    response = client.patch(f"/tasks/{task.id}", json={"status": "SUCCESS"}, headers=admin_headers)
+    assert response.status_code == 200
+    return task
+
+
 def test_post_result(client, admin_headers, project, global_results_repo, linked_results_repo, make_task):
     task = make_task()
+    body = {"task_id": task.id, "results_repository_id": global_results_repo.id}
+    assert client.post(results_url(project), json=body, headers=admin_headers).status_code == 409
+    finish(client, admin_headers, task)
     body = {"task_id": task.id, "results_repository_id": global_results_repo.id}
 
     response = client.post(results_url(project), json=body, headers=admin_headers)
@@ -128,6 +138,7 @@ def test_post_result_errors(
 
 def test_patch_result(client, admin_headers, project, global_results_repo, linked_results_repo, make_task):
     task = make_task()
+    finish(client, admin_headers, task)
     response = client.post(
         results_url(project),
         json={"task_id": task.id, "results_repository_id": global_results_repo.id},
@@ -152,7 +163,7 @@ def test_patch_result(client, admin_headers, project, global_results_repo, linke
 def test_results_by_step_and_cross_project(
     client, admin_headers, project, other_project, global_results_repo, linked_results_repo, make_task
 ):
-    task = make_task()
+    task = finish(client, admin_headers, make_task())
     response = client.post(
         results_url(project),
         json={"task_id": task.id, "results_repository_id": global_results_repo.id},
