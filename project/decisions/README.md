@@ -17,8 +17,8 @@ Handover for the moonshot and mirror work: [../handover/README.md](../handover/R
 |---|---|---|
 | [0001](0001-polymorphic-triggers.md) | Polymorphic Trigger with PullRequestTrigger and ApiRequestTrigger | Accepted |
 | [0002](0002-task-spec-and-derivation.md) | TaskSpec, and a Task derived from spec and trigger | Accepted |
-| [0003](0003-project-scoped-git-repositories.md) | Project-scoped trigger and results repositories | Accepted |
-| [0004](0004-secrets-and-secret-providers.md) | Generic Secret model and SecretProvider; per-repository tokens | Accepted |
+| [0003](0003-project-scoped-git-repositories.md) | Project-scoped trigger and results repositories | Superseded by 0019 |
+| [0004](0004-secrets-and-secret-providers.md) | Generic Secret model and SecretProvider; per-repository tokens | Superseded by 0019 |
 | [0005](0005-git-api-protocol-and-factory.md) | GitAPI protocol and GitAPIFactory over Gitea and GitHub | Accepted |
 | [0006](0006-github-ingest-pulls-endpoint.md) | Ingest merged pull requests through the pulls endpoint, not search | Accepted |
 | [0007](0007-results-delivered-as-branch-and-pull-request.md) | Results delivered as a pushed branch plus a results pull request | Accepted (size cap and layout are tuneable) |
@@ -33,5 +33,5 @@ Handover for the moonshot and mirror work: [../handover/README.md](../handover/R
 | [0016](0016-tilt-dev-loop.md) | Tilt dev loop, with the tilt-run image for run pods | Accepted |
 | [0017](0017-task-status-written-by-run-status-sensors.md) | Task status is written only by run-status sensors | Accepted |
 | [0018](0018-global-resources-and-gitea-mirror.md) | Global resources assigned to projects, and a Gitea mirror of GitHub (design note) | Proposed (schema naming superseded by 0019; mirror superseded by 0020) |
-| [0019](0019-global-resources-and-shared-pull-requests.md) | Global resources assigned to projects, with pull requests stored once per repository | Proposed (reviewed against the preview branch; eight decisions open) |
+| [0019](0019-global-resources-and-shared-pull-requests.md) | Global resources assigned to projects, with pull requests stored once per repository | Accepted (built, stages 0-8) |
 | [0020](0020-gitea-mirror-service.md) | Gitea mirror service: a self-contained GitHub mirror with generic webhooks | Proposed (gated on a Gitea spike) |

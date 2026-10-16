@@ -1,6 +1,6 @@
 # 0004. Generic Secret model and SecretProvider; per-repository tokens
 
-- Status: Accepted
+- Status: Superseded by [0019](0019-global-resources-and-shared-pull-requests.md)
 
 ## Context
 

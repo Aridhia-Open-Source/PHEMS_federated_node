@@ -1,6 +1,6 @@
 # 0015. fncli as a dev/ops tool
 
-- Status: Accepted (scope is deliberately small)
+- Status: Accepted (scope is deliberately small). Amended: fncli speaks global create + assign (0019, stage 8a).
 
 ## Context
 

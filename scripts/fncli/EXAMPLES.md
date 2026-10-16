@@ -33,7 +33,7 @@ fncli logs in first with `POST /login` on the backend, then makes its backend ca
   - Backend: stores each token as a secret (`POST /secrets`, or `PATCH /secrets/{label}` if it exists).
   - Backend: stores dummy dataset credentials as a secret (same call).
   - K8s: reads the secret back to check it holds the new token.
-  - Backend: registers the trigger repo (`POST /trigger_repositories`) and assigns it to the project (`POST /projects/{id}/trigger_repositories`).
+  - Backend: registers the trigger repo (`POST /trigger_repositories`) if it is missing, then assigns it to the project (`POST /projects/{id}/trigger_repositories`).
   - Backend: registers the results repo (`POST /results_repositories`) if it is missing, then assigns it to the project (`POST /projects/{id}/results_repositories`).
   - Backend: registers the dataset (`POST /datasets`) if it is missing, then assigns it to the project (`POST /projects/{id}/datasets`), which makes it the project's default if it is the first.
   - Gitea: checks each token is accepted.
@@ -70,7 +70,7 @@ Each command opens a PR and merges it, using the Gitea API only. fncli makes no 
 Add `--watch` to follow the merged PR in real time (and `--timeout <seconds>`, default 300). It prints a timestamped line each time something changes (including a link to the Dagster run once it starts), and exits 1 on REJECTED, a FAILURE or CANCELED run, or a timeout. On a timeout it also lists the sensors that are not running at the stage it is stuck at. A dropped connection (Dagster reloading, say) is retried; it gives up after 10 failed polls in a row.
 
 - `fncli open-pr --kind watched --merge --watch`, or `fncli merge-gitea-pr --number <n> --watch`
-  - Backend: `GET /projects/{project_id}/trigger_repositories/{repo_id}/pull_requests`, until the PR shows up ("waiting for ingest") and shows its state (UNKNOWN, then YIELDED, IGNORED or REJECTED, with its state_cause).
+  - Backend: `GET /projects/{project_id}/trigger_repositories/{assignment_id}/pull_requests`, until the PR shows up ("waiting for ingest") and shows its state (UNKNOWN, then YIELDED, IGNORED or REJECTED, with its state_cause).
   - Backend: `GET /tasks/{task_id}` for a YIELDED PR, showing the task's status.
   - Dagster: GraphQL `runsOrError` filtered by the task_id tag, showing the run's id and status until SUCCESS, FAILURE or CANCELED.
   - Exits 0 on IGNORED or SUCCESS.
@@ -106,7 +106,7 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
 - `fncli verify-repo`
   - Prints a block per PR, one line per check (`ok` or `FAIL`), and a summary. Exits 1 if any check fails.
   - `link` lines give the trigger PR in Gitea, the Dagster run and the results PR, as URLs that open from the host. They are not checks.
-  - Backend: `GET /trigger_repositories/{id}/pull_requests`, for every PR.
+  - Backend: `GET /projects/{project_id}/trigger_repositories/{assignment_id}/pull_requests`, for every PR of the project's assignment.
   - A PR the sensor ignored or rejected has no task, so it passes with a note.
   - A PR still `UNKNOWN` fails: the evaluate sensor hasn't run on it.
   - For a `YIELDED` PR, Backend: `GET /tasks/{id}`, for the task's status, run id, attempt and times.
@@ -122,7 +122,7 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
 ### 5. Tear down
 
 - `fncli teardown-project -y`
-  - Backend: `DELETE /projects/{id}`, which also removes the tasks, dataset and results repository assignments and trigger repos under it. Datasets, results repositories and secrets are global and stay.
+  - Backend: `DELETE /projects/{id}`, which also removes the tasks, triggers and the dataset, results repository and trigger repository assignments under it. Datasets, results repositories and secrets are global and stay.
   - Backend: the per-record deletes that follow (`DELETE /datasets/{id}`, `DELETE /trigger_repositories/{id}`, `DELETE /results_repositories/{id}`, `DELETE /secrets/{label}`) delete what is left (a record already gone is skipped). `DELETE /datasets/{id}` and `DELETE /results_repositories/{id}` also drop any remaining assignments, and need each project they are assigned to locked and drained.
   - Gitea: deletes the tokens (`DELETE users/{user}/tokens/{name}`).
   - Gitea: deletes both repos (`DELETE repos/{user}/{name}`).
@@ -136,7 +136,7 @@ Optional, to tear down one side only:
 ## What to expect
 
 - `setup-project`: the healthcheck is `ok`.
-- Ingest tick: "Saved N new pull requests to database".
+- Ingest tick: "Saved N new pull requests to database", one poll per trigger repository however many projects are assigned to it.
 - Watched PR: `YIELDED` with a Task, then the run succeeds.
 - Unwatched PR: `IGNORED`.
 - Invalid PR: `REJECTED`, with the validation error.

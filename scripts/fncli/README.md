@@ -86,18 +86,18 @@ fncli teardown-gitea -y [--project NAME]
 fncli teardown-backend -y
 ```
 
-- `setup-project`: builds the dev project. Side effects: creates two Gitea repos (trigger and results), a Gitea token for each (`fn-sensor`, `fn-results`), the K8s secrets holding them and the dataset's credentials (via the backend; dummies unless the `DATASET_*` env vars are set, see below), and the backend project, repository and dataset records.
+- `setup-project`: builds the dev project. Side effects: creates two Gitea repos (trigger and results), a Gitea token for each (`fn-sensor`, `fn-results`), the K8s secrets holding them and the dataset's credentials (via the backend; dummies unless the `DATASET_*` env vars are set, see below), and the backend records: the project, the global trigger repository, results repository and dataset, and the project's assignment of each.
 - `open-pr`: opens a PR in the trigger repo for the sensor to find. Side effects: a new branch, one new file and a PR in Gitea; with `--merge` the PR is merged, which is what the sensor picks up.
-- `teardown-project -y`: deletes the lot, side effects included: the backend records, the secrets (backend and K8s), the Gitea tokens and both Gitea repos with all their PRs. `-y` skips the prompt.
+- `teardown-project -y`: deletes the lot, side effects included: the backend project and its assignments, then the global dataset, repositories and secrets (backend and K8s), the Gitea tokens and both Gitea repos with all their PRs. `-y` skips the prompt.
 
-- `setup-backend`: the backend only, no Gitea call. Side effects: the backend project, the three secrets (K8s, holding placeholders: git secrets `{"TOKEN": "unset"}`, the dataset's credentials) and the trigger repository (watching `main`), results repository and dataset records.
+- `setup-backend`: the backend only, no Gitea call. Side effects: the backend project, the three global secrets (K8s, holding placeholders: git secrets `{"TOKEN": "unset"}`, the dataset's credentials), the global trigger repository, results repository and dataset, and the project's assignment of each (the trigger one watching `main`).
 - `setup-gitea`: the Gitea side of an existing backend project, which is the reference (not the `TEST_*_REPO` env vars). Side effects: creates the Gitea repos its trigger and results repository records name, issues a Gitea token for each (`fn-sensor`, `fn-results`), writes it into that record's existing secret and checks Gitea accepts it.
 - `teardown-gitea -y`: deletes the Gitea tokens and repos (with all their PRs) named by the project's backend records. The backend is left alone.
-- `teardown-backend -y`: deletes the backend records, the secrets (backend and K8s) and the project. Gitea is left alone.
+- `teardown-backend -y`: deletes the project (with its assignments), then the global dataset, repositories and secrets (backend and K8s). Gitea is left alone.
 
 Intended use: `setup-backend` then `setup-gitea`, or `setup-project` for both in one go (and `teardown-gitea` then `teardown-backend`, or `teardown-project`).
 
-A project is two Gitea repos (`--entity trigger` is the repo the sensor watches, `--entity
+Secrets, datasets and the trigger and results repositories are global: they belong to no project. The `init-backend-*` commands create the global record if it is missing (found by uri, name or label), then assign it to the test project with `POST /projects/<id>/...`, so a re-run changes nothing. A project is two Gitea repos (`--entity trigger` is the repo the sensor watches, `--entity
 results` is where task results go), a dataset, and a secret for each of the three. Every
 step is its own command and the group commands chain them; every step is idempotent and can be run
 on its own or re-run after a failure. Deletes of something already gone are logged, not errors.
@@ -121,7 +121,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 | Command | What it does |
 |---|---|
 | `init-backend-project` | Finds or creates the test project in the backend, and enables it |
-| `delete-backend-project` | Deletes the project with everything still under it (`DELETE /projects/<id>`) |
+| `delete-backend-project` | Deletes the project with its tasks, triggers and assignments (`DELETE /projects/<id>`). The global secrets, datasets and repositories stay |
 | `project-healthcheck` | Prints the backend's healthcheck for the test project as JSON (can the repos be reached with their tokens?). Exits 1 unless the status is `ok` |
 
 **Repository** (`cmds/repository.py`)
@@ -130,8 +130,8 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 |---|---|
 | `init-gitea-repo [--entity]` | Finds or creates the repo in Gitea |
 | `delete-gitea-repo [--entity] [-y]` | Deletes the repo from Gitea, after asking. Backend records are left alone |
-| `init-backend-trigger-repo [--base-branch]` | Registers the trigger repo with the backend so the sensor polls it. Without `--base-branch` the branch is the repo's default branch in Gitea (a Gitea call) |
-| `init-backend-results-repo` | Registers the results repo as the project's results repository |
+| `init-backend-trigger-repo [--base-branch]` | Creates the global trigger repository if missing and assigns it to the project (watch_dir, base_branch), so the sensor polls it. Without `--base-branch` the branch is the repo's default branch in Gitea (a Gitea call) |
+| `init-backend-results-repo` | Creates the global results repository if missing and assigns it to the project (target_dir) as its results repository |
 | `delete-backend-trigger-repo`, `delete-backend-results-repo` | Delete that global repository from the backend, and with it every project's assignment of it. The trigger one is refused while any of its assignments has pull requests (delete the project first) |
 
 **Secret** (`cmds/secret.py`)
@@ -139,18 +139,18 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 | Command | What it does |
 |---|---|
 | `init-git-secret [--entity]` | Stores a fresh Gitea token in the repo's K8s secret (`read:repository` for trigger, `write:repository` for results) |
-| `init-backend-secret [--entity trigger\|results\|dataset]` | Creates the secret in the backend with placeholder values (`{"TOKEN": "unset"}`, or the dataset's dummies), with no Gitea call. An existing secret is left alone, so a real token is never overwritten |
+| `init-backend-secret [--entity trigger\|results\|dataset]` | Creates the global secret in the backend (`POST /secrets`) with placeholder values (`{"TOKEN": "unset"}`, or the dataset's dummies), with no Gitea call. An existing secret is left alone, so a real token is never overwritten |
 | `init-dataset-secret` | Stores `USERNAME` and `PASSWORD` (`DATASET_USERNAME`, `DATASET_PASSWORD`, default `dummy`) in the dataset's secret (`<dataset>-dataset-creds`) |
 | `verify-git-secret [--entity]` | Checks Gitea accepts the token currently stored in the repo's secret |
-| `delete-secret [--entity trigger\|results\|dataset]` | Deletes the secret from the backend and K8s. Refused while a repo or dataset uses it |
+| `delete-secret [--entity trigger\|results\|dataset]` | Deletes the global secret from the backend and K8s. Refused while a repo or dataset uses it |
 | `delete-gitea-token [--entity]` | Deletes the Gitea token `init-git-secret` created for the repo |
 
 **Dataset** (`cmds/dataset.py`)
 
 | Command | What it does |
 |---|---|
-| `init-backend-dataset` | Registers the dataset (needs the dataset secret) |
-| `delete-backend-dataset` | Deletes the dataset record from the backend |
+| `init-backend-dataset` | Creates the global dataset if missing (needs the dataset secret) and assigns it to the project. The first one assigned becomes the project's default |
+| `delete-backend-dataset` | Deletes the global dataset from the backend, and with it every project's assignment of it. Needs each of those projects locked and drained |
 
 **Pull request** (`cmds/pr.py`; the file name, branch and title carry a timestamp, so it can be re-run)
 
@@ -175,8 +175,7 @@ whose spec has an unknown field, so the PR is rejected.
 | `stop-sensor [--sensor]` | Stops them; `all` stops the launcher first |
 | `sensor-status` | Prints every sensor's status and last 3 ticks (status, skip reason or error) |
 
-Everything is STOPPED in Dagster by default. The whole path from a merged PR is: `ingest` saves it
-(UNKNOWN), `evaluate` turns it into a task (YIELDED, or IGNORED / REJECTED with a cause), `launcher`
+Everything is STOPPED in Dagster by default. The whole path from a merged PR is: `ingest` polls the repository once and stores the PR, which the backend fans out to every project assigned to the repository (a trigger per assignment, UNKNOWN), `evaluate` turns each into a task (YIELDED, or IGNORED / REJECTED with a cause), `launcher`
 starts a Dagster run for each PENDING task, and the run-status sensors copy the run's status onto the
 task. The run-status sensors only see events from the moment they start, so they must be running
 BEFORE the launcher: a run that finishes first leaves its task PENDING for good. `start-sensor
@@ -243,7 +242,7 @@ remove that too, unless something else you use installs into `~/.local/bin`.
 ```
 scripts/fncli/
   cli.py            click group; loads .dev.env and registers commands
-  cmds/             the commands, one module per entity (each has its init- and delete- commands)
+  cmds/             the commands, one module per entity (each has its init- and delete- commands; the init- ones create the global record, then assign it)
     common.py       env config classes and the Gitea and backend API builders
     actions.py      group commands: setup-/teardown-project, -backend, -gitea, and open-pr
     project.py      the backend project, and the find/init helpers the other entities use

@@ -1,6 +1,6 @@
 # 0019. Global resources assigned to projects, with pull requests stored once per repository
 
-- Status: Proposed (not built). This is the current priority: a one-day attempt, with other work, beta included, parked. Reviewed against `origin/dagster-develop-preview`, see [the review](../handover/moonshot-review.md).
+- Status: Accepted (built). Stages 0-8 are done on the moonshot branches (local, not pushed).
 - Supersedes the schema naming in [0018](0018-global-resources-and-gitea-mirror.md). The Gitea mirror is [0020](0020-gitea-mirror-service.md) and depends on this.
 
 ## Context

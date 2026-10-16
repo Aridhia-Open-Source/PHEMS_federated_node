@@ -19,7 +19,7 @@ If the open PRs land on `dagster-develop` first, rebase onto that; the preview b
 1. **The moonshot** (ADR [0019](../decisions/0019-global-resources-and-shared-pull-requests.md)): make secrets, trigger repositories, results repositories and datasets global, assign them to projects through `project_trigger_repositories`, `project_results_repositories` and `project_datasets`, store pull requests once per repository (with base branch and changed paths) with per-project fan-out, and give each assignment `enabled` (a person's switch) and `revoked` (access withdrawn). Active means `enabled` and not `revoked`. Revoking never touches `enabled`. Revoking affects only that resource, never the project.
 2. **The Gitea mirror** (ADR [0020](../decisions/0020-gitea-mirror-service.md)): a separate, self-contained service. It mirrors a GitHub repository's merged PRs into the node's Gitea over outbound-only connections. It has its own database and API and no knowledge of the node; anyone can subscribe a webhook endpoint, and the node can also just poll the mirror as a normal Gitea repository. **Out of scope for the moonshot.** It does not depend on the moonshot; it is gated on a Gitea spike. Build plan: [gitea-mirror-plan.md](gitea-mirror-plan.md). Do not start it until told.
 
-The moonshot is the **current priority**: a one-day attempt, with other work, beta included, parked. The ADR stays Proposed until it is built.
+The moonshot is **built** (stages 0-8b complete). Stages 0-8 sit on the stacked moonshot branches, local only.
 
 ## Constraints from the owner
 
@@ -30,8 +30,8 @@ The moonshot is the **current priority**: a one-day attempt, with other work, be
 
 ## State of things
 
-- **Nothing in the moonshot is built.** There is no code, only ADRs.
-- **No tests have been run** on `dagster-develop-preview`, webserver or Dagster. First job: get the webserver tests green there (they need Postgres; PR #532 isolates test runs). Docker worked in the previous environment but Docker Hub rate-limited it; `mirror.gcr.io` worked for images.
+- **The moonshot is built** (stages 0-8b). See [moonshot-plan.md](moonshot-plan.md) and the commit log in each stage's PR for what changed.
+- Each stage ran its own test files only, never whole suites. fncli tests could not run (no pytest) and the shell seed scripts were only syntax-checked. See each stage's commit message.
 - **Merge conflict resolutions in the preview branch** that the owner should confirm (all were judgment calls):
   - `k8s/federated-node/templates/requirements-check.yaml`: #528 deletes the `github-token`/`GH_TOKEN` requirement check, #526 rewords it. The preview branch takes the deletion.
   - `dev.db/clients.py`: #535 deletes it, #531 edited it. The preview branch deletes it; the fncli and Dagster clients already use #531's `{"pull_requests": [...]}` body.

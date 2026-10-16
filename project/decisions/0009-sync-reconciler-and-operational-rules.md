@@ -1,6 +1,6 @@
 # 0009. Monotonic PATCH rule, sync reconciler, STOPPED sensors, known limits
 
-- Status: Accepted (the known limits are open)
+- Status: Accepted (the known limits are open). Amended: sync sensor resolves inactive results repository assignments (0019, stage 6).
 
 ## Context
 

@@ -1,6 +1,6 @@
 # 0006. Ingest merged pull requests through the pulls endpoint, not search
 
-- Status: Accepted
+- Status: Accepted. Amended: ingest polls once per global trigger repository (0019, stage 7).
 
 ## Context
 

@@ -1,6 +1,6 @@
 # 0007. Results delivered as a pushed branch plus a results pull request
 
-- Status: Accepted (size cap and layout are tuneable)
+- Status: Accepted (size cap and layout are tuneable). Amended: delivery uses the project's results repository assignment (0019, stage 3).
 
 ## Context
 
