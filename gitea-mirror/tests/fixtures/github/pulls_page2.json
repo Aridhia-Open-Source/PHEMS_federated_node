@@ -1,0 +1,50 @@
+[
+ {
+  "number": 3,
+  "title": "PR 3",
+  "user": {
+   "login": "user3"
+  },
+  "updated_at": "2026-03-03T00:00:00Z",
+  "merged_at": "2026-03-02T12:00:00Z",
+  "merge_commit_sha": "m3",
+  "head": {
+   "sha": "h3"
+  },
+  "base": {
+   "ref": "main"
+  }
+ },
+ {
+  "number": 2,
+  "title": "PR 2",
+  "user": {
+   "login": "user2"
+  },
+  "updated_at": "2026-03-01T00:00:00Z",
+  "merged_at": "2026-03-01T00:00:00Z",
+  "merge_commit_sha": "m2",
+  "head": {
+   "sha": "h2"
+  },
+  "base": {
+   "ref": "main"
+  }
+ },
+ {
+  "number": 1,
+  "title": "PR 1",
+  "user": {
+   "login": "user1"
+  },
+  "updated_at": "2026-02-01T00:00:00Z",
+  "merged_at": "2026-02-01T00:00:00Z",
+  "merge_commit_sha": "m1",
+  "head": {
+   "sha": "h1"
+  },
+  "base": {
+   "ref": "main"
+  }
+ }
+]
