@@ -1,0 +1,10 @@
+name: gitea_mirror_tests
+services:
+  db:
+    ports:
+      - "5432"
+  app:
+    volumes:
+      - ./tests:/app/tests
+      - ./app:/app/app
+      - ./setup.cfg:/app/setup.cfg

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gitea-mirror"
+version = "0.1.0"
+description = "Gitea mirror service for ADR 0020"
+
+dependencies = [
+    "Flask==3.0.3",
+    "Flask-SQLAlchemy==3.1.1",
+    "SQLAlchemy==2.0.31",
+    "alembic==1.16.5",
+    "psycopg2-binary==2.9.10",
+    "waitress==2.1.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.2.2",
+    "pytest-mock==3.14.0",
+]
