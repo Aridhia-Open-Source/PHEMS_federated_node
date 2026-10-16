@@ -27,8 +27,9 @@ Per project, holding that project's own configuration:
 | `project_trigger_repositories` | `id`, `project_id`, `trigger_repository_id`, `watch_dir`, `base_branch`, `initial_cursor`, `enabled`, `revoked` |
 | `project_results_repositories` | `id`, `project_id`, `results_repository_id`, `target_dir`, `owned_by_federated_node`, `enabled`, `revoked` |
 | `project_datasets` | `id`, `project_id`, `dataset_id`, `enabled`, `revoked` |
+| `project_secrets` | `id`, `project_id`, `secret_id`, `enabled`, `revoked` |
 
-A project reaches a repository or dataset only through its own assignment row. Projects never reference a secret; the credential belongs to the global resource. `datasets.name` is already globally unique, so de-duplicating datasets by name is a no-op for existing data.
+A project reaches a resource only through its own assignment row. The API returns secret references only, never values. `datasets.name` is already globally unique, so de-duplicating datasets by name is a no-op for existing data.
 
 ### 2. `enabled` and `revoked`
 
@@ -36,6 +37,8 @@ A project reaches a repository or dataset only through its own assignment row. P
 - `revoked`: the controller withdrew the project's access.
 
 An assignment is **active** when `enabled` and not `revoked`. Revoking sets only `revoked`, never `enabled`, so a re-grant clears `revoked` and restores the previous state. Revoking affects only that resource; the project keeps running.
+
+**Global `enabled`.** Resources can be switched on or off at both levels: each global resource (`trigger_repositories`, `results_repositories`, `datasets`, `secrets`) has its own `enabled` (not null, default true), set on the global `POST` and `PATCH`. A link is **active** only when its global resource is enabled, the link is `enabled` and the link is not `revoked`. A disabled global trigger repository is not polled and stores nothing: `GET /global/repositories/triggers?active_link=true` leaves it out and the batch ingest `POST` refuses it with a 400.
 
 **Visibility contract.** The project assignment endpoints return inactive assignments too, with `enabled`, `revoked` and a computed `active`. Hiding them breaks in-flight work in Dagster: results delivery unpacks `(repository,) = ...` on the project's results repository (`dagster/app/backend.py:189`), `_find_pull_request` in `delivery/results.py` looks up the task's trigger repository through the list, and the results sync sensor resolves a result's repository by id (`pull_request_sync.py:276`). So the ingest, evaluate and launcher sensors filter on `active`, while delivery and results sync keep resolving inactive rows by id. A delivery that cannot proceed fails with a recorded error, not an unpack `ValueError`.
 
@@ -49,60 +52,53 @@ An assignment is **active** when `enabled` and not `revoked`. Revoking sets only
 - `pull_request_triggers` stays per project and keeps the evaluation state (`state`, `state_cause` and `project_id` via `Trigger`, `spec_raw`, `task_id`). It gains `pull_request_id` and `project_trigger_repository_id` (replacing `trigger_repository_id`) and drops the duplicated facts; `title`, `raised_by` and `requested_by` become properties through `pull_request`. Unique on `(project_trigger_repository_id, pull_request_id)`. `Trigger.project_id`, `Task.project_id` and the unique `Task.trigger_id` are unchanged.
 - **Fan-out:** when a pull request is stored, the backend creates a trigger for every active `project_trigger_repositories` row on that repository. It decides the match from stored data alone: the assignment's `base_branch` against `pull_requests.base_branch`, and its `watch_dir` against `pull_request_files.path` (or `files_truncated`). A matching trigger starts in its normal initial state. A non-matching one is created as `IGNORED`. No provider call is made, so evaluate never calls the provider for a PR the project does not watch.
 - **No re-processing.** `pull_requests` is unique on `(trigger_repository_id, number)` and written by upsert, the global cursor only moves forward, and triggers are unique on `(assignment, pull_request)`. Re-sending a PR changes nothing.
-- **Config changes.** When an assignment's `watch_dir` or `base_branch` changes, matching runs forward from its cursor only. Older PRs are replayed only if `initial_cursor` is set earlier.
-- **Upsert:** the batch ingest endpoint (`trigger_repositories_api.py:243-265`) currently turns any `IntegrityError` into a 400 for the whole batch. With shared storage it must become an upsert plus fan-out, even if only storage is deduplicated, because a second project's tick re-sends PRs already stored.
-- **Two cursors.** The global poll cursor is the max `merged_at` of `pull_requests` for the repository. An assignment's cursor is where its fan-out starts: when a project is added to a repository it starts at the latest stored pull request, so history is not replayed. `initial_cursor` stays as an optional override to start earlier. The assignment DTO exposes its cursor (`pr_cursor`); the global repository DTO exposes the global one.
-- **Backfill.** Fan-out only runs when a pull request is stored, so it is not enough on its own. When an assignment is created, re-enabled or un-revoked, or its `initial_cursor` is set earlier than its starting point, the backend backfills triggers from `pull_requests` and `pull_request_files` for the PRs it missed, with the same match rule. It is a database-only operation; polling the provider could not satisfy an earlier `initial_cursor` anyway because the global cursor is already ahead.
+- **Config changes.** When an assignment's `watch_dir` or `base_branch` changes, matching runs forward from its cursor only. Older PRs are not replayed.
+- **Upsert.** The batch ingest endpoint upserts the PRs and fans out, so a second project's tick re-sending PRs already stored changes nothing.
+- **Two cursors.** The global poll cursor is the max `merged_at` of `pull_requests` for the repository. An assignment's cursor (`initial_cursor` with `initial_cursor_number`) is where its fan-out starts. It is set when the link is created, from the repository's latest stored pull request, or from the link's creation time when none is stored, so history is not replayed. No request sets or moves it. The assignment DTO exposes the cursor it has reached (`pr_cursor`); the global repository DTO exposes the global one, which, with nothing stored yet, is the earliest creation of its active links.
+- **Backfill.** Fan-out only runs when a pull request is stored, so it is not enough on its own. When an assignment is created, re-enabled or un-revoked, the backend backfills triggers from `pull_requests` and `pull_request_files` for the PRs it missed, with the same match rule. It is a database-only operation.
 - **Delete semantics.** Today `pull_request_triggers.trigger_repository_id` is `ON DELETE CASCADE` and deletes only the child row, leaving the `triggers` parent and its `tasks.trigger_id` (RESTRICT) as an orphan. For `project_trigger_repositories` use RESTRICT while triggers exist.
 - `pr_count` and the healthcheck count stay per assignment.
 
 ### 4. API and Dagster sensors
 
-There is no flat compatibility API. The API exposes the real model.
-
-Global resources, `id` is the resource id:
-
-- `GET /trigger_repositories`, `/results_repositories`, `/datasets`, `/secrets` (and by id).
-
-Project assignments, with the global resource nested:
-
-- `GET /projects/<id>/trigger_repositories`, `/results_repositories`, `/datasets`. Each item carries the assignment's own fields (`watch_dir`, `base_branch`, cursor, `enabled`, `revoked`, `active` for trigger repositories; `target_dir` for results repositories) and the global resource nested. Inactive assignments are returned with their flags.
+There is no flat compatibility API. The API exposes the real model, laid out as in section 11: global resources under `/global`, a project's links under `/projects/<id>`, both keyed by the global resource's id.
 
 Pull requests:
 
-- Facts on the global repository: `/trigger_repositories/<id>/pull_requests` (the batch ingest, upsert plus fan-out).
-- Per-project evaluation addressed by assignment, for example `/project_trigger_repositories/<id>/triggers`.
+- Facts on the global repository: `/global/repositories/triggers/<id>/pull_requests` (the batch ingest, upsert plus fan-out).
+- A project's evaluation state under its link: `/projects/<id>/repositories/triggers/<repository id>/pull_requests/<number>`.
 
 Dagster sensors use these directly:
 
-- **Ingest** loops over global trigger repositories and polls each once, with the repository's own secret. It no longer groups a flat list.
-- **Evaluate and launch** loop over active assignments and their triggers.
-- **Delivery** uses the task's results assignment.
-- The evaluate job tag (`pr_evaluate.py:174`) and the task and `/results` calls are keyed on the assignment id.
+- **Ingest** loops over global trigger repositories with an active link and polls each once, with the repository's own secret.
+- **Evaluate and launch** loop over enabled, unlocked projects, their active links and triggers.
+- **Delivery** uses the task's results link.
+- The evaluate job tag carries the project id and the global repository id.
 
-Dagster's nested `Secret` model (`dagster/app/models/secret.py:24-25`) requires `project_id` and `label`. Dagster reads only `key`, `namespace` and `provider`, so make those two optional or remove them. Dagster's repository and dataset models split into a global model and an assignment model. `scripts/fncli` has its own copies of these models and gets the same changes.
+Dagster's `Secret` model needs only `key`, `namespace` and `provider`. Its repository and dataset models are split into a global model and a link model. `scripts/fncli` has its own copies of these models.
 
 ### 5. Results repository lookups
 
-`GET /projects/<id>/results_repositories` returns one item today (one per project). It keeps returning the project's assignment when it is inactive, with its flags, rather than an empty list.
+`GET /projects/<id>/repositories/results` returns the project's link, with its flags, when it is inactive, rather than an empty list.
 
 ### 6. Datasets
 
-- `tasks` reach a dataset through `task_specs.dataset_id`, and `projects.default_dataset_id` points at `datasets.id`. Both keep pointing at `datasets.id`; no repoint.
-- The check "the dataset belongs to this project" (`Task.validate`, `models/task.py:128`; `Project.resolve_dataset`, `models/project.py:95-101`; `NewTaskDTO.from_spec`) becomes "this project has an active `project_datasets` row for it".
-- `default_dataset_id` is not tied to an assignment today (`task.py:138`, `project.py:101`, `TriggerRepository.dataset`), so a default can be unassigned or revoked and tasks would still run on it. Make it a composite FK `(project_id, default_dataset_id)` to `project_datasets(project_id, dataset_id)` and check `active` in `resolve_dataset`. This also removes the `projects`/`datasets` FK cycle and its `post_update` workaround.
-- `Dataset.add` makes the first dataset in a project its default (`models/dataset.py:87-97`); that logic moves to assignment creation.
-- The launcher's `GET /datasets/<id>` (`launcher.py:216`) is not project-aware. It needs a project-aware lookup, or the active flag in the response.
-- `task_specs.dataset_id` is `ON DELETE CASCADE` and `tasks.task_spec_id` cascades from `task_specs` (`001_baseline.py:221-247`), so deleting a dataset deletes the tasks that ran on it. Change both to RESTRICT or SET NULL.
-- Global datasets have no `project_id`. `/datasets` lists global datasets; a project's datasets are `/projects/<id>/datasets`. POST no longer takes `project_id`, PATCH no longer moves it, and `DatasetDTO` has no `project_id`.
+- `tasks` reach a dataset through `task_specs.dataset_id`, and `projects.default_dataset_id` points at `datasets.id`.
+- "The dataset belongs to this project" (`Task.validate`; `Project.resolve_dataset`; `NewTaskDTO.from_spec`) means the project has an active `project_datasets` row for it.
+- `default_dataset_id` is a composite FK `(project_id, default_dataset_id)` to `project_datasets(project_id, dataset_id)`, and `resolve_dataset` checks `active`. This removes the `projects`/`datasets` FK cycle and its `post_update` workaround.
+- The first dataset linked to a project becomes its default.
+- `task_specs.dataset_id` and `tasks.task_spec_id` are RESTRICT, so a dataset a task ran on cannot be deleted.
+- Global datasets have no `project_id`. `GET /global/datasets` lists them and a project's are `GET /projects/<id>/datasets`. POST takes no `project_id` and `DatasetDTO` has none.
+- Datasets are addressed by id only, never by name; `DatasetDTO.url` uses the id.
+- Dataset-level authorisation is out of scope here: the `check_dataset` option of the auth decorator is gone, and a later auth ticket owns it.
 
 ### 7. Secrets
 
-- The API moves from `/projects/<id>/secrets` to `/secrets`. `Secret.get_in_project` becomes `get_by_label`. `label` is unique globally, because every repository and dataset POST/PATCH and fncli address secrets by `secret_label`.
-- `Secret.key` is currently `"<project_id>-<label>"`; it needs a new generation rule, still a valid DNS subdomain (#543 validates it).
-- The composite FKs `(project_id, secret_id)` and `UNIQUE(project_id, id)` go. Delete checks the global resources' usage only.
+- Secrets are global and addressed by `label`, which is unique across the node, because every repository and dataset POST/PATCH and fncli address secrets by `secret_label`. `Secret.get_by_label` resolves it.
+- `Secret.key` is `"fn-secret-<label>"`, fixed at creation, still a valid DNS subdomain (#543 validates it).
+- There are no composite FKs on `project_id`. Delete checks the global resources' usage only.
 - Rotating a secret affects every project using it, by design, and stays exempt from the project lock.
-- `delete_project` deletes the project's assignments only. It must not delete secrets, datasets or repositories, and must not call `SecretProvider.delete`.
+- `delete_project` deletes the project's links only. It does not delete secrets, datasets or repositories, and does not call `SecretProvider.delete`.
 
 ### 8. Results
 
@@ -122,7 +118,30 @@ Dagster's nested `Secret` model (`dagster/app/models/secret.py:24-25`) requires 
 
 Fold 002 (`webserver/migrations/versions/002_result_step_state_project_lock.py`, #548) and this change into the baseline, per ADR [0013](0013-baseline-migration-edited-in-place.md): the line is unreleased. If existing data needs carrying, the split is: each current table becomes its global part (de-duplicated by `uri` or `name`) and an assignment row.
 
-### 11. Decisions settled
+### 11. Resource URL layout
+
+Datasets, secrets, trigger repositories and results repositories are all **resources**. Each exists globally and is linked to projects. Every URL is either global or under one project.
+
+| Scope | Path | Methods |
+|---|---|---|
+| Global | `/global/datasets/:id`, `/global/secrets/:label`, `/global/repositories/triggers/:id`, `/global/repositories/results/:id` | `POST` on the collection creates; `GET`, `PATCH` and `DELETE` manage |
+| Project | `/projects/:pid/datasets/:id`, `/projects/:pid/secrets/:label`, `/projects/:pid/repositories/triggers/:id`, `/projects/:pid/repositories/results/:id` | `GET` lists or reads the link; `PUT` links (201 first time, 200 after); `PATCH` changes the project's settings; `DELETE` unlinks |
+
+- **One id.** Project paths use the global resource's id (a secret's label), never the link row's id. A project's view of a resource is addressed by `(project_id, resource id)`, so the link id leaves the API. The global API is where resources are found before linking them.
+- **Projects never create resources.** `POST` exists only under `/global`. A resource only one project uses is a global resource linked to that one project.
+- **Secrets follow the same rule.** A project can be linked to a secret (`project_secrets`, with `enabled` and `revoked`). The API returns references only, never values.
+- **Results are project-scoped.** A result belongs to a task, so it lives under `/projects/:pid/results` and `/projects/:pid/results/:id` (`GET` lists or reads, `POST` creates the delivery, `PATCH` records its progress); a result whose task is in another project is a 404. An admin endpoint across projects may come later.
+- **No cross-project lists.** `GET /project_trigger_repositories` goes. Ingest reads `GET /global/repositories/triggers` filtered to repositories with an active link of an enabled project; `PullRequestEvaluateSensor` loops over enabled, unlocked projects and reads each project's links (one extra list call per project per tick). `TaskLauncherSensor` already loops over projects and reads no trigger links.
+- **`PUT` replaces.** Fields left out of a `PUT` body take their defaults; use `PATCH` to change one setting.
+- **Sub-resources nest under their parent, in its scope.** A pull request's facts are under the global repository (`/global/repositories/triggers/:id/pull_requests`, including the batch ingest); a project's trigger for it is under the project's link (`/projects/:pid/repositories/triggers/:id/pull_requests/:number`).
+- **`PUT` takes the project's own settings only.** `revoked` is the controller's, so only `PATCH` sets it (admin only) and a `PUT` leaves it alone. A trigger link is unique on `(project_id, trigger_repository_id)`, so a project watches one directory per repository.
+- **Results carry the global results repository id.** `POST /projects/:pid/results` and the result DTO carry it; the row still points at the link.
+- **Global `enabled`.** Each global resource carries `enabled` (settable on `POST` and `PATCH`, shown in the DTO) and a link is active only when the resource is enabled, the link is enabled and not revoked (section 2). The ingest filter and the batch ingest both honour it.
+- **Ingest is only the global batch.** There is no single-PR project route. The ingest filter is `GET /global/repositories/triggers?active_link=true`.
+
+- **Parked:** lock, drain and enabled guards on editing, deleting or unlinking resources (for example `DELETE /global/secrets/:label`) stay as built and are not revisited for now. Worst case a project keeps failing or is missing a secret.
+
+### 12. Decisions settled
 
 1. Revoke takes effect immediately; in-flight deliveries fail with a recorded error (section 2).
 2. Editing or deleting a global dataset, repository or secret requires every assigned project locked and drained; secret rotation stays exempt (section 9).
@@ -132,6 +151,7 @@ Fold 002 (`webserver/migrations/versions/002_result_step_state_project_lock.py`,
 6. Migration: fold 002 and this change into the baseline (section 10).
 7. Creating global resources and grants: admin role for now; revisit with the authorization rework (section 9).
 8. `whitelisted_images`: not now (section 9).
+9. URLs are `/global/...` or `/projects/:pid/...`, keyed by the global id; `POST` only under `/global`, `PUT` links (section 11).
 
 ## Consequences
 
@@ -149,7 +169,7 @@ Fold 002 (`webserver/migrations/versions/002_result_step_state_project_lock.py`,
 Each stage leaves the webserver tests runnable.
 
 0. Contract tests (below): pin the unchanged endpoints; write the target shapes as strict `xfail` tests. No behaviour change.
-1. Global secrets: drop `project_id`, unique `label`, drop the composite FKs, `/secrets`, the three `secret_label` resolvers, `SecretDTO`; Dagster `Secret` model; fix `delete_project`.
+1. Global secrets: drop `project_id`, unique `label`, drop the composite FKs, `/global/secrets`, the three `secret_label` resolvers, `SecretDTO`; Dagster `Secret` model; fix `delete_project`.
 2. Global datasets plus `project_datasets`: assignment model and endpoints, `resolve_dataset`, `Task.validate`, the default-dataset composite FK, the cascade to RESTRICT, DAR; fncli dataset helpers.
 3. Global results repositories plus `project_results_repositories`: repoint `results`; `/projects/<id>/results_repositories` includes inactive assignments; healthcheck; loop check for results.
 4. Global trigger repositories plus `project_trigger_repositories`: assignment endpoints; complete the cross-project loop check; cursor, `pr_count`, `dataset_id` per assignment.
@@ -158,15 +178,15 @@ Each stage leaves the webserver tests runnable.
 7. The Dagster sensors on the new endpoints: ingest per global repository, evaluate and launch per active assignment, delivery by the task's results assignment.
 8. fncli, `openapi.json`, `docs/architecture`, ADR updates.
 
-Stages 1–4 are mostly mechanical. The decisions in section 11 are settled.
+Stages 1–4 are mostly mechanical. The decisions in section 12 are settled.
 
 ## Contract tests to add first
 
 Assert exact key sets and types, not just status codes. Stage 0 does two things.
 
-**Pin what does not change shape:** the PR endpoints keyed by `(repo_id, number)` (list paged with `state` filter, get, patch state, `/task` 201 then 200 idempotent and 400 on a bad spec with `REJECTED` recorded); the `/results` round trip including the `step` filter; `GET /datasets/<name>`; `GET /projects` item keys including `default_dataset_id`, `locked`, `enabled`; the task DTO `spec.dataset_id`; the healthcheck body shape; task creation through the API and the PR path both rejecting a dataset of another project and falling back to the default dataset. Batch ingest: 201, and pin that a duplicate number returns 400 today so the upsert change is deliberate.
+**Pin what does not change shape:** the PR endpoints keyed by `(repo_id, number)` (list paged with `state` filter, get, patch state, `/task` 201 then 200 idempotent and 400 on a bad spec with `REJECTED` recorded); the `/results` round trip including the `step` filter; `GET /global/datasets/<id>`; `GET /projects` item keys including `default_dataset_id`, `locked`, `enabled`; the task DTO `spec.dataset_id`; the healthcheck body shape; task creation through the API and the PR path both rejecting a dataset of another project and falling back to the default dataset. Batch ingest: 201, and pin that a duplicate number returns 400 today so the upsert change is deliberate.
 
-**Write the target shapes for changing endpoints as tests marked `xfail(strict=True)`:** global `GET /trigger_repositories` (`id` is the resource id), `GET /projects/<id>/trigger_repositories` and the results repository and dataset equivalents with the nested global resource and assignment fields, `/secrets`, PR ingest on the global repository, and fan-out with `IGNORED`. Each stage removes the marker from the tests it makes pass. A strict `xfail` that unexpectedly passes fails the run, so the flip cannot be forgotten.
+**Write the target shapes for changing endpoints as tests marked `xfail(strict=True)`:** global `GET /global/repositories/triggers` (`id` is the resource id), `GET /projects/<id>/repositories/triggers` and the results repository and dataset equivalents with the nested global resource and assignment fields, `/global/secrets`, PR ingest on the global repository, and fan-out with `IGNORED`. Each stage removes the marker from the tests it makes pass. A strict `xfail` that unexpectedly passes fails the run, so the flip cannot be forgotten.
 
 Plus a cross-service check: the webserver tests dump these responses to a committed JSON fixture and the Dagster and fncli model tests parse the same fixtures. That catches the `Secret.project_id`/`label` breakage at test time.
 

@@ -39,7 +39,7 @@ TRIGGER_ASSIGNMENT = ProjectTriggerRepository(
     enabled=True, revoked=False, active=True,
 )
 PULL_REQUEST = PullRequestTrigger(
-    project_id=1, project_trigger_repository_id=8, number=12, title="t", raised_by="u", merged_at="2026-01-01T00:00:00Z",
+    project_id=1, trigger_repository_id=8, number=12, title="t", raised_by="u", merged_at="2026-01-01T00:00:00Z",
     merge_commit_sha="abc", state="YIELDED", task_id=7,
 )
 LAYOUT = "results/analysis/12/7"
@@ -86,7 +86,7 @@ def backend_api():
     api = MagicMock()
     api.get_task.return_value = TASK
     api.get_results_repository.return_value = REPOSITORY
-    api.get_repositories.return_value = [TRIGGER_ASSIGNMENT]
+    api.get_project_trigger_repositories.return_value = [TRIGGER_ASSIGNMENT]
     api.get_pull_requests.return_value = [PULL_REQUEST]
     api.create_result.return_value = result()
     return api
@@ -220,12 +220,12 @@ def test_a_revoked_results_repository_fails_the_delivery_with_the_error_and_rais
 
 
 def test_an_inactive_trigger_assignment_is_still_resolved(backend_api, remote, artifacts, git_apis):
-    backend_api.get_repositories.return_value = [TRIGGER_ASSIGNMENT.model_copy(update={"revoked": True, "active": False})]
+    backend_api.get_project_trigger_repositories.return_value = [TRIGGER_ASSIGNMENT.model_copy(update={"revoked": True, "active": False})]
 
     deliver(backend_api, remote, artifacts, git_apis)
 
     assert patches(backend_api)[-1]["state"] == "DELIVERED"
-    backend_api.get_repositories.assert_called_once_with()
+    backend_api.get_project_trigger_repositories.assert_called_once_with()
 
 
 @pytest.mark.parametrize("step", ["OPENED", "MERGED", "CLOSED"])

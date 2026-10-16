@@ -28,6 +28,13 @@ erDiagram
         string host
         string type
     }
+    project_secrets {
+        int id PK
+        int project_id FK
+        int secret_id FK
+        bool enabled
+        bool revoked
+    }
     project_datasets {
         int id PK
         int project_id FK
@@ -130,7 +137,7 @@ erDiagram
         int id PK
         string type "PR"
         int task_id FK
-        int results_repository_id FK "assignment id"
+        int results_repository_id FK "the project_results_repositories row, the API shows the global repository id"
         int attempts
         string error
     }
@@ -146,6 +153,8 @@ erDiagram
     }
 
     projects ||--o{ project_datasets : "assigns"
+    projects ||--o{ project_secrets : "assigns"
+    secrets ||--o{ project_secrets : "is assigned via"
     projects ||--o{ project_trigger_repositories : "assigns"
     projects ||--o| project_results_repositories : "assigns one"
     projects ||--o{ triggers : "scopes"
@@ -170,7 +179,7 @@ erDiagram
     results ||--o| pull_request_results : "is a"
 ```
 
-Composite foreign key `(project_id, default_dataset_id)` on `projects` references `project_datasets`. Global resources (`secrets`, `trigger_repositories`, `results_repositories`, `datasets`) have no `project_id`. Pull requests are stored once per global repository (`UNIQUE(trigger_repository_id, number)`), with their changed files in `pull_request_files` and `files_truncated` set when the provider's list was cut. A `pull_request_triggers` row is unique per `(assignment, pull request)` and keeps the evaluation state; the pull request's number, title, author, merge time and commit are read through `pull_request`. A `project_trigger_repositories` row has `UNIQUE(project_id, trigger_repository_id, watch_dir)`. `pr_cursor` is not a column: it is the latest `merged_at` of the repository's pull requests, or of the assignment's triggers. An assignment is active when `enabled` and not `revoked`. A `results` row is unique per `(task_id, results_repository_id)` where `results_repository_id` is the `project_results_repositories` id.
+Composite foreign key `(project_id, default_dataset_id)` on `projects` references `project_datasets`. Global resources (`secrets`, `trigger_repositories`, `results_repositories`, `datasets`) have no `project_id`. Pull requests are stored once per global repository (`UNIQUE(trigger_repository_id, number)`), with their changed files in `pull_request_files` and `files_truncated` set when the provider's list was cut. A `pull_request_triggers` row is unique per `(assignment, pull request)` and keeps the evaluation state; the pull request's number, title, author, merge time and commit are read through `pull_request`. A `project_trigger_repositories` row has `UNIQUE(project_id, trigger_repository_id)`, so the API addresses it by the global repository id. A `project_secrets` row links a project to a secret (`UNIQUE(project_id, secret_id)`, `enabled`, `revoked`) and never holds values. `pr_cursor` is not a column: it is the latest `merged_at` of the repository's pull requests, or of the assignment's triggers, from `initial_cursor` (set when the link is created) when it has none. An assignment is active when `enabled` and not `revoked`. A `results` row is unique per `(task_id, results_repository_id)` where `results_repository_id` is the `project_results_repositories` id.
 
 ## Inheritance trees
 
@@ -265,7 +274,7 @@ Only the run-status sensors write the status; the backend does not enforce the o
 
 ```mermaid
 stateDiagram-v2
-    [*] --> UNKNOWN : POST /results (idempotent)
+    [*] --> UNKNOWN : POST /projects/<id>/results (idempotent)
     UNKNOWN --> PUSHED : branch pushed (delivery job)
     PUSHED --> OPENED : results PR opened (delivery job)
     PUSHED --> OPENED : PR found by branch (sync sensor)

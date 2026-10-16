@@ -35,7 +35,7 @@ class ProjectDataset(db.Model, BaseModel):
 
     @property
     def active(self) -> bool:
-        return self.enabled and not self.revoked
+        return self.dataset.enabled and self.enabled and not self.revoked
 
     def add(self, commit=True):
         super().add(False)

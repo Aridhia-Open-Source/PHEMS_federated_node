@@ -1,4 +1,5 @@
 import base64
+import json
 from copy import deepcopy
 from typing import List
 from pytest import fixture
@@ -18,6 +19,8 @@ from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
 from app.models.task import Task
 from app.models.extras.dar import DAR
+from app.models.git_provider import ConnectionCheck, ConnectionStatus
+from app.models.git_repository import GitRepositoryMixin
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.trigger_repository import TriggerRepository
 from app.models.secret import Secret
@@ -27,13 +30,7 @@ from app.models.results_repository import ResultsRepository
 from app.models.results_backend import ResultsBackend
 from app.models.api_request_trigger import ApiRequestTrigger
 from app.helpers.exceptions import KeycloakError
-
-
-def pytest_addoption(parser):
-    parser.addoption(
-        "--regenerate-contracts", action="store_true", default=False,
-        help="rewrite the JSON files in tests/contracts/ from the API responses (test_api_contract.py)",
-    )
+from tests.helpers.pull_requests import pr_body
 
 
 @fixture(scope='session', autouse=True)
@@ -221,6 +218,15 @@ def lock_project(project) -> Project:
 
 
 @fixture
+def enabled_project(project) -> Project:
+    """The project enabled. A new Project is disabled, and GET /global/repositories/triggers?active_link=true
+    leaves out the links of disabled projects."""
+    project.enabled = True
+    db.session.commit()
+    return project
+
+
+@fixture
 def make_task(client, project):
     """Factory for a task with its own ApiRequestTrigger trigger"""
     def _make(project=project, **fields) -> Task:
@@ -287,9 +293,8 @@ def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret,
     dataset.add(user_id=user_uuid)
     ProjectDataset(project.id, dataset.id).add()
 
-    assignment = ProjectTriggerRepository(
-        project.id, trigger_repo.id, watch_dir="", initial_cursor="2026-01-01T00:00:00"
-    )
+    assignment = ProjectTriggerRepository(project.id, trigger_repo.id, watch_dir="")
+    assignment.initial_cursor = dt(2026, 1, 1)
     assignment.add()
     return assignment
 
@@ -312,6 +317,186 @@ def results_assignment(client, project, results_repo) -> ProjectResultsRepositor
     assignment = ProjectResultsRepository(project.id, results_repo.id, target_dir="results")
     assignment.add()
     return assignment
+
+
+# Global resources: unlinked factories, then the same linked to `project` through the PUT routes
+@fixture
+def admin_headers(post_json_admin_header):
+    """Admin bearer token with a JSON content type, for client.get/put/post/patch/delete."""
+    return post_json_admin_header
+
+
+@fixture
+def make_global_secret(client):
+    def _make(label="test-creds") -> Secret:
+        secret = Secret(label=label, provider=SecretProviderType.K8S)
+        secret.add()
+        return secret
+    return _make
+
+
+@fixture
+def make_global_dataset(client, user_uuid, k8s_client, mock_kc_client, secret):
+    def _make(name="GlobalDs", secret=secret) -> Dataset:
+        dataset = Dataset(name=name, host="example.com", port=5432, secret_id=secret.id)
+        dataset.add(user_id=user_uuid)
+        return dataset
+    return _make
+
+
+@fixture
+def make_trigger_repo(client, secret):
+    def _make(uri="github.com/org/triggers", secret=secret) -> TriggerRepository:
+        repo = TriggerRepository(
+            uri=uri, provider="github", api_uri="https://api.github.com", secret_id=secret.id
+        )
+        repo.add()
+        return repo
+    return _make
+
+
+@fixture
+def make_results_repo(client, secret):
+    def _make(uri="github.com/org/results-global", secret=secret) -> ResultsRepository:
+        repo = ResultsRepository(
+            uri=uri, provider="github", api_uri="https://api.github.com", secret_id=secret.id
+        )
+        repo.add()
+        return repo
+    return _make
+
+
+@fixture
+def global_secret(secret) -> Secret:
+    return secret
+
+
+@fixture
+def global_dataset(make_global_dataset) -> Dataset:
+    return make_global_dataset()
+
+
+@fixture
+def global_trigger_repo(make_trigger_repo) -> TriggerRepository:
+    return make_trigger_repo()
+
+
+@fixture
+def global_results_repo(make_results_repo) -> ResultsRepository:
+    return make_results_repo()
+
+
+@fixture
+def linked_secret(client, admin_headers, project, global_secret) -> dict:
+    """PUT /projects/<pid>/secrets/<label>; the link as the route returns it."""
+    response = client.put(f"/projects/{project.id}/secrets/{global_secret.label}", json={}, headers=admin_headers)
+    assert response.status_code == 201, response.json
+    return response.json
+
+
+@fixture
+def linked_dataset(client, admin_headers, project, global_dataset) -> dict:
+    """PUT /projects/<pid>/datasets/<dataset id>; the link as the route returns it."""
+    response = client.put(f"/projects/{project.id}/datasets/{global_dataset.id}", json={}, headers=admin_headers)
+    assert response.status_code == 201, response.json
+    return response.json
+
+
+@fixture
+def linked_trigger_repo(client, admin_headers, project, global_trigger_repo) -> dict:
+    """PUT /projects/<pid>/repositories/triggers/<repo id>, watching "triggers"; the link as returned."""
+    response = client.put(
+        f"/projects/{project.id}/repositories/triggers/{global_trigger_repo.id}",
+        json={"watch_dir": "triggers"}, headers=admin_headers
+    )
+    assert response.status_code == 201, response.json
+    return response.json
+
+
+@fixture
+def linked_results_repo(client, admin_headers, project, global_results_repo) -> dict:
+    """PUT /projects/<pid>/repositories/results/<repo id>, target_dir "results"; the link as returned.
+    The route needs the project locked, so it is locked for the PUT and unlocked again."""
+    project.locked = True
+    db.session.commit()
+    response = client.put(
+        f"/projects/{project.id}/repositories/results/{global_results_repo.id}",
+        json={"target_dir": "results"}, headers=admin_headers
+    )
+    assert response.status_code == 201, response.json
+    project.locked = False
+    db.session.commit()
+    return response.json
+
+
+# A pull request posted after a link is created has to be merged after the link's cursor (the
+# link's creation time when no PR is stored yet), so the default is a fixed date in the future.
+PR_MERGED_AT = "2030-01-01T10:00:00Z"
+# A spec file the linked_trigger_repo link (watch_dir "triggers") matches
+WATCHED_SPEC_FILE = {"path": "triggers/spec.json", "status": "added"}
+SPEC_RAW = json.dumps({"spec": {"image": "img:1"}})
+
+
+@fixture
+def make_pr_batch():
+    """
+    Body for POST /global/repositories/triggers/<id>/pull_requests, one valid PR per number
+    (default [1]). By default each is merged at PR_MERGED_AT into "main" and adds
+    triggers/spec.json, so it matches linked_trigger_repo. **fields override every PR's
+    fields, e.g. base_branch="dev" or changed_files=[...].
+    """
+    def _make(*numbers, **fields) -> dict:
+        fields = {"merged_at": PR_MERGED_AT, "changed_files": [WATCHED_SPEC_FILE], **fields}
+        return {"pull_requests": [pr_body(number, **fields) for number in (numbers or (1,))]}
+    return _make
+
+
+@fixture
+def ingest_prs(client, admin_headers, make_pr_batch):
+    """
+    Factory: POST the batch of make_pr_batch(*numbers, **fields) to the global trigger
+    repository repo_id, assert 201 and return the response JSON {"created", "existing"}.
+    """
+    def _ingest(repo_id, *numbers, **fields) -> dict:
+        response = client.post(
+            f"/global/repositories/triggers/{repo_id}/pull_requests",
+            json=make_pr_batch(*numbers, **fields), headers=admin_headers
+        )
+        assert response.status_code == 201, response.json
+        return response.json
+    return _ingest
+
+
+@fixture
+def pr_trigger(project, global_trigger_repo, linked_trigger_repo, ingest_prs) -> str:
+    """
+    PR #1 ingested after linking global_trigger_repo to `project`, so the project has an
+    UNKNOWN trigger for it. Returns the URL of that trigger:
+    /projects/<project id>/repositories/triggers/<repo id>/pull_requests/1
+    """
+    ingest_prs(global_trigger_repo.id, 1)
+    return f"/projects/{project.id}/repositories/triggers/{global_trigger_repo.id}/pull_requests/1"
+
+
+@fixture
+def spec_raw() -> str:
+    """A valid PR spec file, the body field of POST .../pull_requests/<number>/task."""
+    return SPEC_RAW
+
+
+@fixture
+def mock_connection_checks(mocker) -> dict:
+    """
+    Stops the healthchecks touching the network: every repository and dataset check returns
+    OK. To fail one, set e.g.
+    mocks["repository"].return_value = lambda: ConnectionCheck(ConnectionStatus.UNAUTHORIZED, "Unauthorized", 401)
+    Secret checks read k8s_client's read_namespaced_secret mock (keys USERNAME, PASSWORD, USER, TOKEN).
+    """
+    ok = lambda: ConnectionCheck(ConnectionStatus.OK, "OK")
+    return {
+        "repository": mocker.patch.object(GitRepositoryMixin, "prepare_connection_check", return_value=ok),
+        "dataset": mocker.patch.object(Dataset, "prepare_connection_check", return_value=ok),
+    }
 
 
 # Dataset Mocking

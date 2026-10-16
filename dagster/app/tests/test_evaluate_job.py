@@ -18,7 +18,7 @@ SPEC_FILE = json.dumps({"spec": {"docker_image": "a/b:1"}})
 
 def pull_request(number=5, merged_at="2026-01-01T00:00:00Z"):
     return PullRequestTrigger(
-        project_id=4, project_trigger_repository_id=1, number=number, title="t", raised_by="dev",
+        project_id=4, trigger_repository_id=1, number=number, title="t", raised_by="dev",
         merged_at=merged_at, merge_commit_sha="abc", state="UNKNOWN",
     )
 
@@ -34,7 +34,7 @@ def run_evaluate(files=(WATCHED,), contents=SPEC_FILE, backend_api=None):
     git_api.get_file_contents.return_value = contents
     git_apis = MagicMock()
     git_apis.for_repository.return_value = git_api
-    backend_api.get_repository.return_value = MagicMock(path="org/repo", watch_dir="specs/")
+    backend_api.get_project_trigger_repository.return_value = MagicMock(path="org/repo", watch_dir="specs/")
     context = dg.build_op_context(resources={"backend_api": backend_api, "git_apis": git_apis})
     evaluate_pull_request(context, pull_request())
     return backend_api
@@ -43,7 +43,7 @@ def run_evaluate(files=(WATCHED,), contents=SPEC_FILE, backend_api=None):
 def test_a_ready_pr_sends_its_spec_file_and_patches_nothing():
     backend_api = run_evaluate()
 
-    backend_api.get_repository.assert_called_once_with(4, 1)
+    backend_api.get_project_trigger_repository.assert_called_once_with(4, 1)
     backend_api.create_task_for_pull_request.assert_called_once_with(4, 1, 5, SPEC_FILE)
     backend_api.patch_pull_request.assert_not_called()
 

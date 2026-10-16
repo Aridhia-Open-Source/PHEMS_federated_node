@@ -11,7 +11,7 @@ WATCHED = {"filename": "specs/a.json", "status": "added"}
 
 def pr():
     return PullRequestTrigger(
-        project_id=1, project_trigger_repository_id=1, number=5, title="t", raised_by="dev",
+        project_id=1, trigger_repository_id=1, number=5, title="t", raised_by="dev",
         merged_at="2026-01-01T00:00:00Z", merge_commit_sha="abc", state="UNKNOWN",
     )
 

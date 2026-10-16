@@ -15,6 +15,7 @@ class DatasetDTO(DTO):
     write_schema: str | None
     type: str
     extra_connection_args: str | None
+    enabled: bool
     created_at: WireDatetime
     updated_at: WireDatetime
     slug: str
@@ -33,16 +34,16 @@ class DatasetDTO(DTO):
             write_schema=obj.write_schema,
             type=obj.type,
             extra_connection_args=obj.extra_connection_args,
+            enabled=obj.enabled,
             created_at=obj.created_at,
             updated_at=obj.updated_at,
             slug=slug,
-            url=f"https://{PUBLIC_URL}/datasets/{slug}",
+            url=f"https://{PUBLIC_URL}/global/datasets/{obj.id}",
         )
 
 
 class ProjectDatasetDTO(DTO):
-    """A project's assignment of a global dataset, the dataset nested."""
-    id: int
+    """A project's link to a global dataset, the dataset nested. Addressed by the dataset's id."""
     project_id: int
     dataset: DatasetDTO
     enabled: bool
@@ -52,7 +53,6 @@ class ProjectDatasetDTO(DTO):
     @classmethod
     def from_model(cls, obj: ProjectDataset):
         return cls(
-            id=obj.id,
             project_id=obj.project_id,
             dataset=DatasetDTO.from_model(obj.dataset),
             enabled=obj.enabled,

@@ -16,6 +16,7 @@ class Dataset(BaseModel):
     - write_schema: the schema the task writes its results to, if set.
     - type: the database engine, e.g. postgres.
     - extra_connection_args: extra arguments for the connection string, if any.
+    - enabled: turned on or off for the whole node.
     - created_at: when the dataset was created.
     - updated_at: when the dataset was last updated.
     - slug: the dataset name as used in URLs.
@@ -32,6 +33,7 @@ class Dataset(BaseModel):
     write_schema: str | None = None
     type: str
     extra_connection_args: str | None = None
+    enabled: bool
     created_at: str | None = None
     updated_at: str | None = None
     slug: str
@@ -40,18 +42,17 @@ class Dataset(BaseModel):
 
 class ProjectDataset(BaseModel):
     """
-    A project's assignment of a global dataset, from backend API.
+    A project's link to a global dataset, from backend API. Addressed by the dataset's id,
+    dataset.id.
 
-    - id: the assignment's id.
-    - project_id: the project the dataset is assigned to.
+    - project_id: the project the dataset is linked to.
     - dataset: the global dataset.
     - enabled: a person turned the dataset on for the project.
     - revoked: the controller withdrew the project's access.
-    - active: enabled and not revoked, the only state a task may run in.
+    - active: the global dataset is enabled, and the link is enabled and not revoked, the only state a task may run in.
     """
     model_config = ConfigDict(extra="allow")
 
-    id: int
     project_id: int
     dataset: Dataset
     enabled: bool

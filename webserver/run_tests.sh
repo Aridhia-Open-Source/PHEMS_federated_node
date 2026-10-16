@@ -41,20 +41,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# --regenerate-contracts rewrites tests/contracts/ inside the container; bring the files out
-copy_contracts_out() {
-    if [[ "$pytest_args" == *--regenerate-contracts* ]]; then
-        mkdir -p tests/contracts
-        docker cp "$container":/app/tests/contracts/. tests/contracts/
-    fi
-}
-
 echo "Starting docker compose (project $COMPOSE_PROJECT_NAME)"
 if [[ "$is_ci" != "ci" ]]; then
     docker compose -f docker-compose-tests-ci.yaml -f docker-compose-tests.yaml run --build --name "$container" --entrypoint pytest app -x -v $pytest_args
     exit_code=$?
     docker cp "$container":/app/artifacts/coverage.xml ../artifacts/ 2>/dev/null || true
-    copy_contracts_out
     exit $exit_code
 else
     docker compose -f docker-compose-tests-ci.yaml run --build --quiet-pull --name "$container" --entrypoint pytest app -v $pytest_args
@@ -64,6 +55,5 @@ else
         docker compose -f docker-compose-tests-ci.yaml logs app
     fi
     docker cp "$container":/app/artifacts/coverage.xml ../artifacts/ 2>/dev/null || true
-    copy_contracts_out
     exit $exit_code
 fi

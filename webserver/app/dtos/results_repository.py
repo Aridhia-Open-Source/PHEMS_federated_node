@@ -10,6 +10,7 @@ class ResultsRepositoryDTO(DTO):
     provider: str
     api_uri: str
     secret: SecretDTO
+    enabled: bool
 
     @classmethod
     def from_model(cls, obj: ResultsRepository):
@@ -19,12 +20,12 @@ class ResultsRepositoryDTO(DTO):
             provider=obj.provider,
             api_uri=obj.api_uri,
             secret=SecretDTO.from_model(obj.secret),
+            enabled=obj.enabled,
         )
 
 
 class ProjectResultsRepositoryDTO(DTO):
-    """A project's assignment of a global results repository, the repository nested."""
-    id: int
+    """A project's link to a global results repository, the repository nested. Addressed by the repository's id."""
     project_id: int
     results_repository: ResultsRepositoryDTO
     target_dir: str
@@ -36,7 +37,6 @@ class ProjectResultsRepositoryDTO(DTO):
     @classmethod
     def from_model(cls, obj: ProjectResultsRepository):
         return cls(
-            id=obj.id,
             project_id=obj.project_id,
             results_repository=ResultsRepositoryDTO.from_model(obj.results_repository),
             target_dir=obj.target_dir,

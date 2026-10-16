@@ -56,6 +56,7 @@ def upgrade() -> None:
         sa.Column('provider', sa.Enum('K8S', name='secretprovidertype'), nullable=False),
         sa.Column('key', sa.String(length=253), nullable=False),
         sa.Column('namespace', sa.String(length=253), nullable=True),
+        sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.PrimaryKeyConstraint('id'),
@@ -75,6 +76,7 @@ def upgrade() -> None:
         sa.Column('write_schema', sa.String(length=256), nullable=True),
         sa.Column('type', sa.String(length=256), nullable=False, server_default='postgres'),
         sa.Column('extra_connection_args', sa.String(length=4096), nullable=True),
+        sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
@@ -96,6 +98,20 @@ def upgrade() -> None:
         sa.UniqueConstraint('project_id', 'dataset_id', name='uq_project_datasets_project_dataset'),
     )
 
+    # Create project_secrets table (a project's link to a global secret)
+    op.create_table(
+        'project_secrets',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('project_id', sa.Integer(), nullable=False),
+        sa.Column('secret_id', sa.Integer(), nullable=False),
+        sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column('revoked', sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
+        sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('project_id', 'secret_id', name='uq_project_secrets_project_secret'),
+    )
+
     # Create trigger_repositories table (global: a project is assigned to one)
     op.create_table(
         'trigger_repositories',
@@ -104,6 +120,7 @@ def upgrade() -> None:
         sa.Column('provider', sa.String(length=16), nullable=False),
         sa.Column('api_uri', sa.String(length=4096), nullable=False),
         sa.Column('secret_id', sa.Integer(), nullable=False),
+        sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
@@ -127,8 +144,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['trigger_repository_id'], ['trigger_repositories.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint(
-            'project_id', 'trigger_repository_id', 'watch_dir',
-            name='uq_project_trigger_repositories_project_repo_dir'
+            'project_id', 'trigger_repository_id', name='uq_project_trigger_repositories_project_repo'
         ),
     )
 
@@ -140,6 +156,7 @@ def upgrade() -> None:
         sa.Column('provider', sa.String(length=16), nullable=False),
         sa.Column('api_uri', sa.String(length=4096), nullable=False),
         sa.Column('secret_id', sa.Integer(), nullable=False),
+        sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
@@ -434,6 +451,7 @@ def downgrade() -> None:
     op.drop_table('trigger_repositories')
     op.drop_table('project_datasets')
     op.drop_table('datasets')
+    op.drop_table('project_secrets')
     op.drop_table('secrets')
     sa.Enum(name='secretprovidertype').drop(op.get_bind())
     op.drop_table('projects')

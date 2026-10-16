@@ -13,6 +13,9 @@ class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
 
+    # Turned on or off for the whole node, whatever the projects' links say
+    enabled = sa.Column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
+
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
 
@@ -32,17 +35,31 @@ class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
             .scalar()
         return merged_at.strftime("%Y-%m-%dT%H:%M:%SZ") if merged_at else None
 
+    def get_ingest_cursor(self) -> str | None:
+        """
+        Where polling the provider resumes: the latest stored merge, or, with no pull request
+        stored yet, the earliest creation of the repository's active links of enabled projects, where
+        their cursors start.
+        None when there is neither.
+        """
+        return self.get_pull_request_cursor() or min(
+            (a.initial_cursor.strftime("%Y-%m-%dT%H:%M:%SZ") for a in self.project_assignments if a.active and a.project.enabled),
+            default=None
+        )
+
     def __init__(
         self,
         uri: str,
         provider: str,
         api_uri: str,
         secret_id: int,
+        enabled: bool = True,
     ):
         self.uri = uri
         self.provider = provider
         self.api_uri = api_uri
         self.secret_id = secret_id
+        self.enabled = enabled
 
     def __repr__(self):
         return f'<TriggerRepository ({self.uri})>'

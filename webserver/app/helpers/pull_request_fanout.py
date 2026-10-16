@@ -6,7 +6,7 @@ the repository gets a trigger for each one it should evaluate (ADR 0019).
   concurrent posts of one pull request store it once.
 - `fan_out` creates the triggers of newly stored pull requests for the active assignments.
 - `backfill` creates the triggers an assignment missed: when it is created, enabled or
-  un-revoked, or its `initial_cursor` moves earlier.
+  un-revoked.
 
 Both create triggers through `create_triggers`, so a pair (assignment, pull request) gets one
 trigger however it is reached; the unique constraint settles a race.
@@ -28,6 +28,7 @@ from app.helpers.base_model import db
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request import PullRequest, PullRequestFile
 from app.models.pull_request_trigger import PullRequestTrigger
+from app.models.trigger_repository import TriggerRepository
 from app.models.trigger_state import TriggerState
 
 session = db.session
@@ -111,6 +112,7 @@ def active_assignments(trigger_repository_id: int) -> list[ProjectTriggerReposit
         ProjectTriggerRepository.trigger_repository_id == trigger_repository_id,
         ProjectTriggerRepository.enabled.is_(True),
         ProjectTriggerRepository.revoked.is_(False),
+        ProjectTriggerRepository.trigger_repository.has(TriggerRepository.enabled.is_(True)),
     ).order_by(ProjectTriggerRepository.id).all()
 
 
@@ -163,7 +165,6 @@ def fan_out(pull_requests: list[PullRequest], assignments: list[ProjectTriggerRe
 
 def backfill(assignment: ProjectTriggerRepository) -> int:
     """
-    Creates the triggers the assignment missed: for a new, re-enabled or un-revoked assignment,
-    or one whose initial_cursor moved earlier. Only for an active assignment.
+    Creates the triggers the assignment missed: for a new, re-enabled or un-revoked assignment. Only for an active assignment.
     """
     return create_triggers(assignment)

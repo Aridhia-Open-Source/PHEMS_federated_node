@@ -1,12 +1,14 @@
 """
 Secret endpoints. The values only ever go to the secret store; the database keeps a
 reference so that repositories and datasets can share a secret. A secret belongs to no
-project and is addressed by its label, which is unique. Creating and deleting are admin-only:
-- GET /secrets
-- GET /secrets/<label>
-- POST /secrets
-- PATCH /secrets/<label>
-- DELETE /secrets/<label>
+project and is addressed by its label, which is unique. A project is linked to one under
+/projects/<id>/secrets (see projects_api.py). Creating and deleting are admin-only:
+- GET /global/secrets
+- GET /global/secrets/<label>
+- POST /global/secrets
+- PATCH /global/secrets/<label>
+- DELETE /global/secrets/<label>
+- GET /global/secrets/<label>/healthcheck, see healthcheck_api.py
 """
 import logging
 from datetime import datetime as dt
@@ -21,12 +23,13 @@ from app.helpers.const import DEFAULT_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.kubernetes_names import validate_secret_key
+from app.helpers.project_lock import require_all_drained
 from app.helpers.wrappers import audit, auth
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 
 logger = logging.getLogger('secrets_api')
-bp = Blueprint('secrets', __name__, url_prefix='/secrets')
+bp = Blueprint('secrets', __name__, url_prefix='/global/secrets')
 session = db.session
 
 SECRET_LABELS = {"type": "k8s_secret"}
@@ -66,6 +69,16 @@ class K8sSecretProvider:
             overwrite=True,
         )
 
+    def keys(self, key: str, namespace: str) -> list[str] | None:
+        """The names of the keys the secret holds, or None if it is not in the store."""
+        try:
+            secret = KubernetesClient().read_namespaced_secret(key, namespace)
+        except ApiException as apie:
+            if apie.status != 404:
+                raise
+            return None
+        return list(secret.data or {})
+
     def delete(self, key: str, namespace: str):
         try:
             KubernetesClient().delete_namespaced_secret(key, namespace)
@@ -90,6 +103,9 @@ class SecretProvider:
     def set(self, key: str, namespace: str, values: dict[str, str]):
         self.provider.set(key, namespace, values)
 
+    def keys(self, key: str, namespace: str) -> list[str] | None:
+        return self.provider.keys(key, namespace)
+
     def delete(self, key: str, namespace: str):
         self.provider.delete(key, namespace)
 
@@ -105,7 +121,7 @@ def _get_secret(label: str) -> Secret:
 @bp.route('', methods=['GET'])
 def get_secrets():
     """
-    GET /secrets — list the secrets. The values are never returned.
+    GET /global/secrets — list the secrets. The values are never returned.
     """
     return [SecretDTO.from_model(s).dump() for s in Secret.query.all()], HTTPStatus.OK
 
@@ -113,7 +129,7 @@ def get_secrets():
 @bp.route('/<label>', methods=['GET'])
 def get_secret(label):
     """
-    GET /secrets/<label> — get a single secret. The values are never returned.
+    GET /global/secrets/<label> — get a single secret. The values are never returned.
     """
     return SecretDTO.from_model(_get_secret(label)).dump(), HTTPStatus.OK
 
@@ -121,16 +137,18 @@ def get_secret(label):
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
 @audit
-@auth(scope='can_do_admin', check_dataset=False)
+@auth(scope='can_do_admin')
 def post_secret():
     """
-    POST /secrets — create the secret in its store and the reference to it. The label is
+    POST /global/secrets — create the secret in its store and the reference to it. The label is
     unique across the node; the secret is stored under the generated key
     "fn-secret-<label>", which is fixed from then on. Admin only.
-    Body: {"label": "...", "description": "...", "provider": "K8S", "values": {"KEY": "value", ...}}
-    The description is optional.
+    Body: {"label": "...", "description": "...", "provider": "K8S", "values": {"KEY": "value", ...}, "enabled": true}
+    The description and enabled are optional.
     """
     body = request.json or {}
+    if not isinstance(body.get('enabled', True), bool):
+        raise InvalidRequest("enabled must be a boolean")
     if not body.get('label') or not isinstance(body['label'], str):
         raise InvalidRequest("label is required and must be a string")
     try:
@@ -148,6 +166,7 @@ def post_secret():
             provider=provider,
             description=body.get('description'),
             namespace=SecretProvider(provider).namespace,
+            enabled=body.get('enabled', True),
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
@@ -164,20 +183,28 @@ def post_secret():
 @audit
 def patch_secret(label):
     """
-    PATCH /secrets/<label> — set keys on the stored secret, e.g. to rotate a token. Every
-    repository and dataset that references it, in any project, picks the new values up.
-    Exempt from the project lock, as a rotation only.
-    Body: {"values": {"KEY": "value", ...}}
+    PATCH /global/secrets/<label> — set keys on the stored secret, e.g. to rotate a token, and/or turn
+    it on or off (enabled). Every repository and dataset that references it, in any project, picks
+    the new values up. A rotation is exempt from the project lock, enabled needs every project the
+    secret is linked to locked and drained.
+    Body: {"values": {"KEY": "value", ...}, "enabled": true}, any of them.
     """
     secret = _get_secret(label)
-    values = _get_values(request.json or {})
+    body = request.json or {}
+    if "enabled" in body:
+        if not isinstance(body["enabled"], bool):
+            raise InvalidRequest("enabled must be a boolean")
+        require_all_drained([a.project for a in secret.project_assignments])
+        secret.enabled = body["enabled"]
 
-    # Written to the provider's current namespace, which the row then records. If that has
-    # changed since the secret was created, only these values move: the old copy and any
-    # keys not in this request are left behind, so a namespace move means re-creating it.
-    store = SecretProvider(secret.provider)
-    store.set(secret.key, store.namespace, values)
-    secret.namespace = store.namespace
+    if "values" in body or "enabled" not in body:
+        values = _get_values(body)
+        # Written to the provider's current namespace, which the row then records. If that has
+        # changed since the secret was created, only these values move: the old copy and any
+        # keys not in this request are left behind, so a namespace move means re-creating it.
+        store = SecretProvider(secret.provider)
+        store.set(secret.key, store.namespace, values)
+        secret.namespace = store.namespace
     secret.updated_at = dt.now()
     session.commit()
 
@@ -186,10 +213,11 @@ def patch_secret(label):
 
 @bp.route('/<label>', methods=['DELETE'])
 @audit
-@auth(scope='can_do_admin', check_dataset=False)
+@auth(scope='can_do_admin')
 def delete_secret(label):
     """
-    DELETE /secrets/<label> — delete the reference and the stored secret. Admin only.
+    DELETE /global/secrets/<label> — delete the reference, its project links and the stored
+    secret, once every project it is linked to is locked and drained. Admin only.
     Refused with a 409 while a repository or dataset still uses it.
     """
     secret = _get_secret(label)
@@ -199,10 +227,14 @@ def delete_secret(label):
             f"Secret {secret.label} is still used by {users} repositories or datasets",
             code=HTTPStatus.CONFLICT
         )
+    assignments = list(secret.project_assignments)
+    require_all_drained([a.project for a in assignments])
 
     # Staged, not committed: if the store delete fails the row has to come back, and a
     # rollback after a commit is a no-op.
     try:
+        for assignment in assignments:
+            assignment.delete(False)
         secret.delete(False)
     except Exception as exc:
         session.rollback()

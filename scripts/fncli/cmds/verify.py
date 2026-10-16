@@ -154,10 +154,10 @@ def verify_project(report: Report, config: ProjectConfig, dataset_config: Datase
     if assignment is not None:
         dataset = assignment.dataset
         report.check(
-            f"Dataset fetch: GET /datasets/{dataset.id}", lambda: backend_api.get_dataset(dataset.id)
+            f"Dataset fetch: GET /global/datasets/{dataset.id}", lambda: backend_api.get_dataset(dataset.id)
         )
         report.check(
-            f"Dataset secret exists: GET /secrets/{dataset.secret.label}",
+            f"Dataset secret exists: GET /global/secrets/{dataset.secret.label}",
             lambda: backend_api.get_secret(dataset.secret.label),
             lambda s: f"{s['key']} in {s['namespace']}",
         )
@@ -168,7 +168,7 @@ def verify_task(
 ):
     """Compare a merged PR's task in the backend with its run in Dagster."""
     pr = report.check(
-        f"PR #{number} is in the backend: GET /projects/{project_id}/trigger_repositories/{repo_id}/pull_requests",
+        f"PR #{number} is in the backend: GET /projects/{project_id}/repositories/triggers/{repo_id}/pull_requests",
         lambda: require(
             next((p for p in backend_api.get_pull_requests(project_id, repo_id) if p.number == number), None),
             f"PR #{number}",
@@ -298,7 +298,7 @@ def verify_repo_command(tail):
     repo = backend_api.find_repository(config.repo_uri, project.id)
     dagster_url = DagsterConfig().dagster_url
     links = Links(config.gitea_url, dagster_url, repo.repo_path)
-    if verify_repo(backend_api, DagsterAPI(dagster_url), links, project.id, repo.id, tail):
+    if verify_repo(backend_api, DagsterAPI(dagster_url), links, project.id, repo.trigger_repository.id, tail):
         raise click.exceptions.Exit(1)
 
 

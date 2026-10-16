@@ -48,6 +48,11 @@ class PullRequestTrigger(Trigger):
         self.pull_request_id = pull_request_id
 
     @property
+    def trigger_repository_id(self) -> int:
+        """The global repository, which is how the API addresses the project's link to it."""
+        return self.project_trigger_repository.trigger_repository_id
+
+    @property
     def number(self) -> int:
         return self.pull_request.number
 

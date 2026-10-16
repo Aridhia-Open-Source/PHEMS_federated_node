@@ -23,7 +23,7 @@ session = scoped_session(session_factory)
 
 
 @bp.route('/audit', methods=['GET'])
-@auth(scope='can_do_admin', check_dataset=False)
+@auth(scope='can_do_admin')
 def get_audit_logs():
     """
     GET /audit endpoint.
@@ -33,7 +33,7 @@ def get_audit_logs():
 
 
 @bp.route('/delivery-secret', methods=['PATCH'])
-@auth(scope='can_do_admin', check_dataset=False)
+@auth(scope='can_do_admin')
 @audit
 def update_delivery_secret():
     """

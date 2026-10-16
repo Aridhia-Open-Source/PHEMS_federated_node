@@ -24,6 +24,9 @@ class GitRepositoryMixin:
     secret relationship itself.
     """
 
+    # The keys the repository's secret holds
+    SECRET_KEYS = ("TOKEN",)
+
     uri = sa.Column(sa.String(4096), nullable=False)
     provider = sa.Column(sa.String(16), nullable=False)
     # The scheme is stripped from uri, so the provider's API base URL is kept explicitly.

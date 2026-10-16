@@ -4,7 +4,7 @@ import dagster as dg
 import pytest
 
 from app.definitions.sensors.git.pr_ingest import PullRequestIngestSensor
-from app.models import Project, ProjectTriggerRepository
+from app.models import ProjectTriggerRepository
 from app.tests.conftest import SAMPLE_REPOSITORY_OBJ
 
 
@@ -31,12 +31,9 @@ def fake_git_api(merged_numbers):
     return git_api
 
 
-def run(repos, git_apis_by_repo_id, locked=()):
+def run(repos, git_apis_by_repo_id):
     backend_api = MagicMock()
-    backend_api.get_repositories.return_value = repos
-    backend_api.get_projects.return_value = [
-        Project(id=1, name="proj1", enabled=True, locked=1 in locked), Project(id=2, name="proj2", enabled=True, locked=2 in locked)
-    ]
+    backend_api.get_project_trigger_repositories.return_value = repos
     git_apis = MagicMock()
     git_apis.for_repository.side_effect = lambda r: git_apis_by_repo_id[r.id]
     sensor = PullRequestIngestSensor(context=MagicMock(), backend_api=backend_api, git_apis=git_apis)
@@ -49,16 +46,6 @@ def test_skips_when_there_are_no_repositories():
     assert len(results) == 1 and isinstance(results[0], dg.SkipReason)
     assert "No repositories" in results[0].skip_message
     backend_api.create_pull_requests_batch.assert_not_called()
-
-
-def test_a_locked_project_does_not_stop_the_poll():
-    apis = {1: fake_git_api([5])}
-
-    results, backend_api = run([repo(1, project_id=1)], apis, locked=(1,))
-
-    apis[1].get_new_merged_pulls.assert_called_once()
-    backend_api.create_pull_requests_batch.assert_called_once()
-    assert "Saved 1 new pull requests" in results[0].skip_message
 
 
 def test_two_assignments_of_one_repository_are_polled_once():
@@ -74,23 +61,11 @@ def test_two_assignments_of_one_repository_are_polled_once():
     assert "Saved 1 new pull requests" in results[0].skip_message
 
 
-def test_only_polls_active_repositories():
+def test_only_polls_active_repositories_of_enabled_projects():
     _, backend_api = run([repo(1)], {1: fake_git_api([])})
 
-    backend_api.get_repositories.assert_called_once_with(active_only=True)
-
-
-def test_a_disabled_project_is_not_polled():
-    backend_api = MagicMock()
-    backend_api.get_repositories.return_value = [repo(1)]
-    backend_api.get_projects.return_value = [Project(id=1, name="proj1", enabled=False)]
-    git_apis = MagicMock()
-    sensor = PullRequestIngestSensor(context=MagicMock(), backend_api=backend_api, git_apis=git_apis)
-
-    (result,) = list(sensor())
-
-    git_apis.for_repository.assert_not_called()
-    assert isinstance(result, dg.SkipReason)
+    backend_api.get_project_trigger_repositories.assert_called_once_with(active_only=True, project_enabled=True)
+    backend_api.get_projects.assert_not_called()
 
 
 def test_posts_one_batch_per_repository_with_new_prs():
@@ -164,8 +139,7 @@ def test_a_failing_repository_aborts_the_tick_after_the_earlier_ones_were_saved(
     apis = {1: fake_git_api([5]), 2: broken, 3: fake_git_api([7])}
 
     backend_api = MagicMock()
-    backend_api.get_repositories.return_value = [repo(1), repo(2), repo(3)]
-    backend_api.get_projects.return_value = [Project(id=1, name="proj1", enabled=True)]
+    backend_api.get_project_trigger_repositories.return_value = [repo(1), repo(2), repo(3)]
     git_apis = MagicMock()
     git_apis.for_repository.side_effect = lambda r: apis[r.id]
     sensor = PullRequestIngestSensor(context=MagicMock(), backend_api=backend_api, git_apis=git_apis)

@@ -763,7 +763,7 @@
         },
         "datasetDb": {
             "type": "object",
-            "description": "A second, in-cluster PostgreSQL holding dataset data. A development fixture: real datasets are registered through the /datasets API, which stores their credentials separately. `create` covers both deploying the server and creating the roles in `dbs`, so `dbs` without `create` is rejected",
+            "description": "A second, in-cluster PostgreSQL holding dataset data. A development fixture: real datasets are registered through the /global/datasets API, which stores their credentials separately. `create` covers both deploying the server and creating the roles in `dbs`, so `dbs` without `create` is rejected",
             "properties": {
                 "create": {
                     "type": "boolean",

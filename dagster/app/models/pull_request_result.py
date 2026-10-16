@@ -15,7 +15,7 @@ class PullRequestResult(BaseModel):
     type: str
     task_id: int
     project_id: int
-    # The id of the project's assignment of a results repository
+    # The id of the global results repository, which the task's project is linked to
     results_repository_id: int
     step: PullRequestResultStep
     state: ResultState

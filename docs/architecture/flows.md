@@ -7,7 +7,7 @@ How a merged pull request becomes a task, a run, and a results pull request. Dec
 ```mermaid
 flowchart TD
     A([PR merged in the trigger repository]) --> B["git_pull_request_ingest_sensor (one poll per repository)"]
-    B -->|"POST /trigger_repositories/id/pull_requests/batch"| S[("pull request stored once, with its changed files")]
+    B -->|"POST /global/repositories/triggers/id/pull_requests"| S[("pull request stored once, with its changed files")]
     S -->|"fan-out to each active assignment"| F["PullRequestTrigger per assignment: UNKNOWN, or IGNORED + state_cause"]
     F --> C[git_pull_request_evaluate_sensor]
     C -->|"RunRequest per assignment with UNKNOWN PRs"| D[evaluate_repository_pull_requests_job]
@@ -35,9 +35,9 @@ All sensors are STOPPED by default and started by the operator ([0009](../../pro
 
 ## Global resources and assignments
 
-Secrets, datasets, trigger repositories and results repositories belong to no project ([0019](../../project/decisions/0019-global-resources-and-shared-pull-requests.md)). They are created once at `/secrets`, `/datasets`, `/trigger_repositories` and `/results_repositories` (admin only), then granted to a project through an assignment at `/projects/<id>/datasets`, `/results_repositories` and `/trigger_repositories`. The assignment holds what is per project: `watch_dir`, `base_branch` and `initial_cursor` for a trigger repository, `target_dir` for the results repository, and the `enabled` and `revoked` flags. An assignment is active when `enabled` and not `revoked`; only an active one is used. The first dataset assigned becomes the project's default, and a project has one results repository.
+Secrets, datasets, trigger repositories and results repositories belong to no project ([0019](../../project/decisions/0019-global-resources-and-shared-pull-requests.md)). They are created once, with `POST`, at `/global/secrets`, `/global/datasets`, `/global/repositories/triggers` and `/global/repositories/results` (admin only), then linked to a project with `PUT /projects/<id>/secrets/<label>`, `/projects/<id>/datasets/<id>`, `/projects/<id>/repositories/triggers/<id>` or `/projects/<id>/repositories/results/<id>`, where the id is the global resource's, never the link row's. `PUT` links (201 the first time, 200 after, replacing the project's settings), `PATCH` changes some, `DELETE` unlinks, and `GET` lists the collection or reads one link. The link holds what is per project: `watch_dir` and `base_branch` for a trigger repository, with a cursor set when it is linked (after the latest pull request stored, or at the link's creation when none is) that no request changes, `target_dir` for the results repository, and the `enabled` and `revoked` flags. An assignment is active when `enabled` and not `revoked`; only an active one is used. The first dataset assigned becomes the project's default, and a project has one results repository.
 
-- Dagster reads assignments, not global rows: `GET /project_trigger_repositories?active=true` lists every project's active trigger assignments in one call, and each carries its nested repository, secret and `pr_cursor`.
+- There is no cross-project list. The ingest sensor reads `GET /global/repositories/triggers?active_link=true`, the repositories with an active link of an enabled project, each carrying the `pr_cursor` to poll from. The evaluate sensor loops over enabled, unlocked projects and reads `GET /projects/<id>/repositories/triggers` for each.
 - A task runs only on an active dataset assignment. The launcher fails a PENDING task whose dataset assignment is inactive, with the cause in the task's `state_cause`; a manual retry (which clears it) launches it once the dataset is active again. Delivery to a revoked or disabled results assignment records "results repository access revoked", FAILED, and does not raise.
 - `revoked` is admin only and takes effect at once. Changing an assignment's `enabled`, or editing or deleting a global resource, needs every project it touches locked and drained.
 
@@ -45,10 +45,10 @@ Secrets, datasets, trigger repositories and results repositories belong to no pr
 
 A merged pull request is stored once per global trigger repository, whatever the number of projects watching it.
 
-1. The ingest sensor groups the active assignments of enabled projects by repository and polls each repository once with its own secret, from the repository's `pr_cursor` (the latest stored `merged_at`; a repository with nothing stored starts at the earliest `initial_cursor` among its active assignments). It reads each pull request's base branch and changed files.
-2. It posts them in batches of up to 100 to `POST /trigger_repositories/<id>/pull_requests/batch`. The backend stores each pull request and its files (a repeated number keeps its first facts) and answers `{created, existing}`.
+1. The ingest sensor polls each repository of `GET /global/repositories/triggers?active_link=true` once with its own secret, from the repository's `pr_cursor` (the latest stored `merged_at`; a repository with nothing stored starts at the earliest creation among its active links, which the backend works out). It reads each pull request's base branch and changed files.
+2. It posts them in batches of up to 100 to `POST /global/repositories/triggers/<id>/pull_requests`. The backend stores each pull request and its files (a repeated number keeps its first facts) and answers `{created, existing}`.
 3. Fan-out creates a trigger for every active assignment of the repository, from the stored data. The pull request must be after the assignment's cursor. A pull request that does not add a `.json` file under `watch_dir`, or whose base branch differs, becomes an IGNORED trigger with a `state_cause`; every other one is UNKNOWN. A unique constraint on `(assignment, pull request)` settles races.
-4. Backfill does the same for the already stored pull requests when an assignment is created, enabled, un-revoked, or has its `initial_cursor` moved earlier. Only an active assignment is backfilled. A change of `watch_dir` or `base_branch` is forward only.
+4. Backfill does the same for the already stored pull requests when an assignment is created, enabled or un-revoked. Only an active assignment is backfilled. A change of `watch_dir` or `base_branch` is forward only.
 5. Ingest does not skip a locked project, as one poll serves every project. Evaluation and launch are what the lock pauses.
 
 ## Sequence across fncli, backend, Dagster and the git host
@@ -74,21 +74,21 @@ sequenceDiagram
     CLI->>Git: branch, commit spec file, PR, merge
 
     loop every 10 s while sensors run
-        DG->>BE: list active trigger assignments, grouped by repository
+        DG->>BE: list the trigger repositories with an active link
         DG->>K8s: read each repository's token
         DG->>Git: list closed pulls since the repository cursor, once per repository
         DG->>Git: base branch and changed files of each new pull request
-        DG->>BE: POST repository pull requests batch
+        DG->>BE: POST global repository pull requests
         BE->>BE: store once, fan out a trigger per active assignment
     end
-    DG->>BE: list UNKNOWN pull requests of each assignment
+    DG->>BE: list each enabled project's links, then the UNKNOWN pull requests of each
     DG->>Git: PR files, spec file at the merge commit
     DG->>BE: POST pull request task (YIELDED) or PATCH IGNORED / REJECTED
     DG->>BE: list PENDING tasks of enabled projects
     DG->>BE: get the project's dataset assignment, must be active
     DG->>K8s: k8s_pipes_job starts the task pod
     DG->>BE: PATCH task QUEUED, RUNNING, SUCCESS
-    DG->>BE: POST /results (task, results repository assignment id)
+    DG->>BE: POST /projects/<id>/results (task, global results repository id)
     DG->>Git: clone results repository, push branch with results.zip, spec.json, metadata.json
     DG->>BE: PATCH result PUSHED, then OPENED (number, url)
     DG->>Git: open PR from branch
@@ -159,8 +159,8 @@ All sensors have `default_status=STOPPED` and a 10 s minimum interval.
 
 | Name | Kind | Watches / reads | Launches or writes | Defined in |
 |---|---|---|---|---|
-| `git_pull_request_ingest_sensor` | sensor | active trigger assignments of enabled projects, provider pulls (once per repository) | `POST /trigger_repositories/<id>/pull_requests/batch`, which stores the pull requests and fans out triggers (UNKNOWN or IGNORED) | `sensors/git/__init__.py`, `pr_ingest.py` |
-| `git_pull_request_evaluate_sensor` | sensor | UNKNOWN pull requests of enabled projects, per active assignment | `evaluate_repository_pull_requests_job` per assignment, unless one is in flight | `sensors/git/pr_evaluate.py` |
+| `git_pull_request_ingest_sensor` | sensor | trigger repositories with an active link of an enabled project, provider pulls (once per repository) | `POST /global/repositories/triggers/<id>/pull_requests`, which stores the pull requests and fans out triggers (UNKNOWN or IGNORED) | `sensors/git/__init__.py`, `pr_ingest.py` |
+| `git_pull_request_evaluate_sensor` | sensor | UNKNOWN pull requests of enabled, unlocked projects, per active link | `evaluate_repository_pull_requests_job` per assignment, unless one is in flight | `sensors/git/pr_evaluate.py` |
 | `evaluate_repository_pull_requests_job` | job (max 3 concurrent) | UNKNOWN PRs, spec at merge commit | task (YIELDED), or IGNORED or REJECTED with cause; op retries 3x | `sensors/git/evaluate_job.py` |
 | `task_launcher_sensor` | sensor | PENDING tasks of enabled projects, and their dataset assignment | `k8s_pipes_job` run, key `task/<id>/<attempt>`, tag `trigger=task`; a task whose dataset assignment is inactive is failed with a `state_cause` instead | `sensors/task/launcher.py` |
 | `k8s_pipes_job` | job | task spec and dataset (run config) | task pod, artifacts | `definitions/jobs.py`, `pipes.py` |

@@ -1,9 +1,9 @@
 """
 results endpoints:
-- GET /results
-- GET /results/<id>
-- POST /results
-- PATCH /results/<id>
+- GET /projects/<project_id>/results
+- GET /projects/<project_id>/results/<id>
+- POST /projects/<project_id>/results
+- PATCH /projects/<project_id>/results/<id>
 """
 from http import HTTPStatus
 
@@ -11,17 +11,18 @@ from flask import Blueprint, request
 
 from app.dtos.result import dump_result
 from app.helpers.base_model import db
-from app.helpers.exceptions import InvalidRequest
+from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.wrappers import audit, auth
 from app.models.pull_request_result import PullRequestResult
 from app.models.pull_request_result_step import PullRequestResultStep
 from app.models.result_state import ResultState
+from app.models.project import Project
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.task import Task
 from app.models.result import Result
 from app.tasks_api import does_user_own_task
 
-bp = Blueprint('results', __name__, url_prefix='/results')
+bp = Blueprint('results', __name__, url_prefix='/projects')
 
 BASE_FIELDS = {"attempts", "error"}
 PULL_REQUEST_FIELDS = {
@@ -29,17 +30,27 @@ PULL_REQUEST_FIELDS = {
 }
 
 
-@bp.route('/', methods=['GET'])
-@bp.route('', methods=['GET'])
+def _project_result(project_id: int, result_id: int) -> Result:
+    """The project's result: one whose task is in another project does not exist here."""
+    result = Result.query.join(Task, Result.task_id == Task.id).filter(
+        Result.id == result_id, Task.project_id == project_id
+    ).one_or_none()
+    if result is None:
+        raise DBRecordNotFoundError(f"Result {result_id} does not exist in project {project_id}")
+    return result
+
+
+@bp.route('/<int:project_id>/results', methods=['GET'])
 @audit
 @auth(scope='can_admin_dataset')
-def get_results():
+def get_results(project_id: int):
     """
-    GET /results endpoint. Lists results
+    GET /projects/<project_id>/results endpoint. Lists the project's results
     Query params:
         - step: only the pull request results at this step, repeated for several,
           e.g. ?step=PUSHED&step=OPENED (optional)
     """
+    Project.get_by_id(project_id)
     query = Result.query
     steps = request.args.getlist('step')
     if steps:
@@ -48,41 +59,49 @@ def get_results():
             if step not in valid:
                 raise InvalidRequest(f"Invalid step: {step}. Must be one of: {', '.join(valid)}")
         query = PullRequestResult.query.filter(PullRequestResult.step.in_(steps))
+    query = query.join(Task, Result.task_id == Task.id).filter(Task.project_id == project_id)
     return [dump_result(r) for r in query.order_by(Result.id).all()], HTTPStatus.OK
 
 
-@bp.route('/<int:result_id>', methods=['GET'])
+@bp.route('/<int:project_id>/results/<int:result_id>', methods=['GET'])
 @audit
 @auth(scope='can_exec_task')
-def get_result(result_id):
+def get_result(project_id: int, result_id: int):
     """
-    GET /results/id endpoint. Gets a single result
+    GET /projects/<project_id>/results/<result_id> endpoint. Gets a single result
     """
-    result = Result.get_by_id(result_id)
+    result = _project_result(project_id, result_id)
     does_user_own_task(result.task)
     return dump_result(result), HTTPStatus.OK
 
 
-@bp.route('/', methods=['POST'])
-@bp.route('', methods=['POST'])
+@bp.route('/<int:project_id>/results', methods=['POST'])
 @audit
 @auth(scope='can_admin_dataset')
-def post_result():
+def post_result(project_id: int):
     """
-    POST /results endpoint. Creates the delivery of a task's results to a results
-    repository assignment, by pull request. If it exists already, that one is returned.
+    POST /projects/<project_id>/results endpoint. Creates the delivery of a task's results to a results
+    repository, by pull request. The repository is the global one's id, which the
+    project has to be linked to, and the task has to be the project's. If it exists already, that one is returned.
     """
     body = request.json or {}
     for field in ('task_id', 'results_repository_id'):
         if not isinstance(body.get(field), int) or isinstance(body[field], bool):
             raise InvalidRequest(f"{field} is required and must be an integer")
 
+    Project.get_by_id(project_id)
     task = Task.get_by_id(body['task_id'])
+    if task.project_id != project_id:
+        raise DBRecordNotFoundError(f"Task {task.id} does not exist in project {project_id}")
     does_user_own_task(task)
-    # The id of the project's assignment of a results repository, which has to be the task's own
-    assignment = ProjectResultsRepository.get_by_id(body['results_repository_id'])
-    if assignment.project_id != task.project_id:
-        raise InvalidRequest(f"Results repository assignment {assignment.id} does not belong to the task's project")
+    # The delivery is tracked against the project's own link to the repository
+    assignment = ProjectResultsRepository.query.filter_by(
+        project_id=project_id, results_repository_id=body['results_repository_id']
+    ).one_or_none()
+    if assignment is None:
+        raise InvalidRequest(
+            f"Results repository {body['results_repository_id']} is not linked to project {project_id}"
+        )
 
     result = Result.query.filter_by(task_id=task.id, results_repository_id=assignment.id).first()
     if result:
@@ -93,15 +112,15 @@ def post_result():
     return dump_result(result), HTTPStatus.CREATED
 
 
-@bp.route('/<int:result_id>', methods=['PATCH'])
+@bp.route('/<int:project_id>/results/<int:result_id>', methods=['PATCH'])
 @audit
 @auth(scope='can_admin_dataset')
-def patch_result(result_id):
+def patch_result(project_id: int, result_id: int):
     """
-    PATCH /results/id endpoint. Records the progress of a task's delivery.
+    PATCH /projects/<project_id>/results/<result_id> endpoint. Records the progress of a task's delivery.
     A pull request result's step only moves forward, see PullRequestResult.set_step
     """
-    result = Result.get_by_id(result_id)
+    result = _project_result(project_id, result_id)
     does_user_own_task(result.task)
 
     body = request.json or {}

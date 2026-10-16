@@ -11,6 +11,8 @@ class ResultsRepository(GitRepositoryMixin, db.Model, BaseModel):
     __tablename__ = 'results_repositories'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    # Turned on or off for the whole node, whatever the projects' links say
+    enabled = sa.Column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
 
@@ -29,11 +31,13 @@ class ResultsRepository(GitRepositoryMixin, db.Model, BaseModel):
         provider: str,
         api_uri: str,
         secret_id: int,
+        enabled: bool = True,
     ):
         self.uri = uri
         self.provider = provider
         self.api_uri = api_uri
         self.secret_id = secret_id
+        self.enabled = enabled
 
     def __repr__(self):
         return f'<ResultsRepository ({self.uri})>'

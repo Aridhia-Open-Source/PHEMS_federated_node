@@ -18,7 +18,7 @@ def repo(id, project_id):
 def run(projects, repos, unknown=None, in_flight=()):
     backend_api = MagicMock()
     backend_api.get_projects.return_value = projects
-    backend_api.get_repositories.return_value = repos
+    backend_api.get_project_trigger_repositories.return_value = repos
     backend_api.get_pull_requests.side_effect = lambda project_id, repo_id, state: (unknown or {}).get(repo_id, [])
     context = MagicMock()
     context.instance.get_runs.side_effect = lambda filters, limit: [MagicMock()] if filters.tags["repo_id"] in in_flight else []
@@ -68,7 +68,7 @@ def test_only_enabled_projects_are_evaluated():
 def test_only_active_assignments_are_listed():
     _, backend_api, _ = run([project(1)], [repo(10, 1)], unknown={10: ["a"]})
 
-    backend_api.get_repositories.assert_called_once_with(active_only=True)
+    backend_api.get_project_trigger_repositories.assert_called_once_with(active_only=True)
 
 
 def test_a_repository_with_a_run_in_flight_is_skipped():

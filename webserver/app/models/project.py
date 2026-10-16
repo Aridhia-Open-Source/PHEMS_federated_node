@@ -42,6 +42,7 @@ class Project(db.Model, BaseModel):
         "ProjectDataset", back_populates="project", foreign_keys="ProjectDataset.project_id"
     )
     trigger_repository_assignments = relationship("ProjectTriggerRepository", back_populates="project")
+    secret_assignments = relationship("ProjectSecret", back_populates="project")
     # The foreign keys of these three are ON DELETE CASCADE, so the database removes the
     # rows and the ORM must neither select them nor null their NOT NULL project_id.
     whitelisted_images = relationship(

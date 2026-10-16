@@ -58,38 +58,37 @@ if [ -z "$project_id" ]; then
 fi
 echo "Project id: $project_id"
 
-echo -e "${BLUE}=== 3/3 Secret, global trigger repository, project assignment ===${NC}"
-# The secret and the repository are global; the project holds an assignment of the repository.
+echo -e "${BLUE}=== 3/3 Secret, global trigger repository, project link ===${NC}"
+# The secret and the repository are global; the project holds a link to the repository.
 # The secret holds a placeholder token until `fncli init-git-secret` writes a real one.
 secret_label="$TEST_TRIGGER_REPO-creds"
-if ! curl -sf "$BACKEND_URL/secrets/$secret_label" \
+if ! curl -sf "$BACKEND_URL/global/secrets/$secret_label" \
   --header "Authorization: Bearer $BACKEND_TOKEN" > /dev/null; then
-  curl -sf "$BACKEND_URL/secrets" \
+  curl -sf "$BACKEND_URL/global/secrets" \
     --header "Content-Type: application/json" \
     --header "Authorization: Bearer $BACKEND_TOKEN" \
     --data "{\"label\": \"$secret_label\", \"provider\": \"K8S\", \"values\": {\"TOKEN\": \"unset\"}}" > /dev/null
 fi
 echo "Secret: $secret_label"
 
-repo_id=$(curl -sf "$BACKEND_URL/trigger_repositories" \
+repo_id=$(curl -sf "$BACKEND_URL/global/repositories/triggers" \
   --header "Authorization: Bearer $BACKEND_TOKEN" | jq -r --arg path "$GITEA_ADMIN_USER/$TEST_TRIGGER_REPO" '.[] | select(.uri | endswith($path)) | .id')
 if [ -z "$repo_id" ]; then
-  repo_id=$(curl -sf "$BACKEND_URL/trigger_repositories" \
+  repo_id=$(curl -sf "$BACKEND_URL/global/repositories/triggers" \
     --header "Content-Type: application/json" \
     --header "Authorization: Bearer $BACKEND_TOKEN" \
     --data "{\"uri\": \"$TEST_TRIGGER_REPO_URI\", \"provider\": \"gitea\", \"api_uri\": \"$GITEA_API_URI\", \"secret_label\": \"$secret_label\"}" | jq -r '.id')
 fi
 echo "Trigger repository id: $repo_id"
 
-assignment_id=$(curl -sf "$BACKEND_URL/projects/$project_id/trigger_repositories" \
-  --header "Authorization: Bearer $BACKEND_TOKEN" | jq -r --argjson repo "$repo_id" '.[] | select(.trigger_repository.id == $repo) | .id')
-if [ -z "$assignment_id" ]; then
-  assignment_id=$(curl -sf "$BACKEND_URL/projects/$project_id/trigger_repositories" \
+if ! curl -sf "$BACKEND_URL/projects/$project_id/repositories/triggers/$repo_id" \
+  --header "Authorization: Bearer $BACKEND_TOKEN" > /dev/null; then
+  curl -sf -X PUT "$BACKEND_URL/projects/$project_id/repositories/triggers/$repo_id" \
     --header "Content-Type: application/json" \
     --header "Authorization: Bearer $BACKEND_TOKEN" \
-    --data "{\"trigger_repository_id\": $repo_id, \"watch_dir\": \"$TEST_TRIGGER_REPO_WATCH_DIR\", \"base_branch\": \"$default_branch\"}" | jq -r '.id')
+    --data "{\"watch_dir\": \"$TEST_TRIGGER_REPO_WATCH_DIR\", \"base_branch\": \"$default_branch\"}" > /dev/null
 fi
-echo "Assignment id: $assignment_id"
+echo "Linked to project $project_id"
 
 echo
 echo -e "${BLUE}=== Fresh GET: project ===${NC}"
@@ -97,12 +96,12 @@ curl -sf "$BACKEND_URL/projects/$project_id" \
   --header "Authorization: Bearer $BACKEND_TOKEN" | jq .
 
 echo
-echo -e "${BLUE}=== Fresh GET: trigger repository assignment ===${NC}"
-curl -sf "$BACKEND_URL/projects/$project_id/trigger_repositories/$assignment_id" \
+echo -e "${BLUE}=== Fresh GET: trigger repository link ===${NC}"
+curl -sf "$BACKEND_URL/projects/$project_id/repositories/triggers/$repo_id" \
   --header "Authorization: Bearer $BACKEND_TOKEN" | jq .
 
 echo
 echo -e "${GREEN}=== init_repo complete ===${NC}"
 echo "Project: $TEST_PROJECT_NAME (id $project_id)"
-echo "Trigger repository: $TEST_TRIGGER_REPO_URI (id $repo_id, assignment $assignment_id, watch_dir $TEST_TRIGGER_REPO_WATCH_DIR)"
+echo "Trigger repository: $TEST_TRIGGER_REPO_URI (id $repo_id, watch_dir $TEST_TRIGGER_REPO_WATCH_DIR)"
 echo "Gitea repo page: $GITEA_URL/$GITEA_ADMIN_USER/$TEST_TRIGGER_REPO"

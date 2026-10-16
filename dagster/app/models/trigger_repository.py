@@ -19,7 +19,10 @@ class TriggerRepository(BaseModel):
     api_uri: str
     # The secret holding the git token, under the key TOKEN.
     secret: Secret
-    # The latest merge among the stored pull requests, None while there are none
+    # Turned on or off for the whole node. A disabled repository is not polled.
+    enabled: bool
+    # Where polling the provider resumes: the latest stored merge, or with none stored the
+    # earliest cursor of its active links. None if there is neither.
     pr_cursor: str | None = None
 
     @property
@@ -34,26 +37,24 @@ class TriggerRepository(BaseModel):
 
 class ProjectTriggerRepository(BaseModel):
     """
-    A project's assignment of a global trigger repository, from backend API.
+    A project's link to a global trigger repository, from backend API. Addressed by the
+    global repository's id, trigger_repository.id.
 
-    - id: the assignment's id, which a pull request's project_trigger_repository_id points at.
-    - project_id: the project the repository is assigned to.
+    - project_id: the project the repository is linked to.
     - trigger_repository: the global repository.
     - dataset_id: from the project's default dataset, so a project without one has none.
     - enabled: a person turned the repository on for the project.
     - revoked: the controller withdrew the project's access.
-    - active: enabled and not revoked.
+    - active: the global repository is enabled, and the link is enabled and not revoked.
     """
 
     model_config = ConfigDict(extra="allow")
 
-    id: int
     project_id: int
     trigger_repository: TriggerRepository
     watch_dir: str
     base_branch: str
     dataset_id: int | None = None
-    initial_cursor: str | None = None
     pr_cursor: str
     pr_count: int = 0
     enabled: bool

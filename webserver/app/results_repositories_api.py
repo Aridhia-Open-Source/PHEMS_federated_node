@@ -1,13 +1,14 @@
 """
-results repository endpoints, global: a project is assigned to one under
-/projects/<id>/results_repositories (see projects_api.py). Create, edit and delete are admin
-only, and editing or deleting needs every project the repository is assigned to locked and
+results repository endpoints, global: a project is linked to one under
+/projects/<id>/repositories/results (see projects_api.py). Create, edit and delete are admin
+only, and editing or deleting needs every project the repository is linked to locked and
 drained.
-- GET /results_repositories
-- GET /results_repositories/<id>
-- POST /results_repositories
-- PATCH /results_repositories/<id>
-- DELETE /results_repositories/<id>
+- GET /global/repositories/results
+- GET /global/repositories/results/<id>
+- POST /global/repositories/results
+- PATCH /global/repositories/results/<id>
+- DELETE /global/repositories/results/<id>
+- GET /global/repositories/results/<id>/healthcheck, see healthcheck_api.py
 """
 from http import HTTPStatus
 
@@ -23,7 +24,7 @@ from app.models.git_provider import GitProvider
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
 
-bp = Blueprint('results_repositories', __name__, url_prefix='/results_repositories')
+bp = Blueprint('results_repositories', __name__, url_prefix='/global/repositories/results')
 session = db.session
 
 
@@ -37,7 +38,7 @@ def auth_before():
 @bp.route('', methods=['GET'])
 def get_repositories():
     """
-    GET /results_repositories/ — list the repositories
+    GET /global/repositories/results/ — list the repositories
     """
     return [ResultsRepositoryDTO.from_model(r).dump() for r in ResultsRepository.query.order_by(ResultsRepository.id)], HTTPStatus.OK
 
@@ -45,18 +46,18 @@ def get_repositories():
 @bp.route('/<int:repo_id>', methods=['GET'])
 def get_repository(repo_id):
     """
-    GET /results_repositories/<id> — get a single repository
+    GET /global/repositories/results/<id> — get a single repository
     """
     repo = ResultsRepository.get_by_id(repo_id)
     return ResultsRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['DELETE'])
-@auth(scope='can_do_admin', check_dataset=False)
+@auth(scope='can_do_admin')
 def delete_repository(repo_id):
     """
-    DELETE /results_repositories/<id> — delete the repository and its assignments, once every
-    project it is assigned to is locked and drained. Refused while a task delivered to it.
+    DELETE /global/repositories/results/<id> — delete the repository and its links, once every
+    project it is linked to is locked and drained. Refused while a task delivered to it.
     """
     repo = ResultsRepository.get_by_id(repo_id)
     assignments = list(repo.project_assignments)
@@ -73,20 +74,23 @@ def delete_repository(repo_id):
 
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
-@auth(scope='can_do_admin', check_dataset=False)
+@auth(scope='can_do_admin')
 def post_repository():
     """
-    POST /results_repositories/ — create a new repository, assigned to no project yet.
+    POST /global/repositories/results/ — create a new repository, linked to no project yet.
     """
     body = request.json or {}
     if "project_id" in body or "target_dir" in body:
         raise InvalidRequest(
             "project_id and target_dir are not accepted, results repositories are global. "
-            "Assign one with POST /projects/<id>/results_repositories"
+            "Link one with PUT /projects/<id>/repositories/results/<repository id>"
         )
     for field in ('uri', 'provider', 'secret_label'):
         if not body.get(field):
             raise InvalidRequest(f"{field} is required")
+
+    if not isinstance(body.get("enabled", True), bool):
+        raise InvalidRequest("enabled must be a boolean")
 
     uri = RepositoryUriRequest.normalised(body['uri'])
     secret = Secret.get_by_label(body['secret_label'])
@@ -97,6 +101,7 @@ def post_repository():
             provider=body['provider'],
             api_uri=body.get('api_uri') or GitProvider(body['provider']).default_api_uri(uri),
             secret_id=secret.id,
+            enabled=body.get('enabled', True),
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
@@ -108,10 +113,10 @@ def post_repository():
 
 
 @bp.route('/<int:repo_id>', methods=['PATCH'])
-@auth(scope='can_do_admin', check_dataset=False)
+@auth(scope='can_do_admin')
 def patch_repository(repo_id):
     """
-    PATCH /results_repositories/<id> — update repository. Every project it is assigned to has
+    PATCH /global/repositories/results/<id> — update repository. Every project it is linked to has
     to be locked and drained, except to rotate the credentials only.
     """
     repo = ResultsRepository.get_by_id(repo_id)
@@ -119,7 +124,7 @@ def patch_repository(repo_id):
     body = request.json or {}
     if not body:
         raise InvalidRequest("No fields provided to update")
-    unknown = set(body) - {'provider', 'api_uri', 'secret_label'}
+    unknown = set(body) - {'provider', 'api_uri', 'secret_label', 'enabled'}
     if unknown:
         raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
 
@@ -131,6 +136,11 @@ def patch_repository(repo_id):
         if not body['secret_label']:
             raise InvalidRequest("secret_label cannot be empty")
         repo.secret_id = Secret.get_by_label(body['secret_label']).id
+
+    if 'enabled' in body:
+        if not isinstance(body['enabled'], bool):
+            raise InvalidRequest("enabled must be a boolean")
+        repo.enabled = body['enabled']
 
     for field in ('provider', 'api_uri'):
         if field in body:

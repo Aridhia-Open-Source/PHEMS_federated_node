@@ -139,7 +139,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 | Command | What it does |
 |---|---|
 | `init-git-secret [--entity]` | Stores a fresh Gitea token in the repo's K8s secret (`read:repository` for trigger, `write:repository` for results) |
-| `init-backend-secret [--entity trigger\|results\|dataset]` | Creates the global secret in the backend (`POST /secrets`) with placeholder values (`{"TOKEN": "unset"}`, or the dataset's dummies), with no Gitea call. An existing secret is left alone, so a real token is never overwritten |
+| `init-backend-secret [--entity trigger\|results\|dataset]` | Creates the global secret in the backend (`POST /global/secrets`) with placeholder values (`{"TOKEN": "unset"}`, or the dataset's dummies), with no Gitea call. An existing secret is left alone, so a real token is never overwritten |
 | `init-dataset-secret` | Stores `USERNAME` and `PASSWORD` (`DATASET_USERNAME`, `DATASET_PASSWORD`, default `dummy`) in the dataset's secret (`<dataset>-dataset-creds`) |
 | `verify-git-secret [--entity]` | Checks Gitea accepts the token currently stored in the repo's secret |
 | `delete-secret [--entity trigger\|results\|dataset]` | Deletes the global secret from the backend and K8s. Refused while a repo or dataset uses it |

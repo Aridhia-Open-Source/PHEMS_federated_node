@@ -29,6 +29,8 @@ class Secret(db.Model, BaseModel):
     key = sa.Column(sa.String(253), unique=True, nullable=False)
     # Where the store keeps it, for stores that have such a notion. Set by the backend.
     namespace = sa.Column(sa.String(253), nullable=True)
+    # Turned on or off for the whole node, whatever the projects' links say
+    enabled = sa.Column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
 
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
@@ -40,6 +42,7 @@ class Secret(db.Model, BaseModel):
         "ResultsRepository", back_populates="secret"
     )
     datasets = relationship("Dataset", back_populates="secret")
+    project_assignments = relationship("ProjectSecret", back_populates="secret")
 
     @classmethod
     def get_by_label(cls, label: str) -> "Secret":
@@ -59,12 +62,14 @@ class Secret(db.Model, BaseModel):
 
     def __init__(
         self, label: str, provider: SecretProviderType,
-        description: str | None = None, namespace: str | None = None
+        description: str | None = None, namespace: str | None = None,
+        enabled: bool = True
     ):
         self.label = label
         self.description = description
         self.provider = provider
         self.namespace = namespace
+        self.enabled = enabled
         self.key = f"{KEY_PREFIX}{label}"
 
     def __repr__(self):

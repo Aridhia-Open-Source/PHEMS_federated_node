@@ -47,7 +47,7 @@ def init_backend_trigger_repo(
     logger.info(
         f"Backend trigger repository {repo.id}: {repo.uri} "
         f"(provider {repo.provider}, api_uri {repo.api_uri}, secret {repo.secret.label}), "
-        f"assigned to project {assignment.project_id} as {assignment.id} (branch {assignment.base_branch}, "
+        f"assigned to project {assignment.project_id} (branch {assignment.base_branch}, "
         f"watch_dir {assignment.watch_dir}, pr_cursor {assignment.pr_cursor})"
     )
     return assignment
@@ -66,7 +66,7 @@ def init_backend_results_repo(
     logger.info(
         f"Backend results repository {repo.id}: {repo.uri} "
         f"(provider {repo.provider}, api_uri {repo.api_uri}, secret {repo.secret.label}), "
-        f"assigned to project {assignment.project_id} as {assignment.id} (target_dir {assignment.target_dir})"
+        f"assigned to project {assignment.project_id} (target_dir {assignment.target_dir})"
     )
     return assignment
 
@@ -88,7 +88,7 @@ def backend_source_options(command):
 def get_backend_repo_record(entity: str, backend_api: BackendAPI, project: Project):
     """The project's one trigger or results repository assignment."""
     if entity == "trigger":
-        records = [r for r in backend_api.get_repositories() if r.project_id == project.id]
+        records = backend_api.get_project_trigger_repositories(project.id)
     else:
         records = backend_api.get_project_results_repositories(project.id)
     if len(records) != 1:

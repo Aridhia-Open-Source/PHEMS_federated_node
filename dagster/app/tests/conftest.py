@@ -67,7 +67,7 @@ SAMPLE_REPOSITORY_OBJ = {
 
 SAMPLE_PR = {
     "project_id": 1,
-    "project_trigger_repository_id": 1,
+    "trigger_repository_id": 1,
     "number": 5,
     "title": "Add experiment spec",
     "raised_by": "developer",
@@ -78,7 +78,7 @@ SAMPLE_PR = {
 
 SAMPLE_INVALID_PR = {
     "project_id": 1,
-    "project_trigger_repository_id": 1,
+    "trigger_repository_id": 1,
     "number": 6,
     "title": "Invalid spec",
     "raised_by": "developer",
@@ -89,7 +89,7 @@ SAMPLE_INVALID_PR = {
 
 SAMPLE_IN_PROGRESS_PR = {
     "project_id": 1,
-    "project_trigger_repository_id": 1,
+    "trigger_repository_id": 1,
     "number": 7,
     "title": "Currently processing",
     "raised_by": "developer",

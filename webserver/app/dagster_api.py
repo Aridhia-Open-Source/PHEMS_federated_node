@@ -20,7 +20,7 @@ STATUSES = ("RUNNING", "STOPPED")
 
 
 @bp.before_request
-@auth(scope='can_do_admin', check_dataset=False)
+@auth(scope='can_do_admin')
 def auth_before():
     """Ensure the user is an admin."""
 

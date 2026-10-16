@@ -179,7 +179,7 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
         run = None
         try:
             pr = next(
-                (p for p in backend_api.get_pull_requests(project.id, repo.id) if p.number == number), None
+                (p for p in backend_api.get_pull_requests(project.id, repo.trigger_repository.id) if p.number == number), None
             )
             if pr is None:
                 lines["pr"] = "PR: waiting for ingest"
@@ -225,7 +225,7 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
             if run["status"] == "SUCCESS":
                 wait_for_delivery(backend_api, dagster_api, task.id)
             report = Report()
-            verify_task(report, backend_api, dagster_api, links, project.id, repo.id, number)
+            verify_task(report, backend_api, dagster_api, links, project.id, repo.trigger_repository.id, number)
             report.echo()
             raise click.exceptions.Exit(int(report.failed > 0))
         time.sleep(POLL_SECONDS)

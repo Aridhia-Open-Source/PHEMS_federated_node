@@ -8,7 +8,7 @@ class PullRequestTrigger(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     project_id: int
-    project_trigger_repository_id: int
+    trigger_repository_id: int
     number: int
     title: str
     raised_by: str

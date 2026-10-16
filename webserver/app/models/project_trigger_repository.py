@@ -7,7 +7,7 @@ from datetime import timezone as tz
 from typing import cast
 
 import sqlalchemy as sa
-from sqlalchemy.orm import relationship, validates
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.helpers.base_model import BaseModel, db
@@ -34,8 +34,9 @@ class ProjectTriggerRepository(db.Model, BaseModel):
         sa.DateTime, nullable=False, server_default=func.now(), default=now_ts
     )
     # Where the cursor stands within initial_cursor's timestamp: the assignment starts after
-    # (initial_cursor, initial_cursor_number). 0 starts at the timestamp itself, as pull
-    # request numbers begin at 1; the number of the latest pull request starts after it.
+    # (initial_cursor, initial_cursor_number). Both are set when the link is created, from the
+    # latest pull request stored. 0 starts at the timestamp itself, as pull request numbers
+    # begin at 1; the number of the latest pull request starts after it.
     initial_cursor_number = sa.Column(sa.Integer, nullable=False, default=0, server_default='0')
     # A person turned the repository on or off for the project
     enabled = sa.Column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
@@ -45,8 +46,7 @@ class ProjectTriggerRepository(db.Model, BaseModel):
 
     __table_args__ = (
         sa.UniqueConstraint(
-            'project_id', 'trigger_repository_id', 'watch_dir',
-            name='uq_project_trigger_repositories_project_repo_dir'
+            'project_id', 'trigger_repository_id', name='uq_project_trigger_repositories_project_repo'
         ),
     )
 
@@ -57,26 +57,9 @@ class ProjectTriggerRepository(db.Model, BaseModel):
         "PullRequestTrigger", back_populates="project_trigger_repository", passive_deletes='all'
     )
 
-    @validates('initial_cursor')
-    def validate_initial_cursor(self, key, value):
-        """Convert ISO 8601 string to datetime if needed."""
-        if isinstance(value, str):
-            try:
-                value = dt.fromisoformat(value.rstrip('Z'))
-            except (ValueError, TypeError):
-                raise ValueError("initial_cursor must be a valid ISO 8601 datetime string")
-
-        if self.id is not None and self.pull_request_triggers and value > self.initial_cursor:
-            raise ValueError(
-                "initial_cursor can only be moved earlier while pull requests exist, "
-                "a later one would leave triggers before the cursor"
-            )
-
-        return value
-
     @property
     def active(self) -> bool:
-        return self.enabled and not self.revoked
+        return self.trigger_repository.enabled and self.enabled and not self.revoked
 
     @property
     def dataset(self):
@@ -105,7 +88,6 @@ class ProjectTriggerRepository(db.Model, BaseModel):
         trigger_repository_id: int,
         watch_dir: str,
         base_branch: str = 'main',
-        initial_cursor: dt | None = None,
         enabled: bool = True,
         revoked: bool = False,
     ):
@@ -113,7 +95,6 @@ class ProjectTriggerRepository(db.Model, BaseModel):
         self.trigger_repository_id = trigger_repository_id
         self.watch_dir = watch_dir
         self.base_branch = base_branch
-        self.initial_cursor = initial_cursor
         self.enabled = enabled
         self.revoked = revoked
 

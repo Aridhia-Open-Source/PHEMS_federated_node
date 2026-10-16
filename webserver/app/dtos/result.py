@@ -15,6 +15,13 @@ class ResultDTO(DTO):
     created_at: WireDatetime
     updated_at: WireDatetime
 
+    @classmethod
+    def from_model(cls, obj: Result):
+        dto = super().from_model(obj)
+        # The global repository, not the project's link row the result is stored against
+        dto.results_repository_id = obj.assignment.results_repository_id
+        return dto
+
 
 class PullRequestResultDTO(ResultDTO):
     step: str

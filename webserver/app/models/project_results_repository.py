@@ -49,7 +49,7 @@ class ProjectResultsRepository(db.Model, BaseModel):
 
     @property
     def active(self) -> bool:
-        return self.enabled and not self.revoked
+        return self.results_repository.enabled and self.enabled and not self.revoked
 
     def __repr__(self):
         return f'<ProjectResultsRepository {self.project_id}:{self.results_repository_id}>'

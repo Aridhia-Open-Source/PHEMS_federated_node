@@ -36,7 +36,7 @@ fi
 
 echo
 echo -e "${BLUE}=== Trigger repository (global): $GITEA_ADMIN_USER/$TEST_TRIGGER_REPO ===${NC}"
-repo=$(curl -sf "$BACKEND_URL/trigger_repositories" \
+repo=$(curl -sf "$BACKEND_URL/global/repositories/triggers" \
   --header "Authorization: Bearer $BACKEND_TOKEN" \
   | jq --arg path "$GITEA_ADMIN_USER/$TEST_TRIGGER_REPO" '.[] | select(.uri | endswith($path))')
 
@@ -48,13 +48,12 @@ else
 fi
 
 echo
-echo -e "${BLUE}=== Project's assignment of it ===${NC}"
+echo -e "${BLUE}=== Project's link to it ===${NC}"
 if [ -z "${project_id:-}" ] || [ -z "${repo_id:-}" ]; then
   echo "Not found. Run init_repo.sh first."
 else
-  curl -sf "$BACKEND_URL/projects/$project_id/trigger_repositories" \
-    --header "Authorization: Bearer $BACKEND_TOKEN" \
-    | jq --argjson repo "$repo_id" '.[] | select(.trigger_repository.id == $repo)'
+  curl -sf "$BACKEND_URL/projects/$project_id/repositories/triggers/$repo_id" \
+    --header "Authorization: Bearer $BACKEND_TOKEN" | jq .
 fi
 
 echo

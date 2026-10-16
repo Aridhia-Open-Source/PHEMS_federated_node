@@ -15,7 +15,8 @@ class TriggerRepositoryDTO(DTO):
     provider: str
     api_uri: str
     secret: SecretDTO
-    # Where polling the provider resumes: the latest merge among the stored pull requests
+    enabled: bool
+    # Where polling the provider resumes, see TriggerRepository.get_ingest_cursor
     pr_cursor: str | None
 
     @classmethod
@@ -26,19 +27,18 @@ class TriggerRepositoryDTO(DTO):
             provider=obj.provider,
             api_uri=obj.api_uri,
             secret=SecretDTO.from_model(obj.secret),
-            pr_cursor=obj.get_pull_request_cursor(),
+            enabled=obj.enabled,
+            pr_cursor=obj.get_ingest_cursor(),
         )
 
 
 class ProjectTriggerRepositoryDTO(DTO):
-    """A project's assignment of a global trigger repository, the repository nested."""
-    id: int
+    """A project's link to a global trigger repository, the repository nested. Addressed by the repository's id."""
     project_id: int
     trigger_repository: TriggerRepositoryDTO
     watch_dir: str
     base_branch: str
     dataset_id: int | None
-    initial_cursor: datetime | None
     pr_cursor: str
     pr_count: int
     enabled: bool
@@ -48,13 +48,11 @@ class ProjectTriggerRepositoryDTO(DTO):
     @classmethod
     def from_model(cls, obj: ProjectTriggerRepository):
         return cls(
-            id=obj.id,
             project_id=obj.project_id,
             trigger_repository=TriggerRepositoryDTO.from_model(obj.trigger_repository),
             watch_dir=obj.watch_dir,
             base_branch=obj.base_branch,
             dataset_id=obj.dataset.id if obj.dataset else None,
-            initial_cursor=obj.initial_cursor,
             pr_cursor=obj.get_pull_request_cursor(),
             pr_count=len(obj.pull_request_triggers),
             enabled=obj.enabled,
@@ -78,7 +76,7 @@ class PullRequestDTO(DTO):
 
 class PullRequestTriggerDTO(DTO):
     project_id: int
-    project_trigger_repository_id: int
+    trigger_repository_id: int
     number: int
     title: str
     raised_by: str

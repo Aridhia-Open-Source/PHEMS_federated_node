@@ -52,7 +52,7 @@ class TestRepositories:
     def test_get_repositories(self, api, session):
         session.get.return_value = make_response([SAMPLE_REPOSITORY_OBJ])
 
-        repos = api.get_repositories()
+        repos = api.get_project_trigger_repositories()
 
         assert [type(r) for r in repos] == [ProjectTriggerRepository]
         assert repos[0].repo_path == "org/repo"
@@ -60,9 +60,18 @@ class TestRepositories:
     def test_get_active_repositories(self, api, session):
         session.get.return_value = make_response([SAMPLE_REPOSITORY_OBJ])
 
-        api.get_repositories(active_only=True)
+        api.get_project_trigger_repositories(active_only=True)
 
         session.get.assert_called_once_with("/project_trigger_repositories", params={"active": "true"})
+
+    def test_get_active_repositories_of_enabled_projects(self, api, session):
+        session.get.return_value = make_response([SAMPLE_REPOSITORY_OBJ])
+
+        api.get_project_trigger_repositories(active_only=True, project_enabled=True)
+
+        session.get.assert_called_once_with(
+            "/project_trigger_repositories", params={"active": "true", "project_enabled": "true"}
+        )
 
     def test_get_repository(self, api, session):
         session.get.return_value = make_response(SAMPLE_REPOSITORY_OBJ)

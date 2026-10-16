@@ -113,6 +113,11 @@ class ModelRegistry:
         return Result
 
     @cached_property
+    def ProjectSecret(self):
+        from app.models.project_secret import ProjectSecret
+        return ProjectSecret
+
+    @cached_property
     def Secret(self):
         from app.models.secret import Secret
         return Secret
@@ -166,6 +171,7 @@ _ = (
     Models.ApiRequestTrigger,
     Models.Trigger,
     Models.Secret,
+    Models.ProjectSecret,
     Models.Result,
     Models.PullRequestResult,
 )

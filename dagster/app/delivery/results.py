@@ -59,20 +59,20 @@ class ResultsDelivery:
         """
         task = self.backend_api.get_task(task_id)
         repository = self.backend_api.get_results_repository(task.project_id)
-        result = self.backend_api.create_result(task.id, repository.id)
+        result = self.backend_api.create_result(task.project_id, task.id, repository.results_repository.id)
         if result.step in PAST_PUSHED:
             self.log.info(f"Results of task {task.id} are already delivered, {result.step.value}")
             return
         if not repository.active:
             self.log.warning(f"Results of task {task.id} not delivered: {REVOKED_ERROR}")
-            self.backend_api.patch_result(result.id, {
+            self.backend_api.patch_result(task.project_id, result.id, {
                 "state": ResultState.FAILED.value,
                 "attempts": result.attempts + 1,
                 "error": REVOKED_ERROR,
             })
             return
         if result.state == ResultState.FAILED:
-            self.backend_api.patch_result(result.id, {"state": ResultState.IN_PROGRESS.value})
+            self.backend_api.patch_result(task.project_id, result.id, {"state": ResultState.IN_PROGRESS.value})
 
         pushed = {}
         try:
@@ -80,11 +80,11 @@ class ResultsDelivery:
             title = f"{trigger_assignment.repo_path} PR{pull_request.number} - task {task.id} - results"
             branch, commit_sha, base_branch = self._push(task, run_id, repository, trigger_assignment.trigger_repository, pull_request, title)
             pushed = {"branch": branch, "commit_sha": commit_sha}
-            self.backend_api.patch_result(result.id, {"step": PullRequestResultStep.PUSHED.value, **pushed})
+            self.backend_api.patch_result(task.project_id, result.id, {"step": PullRequestResultStep.PUSHED.value, **pushed})
             results_pr = self._open_pull_request(repository, branch, base_branch, title, pull_request)
             # An earlier attempt's PR may be merged or closed already: record what it is
             step = PullRequestResultStep.from_git(results_pr)
-            self.backend_api.patch_result(result.id, {
+            self.backend_api.patch_result(task.project_id, result.id, {
                 "step": step.value,
                 "state": ResultState.DELIVERED.value,
                 "attempts": result.attempts + 1,
@@ -96,7 +96,7 @@ class ResultsDelivery:
                 "merge_commit_sha": results_pr["merge_commit_sha"] if step == PullRequestResultStep.MERGED else None,
             })
         except Exception as e:
-            self.backend_api.patch_result(result.id, {
+            self.backend_api.patch_result(task.project_id, result.id, {
                 "state": ResultState.FAILED.value,
                 "attempts": result.attempts + 1,
                 "error": f"{type(e).__name__}: {e}"[:MAX_ERROR_LENGTH],
@@ -185,12 +185,10 @@ class ResultsDelivery:
         return git_api.create_pull_request(results_repository.repo_path, branch, base_branch, title, body)
 
     def _find_pull_request(self, task: Task) -> tuple[ProjectTriggerRepository, PullRequestTrigger]:
-        """The project's trigger repository assignment and pull request that yielded the task."""
-        for assignment in self.backend_api.get_repositories():
-            if assignment.project_id != task.project_id:
-                continue
+        """The project's link to the trigger repository and the pull request that yielded the task."""
+        for assignment in self.backend_api.get_project_trigger_repositories(task.project_id):
             for pull_request in self.backend_api.get_pull_requests(
-                assignment.project_id, assignment.id, TriggerState.YIELDED.value
+                task.project_id, assignment.trigger_repository.id, TriggerState.YIELDED.value
             ):
                 if pull_request.task_id == task.id:
                     return assignment, pull_request

@@ -280,7 +280,7 @@ def post_tasks():
 
 @bp.route('/validate', methods=['POST'])
 @audit
-@auth(scope='can_exec_task', check_dataset=False)
+@auth(scope='can_exec_task')
 def post_tasks_validate():
     """
     POST /tasks/validate endpoint.

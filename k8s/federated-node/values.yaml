@@ -123,7 +123,7 @@ db:
     #   uc1:
 
 # A second, in-cluster Postgres holding dataset data - a development fixture. Real
-# datasets are registered through the /datasets API. `create` covers deploying the
+# datasets are registered through the /global/datasets API. `create` covers deploying the
 # server and creating the roles in `dbs`, so `dbs` without it is rejected.
 datasetDb:
   create: false

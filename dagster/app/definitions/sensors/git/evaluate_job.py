@@ -35,7 +35,7 @@ def record_outcome(backend_api: BackendAPI, pr: PullRequestTrigger, parsed: Pars
     keeps it, parses it and either creates the task (marking the PR YIELDED) or rejects the
     PR. IGNORED and REJECTED are stored with their state_cause. Backend failures raise.
     """
-    project_id, repo_id = pr.project_id, pr.project_trigger_repository_id
+    project_id, repo_id = pr.project_id, pr.trigger_repository_id
     if parsed.outcome is PullRequestOutcome.READY:
         try:
             backend_api.create_task_for_pull_request(project_id, repo_id, pr.number, parsed.spec_raw)
@@ -62,7 +62,7 @@ def evaluate_pull_request(context: OpExecCtx, pr: PullRequestTrigger):
     """
     backend_api = cast(BackendAPI, context.resources.backend_api)
     git_apis = cast(GitAPIFactory, context.resources.git_apis)
-    repo = backend_api.get_repository(pr.project_id, pr.project_trigger_repository_id)
+    repo = backend_api.get_project_trigger_repository(pr.project_id, pr.trigger_repository_id)
     parsed = PullRequestParser(git_apis.for_repository(repo.trigger_repository), repo, context.log).parse(pr)
     record_outcome(backend_api, pr, parsed, context.log)
 
