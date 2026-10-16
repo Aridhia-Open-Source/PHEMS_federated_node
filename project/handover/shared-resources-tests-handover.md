@@ -109,29 +109,12 @@ REJECTED, then waits for the task to reach SUCCESS, prints a snapshot and tears 
 after the PRs are evaluated. It needs the dev cluster from `scripts/fncli/EXAMPLES.md` ("Run the project from scratch"). It has
 **never been run**: expect small fixes on the first go. If a step fails it prints `fncli sensor-status`.
 
-## Integration environment: what the cloud sandbox can and cannot do
+## Cloud integration
 
-Goal was a real integration run (Postgres, Keycloak, Gitea, Dagster, k8s) inside the cloud session. Findings, so nobody repeats them:
-
-- **Works:** `dockerd` (installed, must be started by hand: `dockerd &`), privileged containers, `docker compose`, Postgres 17.
-  4 CPU, 15 GB RAM, about 28 GB free disk. The cgroup layout is v1.
-- **Registries:** with network access set to the widest level every registry answers. Docker Hub rate-limits anonymous pulls (429), but
-  `mirror.gcr.io/<hub image>` works for `library/*`, `kindest/node`, `rancher/k3s` and `gitea/gitea`. Pull from the mirror and retag.
-- **Tools downloaded fine:** `kind` v0.24.0 (kind.sigs.k8s.io), `kubectl` v1.31.0 (dl.k8s.io), `helm` v3.16.2 (get.helm.sh), pip from PyPI.
-  They were installed in the container only, so they are gone with it.
-- **Containers have no DNS.** Only an HTTP proxy (`$HTTPS_PROXY`, 127.0.0.1) gets out, and it refuses plain-HTTP requests. For image
-  builds: use host networking, pass the proxy in `~/.docker/config.json`, switch apt sources to https
-  (`sed -i 's#http://#https://#' /etc/apt/sources.list.d/debian.sources`). Pods would need images preloaded with `kind load docker-image`.
-- **A kind cluster does NOT start here.** `kind create cluster --image mirror.gcr.io/kindest/node:v1.31.0` fails at kubeadm
-  `wait-control-plane`; the kubelet log shows `runc create failed: unable to start container process: can't get final child's PID from
-  pipe: EOF` for every pod sandbox (nested containers on this kernel, 6.18 firecracker, cgroup v1). Not diagnosed further.
-- **Not tried yet:** k3s in docker (`rancher/k3s`, same nested-runc risk), an older `kindest/node` image, or dropping k8s: run the
-  webserver, Postgres, Keycloak and Gitea with compose and use Dagster from pip, with the K8s secret reads stubbed. Keycloak needs
-  `build/keycloak` and `build/kc-init` built over the proxy (`webserver/docker-compose-integration-tests.yaml` already defines
-  `db`, `keycloak` and `kc_init`).
-
-What does give real client-to-server coverage today: `test_live_client_integration.py` (real Flask app on a local port, real fncli and
-Dagster backend clients, mocked Keycloak and K8s). The full path with real Keycloak, Gitea and Dagster is still the laptop script.
+Not possible in the cloud sandbox: a local kind cluster does not start there, so there is no real k8s, Keycloak, Gitea or Dagster run.
+Use `scripts/e2e_shared_resources.sh` on the laptop. In the sandbox, `docker` and `docker compose` work (start `dockerd` by hand);
+pull Docker Hub images from `mirror.gcr.io` (anonymous Hub pulls are rate-limited); containers have no DNS, only the proxy.
+Real client-to-server coverage in the sandbox: `test_live_client_integration.py`.
 
 ## Suggested next steps
 
@@ -139,5 +122,4 @@ Dagster backend clients, mocked Keycloak and K8s). The full path with real Keycl
 2. Decide the state rules under "Still open" and flip the 14 xfails; the other dataset PATCH detail (202 vs 200) and the `/tasks`
    400-vs-clamp inconsistency.
 3. Add the Dagster-side tests (the Dagster and fncli unit tests still use the old routes) and the missing query options.
-4. Try the untried integration routes above (k3s or an older kind node, or compose without k8s) if a cloud run is still wanted.
-5. Review the Gitea moonshot work (not started).
+4. Review the Gitea moonshot work (not started).
