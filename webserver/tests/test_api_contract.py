@@ -167,9 +167,9 @@ def repo(default_repo):
 
 @pytest.fixture
 def pull_requests(client, post_json_admin_header, repo):
-    """Two merged pull requests, ingested through the batch endpoint."""
+    """Two merged pull requests, ingested through the repository's batch endpoint."""
     response = client.post(
-        f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests/batch",
+        f"/trigger_repositories/{repo.trigger_repository_id}/pull_requests/batch",
         json={"pull_requests": [pr_body(1, "2026-01-01T10:00:00Z"), pr_body(2, "2026-03-05T11:30:00Z")]},
         headers=post_json_admin_header,
     )
@@ -234,12 +234,15 @@ class TestTriggerRepositories:
 
 
 class TestPullRequests:
-    def test_batch_create(self, client, repo, pull_requests, contract):
-        assert_shape(pull_requests, [PULL_REQUEST])
-        assert [pr["number"] for pr in pull_requests] == [1, 2]
-        assert {pr["project_trigger_repository_id"] for pr in pull_requests} == {repo.id}
-        assert {(pr["state"], pr["state_cause"], pr["task_id"]) for pr in pull_requests} == {("UNKNOWN", None, None)}
-        contract("pull_requests_batch", pull_requests)
+    def test_batch_create(self, client, simple_admin_header, repo, pull_requests, contract):
+        assert_shape(pull_requests, {"created": [int], "existing": [int]})
+        assert pull_requests == {"created": [1, 2], "existing": []}
+        contract("repository_pull_requests_batch", pull_requests)
+        items = client.get(
+            f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests", headers=simple_admin_header
+        ).json["items"]
+        assert {pr["project_trigger_repository_id"] for pr in items} == {repo.id}
+        assert {(pr["state"], pr["state_cause"], pr["task_id"]) for pr in items} == {("UNKNOWN", None, None)}
 
     def test_list_is_paged_and_filtered_by_state(self, client, simple_admin_header, repo, pull_requests, contract):
         url = f"/projects/{repo.project_id}/trigger_repositories/{repo.id}/pull_requests"

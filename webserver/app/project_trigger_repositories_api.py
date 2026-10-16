@@ -9,7 +9,6 @@ project-spanning list.
 - PATCH /projects/<project_id>/trigger_repositories/<assignment_id>
 - DELETE /projects/<project_id>/trigger_repositories/<assignment_id>
 - POST /projects/<project_id>/trigger_repositories/<assignment_id>/pull_requests
-- POST /projects/<project_id>/trigger_repositories/<assignment_id>/pull_requests/batch
 - GET /projects/<project_id>/trigger_repositories/<assignment_id>/pull_requests
 - GET /projects/<project_id>/trigger_repositories/<assignment_id>/pull_requests/<number>
 - PATCH /projects/<project_id>/trigger_repositories/<assignment_id>/pull_requests/<number>
@@ -258,7 +257,6 @@ def _ingest(assignment: ProjectTriggerRepository, bodies: list) -> list[PullRequ
     """
     Stores the pull requests on the assignment's repository and fans them out to every active
     assignment of it, and returns the assignment's own triggers for them, in the order given.
-    Stays until the ingest posts once per repository (stage 7).
     """
     requests = [PullRequestRequest.parse(body) for body in bodies]
     ingest_pull_requests(assignment.trigger_repository_id, requests)
@@ -287,29 +285,6 @@ def post_pull_request(project_id: int, assignment_id: int):
     if not triggers:
         raise InvalidRequest("The pull request is before the assignment's cursor, it has no trigger here")
     return PullRequestTriggerDTO.from_model(triggers[0]).dump(), HTTPStatus.CREATED
-
-
-@bp.route(f'{ASSIGNMENT_URL}/<int:assignment_id>/pull_requests/batch', methods=['POST'])
-@auth(scope='can_admin_dataset')
-def post_pull_requests_batch(project_id: int, assignment_id: int):
-    """
-    POST /projects/<project_id>/trigger_repositories/<assignment_id>/pull_requests/batch —
-    ingest up to 100 pull requests: store them on the repository and fan them out. Posting
-    known pull requests again changes nothing. Returns the assignment's triggers for them.
-    Body: {"pull_requests": [pull requests, see PullRequestRequest]}
-    """
-    assignment = _assignment(project_id, assignment_id)
-
-    body = (request.json or {}).get('pull_requests')
-
-    if not isinstance(body, list):
-        raise InvalidRequest("pull_requests must be a list of pull requests")
-
-    if len(body) > 100:
-        raise InvalidRequest("Maximum 100 pull requests per batch")
-
-    triggers = _ingest(assignment, body)
-    return [PullRequestTriggerDTO.from_model(pr).dump() for pr in triggers], HTTPStatus.CREATED
 
 
 @bp.route(f'{ASSIGNMENT_URL}/<int:assignment_id>/pull_requests', methods=['GET'])

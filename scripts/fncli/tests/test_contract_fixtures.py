@@ -34,7 +34,6 @@ def items_of(name: str) -> list[dict]:
     ("datasets_page", Dataset),
     ("project_datasets", ProjectDataset),
     ("projects_page", Project),
-    ("pull_requests_batch", PullRequestTrigger),
     ("pull_requests_page", PullRequestTrigger),
     ("repository_pull_requests_page", PullRequest),
     ("results_by_step", PullRequestResult),

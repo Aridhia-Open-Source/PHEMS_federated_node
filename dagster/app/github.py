@@ -31,9 +31,9 @@ class GithubAPI:
         )
         return response.json()
 
-    def get_new_merged_pulls(self, repo_path: str, base_branch: str, merged_after: str) -> list[dict]:
+    def get_new_merged_pulls(self, repo_path: str, merged_after: str) -> list[dict]:
         """
-        Fetch the PRs merged into base_branch after merged_after. Lists closed PRs most recently
+        Fetch the PRs merged after merged_after, into any base branch (the backend matches each assignment's). Lists closed PRs most recently
         updated first rather than searching: the search API allows 30 requests a minute and
         its index lags, which could let the cursor pass a PR before it is found.
         """
@@ -46,7 +46,7 @@ class GithubAPI:
             response = self.client.request(
                 "GET", f"repos/{repo_path}/pulls",
                 params={
-                    "state": "closed", "base": base_branch, "sort": "updated", "direction": "desc",
+                    "state": "closed", "sort": "updated", "direction": "desc",
                     "per_page": GH_PAGE_SIZE, "page": page,
                 },
             )

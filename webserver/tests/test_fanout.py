@@ -87,20 +87,12 @@ class TestFanOut:
         response = client.get(f"/projects/{project.id}/trigger_repositories/{mine['id']}/pull_requests", headers=simple_admin_header)
         assert [(pr["project_id"], pr["number"]) for pr in response.json["items"]] == [(project.id, 1)]
 
-    def test_the_per_assignment_batch_stores_once_and_fans_out_to_the_others(
-        self, client, admin, project, other_project, trigger_repo
-    ):
+    def test_a_locked_project_still_gets_its_trigger(self, client, admin, project, trigger_repo):
         mine = assign(client, admin, project, trigger_repo, initial_cursor=EARLY)
-        theirs = assign(client, admin, other_project, trigger_repo, initial_cursor=EARLY)
-        for assignment, owner in ((mine, project), (theirs, other_project)):
-            response = client.post(
-                f"/projects/{owner.id}/trigger_repositories/{assignment['id']}/pull_requests/batch",
-                json={"pull_requests": [pr_body(1, "2026-01-05T10:00:00Z")]}, headers=admin,
-            )
-            assert [(pr["project_id"], pr["number"]) for pr in response.json] == [(owner.id, 1)]
-        assert PullRequest.query.count() == 1
-        assert_one_trigger_per_pair()
-        assert PullRequestTrigger.query.count() == 2
+        project.locked = True
+        db.session.commit()
+        ingest(client, admin, trigger_repo, pr_body(1, "2026-01-05T10:00:00Z"))
+        assert triggers(mine) == {1: UNKNOWN}
 
     def test_a_pull_request_before_the_assignments_cursor_gets_no_trigger(self, client, admin, project, trigger_repo):
         mine = assign(client, admin, project, trigger_repo, initial_cursor="2026-02-01T00:00:00")

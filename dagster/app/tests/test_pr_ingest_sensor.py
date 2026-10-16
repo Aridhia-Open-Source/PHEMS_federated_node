@@ -51,14 +51,26 @@ def test_skips_when_there_are_no_repositories():
     backend_api.create_pull_requests_batch.assert_not_called()
 
 
-def test_a_locked_project_is_skipped_and_its_cursor_not_polled():
-    apis = {1: fake_git_api([5]), 2: fake_git_api([9])}
+def test_a_locked_project_does_not_stop_the_poll():
+    apis = {1: fake_git_api([5])}
 
-    results, backend_api = run([repo(1), repo(2, uri="github.com/org/other", project_id=2)], apis, locked=(1,))
+    results, backend_api = run([repo(1, project_id=1)], apis, locked=(1,))
 
-    apis[1].get_new_merged_pulls.assert_not_called()
-    (call,) = backend_api.create_pull_requests_batch.call_args_list
-    assert call.args[:2] == (2, 2)
+    apis[1].get_new_merged_pulls.assert_called_once()
+    backend_api.create_pull_requests_batch.assert_called_once()
+    assert "Saved 1 new pull requests" in results[0].skip_message
+
+
+def test_two_assignments_of_one_repository_are_polled_once():
+    git_api = fake_git_api([5])
+    first, second = repo(1, project_id=1), repo(2, project_id=2)
+    second.trigger_repository = first.trigger_repository
+
+    results, backend_api = run([first, second], {1: git_api})
+
+    git_api.get_new_merged_pulls.assert_called_once()
+    backend_api.create_pull_requests_batch.assert_called_once()
+    assert backend_api.create_pull_requests_batch.call_args.args[0] == 1
     assert "Saved 1 new pull requests" in results[0].skip_message
 
 
@@ -88,8 +100,8 @@ def test_posts_one_batch_per_repository_with_new_prs():
 
     assert backend_api.create_pull_requests_batch.call_count == 2
     first, second = backend_api.create_pull_requests_batch.call_args_list
-    assert first.args[:2] == (1, 1) and [p["number"] for p in first.args[2]] == [5, 6]
-    assert second.args[:2] == (1, 2) and [p["number"] for p in second.args[2]] == [9]
+    assert first.args[0] == 1 and [p["number"] for p in first.args[1]] == [5, 6]
+    assert second.args[0] == 2 and [p["number"] for p in second.args[1]] == [9]
     assert "Saved 3 new pull requests" in results[0].skip_message
 
 
@@ -98,7 +110,7 @@ def test_the_batch_carries_the_facts_and_the_changed_paths():
 
     _, backend_api = run([repo(1)], {1: git_api})
 
-    body = backend_api.create_pull_requests_batch.call_args.args[2][0]
+    body = backend_api.create_pull_requests_batch.call_args.args[1][0]
     assert body == {
         "number": 5, "title": "PR 5", "raised_by": "dev", "merged_at": "2026-06-26T10:00:00Z",
         "merge_commit_sha": "sha5", "base_branch": "main", "files_truncated": False,
@@ -107,16 +119,26 @@ def test_the_batch_carries_the_facts_and_the_changed_paths():
     git_api.get_pull_request_files.assert_called_once_with("org/repo", 5)
 
 
-def test_queries_the_provider_from_the_repository_cursor():
+def test_queries_the_provider_from_the_global_cursor_without_a_base_branch():
     git_api = fake_git_api([5])
+    assignment = repo(1, uri="https://gitea.fn.svc:3000/org/repo", pr_cursor="2026-01-01T00:00:00Z", base_branch="dev")
+    assignment.trigger_repository.pr_cursor = "2026-03-03T03:03:03Z"
 
-    run([repo(1, uri="https://gitea.fn.svc:3000/org/repo", pr_cursor="2026-03-03T03:03:03Z", base_branch="dev")],
-        {1: git_api})
+    run([assignment], {1: git_api})
 
-    git_api.get_new_merged_pulls.assert_called_once_with(
-        repo_path="org/repo", base_branch="dev", merged_after="2026-03-03T03:03:03Z",
-    )
+    git_api.get_new_merged_pulls.assert_called_once_with(repo_path="org/repo", merged_after="2026-03-03T03:03:03Z")
     git_api.get_pull_request.assert_called_once_with("org/repo", 5)
+
+
+def test_a_repository_without_stored_prs_starts_at_the_earliest_assignment_cursor():
+    git_api = fake_git_api([])
+    first = repo(1, project_id=1, pr_cursor="2026-02-02T00:00:00Z")
+    second = repo(2, project_id=2, pr_cursor="2026-01-01T00:00:00Z")
+    second.trigger_repository = first.trigger_repository
+
+    run([first, second], {1: git_api})
+
+    git_api.get_new_merged_pulls.assert_called_once_with(repo_path="org/repo", merged_after="2026-01-01T00:00:00Z")
 
 
 def test_a_repository_without_new_prs_posts_nothing():
@@ -125,7 +147,7 @@ def test_a_repository_without_new_prs_posts_nothing():
     _, backend_api = run([repo(1), repo(2)], apis)
 
     backend_api.create_pull_requests_batch.assert_called_once()
-    assert backend_api.create_pull_requests_batch.call_args.args[1] == 2
+    assert backend_api.create_pull_requests_batch.call_args.args[0] == 2
 
 
 def test_skips_when_no_repository_has_new_prs():
@@ -151,4 +173,4 @@ def test_a_failing_repository_aborts_the_tick_after_the_earlier_ones_were_saved(
     with pytest.raises(RuntimeError, match="provider down"):
         list(sensor())
 
-    assert [c.args[1] for c in backend_api.create_pull_requests_batch.call_args_list] == [1]
+    assert [c.args[0] for c in backend_api.create_pull_requests_batch.call_args_list] == [1]

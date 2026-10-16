@@ -145,31 +145,18 @@ class TestPullRequests:
         assert session.post.call_args.args[0] == "/projects/1/trigger_repositories/1/pull_requests"
         assert session.post.call_args.kwargs["json"] == {"number": 5}
 
-    def test_repository_batch_creation(self, api, session):
+    def test_batch_creation(self, api, session):
         session.post.return_value = make_response({"created": [1], "existing": [2]})
 
-        result = api.create_repository_pull_requests_batch(3, [{"number": 1}, {"number": 2}])
+        result = api.create_pull_requests_batch(3, [{"number": 1}, {"number": 2}])
 
         assert session.post.call_args.args[0] == "/trigger_repositories/3/pull_requests/batch"
         assert session.post.call_args.kwargs["json"] == {"pull_requests": [{"number": 1}, {"number": 2}]}
         assert result == {"created": [1], "existing": [2]}
 
-    def test_repository_batch_creation_is_capped(self, api):
-        with pytest.raises(ValueError, match="Maximum 100"):
-            api.create_repository_pull_requests_batch(3, [{}] * 101)
-
     def test_batch_creation_is_capped(self, api):
         with pytest.raises(ValueError, match="Maximum 100"):
-            api.create_pull_requests_batch(1, 1, [SAMPLE_PR] * 101)
-
-    def test_batch_creation(self, api, session):
-        session.post.return_value = make_response([SAMPLE_PR])
-
-        prs = api.create_pull_requests_batch(4, 1, [SAMPLE_PR])
-
-        assert session.post.call_args.args[0] == "/projects/4/trigger_repositories/1/pull_requests/batch"
-        assert session.post.call_args.kwargs["json"] == {"pull_requests": [SAMPLE_PR]}
-        assert len(prs) == 1
+            api.create_pull_requests_batch(3, [{}] * 101)
 
     def test_patch_pull_request(self, api, session):
         session.patch.return_value = make_response(SAMPLE_PR)

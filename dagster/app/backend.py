@@ -107,24 +107,10 @@ class BackendAPI:
         )
         return PullRequestTrigger(**response.json())
 
-    def create_pull_requests_batch(
-        self, project_id: int, repo_id: int, pull_requests: list[dict]
-    ) -> list[PullRequestTrigger]:
-        """Create multiple pull requests for a trigger repository assignment in one request (up to 100)"""
-        if len(pull_requests) > 100:
-            raise ValueError("Maximum 100 pull requests per batch")
-
-        self.logger.info(f"Creating batch of {len(pull_requests)} pull requests for repo {repo_id}")
-        response = self.session.post(
-            f"/projects/{project_id}/trigger_repositories/{repo_id}/pull_requests/batch",
-            json={"pull_requests": pull_requests}
-        )
-        return [PullRequestTrigger(**pr) for pr in response.json()]
-
-    def create_repository_pull_requests_batch(self, repository_id: int, pull_requests: list[dict]) -> dict:
+    def create_pull_requests_batch(self, repository_id: int, pull_requests: list[dict]) -> dict:
         """
         Ingest up to 100 pull requests on a global trigger repository, once for all projects: the numbers
-        stored and those already there. Not used until the ingest polls per repository.
+        stored and those already there.
         """
         if len(pull_requests) > 100:
             raise ValueError("Maximum 100 pull requests per batch")
