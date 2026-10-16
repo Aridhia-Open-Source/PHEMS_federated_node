@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pull_request.mirrored.json",
+  "title": "pull_request.mirrored",
+  "description": "Sent once per webhook when the mirror service has replicated a merged GitHub pull request into Gitea. number is GitHub's, gitea_pr_number is the index on the mirror (read /pulls/{index}/files with it). merged_at is GitHub's merge time.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event", "delivery_id", "mirror", "number", "gitea_pr_number",
+    "title", "author", "merged_at", "merge_commit_sha"
+  ],
+  "properties": {
+    "event": {"const": "pull_request.mirrored"},
+    "delivery_id": {"type": "string", "minLength": 1},
+    "mirror": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["upstream_uri", "gitea_owner", "gitea_repo"],
+      "properties": {
+        "upstream_uri": {"type": "string", "minLength": 1},
+        "gitea_owner": {"type": "string", "minLength": 1},
+        "gitea_repo": {"type": "string", "minLength": 1}
+      }
+    },
+    "number": {"type": "integer"},
+    "gitea_pr_number": {"type": "integer"},
+    "title": {"type": "string"},
+    "author": {"type": "string", "minLength": 1},
+    "merged_at": {"type": "string", "format": "date-time"},
+    "merge_commit_sha": {"type": "string", "minLength": 1}
+  }
+}
