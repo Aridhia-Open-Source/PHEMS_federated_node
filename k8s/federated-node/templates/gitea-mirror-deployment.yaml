@@ -1,0 +1,87 @@
+{{- if .Values.giteaMirror.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea-mirror
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: gitea-mirror
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.giteaMirror.replicaCount }}
+  selector:
+    matchLabels:
+      app: gitea-mirror
+  template:
+    metadata:
+      labels:
+        app: gitea-mirror
+    spec:
+      serviceAccountName: gitea-mirror
+      initContainers:
+        {{- /* gitea-mirror-db-init is a pre-install hook except with an in-cluster
+               Postgres, whose server is part of this release. */}}
+        {{- if .Values.create_db_deployment }}
+        {{- include "pgWaitContainer" (dict "ctx" . "host" (include "dbHost" .) "port" (include "dbPort" .)) | nindent 8 }}
+        {{- end }}
+        - name: db-migrations
+          image: {{ include "gitea-mirror-image" . }}
+          imagePullPolicy: {{ .Values.giteaMirror.image.pullPolicy }}
+          command: ["/bin/sh"]
+          workingDir: /gitea-mirror
+          {{- include "nonRootSC" . | nindent 10 }}
+          args:
+            [
+              '-c',
+              'python -m alembic upgrade head'
+            ]
+          env:
+            {{- include "gitea-mirror-db-env" . | nindent 12 }}
+      containers:
+        - name: gitea-mirror
+          image: {{ include "gitea-mirror-image" . }}
+          imagePullPolicy: {{ .Values.giteaMirror.image.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.giteaMirror.port }}
+              protocol: TCP
+          env:
+            {{- include "gitea-mirror-db-env" . | nindent 12 }}
+            - name: GITEA_MIRROR_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.giteaMirror.apiToken.secret.name }}
+                  key: {{ .Values.giteaMirror.apiToken.secret.key }}
+            - name: GITEA_MIRROR_GITEA_URL
+              value: "http://gitea.{{ .Release.Namespace }}.svc:{{ .Values.gitea.service.http.port | default 4000 }}"
+            - name: GITEA_MIRROR_GITEA_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.gitea.admin.secret.name | default "gitea-admin" }}
+                  key: {{ .Values.gitea.admin.secret.key | default "password" }}
+            {{- range $name, $value := .Values.giteaMirror.env }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          volumeMounts:
+            - name: git-cache
+              mountPath: /tmp/git-cache
+          resources:
+            {{- toYaml .Values.giteaMirror.resources | nindent 12 }}
+      volumes:
+        - name: git-cache
+          emptyDir:
+            sizeLimit: {{ .Values.giteaMirror.cacheSizeLimit }}
+{{- end }}

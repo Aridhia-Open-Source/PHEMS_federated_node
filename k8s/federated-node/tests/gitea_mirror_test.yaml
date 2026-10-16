@@ -1,0 +1,244 @@
+suite: gitea mirror service
+release:
+  namespace: federatednode
+  name: federatednode
+templates:
+  - templates/gitea-mirror-deployment.yaml
+  - templates/gitea-mirror-service.yaml
+  - templates/gitea-mirror-secrets.yaml
+  - templates/gitea-mirror-rbac.yaml
+  - templates/gitea-mirror-networkpolicy.yaml
+  - templates/db-init-jobs.yaml
+  - templates/db-secrets.yaml
+values:
+  - values/values-local.yaml
+set:
+  gitea:
+    enabled: true
+    admin:
+      secret:
+        name: gitea-admin
+        key: password
+tests:
+  - it: renders no mirror objects by default
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/gitea-mirror-deployment.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/gitea-mirror-service.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/gitea-mirror-secrets.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/gitea-mirror-rbac.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/gitea-mirror-networkpolicy.yaml
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "gitea_mirror"
+        template: templates/db-init-jobs.yaml
+        documentSelector:
+          path: metadata.name
+          value: gitea-db-init
+
+  - it: creates the gitea_mirror database, user and password secret
+    set:
+      giteaMirror:
+        enabled: true
+    asserts:
+      - exists:
+          path: spec
+        template: templates/db-init-jobs.yaml
+        documentSelector:
+          path: metadata.name
+          value: gitea-mirror-db-init
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "gitea_mirror"
+        template: templates/db-init-jobs.yaml
+        documentSelector:
+          path: metadata.name
+          value: gitea-mirror-db-init
+      - equal:
+          path: spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.name
+          value: gitea-mirror-db
+        template: templates/db-init-jobs.yaml
+        documentSelector:
+          path: metadata.name
+          value: gitea-mirror-db-init
+      - exists:
+          path: data.password
+        template: templates/db-secrets.yaml
+        documentSelector:
+          path: metadata.name
+          value: gitea-mirror-db
+
+  - it: deployment migrates, sets the env the app reads, and caches in an emptyDir
+    set:
+      giteaMirror:
+        enabled: true
+    template: templates/gitea-mirror-deployment.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: gitea-mirror
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: gitea-mirror
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: db-migrations
+      - equal:
+          path: spec.template.spec.initContainers[1].args[1]
+          value: python -m alembic upgrade head
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "^ghcr.io/aridhia-open-source/gitea_mirror:"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA_MIRROR_DB_USER
+            value: gitea_mirror
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA_MIRROR_DB_NAME
+            value: gitea_mirror
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA_MIRROR_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: gitea-mirror-db
+                key: password
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA_MIRROR_API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: gitea-mirror-api-token
+                key: token
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA_MIRROR_GITEA_URL
+            value: http://gitea.federatednode.svc:4000
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA_MIRROR_GITEA_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: gitea-admin
+                key: password
+      - equal:
+          path: spec.template.spec.volumes[0].emptyDir.sizeLimit
+          value: 5Gi
+
+  - it: service and generated api token secret
+    set:
+      giteaMirror:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 5000
+        template: templates/gitea-mirror-service.yaml
+      - equal:
+          path: metadata.name
+          value: gitea-mirror-api-token
+        template: templates/gitea-mirror-secrets.yaml
+      - exists:
+          path: data.token
+        template: templates/gitea-mirror-secrets.yaml
+
+  - it: grants get on named secrets only, and nothing when no names are listed
+    set:
+      giteaMirror:
+        enabled: true
+        secretAccess:
+          - names: [github-token, webhook-hmac]
+          - namespace: other
+            names: []
+    template: templates/gitea-mirror-rbac.yaml
+    asserts:
+      - hasDocuments:
+          count: 3
+      - equal:
+          path: metadata.name
+          value: gitea-mirror
+        documentIndex: 0
+      - equal:
+          path: kind
+          value: ServiceAccount
+        documentIndex: 0
+      - equal:
+          path: rules
+          value:
+            - apiGroups: [""]
+              resources: ["secrets"]
+              resourceNames: [github-token, webhook-hmac]
+              verbs: ["get"]
+        documentIndex: 1
+      - equal:
+          path: metadata.namespace
+          value: federatednode
+        documentIndex: 1
+      - equal:
+          path: subjects[0].name
+          value: gitea-mirror
+        documentIndex: 2
+
+  - it: network policy limits ingress to the namespace and egress to what the service needs
+    set:
+      giteaMirror:
+        enabled: true
+    template: templates/gitea-mirror-networkpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.ingress
+          value:
+            - from:
+                - podSelector: {}
+              ports:
+                - protocol: TCP
+                  port: 5000
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - ipBlock:
+                  cidr: 0.0.0.0/0
+            ports:
+              - protocol: TCP
+                port: 443
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - podSelector:
+                  matchLabels:
+                    app: gitea
+            ports:
+              - protocol: TCP
+                port: 3000
+      - contains:
+          path: spec.egress
+          content:
+            ports:
+              - protocol: TCP
+                port: 5432
+      - contains:
+          path: spec.egress
+          content:
+            ports:
+              - protocol: UDP
+                port: 53
+              - protocol: TCP
+                port: 53

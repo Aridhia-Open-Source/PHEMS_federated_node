@@ -426,3 +426,57 @@ gitea:
     secret:
       name: gitea-db
       key: password
+
+### Gitea mirror service (ADR 0020). Needs gitea.enabled: it mirrors into that Gitea.
+giteaMirror:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/aridhia-open-source/gitea_mirror
+    # Unset tracks default_image_tag / the chart's appVersion
+    tag:
+    pullPolicy: IfNotPresent
+  port: 5000
+
+  # Extra environment for the container, as name: value
+  env:
+    GITEA_MIRROR_SYNC_INTERVAL_SECONDS: "300"
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 1Gi
+      cpu: "1"
+
+  # Git cache (emptyDir); a restart re-fetches
+  cacheSizeLimit: 5Gi
+
+  # Role/database created by gitea-mirror-db-init Job
+  db:
+    name: gitea_mirror
+    user: gitea_mirror
+    secret:
+      name: gitea-mirror-db
+      key: password
+
+  # Bearer token for the API (fncli / operators). Generated when create is true.
+  apiToken:
+    create: true
+    secret:
+      name: gitea-mirror-api-token
+      key: token
+
+  # get on these named secrets only: GitHub tokens and webhook HMAC keys. Entries
+  # without names grant nothing.
+  secretAccess: []
+    # - namespace: federatednode   # defaults to the release namespace
+    #   names:
+    #     - github-token
+    #     - webhook-hmac
+
+  networkPolicy:
+    # Ports on in-cluster pods (release namespace) that receive webhooks
+    webhookPorts:
+      - 5000

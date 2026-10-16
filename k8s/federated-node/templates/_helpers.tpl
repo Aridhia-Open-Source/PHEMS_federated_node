@@ -261,3 +261,28 @@ affect how ownership is reported.
 {{- define "kcSecretsMountPath" -}}
 /etc/secrets/kc
 {{- end -}}
+
+{{- define "gitea-mirror-image" -}}
+{{ printf "%s:%s" .Values.giteaMirror.image.repository (.Values.giteaMirror.image.tag | default (include "image-tag" . | trim)) }}
+{{- end }}
+
+{{/* The variables the gitea-mirror app reads to reach its database */}}
+{{- define "gitea-mirror-db-env" -}}
+- name: GITEA_MIRROR_DB_USER
+  value: {{ .Values.giteaMirror.db.user | quote }}
+- name: GITEA_MIRROR_DB_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.giteaMirror.db.secret.name }}
+      key: {{ .Values.giteaMirror.db.secret.key }}
+- name: GITEA_MIRROR_DB_HOST
+  value: {{ include "dbHost" . | quote }}
+- name: GITEA_MIRROR_DB_PORT
+  value: {{ include "dbPort" . | quote }}
+- name: GITEA_MIRROR_DB_NAME
+  value: {{ .Values.giteaMirror.db.name | quote }}
+{{- if .Values.db.enforceSSL }}
+- name: GITEA_MIRROR_DB_SSL
+  value: "?sslmode=require"
+{{- end }}
+{{- end }}
