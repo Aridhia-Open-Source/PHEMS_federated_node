@@ -7,6 +7,8 @@ set -euo pipefail
 
 source .dev.env
 
+./scripts/deploy_owner.sh claim
+
 echo
 echo "=== Validating Helm templates ==========================================="
 
