@@ -65,10 +65,10 @@ def test_only_enabled_projects_are_evaluated():
     assert [r.tags["repo_id"] for r in result] == ["11"]
 
 
-def test_only_active_assignments_are_listed():
+def test_only_active_assignments_are_requested():
     _, backend_api, _ = run([project(1)], [repo(10, 1)], unknown={10: ["a"]})
 
-    backend_api.get_project_trigger_repositories.assert_called_once_with(active_only=True)
+    backend_api.get_project_trigger_repositories.assert_called_once_with(1, active=True)
 
 
 def test_a_repository_with_a_run_in_flight_is_skipped():

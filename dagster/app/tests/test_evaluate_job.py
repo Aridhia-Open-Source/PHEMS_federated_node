@@ -48,13 +48,13 @@ def test_a_ready_pr_sends_its_spec_file_and_patches_nothing():
     backend_api.patch_pull_request.assert_not_called()
 
 
-def test_an_ignored_pr_is_patched_with_its_reason():
+def test_a_pr_without_a_spec_file_is_patched_as_rejected():
     backend_api = run_evaluate(files=[])
 
     backend_api.create_task_for_pull_request.assert_not_called()
     (project_id, repo_id, number, data), _ = backend_api.patch_pull_request.call_args
     assert (project_id, repo_id, number) == (4, 1, 5)
-    assert data["state"] == "IGNORED" and "specs/" in data["state_cause"]
+    assert data["state"] == "REJECTED" and "specs/" in data["state_cause"]
 
 
 def test_a_pr_with_several_spec_files_is_patched_as_rejected():

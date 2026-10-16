@@ -52,7 +52,6 @@ def test_lists_parse(name, model):
     ("dataset", Dataset),
     ("project", Project),
     ("pull_request", PullRequestTrigger),
-    ("pull_request_ignored", PullRequestTrigger),
     ("pull_request_task", Task),
     ("task_api", Task),
     ("result_created", PullRequestResult),

@@ -52,7 +52,7 @@ class TestRepositories:
     def test_get_repositories(self, api, session):
         session.get.return_value = make_response([SAMPLE_REPOSITORY_OBJ])
 
-        repos = api.get_project_trigger_repositories()
+        repos = api.get_project_trigger_repositories(4)
 
         assert [type(r) for r in repos] == [ProjectTriggerRepository]
         assert repos[0].repo_path == "org/repo"
@@ -60,18 +60,16 @@ class TestRepositories:
     def test_get_active_repositories(self, api, session):
         session.get.return_value = make_response([SAMPLE_REPOSITORY_OBJ])
 
-        api.get_project_trigger_repositories(active_only=True)
+        api.get_project_trigger_repositories(4, active=True)
 
-        session.get.assert_called_once_with("/project_trigger_repositories", params={"active": "true"})
+        session.get.assert_called_once_with("/projects/4/repositories/triggers", params={"active": "true"})
 
-    def test_get_active_repositories_of_enabled_projects(self, api, session):
+    def test_get_all_repositories_sends_no_filter(self, api, session):
         session.get.return_value = make_response([SAMPLE_REPOSITORY_OBJ])
 
-        api.get_project_trigger_repositories(active_only=True, project_enabled=True)
+        api.get_project_trigger_repositories(4)
 
-        session.get.assert_called_once_with(
-            "/project_trigger_repositories", params={"active": "true", "project_enabled": "true"}
-        )
+        session.get.assert_called_once_with("/projects/4/repositories/triggers", params=None)
 
     def test_get_repository(self, api, session):
         session.get.return_value = make_response(SAMPLE_REPOSITORY_OBJ)
@@ -170,10 +168,10 @@ class TestPullRequests:
     def test_patch_pull_request(self, api, session):
         session.patch.return_value = make_response(SAMPLE_PR)
 
-        api.patch_pull_request(4, 1, 5, {"state": "IGNORED", "state_cause": "no spec"})
+        api.patch_pull_request(4, 1, 5, {"state": "REJECTED", "state_cause": "no spec"})
 
         assert session.patch.call_args.args[0] == "/projects/4/trigger_repositories/1/pull_requests/5"
-        assert session.patch.call_args.kwargs["json"] == {"state": "IGNORED", "state_cause": "no spec"}
+        assert session.patch.call_args.kwargs["json"] == {"state": "REJECTED", "state_cause": "no spec"}
 
     @pytest.mark.parametrize("status_code,created", [(201, True), (200, False)])
     def test_create_task_for_pull_request(self, api, session, status_code, created):

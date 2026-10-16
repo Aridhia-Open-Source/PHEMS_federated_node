@@ -34,10 +34,10 @@ def parse(files, contents=None):
         [{"filename": "specs-old/a.json", "status": "added"}],
     ],
 )
-def test_no_watched_file_is_ignored_with_a_reason(files):
+def test_no_watched_file_is_rejected_with_a_reason(files):
     parsed = parse(files)[0]
 
-    assert parsed.outcome == PullRequestOutcome.IGNORED
+    assert parsed.outcome == PullRequestOutcome.REJECTED
     assert parsed.spec_raw is None
     assert "specs/" in parsed.state_cause
 

@@ -156,10 +156,6 @@ def test_watch_prints_each_change_once(watch, caplog):
     ]
 
 
-def test_watch_ignored_exits_zero(watch):
-    assert watch([[pr_of("IGNORED", "no spec")]]) == 0
-
-
 def test_watch_rejected_exits_one_and_shows_the_cause(watch, caplog):
     caplog.set_level(logging.INFO, logger="pr")
 

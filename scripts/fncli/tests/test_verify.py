@@ -97,7 +97,7 @@ def test_a_missing_pr_fails_and_stops():
     assert len(report.rows) == 1
 
 
-@pytest.mark.parametrize("state", ["UNKNOWN", "IGNORED", "REJECTED"])
+@pytest.mark.parametrize("state", ["UNKNOWN", "REJECTED"])
 def test_a_pr_that_was_not_yielded_fails_and_stops(state):
     report = verify(pr_of(state))
 
@@ -198,12 +198,12 @@ def verify_all(prs, run=None, tail=None):
 
 
 def test_repo_with_every_pr_fine_has_no_failures(capsys):
-    prs = [numbered(1), numbered(2, "IGNORED", "no spec"), numbered(3, "REJECTED", "bad spec")]
+    prs = [numbered(1), numbered(2, "REJECTED", "bad spec")]
 
     assert verify_all(prs) == 0
     out = capsys.readouterr().out
-    assert "3 PRs checked, 0 checks failed" in out
-    assert "PR was IGNORED, so no task is expected" in out
+    assert "2 PRs checked, 0 checks failed" in out
+    assert "PR was REJECTED, so no task is expected" in out
 
 
 def test_repo_counts_the_failures_across_prs(capsys):
