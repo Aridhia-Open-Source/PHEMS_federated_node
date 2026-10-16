@@ -54,6 +54,7 @@ tilt trigger fn-dev-dagster-user-deployments-dagster-fn
 |------|---------|
 | Start cluster (one time) | `make cluster up` |
 | Deploy Helm (one time) | `make deploy` |
+| Show who owns the dev cluster | `make deploy-owner` |
 | Start Tilt | `tilt up` or `make tilt-up` |
 | Stop Tilt | `tilt down` or `make tilt-down` |
 | View dashboard | `tilt open` or `make tilt-open` |
@@ -61,6 +62,10 @@ tilt trigger fn-dev-dagster-user-deployments-dagster-fn
 | Rebuild specific service | `tilt trigger <resource-name>` |
 | Restart specific pod | `kubectl rollout restart deployment/<name> -n fn` |
 | Check resource status | `kubectl get all -n fn` |
+
+## Dev cluster ownership
+
+The single dev cluster is owned by one worktree at a time. `make deploy` and `make upgrade` claim it (recorded in the `fn-dev-owner` ConfigMap in `default`) and `make teardown` releases it. A deploy from another worktree fails while it is owned; tear down from the owner, or rerun with `FORCE_OWNER=1` to take it over. `DEPLOY_BY` overrides the recorded user (default `$USER`). `make deploy-owner` shows the current owner.
 
 ## Troubleshooting
 
