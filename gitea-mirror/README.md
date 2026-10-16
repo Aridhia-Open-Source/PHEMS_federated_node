@@ -11,6 +11,11 @@ Environment variables, all required unless noted:
 - `GITEA_MIRROR_API_TOKEN`: the bearer token every API route (except `/health`) checks. The app fails at startup if it is unset.
 - `GITEA_MIRROR_DB_USER`, `GITEA_MIRROR_DB_PASSWORD`, `GITEA_MIRROR_DB_HOST`, `GITEA_MIRROR_DB_PORT`, `GITEA_MIRROR_DB_NAME`: the `gitea_mirror` Postgres database.
 - `GITEA_MIRROR_DB_SSL` (optional): SSL mode for the connection.
+- `GITEA_MIRROR_GITEA_URL`, `GITEA_MIRROR_GITEA_TOKEN`: the Gitea base URL and an admin token.
+- `GITEA_MIRROR_GIT_CACHE_DIR`: where the bare cache repository lives (the chart mounts an emptyDir at `/tmp/git-cache`; a restart re-fetches).
+- `GITEA_MIRROR_SYNC_INTERVAL_SECONDS`: seconds between sync rounds.
+
+The image entrypoint is `python -m app.runner`: it serves the API with waitress and runs the sync timer loop (sync every enabled mirror, then deliver due webhooks) in a thread beside it.
 
 GitHub tokens and webhook HMAC keys are not env vars. A mirror or webhook names a Kubernetes secret (`secret_namespace`, `secret_key`) and the service reads its `token` field through the in-cluster API.
 
@@ -22,7 +27,7 @@ Mirrors (`upstream_uri` is an https URL; fields are `upstream_uri`, `secret_name
 
 - `GET /mirrors`, `POST /mirrors`, `GET|PATCH|DELETE /mirrors/<id>`. Creating a mirror starts its cursor at now (no backfill of old pull requests) and preloads shadow users; the response has `users_sync` (ok, skipped or failed). A duplicate upstream URI or Gitea repository is 409.
 - `GET /mirrors/<id>/status`: `cursor`, `last_sync_at`, `last_success_at`, `last_error`, `prs_mirrored`, `token_expired`.
-- `POST /mirrors/<id>/resync`: runs a sync for the mirror now.
+- `POST /mirrors/<id>/resync`: runs a sync for the mirror now. 200 `{status, mirrored}`; 409 when another sync holds the mirror's lock; 502 on a GitHub, Gitea or git error. It ignores the rate-limit pause.
 - `POST /mirrors/<id>/users/sync`: creates shadow users for the upstream contributors and collaborators. Returns `users`, `created`, `existing`.
 
 Webhooks (fields `url` (http or https), `secret_namespace`, `secret_key`, `mirror_id` (null for all mirrors), `enabled`):
@@ -83,3 +88,10 @@ Postgres runs in Docker. Each run uses its own Compose project (`gm-test-*`) so 
 ## Database
 
 Alembic migrations (`migrations/`) create `mirrors`, `mirror_state`, `mirrored_pull_requests`, `webhooks` and `webhook_deliveries`.
+
+## Known gaps
+
+- A crash between opening the Gitea pull request and inserting its row leaves an open PR, and the retry's open will fail.
+- A multi-commit fast-forward PR shows only its last commit's files (the base is rewound to `merge^1`, as the spike prescribes).
+- Branches deleted upstream are not deleted on Gitea (the push has no `--prune`, which would drop `pr/*`).
+- The rate-limit reset time is held in memory by the timer loop; a restart costs one extra 403.

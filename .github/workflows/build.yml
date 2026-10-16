@@ -216,7 +216,7 @@ jobs:
       - name: Run gitea-mirror Gitea integration tests
         working-directory: gitea-mirror
         run: |
-          bash run_gitea_tests.sh
+          bash run_gitea_tests.sh tests/test_gitea_client.py tests/test_sync_gitea.py tests/test_sync.py
   build-flask-image:
     needs:
       - init
