@@ -60,7 +60,7 @@ def test_full_flow(client, admin_headers, k8s_client, project, make_pr_batch, sp
     assert r.status_code == 200, r.json
     assert [item["id"] for item in r.json] == [T], r.json
 
-    # 12. Ingest pull requests: 1 and 2 match, 3 targets another branch
+    # 12. Ingest pull requests: 1 and 2 match, 3 targets another branch (no trigger)
     batch = make_pr_batch(1, 2)
     batch["pull_requests"] += make_pr_batch(3, base_branch="dev")["pull_requests"]
     r = client.post(f"/global/repositories/triggers/{T}/pull_requests", json=batch, headers=admin_headers)
@@ -70,9 +70,9 @@ def test_full_flow(client, admin_headers, k8s_client, project, make_pr_batch, sp
     # 13. Project sees the states of the ingested pull requests
     r = client.get(f"/projects/{pid}/repositories/triggers/{T}/pull_requests", headers=admin_headers)
     assert r.status_code == 200, r.json
-    assert r.json["total"] == 3, r.json
+    assert r.json["total"] == 2, r.json
     states = {item["number"]: item["state"] for item in r.json["items"]}
-    assert states == {1: "UNKNOWN", 2: "UNKNOWN", 3: "IGNORED"}, r.json
+    assert states == {1: "UNKNOWN", 2: "UNKNOWN"}, r.json
 
     # 14. Create a task from pull request 1
     r = client.post(f"/projects/{pid}/repositories/triggers/{T}/pull_requests/1/task",
