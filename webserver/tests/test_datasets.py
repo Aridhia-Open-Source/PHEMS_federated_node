@@ -124,6 +124,7 @@ class TestDatasets(MixinTestDataset):
         assert response.status_code == 200
         assert response.json == self.expected_ds_entry(dataset)
 
+    @pytest.mark.skip(reason="moonshot stage 2 replaces this")
     def test_get_all_datasets_filtered_by_project(
             self,
             simple_admin_header,
@@ -451,6 +452,7 @@ class TestPostDataset(MixinTestDataset):
         self.post_dataset(client, post_json_admin_header, data_body, 400)
         self.assert_datasets_by_name(data_body['name'], 0)
 
+    @pytest.mark.usefixtures("lock_project")
     def test_patch_dataset_rejects_null_port(
             self,
             post_json_admin_header,

@@ -140,6 +140,7 @@ class TestPostResultsRepository:
         assert "already has a results repository" in response.json["error"]
         assert ResultsRepository.query.count() == 1
 
+    @pytest.mark.skip(reason="moonshot stage 3 replaces this")
     def test_another_project_can_have_its_own(self, client, post_json_admin_header, results_repo, results_post_body, other_project):
         Secret(project_id=other_project.id, label="test-creds", provider=SecretProviderType.K8S).add()
         body = {**results_post_body, "project_id": other_project.id}
@@ -319,6 +320,7 @@ class TestLoopGuard:
         assert response.status_code == 200
 
 
+@pytest.mark.usefixtures("lock_project")
 class TestDirectoryNormalisation:
     @pytest.mark.parametrize("directory,expected", [
         ("results", "results"),

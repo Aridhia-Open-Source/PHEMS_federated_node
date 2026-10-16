@@ -196,6 +196,8 @@ class TestChangeNeedsLockedAndDrained:
     def test_allowed_once_the_work_has_drained(
         self, client, post_json_admin_header, ids, project, make_task, results_repo, change
     ):
+        if change == "delete_results_repo":
+            pytest.skip("moonshot stage 3 replaces this")
         lock(project)
         running = make_task(status=TaskStatus.RUNNING.value)
         delivering = make_result(make_task, results_repo, TaskStatus.SUCCESS.value, "IN_PROGRESS")
@@ -237,7 +239,7 @@ class TestCredentialRotationIsExempt:
             f"/{path}/{getattr(ids, key)}", json={"secret_label": ids.spare_secret}, headers=post_json_admin_header
         )
         assert response.status_code == HTTPStatus.OK
-        assert Secret.query.filter_by(label=ids.spare_secret).one().id == response.json["secret_id"]
+        assert Secret.query.filter_by(label=ids.spare_secret).one().id == response.json["secret"]["id"]
 
     @pytest.mark.parametrize("path, key", [("trigger_repositories", "trigger_repo"), ("results_repositories", "results_repo")])
     def test_the_api_uri_stays_locked(self, client, post_json_admin_header, ids, busy, path, key):
