@@ -5,9 +5,14 @@ from the laptop agent's `HANDOVER.md` and `webserver/tests/TEST_PLAN.md`. Delete
 
 ## State
 
-- **Webserver tests:** 1370 passed, 1 xfailed, 0 failed (full run of `webserver/tests`, about 8 minutes; the xfail is the audit-overflow test below; one last test was fixed and re-run on its own after that run). The 83 basic tests from `TEST_PLAN.md` are in 9 files; the in-depth
-  files are `test_deep_*.py`; `test_live_client_integration.py` runs the real fncli and Dagster backend clients against the real
-  Flask app on a local port.
+- **Webserver tests (condensed, this branch):** 605 passed, 1 xfailed, 0 failed in about 2m45s (full run of `webserver/tests`; the xfail
+  is the audit-overflow test below). The new files are `test_trigger_repositories_and_links.py`, `test_pull_requests_and_tasks.py`,
+  `test_global_resources.py`, `test_projects_api.py`, `test_pagination_and_filters.py`, `test_results_and_delivery.py`,
+  `test_healthchecks_all.py`, `test_e2e_flow.py` and `test_live_client_integration.py` (the live-server test runs the real fncli and
+  Dagster backend clients against the Flask app). They were condensed from the first, much larger suite by merging overlap and keeping
+  one case per rule or failure class; app coverage of the touched modules did not drop by more than 1 point.
+- **The full, un-condensed suite** (1370 passed, 1 xfailed: the 83 plan tests plus the in-depth `test_deep_*.py` sweeps) is kept on the
+  branch `moonshot/shared-resources-tests-full` (head `ee653cd`) for anyone who wants the exhaustive run.
 - **App changes made because the tests found bugs** (two rounds, see "App changes" below): request DTOs reuse the
   `PullRequestRequest.parse` -> `InvalidRequest` pattern, errors are 400/409 instead of 500, lists paginate consistently, and the
   owner decisions below are implemented. Docs (ADR 0019, `docs/architecture`), Dagster, fncli and the e2e script were updated to match.
