@@ -1,0 +1,39 @@
+name: gitea_mirror_tests
+services:
+  db:
+    image: 'postgres:17-alpine'
+    environment:
+      POSTGRES_DB: gitea_mirror_test
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: gitea_mirror_test
+    volumes:
+      - gitea_mirror_tests_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 1s
+      timeout: 5s
+      retries: 10
+  app:
+    image: gitea_mirror_app_test
+    build:
+      context: .
+      dockerfile: build/test.Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    links:
+      - db
+    environment:
+      PGHOST:
+      PGDATABASE:
+      PGPORT:
+      PGUSER:
+      PGPASSWORD:
+      GITEA_MIRROR_DB_USER:
+      GITEA_MIRROR_DB_PASSWORD:
+      GITEA_MIRROR_DB_NAME:
+      GITEA_MIRROR_DB_HOST:
+      GITEA_MIRROR_DB_PORT:
+      PYTHONPATH: /app
+volumes:
+  gitea_mirror_tests_data:
