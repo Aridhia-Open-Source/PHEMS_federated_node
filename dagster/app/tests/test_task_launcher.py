@@ -83,6 +83,9 @@ def test_a_task_whose_dataset_is_not_active_is_not_launched():
     result = run(backend_api)
 
     assert len(result) == 1 and isinstance(result[0], SkipReason)
+    backend_api.patch_task.assert_called_once_with(
+        9, {"status": "FAILED", "state_cause": "Dataset cdm is not active in project proj1"}
+    )
 
 
 def test_other_tasks_are_launched_when_one_dataset_is_not_active():
@@ -92,6 +95,7 @@ def test_other_tasks_are_launched_when_one_dataset_is_not_active():
     result = run(backend_api)
 
     assert [r.run_key for r in result] == ["task/10/1"]
+    backend_api.patch_task.assert_called_once()
 
 
 def test_the_run_key_includes_the_attempt():

@@ -43,11 +43,11 @@ class BackendAPI:
                 return projects
             page += 1
 
-    def get_repositories(self, enabled_only: bool = False) -> list[ProjectTriggerRepository]:
-        """Get every project's trigger repository assignments, optionally only those of enabled projects"""
+    def get_repositories(self, active_only: bool = False) -> list[ProjectTriggerRepository]:
+        """Get every project's trigger repository assignments, optionally only the active ones (enabled and not revoked)"""
         self.logger.info("Fetching repositories")
-        if enabled_only:
-            response = self.session.get("/project_trigger_repositories", params={"project_enabled": "true"})
+        if active_only:
+            response = self.session.get("/project_trigger_repositories", params={"active": "true"})
         else:
             response = self.session.get("/project_trigger_repositories")
         repos = response.json()

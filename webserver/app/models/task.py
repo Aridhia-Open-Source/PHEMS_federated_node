@@ -41,6 +41,8 @@ class Task(db.Model, BaseModel):
     requested_by = sa.Column(sa.String(256), nullable=False)
     dagster_run_id = sa.Column(sa.String(64), nullable=True, unique=True)
     exit_code = sa.Column(sa.Integer, nullable=True)
+    # Why the task failed without a run, e.g. its dataset was revoked before launch
+    state_cause = sa.Column(sa.Text, nullable=True)
 
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()

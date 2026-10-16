@@ -70,7 +70,7 @@ PULL_REQUEST = {
 TASK = {
     "id": int, "name": str, "spec": {"image": str, "dataset_id": (int, NONE), "env": dict}, "attempt": int,
     "status": (str, NONE), "created_at": str, "updated_at": str, "requested_by": str, "project_id": int,
-    "trigger_id": int, "dagster_run_id": (str, NONE), "exit_code": (int, NONE), "started_at": (str, NONE),
+    "trigger_id": int, "dagster_run_id": (str, NONE), "exit_code": (int, NONE), "state_cause": (str, NONE), "started_at": (str, NONE),
     "completed_at": (str, NONE),
 }
 NEW_API_TASK = {"id": int, "api_request_id": int, "status": str, "created_at": str}

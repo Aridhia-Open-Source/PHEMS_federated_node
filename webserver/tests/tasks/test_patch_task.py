@@ -38,8 +38,15 @@ class TestPatchTask:
         assert task.status == "RUNNING"
         assert task.dagster_run_id is None
 
+    def test_update_state_cause(self, client, post_json_admin_header, task):
+        response = self.patch(client, post_json_admin_header, task.id, {"status": "FAILED", "state_cause": "why"})
+        assert response.status_code == 200
+        assert response.json["state_cause"] == "why"
+        assert Task.query.get(task.id).state_cause == "why"
+
     @pytest.mark.parametrize("body", [
         {},
+        {"state_cause": 1},
         {"status": "scheduled"},
         {"status": "running"},
         {"name": "other"},

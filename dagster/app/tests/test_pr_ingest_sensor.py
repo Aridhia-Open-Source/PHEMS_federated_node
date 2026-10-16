@@ -35,7 +35,7 @@ def run(repos, git_apis_by_repo_id, locked=()):
     backend_api = MagicMock()
     backend_api.get_repositories.return_value = repos
     backend_api.get_projects.return_value = [
-        Project(id=1, name="proj1", locked=1 in locked), Project(id=2, name="proj2", locked=2 in locked)
+        Project(id=1, name="proj1", enabled=True, locked=1 in locked), Project(id=2, name="proj2", enabled=True, locked=2 in locked)
     ]
     git_apis = MagicMock()
     git_apis.for_repository.side_effect = lambda r: git_apis_by_repo_id[r.id]
@@ -62,10 +62,23 @@ def test_a_locked_project_is_skipped_and_its_cursor_not_polled():
     assert "Saved 1 new pull requests" in results[0].skip_message
 
 
-def test_only_polls_repositories_of_enabled_projects():
+def test_only_polls_active_repositories():
     _, backend_api = run([repo(1)], {1: fake_git_api([])})
 
-    backend_api.get_repositories.assert_called_once_with(enabled_only=True)
+    backend_api.get_repositories.assert_called_once_with(active_only=True)
+
+
+def test_a_disabled_project_is_not_polled():
+    backend_api = MagicMock()
+    backend_api.get_repositories.return_value = [repo(1)]
+    backend_api.get_projects.return_value = [Project(id=1, name="proj1", enabled=False)]
+    git_apis = MagicMock()
+    sensor = PullRequestIngestSensor(context=MagicMock(), backend_api=backend_api, git_apis=git_apis)
+
+    (result,) = list(sensor())
+
+    git_apis.for_repository.assert_not_called()
+    assert isinstance(result, dg.SkipReason)
 
 
 def test_posts_one_batch_per_repository_with_new_prs():
@@ -130,7 +143,7 @@ def test_a_failing_repository_aborts_the_tick_after_the_earlier_ones_were_saved(
 
     backend_api = MagicMock()
     backend_api.get_repositories.return_value = [repo(1), repo(2), repo(3)]
-    backend_api.get_projects.return_value = [Project(id=1, name="proj1")]
+    backend_api.get_projects.return_value = [Project(id=1, name="proj1", enabled=True)]
     git_apis = MagicMock()
     git_apis.for_repository.side_effect = lambda r: apis[r.id]
     sensor = PullRequestIngestSensor(context=MagicMock(), backend_api=backend_api, git_apis=git_apis)

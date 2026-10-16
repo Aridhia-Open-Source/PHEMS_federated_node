@@ -149,7 +149,7 @@ def patch_task(task_id):
     if not body:
         raise InvalidRequest("No fields provided to update")
 
-    unknown = set(body) - {"status", "dagster_run_id", "exit_code", "started_at", "completed_at"}
+    unknown = set(body) - {"status", "dagster_run_id", "exit_code", "state_cause", "started_at", "completed_at"}
     if unknown:
         raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
 
@@ -163,6 +163,11 @@ def patch_task(task_id):
         if not isinstance(body['dagster_run_id'], str):
             raise InvalidRequest("dagster_run_id must be a string")
         task.dagster_run_id = body['dagster_run_id']
+
+    if 'state_cause' in body:
+        if not isinstance(body['state_cause'], str):
+            raise InvalidRequest("state_cause must be a string")
+        task.state_cause = body['state_cause']
 
     if 'exit_code' in body:
         if not isinstance(body['exit_code'], int) or isinstance(body['exit_code'], bool):
@@ -198,6 +203,7 @@ def retry_task(task_id):
     task.started_at = None
     task.completed_at = None
     task.exit_code = None
+    task.state_cause = None
 
     db.session.commit()
     return TaskDTO.from_model(task).dump(), HTTPStatus.OK

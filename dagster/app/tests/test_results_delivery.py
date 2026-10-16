@@ -209,6 +209,25 @@ def test_a_task_without_a_pull_request_fails_the_delivery(backend_api, remote, a
     assert fields["error"].startswith("LookupError")
 
 
+def test_a_revoked_results_repository_fails_the_delivery_with_the_error_and_raises_nothing(
+    backend_api, remote, artifacts
+):
+    backend_api.get_results_repository.return_value = REPOSITORY.model_copy(update={"revoked": True, "active": False})
+
+    deliver(backend_api, remote, artifacts)
+
+    assert patches(backend_api) == [{"state": "FAILED", "attempts": 1, "error": "results repository access revoked"}]
+
+
+def test_an_inactive_trigger_assignment_is_still_resolved(backend_api, remote, artifacts, git_apis):
+    backend_api.get_repositories.return_value = [TRIGGER_ASSIGNMENT.model_copy(update={"revoked": True, "active": False})]
+
+    deliver(backend_api, remote, artifacts, git_apis)
+
+    assert patches(backend_api)[-1]["state"] == "DELIVERED"
+    backend_api.get_repositories.assert_called_once_with()
+
+
 @pytest.mark.parametrize("step", ["OPENED", "MERGED", "CLOSED"])
 def test_a_result_past_pushed_is_left_alone(backend_api, remote, artifacts, step):
     backend_api.create_result.return_value = result(step=step, state="DELIVERED", attempts=1)

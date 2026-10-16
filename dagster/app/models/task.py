@@ -19,5 +19,6 @@ class Task(BaseModel):
     trigger_id: int
     dagster_run_id: str | None = None
     exit_code: int | None = None
+    state_cause: str | None = None
     started_at: str | None = None
     completed_at: str | None = None

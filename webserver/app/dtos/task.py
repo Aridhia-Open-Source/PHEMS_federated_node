@@ -24,6 +24,7 @@ class TaskDTO(DTO):
     trigger_id: int
     dagster_run_id: str | None
     exit_code: int | None
+    state_cause: str | None
     started_at: WireDatetime | None
     completed_at: WireDatetime | None
 

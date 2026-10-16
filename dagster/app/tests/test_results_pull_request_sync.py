@@ -49,10 +49,10 @@ def not_found(*args):
     raise requests.HTTPError("404 Not Found", response=response)
 
 
-def sync(results, prs_by_number=None, prs_by_branch=None):
+def sync(results, prs_by_number=None, prs_by_branch=None, repository=REPOSITORY):
     backend_api = MagicMock()
     backend_api.get_results_by_step.return_value = results
-    backend_api.get_results_repository_by_id.return_value = REPOSITORY
+    backend_api.get_results_repository_by_id.return_value = repository
     git_api = MagicMock()
     git_api.get_pull_request.side_effect = lambda repo_path, number: (prs_by_number or {})[number]()
     git_api.get_default_branch.return_value = "main"
@@ -79,6 +79,16 @@ def test_a_merged_pull_request_is_recorded():
     backend_api.get_results_repository_by_id.assert_called_once_with(1, 5)
     git_apis.for_repository.assert_called_once_with(GLOBAL_REPOSITORY)
     git_api.get_pull_request.assert_called_once_with("fn/results", 3)
+    assert patched(backend_api) == {9: {
+        "step": "MERGED", "merged_at": "2026-10-08T10:00:00Z", "merge_commit_sha": "m1",
+    }}
+
+
+def test_a_revoked_results_repository_is_still_synced():
+    revoked = REPOSITORY.model_copy(update={"revoked": True, "active": False})
+
+    backend_api, _, _ = sync([result()], {3: lambda: git_pr("closed", "2026-10-08T10:00:00Z", "m1")}, repository=revoked)
+
     assert patched(backend_api) == {9: {
         "step": "MERGED", "merged_at": "2026-10-08T10:00:00Z", "merge_commit_sha": "m1",
     }}

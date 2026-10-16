@@ -299,6 +299,7 @@ def upgrade() -> None:
         sa.Column('started_at', sa.DateTime(), nullable=True),
         sa.Column('completed_at', sa.DateTime(), nullable=True),
         sa.Column('exit_code', sa.Integer(), nullable=True),
+        sa.Column('state_cause', sa.Text(), nullable=True),
         sa.Column('params', sa.JSON(), nullable=False, server_default='{}'),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),

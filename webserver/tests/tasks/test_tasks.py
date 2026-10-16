@@ -2,6 +2,8 @@ import json
 import pytest
 from unittest import mock
 
+from app.helpers.base_model import db
+from app.models.project_dataset import ProjectDataset
 from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
 
@@ -156,6 +158,29 @@ class TestValidateTask:
             headers=post_json_admin_header
         )
         assert response.status_code == 200
+
+    def test_validate_task_with_a_revoked_dataset(
+            self,
+            cr_client,
+            post_json_admin_header,
+            client,
+            registry_client,
+            dataset,
+            task_body,
+        ):
+        """
+        Tests validation rejects a dataset whose assignment to the project is revoked
+        """
+        ProjectDataset.query.filter_by(dataset_id=dataset.id).one().revoked = True
+        db.session.commit()
+
+        response = client.post(
+            '/tasks/validate',
+            data=json.dumps(task_body),
+            headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+        assert "is not active in project" in response.json["error"]
 
     def test_validate_task_with_conflicting_ds_name_and_id(
             self,

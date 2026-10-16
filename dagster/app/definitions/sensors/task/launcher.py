@@ -36,16 +36,18 @@ class TaskLauncherSensor(BaseSensor):
 
     def _launch(self, project: Project, task: Task) -> dg.RunRequest | None:
         """
-        The run for the task, or None while its dataset is not active in the project: the task
-        stays PENDING and is tried again on the next tick. Recording the failure is stage 6.
+        The run for the task, or None when its dataset is not active in the project: the task
+        is failed with the cause recorded, and a manual retry launches it once the dataset is
+        active again.
         """
         dataset = None
         if task.spec.dataset_id:
             assignment = self.backend_api.get_project_dataset(project.id, task.spec.dataset_id)
             if not assignment.active:
-                self.log.warning(
-                    f"Task {task.id} not launched: dataset {assignment.dataset.name} is not active "
-                    f"in project {project.name}"
+                cause = f"Dataset {assignment.dataset.name} is not active in project {project.name}"
+                self.log.warning(f"Task {task.id} not launched: {cause}")
+                self.backend_api.patch_task(
+                    task.id, {"status": TaskStatus.FAILED.value, "state_cause": cause}
                 )
                 return None
             dataset = assignment.dataset
