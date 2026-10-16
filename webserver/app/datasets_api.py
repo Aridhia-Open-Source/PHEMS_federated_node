@@ -57,11 +57,11 @@ def _reject_credentials(body: dict | None):
         )
 
 
-def _resolve_secret(body: dict, project_id: int) -> dict:
-    """Swaps the project-local secret_label a request carries for the secret's id."""
+def _resolve_secret(body: dict) -> dict:
+    """Swaps the secret_label a request carries for the secret's id."""
     if not body.get("secret_label"):
         raise InvalidRequest("secret_label is required")
-    body["secret_id"] = Secret.get_in_project(project_id, body.pop("secret_label")).id
+    body["secret_id"] = Secret.get_by_label(body.pop("secret_label")).id
     return body
 
 
@@ -77,7 +77,7 @@ def post_datasets():
         _reject_credentials(request.json)
         if not request.json.get("project_id"):
             raise InvalidRequest("project_id is required")
-        body = Dataset.validate(_resolve_secret(dict(request.json), request.json["project_id"]))
+        body = Dataset.validate(_resolve_secret(dict(request.json)))
         cata_body = body.pop("catalogue", {})
         dict_body = body.pop("dictionaries", [])
         dataset = Dataset(**body)
@@ -178,7 +178,7 @@ def patch_datasets_by_id_or_name(
         raise InvalidRequest("port must be an integer")
 
     if "secret_label" in body:
-        _resolve_secret(body, body.get("project_id", ds.project_id))
+        _resolve_secret(body)
 
     for k in body:
         if not hasattr(ds, k):

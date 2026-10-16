@@ -74,10 +74,9 @@ def test_trigger_repository_values():
     assert repository.repo_path == "org/test-repo"
 
 
-@pytest.mark.xfail(strict=True, reason="ADR 0019 stage 1")
 def test_a_global_secret_parses():
     """A global secret has no project: Dagster reads only key, namespace and provider."""
     secret = load("secret")
-    del secret["project_id"], secret["label"]
 
+    assert "project_id" not in secret
     Secret(**secret)

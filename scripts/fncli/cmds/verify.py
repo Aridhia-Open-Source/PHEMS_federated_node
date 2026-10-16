@@ -156,8 +156,8 @@ def verify_project(report: Report, config: ProjectConfig, dataset_config: Datase
             f"Dataset fetch: GET /datasets/{dataset.id}", lambda: backend_api.get_dataset(dataset.id)
         )
         report.check(
-            f"Dataset secret exists: GET /projects/{project.id}/secrets",
-            lambda: backend_api.get_secret(project.id, dataset.secret.label),
+            f"Dataset secret exists: GET /secrets/{dataset.secret.label}",
+            lambda: backend_api.get_secret(dataset.secret.label),
             lambda s: f"{s['key']} in {s['namespace']}",
         )
 

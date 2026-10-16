@@ -36,7 +36,7 @@ FIXED_WIRE_DATETIME = "2026-01-01 00:00:00"
 NONE = type(None)
 
 SECRET = {
-    "id": int, "project_id": int, "label": str, "description": (str, NONE), "provider": str,
+    "id": int, "label": str, "description": (str, NONE), "provider": str,
     "key": str, "namespace": (str, NONE), "created_at": str, "updated_at": str,
 }
 TRIGGER_REPOSITORY = {
@@ -232,10 +232,9 @@ class TestTriggerRepositories:
         """A global resource: no project, no polling state, its `id` is the resource id."""
         response = client.get("/trigger_repositories", headers=simple_admin_header)
         assert response.status_code == HTTPStatus.OK
-        secret = {key: kind for key, kind in SECRET.items() if key != "project_id"}
         assert_shape(
             response.json,
-            [{"id": int, "uri": str, "provider": str, "api_uri": str, "secret": secret}]
+            [{"id": int, "uri": str, "provider": str, "api_uri": str, "secret": SECRET}]
         )
 
     @pytest.mark.xfail(strict=True, reason="ADR 0019 stage 4")
@@ -399,10 +398,9 @@ class TestResultsRepositories:
     def test_target_global_list(self, client, simple_admin_header, results_repo):
         response = client.get("/results_repositories", headers=simple_admin_header)
         assert response.status_code == HTTPStatus.OK
-        secret = {key: kind for key, kind in SECRET.items() if key != "project_id"}
         assert_shape(
             response.json,
-            [{"id": int, "uri": str, "provider": str, "api_uri": str, "secret": secret}]
+            [{"id": int, "uri": str, "provider": str, "api_uri": str, "secret": SECRET}]
         )
 
     @pytest.mark.xfail(strict=True, reason="ADR 0019 stage 3")
@@ -534,23 +532,16 @@ class TestHealthcheck:
 
 class TestSecrets:
     def test_list_and_by_label(self, client, simple_admin_header, secret, contract):
-        response = client.get(f"/projects/{secret.project_id}/secrets", headers=simple_admin_header)
+        response = client.get("/secrets", headers=simple_admin_header)
         assert response.status_code == HTTPStatus.OK
         assert_shape(response.json, [SECRET])
         contract("secrets_list", response.json)
 
-        by_label = client.get(f"/projects/{secret.project_id}/secrets/{secret.label}", headers=simple_admin_header)
+        by_label = client.get(f"/secrets/{secret.label}", headers=simple_admin_header)
         assert by_label.status_code == HTTPStatus.OK
         assert_shape(by_label.json, SECRET)
         assert by_label.json["id"] == secret.id
         contract("secret", by_label.json)
-
-    @pytest.mark.xfail(strict=True, reason="ADR 0019 stage 1")
-    def test_target_global_list(self, client, simple_admin_header, secret):
-        """Global and addressed by label: no project."""
-        response = client.get("/secrets", headers=simple_admin_header)
-        assert response.status_code == HTTPStatus.OK
-        assert_shape(response.json, [{key: kind for key, kind in SECRET.items() if key != "project_id"}])
 
 
 class TestTasks:
@@ -593,7 +584,7 @@ class TestTasks:
     def test_pull_request_rejects_another_projects_dataset(
             self, client, post_json_admin_header, repo, pull_requests, other_project, user_uuid
         ):
-        other_secret = Secret(project_id=other_project.id, label="test-creds", provider=SecretProviderType.K8S)
+        other_secret = Secret(label="other-test-creds", provider=SecretProviderType.K8S)
         other_secret.add()
         other_dataset = Dataset(
             name="OtherDs", host="example.com", port=5432, secret_id=other_secret.id, project_id=other_project.id

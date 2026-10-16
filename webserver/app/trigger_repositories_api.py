@@ -104,7 +104,7 @@ def post_repository():
 
     # Validate project and secret exist
     Project.get_by_id(body['project_id'])
-    secret = Secret.get_in_project(body['project_id'], body['secret_label'])
+    secret = Secret.get_by_label(body['secret_label'])
 
     try:
         repo = TriggerRepository(
@@ -164,7 +164,7 @@ def patch_repository(repo_id):
     if 'secret_label' in body:
         if not body['secret_label']:
             raise InvalidRequest("secret_label cannot be empty")
-        repo.secret_id = Secret.get_in_project(repo.project_id, body['secret_label']).id
+        repo.secret_id = Secret.get_by_label(body['secret_label']).id
 
     for field in ('provider', 'api_uri'):
         if field in body:

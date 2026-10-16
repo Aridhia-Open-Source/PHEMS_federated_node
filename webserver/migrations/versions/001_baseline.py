@@ -39,6 +39,7 @@ def upgrade() -> None:
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('description', sa.String(length=4096), nullable=True),
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column('locked', sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column('default_dataset_id', sa.Integer(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
@@ -50,7 +51,6 @@ def upgrade() -> None:
     op.create_table(
         'secrets',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('project_id', sa.Integer(), nullable=False),
         sa.Column('label', sa.String(length=253), nullable=False),
         sa.Column('description', sa.String(length=4096), nullable=True),
         sa.Column('provider', sa.Enum('K8S', name='secretprovidertype'), nullable=False),
@@ -58,10 +58,8 @@ def upgrade() -> None:
         sa.Column('namespace', sa.String(length=253), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('project_id', 'label'),
-        sa.UniqueConstraint('project_id', 'id'),
+        sa.UniqueConstraint('label'),
         sa.UniqueConstraint('key'),
     )
 
@@ -81,9 +79,7 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
-        sa.ForeignKeyConstraint(
-            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'], ondelete='RESTRICT'
-        ),
+        sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('name'),
     )
@@ -103,9 +99,7 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
-        sa.ForeignKeyConstraint(
-            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'], ondelete='RESTRICT'
-        ),
+        sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('project_id', 'uri', name='uq_trigger_repositories_project_uri'),
     )
@@ -124,9 +118,7 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
-        sa.ForeignKeyConstraint(
-            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'], ondelete='RESTRICT'
-        ),
+        sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('project_id', name='uq_results_repositories_project'),
         sa.UniqueConstraint('project_id', 'uri', name='uq_results_repositories_project_uri'),
@@ -274,7 +266,8 @@ def upgrade() -> None:
     op.create_table(
         'pull_request_results',
         sa.Column('result_id', sa.Integer(), nullable=False),
-        sa.Column('state', sa.String(length=32), nullable=False, server_default='UNKNOWN'),
+        sa.Column('step', sa.String(length=32), nullable=False, server_default='UNKNOWN'),
+        sa.Column('state', sa.String(length=32), nullable=False, server_default='IN_PROGRESS'),
         sa.Column('branch', sa.String(length=256), nullable=True),
         sa.Column('commit_sha', sa.String(length=40), nullable=True),
         sa.Column('number', sa.Integer(), nullable=True),

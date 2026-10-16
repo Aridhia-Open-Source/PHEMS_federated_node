@@ -30,15 +30,11 @@ class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
 
     __table_args__ = (
         sa.UniqueConstraint('project_id', 'uri', name='uq_trigger_repositories_project_uri'),
-        sa.ForeignKeyConstraint(
-            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'],
-            ondelete='RESTRICT'
-        ),
     )
 
     project = relationship("Project", back_populates="trigger_repositories")
     secret = relationship(
-        "Secret", back_populates="trigger_repositories", overlaps="trigger_repositories,project"
+        "Secret", back_populates="trigger_repositories"
     )
     pull_request_triggers = relationship(
         "PullRequestTrigger", back_populates="trigger_repository", cascade="all, delete"

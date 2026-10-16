@@ -285,41 +285,34 @@ class BackendAPI:
         response = self.session.patch(f"/projects/{project_id}", json=data)
         return Project(**response.json())
 
-    def get_secrets(self, project_id: int) -> list[dict]:
-        """The project's secrets, without their values"""
-        return self.session.get(f"/projects/{project_id}/secrets").json()
+    def get_secrets(self) -> list[dict]:
+        """The secrets, without their values. They belong to no project."""
+        return self.session.get("/secrets").json()
 
-    def get_secret(self, project_id: int, label: str) -> dict:
-        """The project's secret with that project-local label"""
-        for secret in self.get_secrets(project_id):
-            if secret["label"] == label:
-                return secret
-        raise ValueError(f"Secret {label} does not exist in project {project_id}")
+    def get_secret(self, label: str) -> dict:
+        return self.session.get(f"/secrets/{label}").json()
 
-    def upsert_secret(self, project_id: int, label: str, values: dict[str, str]) -> dict:
+    def upsert_secret(self, label: str, values: dict[str, str]) -> dict:
         """
         The backend keeps only the label, so a re-run rotates the values in the secret store.
         Returns the secret, whose key is what it is called in the store.
         """
-        if any(secret["label"] == label for secret in self.get_secrets(project_id)):
-            self.logger.info(f"Updating secret {label} of project {project_id}")
-            response = self.session.patch(
-                f"/projects/{project_id}/secrets/{label}", json={"values": values}
-            )
+        if any(secret["label"] == label for secret in self.get_secrets()):
+            self.logger.info(f"Updating secret {label}")
+            response = self.session.patch(f"/secrets/{label}", json={"values": values})
         else:
-            self.logger.info(f"Creating secret {label} in project {project_id}")
+            self.logger.info(f"Creating secret {label}")
             response = self.session.post(
-                f"/projects/{project_id}/secrets",
-                json={"label": label, "provider": "K8S", "values": values},
+                "/secrets", json={"label": label, "provider": "K8S", "values": values}
             )
         return response.json()
 
-    def delete_secret(self, project_id: int, label: str) -> bool:
-        """Delete the project's secret. Returns whether there was one to delete."""
-        if not any(secret["label"] == label for secret in self.get_secrets(project_id)):
+    def delete_secret(self, label: str) -> bool:
+        """Delete the secret. Returns whether there was one to delete."""
+        if not any(secret["label"] == label for secret in self.get_secrets()):
             return False
-        self.logger.info(f"Deleting secret {label} of project {project_id}")
-        self.session.delete(f"/projects/{project_id}/secrets/{label}")
+        self.logger.info(f"Deleting secret {label}")
+        self.session.delete(f"/secrets/{label}")
         return True
 
     def find_repository(self, uri: str, project_id: int) -> TriggerRepository | None:

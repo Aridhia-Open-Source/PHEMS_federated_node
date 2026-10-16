@@ -27,9 +27,10 @@ class Dataset(db.Model, BaseModel):
     project_id = sa.Column(
         sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False
     )
-    # The secret holding the database credentials (USERNAME and PASSWORD). The composite
-    # foreign key below keeps it to a secret of this dataset's own project.
-    secret_id = sa.Column(sa.Integer, nullable=False)
+    # The secret holding the database credentials (USERNAME and PASSWORD).
+    secret_id = sa.Column(
+        sa.Integer, sa.ForeignKey('secrets.id', ondelete='RESTRICT'), nullable=False
+    )
 
     name = sa.Column(sa.String(256), unique=True, nullable=False)
     host = sa.Column(sa.String(256), nullable=False)
@@ -42,17 +43,10 @@ class Dataset(db.Model, BaseModel):
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
 
-    __table_args__ = (
-        sa.ForeignKeyConstraint(
-            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'],
-            ondelete='RESTRICT'
-        ),
-    )
-
     project = relationship(
         "Project", back_populates="datasets", foreign_keys=[project_id]
     )
-    secret = relationship("Secret", back_populates="datasets", overlaps="datasets,project")
+    secret = relationship("Secret", back_populates="datasets")
 
     def __init__(
         self,

@@ -21,8 +21,7 @@ class GitRepositoryMixin:
     """
     What every repository the node reaches over a git host's API has: where it is, which
     provider serves it, and the secret holding its token. A model using it declares the
-    composite foreign key to secrets (project_id, secret_id) and the secret
-    relationship itself.
+    secret relationship itself.
     """
 
     project_id = sa.Column(
@@ -34,9 +33,10 @@ class GitRepositoryMixin:
     # The scheme is stripped from uri, so the provider's API base URL is kept explicitly.
     api_uri = sa.Column(sa.String(4096), nullable=False)
     # The secret holding the git token (under the key TOKEN). Set explicitly rather than
-    # derived from uri, so repositories can share one credential. The composite foreign
-    # key keeps it to a secret of this repository's own project.
-    secret_id = sa.Column(sa.Integer, nullable=False)
+    # derived from uri, so repositories can share one credential.
+    secret_id = sa.Column(
+        sa.Integer, sa.ForeignKey('secrets.id', ondelete='RESTRICT'), nullable=False
+    )
 
     @validates('uri')
     def validate_uri(self, key, value):

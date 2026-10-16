@@ -46,7 +46,7 @@ def second_dataset(client, user_uuid, project, secret):
 
 @pytest.fixture
 def other_project_dataset(client, user_uuid, other_project):
-    secret = Secret(project_id=other_project.id, label="test-creds", provider=SecretProviderType.K8S)
+    secret = Secret(label="other-test-creds", provider=SecretProviderType.K8S)
     secret.add()
     ds = Dataset(name="OtherDs", host="example.com", port=5432, secret_id=secret.id, project_id=other_project.id)
     ds.add(user_id=user_uuid)

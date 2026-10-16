@@ -20,17 +20,12 @@ class ResultsRepository(GitRepositoryMixin, db.Model, BaseModel):
         # One results repository per project for now.
         sa.UniqueConstraint('project_id', name='uq_results_repositories_project'),
         sa.UniqueConstraint('project_id', 'uri', name='uq_results_repositories_project_uri'),
-        sa.ForeignKeyConstraint(
-            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'],
-            ondelete='RESTRICT'
-        ),
     )
 
     project = relationship("Project", back_populates="results_repositories")
     results = relationship("Result", back_populates="results_repository")
     secret = relationship(
-        "Secret", back_populates="results_repositories",
-        overlaps="results_repositories,project,trigger_repositories,datasets"
+        "Secret", back_populates="results_repositories"
     )
 
     def __init__(

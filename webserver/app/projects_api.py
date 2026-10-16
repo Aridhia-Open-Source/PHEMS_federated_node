@@ -24,9 +24,7 @@ from app.helpers.wrappers import audit, auth
 from app.models.git_provider import ConnectionStatus
 from app.models.project import Project
 from app.models.pull_request_trigger import PullRequestTrigger
-from app.models.secret import Secret
 from app.models.task import Task
-from app.secrets_api import SecretProvider
 
 
 HEALTHCHECK_MAX_WORKERS = 8
@@ -111,15 +109,13 @@ def patch_project(project_id: int):
 def delete_project(project_id: int):
     """
     DELETE /projects/<project_id> endpoint. Deletes the project and everything under it:
-    tasks, datasets, repositories and secrets. The stored secret values go before
-    the database commit, so a failed store delete leaves the project in place to retry.
+    tasks, datasets and repositories. Secrets belong to no project: they, and their stored
+    values, are left alone.
     """
     # Hard delete for now, a soft delete option can come later. Keycloak entries of the
     # datasets are left behind, as with DELETE /datasets.
     project = Project.get_by_id(project_id)
     require_drained(project)
-    project_secrets = Secret.query.filter_by(project_id=project.id).all()
-    secrets = [(s.provider, s.key, s.namespace) for s in project_secrets]
 
     # Dependency order: most of these foreign keys to the project are RESTRICT. The
     # triggers left after the repositories' pull requests (the API ones) go with the
@@ -136,21 +132,10 @@ def delete_project(project_id: int):
             repo.delete(False)
         for repo in project.results_repositories:
             repo.delete(False)
-        for secret in project_secrets:
-            secret.delete(False)
         project.delete(False)
     except Exception as exc:
         db.session.rollback()
         raise InvalidRequest("Error while deleting the record") from exc
-
-    # The rows are staged, not committed: if the store delete fails the project has to
-    # stay so a retry can finish the cleanup, and a rollback after a commit is a no-op.
-    try:
-        for provider, key, namespace in secrets:
-            SecretProvider(provider).delete(key, namespace)
-    except InvalidRequest:
-        db.session.rollback()
-        raise
 
     db.session.commit()
     return '', HTTPStatus.NO_CONTENT

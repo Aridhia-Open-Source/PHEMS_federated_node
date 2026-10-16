@@ -86,7 +86,7 @@ def post_repository():
     # Validate project and secret exist. A project has one results repository, so creating it
     # changes where its in-flight tasks deliver.
     require_drained(Project.get_by_id(body['project_id']))
-    secret = Secret.get_in_project(body['project_id'], body['secret_label'])
+    secret = Secret.get_by_label(body['secret_label'])
 
     if ResultsRepository.query.filter_by(project_id=body['project_id']).first():
         raise InvalidRequest(
@@ -146,7 +146,7 @@ def patch_repository(repo_id):
     if 'secret_label' in body:
         if not body['secret_label']:
             raise InvalidRequest("secret_label cannot be empty")
-        repo.secret_id = Secret.get_in_project(repo.project_id, body['secret_label']).id
+        repo.secret_id = Secret.get_by_label(body['secret_label']).id
 
     if 'owned_by_federated_node' in body:
         repo.owned_by_federated_node = body['owned_by_federated_node']

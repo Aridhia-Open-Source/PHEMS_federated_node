@@ -45,7 +45,7 @@ def test_init_dataset_secret_stores_the_configured_credentials(monkeypatch):
     init_dataset_secret(uc1_config(monkeypatch), backend_api, project)
 
     backend_api.upsert_secret.assert_called_once_with(
-        7, "proj-dataset-creds", {"USERNAME": "uc1", "PASSWORD": "s3cret"}
+        "proj-dataset-creds", {"USERNAME": "uc1", "PASSWORD": "s3cret"}
     )
 
 
@@ -55,7 +55,7 @@ def test_init_dataset_secret_stores_dummies_without_the_env():
     init_dataset_secret(DatasetConfig(), backend_api, MagicMock(id=7))
 
     backend_api.upsert_secret.assert_called_once_with(
-        7, "proj-dataset-creds", {"USERNAME": "dummy", "PASSWORD": "dummy"}
+        "proj-dataset-creds", {"USERNAME": "dummy", "PASSWORD": "dummy"}
     )
 
 

@@ -15,7 +15,7 @@ from fncli.cmds.common import (
     build_gitea_api,
     entity_option,
 )
-from fncli.cmds.project import find_project, init_backend_project
+from fncli.cmds.project import init_backend_project
 from fncli.cmds.repository import backend_source_options, init_gitea_repo, load_repo_config
 from fncli.dagster.backend import BackendAPI
 from fncli.dagster.gitea import GiteaAdminAPI, GiteaAPI, GiteaClient
@@ -33,7 +33,7 @@ def init_git_secret(
 ) -> str:
     """Store a fresh Gitea token where the backend reads it."""
     token = gitea_api.replace_token(config.token_name, [config.token_scope])
-    secret = backend_api.upsert_secret(project.id, config.secret_label, {"TOKEN": token})
+    secret = backend_api.upsert_secret(config.secret_label, {"TOKEN": token})
     stored = get_k8s_secret(
         secret_name=secret["key"], namespace=secret["namespace"], key="TOKEN"
     )
@@ -69,10 +69,8 @@ def dataset_credentials(config: DatasetConfig) -> dict:
 
 
 def init_dataset_secret(config: DatasetConfig, backend_api: BackendAPI, project: Project) -> dict:
-    secret = backend_api.upsert_secret(
-        project.id, config.secret_label, dataset_credentials(config)
-    )
-    logger.info(f"Secret {config.secret_label} of project {project.id} is {secret['key']}")
+    secret = backend_api.upsert_secret(config.secret_label, dataset_credentials(config))
+    logger.info(f"Secret {config.secret_label} is {secret['key']}")
     return secret
 
 
@@ -104,12 +102,12 @@ def init_dataset_secret_command():
 def init_backend_secret(config: RepoConfig | DatasetConfig, backend_api: BackendAPI, project: Project):
     """Create the secret with placeholder values unless it exists, so a real token is kept."""
     label = config.secret_label
-    if any(secret["label"] == label for secret in backend_api.get_secrets(project.id)):
-        logger.info(f"Secret {label} of project {project.id} already exists")
+    if any(secret["label"] == label for secret in backend_api.get_secrets()):
+        logger.info(f"Secret {label} already exists")
         return
     values = dataset_credentials(config) if isinstance(config, DatasetConfig) else GIT_PLACEHOLDER
-    secret = backend_api.upsert_secret(project.id, label, values)
-    logger.info(f"Secret {label} of project {project.id} is {secret['key']}, with placeholder values")
+    secret = backend_api.upsert_secret(label, values)
+    logger.info(f"Secret {label} is {secret['key']}, with placeholder values")
 
 
 @click.command("init-backend-secret")
@@ -137,7 +135,7 @@ def verify_git_secret_command(entity, from_backend, project):
     gitea_repo = init_gitea_repo(config, build_gitea_api(config))
     backend_api = build_backend_api(config)
     project = init_backend_project(config, backend_api)
-    secret = backend_api.get_secret(project.id, config.secret_label)
+    secret = backend_api.get_secret(config.secret_label)
     token = get_k8s_secret(
         secret_name=secret["key"], namespace=secret["namespace"], key="TOKEN"
     )
@@ -156,13 +154,10 @@ def delete_secret_command(entity):
     """Delete a secret from the backend and the K8s secret behind it. Nothing may use it."""
     config = SECRET_CONFIGS[entity]()
     backend_api = build_backend_api(config)
-    project = find_project(config, backend_api)
-    if project is None:
-        return
-    if backend_api.delete_secret(project.id, config.secret_label):
-        logger.info(f"Deleted secret {config.secret_label} of project {project.id}")
+    if backend_api.delete_secret(config.secret_label):
+        logger.info(f"Deleted secret {config.secret_label}")
     else:
-        logger.info(f"Secret {config.secret_label} of project {project.id} does not exist")
+        logger.info(f"Secret {config.secret_label} does not exist")
 
 
 @click.command("delete-gitea-token")

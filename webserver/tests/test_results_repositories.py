@@ -142,17 +142,9 @@ class TestPostResultsRepository:
 
     @pytest.mark.skip(reason="moonshot stage 3 replaces this")
     def test_another_project_can_have_its_own(self, client, post_json_admin_header, results_repo, results_post_body, other_project):
-        Secret(project_id=other_project.id, label="test-creds", provider=SecretProviderType.K8S).add()
         body = {**results_post_body, "project_id": other_project.id}
         response = client.post("/results_repositories", json=body, headers=post_json_admin_header)
         assert response.status_code == 201
-
-    def test_create_with_another_projects_secret_fails(self, client, post_json_admin_header, results_post_body, other_project):
-        Secret(project_id=other_project.id, label="foreign-creds", provider=SecretProviderType.K8S).add()
-        body = {**results_post_body, "secret_label": "foreign-creds"}
-        response = client.post("/results_repositories", json=body, headers=post_json_admin_header)
-        assert response.status_code == 400
-        assert ResultsRepository.query.count() == 0
 
     def test_create_with_unknown_project_fails(self, client, post_json_admin_header, results_post_body):
         response = client.post(
@@ -201,14 +193,6 @@ class TestPatchResultsRepository:
         response = client.patch(f"/results_repositories/{results_repo.id}", json={"target_dir": ""}, headers=post_json_admin_header)
         assert response.status_code == 400
 
-    def test_update_to_another_projects_secret_fails(self, client, post_json_admin_header, results_repo, other_project):
-        Secret(project_id=other_project.id, label="foreign-creds", provider=SecretProviderType.K8S).add()
-        response = client.patch(
-            f"/results_repositories/{results_repo.id}", json={"secret_label": "foreign-creds"},
-            headers=post_json_admin_header
-        )
-        assert response.status_code == 400
-
     def test_move_to_another_project_fails(self, client, post_json_admin_header, results_repo, other_project):
         project_id = results_repo.project_id
         response = client.patch(
@@ -238,7 +222,7 @@ class TestDeleteResultsRepository:
         assert ResultsRepository.query.count() == 0
 
     def test_secret_in_use_cannot_be_deleted(self, client, simple_admin_header, results_repo, secret):
-        response = client.delete(f"/projects/{secret.project_id}/secrets/{secret.label}", headers=simple_admin_header)
+        response = client.delete(f"/secrets/{secret.label}", headers=simple_admin_header)
         assert response.status_code == 409
 
     def test_project_reaches_its_repository_through_one_accessor(self, project, results_repo):
@@ -298,7 +282,6 @@ class TestLoopGuard:
         assert response.status_code == 201
 
     def test_different_projects_are_fine(self, client, post_json_admin_header, project, results_repo, other_project):
-        Secret(project_id=other_project.id, label="test-creds", provider=SecretProviderType.K8S).add()
         response = self.create_trigger(client, post_json_admin_header, other_project, watch_dir="results")
         assert response.status_code == 201
 

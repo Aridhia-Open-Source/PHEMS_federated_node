@@ -5,7 +5,6 @@ from app.models.secret_provider_type import SecretProviderType
 
 class SecretDTO(DTO):
     id: int
-    project_id: int
     label: str
     description: str | None
     provider: SecretProviderType

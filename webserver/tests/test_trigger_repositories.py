@@ -64,7 +64,7 @@ class TestGetRepositories:
         assert [r["id"] for r in response.json] == [repository.id]
 
     def test_list_filtered_by_project(self, client, simple_admin_header, repository, other_project):
-        other_secret = Secret(project_id=other_project.id, label="other-creds", provider=SecretProviderType.K8S)
+        other_secret = Secret(label="other-creds", provider=SecretProviderType.K8S)
         other_secret.add()
         other_repository = TriggerRepository(
             uri="github.com/org/other", provider="github", api_uri="https://api.github.com",
@@ -191,8 +191,6 @@ class TestPostRepository:
         assert response.status_code == 400
 
     def test_create_same_uri_in_another_project(self, client, post_json_admin_header, repository, other_project):
-        secret = Secret(project_id=other_project.id, label="test-creds", provider=SecretProviderType.K8S)
-        secret.add()
         body = {**REPO_FIELDS, "uri": repository.uri, "project_id": other_project.id}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
         assert response.status_code == 201
@@ -247,7 +245,7 @@ class TestPostRepository:
         assert response.json["provider"] == "github"
         assert response.json["api_uri"] == "https://api.github.com"
         assert response.json["secret"]["label"] == "test-creds"
-        assert response.json["secret"]["key"] == f"{response.json['project_id']}-test-creds"
+        assert response.json["secret"]["key"] == "fn-secret-test-creds"
         assert "secret_label" not in response.json
 
     @pytest.mark.parametrize("field", ["provider", "secret_label"])
@@ -306,24 +304,10 @@ class TestPatchRepository:
         assert repository.provider == "github"
 
     def test_update_to_another_secret(self, client, post_json_admin_header, repository):
-        Secret(project_id=repository.project_id, label="other-creds", provider=SecretProviderType.K8S).add()
+        Secret(label="other-creds", provider=SecretProviderType.K8S).add()
         response = self.patch(client, post_json_admin_header, repository, {"secret_label": "other-creds"})
         assert response.status_code == 200
         assert response.json["secret"]["label"] == "other-creds"
-
-    def test_update_to_another_projects_secret_fails(self, client, post_json_admin_header, repository, other_project):
-        Secret(project_id=other_project.id, label="foreign-creds", provider=SecretProviderType.K8S).add()
-        response = self.patch(client, post_json_admin_header, repository, {"secret_label": "foreign-creds"})
-        assert response.status_code == 400
-        assert "does not exist" in response.json["error"]
-        assert repository.secret.label == "test-creds"
-
-    def test_create_with_another_projects_secret_fails(self, client, post_json_admin_header, repo_post_body, other_project):
-        Secret(project_id=other_project.id, label="foreign-creds", provider=SecretProviderType.K8S).add()
-        repo_post_body["secret_label"] = "foreign-creds"
-        response = client.post("/trigger_repositories/", data=json.dumps(repo_post_body), headers=post_json_admin_header)
-        assert response.status_code == 400
-        assert "does not exist" in response.json["error"]
 
     def test_update_to_a_missing_secret_fails(self, client, post_json_admin_header, repository):
         response = self.patch(client, post_json_admin_header, repository, {"secret_label": "missing"})
@@ -660,15 +644,6 @@ class TestRepositoryDelete:
     def test_delete_not_found(self, client, simple_admin_header):
         assert client.delete("/trigger_repositories/9999", headers=simple_admin_header).status_code == 404
 
-    def test_the_database_rejects_a_secret_of_another_project(self, repository, other_project):
-        foreign = Secret(project_id=other_project.id, label="foreign", provider=SecretProviderType.K8S)
-        foreign.add()
-        repository.secret_id = foreign.id
-        with pytest.raises(IntegrityError):
-            repository.add()
-        db.session.rollback()
-
-
 class TestTriggerRepositoryDTO:
     def test_contains_dataset_id(self, repository):
         """
@@ -891,7 +866,7 @@ class TestPostPullRequestTask:
     def test_dataset_override_in_other_project_fails(
             self, client, post_json_admin_header, repository, pull_request, other_project, user_uuid
         ):
-        other_secret = Secret(project_id=other_project.id, label="test-creds", provider=SecretProviderType.K8S)
+        other_secret = Secret(label="other-test-creds", provider=SecretProviderType.K8S)
         other_secret.add()
         other_ds = Dataset(
             name="OtherDs", host="example.com", port=5432, secret_id=other_secret.id, project_id=other_project.id

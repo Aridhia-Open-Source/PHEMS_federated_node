@@ -10,6 +10,7 @@ from app.helpers.base_model import db
 from app.models.project import Project
 from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.results_repository import ResultsRepository
+from app.models.secret import Secret
 from app.models.task_status import TaskStatus
 from app.models.trigger_repository import TriggerRepository
 
@@ -444,25 +445,30 @@ class TestDeleteProject:
     def delete(self, client, headers, project):
         return client.delete(f"/projects/{project.id}", headers=headers)
 
-    @pytest.mark.skip(reason="moonshot stage 1 replaces this")
     def test_deletes_everything_under_the_project(
         self, client, k8s_client, simple_admin_header, full_project, secret
     ):
         from app.models.dataset import Dataset
-        from app.models.secret import Secret
         from app.models.task import Task
         from app.models.trigger import Trigger
-        key, namespace = secret.key, secret.namespace
         project_id = full_project.id
 
         response = self.delete(client, simple_admin_header, full_project)
 
         assert response.status_code == HTTPStatus.NO_CONTENT
         assert Project.query.filter_by(id=project_id).count() == 0
-        for model in (Task, Dataset, TriggerRepository, ResultsRepository, Secret):
+        for model in (Task, Dataset, TriggerRepository, ResultsRepository):
             assert model.query.filter_by(project_id=project_id).count() == 0
         assert Trigger.query.filter_by(project_id=project_id).count() == 0
-        k8s_client["delete_namespaced_secret_mock"].assert_called_once_with(key, namespace)
+
+    def test_secrets_and_their_values_are_left_alone(
+        self, client, k8s_client, simple_admin_header, full_project, secret
+    ):
+        response = self.delete(client, simple_admin_header, full_project)
+
+        assert response.status_code == HTTPStatus.NO_CONTENT
+        assert Secret.query.filter_by(id=secret.id).count() == 1
+        k8s_client["delete_namespaced_secret_mock"].assert_not_called()
 
     def test_other_projects_are_untouched(self, client, k8s_client, simple_admin_header, full_project, other_project):
         self.delete(client, simple_admin_header, full_project)
@@ -473,25 +479,6 @@ class TestDeleteProject:
 
     def test_requires_auth(self, client, project):
         assert client.delete(f"/projects/{project.id}").status_code == 401
-
-    @pytest.mark.skip(reason="moonshot stage 1 replaces this")
-    def test_a_missing_cluster_secret_is_fine(self, client, k8s_client, simple_admin_header, full_project):
-        k8s_client["delete_namespaced_secret_mock"].side_effect = ApiException(status=404)
-        assert self.delete(client, simple_admin_header, full_project).status_code == HTTPStatus.NO_CONTENT
-
-    @pytest.mark.skip(reason="moonshot stage 1 replaces this")
-    def test_a_failed_secret_delete_keeps_the_project_and_can_be_retried(
-        self, client, k8s_client, simple_admin_header, full_project
-    ):
-        mock = k8s_client["delete_namespaced_secret_mock"]
-        mock.side_effect = ApiException(status=500)
-        response = self.delete(client, simple_admin_header, full_project)
-        assert response.status_code == HTTPStatus.BAD_REQUEST
-        assert Project.query.filter_by(id=full_project.id).count() == 1
-
-        mock.side_effect = None
-        assert self.delete(client, simple_admin_header, full_project).status_code == HTTPStatus.NO_CONTENT
-        assert Project.query.filter_by(id=full_project.id).count() == 0
 
     def test_deletes_a_project_with_pull_requests(
         self, client, k8s_client, simple_admin_header, full_project, default_repo

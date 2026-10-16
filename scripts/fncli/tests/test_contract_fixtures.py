@@ -64,10 +64,9 @@ def test_task_spec_has_the_dataset_id():
     assert Task(**load("pull_request_task")).spec.dataset_id == 1
 
 
-@pytest.mark.xfail(strict=True, reason="ADR 0019 stage 1")
 def test_a_global_secret_parses():
     """A global secret has no project: fncli reads only key, namespace and provider."""
     secret = load("secret")
-    del secret["project_id"], secret["label"]
 
+    assert "project_id" not in secret
     Secret(**secret)

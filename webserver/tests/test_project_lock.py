@@ -32,7 +32,7 @@ def results_repo(client, project, secret):
 @pytest.fixture
 def spare_secret(client, project):
     """A secret no repository or dataset uses, so it can be deleted."""
-    secret = Secret(project_id=project.id, label="spare-creds", provider=SecretProviderType.K8S)
+    secret = Secret(label="spare-creds", provider=SecretProviderType.K8S)
     secret.add()
     return secret
 
@@ -60,14 +60,12 @@ GUARDED = {
     "delete_results_repo": lambda c, h, i: c.delete(f"/results_repositories/{i.results_repo}", headers=h),
     "patch_dataset": lambda c, h, i: c.patch(f"/datasets/{i.dataset}", json={"host": "other.example.com"}, headers=h),
     "delete_dataset": lambda c, h, i: c.delete(f"/datasets/{i.dataset}", headers=h),
-    "delete_secret": lambda c, h, i: c.delete(f"/projects/{i.project}/secrets/{i.spare_secret}", headers=h),
 }
 SUCCESS_CODES = {
     "patch_project": HTTPStatus.OK, "delete_project": HTTPStatus.NO_CONTENT,
     "patch_trigger_repo": HTTPStatus.OK, "delete_trigger_repo": HTTPStatus.NO_CONTENT,
     "patch_results_repo": HTTPStatus.OK, "delete_results_repo": HTTPStatus.NO_CONTENT,
     "patch_dataset": HTTPStatus.ACCEPTED, "delete_dataset": HTTPStatus.NO_CONTENT,
-    "delete_secret": HTTPStatus.NO_CONTENT,
 }
 
 
@@ -221,14 +219,14 @@ class TestCredentialRotationIsExempt:
 
     def test_secret_values(self, client, post_json_admin_header, ids, busy):
         response = client.patch(
-            f"/projects/{ids.project}/secrets/{ids.secret}",
+            f"/secrets/{ids.secret}",
             data=json.dumps({"values": {"TOKEN": "rotated"}}), headers=post_json_admin_header
         )
         assert response.status_code == HTTPStatus.OK
 
     def test_secret_values_while_unlocked(self, client, post_json_admin_header, ids):
         response = client.patch(
-            f"/projects/{ids.project}/secrets/{ids.secret}",
+            f"/secrets/{ids.secret}",
             data=json.dumps({"values": {"TOKEN": "rotated"}}), headers=post_json_admin_header
         )
         assert response.status_code == HTTPStatus.OK
@@ -277,7 +275,7 @@ class TestCreatingChildren:
         lock(project)
         make_task(status=TaskStatus.RUNNING.value)
         response = client.post(
-            f"/projects/{project.id}/secrets",
+            "/secrets",
             data=json.dumps({"provider": "K8S", "label": "new-creds", "values": {"TOKEN": "t"}}),
             headers=post_json_admin_header
         )

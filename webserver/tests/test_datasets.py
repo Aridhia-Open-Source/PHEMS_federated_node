@@ -43,9 +43,8 @@ class MixinTestDataset:
         A dataset references its credentials secret by name, so it has to exist first
         """
         name = data_body.get("secret_label")
-        project_id = data_body.get("project_id")
-        if name and not Secret.query.filter_by(project_id=project_id, label=name).one_or_none():
-            Secret(project_id=project_id, label=name, provider=SecretProviderType.K8S).add()
+        if name and not Secret.query.filter_by(label=name).one_or_none():
+            Secret(label=name, provider=SecretProviderType.K8S).add()
 
     def post_dataset(
             self,
@@ -84,7 +83,6 @@ class TestDatasets(MixinTestDataset):
             "project_id": dataset.project_id,
             "secret": {
                 "id": dataset.secret.id,
-                "project_id": dataset.project_id,
                 "label": dataset.secret.label,
                 "description": None,
                 "provider": "K8S",
@@ -132,7 +130,7 @@ class TestDatasets(MixinTestDataset):
             dataset,
             other_project
         ):
-        other_secret = Secret(project_id=other_project.id, label="other-creds", provider=SecretProviderType.K8S)
+        other_secret = Secret(label="other-creds", provider=SecretProviderType.K8S)
         other_secret.add()
         other_dataset = Dataset(
             name="OtherDs", host="example.com", secret_id=other_secret.id, project_id=other_project.id

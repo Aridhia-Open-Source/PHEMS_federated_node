@@ -30,8 +30,8 @@ fncli logs in first with `POST /login` on the backend, then makes its backend ca
   - Backend: `GET /projects`, then `POST /projects` if the test project is missing.
   - Gitea: creates the trigger repo and the results repo if they don't exist.
   - Gitea: issues a token for each repo (`POST /users/{user}/tokens`).
-  - Backend: stores each token as a project secret (`POST /projects/{id}/secrets`, or `PATCH /projects/{id}/secrets/{label}` if it exists).
-  - Backend: stores dummy dataset credentials as a project secret (same call).
+  - Backend: stores each token as a secret (`POST /secrets`, or `PATCH /secrets/{label}` if it exists).
+  - Backend: stores dummy dataset credentials as a secret (same call).
   - K8s: reads the secret back to check it holds the new token.
   - Backend: registers the trigger repo (`POST /trigger_repositories`).
   - Backend: registers the results repo (`POST /results_repositories`).
@@ -42,7 +42,7 @@ fncli logs in first with `POST /login` on the backend, then makes its backend ca
 Optional, to set up one side only:
 
 - `fncli setup-backend`: backend calls only (project, placeholder secrets, trigger repo, results repo, dataset). No Gitea, so the secrets hold placeholders.
-- `fncli setup-gitea`: Gitea calls only (repos and tokens), plus `PATCH /projects/{id}/secrets/{label}` on the backend to store the tokens. Takes `--project`.
+- `fncli setup-gitea`: Gitea calls only (repos and tokens), plus `PATCH /secrets/{label}` on the backend to store the tokens. Takes `--project`.
 
 ### 2. Start the sensors
 
@@ -98,7 +98,7 @@ Optional, a read-only report on the project:
   - Prints one line per check (`ok`, `FAIL` or `SKIP`) and a summary. Exits 1 if any check fails.
   - Backend: `POST /login`, `GET /projects`.
   - Backend: `GET /projects/{id}/healthcheck`, which reaches each trigger repo and the results repo with its stored token. Each repo gets a line with its status and latency.
-  - Backend: `GET /datasets`, `GET /datasets/{id}` and `GET /projects/{id}/secrets`, for the dataset the healthcheck leaves out.
+  - Backend: `GET /datasets`, `GET /datasets/{id}` and `GET /secrets/{label}`, for the dataset the healthcheck leaves out.
   - Creates and changes nothing.
 
 Optional, check that every merged PR of the trigger repo ran in Dagster and the backend agrees:
@@ -123,7 +123,7 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
 
 - `fncli teardown-project -y`
   - Backend: `DELETE /projects/{id}`, which also removes the tasks, datasets, repos and secrets under it.
-  - Backend: the per-record deletes that follow (`DELETE /datasets/{id}`, `DELETE /trigger_repositories/{id}`, `DELETE /results_repositories/{id}`, `DELETE /projects/{id}/secrets/{label}`) find the record already gone and skip it.
+  - Backend: the per-record deletes that follow (`DELETE /datasets/{id}`, `DELETE /trigger_repositories/{id}`, `DELETE /results_repositories/{id}`, `DELETE /secrets/{label}`) find the record already gone and skip it.
   - Gitea: deletes the tokens (`DELETE users/{user}/tokens/{name}`).
   - Gitea: deletes both repos (`DELETE repos/{user}/{name}`).
   - Does not prompt, because of `-y`.

@@ -245,8 +245,8 @@ def other_project(client) -> Project:
 
 # The secret the dataset and repository fixtures reference. sample_ds_body names it too.
 @fixture
-def secret(client, project) -> Secret:
-    secret = Secret(project_id=project.id, label="test-creds", provider=SecretProviderType.K8S)
+def secret(client) -> Secret:
+    secret = Secret(label="test-creds", provider=SecretProviderType.K8S)
     secret.add()
     return secret
 
