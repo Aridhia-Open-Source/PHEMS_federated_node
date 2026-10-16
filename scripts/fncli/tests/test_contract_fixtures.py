@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from fncli.dagster.models import (
-    Dataset, Project, PullRequestResult, PullRequestTrigger, ResultsRepository, Secret, Task,
+    Dataset, Project, ProjectDataset, PullRequestResult, PullRequestTrigger, ResultsRepository, Secret, Task,
     TriggerRepository,
 )
 
@@ -29,6 +29,7 @@ def items_of(name: str) -> list[dict]:
     ("trigger_repositories_list", TriggerRepository),
     ("results_repositories_by_project", ResultsRepository),
     ("datasets_page", Dataset),
+    ("project_datasets", ProjectDataset),
     ("projects_page", Project),
     ("pull_requests_batch", PullRequestTrigger),
     ("pull_requests_page", PullRequestTrigger),

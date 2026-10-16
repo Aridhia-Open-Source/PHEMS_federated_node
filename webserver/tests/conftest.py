@@ -15,6 +15,7 @@ from app.models.dataset import Dataset
 from app.models.extras.catalogue import Catalogue
 from app.models.extras.dictionary import Dictionary
 from app.models.project import Project
+from app.models.project_dataset import ProjectDataset
 from app.models.task import Task
 from app.models.extras.dar import DAR
 from app.models.trigger_repository import TriggerRepository
@@ -255,8 +256,9 @@ def secret(client) -> Secret:
 @fixture
 def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> TriggerRepository:
     # Create a dataset first (required for TriggerRepository)
-    dataset = Dataset(name="DefaultDatasetForRepo", host="example.com", port=5432, secret_id=secret.id, project_id=project.id)
+    dataset = Dataset(name="DefaultDatasetForRepo", host="example.com", port=5432, secret_id=secret.id)
     dataset.add(user_id=user_uuid)
+    ProjectDataset(project.id, dataset.id).add()
 
     repo = TriggerRepository(
         uri=sample_repo_uri, provider="github", api_uri="https://api.github.com",
@@ -269,15 +271,14 @@ def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret)
 # Dataset Mocking
 @fixture()
 def dataset_post_body(default_repo, project):
-    body = deepcopy(sample_ds_body)
-    body["project_id"] = project.id
-    return body
+    return deepcopy(sample_ds_body)
 
 
 @fixture
 def dataset(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> Dataset:
-    dataset = Dataset(name="TestDs", host="example.com", port=5432, secret_id=secret.id, project_id=project.id)
+    dataset = Dataset(name="TestDs", host="example.com", port=5432, secret_id=secret.id)
     dataset.add(user_id=user_uuid)
+    ProjectDataset(project.id, dataset.id).add()
     return dataset
 
 
@@ -285,8 +286,9 @@ def dataset(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> D
 def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> Dataset:
     from app.models.trigger_repository import TriggerRepository
     # Create dataset first
-    dataset = Dataset(name="TestDsRepo", host="example.com", port=5432, secret_id=secret.id, project_id=project.id)
+    dataset = Dataset(name="TestDsRepo", host="example.com", port=5432, secret_id=secret.id)
     dataset.add(user_id=user_uuid)
+    ProjectDataset(project.id, dataset.id).add()
 
     # Then create repository with the dataset_id
     repo = TriggerRepository(
@@ -301,8 +303,9 @@ def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, se
 @fixture
 def dataset_oracle(mocker, client, user_uuid, k8s_client, project, secret)  -> Dataset:
     mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
-    dataset = Dataset(name="AnotherDS", host="example.com", port=5432, secret_id=secret.id, type="oracle", project_id=project.id)
+    dataset = Dataset(name="AnotherDS", host="example.com", port=5432, secret_id=secret.id, type="oracle")
     dataset.add(user_id=user_uuid)
+    ProjectDataset(project.id, dataset.id).add()
     return dataset
 
 
@@ -328,10 +331,11 @@ def dar_user():
 
 
 @fixture
-def access_request(dataset, user_uuid, k8s_client):
+def access_request(project, dataset, user_uuid, k8s_client):
     request = DAR(
         title="TestRequest",
         project_name="example.com",
+        project_id=project.id,
         requested_by=user_uuid,
         dataset=dataset,
         proj_start=dt.now().date().strftime("%Y-%m-%d"),
@@ -342,11 +346,12 @@ def access_request(dataset, user_uuid, k8s_client):
 
 
 @fixture
-def request_base_body(dataset):
+def request_base_body(project, dataset):
     return {
         "title": "TestRequest",
         "dataset_id": dataset.id,
         "project_name": "project1",
+        "project_id": project.id,
         "requested_by": { "email": "test@test.com" },
         "description": "First task ever!",
         "proj_start": dt.now().date().strftime("%Y-%m-%d"),
@@ -355,11 +360,12 @@ def request_base_body(dataset):
 
 
 @fixture
-def request_base_body_name(dataset):
+def request_base_body_name(project, dataset):
     return {
         "title": "Test Task",
         "dataset_name": dataset.name,
         "project_name": "project1",
+        "project_id": project.id,
         "requested_by": { "email": "test@test.com" },
         "description": "First task ever!",
         "proj_start": dt.now().date().strftime("%Y-%m-%d"),

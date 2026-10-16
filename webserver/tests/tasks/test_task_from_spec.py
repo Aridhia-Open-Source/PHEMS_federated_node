@@ -4,10 +4,12 @@ import pytest
 
 from app.dtos.task import NewTaskDTO
 from app.dtos.task_spec import TaskSpecRequest
+from app.helpers.base_model import db
 from app.helpers.const import SPEC_RAW_MAX_BYTES, TASK_NAME_MAX_LENGTH
 from app.helpers.exceptions import InvalidRequest
 from app.models.api_request_trigger import ApiRequestTrigger
 from app.models.dataset import Dataset
+from app.models.project_dataset import ProjectDataset
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 from app.models.pull_request_trigger import PullRequestTrigger
@@ -39,8 +41,9 @@ def pull_request(client, project, dataset, default_repo):
 
 @pytest.fixture
 def second_dataset(client, user_uuid, project, secret):
-    ds = Dataset(name="SecondDs", host="example.com", port=5432, secret_id=secret.id, project_id=project.id)
+    ds = Dataset(name="SecondDs", host="example.com", port=5432, secret_id=secret.id)
     ds.add(user_id=user_uuid)
+    ProjectDataset(project.id, ds.id).add()
     return ds
 
 
@@ -48,8 +51,9 @@ def second_dataset(client, user_uuid, project, secret):
 def other_project_dataset(client, user_uuid, other_project):
     secret = Secret(label="other-test-creds", provider=SecretProviderType.K8S)
     secret.add()
-    ds = Dataset(name="OtherDs", host="example.com", port=5432, secret_id=secret.id, project_id=other_project.id)
+    ds = Dataset(name="OtherDs", host="example.com", port=5432, secret_id=secret.id)
     ds.add(user_id=user_uuid)
+    ProjectDataset(other_project.id, ds.id).add()
     return ds
 
 
@@ -84,9 +88,22 @@ class TestNewTaskDTOFromSpec:
         with pytest.raises(InvalidRequest, match="does not belong to project"):
             NewTaskDTO.from_spec(TaskSpecRequest(**SPEC, dataset=other_project_dataset.name), api_request)
 
+    def test_inactive_dataset_override_fails(self, api_request, second_dataset, project):
+        assignment = ProjectDataset.query.filter_by(project_id=project.id, dataset_id=second_dataset.id).one()
+        assignment.revoked = True
+        db.session.commit()
+        with pytest.raises(InvalidRequest, match="is not active in project"):
+            NewTaskDTO.from_spec(TaskSpecRequest(**SPEC, dataset=second_dataset.name), api_request)
+
+    def test_disabled_default_dataset_fails(self, api_request, dataset, project):
+        assignment = ProjectDataset.query.filter_by(project_id=project.id, dataset_id=dataset.id).one()
+        assignment.enabled = False
+        db.session.commit()
+        with pytest.raises(InvalidRequest, match="is not active in project"):
+            NewTaskDTO.from_spec(TaskSpecRequest(**SPEC), api_request)
+
     def test_no_dataset_and_no_default_is_allowed(self, api_request, project):
         project.default_dataset_id = None
-        project.default_dataset = None
         assert NewTaskDTO.from_spec(TaskSpecRequest(**SPEC), api_request).spec["dataset_id"] is None
 
 

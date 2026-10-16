@@ -27,7 +27,7 @@ def test_init_backend_dataset_registers_the_configured_dataset(monkeypatch):
 
     init_backend_dataset(uc1_config(monkeypatch), backend_api, project)
 
-    assert backend_api.get_or_create_dataset.call_args.args == ("cdm", 7)
+    assert backend_api.get_or_create_dataset.call_args.args == ("cdm",)
     assert backend_api.get_or_create_dataset.call_args.kwargs == {
         "host": "db-datasets-uc1.fn.svc",
         "port": 5433,
@@ -36,6 +36,9 @@ def test_init_backend_dataset_registers_the_configured_dataset(monkeypatch):
         "read_schema": "omop",
         "write_schema": "omop_results",
     }
+    backend_api.get_or_assign_dataset.assert_called_once_with(
+        7, backend_api.get_or_create_dataset.return_value
+    )
 
 
 def test_init_dataset_secret_stores_the_configured_credentials(monkeypatch):

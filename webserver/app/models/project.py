@@ -23,21 +23,24 @@ class Project(db.Model, BaseModel):
     # While locked, ingest and evaluation skip the project and API tasks are rejected, so
     # its configuration can change once what is in flight has drained.
     locked = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
-    default_dataset_id = sa.Column(
-        sa.Integer,
-        sa.ForeignKey('datasets.id', ondelete='SET NULL', use_alter=True,
-                      name='fk_projects_default_dataset'),
-        nullable=True,
-    )
+    # Tied to the project's own assignment by the composite foreign key below, so a default
+    # can only be a dataset the project has been assigned.
+    default_dataset_id = sa.Column(sa.Integer, nullable=True)
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
 
-    datasets = relationship(
-        "Dataset", back_populates="project", foreign_keys="Dataset.project_id"
+    __table_args__ = (
+        # use_alter: project_datasets references projects too, so this constraint is added
+        # once both tables exist. Nothing is written to the column by the unit of work.
+        sa.ForeignKeyConstraint(
+            ['id', 'default_dataset_id'], ['project_datasets.project_id', 'project_datasets.dataset_id'],
+            name='fk_projects_default_dataset', use_alter=True
+        ),
     )
-    # post_update: projects and datasets reference each other, so this column is set in
-    # its own UPDATE rather than by the unit of work ordering the two tables.
-    default_dataset = relationship("Dataset", foreign_keys=[default_dataset_id], post_update=True)
+
+    dataset_assignments = relationship(
+        "ProjectDataset", back_populates="project", foreign_keys="ProjectDataset.project_id"
+    )
     trigger_repositories = relationship("TriggerRepository", back_populates="project")
     # The foreign keys of these three are ON DELETE CASCADE, so the database removes the
     # rows and the ORM must neither select them nor null their NOT NULL project_id.
@@ -86,19 +89,38 @@ class Project(db.Model, BaseModel):
         """
         return self.results_repositories[0] if self.results_repositories else None
 
+    @property
+    def datasets(self) -> list:
+        """The datasets assigned to the project, active or not."""
+        return [assignment.dataset for assignment in self.dataset_assignments]
+
+    @property
+    def default_dataset(self):
+        return None if self.default_dataset_id is None else db.session.get(
+            Models.Dataset, self.default_dataset_id
+        )
+
     def resolve_dataset(self, name: str | None):
         """
-        The dataset a task in this project runs against: the one named, which has to belong
-        to the project, otherwise the project's default. A task may have none.
+        The dataset a task in this project runs against: the one named, which the project has
+        to be assigned and active, otherwise the project's default, which has to be active
+        too. A task may have none.
         """
         if name:
-            dataset = Models.Dataset.query.filter(
-                Models.Dataset.project_id == self.id, Models.Dataset.name == name.lower()
+            assignment = Models.ProjectDataset.query.join(Models.Dataset).filter(
+                Models.ProjectDataset.project_id == self.id, Models.Dataset.name == name.lower()
             ).one_or_none()
-            if dataset is None:
+            if assignment is None:
                 raise InvalidRequest(f"Dataset {name} does not belong to project {self.name}")
-            return dataset
-        return self.default_dataset
+        elif self.default_dataset_id is None:
+            return None
+        else:
+            assignment = Models.ProjectDataset.query.filter_by(
+                project_id=self.id, dataset_id=self.default_dataset_id
+            ).one()
+        if not assignment.active:
+            raise InvalidRequest(f"Dataset {assignment.dataset.name} is not active in project {self.name}")
+        return assignment.dataset
 
     def __repr__(self):
         return f'<Project {self.name}>'

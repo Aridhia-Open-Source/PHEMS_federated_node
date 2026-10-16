@@ -67,7 +67,6 @@ def upgrade() -> None:
     op.create_table(
         'datasets',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('project_id', sa.Integer(), nullable=False),
         sa.Column('secret_id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('host', sa.String(length=256), nullable=False),
@@ -78,10 +77,23 @@ def upgrade() -> None:
         sa.Column('extra_connection_args', sa.String(length=4096), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('name'),
+    )
+
+    # Create project_datasets table (a project's grant of a global dataset)
+    op.create_table(
+        'project_datasets',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('project_id', sa.Integer(), nullable=False),
+        sa.Column('dataset_id', sa.Integer(), nullable=False),
+        sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column('revoked', sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
+        sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='RESTRICT'),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('project_id', 'dataset_id', name='uq_project_datasets_project_dataset'),
     )
 
     # Create trigger_repositories table
@@ -212,7 +224,7 @@ def upgrade() -> None:
         sa.Column('image', sa.String(length=256), nullable=False),
         sa.Column('dataset_id', sa.Integer(), nullable=True),
         sa.Column('env', sa.JSON(), nullable=False, server_default='{}'),
-        sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
     )
 
@@ -234,7 +246,7 @@ def upgrade() -> None:
         sa.Column('params', sa.JSON(), nullable=False, server_default='{}'),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
-        sa.ForeignKeyConstraint(['task_spec_id'], ['task_specs.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['task_spec_id'], ['task_specs.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['trigger_id'], ['triggers.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
@@ -333,13 +345,14 @@ def upgrade() -> None:
         sa.UniqueConstraint('table_name', 'dataset_id', 'field_name'),
     )
 
-    # Add the circular FK from projects to datasets, as the model declares it
-    op.create_foreign_key('fk_projects_default_dataset', 'projects', 'datasets',
-                          ['default_dataset_id'], ['id'], ondelete='SET NULL')
+    # Add the FK from projects to the project's own assignment, as the model declares it:
+    # the default dataset has to be one the project is assigned
+    op.create_foreign_key('fk_projects_default_dataset', 'projects', 'project_datasets',
+                          ['id', 'default_dataset_id'], ['project_id', 'dataset_id'])
 
 
 def downgrade() -> None:
-    # The projects <-> datasets cycle first, then the tables in reverse order
+    # The projects <-> project_datasets cycle first, then the tables in reverse order
     op.drop_constraint('fk_projects_default_dataset', 'projects', type_='foreignkey')
     op.drop_table('dictionaries')
     op.drop_table('catalogues')
@@ -357,6 +370,7 @@ def downgrade() -> None:
     op.drop_table('dars')
     op.drop_table('results_repositories')
     op.drop_table('trigger_repositories')
+    op.drop_table('project_datasets')
     op.drop_table('datasets')
     op.drop_table('secrets')
     sa.Enum(name='secretprovidertype').drop(op.get_bind())

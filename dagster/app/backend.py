@@ -3,7 +3,7 @@ from http import HTTPStatus
 
 from app.utils import BackendSession
 from app.models import (
-    TriggerRepository, PullRequestTrigger, Project, ResultsRepository, Task, PullRequestResult, Dataset
+    TriggerRepository, PullRequestTrigger, Project, ResultsRepository, Task, PullRequestResult, Dataset, ProjectDataset
 )
 
 default_logger = logging.getLogger(__name__)
@@ -233,7 +233,6 @@ class BackendAPI:
 
     def create_dataset(
         self,
-        project_id: int,
         name: str,
         host: str,
         port: int,
@@ -242,10 +241,9 @@ class BackendAPI:
         read_schema: str | None = None,
         write_schema: str | None = None,
     ) -> Dataset:
-        """Create a dataset. secret_label names an existing secret of the project."""
+        """Create a global dataset. secret_label names an existing secret."""
         self.logger.info(f"Creating dataset {name}")
         data = {
-            "project_id": project_id,
             "name": name,
             "host": host,
             "port": port,
@@ -270,6 +268,15 @@ class BackendAPI:
         self.logger.info(f"Fetching dataset {dataset_id}")
         response = self.session.get(f"/datasets/{dataset_id}")
         return Dataset(**response.json())
+
+    def get_project_dataset(self, project_id: int, dataset_id: int) -> ProjectDataset:
+        """The project's assignment of a dataset, active or not"""
+        self.logger.info(f"Fetching dataset {dataset_id} of project {project_id}")
+        response = self.session.get(f"/projects/{project_id}/datasets")
+        for assignment in response.json():
+            if assignment["dataset"]["id"] == dataset_id:
+                return ProjectDataset(**assignment)
+        raise LookupError(f"Dataset {dataset_id} is not assigned to project {project_id}")
 
     def delete_dataset(self, dataset_id: int) -> None:
         """Delete a dataset"""

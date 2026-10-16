@@ -24,7 +24,6 @@ SAMPLE_SECRET = {
 
 SAMPLE_DATASET = {
     "id": 1,
-    "project_id": 1,
     "secret": SAMPLE_SECRET,
     "name": "cdm",
     "host": "db.host",

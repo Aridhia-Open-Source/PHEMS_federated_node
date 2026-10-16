@@ -25,14 +25,30 @@ class TaskLauncherSensor(BaseSensor):
         launched = 0
         for project in projects:
             for task in self.backend_api.get_tasks(status=TaskStatus.PENDING.value, project_id=project.id):
-                yield self._launch(project, task)
+                run_request = self._launch(project, task)
+                if run_request is None:
+                    continue
+                yield run_request
                 launched += 1
 
         if not launched:
             yield dg.SkipReason("No pending tasks found.")
 
-    def _launch(self, project: Project, task: Task) -> dg.RunRequest:
-        dataset = self.backend_api.get_dataset(task.spec.dataset_id) if task.spec.dataset_id else None
+    def _launch(self, project: Project, task: Task) -> dg.RunRequest | None:
+        """
+        The run for the task, or None while its dataset is not active in the project: the task
+        stays PENDING and is tried again on the next tick. Recording the failure is stage 6.
+        """
+        dataset = None
+        if task.spec.dataset_id:
+            assignment = self.backend_api.get_project_dataset(project.id, task.spec.dataset_id)
+            if not assignment.active:
+                self.log.warning(
+                    f"Task {task.id} not launched: dataset {assignment.dataset.name} is not active "
+                    f"in project {project.name}"
+                )
+                return None
+            dataset = assignment.dataset
         return dg.RunRequest(
             run_key=f"task/{task.id}/{task.attempt}",
             tags={

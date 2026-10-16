@@ -34,7 +34,6 @@ def body(project, secret):
         "secret_label": secret.label,
         "read_schema": "cdm",
         "write_schema": "results",
-        "project_id": project.id,
     }
 
 

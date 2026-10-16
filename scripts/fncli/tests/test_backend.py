@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from fncli.dagster.backend import BackendAPI
+from fncli.dagster.models import Dataset
 
 SECRET = {"id": 3, "project_id": 1, "label": "l", "provider": "K8S", "key": "k", "namespace": "fn"}
 REPO = {
@@ -11,7 +12,7 @@ REPO = {
     "pr_cursor": "2026-01-01T00:00:00Z",
 }
 DATASET = {
-    "id": 1, "project_id": 1, "secret": SECRET, "name": "cdm", "host": "db", "port": 5432,
+    "id": 1, "secret": SECRET, "name": "cdm", "host": "db", "port": 5432,
     "type": "postgres", "slug": "cdm", "url": "https://db/cdm",
 }
 
@@ -37,15 +38,43 @@ def test_create_dataset_body(api, session):
     session.post.return_value = response(DATASET)
 
     api.create_dataset(
-        project_id=1, name="cdm", host="db", port=5432, db_type="postgres",
+        name="cdm", host="db", port=5432, db_type="postgres",
         secret_label="creds", read_schema="cdm",
     )
 
     assert session.post.call_args.args == ("/datasets",)
     assert session.post.call_args.kwargs["json"] == {
-        "project_id": 1, "name": "cdm", "host": "db", "port": 5432, "type": "postgres",
+        "name": "cdm", "host": "db", "port": 5432, "type": "postgres",
         "secret_label": "creds", "read_schema": "cdm", "write_schema": None,
     }
+
+
+ASSIGNMENT = {"id": 5, "project_id": 7, "dataset": DATASET, "enabled": True, "revoked": False, "active": True}
+
+
+class TestProjectDatasets:
+    def test_find_project_dataset_by_name_is_case_insensitive(self, api, session):
+        session.get.return_value = response([ASSIGNMENT])
+
+        assert api.find_project_dataset("CDM", 7).id == 5
+        assert api.find_project_dataset("other", 7) is None
+        assert session.get.call_args.args == ("/projects/7/datasets",)
+
+    def test_get_or_assign_reuses_an_existing_assignment(self, api, session):
+        session.get.return_value = response([ASSIGNMENT])
+        dataset = api.find_project_dataset("cdm", 7).dataset
+
+        assert api.get_or_assign_dataset(7, dataset).id == 5
+        session.post.assert_not_called()
+
+    def test_get_or_assign_assigns_when_missing(self, api, session):
+        session.get.return_value = response([])
+        session.post.return_value = response(ASSIGNMENT)
+        dataset = Dataset(**DATASET)
+
+        assert api.get_or_assign_dataset(7, dataset).project_id == 7
+        assert session.post.call_args.args == ("/projects/7/datasets",)
+        assert session.post.call_args.kwargs["json"] == {"dataset_id": 1}
 
 
 class TestGetOrCreateRepository:

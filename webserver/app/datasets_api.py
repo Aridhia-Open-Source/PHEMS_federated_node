@@ -1,5 +1,8 @@
 """
-datasets-related endpoints:
+datasets-related endpoints. Datasets are global: a project reaches one through its
+assignment, see projects_api (/projects/<id>/datasets). Creating, editing and deleting are
+admin-only, and editing or deleting needs every project the dataset is assigned to locked
+and drained:
 - GET /datasets
 - POST /datasets
 - GET /datasets/id
@@ -17,15 +20,13 @@ from .dtos.base import page_of
 from .dtos.dataset import CatalogueDTO, DatasetDTO, DictionaryDTO
 from .helpers.base_model import db
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from .helpers.query_filters import arg_get
-from .helpers.project_lock import require_drained
+from .helpers.project_lock import require_all_drained
 from .helpers.query_validator import validate
 from .helpers.wrappers import audit, auth
 from .models.dataset import Dataset
 from .models.extras.catalogue import Catalogue
 from .models.secret import Secret
 from .models.extras.dictionary import Dictionary
-from .models.project import Project
 
 
 bp = Blueprint('datasets', __name__, url_prefix='/datasets')
@@ -41,11 +42,18 @@ logger.setLevel(logging.INFO)
 @auth(scope='can_access_dataset')
 def get_datasets():
     """
-    GET /datasets/ endpoint. Returns a list of all datasets, optionally only those of one project (?project_id=<id>)
+    GET /datasets/ endpoint. Returns a list of all datasets
     """
-    project_id = arg_get('project_id', type=int)
-    filters = {} if project_id is None else {"project_id": project_id}
-    return page_of(Dataset.get_all(**filters), DatasetDTO), HTTPStatus.OK
+    return page_of(Dataset.get_all(), DatasetDTO), HTTPStatus.OK
+
+
+def _reject_project(body: dict | None):
+    """A dataset belongs to no project, so naming one is a mistake, not something to ignore."""
+    if body and "project_id" in body:
+        raise InvalidRequest(
+            "project_id is not accepted, datasets are global. Assign one with "
+            "POST /projects/<id>/datasets"
+        )
 
 
 def _reject_credentials(body: dict | None):
@@ -68,15 +76,14 @@ def _resolve_secret(body: dict) -> dict:
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
 @audit
-@auth(scope='can_admin_dataset')
+@auth(scope='can_do_admin', check_dataset=False)
 def post_datasets():
     """
-    POST /datasets/ endpoint. Creates a new dataset
+    POST /datasets/ endpoint. Creates a new global dataset. Admin only
     """
     try:
         _reject_credentials(request.json)
-        if not request.json.get("project_id"):
-            raise InvalidRequest("project_id is required")
+        _reject_project(request.json)
         body = Dataset.validate(_resolve_secret(dict(request.json)))
         cata_body = body.pop("catalogue", {})
         dict_body = body.pop("dictionaries", [])
@@ -126,19 +133,24 @@ def get_datasets_by_id_or_name(
 @bp.route('/<int:dataset_id>', methods=['DELETE'])
 @bp.route('/<dataset_name>', methods=['DELETE'])
 @audit
-@auth(scope='can_admin_dataset')
+@auth(scope='can_do_admin', check_dataset=False)
 def delete_datasets_by_id_or_name(
     dataset_id: int | None = None,
     dataset_name: str | None = None
 ):
     """
-    DELETE /datasets/id endpoint. Deletes the dataset. Its k8s secret is left alone: it
-        has its own lifecycle (/secrets) and other datasets may share it.
+    DELETE /datasets/id endpoint. Deletes the dataset and its assignments, once every
+        project it is assigned to is locked and drained. Refused while a task ran on it. Its
+        k8s secret is left alone: it has its own lifecycle (/secrets) and other datasets
+        may share it. Admin only.
     """
     logger.error(f"deleting ({dataset_id or dataset_name})")
     ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
-    require_drained(Project.get_by_id(ds.project_id))
+    assignments = list(ds.project_assignments)
+    require_all_drained([a.project for a in assignments])
     try:
+        for assignment in assignments:
+            assignment.delete(False)
         ds.delete()
     except Exception as exc:
         session.rollback()
@@ -149,21 +161,21 @@ def delete_datasets_by_id_or_name(
 @bp.route('/<int:dataset_id>', methods=['PATCH'])
 @bp.route('/<dataset_name>', methods=['PATCH'])
 # @audit
-@auth(scope='can_admin_dataset')
+@auth(scope='can_do_admin', check_dataset=False)
 def patch_datasets_by_id_or_name(
     dataset_id: int | None = None,
     dataset_name: str | None = None
 ):
     """
-    PATCH /datasets/id endpoint. Edits an existing dataset with a given id
+    PATCH /datasets/id endpoint. Edits an existing dataset with a given id, once every
+    project it is assigned to is locked and drained. Admin only.
     """
     ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
 
     # Update validation doesn't have required fields
     body = request.json
-    require_drained(Project.get_by_id(ds.project_id))
-    if "project_id" in body:
-        require_drained(Project.get_by_id(body["project_id"]))
+    _reject_project(body)
+    require_all_drained([a.project for a in ds.project_assignments])
     body.pop("id", None)
     cata_body = body.pop("catalogue", {})
     dict_body = body.pop("dictionaries", [])

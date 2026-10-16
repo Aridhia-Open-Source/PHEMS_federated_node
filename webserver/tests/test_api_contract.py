@@ -25,6 +25,7 @@ import pytest
 
 from app.helpers.base_model import db
 from app.models.dataset import Dataset
+from app.models.project_dataset import ProjectDataset
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
@@ -49,9 +50,12 @@ RESULTS_REPOSITORY = {
     "project_id": int, "owned_by_federated_node": bool,
 }
 DATASET = {
-    "id": int, "project_id": int, "secret": SECRET, "name": str, "host": str, "port": int,
+    "id": int, "secret": SECRET, "name": str, "host": str, "port": int,
     "read_schema": (str, NONE), "write_schema": (str, NONE), "type": str,
     "extra_connection_args": (str, NONE), "created_at": str, "updated_at": str, "slug": str, "url": str,
+}
+PROJECT_DATASET = {
+    "id": int, "project_id": int, "dataset": DATASET, "enabled": bool, "revoked": bool, "active": bool,
 }
 PROJECT = {
     "id": int, "name": str, "description": (str, NONE), "enabled": bool, "locked": bool,
@@ -474,15 +478,11 @@ class TestDatasets:
         assert (response.json["page"], response.json["total"]) == (1, 1)
         contract("datasets_page", response.json)
 
-    def test_filter_by_project(self, client, simple_admin_header, dataset, other_project):
-        assert client.get(f"/datasets?project_id={dataset.project_id}", headers=simple_admin_header).json["total"] == 1
-        assert client.get(f"/datasets?project_id={other_project.id}", headers=simple_admin_header).json["total"] == 0
-
     def test_by_id(self, client, simple_admin_header, dataset, contract):
         response = client.get(f"/datasets/{dataset.id}", headers=simple_admin_header)
         assert response.status_code == HTTPStatus.OK
         assert_shape(response.json, DATASET)
-        assert (response.json["id"], response.json["project_id"]) == (dataset.id, dataset.project_id)
+        assert response.json["id"] == dataset.id
         contract("dataset", response.json)
 
     def test_by_name(self, client, simple_admin_header, dataset):
@@ -491,13 +491,23 @@ class TestDatasets:
         assert_shape(response.json, DATASET)
         assert response.json["id"] == dataset.id
 
-    @pytest.mark.xfail(strict=True, reason="ADR 0019 stage 2")
-    def test_target_project_assignments(self, client, simple_admin_header, dataset):
-        response = client.get(f"/projects/{dataset.project_id}/datasets", headers=simple_admin_header)
+    def test_project_assignments(self, client, simple_admin_header, project, dataset, contract):
+        response = client.get(f"/projects/{project.id}/datasets", headers=simple_admin_header)
         assert response.status_code == HTTPStatus.OK
+        assert_shape(response.json, [PROJECT_DATASET])
         [assignment] = response.json
-        assert set(assignment) >= {"id", "project_id", "enabled", "revoked", "active", "dataset"}
+        assert (assignment["project_id"], assignment["enabled"], assignment["revoked"], assignment["active"]) == (
+            project.id, True, False, True
+        )
         assert assignment["dataset"]["id"] == dataset.id
+        contract("project_datasets", response.json)
+
+    def test_assignment_by_id(self, client, simple_admin_header, project, dataset):
+        [assignment] = client.get(f"/projects/{project.id}/datasets", headers=simple_admin_header).json
+        response = client.get(f"/projects/{project.id}/datasets/{assignment['id']}", headers=simple_admin_header)
+        assert response.status_code == HTTPStatus.OK
+        assert_shape(response.json, PROJECT_DATASET)
+        assert response.json == assignment
 
 
 class TestProjects:
@@ -587,9 +597,10 @@ class TestTasks:
         other_secret = Secret(label="other-test-creds", provider=SecretProviderType.K8S)
         other_secret.add()
         other_dataset = Dataset(
-            name="OtherDs", host="example.com", port=5432, secret_id=other_secret.id, project_id=other_project.id
+            name="OtherDs", host="example.com", port=5432, secret_id=other_secret.id
         )
         other_dataset.add(user_id=user_uuid)
+        ProjectDataset(other_project.id, other_dataset.id).add()
 
         response = client.post(
             f"/trigger_repositories/{repo.id}/pull_requests/1/task",

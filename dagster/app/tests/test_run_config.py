@@ -3,7 +3,6 @@ from app.models import Dataset, TaskSpec
 
 DATASET = Dataset(
     id=1,
-    project_id=1,
     secret={
         "id": 3, "project_id": 1, "label": "cdm-creds", "provider": "K8S",
         "key": "cdm-creds-abc", "namespace": "fn",

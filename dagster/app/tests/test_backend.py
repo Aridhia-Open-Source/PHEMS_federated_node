@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.backend import BackendAPI
-from app.models import Dataset, PullRequestResultStep, PullRequestTrigger, TriggerRepository
+from app.models import Dataset, ProjectDataset, PullRequestResultStep, PullRequestTrigger, TriggerRepository
 from app.tests.conftest import SAMPLE_SECRET, SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, make_response
 
 
@@ -184,6 +184,24 @@ class TestDatasets:
         assert api.get_dataset(1).name == "cdm"
         session.get.assert_called_once_with("/datasets/1")
 
+    def test_get_project_dataset_finds_the_assignment_by_dataset_id(self, api, session):
+        assignment = {
+            "id": 3, "project_id": 1, "dataset": SAMPLE_DATASET, "enabled": True, "revoked": False, "active": True
+        }
+        other = {**assignment, "id": 4, "dataset": {**SAMPLE_DATASET, "id": 2, "name": "other"}}
+        session.get.return_value = make_response([other, assignment])
+
+        found = api.get_project_dataset(1, 1)
+
+        assert isinstance(found, ProjectDataset) and found.id == 3
+        session.get.assert_called_once_with("/projects/1/datasets")
+
+    def test_get_project_dataset_raises_when_not_assigned(self, api, session):
+        session.get.return_value = make_response([])
+
+        with pytest.raises(LookupError):
+            api.get_project_dataset(1, 1)
+
     def test_get_dataset_by_name_swallows_failures(self, api, session):
         session.get.side_effect = RuntimeError("404")
 
@@ -193,13 +211,13 @@ class TestDatasets:
         session.post.return_value = make_response(SAMPLE_DATASET)
 
         api.create_dataset(
-            project_id=1, name="cdm", host="db.host", port=5432, db_type="postgres",
+            name="cdm", host="db.host", port=5432, db_type="postgres",
             secret_label="cdm-creds", read_schema="cdm",
         )
 
         assert session.post.call_args.args == ("/datasets",)
         assert session.post.call_args.kwargs["json"] == {
-            "project_id": 1, "name": "cdm", "host": "db.host", "port": 5432, "type": "postgres",
+            "name": "cdm", "host": "db.host", "port": 5432, "type": "postgres",
             "secret_label": "cdm-creds", "read_schema": "cdm", "write_schema": None,
         }
 

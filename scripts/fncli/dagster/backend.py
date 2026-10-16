@@ -2,7 +2,7 @@ import logging
 
 from fncli.dagster.git_uri import normalise_repo_uri
 from fncli.dagster.utils import BackendSession
-from fncli.dagster.models import Dataset, Project, PullRequestResult, PullRequestTrigger, ResultsRepository, Task, TriggerRepository
+from fncli.dagster.models import Dataset, Project, ProjectDataset, PullRequestResult, PullRequestTrigger, ResultsRepository, Task, TriggerRepository
 
 default_logger = logging.getLogger(__name__)
 
@@ -145,7 +145,6 @@ class BackendAPI:
 
     def create_dataset(
         self,
-        project_id: int,
         name: str,
         host: str,
         port: int,
@@ -154,10 +153,9 @@ class BackendAPI:
         read_schema: str | None = None,
         write_schema: str | None = None,
     ) -> Dataset:
-        """Create a dataset. secret_label names an existing secret of the project."""
+        """Create a global dataset. secret_label names an existing secret."""
         self.logger.info(f"Creating dataset {name}")
         data = {
-            "project_id": project_id,
             "name": name,
             "host": host,
             "port": port,
@@ -185,20 +183,42 @@ class BackendAPI:
         self.logger.info("Fetching datasets")
         return [Dataset(**ds) for ds in self._get_all_pages("/datasets")]
 
-    def find_dataset(self, name: str, project_id: int) -> Dataset | None:
-        """The project's dataset of that name, if any"""
+    def find_dataset(self, name: str) -> Dataset | None:
+        """The global dataset of that name, if any"""
         for dataset in self.get_datasets():
-            if dataset.project_id == project_id and dataset.name.lower() == name.lower():
+            if dataset.name.lower() == name.lower():
                 return dataset
         return None
 
-    def get_or_create_dataset(self, name: str, project_id: int, **kwargs) -> Dataset:
-        """Reuse the project's dataset of that name if there is one, else create it from kwargs"""
-        dataset = self.find_dataset(name, project_id)
+    def get_or_create_dataset(self, name: str, **kwargs) -> Dataset:
+        """Reuse the dataset of that name if there is one, else create it from kwargs"""
+        dataset = self.find_dataset(name)
         if dataset:
             self.logger.info(f"Reusing existing dataset {name} ({dataset.id})")
             return dataset
-        return self.create_dataset(project_id=project_id, name=name, **kwargs)
+        return self.create_dataset(name=name, **kwargs)
+
+    def get_project_datasets(self, project_id: int) -> list[ProjectDataset]:
+        """The project's dataset assignments, inactive ones included"""
+        self.logger.info(f"Fetching datasets of project {project_id}")
+        return [ProjectDataset(**a) for a in self.session.get(f"/projects/{project_id}/datasets").json()]
+
+    def find_project_dataset(self, name: str, project_id: int) -> ProjectDataset | None:
+        """The project's assignment of the dataset of that name, if any"""
+        for assignment in self.get_project_datasets(project_id):
+            if assignment.dataset.name.lower() == name.lower():
+                return assignment
+        return None
+
+    def get_or_assign_dataset(self, project_id: int, dataset: Dataset) -> ProjectDataset:
+        """Reuse the project's assignment of the dataset if there is one, else assign it"""
+        assignment = self.find_project_dataset(dataset.name, project_id)
+        if assignment:
+            self.logger.info(f"Reusing existing assignment {assignment.id} of dataset {dataset.name}")
+            return assignment
+        self.logger.info(f"Assigning dataset {dataset.name} to project {project_id}")
+        response = self.session.post(f"/projects/{project_id}/datasets", json={"dataset_id": dataset.id})
+        return ProjectDataset(**response.json())
 
     def get_dataset(self, dataset_id: int) -> Dataset:
         """Get single dataset"""

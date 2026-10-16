@@ -23,6 +23,11 @@ class ModelRegistry:
         return Dataset
 
     @cached_property
+    def ProjectDataset(self):
+        from app.models.project_dataset import ProjectDataset
+        return ProjectDataset
+
+    @cached_property
     def Dictionary(self):
         from app.models.extras.dictionary import Dictionary
         return Dictionary
@@ -130,6 +135,7 @@ _ = (
     Models.Audit,
     Models.Catalogue,
     Models.Dataset,
+    Models.ProjectDataset,
     Models.Dictionary,
     Models.Project,
     Models.PullRequestTrigger,

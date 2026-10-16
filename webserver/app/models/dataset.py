@@ -12,7 +12,7 @@ from app.helpers.const import DEFAULT_NAMESPACE, PUBLIC_URL
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.keycloak import Keycloak
 from app.helpers.kubernetes import KubernetesClient
-from app.models import Models, sqla_column
+from app.models import sqla_column
 
 logger = logging.getLogger("dataset_model")
 logger.setLevel(logging.INFO)
@@ -24,9 +24,6 @@ class Dataset(db.Model, BaseModel):
     __tablename__ = 'datasets'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    project_id = sa.Column(
-        sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False
-    )
     # The secret holding the database credentials (USERNAME and PASSWORD).
     secret_id = sa.Column(
         sa.Integer, sa.ForeignKey('secrets.id', ondelete='RESTRICT'), nullable=False
@@ -43,9 +40,7 @@ class Dataset(db.Model, BaseModel):
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
 
-    project = relationship(
-        "Project", back_populates="datasets", foreign_keys=[project_id]
-    )
+    project_assignments = relationship("ProjectDataset", back_populates="dataset")
     secret = relationship("Secret", back_populates="datasets")
 
     def __init__(
@@ -58,7 +53,6 @@ class Dataset(db.Model, BaseModel):
         write_schema: str | None = None,
         type: str = "postgres",
         extra_connection_args: str | None = None,
-        project_id: int | None = None,
         **kwargs
     ):
         self.name = urllib.parse.unquote(name).lower()
@@ -71,7 +65,6 @@ class Dataset(db.Model, BaseModel):
         self.type = type
         self.secret_id = secret_id
         self.extra_connection_args = extra_connection_args
-        self.project_id = project_id
 
         if self.type.lower() not in SUPPORTED_ENGINES:
             raise InvalidRequest(f"DB type {self.type} is not supported.")
@@ -81,12 +74,6 @@ class Dataset(db.Model, BaseModel):
 
     def add(self, commit=True, user_id=None):
         super().add(commit)
-        # First dataset into a project becomes what a task gets when it names only the
-        # project. Later ones do not displace it.
-        project = Models.Project.get_by_id(self.project_id)
-        if project.default_dataset_id is None:
-            project.default_dataset_id = self.id
-            project.add(commit)
         # TODO: Keycloak registration for datasets is detached for now. Re-attach
         # self.add_to_keycloak(user_id) when the Keycloak/authorization rework lands.
         return self

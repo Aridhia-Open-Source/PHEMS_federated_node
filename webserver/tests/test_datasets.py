@@ -11,6 +11,7 @@ from app.helpers.base_model import db
 from app.helpers.exceptions import KeycloakError
 from app.helpers.kubernetes import KubernetesClient
 from app.models.dataset import Dataset
+from app.models.project_dataset import ProjectDataset
 from app.models.extras.catalogue import Catalogue
 from app.models.extras.dictionary import Dictionary
 from app.models.extras.dar import DAR
@@ -80,7 +81,6 @@ class TestDatasets(MixinTestDataset):
             "read_schema": None,
             "write_schema": None,
             "extra_connection_args": None,
-            "project_id": dataset.project_id,
             "secret": {
                 "id": dataset.secret.id,
                 "label": dataset.secret.label,
@@ -122,32 +122,17 @@ class TestDatasets(MixinTestDataset):
         assert response.status_code == 200
         assert response.json == self.expected_ds_entry(dataset)
 
-    @pytest.mark.skip(reason="moonshot stage 2 replaces this")
-    def test_get_all_datasets_filtered_by_project(
+    def test_get_all_datasets_is_not_filtered_by_project(
             self,
             simple_admin_header,
             client,
             dataset,
             other_project
         ):
-        other_secret = Secret(label="other-creds", provider=SecretProviderType.K8S)
-        other_secret.add()
-        other_dataset = Dataset(
-            name="OtherDs", host="example.com", secret_id=other_secret.id, project_id=other_project.id
-        )
-        other_dataset.add(user_id="user")
-
-        response = client.get(f"/datasets/?project_id={dataset.project_id}", headers=simple_admin_header)
+        """Datasets are global: every one is listed whatever its assignments, no project filter"""
+        response = client.get(f"/datasets/?project_id={other_project.id}", headers=simple_admin_header)
         assert response.status_code == 200
         assert [item["id"] for item in response.json["items"]] == [dataset.id]
-
-        response = client.get(f"/datasets/?project_id={other_project.id}", headers=simple_admin_header)
-        assert [item["id"] for item in response.json["items"]] == [other_dataset.id]
-
-    def test_get_all_datasets_invalid_project_id(self, simple_admin_header, client, dataset):
-        response = client.get("/datasets/?project_id=abc", headers=simple_admin_header)
-        assert response.status_code == 400
-        assert "project_id" in response.json["error"]
 
     def test_get_all_datasets_no_token(
             self,
@@ -405,7 +390,6 @@ class TestPostDataset(MixinTestDataset):
             "secret": new_ds["secret"],
             "extra_connection_args": None,
             "url": f"https://{os.getenv("PUBLIC_URL")}/datasets/test-dataset",
-            "project_id": new_ds["project_id"],
             "created_at": new_ds["created_at"],
             "updated_at": new_ds["updated_at"]
         }
@@ -967,3 +951,150 @@ class TestDeleteDataset(MixinTestDataset):
             headers=post_json_user_header
         )
         assert response.status_code == 403
+
+
+class TestGlobalDatasetEdits(MixinTestDataset):
+    """A global dataset can be edited or deleted only once every project using it is drained"""
+
+    def test_post_dataset_rejects_project_id(
+            self, post_json_admin_header, client, project, dataset_post_body
+        ):
+        data_body = {**dataset_post_body, "name": "WithProject", "project_id": project.id}
+        response = client.post("/datasets", data=json.dumps(data_body), headers=post_json_admin_header)
+        assert response.status_code == 400
+        assert "project_id" in response.json["error"]
+        self.assert_datasets_by_name("WithProject", count=0)
+
+    def test_post_dataset_assigns_nothing(self, post_json_admin_header, client, project, dataset_post_body):
+        data_body = {**dataset_post_body, "name": "Unassigned"}
+        created = self.post_dataset(client, post_json_admin_header, data_body)
+        assert "project_id" not in created
+        assert ProjectDataset.query.filter_by(dataset_id=created["id"]).count() == 0
+
+    def test_patch_rejects_project_id(self, post_json_admin_header, client, dataset, lock_project):
+        response = client.patch(
+            f"/datasets/{dataset.id}", json={"project_id": 1}, headers=post_json_admin_header
+        )
+        assert response.status_code == 400
+
+    def test_patch_needs_every_assigned_project_locked(
+            self, post_json_admin_header, client, dataset, lock_project, other_project
+        ):
+        ProjectDataset(other_project.id, dataset.id).add()
+        response = client.patch(f"/datasets/{dataset.id}", json={"host": "new"}, headers=post_json_admin_header)
+        assert response.status_code == 409
+        assert Dataset.query.get(dataset.id).host == "example.com"
+
+        other_project.locked = True
+        db.session.commit()
+        response = client.patch(f"/datasets/{dataset.id}", json={"host": "new"}, headers=post_json_admin_header)
+        assert response.status_code == 202
+        assert Dataset.query.get(dataset.id).host == "new"
+
+    def test_delete_needs_every_assigned_project_drained(
+            self, post_json_admin_header, client, dataset, lock_project, other_project, make_task
+        ):
+        ProjectDataset(other_project.id, dataset.id).add()
+        other_project.locked = True
+        make_task(project=other_project)
+        db.session.commit()
+
+        response = client.delete(f"/datasets/{dataset.id}", headers=post_json_admin_header)
+        assert response.status_code == 409
+        assert Dataset.query.filter_by(id=dataset.id).count() == 1
+
+    def test_delete_removes_the_assignments_and_clears_the_default(
+            self, post_json_admin_header, client, dataset, lock_project, project
+        ):
+        assert project.default_dataset_id == dataset.id
+        response = client.delete(f"/datasets/{dataset.id}", headers=post_json_admin_header)
+        assert response.status_code == 204
+        assert ProjectDataset.query.count() == 0
+        assert db.session.get(type(project), project.id).default_dataset_id is None
+
+
+class TestProjectDatasets(MixinTestDataset):
+    """The assignment endpoints, /projects/<id>/datasets"""
+
+    def url(self, project, *rest):
+        return "/".join([f"/projects/{project.id}/datasets", *map(str, rest)])
+
+    def test_list_returns_inactive_assignments_with_flags(
+            self, simple_admin_header, post_json_admin_header, client, project, dataset
+        ):
+        assignment = ProjectDataset.query.filter_by(dataset_id=dataset.id).one()
+        assignment.revoked = True
+        db.session.commit()
+
+        response = client.get(self.url(project), headers=simple_admin_header)
+        assert response.status_code == 200
+        [item] = response.json
+        assert (item["id"], item["project_id"]) == (assignment.id, project.id)
+        assert (item["enabled"], item["revoked"], item["active"]) == (True, True, False)
+        assert item["dataset"]["id"] == dataset.id
+
+    def test_assign_makes_the_first_the_default(
+            self, simple_admin_header, post_json_admin_header, client, project, secret
+        ):
+        first = Dataset(name="First", host="h", port=1, secret_id=secret.id)
+        second = Dataset(name="Second", host="h", port=1, secret_id=secret.id)
+        first.add()
+        second.add()
+        for ds in (second, first):
+            response = client.post(self.url(project), json={"dataset_id": ds.id}, headers=post_json_admin_header)
+            assert response.status_code == 201
+            assert response.json["active"] is True
+        assert db.session.get(type(project), project.id).default_dataset_id == second.id
+
+    def test_assign_twice_is_a_conflict(self, post_json_admin_header, client, project, dataset):
+        response = client.post(self.url(project), json={"dataset_id": dataset.id}, headers=post_json_admin_header)
+        assert response.status_code == 409
+
+    def test_assign_unknown_dataset(self, post_json_admin_header, client, project):
+        response = client.post(self.url(project), json={"dataset_id": 9999}, headers=post_json_admin_header)
+        assert response.status_code == 404
+
+    def test_get_by_assignment_id(self, simple_admin_header, client, project, other_project, dataset):
+        assignment = ProjectDataset.query.filter_by(dataset_id=dataset.id).one()
+        assert client.get(self.url(project, assignment.id), headers=simple_admin_header).json["id"] == assignment.id
+        assert client.get(self.url(other_project, assignment.id), headers=simple_admin_header).status_code == 404
+
+    def test_enable_needs_the_project_locked(self, post_json_admin_header, client, project, dataset):
+        assignment = ProjectDataset.query.filter_by(dataset_id=dataset.id).one()
+        response = client.patch(self.url(project, assignment.id), json={"enabled": False}, headers=post_json_admin_header)
+        assert response.status_code == 409
+
+        project.locked = True
+        db.session.commit()
+        response = client.patch(self.url(project, assignment.id), json={"enabled": False}, headers=post_json_admin_header)
+        assert response.status_code == 200
+        assert (response.json["enabled"], response.json["active"]) == (False, False)
+
+    def test_revoke_is_immediate_and_leaves_enabled(self, post_json_admin_header, client, project, dataset, make_task):
+        make_task(project=project)
+        assignment = ProjectDataset.query.filter_by(dataset_id=dataset.id).one()
+        response = client.patch(self.url(project, assignment.id), json={"revoked": True}, headers=post_json_admin_header)
+        assert response.status_code == 200
+        assert (response.json["enabled"], response.json["revoked"], response.json["active"]) == (True, True, False)
+
+        response = client.patch(self.url(project, assignment.id), json={"revoked": False}, headers=post_json_admin_header)
+        assert response.json["active"] is True
+
+    def test_patch_rejects_other_fields(self, post_json_admin_header, client, project, dataset):
+        assignment = ProjectDataset.query.filter_by(dataset_id=dataset.id).one()
+        response = client.patch(self.url(project, assignment.id), json={"project_id": 2}, headers=post_json_admin_header)
+        assert response.status_code == 400
+
+    def test_unassign_keeps_the_dataset_and_clears_the_default(
+            self, post_json_admin_header, client, project, dataset, lock_project
+        ):
+        assignment = ProjectDataset.query.filter_by(dataset_id=dataset.id).one()
+        response = client.delete(self.url(project, assignment.id), headers=post_json_admin_header)
+        assert response.status_code == 204
+        assert Dataset.query.filter_by(id=dataset.id).count() == 1
+        assert db.session.get(type(project), project.id).default_dataset_id is None
+
+    def test_unassign_needs_the_project_locked(self, post_json_admin_header, client, project, dataset):
+        assignment = ProjectDataset.query.filter_by(dataset_id=dataset.id).one()
+        response = client.delete(self.url(project, assignment.id), headers=post_json_admin_header)
+        assert response.status_code == 409

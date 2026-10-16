@@ -10,6 +10,7 @@ from app.models.trigger_repository import TriggerRepository
 from app.helpers.base_model import db
 from app.models.dataset import Dataset
 from app.models.project import Project
+from app.models.project_dataset import ProjectDataset
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 
@@ -20,8 +21,9 @@ REPO_FIELDS = {"provider": "github", "api_uri": "https://api.github.com", "secre
 @pytest.fixture
 def test_dataset(client, user_uuid, k8s_client, mock_kc_client, project, secret):
     """Create a test dataset for repository tests"""
-    dataset = Dataset(name="TestDatasetForRepo", host="example.com", port=5432, secret_id=secret.id, project_id=project.id)
+    dataset = Dataset(name="TestDatasetForRepo", host="example.com", port=5432, secret_id=secret.id)
     dataset.add(user_id=user_uuid)
+    ProjectDataset(project.id, dataset.id).add()
     return dataset
 
 
@@ -29,7 +31,7 @@ def test_dataset(client, user_uuid, k8s_client, mock_kc_client, project, secret)
 def repository(client, test_dataset, secret):
     repo = TriggerRepository(
         uri="github.com/org/repo", provider="github", api_uri="https://api.github.com",
-        secret_id=secret.id, watch_dir="", project_id=test_dataset.project_id
+        secret_id=secret.id, watch_dir="", project_id=test_dataset.project_assignments[0].project_id
     )
     repo.add()
     return repo
@@ -37,7 +39,7 @@ def repository(client, test_dataset, secret):
 
 @pytest.fixture
 def repo_post_body(test_dataset):
-    return {**REPO_FIELDS, "uri": "github.com/org/another-repo", "project_id": test_dataset.project_id}
+    return {**REPO_FIELDS, "uri": "github.com/org/another-repo", "project_id": test_dataset.project_assignments[0].project_id}
 
 
 class TestGetRepositories:
@@ -139,14 +141,14 @@ class TestPostRepository:
         assert response.json["api_uri"] == "https://gitea.fn.svc:4000/api/v1"
 
     def test_create_with_custom_base_branch(self, client, post_json_admin_header, test_dataset):
-        body = {**REPO_FIELDS, "uri": "github.com/org/repo", "base_branch": "develop", "project_id": test_dataset.project_id}
+        body = {**REPO_FIELDS, "uri": "github.com/org/repo", "base_branch": "develop", "project_id": test_dataset.project_assignments[0].project_id}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
         assert response.status_code == 201
         assert response.json["base_branch"] == "develop"
         assert response.json["dataset_id"] == test_dataset.id
 
     def test_create_normalises_uri(self, client, post_json_admin_header, test_dataset):
-        body = {**REPO_FIELDS, "uri": "GitHub.com/Org/Repo/", "project_id": test_dataset.project_id}
+        body = {**REPO_FIELDS, "uri": "GitHub.com/Org/Repo/", "project_id": test_dataset.project_assignments[0].project_id}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
         assert response.status_code == 201
         assert response.json["uri"] == "github.com/org/repo"
@@ -154,7 +156,7 @@ class TestPostRepository:
 
     @pytest.mark.parametrize("uri", ["github.com/org", "ssh://github.com/org/repo", "https://u:p@github.com/org/repo"])
     def test_create_rejects_an_unparsable_uri(self, client, post_json_admin_header, test_dataset, uri):
-        body = {**REPO_FIELDS, "uri": uri, "project_id": test_dataset.project_id}
+        body = {**REPO_FIELDS, "uri": uri, "project_id": test_dataset.project_assignments[0].project_id}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
         assert response.status_code == 400
         assert "Invalid repository uri" in response.json["error"]
@@ -175,7 +177,7 @@ class TestPostRepository:
         assert response.json["api_uri"] == "http://gitea.fn.svc:4000/api/v1"
 
     def test_create_strips_the_git_suffix(self, client, post_json_admin_header, test_dataset):
-        body = {**REPO_FIELDS, "uri": "https://github.com/Org/Repo.git", "project_id": test_dataset.project_id}
+        body = {**REPO_FIELDS, "uri": "https://github.com/Org/Repo.git", "project_id": test_dataset.project_assignments[0].project_id}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
         assert response.status_code == 201
         assert response.json["uri"] == "github.com/org/repo"
@@ -220,7 +222,7 @@ class TestPostRepository:
             duplicate.add()
 
     def test_create_missing_uri_fails(self, client, post_json_admin_header, test_dataset):
-        response = client.post("/trigger_repositories/", data=json.dumps({"project_id": test_dataset.project_id}), headers=post_json_admin_header)
+        response = client.post("/trigger_repositories/", data=json.dumps({"project_id": test_dataset.project_assignments[0].project_id}), headers=post_json_admin_header)
         assert response.status_code == 400
 
     def test_create_missing_project_id_fails(self, client, post_json_admin_header):
@@ -233,7 +235,7 @@ class TestPostRepository:
         assert response.status_code == 404
 
     def test_create_includes_dataset_id_in_response(self, client, post_json_admin_header, test_dataset):
-        body = {**REPO_FIELDS, "uri": "github.com/org/test-repo", "project_id": test_dataset.project_id}
+        body = {**REPO_FIELDS, "uri": "github.com/org/test-repo", "project_id": test_dataset.project_assignments[0].project_id}
         response = client.post("/trigger_repositories/", data=json.dumps(body), headers=post_json_admin_header)
         assert response.status_code == 201
         assert "dataset_id" in response.json
@@ -262,7 +264,7 @@ class TestPostRepository:
         assert "provider must be one of" in response.json["error"]
 
     def test_requires_auth(self, client, test_dataset):
-        response = client.post("/trigger_repositories/", data=json.dumps({"uri": "x", "project_id": test_dataset.project_id}))
+        response = client.post("/trigger_repositories/", data=json.dumps({"uri": "x", "project_id": test_dataset.project_assignments[0].project_id}))
         assert response.status_code == 401
 
 
@@ -375,7 +377,7 @@ class TestInitialCursor:
         """initial_cursor should be set to current time when creating a repository"""
         response = client.post(
             "/trigger_repositories/",
-            data=json.dumps({**REPO_FIELDS, "uri": "github.com/org/test-repo", "project_id": test_dataset.project_id}),
+            data=json.dumps({**REPO_FIELDS, "uri": "github.com/org/test-repo", "project_id": test_dataset.project_assignments[0].project_id}),
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -387,7 +389,7 @@ class TestInitialCursor:
         custom_cursor = "2026-01-01T00:00:00"
         response = client.post(
             "/trigger_repositories/",
-            data=json.dumps({**REPO_FIELDS, "uri": "github.com/org/test-repo", "project_id": test_dataset.project_id, "initial_cursor": custom_cursor}),
+            data=json.dumps({**REPO_FIELDS, "uri": "github.com/org/test-repo", "project_id": test_dataset.project_assignments[0].project_id, "initial_cursor": custom_cursor}),
             headers=post_json_admin_header
         )
         assert response.status_code == 201
@@ -869,9 +871,10 @@ class TestPostPullRequestTask:
         other_secret = Secret(label="other-test-creds", provider=SecretProviderType.K8S)
         other_secret.add()
         other_ds = Dataset(
-            name="OtherDs", host="example.com", port=5432, secret_id=other_secret.id, project_id=other_project.id
+            name="OtherDs", host="example.com", port=5432, secret_id=other_secret.id
         )
         other_ds.add(user_id=user_uuid)
+        ProjectDataset(other_project.id, other_ds.id).add()
         spec_raw = spec_file(image="example:latest", dataset=other_ds.name)
         response = self.post(client, post_json_admin_header, repository, pull_request, spec_raw)
         assert response.status_code == 400

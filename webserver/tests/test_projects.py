@@ -5,12 +5,17 @@ from datetime import datetime, timezone
 from unittest.mock import ANY, Mock
 
 from kubernetes.client.exceptions import ApiException
+from sqlalchemy.exc import IntegrityError
 
 from app.helpers.base_model import db
+from app.helpers.exceptions import InvalidRequest
+from app.models.dataset import Dataset
 from app.models.project import Project
+from app.models.project_dataset import ProjectDataset
 from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
+from app.models.task import Task
 from app.models.task_status import TaskStatus
 from app.models.trigger_repository import TriggerRepository
 
@@ -143,42 +148,71 @@ class TestPatchProject:
 
 class TestProjectDefaultDataset:
     """
-    The seed creates a project, creates a dataset in it, and on a re-run deletes the
-    dataset and creates another. The default has to survive that.
+    The default is tied to the project's own assignment by a composite foreign key: the
+    project has to be assigned a dataset for it to be the default.
     """
 
-    def test_first_dataset_becomes_the_default(self, client, project, dataset):
-        assert project.default_dataset_id == dataset.id
+    def assignment(self, project, dataset):
+        return ProjectDataset.query.filter_by(project_id=project.id, dataset_id=dataset.id).one()
 
-    def test_second_dataset_does_not_displace_it(
+    def test_first_assignment_becomes_the_default(self, client, project, dataset):
+        assert project.default_dataset_id == dataset.id
+        assert project.default_dataset == dataset
+
+    def test_second_assignment_does_not_displace_it(
             self, client, project, dataset, user_uuid, k8s_client, mock_kc_client
         ):
-        from app.models.dataset import Dataset
-        second = Dataset(
-            name="SecondDs", host="example.com", port=5432, secret_id=dataset.secret_id,
-            project_id=project.id
-        )
+        second = Dataset(name="SecondDs", host="example.com", port=5432, secret_id=dataset.secret_id)
         second.add(user_id=user_uuid)
+        ProjectDataset(project.id, second.id).add()
         assert project.default_dataset_id == dataset.id
 
-    def test_deleting_the_default_clears_it(self, client, project, dataset):
-        """
-        SET NULL rather than blocking, so re-seeding can drop the dataset and add another.
-        """
-        dataset.delete()
+    def test_the_default_must_be_assigned(
+            self, client, project, dataset, user_uuid, k8s_client, mock_kc_client
+        ):
+        unassigned = Dataset(name="Unassigned", host="example.com", port=5432, secret_id=dataset.secret_id)
+        unassigned.add(user_id=user_uuid)
+        project.default_dataset_id = unassigned.id
+        with pytest.raises(IntegrityError):
+            db.session.commit()
+        db.session.rollback()
+
+    def test_a_default_cannot_be_the_other_projects_dataset(self, client, project, other_project, dataset):
+        other_project.default_dataset_id = dataset.id
+        with pytest.raises(IntegrityError):
+            db.session.commit()
+        db.session.rollback()
+
+    def test_unassigning_the_default_clears_it(self, client, project, dataset):
+        self.assignment(project, dataset).delete()
         assert project.default_dataset_id is None
 
-    def test_reseeding_sets_a_new_default(
+    def test_reassigning_sets_a_new_default(
             self, client, project, dataset, secret, user_uuid, k8s_client, mock_kc_client
         ):
-        from app.models.dataset import Dataset
-        dataset.delete()
-        replacement = Dataset(
-            name="Reseeded", host="example.com", port=5432, secret_id=secret.id,
-            project_id=project.id
-        )
+        self.assignment(project, dataset).delete()
+        replacement = Dataset(name="Reseeded", host="example.com", port=5432, secret_id=secret.id)
         replacement.add(user_id=user_uuid)
+        ProjectDataset(project.id, replacement.id).add()
         assert project.default_dataset_id == replacement.id
+
+    def test_a_revoked_default_is_refused_by_resolve_dataset(self, client, project, dataset):
+        assert project.resolve_dataset(None) == dataset
+        self.assignment(project, dataset).revoked = True
+        db.session.commit()
+        with pytest.raises(InvalidRequest, match="is not active"):
+            project.resolve_dataset(None)
+
+    def test_deleting_a_dataset_does_not_delete_tasks(
+            self, client, project, dataset, make_task, simple_admin_header
+        ):
+        task = make_task(dataset_id=dataset.id, status=TaskStatus.FAILED.value)
+        project.locked = True
+        db.session.commit()
+        response = client.delete(f"/datasets/{dataset.id}", headers=simple_admin_header)
+        assert response.status_code == HTTPStatus.BAD_REQUEST
+        assert Task.query.filter_by(id=task.id).count() == 1
+        assert ProjectDataset.query.filter_by(dataset_id=dataset.id).count() == 1
 
 
 class TestModelRegistry:
@@ -446,10 +480,8 @@ class TestDeleteProject:
         return client.delete(f"/projects/{project.id}", headers=headers)
 
     def test_deletes_everything_under_the_project(
-        self, client, k8s_client, simple_admin_header, full_project, secret
+        self, client, k8s_client, simple_admin_header, full_project, secret, dataset
     ):
-        from app.models.dataset import Dataset
-        from app.models.task import Task
         from app.models.trigger import Trigger
         project_id = full_project.id
 
@@ -457,8 +489,10 @@ class TestDeleteProject:
 
         assert response.status_code == HTTPStatus.NO_CONTENT
         assert Project.query.filter_by(id=project_id).count() == 0
-        for model in (Task, Dataset, TriggerRepository, ResultsRepository):
+        for model in (Task, ProjectDataset, TriggerRepository, ResultsRepository):
             assert model.query.filter_by(project_id=project_id).count() == 0
+        # Datasets are global: only the project's assignment of one goes
+        assert Dataset.query.filter_by(id=dataset.id).count() == 1
         assert Trigger.query.filter_by(project_id=project_id).count() == 0
 
     def test_secrets_and_their_values_are_left_alone(

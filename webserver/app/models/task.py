@@ -32,7 +32,7 @@ class Task(db.Model, BaseModel):
     trigger_id = sa.Column(
         sa.Integer, sa.ForeignKey('triggers.id', ondelete='RESTRICT'), nullable=False, unique=True
     )
-    task_spec_id = sa.Column(sa.Integer, sa.ForeignKey('task_specs.id', ondelete='CASCADE'), nullable=False)
+    task_spec_id = sa.Column(sa.Integer, sa.ForeignKey('task_specs.id', ondelete='RESTRICT'), nullable=False)
 
     name = sa.Column(sa.String(256), nullable=False)
     status = sa.Column(sa.String(256), default=TaskStatus.PENDING.value)
@@ -124,18 +124,13 @@ class Task(db.Model, BaseModel):
         requested_ds = None
         if ds_name or ds_id:
             requested_ds = Models.Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
-            # Two ways of saying the same thing must not be allowed to disagree.
-            if requested_ds.project_id != project.id:
-                raise InvalidRequest(
-                    f"Dataset {requested_ds.name} does not belong to project {project.name}"
-                )
 
-        # The named dataset if the spec has one, and it has already been checked against
-        # the project, otherwise the project's default. A task may have none.
+        # The named dataset if the spec has one, otherwise the project's default. Either has
+        # to be an active assignment of the project. A task may have none.
         # TODO(DAR): DAR checking is disconnected for now. A non-admin caller used to need
         # an active DAR covering the dataset, now they take the same path as admins and
         # repositories. Revisit with the authorization rework.
-        data["dataset"] = requested_ds or project.default_dataset
+        data["dataset"] = project.resolve_dataset(requested_ds.name if requested_ds else None)
 
         # Docker image validation
         Models.WhitelistedImage.validate_image_format(data["docker_image"], data["docker_image"])

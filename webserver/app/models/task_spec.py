@@ -13,7 +13,7 @@ class TaskSpec(db.Model, BaseModel):
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     image = sa.Column(sa.String(TASK_IMAGE_MAX_LENGTH), nullable=False)
-    dataset_id = sa.Column(sa.Integer, sa.ForeignKey('datasets.id', ondelete='CASCADE'), nullable=True)
+    dataset_id = sa.Column(sa.Integer, sa.ForeignKey('datasets.id', ondelete='RESTRICT'), nullable=True)
     env = sa.Column(sa.JSON, nullable=False, server_default='{}')
 
     dataset = relationship("Dataset")

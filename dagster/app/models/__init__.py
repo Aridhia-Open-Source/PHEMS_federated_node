@@ -1,6 +1,6 @@
 """Wire models for the backend API responses this code location consumes."""
 
-from app.models.dataset import Catalogue, Dataset, Dictionary
+from app.models.dataset import Catalogue, Dataset, Dictionary, ProjectDataset
 from app.models.project import Project
 from app.models.pull_request_result import PullRequestResult
 from app.models.pull_request_result_step import PullRequestResultStep
@@ -20,6 +20,7 @@ __all__ = [
     "Dataset",
     "Dictionary",
     "Project",
+    "ProjectDataset",
     "PullRequestResult",
     "PullRequestResultStep",
     "PullRequestTrigger",

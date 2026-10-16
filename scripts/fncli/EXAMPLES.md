@@ -35,7 +35,7 @@ fncli logs in first with `POST /login` on the backend, then makes its backend ca
   - K8s: reads the secret back to check it holds the new token.
   - Backend: registers the trigger repo (`POST /trigger_repositories`).
   - Backend: registers the results repo (`POST /results_repositories`).
-  - Backend: registers the dataset (`POST /datasets`).
+  - Backend: registers the dataset (`POST /datasets`) if it is missing, then assigns it to the project (`POST /projects/{id}/datasets`), which makes it the project's default if it is the first.
   - Gitea: checks each token is accepted.
   - Backend: `GET /projects/{id}/healthcheck`.
 
@@ -98,7 +98,7 @@ Optional, a read-only report on the project:
   - Prints one line per check (`ok`, `FAIL` or `SKIP`) and a summary. Exits 1 if any check fails.
   - Backend: `POST /login`, `GET /projects`.
   - Backend: `GET /projects/{id}/healthcheck`, which reaches each trigger repo and the results repo with its stored token. Each repo gets a line with its status and latency.
-  - Backend: `GET /datasets`, `GET /datasets/{id}` and `GET /secrets/{label}`, for the dataset the healthcheck leaves out.
+  - Backend: `GET /projects/{id}/datasets`, `GET /datasets/{id}` and `GET /secrets/{label}`, for the dataset the healthcheck leaves out.
   - Creates and changes nothing.
 
 Optional, check that every merged PR of the trigger repo ran in Dagster and the backend agrees:
@@ -122,8 +122,8 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
 ### 5. Tear down
 
 - `fncli teardown-project -y`
-  - Backend: `DELETE /projects/{id}`, which also removes the tasks, datasets, repos and secrets under it.
-  - Backend: the per-record deletes that follow (`DELETE /datasets/{id}`, `DELETE /trigger_repositories/{id}`, `DELETE /results_repositories/{id}`, `DELETE /secrets/{label}`) find the record already gone and skip it.
+  - Backend: `DELETE /projects/{id}`, which also removes the tasks, dataset assignments and repos under it. Datasets and secrets are global and stay.
+  - Backend: the per-record deletes that follow (`DELETE /datasets/{id}`, `DELETE /trigger_repositories/{id}`, `DELETE /results_repositories/{id}`, `DELETE /secrets/{label}`) delete what is left (a record already gone is skipped). `DELETE /datasets/{id}` also drops any remaining assignments, and needs each project it is assigned to locked and drained.
   - Gitea: deletes the tokens (`DELETE users/{user}/tokens/{name}`).
   - Gitea: deletes both repos (`DELETE repos/{user}/{name}`).
   - Does not prompt, because of `-y`.

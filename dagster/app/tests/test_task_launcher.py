@@ -3,12 +3,18 @@ from unittest.mock import MagicMock
 from dagster import RunRequest, SkipReason
 
 from app.definitions.sensors.task.launcher import TaskLauncherSensor
-from app.models import Dataset, Project, Task
+from app.models import Dataset, Project, ProjectDataset, Task
 
 DATASET = Dataset(
-    id=7, project_id=1, secret={"id": 3, "project_id": 1, "label": "cdm-creds", "provider": "K8S", "key": "cdm-creds-abc"}, name="cdm", host="db.host", port=5432,
+    id=7, secret={"id": 3, "project_id": 1, "label": "cdm-creds", "provider": "K8S", "key": "cdm-creds-abc"}, name="cdm", host="db.host", port=5432,
     read_schema="cdm", type="postgres", slug="cdm", url="https://db.host/cdm",
 )
+
+
+def assignment(active=True, dataset=DATASET):
+    return ProjectDataset(
+        id=3, project_id=1, dataset=dataset, enabled=active, revoked=False, active=active
+    )
 
 
 def project(id=1, enabled=True):
@@ -26,7 +32,7 @@ def make_backend(projects, tasks_by_project):
     backend_api = MagicMock()
     backend_api.get_projects.return_value = projects
     backend_api.get_tasks.side_effect = lambda status, project_id: tasks_by_project[project_id]
-    backend_api.get_dataset.return_value = DATASET
+    backend_api.get_project_dataset.return_value = assignment()
     return backend_api
 
 
@@ -54,7 +60,7 @@ def test_launches_a_pending_task():
     assert config["docker_image"] == "ghcr.io/o/i:1"
     assert config["env"] == {"K": "v"}
     assert config["dataset"]["name"] == "cdm"
-    backend_api.get_dataset.assert_called_once_with(7)
+    backend_api.get_project_dataset.assert_called_once_with(1, 7)
     backend_api.get_tasks.assert_called_once_with(status="PENDING", project_id=1)
 
 
@@ -67,7 +73,25 @@ def test_a_task_without_a_dataset_is_launched_without_fetching_one():
     config = result[0].run_config["ops"]["k8s_pipes_op"]["config"]
     assert config["docker_image"] == "ghcr.io/o/i:1"
     assert "dataset" not in config
-    backend_api.get_dataset.assert_not_called()
+    backend_api.get_project_dataset.assert_not_called()
+
+
+def test_a_task_whose_dataset_is_not_active_is_not_launched():
+    backend_api = make_backend([project()], {1: [task()]})
+    backend_api.get_project_dataset.return_value = assignment(active=False)
+
+    result = run(backend_api)
+
+    assert len(result) == 1 and isinstance(result[0], SkipReason)
+
+
+def test_other_tasks_are_launched_when_one_dataset_is_not_active():
+    backend_api = make_backend([project()], {1: [task(id=9, dataset_id=7), task(id=10, dataset_id=None)]})
+    backend_api.get_project_dataset.return_value = assignment(active=False)
+
+    result = run(backend_api)
+
+    assert [r.run_key for r in result] == ["task/10/1"]
 
 
 def test_the_run_key_includes_the_attempt():

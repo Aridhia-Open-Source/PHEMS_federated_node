@@ -8,7 +8,6 @@ class Dataset(BaseModel):
     Dataset data from backend API.
 
     - id: the dataset's id.
-    - project_id: the project the dataset belongs to.
     - secret: the secret holding the database credentials (USERNAME and PASSWORD).
     - name: the database name.
     - host: the database host.
@@ -25,7 +24,6 @@ class Dataset(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: int
-    project_id: int
     secret: Secret
     name: str
     host: str
@@ -38,6 +36,27 @@ class Dataset(BaseModel):
     updated_at: str | None = None
     slug: str
     url: str
+
+
+class ProjectDataset(BaseModel):
+    """
+    A project's assignment of a global dataset, from backend API.
+
+    - id: the assignment's id.
+    - project_id: the project the dataset is assigned to.
+    - dataset: the global dataset.
+    - enabled: a person turned the dataset on for the project.
+    - revoked: the controller withdrew the project's access.
+    - active: enabled and not revoked, the only state a task may run in.
+    """
+    model_config = ConfigDict(extra="allow")
+
+    id: int
+    project_id: int
+    dataset: Dataset
+    enabled: bool
+    revoked: bool
+    active: bool
 
 
 class Catalogue(BaseModel):

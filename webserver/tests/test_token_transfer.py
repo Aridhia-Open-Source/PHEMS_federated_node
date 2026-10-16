@@ -247,7 +247,7 @@ class TestTransfers:
             dataset
         ):
         """
-        The project on a DAR comes from its dataset, not from the submitted string.
+        The DAR carries the project it was requested for: a dataset belongs to none.
         """
         response = client.post(
             "/datasets/token_transfer",
@@ -259,7 +259,7 @@ class TestTransfers:
         dar = DAR.query.filter(
             DAR.project_name == request_base_body["project_name"]
         ).one_or_none()
-        assert dar.project_id == dataset.project_id
+        assert dar.project_id == request_base_body["project_id"]
 
     def test_transfer_deleted_if_exception_raised(
             self,

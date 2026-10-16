@@ -2,11 +2,11 @@ from app.dtos.base import DTO, WireDatetime
 from app.helpers.const import PUBLIC_URL
 from app.dtos.secret import SecretDTO
 from app.models.dataset import Dataset
+from app.models.project_dataset import ProjectDataset
 
 
 class DatasetDTO(DTO):
     id: int
-    project_id: int
     secret: SecretDTO
     name: str
     host: str
@@ -25,7 +25,6 @@ class DatasetDTO(DTO):
         slug = obj.slugify_name()
         return cls(
             id=obj.id,
-            project_id=obj.project_id,
             secret=SecretDTO.from_model(obj.secret),
             name=obj.name,
             host=obj.host,
@@ -38,6 +37,27 @@ class DatasetDTO(DTO):
             updated_at=obj.updated_at,
             slug=slug,
             url=f"https://{PUBLIC_URL}/datasets/{slug}",
+        )
+
+
+class ProjectDatasetDTO(DTO):
+    """A project's assignment of a global dataset, the dataset nested."""
+    id: int
+    project_id: int
+    dataset: DatasetDTO
+    enabled: bool
+    revoked: bool
+    active: bool
+
+    @classmethod
+    def from_model(cls, obj: ProjectDataset):
+        return cls(
+            id=obj.id,
+            project_id=obj.project_id,
+            dataset=DatasetDTO.from_model(obj.dataset),
+            enabled=obj.enabled,
+            revoked=obj.revoked,
+            active=obj.active,
         )
 
 

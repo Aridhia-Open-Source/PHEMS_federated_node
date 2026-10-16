@@ -1,6 +1,6 @@
 """Wire models for the backend API responses this code location consumes."""
 
-from fncli.dagster.models.dataset import Catalogue, Dataset, Dictionary
+from fncli.dagster.models.dataset import Catalogue, Dataset, Dictionary, ProjectDataset
 from fncli.dagster.models.project import Project
 from fncli.dagster.models.pull_request_result import PullRequestResult
 from fncli.dagster.models.pull_request_trigger import PullRequestTrigger
@@ -17,6 +17,7 @@ __all__ = [
     "Dataset",
     "Dictionary",
     "Project",
+    "ProjectDataset",
     "PullRequestResult",
     "PullRequestTrigger",
     "ResultsRepository",

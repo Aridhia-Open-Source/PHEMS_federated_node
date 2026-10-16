@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.models.dataset import Dataset
 from app.models.project import Project
+from app.models.project_dataset import ProjectDataset
 from app.models.pull_request_result import PullRequestResult
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
@@ -39,10 +39,10 @@ def spare_secret(client, project):
 
 @pytest.fixture
 def ids(client, k8s_client, audited, project, secret, spare_secret, default_repo, results_repo):
-    dataset = Dataset.query.filter_by(project_id=project.id).one()
+    assignment = ProjectDataset.query.filter_by(project_id=project.id).one()
     return SimpleNamespace(
         project=project.id, trigger_repo=default_repo.id, results_repo=results_repo.id,
-        dataset=dataset.id, secret=secret.label, spare_secret=spare_secret.label,
+        dataset=assignment.dataset_id, assignment=assignment.id, secret=secret.label, spare_secret=spare_secret.label,
     )
 
 
@@ -60,12 +60,17 @@ GUARDED = {
     "delete_results_repo": lambda c, h, i: c.delete(f"/results_repositories/{i.results_repo}", headers=h),
     "patch_dataset": lambda c, h, i: c.patch(f"/datasets/{i.dataset}", json={"host": "other.example.com"}, headers=h),
     "delete_dataset": lambda c, h, i: c.delete(f"/datasets/{i.dataset}", headers=h),
+    "disable_dataset": lambda c, h, i: c.patch(
+        f"/projects/{i.project}/datasets/{i.assignment}", json={"enabled": False}, headers=h
+    ),
+    "unassign_dataset": lambda c, h, i: c.delete(f"/projects/{i.project}/datasets/{i.assignment}", headers=h),
 }
 SUCCESS_CODES = {
     "patch_project": HTTPStatus.OK, "delete_project": HTTPStatus.NO_CONTENT,
     "patch_trigger_repo": HTTPStatus.OK, "delete_trigger_repo": HTTPStatus.NO_CONTENT,
     "patch_results_repo": HTTPStatus.OK, "delete_results_repo": HTTPStatus.NO_CONTENT,
     "patch_dataset": HTTPStatus.ACCEPTED, "delete_dataset": HTTPStatus.NO_CONTENT,
+    "disable_dataset": HTTPStatus.OK, "unassign_dataset": HTTPStatus.NO_CONTENT,
 }
 
 

@@ -143,15 +143,16 @@ def verify_project(report: Report, config: ProjectConfig, dataset_config: Datase
         else:
             record_repo_health(report, "Results", health["results_repository"])
 
-    dataset = report.check(
-        f"Dataset exists: GET /datasets ({dataset_config.dataset_name})",
+    assignment = report.check(
+        f"Dataset assigned: GET /projects/{project.id}/datasets ({dataset_config.dataset_name})",
         lambda: require(
-            backend_api.find_dataset(dataset_config.dataset_name, project.id),
+            backend_api.find_project_dataset(dataset_config.dataset_name, project.id),
             dataset_config.dataset_name,
         ),
-        lambda d: f"id {d.id}",
+        lambda a: f"id {a.dataset.id}, active {a.active}",
     )
-    if dataset is not None:
+    if assignment is not None:
+        dataset = assignment.dataset
         report.check(
             f"Dataset fetch: GET /datasets/{dataset.id}", lambda: backend_api.get_dataset(dataset.id)
         )
