@@ -16,14 +16,14 @@ If the open PRs land on `dagster-develop` first, rebase onto that; the preview b
 
 ## What we are doing
 
-1. **The moonshot** (ADR [0019](../decisions/0019-global-resources-and-shared-pull-requests.md)): make secrets, trigger repositories, results repositories and datasets global, assign them to projects through `project_trigger_repositories`, `project_results_repositories` and `project_datasets`, store pull requests once per repository with per-project fan-out, and give each assignment `enabled` (a person's switch) and `revoked` (access withdrawn). Active means `enabled` and not `revoked`. Revoking never touches `enabled`. Revoking affects only that resource, never the project.
+1. **The moonshot** (ADR [0019](../decisions/0019-global-resources-and-shared-pull-requests.md)): make secrets, trigger repositories, results repositories and datasets global, assign them to projects through `project_trigger_repositories`, `project_results_repositories` and `project_datasets`, store pull requests once per repository (with base branch and changed paths) with per-project fan-out, and give each assignment `enabled` (a person's switch) and `revoked` (access withdrawn). Active means `enabled` and not `revoked`. Revoking never touches `enabled`. Revoking affects only that resource, never the project.
 2. **The Gitea mirror** (ADR [0020](../decisions/0020-gitea-mirror-service.md)): a separate, self-contained service. It mirrors a GitHub repository's merged PRs into the node's Gitea over outbound-only connections and fires signed webhooks at the webserver. **Out of scope for the moonshot.** It depends on moonshot stages 1 to 5 and on a Gitea spike. Do not start it.
 
-The moonshot is **not needed for the beta demo**. It is a branch being built in parallel, to be reviewed and merged after the demo. If it is not green and reviewed by the cut-off, the demo ships on the current design.
+The moonshot is the **current priority**: a one-day attempt, with other work, beta included, parked. The ADR stays Proposed until it is built.
 
 ## Constraints from the owner
 
-- Keep the Dagster sensors' structure as is. The review found they do change a little: DTOs, `active` filtering, and the ingest sensor polling once per global repository. That is accepted. Do not restructure them.
+- No flat compatibility API. The API exposes the real model (global resources, plus `/projects/<id>/...` assignments with the global resource nested) and the Dagster sensors use it directly: ingest polls each global repository once, evaluate and launch loop over active assignments, delivery uses the task's results assignment. The sensors get simpler; the models and endpoints change more.
 - Resource tables keep natural names: `trigger_repositories`, `results_repositories`, `datasets`, `secrets` are global; the project-scoped ones are `project_trigger_repositories`, `project_results_repositories`, `project_datasets`. No clever mixin names.
 - Disabling is per resource and never stops the project.
 - The owner's style: short answers, lead with the answer, no waffle, no padding with hypothetical edge cases. Only raise a problem you can trace to a concrete code path.
@@ -44,8 +44,8 @@ The moonshot is **not needed for the beta demo**. It is a branch being built in 
 ## Suggested first steps
 
 1. Get the webserver tests running and green on this branch.
-2. Write the contract tests from ADR 0019 ("Contract tests to add first") and land them with no behaviour change. They pin the flat API shape, plus a JSON fixture check that the Dagster and fncli models parse the same responses.
-3. Ask the owner to settle the eight "Decisions still needed" in ADR 0019, at least 1 to 5 before stages 5 and 6.
+2. Write the contract tests from ADR 0019 ("Contract tests to add first") and land them with no behaviour change. They pin the endpoints that do not change shape and write the target shapes as `xfail(strict=True)` tests that each stage flips, plus a JSON fixture check that the Dagster and fncli models parse the same responses.
+3. The eight open decisions are settled in ADR 0019, section 11. Read them before building.
 4. Work the stages in order, one commit per stage: global secrets, then datasets, results repositories, trigger repositories, `pull_requests` and fan-out, the `enabled`/`revoked` behaviour, the ingest sensor, and last fncli, `openapi.json`, docs and ADR updates.
 
 ## Open PRs that overlap the moonshot
@@ -59,3 +59,4 @@ Heavy: #548, #547, #543, #534, #531, #535. Light: #526, #533, #529, #530. Indepe
 - One mirror per project (a Gitea org per project): only the fallback if the moonshot is not done.
 - A `disabled_reason` string: rejected in favour of the `revoked` boolean.
 - Real-time updates were never a requirement.
+- A flat compatibility API (assignment id as `id`): dropped. Also settled: cross-project loops forbidden, revoke immediate, global edits need every assigned project locked and drained, migration folds 002 into the baseline (ADR 0019, section 11).
