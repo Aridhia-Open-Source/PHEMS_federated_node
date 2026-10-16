@@ -137,6 +137,21 @@ tests:
               secretKeyRef:
                 name: gitea-admin
                 key: password
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA_MIRROR_GIT_CACHE_DIR
+            value: /tmp/git-cache
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA_MIRROR_SYNC_INTERVAL_SECONDS
+            value: "300"
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /tmp/git-cache
+      - notExists:
+          path: spec.template.spec.containers[0].command
       - equal:
           path: spec.template.spec.volumes[0].emptyDir.sizeLimit
           value: 5Gi

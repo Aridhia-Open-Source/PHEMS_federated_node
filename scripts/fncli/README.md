@@ -182,7 +182,7 @@ whose spec has an unknown field, so the PR is rejected.
 | `mirror add --upstream-uri --secret-namespace --secret-key --gitea-owner --gitea-repo --base-branch [--disabled]` | Creates a mirror. The GitHub token is the `token` field of the named secret. The sync cursor starts now, so older PRs are not mirrored. The response includes the shadow-user preload result (`users_sync`) |
 | `mirror list` | Lists the mirrors |
 | `mirror status ID` | Cursor, last sync, last error, PRs mirrored, and `token_expired` |
-| `mirror resync ID` | Runs a sync for the mirror now |
+| `mirror resync ID` | Runs a sync for the mirror now. 200 with `mirrored`; a held lock (409) or an upstream error (502) fails the command |
 | `mirror users-sync ID` | Creates shadow Gitea users from the upstream contributors and collaborators |
 | `mirror webhook add --url --secret-namespace --secret-key [--mirror-id] [--disabled]` | Registers a webhook; the HMAC key is the `token` field of the named secret. Without `--mirror-id` it gets every mirror's events |
 | `mirror webhook list` | Lists the webhooks |

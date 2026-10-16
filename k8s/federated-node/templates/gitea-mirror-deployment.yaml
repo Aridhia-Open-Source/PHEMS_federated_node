@@ -60,6 +60,8 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.gitea.admin.secret.name | default "gitea-admin" }}
                   key: {{ .Values.gitea.admin.secret.key | default "password" }}
+            - name: GITEA_MIRROR_GIT_CACHE_DIR
+              value: /tmp/git-cache
             {{- range $name, $value := .Values.giteaMirror.env }}
             - name: {{ $name }}
               value: {{ $value | quote }}

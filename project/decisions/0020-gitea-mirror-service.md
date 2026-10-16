@@ -41,7 +41,7 @@ The node's receiver (a later, node-side change) maps the event to its trigger re
 
 - Its own database, `gitea_mirror`, on the shared Postgres server, with its own user and secret, created by the chart's database init job.
 - Tables: `mirrors` (upstream URI, GitHub token secret reference, Gitea owner and repository, base branch, enabled), `mirror_state` (cursor, last sync, last error), `mirrored_pull_requests`, `webhooks`, `webhook_deliveries`.
-- Mirrors and webhooks are managed through the service's own cluster-only API (create, list, status, resync, refresh users, register and test webhooks), called by `fncli mirror` or an operator, with a bearer token. No ConfigMap. Resync runs a sync for that mirror now.
+- Mirrors and webhooks are managed through the service's own cluster-only API (create, list, status, resync, refresh users, register and test webhooks), called by `fncli mirror` or an operator, with a bearer token. No ConfigMap. Resync runs a sync for that mirror now (200, 409 when its lock is held, 502 on upstream errors).
 - The GitHub token is read from Kubernetes by reference and passed to git through an HTTP header, never the remote URL.
 
 ## Needed alongside it
@@ -73,6 +73,9 @@ Run against Gitea 28.1.0 (the chart's tag) and a public GitHub repository. Verdi
 
 ## Open items
 
+
+- Known gaps are listed in `gitea-mirror/README.md` (crash between opening a Gitea PR and recording it, multi-commit fast-forward file lists, no branch deletion).
+- The container runs `python -m app.runner` (API plus sync timer), configured by `GITEA_MIRROR_GIT_CACHE_DIR` and `GITEA_MIRROR_SYNC_INTERVAL_SECONDS` among others.
 - Who creates the Gitea org and the node's read token.
 - One GitHub token per mirror or per org (built as one secret reference per mirror).
 - The throwaway `base/<n>` branch alternative to the force push is untested.

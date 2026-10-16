@@ -151,7 +151,7 @@ fncli mirror add --upstream-uri https://github.com/org/repo \
   --secret-namespace fn --secret-key github-token \
   --gitea-owner mirrors --gitea-repo repo --base-branch main
 fncli mirror list
-fncli mirror resync 1          # runs a sync now
+fncli mirror resync 1          # runs a sync now (409 if one is already running)
 fncli mirror status 1          # cursor, last error, PRs mirrored, token_expired
 fncli mirror users-sync 1      # refresh the shadow Gitea users
 
