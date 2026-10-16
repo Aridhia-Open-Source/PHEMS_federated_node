@@ -38,6 +38,10 @@ Use Haiku and Sonnet only. Opus isn't needed.
 
 Keep test calls black-box: HTTP requests and assertions on status codes and response bodies only. The webserver may later move to FastAPI, and black-box tests would carry over.
 
+## Rule: filter in the webserver, not in Dagster
+
+Dagster must not fetch lists and filter them in Python. For example, "projects that are enabled", "links that are active" and "PRs in state X" are all filters the webserver should apply, as query options on the list endpoints (like `?active_link=true`). This PR doesn't touch Dagster, but know which filters Dagster needs (see `dagster/app/backend.py` and the sensors), and make sure the routes support them as query options. Any that are missing go in your report.
+
 ## Running the tests
 
 The normal route is `webserver/run_tests.sh`, which uses Docker Compose. For quicker runs of single files you need a Postgres and the env vars from `webserver/run_tests.sh`, with `PGHOST` and `PGPORT` pointing at your Postgres:

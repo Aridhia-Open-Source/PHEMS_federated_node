@@ -139,6 +139,7 @@ Datasets, secrets, trigger repositories and results repositories are all **resou
 - **Global `enabled`.** Each global resource carries `enabled` (settable on `POST` and `PATCH`, shown in the DTO) and a link is active only when the resource is enabled, the link is enabled and not revoked (section 2). The ingest filter and the batch ingest both honour it.
 - **Ingest is only the global batch.** There is no single-PR project route. The ingest filter is `GET /global/repositories/triggers?active_link=true`.
 
+- **Filter in the webserver.** Clients (Dagster, fncli) don't fetch lists and filter them in Python. Every filter they need is a query option on the list endpoint, e.g. `?active_link=true`.
 - **Parked:** lock, drain and enabled guards on editing, deleting or unlinking resources (for example `DELETE /global/secrets/:label`) stay as built and are not revisited for now. Worst case a project keeps failing or is missing a secret.
 
 ### 12. Decisions settled
