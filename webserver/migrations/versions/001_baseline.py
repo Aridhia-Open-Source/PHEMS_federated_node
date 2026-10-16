@@ -227,8 +227,8 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
         sa.CheckConstraint(
-            "(state IN ('IGNORED', 'REJECTED')) = (state_cause IS NOT NULL)",
-            name='ck_triggers_state_cause_for_ignored_rejected',
+            "(state = 'REJECTED') = (state_cause IS NOT NULL)",
+            name='ck_triggers_state_cause_for_rejected',
         ),
         sa.PrimaryKeyConstraint('id'),
     )

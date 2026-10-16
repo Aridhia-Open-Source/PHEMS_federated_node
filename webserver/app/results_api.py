@@ -19,6 +19,7 @@ from app.models.result_state import ResultState
 from app.models.project import Project
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.task import Task
+from app.models.task_status import TaskStatus
 from app.models.result import Result
 from app.tasks_api import does_user_own_task
 
@@ -83,6 +84,7 @@ def post_result(project_id: int):
     POST /projects/<project_id>/results endpoint. Creates the delivery of a task's results to a results
     repository, by pull request. The repository is the global one's id, which the
     project has to be linked to, and the task has to be the project's. If it exists already, that one is returned.
+    Otherwise 409 unless the task is SUCCESS, and (?) 409 when the project's link is inactive (revocable by the owner).
     """
     body = request.json or {}
     for field in ('task_id', 'results_repository_id'):
@@ -106,6 +108,16 @@ def post_result(project_id: int):
     result = Result.query.filter_by(task_id=task.id, results_repository_id=assignment.id).first()
     if result:
         return dump_result(result), HTTPStatus.OK
+
+    if task.status != TaskStatus.SUCCESS.value:
+        raise InvalidRequest(f"Task {task.id} is {task.status}, only a SUCCESS task has results", HTTPStatus.CONFLICT)
+    # (?) Revisitable by the owner: no new delivery while the link is inactive (revoked, disabled by
+    # the project, or the global results repository disabled)
+    if not assignment.active:
+        raise InvalidRequest(
+            f"Results repository {body['results_repository_id']} is not active for project {project_id}",
+            HTTPStatus.CONFLICT
+        )
 
     result = PullRequestResult(task_id=task.id, results_repository_id=assignment.id)
     result.add()

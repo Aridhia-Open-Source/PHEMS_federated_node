@@ -30,8 +30,9 @@ from fncli.dagster.sensors import DagsterAPI
 
 logger = logging.getLogger("pr")
 
-# What the sensor makes of the pull request: a task (watched), ignore it (unwatched, the
-# file is outside the watch_dir) or reject it (invalid, the spec does not validate).
+# What the sensor makes of the pull request: a task (watched), no trigger at all (unwatched,
+# the file is outside the watch_dir, so the backend fan-out skips the PR) or reject it (invalid,
+# the spec does not validate).
 KINDS = ["watched", "unwatched", "invalid"]
 
 POLL_SECONDS = 3
@@ -211,8 +212,6 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
             if seen.get(key) != line:
                 seen[key] = line
                 logger.info(line)
-        if pr and pr.state == TriggerState.IGNORED:
-            return
         if pr and pr.state == TriggerState.REJECTED:
             raise click.exceptions.Exit(1)
         if run and run["status"] in RUN_DONE:

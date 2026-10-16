@@ -62,7 +62,7 @@ Each command opens a PR and merges it, using the Gitea API only. fncli makes no 
   - Expect a Task and a run.
 - `fncli open-pr --kind unwatched --merge`
   - Gitea: the same, with a file outside the watched paths.
-  - Expect it to be ignored.
+  - Expect no trigger for it: the PR is not listed for the link (`--watch` times out, as it waits for the PR to show up).
 - `fncli open-pr --kind invalid --merge`
   - Gitea: the same, with a file that fails validation.
   - Expect it to be rejected.
@@ -70,10 +70,10 @@ Each command opens a PR and merges it, using the Gitea API only. fncli makes no 
 Add `--watch` to follow the merged PR in real time (and `--timeout <seconds>`, default 300). It prints a timestamped line each time something changes (including a link to the Dagster run once it starts), and exits 1 on REJECTED, a FAILURE or CANCELED run, or a timeout. On a timeout it also lists the sensors that are not running at the stage it is stuck at. A dropped connection (Dagster reloading, say) is retried; it gives up after 10 failed polls in a row.
 
 - `fncli open-pr --kind watched --merge --watch`, or `fncli merge-gitea-pr --number <n> --watch`
-  - Backend: `GET /projects/{project_id}/repositories/triggers/{repository_id}/pull_requests`, until the PR shows up ("waiting for ingest") and shows its state (UNKNOWN, then YIELDED, IGNORED or REJECTED, with its state_cause).
+  - Backend: `GET /projects/{project_id}/repositories/triggers/{repository_id}/pull_requests`, until the PR shows up ("waiting for ingest") and shows its state (UNKNOWN, then YIELDED or REJECTED, with its state_cause).
   - Backend: `GET /tasks/{task_id}` for a YIELDED PR, showing the task's status.
   - Dagster: GraphQL `runsOrError` filtered by the task_id tag, showing the run's id and status until SUCCESS, FAILURE or CANCELED.
-  - Exits 0 on IGNORED or SUCCESS.
+  - Exits 0 on SUCCESS.
 
 Optional, the same thing in separate steps (`--kind` as above):
 
@@ -107,7 +107,7 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
   - Prints a block per PR, one line per check (`ok` or `FAIL`), and a summary. Exits 1 if any check fails.
   - `link` lines give the trigger PR in Gitea, the Dagster run and the results PR, as URLs that open from the host. They are not checks.
   - Backend: `GET /projects/{project_id}/repositories/triggers/{repository_id}/pull_requests`, for every PR of the project's link to the repository.
-  - A PR the sensor ignored or rejected has no task, so it passes with a note.
+  - A PR the sensor rejected has no task, so it passes with a note.
   - A PR still `UNKNOWN` fails: the evaluate sensor hasn't run on it.
   - For a `YIELDED` PR, Backend: `GET /tasks/{id}`, for the task's status, run id, attempt and times.
   - For a `YIELDED` PR, Dagster: finds the run tagged with the task's id, and checks it is a `k8s_pipes_job`.
@@ -138,6 +138,6 @@ Optional, to tear down one side only:
 - `setup-project`: the healthcheck is `ok`.
 - Ingest tick: "Saved N new pull requests to database", one poll per trigger repository however many projects are assigned to it.
 - Watched PR: `YIELDED` with a Task, then the run succeeds.
-- Unwatched PR: `IGNORED`.
+- Unwatched PR: no trigger (the PR list for the link has only the watched and the invalid PR).
 - Invalid PR: `REJECTED`, with the validation error.
 - `teardown-project -y`: nothing is left behind.

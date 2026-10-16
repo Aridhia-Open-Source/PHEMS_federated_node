@@ -33,7 +33,7 @@ def record_outcome(backend_api: BackendAPI, pr: PullRequestTrigger, parsed: Pars
     """
     Write the outcome on the pull request: READY sends the spec file to the backend, which
     keeps it, parses it and either creates the task (marking the PR YIELDED) or rejects the
-    PR. IGNORED and REJECTED are stored with their state_cause. Backend failures raise.
+    PR. REJECTED is stored with its state_cause. Backend failures raise.
     """
     project_id, repo_id = pr.project_id, pr.trigger_repository_id
     if parsed.outcome is PullRequestOutcome.READY:

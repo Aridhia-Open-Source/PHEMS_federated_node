@@ -50,7 +50,7 @@ An assignment is **active** when `enabled` and not `revoked`. Revoking sets only
 - New `pull_request_files(pull_request_id, path)`: the changed file paths, captured once at ingest together with `base_branch`. A table rather than a JSON array: paths are matched against `watch_dir` prefixes, a table can be indexed and filtered in SQL (backfill is then a plain query), and it needs no JSON operators across Postgres and the test database. The cost is one row per file, bounded by the provider cap below.
 - **Provider cap.** GitHub pages the changed-files list and caps it at 3000. Ingest pages through all of it. A PR beyond the cap sets `files_truncated` and is treated as matching every path, because its watched files cannot be ruled out.
 - `pull_request_triggers` stays per project and keeps the evaluation state (`state`, `state_cause` and `project_id` via `Trigger`, `spec_raw`, `task_id`). It gains `pull_request_id` and `project_trigger_repository_id` (replacing `trigger_repository_id`) and drops the duplicated facts; `title`, `raised_by` and `requested_by` become properties through `pull_request`. Unique on `(project_trigger_repository_id, pull_request_id)`. `Trigger.project_id`, `Task.project_id` and the unique `Task.trigger_id` are unchanged.
-- **Fan-out:** when a pull request is stored, the backend creates a trigger for every active `project_trigger_repositories` row on that repository. It decides the match from stored data alone: the assignment's `base_branch` against `pull_requests.base_branch`, and its `watch_dir` against `pull_request_files.path` (or `files_truncated`). A matching trigger starts in its normal initial state. A non-matching one is created as `IGNORED`. No provider call is made, so evaluate never calls the provider for a PR the project does not watch.
+- **Fan-out:** when a pull request is stored, the backend creates a trigger for every active `project_trigger_repositories` row on that repository. It decides the match from stored data alone: the assignment's `base_branch` against `pull_requests.base_branch`, and its `watch_dir` against `pull_request_files.path` (or `files_truncated`). A matching trigger starts in its normal initial state (`UNKNOWN`). A non-matching link is skipped (logged) and gets no trigger. There is no `IGNORED` state. No provider call is made, so evaluate never calls the provider for a PR the project does not watch.
 - **No re-processing.** `pull_requests` is unique on `(trigger_repository_id, number)` and written by upsert, the global cursor only moves forward, and triggers are unique on `(assignment, pull_request)`. Re-sending a PR changes nothing.
 - **Config changes.** When an assignment's `watch_dir` or `base_branch` changes, matching runs forward from its cursor only. Older PRs are not replayed.
 - **Upsert.** The batch ingest endpoint upserts the PRs and fans out, so a second project's tick re-sending PRs already stored changes nothing.
@@ -153,6 +153,12 @@ Datasets, secrets, trigger repositories and results repositories are all **resou
 7. Creating global resources and grants: admin role for now; revisit with the authorization rework (section 9).
 8. `whitelisted_images`: not now (section 9).
 9. URLs are `/global/...` or `/projects/:pid/...`, keyed by the global id; `POST` only under `/global`, `PUT` links (section 11).
+10. Trigger states are `UNKNOWN`, `YIELDED` and `REJECTED`; `REJECTED` is final. Only an `UNKNOWN` trigger can get a task: `POST /projects/<pid>/repositories/triggers/<id>/pull_requests/<n>/task` returns 409 for a `REJECTED` trigger or an inactive link.
+11. `GET /projects/<pid>/repositories/triggers?active=true` returns only active links. The evaluate sensor uses it.
+12. `PATCH /tasks/<id>` returns 409 for a status change out of `SUCCESS`, `FAILED` or `CANCELED` (the same status is allowed; `/retry` still resets to `PENDING`).
+13. `POST /results` returns 409 unless the task is `SUCCESS`; an existing result re-posts with 200. It also returns 409 through an inactive results link (?).
+14. A repository or dataset that references a disabled secret is refused with 400 on create and patch.
+15. Dataset `PATCH` returns 200 (?). `/tasks` clamps `page` and `per_page` below 1 to 1 (?).
 
 ## Consequences
 
@@ -174,7 +180,7 @@ Each stage leaves the webserver tests runnable.
 2. Global datasets plus `project_datasets`: assignment model and endpoints, `resolve_dataset`, `Task.validate`, the default-dataset composite FK, the cascade to RESTRICT, DAR; fncli dataset helpers.
 3. Global results repositories plus `project_results_repositories`: repoint `results`; `/projects/<id>/results_repositories` includes inactive assignments; healthcheck; loop check for results.
 4. Global trigger repositories plus `project_trigger_repositories`: assignment endpoints; complete the cross-project loop check; cursor, `pr_count`, `dataset_id` per assignment.
-5. `pull_requests`, `pull_request_files`, fan-out with `IGNORED`, the upsert batch endpoint, and backfill on create, enable and un-revoke.
+5. `pull_requests`, `pull_request_files`, fan-out that skips non-matching links, the upsert batch endpoint, and backfill on create, enable and un-revoke.
 6. `enabled` and `revoked` behaviour in the sensors, launcher and delivery.
 7. The Dagster sensors on the new endpoints: ingest per global repository, evaluate and launch per active assignment, delivery by the task's results assignment.
 8. fncli, `openapi.json`, `docs/architecture`, ADR updates.
@@ -187,7 +193,7 @@ Assert exact key sets and types, not just status codes. Stage 0 does two things.
 
 **Pin what does not change shape:** the PR endpoints keyed by `(repo_id, number)` (list paged with `state` filter, get, patch state, `/task` 201 then 200 idempotent and 400 on a bad spec with `REJECTED` recorded); the `/results` round trip including the `step` filter; `GET /global/datasets/<id>`; `GET /projects` item keys including `default_dataset_id`, `locked`, `enabled`; the task DTO `spec.dataset_id`; the healthcheck body shape; task creation through the API and the PR path both rejecting a dataset of another project and falling back to the default dataset. Batch ingest: 201, and pin that a duplicate number returns 400 today so the upsert change is deliberate.
 
-**Write the target shapes for changing endpoints as tests marked `xfail(strict=True)`:** global `GET /global/repositories/triggers` (`id` is the resource id), `GET /projects/<id>/repositories/triggers` and the results repository and dataset equivalents with the nested global resource and assignment fields, `/global/secrets`, PR ingest on the global repository, and fan-out with `IGNORED`. Each stage removes the marker from the tests it makes pass. A strict `xfail` that unexpectedly passes fails the run, so the flip cannot be forgotten.
+**Write the target shapes for changing endpoints as tests marked `xfail(strict=True)`:** global `GET /global/repositories/triggers` (`id` is the resource id), `GET /projects/<id>/repositories/triggers` and the results repository and dataset equivalents with the nested global resource and assignment fields, `/global/secrets`, PR ingest on the global repository, and fan-out that skips non-matching links. Each stage removes the marker from the tests it makes pass. A strict `xfail` that unexpectedly passes fails the run, so the flip cannot be forgotten.
 
 Plus a cross-service check: the webserver tests dump these responses to a committed JSON fixture and the Dagster and fncli model tests parse the same fixtures. That catches the `Secret.project_id`/`label` breakage at test time.
 

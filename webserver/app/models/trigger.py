@@ -31,7 +31,7 @@ class Trigger(db.Model, BaseModel):
         default=TriggerState.UNKNOWN.value,
         server_default=TriggerState.UNKNOWN.value,
     )
-    # Why the trigger is IGNORED or REJECTED. Set for those two states only.
+    # Why the trigger is REJECTED. Set for that state only.
     state_cause = sa.Column(sa.String(1024), nullable=True)
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
@@ -41,8 +41,8 @@ class Trigger(db.Model, BaseModel):
 
     __table_args__ = (
         sa.CheckConstraint(
-            "(state IN ('IGNORED', 'REJECTED')) = (state_cause IS NOT NULL)",
-            name='ck_triggers_state_cause_for_ignored_rejected',
+            "(state = 'REJECTED') = (state_cause IS NOT NULL)",
+            name='ck_triggers_state_cause_for_rejected',
         ),
         sa.Index('ix_triggers_state', 'state'),
     )
@@ -70,13 +70,13 @@ class Trigger(db.Model, BaseModel):
 
     def set_state(self, state: str, state_cause: str | None):
         """
-        Set the state with its state_cause, which is required for IGNORED and REJECTED and
+        Set the state with its state_cause, which is required for REJECTED and
         not allowed otherwise.
         """
         if state not in [s.value for s in TriggerState]:
             valid = ', '.join([s.value for s in TriggerState])
             raise InvalidRequest(f"Invalid state: {state}. Must be one of: {valid}")
-        needs_reason = state in (TriggerState.IGNORED.value, TriggerState.REJECTED.value)
+        needs_reason = state == TriggerState.REJECTED.value
         if needs_reason and not state_cause:
             raise InvalidRequest(f"state_cause is required when state is {state}")
         if not needs_reason and state_cause is not None:

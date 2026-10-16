@@ -9,11 +9,10 @@ from app.models import ProjectTriggerRepository, PullRequestTrigger
 class PullRequestOutcome(str, Enum):
     """
     What evaluating a pull request found. Never persisted: it maps onto the PR's state
-    (READY becomes a task and so YIELDED, IGNORED and REJECTED are stored with the state_cause).
+    (READY becomes a task and so YIELDED, REJECTED is stored with the state_cause).
     """
 
     READY = "READY"
-    IGNORED = "IGNORED"
     REJECTED = "REJECTED"
 
 
@@ -21,7 +20,7 @@ class ParsedPullRequest(BaseModel):
     outcome: PullRequestOutcome
     # The spec file as read, for the backend to parse
     spec_raw: str | None = None
-    # Why the PR is IGNORED or REJECTED
+    # Why the PR is REJECTED
     state_cause: str | None = None
 
 
@@ -47,7 +46,7 @@ class PullRequestParser:
 
     def parse(self, pr: PullRequestTrigger) -> ParsedPullRequest:
         """
-        IGNORED if the PR has no watched file, REJECTED if it has several, else READY with
+        REJECTED if the PR has no watched file (the backend fan-out already skips those) or several, else READY with
         the spec file's contents. A git provider failure raises: it is not an outcome.
         """
         pr_files = self.git_api.get_pull_request_files(self.repo.repo_path, pr.number)
@@ -57,7 +56,7 @@ class PullRequestParser:
 
         if not watched_file_names:
             return ParsedPullRequest(
-                outcome=PullRequestOutcome.IGNORED,
+                outcome=PullRequestOutcome.REJECTED,
                 state_cause=f"No new spec file under {self.repo.watch_dir}",
             )
         if len(watched_file_names) > 1:

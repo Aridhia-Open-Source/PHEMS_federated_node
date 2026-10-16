@@ -164,7 +164,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 
 `--kind` picks the file, and so what the sensor makes of the PR: `watched` (default) is one
 new `.json` spec file under the watch_dir, which becomes a task; `unwatched` is a file
-outside the watch_dir, so the PR is ignored; `invalid` is a `.json` under the watch_dir
+outside the watch_dir, so the PR creates no trigger; `invalid` is a `.json` under the watch_dir
 whose spec has an unknown field, so the PR is rejected.
 
 **Sensors** (`cmds/sensor.py`; needs the Dagster webserver on `DAGSTER_URL`, default `http://localhost:3000`)
@@ -175,7 +175,7 @@ whose spec has an unknown field, so the PR is rejected.
 | `stop-sensor [--sensor]` | Stops them; `all` stops the launcher first |
 | `sensor-status` | Prints every sensor's status and last 3 ticks (status, skip reason or error) |
 
-Everything is STOPPED in Dagster by default. The whole path from a merged PR is: `ingest` polls the repository once and stores the PR, which the backend fans out to every project assigned to the repository (a trigger per assignment, UNKNOWN), `evaluate` turns each into a task (YIELDED, or IGNORED / REJECTED with a cause), `launcher`
+Everything is STOPPED in Dagster by default. The whole path from a merged PR is: `ingest` polls the repository once and stores the PR, which the backend fans out to every project assigned to the repository (a trigger per assignment, UNKNOWN), `evaluate` turns each into a task (YIELDED, or REJECTED with a cause), `launcher`
 starts a Dagster run for each PENDING task, and the run-status sensors copy the run's status onto the
 task. The run-status sensors only see events from the moment they start, so they must be running
 BEFORE the launcher: a run that finishes first leaves its task PENDING for good. `start-sensor

@@ -1,11 +1,11 @@
 """
 tasks-related endpoints:
 - GET /tasks/service-info
-- GET /tasks
+- GET /tasks (page and per_page below 1 are clamped to 1)
 - POST /tasks
 - POST /tasks/validate
 - GET /tasks/id
-- PATCH /tasks/id
+- PATCH /tasks/id (a finished task cannot change status: 409)
 - POST /tasks/id/retry
 - POST /tasks/id/cancel
 - GET /tasks/id/results
@@ -42,6 +42,9 @@ bp = Blueprint('tasks', __name__, url_prefix='/tasks')
 VALIDATION_ERRORS = (
     InvalidRequest, InvalidDBEntry, DBRecordNotFoundError, TaskImageException, UnauthorizedError
 )
+
+# A task in one of these statuses has finished; PATCH cannot change it to another status
+FINAL_STATUSES = (TaskStatus.SUCCESS.value, TaskStatus.FAILED.value, TaskStatus.CANCELED.value)
 
 
 def does_user_own_task(task: Task):
@@ -87,15 +90,13 @@ def get_tasks():
     """
     GET /tasks/ endpoint. Gets the list of tasks with pagination
     Query params:
-        - page: page number (default 1)
-        - per_page: items per page (default 10)
+        - page: page number (default 1, below 1 is clamped to 1)
+        - per_page: items per page (default 10, below 1 is clamped to 1)
         - status: filter by task status (optional)
         - project_id: filter by project (optional)
     """
-    page = arg_get('page', 1, type=int)
-    per_page = arg_get('per_page', 10, type=int)
-    if page < 1 or per_page < 1:
-        raise InvalidRequest("page and per_page must be positive")
+    page = max(arg_get('page', 1, type=int), 1)
+    per_page = max(arg_get('per_page', 10, type=int), 1)
     status = request.args.get('status', None)
     project_id = arg_get('project_id', None, type=int)
 
@@ -143,7 +144,9 @@ def get_task_id(task_id):
 @auth(scope='can_admin_dataset')
 def patch_task(task_id):
     """
-    PATCH /tasks/id endpoint. Records the progress of a task's run
+    PATCH /tasks/id endpoint. Records the progress of a task's run.
+    A SUCCESS, FAILED or CANCELED task cannot change to a different status (409); setting the same
+    status again is allowed. Only POST /tasks/id/retry moves it back to PENDING.
     """
     task = Task.get_by_id(task_id)
 
@@ -159,6 +162,10 @@ def patch_task(task_id):
         if body['status'] not in [s.value for s in TaskStatus]:
             valid = ', '.join([s.value for s in TaskStatus])
             raise InvalidRequest(f"Invalid status: {body['status']}. Must be one of: {valid}")
+        if task.status in FINAL_STATUSES and body['status'] != task.status:
+            raise InvalidRequest(
+                f"Task {task.id} is {task.status} and cannot change to {body['status']}", HTTPStatus.CONFLICT
+            )
         task.status = body['status']
 
     if 'dagster_run_id' in body:

@@ -8,10 +8,9 @@ How a merged pull request becomes a task, a run, and a results pull request. Dec
 flowchart TD
     A([PR merged in the trigger repository]) --> B["git_pull_request_ingest_sensor (one poll per repository)"]
     B -->|"POST /global/repositories/triggers/id/pull_requests"| S[("pull request stored once, with its changed files")]
-    S -->|"fan-out to each active assignment"| F["PullRequestTrigger per assignment: UNKNOWN, or IGNORED + state_cause"]
+    S -->|"fan-out to each active assignment"| F["PullRequestTrigger per assignment: UNKNOWN (non-matching links are skipped)"]
     F --> C[git_pull_request_evaluate_sensor]
     C -->|"RunRequest per assignment with UNKNOWN PRs"| D[evaluate_repository_pull_requests_job]
-    D -->|"no spec file"| I1[trigger IGNORED + state_cause]
     D -->|"several files or invalid spec"| I2[trigger REJECTED + state_cause]
     D -->|"valid spec: POST .../pull_requests/n/task"| E[trigger YIELDED + Task PENDING]
     E --> F[task_launcher_sensor]
@@ -47,7 +46,7 @@ A merged pull request is stored once per global trigger repository, whatever the
 
 1. The ingest sensor polls each repository of `GET /global/repositories/triggers?active_link=true` once with its own secret, from the repository's `pr_cursor` (the latest stored `merged_at`; a repository with nothing stored starts at the earliest creation among its active links, which the backend works out). It reads each pull request's base branch and changed files.
 2. It posts them in batches of up to 100 to `POST /global/repositories/triggers/<id>/pull_requests`. The backend stores each pull request and its files (a repeated number keeps its first facts) and answers `{created, existing}`.
-3. Fan-out creates a trigger for every active assignment of the repository, from the stored data. The pull request must be after the assignment's cursor. A pull request that does not add a `.json` file under `watch_dir`, or whose base branch differs, becomes an IGNORED trigger with a `state_cause`; every other one is UNKNOWN. A unique constraint on `(assignment, pull request)` settles races.
+3. Fan-out creates a trigger for every active assignment of the repository, from the stored data. The pull request must be after the assignment's cursor. A pull request that does not add a `.json` file under `watch_dir`, or whose base branch differs, is skipped for that assignment (logged) and gets no trigger; every other one is UNKNOWN. Only an UNKNOWN trigger can get a task (`POST .../pull_requests/<n>/task` returns 409 for a REJECTED trigger or an inactive link). A unique constraint on `(assignment, pull request)` settles races.
 4. Backfill does the same for the already stored pull requests when an assignment is created, enabled or un-revoked. Only an active assignment is backfilled. A change of `watch_dir` or `base_branch` is forward only.
 5. Ingest does not skip a locked project, as one poll serves every project. Evaluation and launch are what the lock pauses.
 
@@ -83,7 +82,7 @@ sequenceDiagram
     end
     DG->>BE: list each enabled project's links, then the UNKNOWN pull requests of each
     DG->>Git: PR files, spec file at the merge commit
-    DG->>BE: POST pull request task (YIELDED) or PATCH IGNORED / REJECTED
+    DG->>BE: POST pull request task (YIELDED) or PATCH REJECTED
     DG->>BE: list PENDING tasks of enabled projects
     DG->>BE: get the project's dataset assignment, must be active
     DG->>K8s: k8s_pipes_job starts the task pod
@@ -159,9 +158,9 @@ All sensors have `default_status=STOPPED` and a 10 s minimum interval.
 
 | Name | Kind | Watches / reads | Launches or writes | Defined in |
 |---|---|---|---|---|
-| `git_pull_request_ingest_sensor` | sensor | trigger repositories with an active link of an enabled project, provider pulls (once per repository) | `POST /global/repositories/triggers/<id>/pull_requests`, which stores the pull requests and fans out triggers (UNKNOWN or IGNORED) | `sensors/git/__init__.py`, `pr_ingest.py` |
+| `git_pull_request_ingest_sensor` | sensor | trigger repositories with an active link of an enabled project, provider pulls (once per repository) | `POST /global/repositories/triggers/<id>/pull_requests`, which stores the pull requests and fans out triggers (UNKNOWN, none for a non-matching link) | `sensors/git/__init__.py`, `pr_ingest.py` |
 | `git_pull_request_evaluate_sensor` | sensor | UNKNOWN pull requests of enabled, unlocked projects, per active link | `evaluate_repository_pull_requests_job` per assignment, unless one is in flight | `sensors/git/pr_evaluate.py` |
-| `evaluate_repository_pull_requests_job` | job (max 3 concurrent) | UNKNOWN PRs, spec at merge commit | task (YIELDED), or IGNORED or REJECTED with cause; op retries 3x | `sensors/git/evaluate_job.py` |
+| `evaluate_repository_pull_requests_job` | job (max 3 concurrent) | UNKNOWN PRs, spec at merge commit | task (YIELDED), or REJECTED with cause; op retries 3x | `sensors/git/evaluate_job.py` |
 | `task_launcher_sensor` | sensor | PENDING tasks of enabled projects, and their dataset assignment | `k8s_pipes_job` run, key `task/<id>/<attempt>`, tag `trigger=task`; a task whose dataset assignment is inactive is failed with a `state_cause` instead | `sensors/task/launcher.py` |
 | `k8s_pipes_job` | job | task spec and dataset (run config) | task pod, artifacts | `definitions/jobs.py`, `pipes.py` |
 | `task_queued_sensor`, `task_started_sensor`, `task_success_sensor`, `task_failure_sensor`, `task_canceled_sensor` | run-status sensors on `k8s_pipes_job` | runs tagged `trigger=task` | `PATCH /tasks/<id>` status, run id, times | `sensors/task/run_status.py` |

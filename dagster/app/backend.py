@@ -52,10 +52,11 @@ class BackendAPI:
         response = self.session.get("/global/repositories/triggers", params={"active_link": "true"})
         return [TriggerRepository(**repo) for repo in response.json()]
 
-    def get_project_trigger_repositories(self, project_id: int) -> list[ProjectTriggerRepository]:
-        """Get a project's links to trigger repositories, inactive ones included"""
+    def get_project_trigger_repositories(self, project_id: int, active: bool = False) -> list[ProjectTriggerRepository]:
+        """Get a project's links to trigger repositories, inactive ones included unless active is set"""
         self.logger.info(f"Fetching trigger repositories of project {project_id}")
-        response = self.session.get(f"/projects/{project_id}/repositories/triggers")
+        params = {"active": "true"} if active else None
+        response = self.session.get(f"/projects/{project_id}/repositories/triggers", params=params)
         return [ProjectTriggerRepository(**repo) for repo in response.json()]
 
     def get_project_trigger_repository(self, project_id: int, repository_id: int) -> ProjectTriggerRepository:

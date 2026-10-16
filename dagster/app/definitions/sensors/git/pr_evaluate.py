@@ -27,9 +27,7 @@ class PullRequestEvaluateSensor(GitSensor):
         projects = [p for p in self.backend_api.get_projects() if p.enabled and not p.locked]
         launched = 0
         for project in projects:
-            for repo in self.backend_api.get_project_trigger_repositories(project.id):
-                if not repo.active:
-                    continue
+            for repo in self.backend_api.get_project_trigger_repositories(project.id, active=True):
                 if self._run_in_flight(repo):
                     self.log.info(f"Evaluation of repo {repo.trigger_repository.id} of project {repo.project_id} is already in flight")
                     continue

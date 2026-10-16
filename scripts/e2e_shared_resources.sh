@@ -54,7 +54,7 @@ fncli open-pr --kind watched --merge || fail "open-pr watched"
 fncli open-pr --kind unwatched --merge || fail "open-pr unwatched"
 fncli open-pr --kind invalid --merge || fail "open-pr invalid"
 
-step "4. wait for ingest and evaluate: expect YIELDED (with a task), IGNORED and REJECTED"
+step "4. wait for ingest and evaluate: expect YIELDED (with a task) and REJECTED, and no trigger for the unwatched PR"
 $CHECK wait-prs --timeout 300 || { fail "PRs not evaluated"; fncli sensor-status; }
 
 if [[ "${SKIP_TASKS:-0}" != "1" ]]; then

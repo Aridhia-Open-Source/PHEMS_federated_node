@@ -14,8 +14,9 @@ trigger however it is reached; the unique constraint settles a race.
 Matching is decided here from stored data alone, with the rule the Dagster evaluate step
 applies to the files of a pull request (`PullRequestParser._filter_watched_files`): a file
 the pull request adds, ending in `.json`, under the assignment's `watch_dir`. A pull request
-that does not match is stored as an IGNORED trigger, with the reason.
+that does not match gets no trigger for that assignment; the cause is logged at info level.
 """
+import logging
 from datetime import datetime
 
 import sqlalchemy as sa
@@ -29,8 +30,9 @@ from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request import PullRequest, PullRequestFile
 from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.trigger_repository import TriggerRepository
-from app.models.trigger_state import TriggerState
 
+logger = logging.getLogger('pull_request_fanout')
+logger.setLevel(logging.INFO)
 session = db.session
 
 
@@ -43,7 +45,7 @@ def is_under_dir(filename: str, directory: str) -> bool:
     return filename.split("/")[:-1][:len(wanted)] == wanted
 
 
-def ignored_cause(assignment: ProjectTriggerRepository, pull_request: PullRequest) -> str | None:
+def unmatched_cause(assignment: ProjectTriggerRepository, pull_request: PullRequest) -> str | None:
     """
     Why the pull request is not for the assignment, or None when it is. A pull request whose
     changed files were truncated at the provider's cap may touch anything, so it matches.
@@ -143,10 +145,11 @@ def create_triggers(assignment: ProjectTriggerRepository, pull_request_ids: list
 
     created = 0
     for pull_request in query.order_by(PullRequest.merged_at, PullRequest.number):
-        trigger = PullRequestTrigger(assignment.project_id, assignment.id, pull_request.id)
-        cause = ignored_cause(assignment, pull_request)
+        cause = unmatched_cause(assignment, pull_request)
         if cause:
-            trigger.set_state(TriggerState.IGNORED.value, cause)
+            logger.info("No trigger for pull request #%s in assignment %s: %s", pull_request.number, assignment.id, cause)
+            continue
+        trigger = PullRequestTrigger(assignment.project_id, assignment.id, pull_request.id)
         try:
             # A savepoint, so losing the race to another writer undoes only this trigger
             with session.begin_nested():

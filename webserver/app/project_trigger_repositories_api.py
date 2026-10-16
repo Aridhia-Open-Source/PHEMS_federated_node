@@ -2,8 +2,9 @@
 A project's trigger repositories: its links to the global repositories, and its triggers for
 the pull requests ingested for each. A link is addressed by the global repository's id. PUT
 links one, 201 the first time and 200 after, replacing the project's settings. Dagster calls
-the pull request routes (evaluation state).
-- GET /projects/<project_id>/repositories/triggers
+the pull request routes (evaluation state). With ?active=true the list has only the active links
+(enabled, not revoked, repository enabled).
+- GET /projects/<project_id>/repositories/triggers[?active=true]
 - GET|PUT|PATCH|DELETE /projects/<project_id>/repositories/triggers/<repository_id>
 - GET /projects/<project_id>/repositories/triggers/<repository_id>/pull_requests
 - GET /projects/<project_id>/repositories/triggers/<repository_id>/pull_requests/<number>
@@ -64,10 +65,13 @@ def _check_loop(assignment: ProjectTriggerRepository):
 def list_project_trigger_repositories(project_id: int):
     """
     GET /projects/<project_id>/repositories/triggers — the project's trigger repository
-    links, inactive ones included with their flags.
+    links, inactive ones included with their flags unless ?active=true, which returns only the
+    active ones.
     """
     Project.get_by_id(project_id)
     assignments = ProjectTriggerRepository.query.filter_by(project_id=project_id).order_by(ProjectTriggerRepository.id)
+    if request.args.get('active', '').lower() == 'true':
+        assignments = [a for a in assignments if a.active]
     return [ProjectTriggerRepositoryDTO.from_model(a).dump() for a in assignments], HTTPStatus.OK
 
 
@@ -238,7 +242,7 @@ def get_pull_requests(project_id: int, repo_id: int):
     Query params:
         - page: page number (default 1)
         - per_page: items per page (default 20)
-        - state: filter by state (optional), one of: UNKNOWN, IGNORED, REJECTED, YIELDED
+        - state: filter by state (optional), one of: UNKNOWN, REJECTED, YIELDED
     Sorted by merged_at DESC (most recent first).
     """
     assignment = _assignment(project_id, repo_id)
@@ -306,12 +310,17 @@ def post_task(project_id: int, repo_id: int, number: int):
     task. The project comes from the assignment.
     Body: {"spec_raw": "..."}, the pull request's spec file as read. It is kept on the pull
     request before it is parsed, so a rejected pull request keeps it too.
-    Idempotent: if the pull request already has a task it is returned with a 200.
+    Idempotent: if the pull request already has a task it is returned with a 200. Only an
+    UNKNOWN trigger of an active link may create a task, otherwise 409 (REJECTED is final).
     """
     pr = _pull_request(project_id, repo_id, number)
 
     if pr.task:
         return TaskDTO.from_model(pr.task).dump(), HTTPStatus.OK
+    if pr.state != TriggerState.UNKNOWN.value:
+        raise InvalidRequest(f"PR #{number} is {pr.state}, only an UNKNOWN pull request can create a task", HTTPStatus.CONFLICT)
+    if not _assignment(project_id, repo_id).active:
+        raise InvalidRequest(f"The link to trigger repository {repo_id} is not active", HTTPStatus.CONFLICT)
 
     body = request.json or {}
     spec_raw = body.get('spec_raw')

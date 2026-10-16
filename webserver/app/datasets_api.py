@@ -6,7 +6,7 @@ and drained:
 - GET /global/datasets
 - POST /global/datasets
 - GET /global/datasets/id
-- PATCH /global/datasets/id
+- PATCH /global/datasets/id (200 like every other PATCH (?) assumed by the implementer, owner to confirm)
 - DELETE /global/datasets/id
 - GET /global/datasets/id/healthcheck, see healthcheck_api.py
 """
@@ -80,14 +80,14 @@ def _reject_taken_name(name: str, own_id: int | None = None):
 def post_datasets():
     """
     POST /global/datasets/ endpoint. Creates a new global dataset. Admin only. A name
-    already taken (case-insensitive) is a 409
+    already taken (case-insensitive) is a 409. A disabled secret_label is a 400
     """
     try:
         _reject_credentials(request.json)
         _reject_project(request.json)
         req = DatasetRequest.parse(request.json)
         _reject_taken_name(req.name)
-        secret = Secret.get_by_label(req.secret_label)
+        secret = Secret.get_enabled_by_label(req.secret_label)
         body = req.model_dump(exclude={"secret_label", "catalogue", "dictionaries"})
         cata_body = req.catalogue
         dict_body = req.dictionaries
@@ -155,7 +155,8 @@ def delete_dataset(dataset_id: int):
 def patch_dataset(dataset_id: int):
     """
     PATCH /global/datasets/id endpoint. Edits an existing dataset with a given id, once every
-    project it is linked to is locked and drained. Admin only.
+    project it is linked to is locked and drained. Admin only. Returns 200. A disabled secret_label is a 400, unless it is the
+    one already in use.
     """
     ds = Dataset.get_by_id(dataset_id)
 
@@ -172,7 +173,7 @@ def patch_dataset(dataset_id: int):
     if req.name is not None:
         _reject_taken_name(req.name, ds.id)
     if req.secret_label is not None:
-        body["secret_id"] = Secret.get_by_label(req.secret_label).id
+        body["secret_id"] = Secret.get_enabled_by_label(req.secret_label, ds.secret_id).id
 
     try:
         ds.update(**body)
@@ -189,5 +190,5 @@ def patch_dataset(dataset_id: int):
         raise
 
     session.commit()
-    return DatasetDTO.from_model(ds).dump(), HTTPStatus.ACCEPTED
+    return DatasetDTO.from_model(ds).dump(), HTTPStatus.OK
 

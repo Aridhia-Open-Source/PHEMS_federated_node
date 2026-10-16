@@ -2,7 +2,7 @@
 results repository endpoints, global: a project is linked to one under
 /projects/<id>/repositories/results (see projects_api.py). Create, edit and delete are admin
 only, and editing or deleting needs every project the repository is linked to locked and
-drained.
+drained. A secret_label naming a disabled secret is a 400 on POST and PATCH.
 - GET /global/repositories/results
 - GET /global/repositories/results/<id>
 - POST /global/repositories/results
@@ -88,7 +88,7 @@ def post_repository():
     req = RepositoryRequest.parse(body)
 
     uri = RepositoryUriRequest.normalised(req.uri)
-    secret = Secret.get_by_label(req.secret_label)
+    secret = Secret.get_enabled_by_label(req.secret_label)
 
     try:
         repo = ResultsRepository(
@@ -112,7 +112,8 @@ def post_repository():
 def patch_repository(repo_id):
     """
     PATCH /global/repositories/results/<id> — update repository. Every project it is linked to has
-    to be locked and drained, except to rotate the credentials only.
+    to be locked and drained, except to rotate the credentials only. A disabled secret cannot be
+    named (400), unless it is the one already in use.
     """
     repo = ResultsRepository.get_by_id(repo_id)
 
@@ -129,7 +130,7 @@ def patch_repository(repo_id):
         require_all_drained([a.project for a in repo.project_assignments])
 
     if 'secret_label' in body:
-        repo.secret_id = Secret.get_by_label(req.secret_label).id
+        repo.secret_id = Secret.get_enabled_by_label(req.secret_label, repo.secret_id).id
 
     if 'enabled' in body:
         repo.enabled = req.enabled

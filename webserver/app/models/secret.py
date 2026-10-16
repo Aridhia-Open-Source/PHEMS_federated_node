@@ -52,6 +52,17 @@ class Secret(db.Model, BaseModel):
             raise InvalidRequest(f"Secret {label} does not exist")
         return secret
 
+    @classmethod
+    def get_enabled_by_label(cls, label: str, current_id: int | None = None) -> "Secret":
+        """
+        For create and patch: like get_by_label, but a disabled secret is a 400. Naming the
+        secret the resource already uses (current_id) is not a change, so it is let through.
+        """
+        secret = cls.get_by_label(label)
+        if not secret.enabled and secret.id != current_id:
+            raise InvalidRequest(f"Secret {label} is disabled")
+        return secret
+
     @validates('label')
     def validate_label(self, key, value):
         """The key, "fn-secret-<label>", is a store secret name (a Kubernetes one today): a DNS subdomain, so it can be created as-is."""

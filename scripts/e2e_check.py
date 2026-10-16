@@ -65,8 +65,8 @@ def command_snapshot(api, config, _args):
 
 
 def command_wait_prs(api, config, args):
-    """The script opens a watched, an unwatched and an invalid PR: expect YIELDED (with a task), IGNORED, REJECTED."""
-    want = {"YIELDED", "IGNORED", "REJECTED"}
+    """The script opens a watched, an unwatched and an invalid PR: expect YIELDED (with a task) and REJECTED, and no trigger for the unwatched one."""
+    want = {"YIELDED", "REJECTED"}
 
     def check():
         snap = snapshot(api, config.project_name)
@@ -75,16 +75,19 @@ def command_wait_prs(api, config, args):
 
     snap = wait_for(check, args.timeout)
     if snap is None:
-        print("FAIL: timed out waiting for YIELDED, IGNORED and REJECTED pull requests. Last snapshot:")
+        print("FAIL: timed out waiting for YIELDED and REJECTED pull requests. Last snapshot:")
         print(json.dumps(snapshot(api, config.project_name), indent=2))
         print("Check: fncli sensor-status (ingest and evaluate running? errors in the ticks?)")
         return 1
     prs = [pr for link in snap["trigger_links"] for pr in link["pull_requests"]]
     problems = []
+    for link in snap["trigger_links"]:
+        if len(link["pull_requests"]) != 2:
+            problems.append(f"link {link.get('repository_id', '?')} has {len(link['pull_requests'])} pull requests, expected 2 (the watched and the invalid one: the unwatched PR creates no trigger)")
     for pr in prs:
         if pr["state"] == "YIELDED" and not pr["task_id"]:
             problems.append(f"PR {pr['number']} is YIELDED but has no task_id")
-        if pr["state"] in ("IGNORED", "REJECTED") and not pr["state_cause"]:
+        if pr["state"] == "REJECTED" and not pr["state_cause"]:
             problems.append(f"PR {pr['number']} is {pr['state']} but has no state_cause")
     if not snap["tasks"]:
         problems.append("no tasks for the project")

@@ -262,7 +262,7 @@ def verify_repo(
 ) -> int:
     """
     Print a report per PR of the trigger repo, the last `tail` by number if given, and a
-    summary. Returns how many checks failed. A PR the sensor ignored or rejected has no task
+    summary. Returns how many checks failed. A PR the sensor rejected has no task
     to check, which is the right outcome for it. One still UNKNOWN has not been evaluated.
     """
     prs = sorted(backend_api.get_pull_requests(project_id, repo_id), key=lambda pr: pr.number)
@@ -275,7 +275,7 @@ def verify_repo(
     for pr in prs:
         report = Report()
         report.link("Trigger PR", links.trigger_pr(pr.number))
-        if pr.state in (TriggerState.IGNORED, TriggerState.REJECTED):
+        if pr.state == TriggerState.REJECTED:
             report.record(True, f"PR was {pr.state.value}, so no task is expected", pr.state_cause or "")
         elif pr.state == TriggerState.UNKNOWN:
             report.record(False, "PR was evaluated", "still UNKNOWN, the evaluate sensor has not run on it")

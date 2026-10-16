@@ -103,7 +103,7 @@ erDiagram
         int id PK
         string type "PR or API"
         int project_id FK
-        string state "UNKNOWN YIELDED IGNORED REJECTED"
+        string state "UNKNOWN YIELDED REJECTED"
         string state_cause
     }
     api_request_triggers {
@@ -241,15 +241,12 @@ classDiagram
 stateDiagram-v2
     [*] --> UNKNOWN : a stored PR is fanned out to an active assignment
     UNKNOWN --> YIELDED : valid spec, task created in the same transaction
-    [*] --> IGNORED : fan-out finds no match: wrong base branch or no new .json under watch_dir (state_cause)
-    UNKNOWN --> IGNORED : evaluate finds no spec file (state_cause)
     UNKNOWN --> REJECTED : several files, invalid spec, or backend 400 (state_cause)
     YIELDED --> [*]
-    IGNORED --> [*]
     REJECTED --> [*]
 ```
 
-`state_cause` is required for `IGNORED` and `REJECTED` and forbidden otherwise (check constraint and `set_state`). An `ApiRequestTrigger` is validated inside `POST /tasks`: it is recorded `REJECTED` (with the cause) when invalid, else `YIELDED` with its task, and is never `UNKNOWN` for long.
+`state_cause` is required for `REJECTED`, which is final, and forbidden otherwise (check constraint and `set_state`). An `ApiRequestTrigger` is validated inside `POST /tasks`: it is recorded `REJECTED` (with the cause) when invalid, else `YIELDED` with its task, and is never `UNKNOWN` for long.
 
 ## Task status
 
