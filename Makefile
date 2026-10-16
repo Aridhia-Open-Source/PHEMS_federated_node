@@ -84,6 +84,9 @@ teardown:
 portfwd:
 	./scripts/portfwd.sh
 
+deploy-owner:
+	./scripts/deploy_owner.sh show
+
 upgrade:
 	./scripts/upgrade.sh
 
