@@ -228,16 +228,17 @@ def test_fncli_project_trigger_links_and_prs(api, raw, world):
     assert {p.number for p in prs} == set(range(1, 102))
     assert all(isinstance(p, fn_models.PullRequestTrigger) and p.state == fn_models.TriggerState.UNKNOWN for p in prs)
     assert len(api.get_pull_requests(pid, tid, state="UNKNOWN")) == 101
-    assert api.get_pull_requests(pid, tid, state="IGNORED") == []
+    with pytest.raises(requests.HTTPError) as exc:  # IGNORED no longer exists
+        api.get_pull_requests(pid, tid, state="IGNORED")
+    assert exc.value.response.status_code == 400
 
     # small pages through the same route, as the client's loop would see them
     page = raw.ok("GET", f"/projects/{pid}/repositories/triggers/{tid}/pull_requests?per_page=40&page=3")
     assert len(page["items"]) == 21 and page["total"] == 101 and page["page"] == 3 and page["per_page"] == 40
 
-    # ignored PR, then a state filter
+    # a PR on another base branch creates no trigger for the link
     api.create_pull_requests_batch(tid, [pr(200, base_branch="dev")])
-    ignored = api.get_pull_requests(pid, tid, state="IGNORED")
-    assert [p.number for p in ignored] == [200] and ignored[0].state_cause and "dev" in ignored[0].state_cause
+    assert len(api.get_pull_requests(pid, tid)) == 101
 
     patched = api.patch_pull_request(pid, tid, 1, {"state": "REJECTED", "state_cause": "bad"})
     assert patched.state == fn_models.TriggerState.REJECTED and patched.state_cause == "bad"
@@ -249,7 +250,7 @@ def test_fncli_project_trigger_links_and_prs(api, raw, world):
     api.patch_project(pid, {"locked": True})
     link = api.patch_project_trigger_repository(pid, tid, {"enabled": False})
     assert link.enabled is False and link.active is False
-    assert api.get_project_trigger_repository(pid, tid).pr_count == 102
+    assert api.get_project_trigger_repository(pid, tid).pr_count == 101
 
 
 def test_fncli_task_and_results(api, raw, world):
@@ -264,6 +265,8 @@ def test_fncli_task_and_results(api, raw, world):
     assert fetched.project_id == pid
     assert api.get_task_results(task["id"]) == []
 
+    raw.ok("POST", f"/projects/{pid}/results", 409, json={"task_id": task["id"], "results_repository_id": rid})
+    raw.ok("PATCH", f"/tasks/{task['id']}", 200, json={"status": "SUCCESS"})
     result = raw.ok("POST", f"/projects/{pid}/results", 201, json={"task_id": task["id"], "results_repository_id": rid})
     results = api.get_task_results(task["id"])
     assert len(results) == 1 and isinstance(results[0], fn_models.PullRequestResult)
@@ -346,9 +349,9 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
     assert d.create_pull_requests_batch(tid, [pr(3), pr(4)]) == {"created": [4], "existing": [3]}
     prs = d.get_pull_requests(pid, tid, "UNKNOWN")
     assert sorted(p.number for p in prs) == [1, 2, 3, 4]  # newest merge first
-    patched = d.patch_pull_request(pid, tid, 4, {"state": "IGNORED", "state_cause": "n/a"})
-    assert patched.state.value == "IGNORED"
-    assert [p.number for p in d.get_pull_requests(pid, tid, "IGNORED")] == [4]
+    patched = d.patch_pull_request(pid, tid, 4, {"state": "REJECTED", "state_cause": "n/a"})
+    assert patched.state.value == "REJECTED"
+    assert [p.number for p in d.get_pull_requests(pid, tid, "REJECTED")] == [4]
 
     task, created = d.create_task_for_pull_request(pid, tid, 1, SPEC_RAW)
     assert created is True and task.status == "PENDING" and task.spec.dataset_id == did
@@ -360,6 +363,9 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
     assert running.status == "RUNNING" and running.dagster_run_id == "run-1"
     assert d.get_task(task.id).dagster_run_id == "run-1"
     assert d.patch_task(task.id, {"status": "SUCCESS"}).status == "SUCCESS"
+    with pytest.raises(requests.HTTPError) as exc:  # a finished task cannot change status
+        d.patch_task(task.id, {"status": "FAILED"})
+    assert exc.value.response.status_code == 409
     assert d.get_task_results(task.id) == []
 
     result = d.create_result(pid, task.id, rid)
@@ -378,7 +384,10 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
     repo = d.create_repository("github.com/org/dag-triggers", "github", "https://api.github.com", "live-creds")
     link = d.assign_repository(pid, repo.id, "dag", "main")
     assert link.watch_dir == "dag" and link.trigger_repository.id == repo.id
-    api.patch_project(pid, {"locked": True})  # deleting a linked repository needs the project locked and drained
+    api.patch_project(pid, {"locked": True})
+    api.patch_project_trigger_repository(pid, tid, {"enabled": False})
+    assert [l.trigger_repository.id for l in d.get_project_trigger_repositories(pid, active=True)] == [repo.id]
+    # deleting a linked repository needs the project locked and drained
     d.delete_dataset(ds.id)
     d.delete_repository(repo.id)
     with pytest.raises(requests.HTTPError) as exc:
