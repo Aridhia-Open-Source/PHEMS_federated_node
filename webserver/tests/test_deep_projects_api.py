@@ -442,7 +442,7 @@ def test_delete_project_with_yielded_task_and_pr(client, admin_headers, lock_pro
 def test_delete_project_with_results_repo_link_and_result(
     client, admin_headers, project, linked_results_repo, global_results_repo, make_task
 ):
-    task = make_task(status="FAILED")
+    task = make_task(status="SUCCESS")
     posted = client.post("/projects/%d/results" % project.id,
                          json={"task_id": task.id, "results_repository_id": global_results_repo.id},
                          headers=admin_headers)
