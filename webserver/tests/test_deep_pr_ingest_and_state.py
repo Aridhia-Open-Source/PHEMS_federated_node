@@ -53,10 +53,12 @@ def get_trigger(client, headers, pid, repo_id, number):
 
 
 def one_state(client, admin_headers, project, repo, **fields):
-    """Link with watch_dir triggers, ingest PR 1 with fields, return its trigger."""
+    """Link with watch_dir triggers, ingest PR 1 with fields, return its trigger (None if no trigger was created)."""
     link(client, admin_headers, project.id, repo.id)
     r = post_prs(client, admin_headers, repo.id, pr(1, **fields))
     assert r.status_code == 201, r.json
+    if not states(client, admin_headers, project.id, repo.id):
+        return None
     return get_trigger(client, admin_headers, project.id, repo.id, 1)
 
 
@@ -132,8 +134,8 @@ def test_unrevoke_backfills_missed_prs(client, admin_headers, project, global_tr
     post_prs(client, admin_headers, T, pr(1), pr(2, changed_files=files("elsewhere/a.json")))
     assert states(client, admin_headers, project.id, T) == {}
     r = client.patch(url, json={"revoked": False}, headers=admin_headers)
-    assert r.status_code == 200 and r.json["pr_count"] == 2
-    assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN", 2: "IGNORED"}
+    assert r.status_code == 200 and r.json["pr_count"] == 1
+    assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN"}
 
 
 def test_unrevoke_does_not_backfill_prs_older_than_link(client, admin_headers, project, global_trigger_repo):
@@ -285,15 +287,15 @@ def test_invalid_pr_in_batch_refuses_whole_batch(client, admin_headers, project,
 @pytest.mark.parametrize("watch_dir, paths, expected", [
     ("triggers", ["triggers/spec.json"], "UNKNOWN"),
     ("triggers", ["triggers/nested/deep/spec.json"], "UNKNOWN"),
-    ("triggers", ["triggers-old/spec.json"], "IGNORED"),
-    ("triggers", ["old-triggers/spec.json"], "IGNORED"),
-    ("triggers", ["other/triggers/spec.json"], "IGNORED"),
-    ("triggers", ["spec.json"], "IGNORED"),
-    ("triggers", ["triggers/readme.md"], "IGNORED"),
+    ("triggers", ["triggers-old/spec.json"], "NONE"),
+    ("triggers", ["old-triggers/spec.json"], "NONE"),
+    ("triggers", ["other/triggers/spec.json"], "NONE"),
+    ("triggers", ["spec.json"], "NONE"),
+    ("triggers", ["triggers/readme.md"], "NONE"),
     ("triggers", ["triggers/readme.md", "triggers/x.json"], "UNKNOWN"),
-    ("triggers/a", ["triggers/spec.json"], "IGNORED"),
+    ("triggers/a", ["triggers/spec.json"], "NONE"),
     ("triggers/a", ["triggers/a/spec.json"], "UNKNOWN"),
-    ("triggers/a", ["triggers/ab/spec.json"], "IGNORED"),
+    ("triggers/a", ["triggers/ab/spec.json"], "NONE"),
     ("/triggers/", ["triggers/spec.json"], "UNKNOWN"),
     ("./triggers", ["triggers/spec.json"], "UNKNOWN"),
     ("", ["anything/at/all.json"], "UNKNOWN"),
@@ -304,11 +306,11 @@ def test_file_matching_against_watch_dir(client, admin_headers, project, global_
     link(client, admin_headers, project.id, T, watch_dir=watch_dir)
     r = post_prs(client, admin_headers, T, pr(1, changed_files=files(*paths)))
     assert r.status_code == 201, r.json
-    t = get_trigger(client, admin_headers, project.id, T, 1)
-    assert t["state"] == expected
-    if expected == "IGNORED":
-        assert t["state_cause"]
+    if expected == "NONE":
+        assert states(client, admin_headers, project.id, T) == {}
     else:
+        t = get_trigger(client, admin_headers, project.id, T, 1)
+        assert t["state"] == expected
         assert t["state_cause"] is None
 
 
@@ -317,7 +319,7 @@ def test_only_added_spec_files_match(client, admin_headers, project, global_trig
     """Dagster's rule: a file the PR adds. Deleted/renamed/modified specs do not trigger a run."""
     t = one_state(client, admin_headers, project, global_trigger_repo,
                   changed_files=files("triggers/spec.json", status=status))
-    assert t["state"] == "IGNORED"
+    assert t is None
 
 
 def test_multiple_files_one_matching_is_enough(client, admin_headers, project, global_trigger_repo):
@@ -329,10 +331,8 @@ def test_multiple_files_one_matching_is_enough(client, admin_headers, project, g
     assert t["state"] == "UNKNOWN"
 
 
-def test_empty_changed_files_is_ignored(client, admin_headers, project, global_trigger_repo):
-    t = one_state(client, admin_headers, project, global_trigger_repo, changed_files=[])
-    assert t["state"] == "IGNORED"
-    assert "triggers" in t["state_cause"]
+def test_empty_changed_files_creates_no_trigger(client, admin_headers, project, global_trigger_repo):
+    assert one_state(client, admin_headers, project, global_trigger_repo, changed_files=[]) is None
 
 
 def test_files_truncated_matches_every_path(client, admin_headers, project, global_trigger_repo):
@@ -342,16 +342,7 @@ def test_files_truncated_matches_every_path(client, admin_headers, project, glob
 
 
 def test_files_truncated_still_respects_base_branch(client, admin_headers, project, global_trigger_repo):
-    t = one_state(client, admin_headers, project, global_trigger_repo, files_truncated=True, base_branch="dev")
-    assert t["state"] == "IGNORED"
-    assert "dev" in t["state_cause"]
-
-
-def test_ignored_cause_names_watch_dir(client, admin_headers, project, global_trigger_repo):
-    link(client, admin_headers, project.id, global_trigger_repo.id, watch_dir="specs/here")
-    post_prs(client, admin_headers, global_trigger_repo.id, pr(1))
-    t = get_trigger(client, admin_headers, project.id, global_trigger_repo.id, 1)
-    assert t["state"] == "IGNORED" and "specs/here" in t["state_cause"]
+    assert one_state(client, admin_headers, project, global_trigger_repo, files_truncated=True, base_branch="dev") is None
 
 
 # ---------------------------------------------------------------- base branch
@@ -360,20 +351,18 @@ def test_base_branch_defaults_to_main(client, admin_headers, project, global_tri
     r = link(client, admin_headers, project.id, global_trigger_repo.id)
     assert r.json["base_branch"] == "main"
     post_prs(client, admin_headers, global_trigger_repo.id, pr(1), pr(2, base_branch="master"))
-    assert states(client, admin_headers, project.id, global_trigger_repo.id) == {1: "UNKNOWN", 2: "IGNORED"}
+    assert states(client, admin_headers, project.id, global_trigger_repo.id) == {1: "UNKNOWN"}
 
 
 def test_base_branch_override_matches_only_that_branch(client, admin_headers, project, global_trigger_repo):
     T = global_trigger_repo.id
     link(client, admin_headers, project.id, T, base_branch="release/1.0")
     post_prs(client, admin_headers, T, pr(1, base_branch="release/1.0"), pr(2), pr(3, base_branch="release"))
-    assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN", 2: "IGNORED", 3: "IGNORED"}
-    assert "release/1.0" in get_trigger(client, admin_headers, project.id, T, 2)["state_cause"]
+    assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN"}
 
 
 def test_base_branch_is_case_sensitive(client, admin_headers, project, global_trigger_repo):
-    t = one_state(client, admin_headers, project, global_trigger_repo, base_branch="Main")
-    assert t["state"] == "IGNORED"
+    assert one_state(client, admin_headers, project, global_trigger_repo, base_branch="Main") is None
 
 
 # ---------------------------------------------------------------- multiple projects / links
@@ -386,11 +375,11 @@ def test_two_projects_one_repo_get_independent_triggers(
     link(client, admin_headers, other_project.id, T, watch_dir="other", base_branch="dev")
     r = post_prs(client, admin_headers, T, pr(1), pr(2, base_branch="dev", changed_files=files("other/x.json")))
     assert r.json["created"] == [1, 2]
-    assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN", 2: "IGNORED"}
-    assert states(client, admin_headers, other_project.id, T) == {1: "IGNORED", 2: "UNKNOWN"}
+    assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN"}
+    assert states(client, admin_headers, other_project.id, T) == {2: "UNKNOWN"}
     # state changes do not leak across projects
     client.patch(trig_url(project.id, T, 1), json={"state": "REJECTED", "state_cause": "x"}, headers=admin_headers)
-    assert get_trigger(client, admin_headers, other_project.id, T, 1)["state"] == "IGNORED"
+    assert states(client, admin_headers, other_project.id, T) == {2: "UNKNOWN"}
     assert get_trigger(client, admin_headers, project.id, T, 1)["project_id"] == project.id
     g = client.get(f"/global/repositories/triggers/{T}/pull_requests", headers=admin_headers)
     assert g.json["total"] == 2
@@ -438,7 +427,6 @@ def test_revoked_link_of_one_project_does_not_affect_the_other(
 
 def test_patch_state_legal_transitions(client, admin_headers, pr_trigger):
     cases = [
-        ({"state": "IGNORED", "state_cause": "not ours"}, "IGNORED", "not ours"),
         ({"state": "REJECTED", "state_cause": "bad spec"}, "REJECTED", "bad spec"),
         ({"state": "UNKNOWN"}, "UNKNOWN", None),
         ({"state": "YIELDED"}, "YIELDED", None),
@@ -451,6 +439,7 @@ def test_patch_state_legal_transitions(client, admin_headers, pr_trigger):
 
 @pytest.mark.parametrize("body", [
     {"state": "IGNORED"},
+    {"state": "IGNORED", "state_cause": "not ours"},
     {"state": "REJECTED"},
     {"state": "REJECTED", "state_cause": ""},
     {"state": "UNKNOWN", "state_cause": "no cause allowed"},
@@ -475,14 +464,6 @@ def test_patch_cause_alone_updates_cause_of_rejected(client, admin_headers, pr_t
     client.patch(pr_trigger, json={"state": "REJECTED", "state_cause": "old"}, headers=admin_headers)
     r = client.patch(pr_trigger, json={"state_cause": "new"}, headers=admin_headers)
     assert r.status_code == 200 and r.json["state"] == "REJECTED" and r.json["state_cause"] == "new"
-
-
-def test_patch_leaving_ignored_clears_cause(client, admin_headers, project, global_trigger_repo):
-    t = one_state(client, admin_headers, project, global_trigger_repo, base_branch="dev")
-    assert t["state"] == "IGNORED"
-    url = trig_url(project.id, global_trigger_repo.id, 1)
-    r = client.patch(url, json={"state": "UNKNOWN"}, headers=admin_headers)
-    assert r.status_code == 200 and r.json["state_cause"] is None
 
 
 def test_patch_empty_body_changes_nothing(client, admin_headers, pr_trigger):

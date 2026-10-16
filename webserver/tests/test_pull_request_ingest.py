@@ -30,24 +30,39 @@ def test_ingest_is_idempotent(client, admin_headers, project, global_trigger_rep
     assert response.json["total"] == 2
 
 
-def test_other_base_branch_is_ignored(client, admin_headers, project, global_trigger_repo, linked_trigger_repo, ingest_prs):
+def test_other_base_branch_creates_no_trigger(client, admin_headers, project, global_trigger_repo, linked_trigger_repo, ingest_prs):
     T = global_trigger_repo.id
     ingest_prs(T, 3, base_branch="dev")
 
-    response = client.get(f"/projects/{project.id}/repositories/triggers/{T}/pull_requests/3", headers=admin_headers)
+    response = client.get(f"/projects/{project.id}/repositories/triggers/{T}/pull_requests", headers=admin_headers)
     assert response.status_code == 200
-    assert response.json["state"] == "IGNORED"
-    assert "dev" in response.json["state_cause"]
+    assert response.json["total"] == 0
 
 
-def test_file_outside_watch_dir_is_ignored(client, admin_headers, project, global_trigger_repo, linked_trigger_repo, ingest_prs):
+def test_file_outside_watch_dir_creates_no_trigger(client, admin_headers, project, global_trigger_repo, linked_trigger_repo, ingest_prs):
     T = global_trigger_repo.id
     ingest_prs(T, 4, changed_files=[{"path": "other/spec.json", "status": "added"}])
 
-    response = client.get(f"/projects/{project.id}/repositories/triggers/{T}/pull_requests/4", headers=admin_headers)
+    response = client.get(f"/projects/{project.id}/repositories/triggers/{T}/pull_requests", headers=admin_headers)
     assert response.status_code == 200
-    assert response.json["state"] == "IGNORED"
-    assert "triggers" in response.json["state_cause"]
+    assert response.json["total"] == 0
+
+
+def test_non_matching_pr_leaves_link_empty_but_other_project_link_matches(
+    client, admin_headers, project, other_project, global_trigger_repo, linked_trigger_repo, ingest_prs
+):
+    T = global_trigger_repo.id
+    other = client.put(
+        f"/projects/{other_project.id}/repositories/triggers/{T}", json={"watch_dir": "other"}, headers=admin_headers
+    )
+    assert other.status_code == 201
+    ingest_prs(T, 6, changed_files=[{"path": "other/spec.json", "status": "added"}])
+
+    mine = client.get(f"/projects/{project.id}/repositories/triggers/{T}/pull_requests", headers=admin_headers)
+    assert mine.json["total"] == 0
+    theirs = client.get(f"/projects/{other_project.id}/repositories/triggers/{T}/pull_requests", headers=admin_headers)
+    assert theirs.json["total"] == 1
+    assert theirs.json["items"][0]["state"] == "UNKNOWN"
 
 
 def test_truncated_files_match(client, admin_headers, project, global_trigger_repo, linked_trigger_repo, ingest_prs):

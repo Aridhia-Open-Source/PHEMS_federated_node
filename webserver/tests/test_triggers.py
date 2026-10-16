@@ -30,7 +30,7 @@ class TestTriggerModels:
         assert pr.requested_by == "user"
 
     @pytest.mark.parametrize("state,state_cause", [
-        ("REJECTED", None), ("IGNORED", None), ("UNKNOWN", "why"), ("YIELDED", "why"),
+        ("REJECTED", None), ("UNKNOWN", "why"), ("YIELDED", "why"),
     ])
     def test_check_ties_state_cause_to_state(self, project, state, state_cause):
         api = ApiRequestTrigger(project_id=project.id, user_id="user")
@@ -59,7 +59,7 @@ class TestTriggerSetState:
         api.add()
         return api
 
-    @pytest.mark.parametrize("state", ["IGNORED", "REJECTED"])
+    @pytest.mark.parametrize("state", ["REJECTED"])
     def test_needs_a_cause(self, api, state):
         with pytest.raises(InvalidRequest):
             api.set_state(state, None)
@@ -69,11 +69,12 @@ class TestTriggerSetState:
         with pytest.raises(InvalidRequest):
             api.set_state(state, "why")
 
-    def test_unknown_state(self, api):
+    @pytest.mark.parametrize("state", ["DONE", "IGNORED"])
+    def test_unknown_state(self, api, state):
         with pytest.raises(InvalidRequest):
-            api.set_state("DONE", None)
+            api.set_state(state, None)
 
-    @pytest.mark.parametrize("state,cause", [("IGNORED", "no spec"), ("REJECTED", "bad spec"), ("YIELDED", None)])
+    @pytest.mark.parametrize("state,cause", [("REJECTED", "bad spec"), ("YIELDED", None)])
     def test_valid_transitions_persist(self, api, state, cause):
         api.set_state(state, cause)
         api.add()

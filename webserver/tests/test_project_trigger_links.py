@@ -13,6 +13,34 @@ def test_link_returns_201_and_lists(client, admin_headers, project, global_trigg
     assert len(listing.json) == 1
 
 
+def test_active_filter_lists_only_active_links(client, admin_headers, project, global_trigger_repo, make_trigger_repo):
+    other_trigger_repo = make_trigger_repo(uri="github.com/org/triggers2")
+    base = f"/projects/{project.id}/repositories/triggers"
+    for repo in (global_trigger_repo, other_trigger_repo):
+        assert client.put(f"{base}/{repo.id}", json={"watch_dir": "t"}, headers=admin_headers).status_code == 201
+
+    assert len(client.get(base, headers=admin_headers).json) == 2
+    assert len(client.get(f"{base}?active=true", headers=admin_headers).json) == 2
+
+    revoke = client.patch(f"{base}/{other_trigger_repo.id}", json={"revoked": True}, headers=admin_headers)
+    assert revoke.status_code == 200
+
+    assert len(client.get(base, headers=admin_headers).json) == 2
+    active = client.get(f"{base}?active=true", headers=admin_headers)
+    assert active.status_code == 200
+    assert [l["trigger_repository"]["id"] for l in active.json] == [global_trigger_repo.id]
+
+
+def test_active_filter_omits_disabled_link(client, admin_headers, project, global_trigger_repo, lock_project):
+    base = f"/projects/{project.id}/repositories/triggers"
+    assert client.put(f"{base}/{global_trigger_repo.id}", json={"watch_dir": "t"}, headers=admin_headers).status_code == 201
+    disable = client.patch(f"{base}/{global_trigger_repo.id}", json={"enabled": False}, headers=admin_headers)
+    assert disable.status_code == 200
+
+    assert len(client.get(base, headers=admin_headers).json) == 1
+    assert client.get(f"{base}?active=true", headers=admin_headers).json == []
+
+
 def test_link_bad_body(client, admin_headers, project, global_trigger_repo):
     url = f"/projects/{project.id}/repositories/triggers/{global_trigger_repo.id}"
 
