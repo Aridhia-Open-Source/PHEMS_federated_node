@@ -1,0 +1,18 @@
+{
+  "attempts": 0,
+  "branch": "task-1-results",
+  "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "created_at": "2026-01-01 00:00:00",
+  "error": null,
+  "id": 1,
+  "merge_commit_sha": null,
+  "merged_at": null,
+  "number": 5,
+  "results_repository_id": 1,
+  "state": "IN_PROGRESS",
+  "step": "OPENED",
+  "task_id": 1,
+  "type": "PR",
+  "updated_at": "2026-01-01 00:00:00",
+  "url": "https://x/pull/5"
+}

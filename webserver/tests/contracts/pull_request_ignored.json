@@ -1,0 +1,11 @@
+{
+  "merge_commit_sha": "1111111111111111111111111111111111111111",
+  "merged_at": "2026-01-01T10:00:00",
+  "number": 1,
+  "raised_by": "user1",
+  "state": "IGNORED",
+  "state_cause": "no spec file",
+  "task_id": null,
+  "title": "PR 1",
+  "trigger_repository_id": 1
+}

@@ -26,6 +26,13 @@ from app.models.api_request_trigger import ApiRequestTrigger
 from app.helpers.exceptions import KeycloakError
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--regenerate-contracts", action="store_true", default=False,
+        help="rewrite the JSON files in tests/contracts/ from the API responses (test_api_contract.py)",
+    )
+
+
 @fixture(scope='session', autouse=True)
 def check_database_connection():
     """Check database connectivity before running any tests. Exit entire suite if DB unavailable."""

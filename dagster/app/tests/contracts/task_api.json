@@ -1,0 +1,23 @@
+{
+  "attempt": 1,
+  "completed_at": null,
+  "created_at": "2026-01-01 00:00:00",
+  "dagster_run_id": null,
+  "exit_code": null,
+  "id": 1,
+  "name": "TestTask",
+  "project_id": 1,
+  "requested_by": "af3301a1-8b02-47b3-8fae-a36b16a6ca32",
+  "spec": {
+    "dataset_id": 1,
+    "env": {
+      "USERNAME": "test",
+      "VARIABLE_UNIQUE": 123
+    },
+    "image": "acr.azurecr.io/example:latest"
+  },
+  "started_at": null,
+  "status": "PENDING",
+  "trigger_id": 1,
+  "updated_at": "2026-01-01 00:00:00"
+}

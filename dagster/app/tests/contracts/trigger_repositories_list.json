@@ -1,0 +1,26 @@
+[
+  {
+    "api_uri": "https://api.github.com",
+    "base_branch": "main",
+    "dataset_id": 1,
+    "id": 1,
+    "initial_cursor": "2026-01-01T00:00:00",
+    "pr_count": 0,
+    "pr_cursor": "2026-01-01T00:00:00Z",
+    "project_id": 1,
+    "provider": "github",
+    "secret": {
+      "created_at": "2026-01-01 00:00:00",
+      "description": null,
+      "id": 1,
+      "key": "1-test-creds",
+      "label": "test-creds",
+      "namespace": null,
+      "project_id": 1,
+      "provider": "K8S",
+      "updated_at": "2026-01-01 00:00:00"
+    },
+    "uri": "github.com/org/test-repo",
+    "watch_dir": ""
+  }
+]
