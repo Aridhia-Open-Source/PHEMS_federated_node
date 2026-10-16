@@ -194,6 +194,29 @@ jobs:
           filename: artifacts/coverage.xml
           fail_below_min: true
           thresholds: '60 80'
+  test-gitea-mirror:
+    needs:
+      - init
+      - linters
+    defaults:
+      run:
+        shell: bash
+    runs-on: ubuntu-latest
+    if: needs.init.outputs.is_tag == 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Docker Compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-compose
+      - name: Run gitea-mirror tests
+        working-directory: gitea-mirror
+        run: |
+          bash run_tests.sh ci
+      - name: Run gitea-mirror Gitea integration tests
+        working-directory: gitea-mirror
+        run: |
+          bash run_gitea_tests.sh
   build-flask-image:
     needs:
       - init
@@ -264,6 +287,20 @@ jobs:
       DOCKER_ACR: ${{ vars.DOCKER_CR }}
     secrets:
       DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-gitea-mirror-image:
+    needs:
+      - init
+      - test-gitea-mirror
+    if: needs.init.outputs.is_tag == 'false'
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
+    with:
+      TAG: ${{ needs.init.outputs.tag }}
+      IMAGE: gitea_mirror
+      BUILD_PATH: gitea-mirror
+      HASH_SUFFIX: false
+      DOCKER_ACR: ${{ vars.DOCKER_CR }}
+    secrets:
+      DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   promote:
     needs: init
     if: needs.init.outputs.is_tag == 'true'
@@ -281,7 +318,7 @@ jobs:
           RC_TAG: ${{ needs.init.outputs.rc_tag }}
           TAG: ${{ needs.init.outputs.tag }}
         run: |
-          for image in federated_node_run federated_keycloak alpine keycloak_initializer dagster_fn; do
+          for image in federated_node_run federated_keycloak alpine keycloak_initializer dagster_fn gitea_mirror; do
             repo="${REGISTRY}/${OWNER,,}/${image}"
             docker buildx imagetools create -t "${repo}:${TAG}" "${repo}:${RC_TAG}"
           done
@@ -295,6 +332,7 @@ jobs:
       - build-alpine-image
       - build-kc-init-image
       - build-dagster-image
+      - build-gitea-mirror-image
     runs-on: ubuntu-latest
     permissions:
       contents: read
