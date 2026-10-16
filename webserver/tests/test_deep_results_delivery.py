@@ -42,7 +42,16 @@ def post_result(client, admin_headers, project, task, repo):
     )
 
 
+def finish(client, admin_headers, task):
+    """A result can only be posted for a SUCCESS task: finish the task first."""
+    response = client.patch(f"/tasks/{task.id}", json={"status": "SUCCESS"}, headers=admin_headers)
+    assert response.status_code == 200, response.json
+    return task
+
+
 def new_result(client, admin_headers, project, task, repo):
+    if task.status != TaskStatus.SUCCESS:
+        finish(client, admin_headers, task)
     response = post_result(client, admin_headers, project, task, repo)
     assert response.status_code == 201, response.json
     return response.json["id"]
@@ -347,16 +356,17 @@ def test_other_project_cannot_see_or_touch_link(
 # ---------------------------------------------------------------- result creation rules
 
 
-@pytest.mark.parametrize("status", ["SUCCESS", "PENDING", "RUNNING"])
-def test_post_result_for_task_states_current_behaviour(
-    client, admin_headers, project, global_results_repo, linked_results_repo, make_task, status
+@pytest.mark.parametrize("status, expected", [("SUCCESS", 201), ("PENDING", 409), ("RUNNING", 409)])
+def test_post_result_only_for_success_task(
+    client, admin_headers, project, global_results_repo, linked_results_repo, make_task, status, expected
 ):
-    """The ADR does not restrict the task status on POST (the plan posts for a PENDING task): any is accepted."""
+    """A result is accepted only once the task is SUCCESS."""
     task = make_task(status=status)
-    assert post_result(client, admin_headers, project, task, global_results_repo).status_code == 201
+    assert post_result(client, admin_headers, project, task, global_results_repo).status_code == expected
+    if expected == 409:
+        assert client.get(results_url(project), headers=admin_headers).json == []
 
 
-@pytest.mark.xfail(reason="results are accepted for FAILED/CANCELED tasks, which produce nothing to deliver", strict=False)
 @pytest.mark.parametrize("status", ["FAILED", "CANCELED"])
 def test_post_result_for_dead_task_refused(
     client, admin_headers, project, global_results_repo, linked_results_repo, make_task, status
@@ -389,7 +399,7 @@ def test_post_result_shape_and_global_repo_id(
 def test_post_result_duplicate_is_idempotent_per_task_and_repo(
     client, admin_headers, project, global_results_repo, linked_results_repo, make_task
 ):
-    first, second = make_task(), make_task()
+    first, second = make_task(), make_task(status="SUCCESS")
     rid = new_result(client, admin_headers, project, first, global_results_repo)
     # progress must survive a repeated POST
     assert patch_result(client, admin_headers, project, rid, {"step": "PUSHED"}).status_code == 200
@@ -428,7 +438,6 @@ def test_post_result_repo_linked_to_other_project_only_is_400(
     assert post_result(client, admin_headers, project, task, global_results_repo).status_code == 400
 
 
-@pytest.mark.xfail(reason="POST /results accepts a revoked link (ADR 2/12.1: revoke takes effect immediately)", strict=False)
 def test_post_result_revoked_link_refused(
     client, admin_headers, project, global_results_repo, linked_results_repo, make_task
 ):
@@ -437,7 +446,6 @@ def test_post_result_revoked_link_refused(
     assert post_result(client, admin_headers, project, task, global_results_repo).status_code in (400, 403, 409)
 
 
-@pytest.mark.xfail(reason="POST /results accepts a link the project disabled (inactive link)", strict=False)
 def test_post_result_disabled_link_refused(
     client, admin_headers, project, global_results_repo, linked_results_repo, make_task
 ):
@@ -448,7 +456,6 @@ def test_post_result_disabled_link_refused(
     assert post_result(client, admin_headers, project, task, global_results_repo).status_code in (400, 409)
 
 
-@pytest.mark.xfail(reason="POST /results accepts a globally disabled results repository", strict=False)
 def test_post_result_globally_disabled_repo_refused(
     client, admin_headers, project, global_results_repo, linked_results_repo, make_task
 ):
