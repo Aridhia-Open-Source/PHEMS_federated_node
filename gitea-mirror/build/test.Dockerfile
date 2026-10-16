@@ -13,6 +13,7 @@ RUN apt-get update \
         libpq-dev \
         python3-dev \
         gcc \
+        git \
         curl \
         jq \
     && rm -rf /var/lib/apt/lists/*

@@ -1,6 +1,6 @@
 import pytest
 from app import create_app
-from app.clients import UnconfiguredGithubClient
+from app.clients import UnconfiguredGiteaClient, UnconfiguredGithubClient
 from app.helpers.base_model import db
 from app.models.mirror import MirrorState, MirroredPullRequest
 from datetime import datetime, timezone
@@ -65,7 +65,9 @@ def test_create_users_sync_failure_keeps_mirror(client, auth, github):
 
 
 def test_create_users_sync_unconfigured(migrated, auth):
-    app = create_app(github_client=UnconfiguredGithubClient())
+    app = create_app(
+        github_client=UnconfiguredGithubClient(), gitea_client=UnconfiguredGiteaClient()
+    )
     app.testing = True
     with app.test_client() as c, app.app_context():
         resp = make(c, auth, upstream_uri='https://github.com/x/unconfigured',
@@ -160,12 +162,6 @@ def test_status_with_state(client, auth, error, expired):
     assert data['last_sync_at'] is not None
 
 
-def test_resync_not_implemented(client, auth):
-    mid = make(client, auth).get_json()['id']
-    resp = client.post(f'/mirrors/{mid}/resync', headers=auth)
-    assert resp.status_code == 501
-
-
 def test_users_sync(client, auth, gitea):
     mid = make(client, auth).get_json()['id']
     gitea.users = set()
@@ -183,7 +179,9 @@ def test_users_sync_client_error(client, auth, github):
 
 
 def test_users_sync_unconfigured(migrated, auth):
-    app = create_app(github_client=UnconfiguredGithubClient())
+    app = create_app(
+        github_client=UnconfiguredGithubClient(), gitea_client=UnconfiguredGiteaClient()
+    )
     app.testing = True
     with app.test_client() as c, app.app_context():
         mid = make(c, auth, upstream_uri='https://github.com/x/u2', gitea_owner='x',

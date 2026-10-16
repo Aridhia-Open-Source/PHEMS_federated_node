@@ -5,6 +5,7 @@ from alembic.config import Config
 from alembic import command
 
 os.environ['GITEA_MIRROR_API_TOKEN'] = 'test-token'
+os.environ['GITEA_MIRROR_GIT_CACHE_DIR'] = '/tmp/gitea-mirror-git'
 
 from app import create_app
 from app.clients import UserSyncError

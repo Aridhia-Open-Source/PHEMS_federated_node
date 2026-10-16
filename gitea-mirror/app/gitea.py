@@ -1,10 +1,16 @@
 import os
+import re
 import secrets
 import requests
 from app.clients import UserSyncError
 
 PAGE_SIZE = 50
 TIMEOUT = 30
+
+
+def shadow_login(github_login: str) -> str:
+    """Gitea usernames allow [A-Za-z0-9_.-]; GitHub bots are named like 'dependabot[bot]'."""
+    return re.sub(r'[^A-Za-z0-9_.-]+', '-', github_login).strip('-.')
 
 
 class GiteaError(Exception):
@@ -22,13 +28,18 @@ class HttpGiteaClient:
     """Admin-token Gitea REST client. Git push and fetch are not done here."""
 
     def __init__(self, base_url: str, token: str):
-        self.api = base_url.rstrip('/') + '/api/v1'
+        self.base_url = base_url.rstrip('/')
+        self.api = self.base_url + '/api/v1'
         self.session = requests.Session()
         self.session.headers['Authorization'] = f'token {token}'
 
     @classmethod
     def from_env(cls) -> 'HttpGiteaClient':
         return cls(os.environ['GITEA_MIRROR_GITEA_URL'], os.environ['GITEA_MIRROR_GITEA_TOKEN'])
+
+    def git_remote(self, org: str, repo: str) -> tuple[str, str]:
+        """The repository's git URL and the Authorization header value for git push."""
+        return f'{self.base_url}/{org}/{repo}.git', self.session.headers['Authorization']
 
     def _request(self, method: str, path: str, expected: tuple, sudo: str = None, **kwargs):
         headers = {'Sudo': sudo} if sudo else {}
