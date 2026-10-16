@@ -276,34 +276,22 @@ def test_fncli_task_and_results(api, raw, world):
 def test_fncli_errors(api, world):
     w = world
     pid, tid = w["project"].id, w["trigger"].id
-    with pytest.raises(requests.HTTPError) as exc:
-        api.get_task(9999)
-    assert exc.value.response.status_code == 404
-    with pytest.raises(requests.HTTPError) as exc:
-        api.get_dataset(9999)
-    assert exc.value.response.status_code == 404
-    with pytest.raises(requests.HTTPError) as exc:
-        api.get_project(9999)
-    assert exc.value.response.status_code == 404
-    with pytest.raises(requests.HTTPError) as exc:
-        api.get_project_trigger_repository(pid, 9999)
-    assert exc.value.response.status_code == 404
-    with pytest.raises(requests.HTTPError) as exc:
-        api.patch_pull_request(pid, tid, 99, {"state": "REJECTED", "state_cause": "x"})
-    assert exc.value.response.status_code == 404
-    with pytest.raises(requests.HTTPError) as exc:
-        api.get_pull_requests(pid, tid, state="NOPE")
-    assert exc.value.response.status_code == 400
-    with pytest.raises(requests.HTTPError) as exc:
-        api.create_repository("github.com/org/live-triggers", "github", "https://api.github.com", "live-creds")
-    assert exc.value.response.status_code == 409
-    with pytest.raises(requests.HTTPError) as exc:
-        api.create_repository("github.com/org/new", "github", "https://api.github.com", "missing-secret")
-    assert exc.value.response.status_code == 400
-    # a dataset linked to an enabled project, and a secret in use: deletion refused
-    with pytest.raises(requests.HTTPError) as exc:
-        api.delete_secret("live-creds")
-    assert exc.value.response.status_code == 409
+    creds = ("github.com/org/new", "github", "https://api.github.com", "missing-secret")
+    cases = [
+        (404, lambda: api.get_task(9999)),
+        (404, lambda: api.get_dataset(9999)),
+        (404, lambda: api.get_project(9999)),
+        (404, lambda: api.get_project_trigger_repository(pid, 9999)),
+        (404, lambda: api.patch_pull_request(pid, tid, 99, {"state": "REJECTED", "state_cause": "x"})),
+        (400, lambda: api.get_pull_requests(pid, tid, state="NOPE")),
+        (409, lambda: api.create_repository("github.com/org/live-triggers", "github", "https://api.github.com", "live-creds")),
+        (400, lambda: api.create_repository(*creds)),
+        (409, lambda: api.delete_secret("live-creds")),  # a secret in use cannot be deleted
+    ]
+    for status, call in cases:
+        with pytest.raises(requests.HTTPError) as exc:
+            call()
+        assert exc.value.response.status_code == status
     assert api.delete_secret("never-existed") is False
 
 
