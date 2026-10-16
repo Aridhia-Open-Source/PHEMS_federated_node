@@ -127,7 +127,7 @@ class TestTaskDTO:
         assert set(dumped) == {
             "id", "name", "spec", "attempt", "status", "created_at", "updated_at",
             "requested_by", "project_id", "trigger_id",
-            "dagster_run_id", "exit_code", "started_at", "completed_at",
+            "dagster_run_id", "exit_code", "started_at", "completed_at", "state_cause",
         }
         assert dumped["status"] == "PENDING"
         assert dumped["attempt"] == 1
