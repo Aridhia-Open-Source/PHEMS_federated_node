@@ -5,7 +5,7 @@ Pointer note. Read `project/moonshot-as-built.md` (status at the top) first for 
 
 ## Branches that need review
 
-- **`moonshot/e2e-failure-suite`** (off this branch, 150+ commits ahead of `dagster-develop` in total, about 10 sessions' worth of new code on top of this branch). Review in this order:
+- **`moonshot/e2e-failure-suite`** (off this branch; about 10 commits and roughly 100 lines of application code on top of it, plus tests and tooling). Review in this order:
   1. `project/handover/e2e-failure-suite-handover.md` on that branch: what it holds and what to check first.
   2. **Application code (small, behaviour changing):**
      - `REVOKED` result step: `POST /results` through a revoked results link creates the result as step `REVOKED`, state `FAILED` (201, it was 409), final. Webserver `results_api.py`, models, openapi; Dagster `delivery/results.py` leaves it alone.
