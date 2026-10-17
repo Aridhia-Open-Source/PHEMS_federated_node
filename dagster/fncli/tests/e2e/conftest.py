@@ -12,7 +12,6 @@ import os
 import time
 
 import pytest
-from click.testing import CliRunner
 from dotenv import find_dotenv, load_dotenv
 
 from fncli.cli import cli
@@ -46,14 +45,14 @@ class Fncli:
 
     def __init__(self):
         load_dotenv(find_dotenv(".dev.env", usecwd=True))
-        self.runner = CliRunner()
         self.config = ProjectConfig()
         self.backend_api = build_backend_api(self.config)
 
     def run(self, *args: str):
-        result = self.runner.invoke(cli, list(args))
-        assert result.exit_code == 0, f"fncli {' '.join(args)} exited {result.exit_code}:\n{result.output}"
-        return result
+        """Run an fncli command as the CLI would, its output going straight to the terminal."""
+        # Without standalone mode click returns a command's exit code (or its return value) instead of exiting
+        code = cli.main(list(args), standalone_mode=False)
+        assert not isinstance(code, int) or code == 0, f"fncli {' '.join(args)} exited {code}"
 
     def call(self, command, **options):
         """Run one command's function and return what it returns, which a CliRunner run drops."""
