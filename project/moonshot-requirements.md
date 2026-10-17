@@ -1,10 +1,27 @@
 # Moonshot: architecture and requirements
 
-> **Update 2026-10-17 (after this was written):**
-> - **GitProvider added** (`5276b7fe`): global `GitProvider` (`name`, `type` github|gitea, `uri` unique, `api_uri` required, `enabled`) under `/global/providers`. Trigger and results repos are now `provider_id` + `repo_path` + `secret_id` (token per repo) + `enabled`, unique `(provider_id, repo_path)`; full `uri` is derived. A disabled provider makes its repos inactive. Migration `002_git_providers`. No `upstream_id` yet.
-> - **gitea-mirror parked for the beta.** Repos use GitHub directly. Post-beta direction: a stateless mirror service in its own network zone that replays PRs in number order so Gitea numbers match GitHub; the node sees it as a `gitea` GitProvider. Webhooks dropped (GM-19 is not a gap).
-> - **Auth (planned, not built):** see `project/auth-mvp-plan.md`. Roles user ⊂ admin ⊂ system; project setup is admin; the six Dagster write routes are system only; sensors are admin; no task-owner check (project isolation is a future ticket).
-> - Requirements and validation cases below that mention repo `uri`/`provider`/`api_uri` fields predate this change; the as-built doc describes code before GitProvider.
+> **Status at end of day 2026-10-17. Read this first: the sections below predate some of it.**
+> - **Proven live:** the happy path passed end to end on kind-fn (Gitea PR → `YIELDED` → task `SUCCESS` → results PR `OPENED` → `MERGED`), by hand and as the automated test.
+> - **GitProvider:** global `GitProvider` (`/global/providers`: `name`, `type` github|gitea, `uri` unique, `api_uri`, `enabled`).
+>   - Trigger and results repos are `provider_id` + `repo_path` + `secret_id` (token per repo, for least privilege) + `enabled`, unique `(provider_id, repo_path)`; the `uri` is derived.
+>   - A disabled provider makes its repos inactive.
+>   - Migration 002. No `upstream_id` yet.
+> - **Routes:**
+>   - tasks under `/projects/:pid/tasks/...`, plus `GET .../tasks/:id/trigger`
+>   - `service-info` deleted
+>   - `/global/users`, `/global/registries`, `/global/whitelisted_images`
+>   - results under `/projects/:pid/results`
+> - **Integrity and locking:**
+>   - PRs unique by `(repo, merge_commit_sha)` as well as number (migration 003)
+>   - new projects start **locked** (migration 004); fncli `setup-project` unlocks at the end, and teardown locks before deleting
+> - **Sensors:** one interval for all sensors, `fnDagster.sensors.minIntervalSeconds` (30s default, 2s in dev; PR #554, merged).
+> - **Tooling:**
+>   - fncli moved into `dagster/fncli` and shares `app.*`; install with `pipx install --force --editable './dagster[cli]'`
+>   - Dagster and fncli unit tests run in Docker (`dagster/run_tests.sh`)
+>   - e2e: `pytest dagster --e2e [success|failure] -v` from the repo root. The suites are granular (each fncli command and state change is its own test). The failure suite has never been run.
+> - **Not built yet:** auth (planned in `project/auth-mvp-plan.md`).
+> - **gitea-mirror is parked for the beta.** Post-beta it becomes a stateless mirror service with number-matched PR replay, which the node sees as a `gitea` GitProvider.
+> - **To do:** a full refresh of this document, and a narrow bug review (migrations 002-004, lock/drain rules, sensors). See `.claude/handover.md`.
 
 
 - Written: 2026-10-17. Owner: codepint.
