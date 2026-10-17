@@ -38,3 +38,22 @@ Pointer note. Read `project/moonshot-as-built.md` (status at the top) first for 
 2. Run the Hypothesis rule set and read the rules (M2 and M6 changed after the owner's decisions).
 3. `pytest dagster --e2e failure -v`, then the simulation.
 4. Laptop-only: delete the leftover remote branches and push the tag `shared-resources-tests-full` at `ee653cd2` (the cloud proxy refuses both).
+
+## Plan for the next working day (owner's plan)
+
+Merge this work and do QA first; then take the open tickets that need no new decision and no legacy-model work.
+
+1. Run the webserver and Dagster unit tests and the happy path e2e (the quickest check on the newest app code), fix first-run failures.
+2. Run the Hypothesis rule set, the e2e failure suite and the simulation; fix what breaks.
+3. Review the code and consolidate: merge `moonshot/e2e-failure-suite` into `moonshot/shared-resources`, then decide the route into `dagster-develop`.
+4. QA, then pick tickets.
+
+Tickets that look decision-free (the cloud session's reading of the issues, not checked against the code):
+- #537: launcher isolation (catch the error per task, mark the task `FAILED` with the reason, carry on; marked required for beta); Git subprocess timeouts; per-item error isolation in sync and the launcher.
+- #536: `activeDeadlineSeconds` and a run timeout, pod security context, apply the spec `resources`, remove artifact folders after a successful delivery; narrowing the backend and Dagster RBAC to namespaced Roles (check the secrets-namespace layout first).
+- #538: forward-only run status is mostly done (a finished task cannot change status).
+- Related to this work: `post_task` refusing a locked project (see the lock race above), and confirming decisions 7 and 8.
+
+Tickets that need a decision, so wait: #539 auth (including the role model); the #538 attempts table (open question: correctness or run history); anything on legacy models (#474).
+
+Suggested first job: a sub agent marks every checkbox in #501 and #536 to #542 as done, open or needs a decision, against the code, with no tests run. Pitch note: pitch the global-resources and Dagster flow as built and proven; do not call it beta-ready while #536, #537, #539 and #500 are open.
