@@ -52,6 +52,7 @@ repositories do not collide. Next: an outage step, then retries.
 
 - S14 (teardown then set up again) is covered only by the start-of-run teardown and setup; S15 (known gaps) is not automated.
 - Delivery with no results link is deliberately not handled for the MVP (comment in Dagster).
+- **Lock race, post-beta (owner accepted the risk):** a task can be created between `require_drained` and the change it guards, because `post_task` does not check the project is unlocked. Worst case it fails or is not delivered. Fix: `post_task` returns 409 for a locked project, plus a `SELECT ... FOR UPDATE` on the project in `require_drained` and `post_task`. See ADR 0019, Consequences.
 - The 16 files my lint auto-fix touched were reverted; do not run `ruff --fix` over `dagster/fncli` without checking the diff.
 - The earlier `fncli` unit-suite run in the cloud session was killed before finishing, so the 365 fncli unit tests were never run on this branch.
 

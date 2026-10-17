@@ -169,6 +169,7 @@ Datasets, secrets, trigger repositories and results repositories are all **resou
 - Creating global resources and grants uses the admin role until the authorization rework ([0014](0014-dar-rename-and-detached-auth.md)).
 - Changed paths are fetched once per PR at ingest (paged), and no later per-project provider call is made for unwatched PRs.
 - Heavy overlap with open PRs #548, #547, #543, #534, #531 and #535; light overlap with #526, #533, #529, #530; independent: #528, #532, #544, #545, #546.
+- **Known gap (post-beta): the lock check and the change are two steps.** `require_drained` checks "locked and nothing in flight" and the change follows, while `post_task` (the evaluate sensor) checks only that the link is active, not that the project is unlocked. A task can be created between the check and the change. Worst case it runs against a setup that has just changed and fails or is not delivered (a revoked results link gives a `REVOKED` result); no data is lost and other projects are unaffected. Fix, small: `post_task` refuses a locked project with 409, and `require_drained` and `post_task` take a row lock on the project (`SELECT ... FOR UPDATE`) so they run one after the other.
 - Supersedes or amends ADRs 0003, 0004, 0001, 0006, 0007, 0009, 0013 and 0015, and `docs/architecture/entities.md`.
 
 ## Implementation order
