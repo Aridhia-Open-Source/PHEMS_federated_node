@@ -163,4 +163,4 @@ def test_verify_repo(fncli):
 
 @pytest.mark.parametrize("command, options", TEARDOWN_STEPS, ids=TEARDOWN_IDS)
 def test_teardown_final(fncli, command, options):
-    teardown_step(fncli, command, options, keep=True)
+    teardown_step(fncli, command, options, final=True)

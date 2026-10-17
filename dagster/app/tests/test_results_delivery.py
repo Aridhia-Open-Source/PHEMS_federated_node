@@ -206,10 +206,27 @@ def test_a_task_without_a_pull_request_fails_the_delivery(backend_api, remote, a
     assert fields["error"].startswith("HTTPError")
 
 
-def test_a_revoked_results_repository_fails_the_delivery_with_the_error_and_raises_nothing(
-    backend_api, remote, artifacts
-):
+def test_a_link_revoked_after_the_result_was_recorded_makes_it_final_and_raises_nothing(backend_api, remote, artifacts):
     backend_api.get_results_repository.return_value = REPOSITORY.model_copy(update={"revoked": True, "active": False})
+
+    deliver(backend_api, remote, artifacts)
+
+    assert patches(backend_api) == [
+        {"step": "REVOKED", "state": "FAILED", "attempts": 1, "error": "results repository access revoked"}
+    ]
+
+
+def test_a_result_the_backend_created_as_revoked_is_left_alone(backend_api, remote, artifacts):
+    backend_api.create_result.return_value = result(step="REVOKED", state="FAILED", error="results repository link revoked")
+
+    deliver(backend_api, remote, artifacts)
+
+    backend_api.patch_result.assert_not_called()
+    assert git("rev-list", "--count", "main", cwd=remote) == "1"
+
+
+def test_a_link_inactive_for_another_reason_fails_the_delivery_for_a_relaunch(backend_api, remote, artifacts):
+    backend_api.get_results_repository.return_value = REPOSITORY.model_copy(update={"revoked": False, "active": False})
 
     deliver(backend_api, remote, artifacts)
 

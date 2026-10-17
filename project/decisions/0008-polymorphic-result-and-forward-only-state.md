@@ -9,7 +9,7 @@ Delivery of a task's results has a lifecycle (pushed, opened, merged or closed).
 ## Decision
 
 - `results` is a joined-table parent (`Result`, discriminator `type`) with `pull_request_results` (`PullRequestResult`, type `PR`) as the only child today. The parent holds `task_id`, `results_repository_id`, `attempts`, `error`; one row per `(task, results_repository)`.
-- `PullRequestResult.state` is one column: `UNKNOWN`, `PUSHED`, `OPENED`, `MERGED`, `CLOSED`. It records the furthest step reached. Other columns fill in stages: `branch`/`commit_sha` (pushed), `number`/`url` (opened), `merged_at`/`merge_commit_sha` (merged).
+- `PullRequestResult.state` is one column: `UNKNOWN`, `PUSHED`, `OPENED`, `MERGED`, `CLOSED`, `REVOKED` (final, rank of MERGED and CLOSED: the project's results link was revoked, nothing is delivered). It records the furthest step reached. Other columns fill in stages: `branch`/`commit_sha` (pushed), `number`/`url` (opened), `merged_at`/`merge_commit_sha` (merged).
 - A failure does not change `state`: it sets `error` and bumps `attempts`, so state always says how far delivery got.
 - **Mirror naming**: the trigger side is `Trigger` / `PullRequestTrigger` / `ApiRequestTrigger`, the result side is `Result` / `PullRequestResult`. A `PullRequestTrigger` is the merged pull request we watch; a `PullRequestResult` is the pull request we open.
 - **`state` stays on the child**, unlike the trigger where `state` is on the parent. A trigger's verdict is the same for every kind. A result's lifecycle belongs to its delivery mechanism (MERGED means nothing for a different kind of delivery), so each child owns its state vocabulary.

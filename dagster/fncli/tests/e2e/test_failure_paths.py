@@ -4,10 +4,11 @@ the happy path: one test per fncli command or expected state, in order, on one p
 the first failure with the last snapshot. The scenarios run in the plan's order and each leaves the
 project as the next expects it: unlocked, links active, tokens restored.
 
-S8 (a task in flight blocks lock-gated changes) is timing dependent: it skips when the task finishes before it
-can be caught. S14 is the teardown and the setup at the two ends; S15 (known gaps) is not automated.
+S8 (a task in flight blocks lock-gated changes) and S16 (the results link revoked mid-task) are timing dependent:
+they skip when the task finishes before it can be caught. S14 is the teardown and the setup at the two ends; S15 (known gaps) is not automated.
 
-The "nothing happens" checks wait a few sensor ticks (5 ticks of the 1 s interval the suite sets; E2E_KEEP_INTERVAL=1 leaves the cluster's own).
+The "nothing happens" checks wait a few sensor ticks (5 ticks of the 1 s interval the suite sets; E2E_KEEP_INTERVAL=1 leaves the cluster's own). The project is cleared at the start of the run, and kept
+afterwards unless E2E_TEARDOWN=1..
 """
 
 import os
@@ -67,7 +68,7 @@ STEP_TIMEOUT = 300
 # A task that has not finished, and a result that is still being delivered, block lock-gated changes
 UNFINISHED_TASK = ["PENDING", "QUEUED", "RUNNING"]
 SECOND_PROJECT = "QaTwo"
-DELIVERED = ["OPENED", "MERGED"]
+DELIVERED = ["OPENED", "MERGED", "REVOKED"]  # a result is settled: opened, merged or (final) revoked
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -88,27 +89,6 @@ def fast_sensors(request):
 
     request.addfinalizer(restore)
     yield
-
-
-@pytest.fixture(scope="module", autouse=True)
-def restore_state(fncli):
-    """After the module, pass or fail: put the project and its links back as the setup left them (best effort).
-
-    A run that stops at a failure halfway would otherwise leave the project locked, a link disabled or revoked, or the
-    global repository off. The next run's leftover teardown removes it all anyway; this keeps a KEEP run usable.
-    """
-    yield
-    steps = [
-        (project_set_command, {"locked": "true"}),
-        (global_set_command, {"kind": "trigger", "enabled": "true"}),
-        (link_set_command, {"kind": "trigger", "enabled": "true", "revoked": "false"}),
-        (project_set_command, {"locked": "false"}),
-    ]
-    for command, options in steps:
-        try:
-            fncli.call(command, **options)
-        except (Exception, pytest.fail.Exception) as error:
-            logger.warning(f"restore {command.name} {options}: {error}")
 
 
 @pytest.fixture(scope="module")
@@ -399,8 +379,8 @@ def test_s5b_counts_unchanged(fncli, flow):
 # --- S8: a task in flight blocks lock-gated changes (timing dependent: skips if the task is too quick) ---
 
 
-def caught(flow):
-    if not flow.get("s8_caught"):
+def caught(flow, key="s8_caught"):
+    if not flow.get(key):
         pytest.skip("no task in flight was caught (it finished too quickly)")
 
 
@@ -492,12 +472,10 @@ def test_s9_unlock_project(fncli):
     fncli.call(project_set_command, locked="false", expect=200)
 
 
-def test_s9_record_gap_pr(fncli, flow):
-    """Informational, not asserted: is the PR merged while the repository was off ingested once it is back on?"""
-    quiet_wait(ticks=9)
-    snapshot = fncli.snapshot()
-    logger.info(f"S9 gap PR #{flow['s9_pr']} after re-enabling: {pr_of(snapshot, flow, 's9')}")
-    logger.info(f"S9 (PRs, tasks) {flow['s9_before']} -> {counts(snapshot)}")
+def test_s9_gap_pr_is_ingested_once_the_repository_is_back(fncli, flow):
+    """Self-healing: a PR merged while the repository was off gets its trigger and a task when it is back on."""
+    fncli.wait_for_state("the gap PR with a trigger and a task (+1 each)", STEP_TIMEOUT, grew_by_one(flow, "s9_before"))
+    assert pr_of(fncli.snapshot(), flow, "s9")["task_id"], "the gap PR has no task"
 
 
 # --- S10: a second project on the same repository ---------------------------------------------
@@ -629,12 +607,14 @@ def test_s11_nothing_ingested_without_token(fncli, flow):
     fncli.assert_counts(flow["s11_before"], "trigger token deleted")
 
 
-def test_s11_sensor_status(fncli):
-    # The ingest sensor should show an auth error, not a crash loop. Recorded in the log, not asserted. That the other
-    # sensors kept ticking is asserted: the quiet wait above only returns when ingest, evaluate and launcher all ticked.
+def test_s11_ingest_shows_an_auth_error(fncli):
+    """The ingest sensor fails its tick naming the repository, rather than silently skipping or crashing. The other
+    sensors kept ticking: the quiet wait above only returns when ingest, evaluate and launcher all ticked."""
     fncli.call(sensor_status_command)
-    for tick in DagsterAPI(DagsterConfig().dagster_url).get_sensor_ticks("git_pull_request_ingest_sensor", 5):
-        logger.info(f"S11 ingest tick: {tick['status']} {tick.get('skipReason') or ''} {(tick.get('error') or {}).get('message', '')[:200]}")
+    ticks = DagsterAPI(DagsterConfig().dagster_url).get_sensor_ticks("git_pull_request_ingest_sensor", QUIET_TICKS + 2)
+    messages = [(tick["error"] or {}).get("message", "") for tick in ticks if tick["status"] == "FAILURE"]
+    logger.info(f"S11 ingest ticks: {[tick['status'] for tick in ticks]}; errors: {messages[:2]}")
+    assert any("Ingest failed" in message for message in messages), f"no ingest tick failed with the token deleted: {ticks}"
 
 
 def test_s11_healthcheck_fails(fncli):
@@ -664,13 +644,12 @@ def test_s12_create_branch(fncli, flow):
     create_branch(fncli, flow, "s12")
 
 
-def test_s12_commit_file(fncli, flow, monkeypatch):
-    monkeypatch.setenv("TEST_PR_IMAGE", "does-not-exist:latest")
-    commit_file(fncli, flow, "s12", "watched")
+def test_s12_commit_file(fncli, flow):
+    commit_file(fncli, flow, "s12", "failing")  # a valid spec whose task exits non-zero
 
 
 def test_s12_create_pr(fncli, flow):
-    create_pr(fncli, flow, "s12", "watched")
+    create_pr(fncli, flow, "s12", "failing")
 
 
 def test_s12_merge_pr(fncli, flow):
@@ -698,6 +677,81 @@ def test_s12_no_result_and_stays_failed(fncli, flow):
     task = next(t for t in snapshot["tasks"] if t["id"] == flow["s12_task"])
     assert task["status"] == "FAILED", f"the task left FAILED\n{summary(snapshot)}"
     assert not [r for r in snapshot["results"] if r["task_id"] == flow["s12_task"]], f"a failed task has a result\n{summary(snapshot)}"
+
+
+# --- S16: the results link revoked while the task runs: it finishes, nothing is delivered ----------
+
+
+def test_s16_wait_for_drained(fncli):
+    fncli.wait_for_state("no task in flight and every result settled", TASK_TIMEOUT, drained)
+
+
+def test_s16_create_branch(fncli, flow):
+    create_branch(fncli, flow, "s16")
+
+
+def test_s16_commit_file(fncli, flow):
+    commit_file(fncli, flow, "s16", "watched")
+
+
+def test_s16_create_pr(fncli, flow):
+    create_pr(fncli, flow, "s16", "watched")
+
+
+def test_s16_merge_pr(fncli, flow):
+    merge_pr(fncli, flow, "s16")
+
+
+def test_s16_task_in_flight(fncli, flow):
+    flow["s16_task"] = fncli.wait_for_state("S16's task", STEP_TIMEOUT, yielded_with_task(flow, "s16"))["task_id"]
+
+    def running(snapshot):
+        return any(t["id"] == flow["s16_task"] and t["status"] in UNFINISHED_TASK for t in snapshot["tasks"])
+
+    try:
+        fncli.wait_for_state("S16's task in flight", 120, running, interval=1)
+    except pytest.fail.Exception:
+        pytest.skip("the task finished before the results link could be revoked")
+    flow["s16_caught"] = True
+
+
+def test_s16_revoke_results_link(fncli, flow):
+    caught(flow, "s16_caught")
+    fncli.call(link_set_command, kind="results", revoked="true", expect=200)
+
+
+def test_s16_task_still_finishes(fncli, flow):
+    caught(flow, "s16_caught")
+    fncli.wait_for_state(
+        "S16's task SUCCESS",
+        TASK_TIMEOUT,
+        lambda s: any(t["id"] == flow["s16_task"] and t["status"] == "SUCCESS" for t in s["tasks"]),
+    )
+
+
+def result_of(snapshot, task_id):
+    return next((r for r in snapshot["results"] if r["task_id"] == task_id), None)
+
+
+def test_s16_result_is_revoked_and_nothing_delivered(fncli, flow):
+    caught(flow, "s16_caught")
+    fncli.wait_for_state(
+        "S16's result REVOKED",
+        STEP_TIMEOUT,
+        lambda s: (result_of(s, flow["s16_task"]) or {}).get("step") == "REVOKED",
+    )
+    quiet_wait(QUIET_TICKS)
+    result = result_of(fncli.snapshot(), flow["s16_task"])
+    assert result["step"] == "REVOKED" and result["state"] == "FAILED", result
+    assert result["number"] is None and result["url"] is None, f"a results PR was opened: {result}"
+
+
+def test_s16_unrevoking_does_not_deliver_it(fncli, flow):
+    caught(flow, "s16_caught")
+    fncli.call(link_set_command, kind="results", revoked="false", expect=200)
+    quiet_wait(QUIET_TICKS)
+    result = result_of(fncli.snapshot(), flow["s16_task"])
+    assert result["step"] == "REVOKED", f"REVOKED is final, but the result moved: {result}"
 
 
 # --- S13: sensors stopped, a PR merged, sensors started again -----------------------------------
@@ -754,4 +808,4 @@ def test_s13_pr_processed_and_no_task_left_pending(fncli, flow):
 
 @pytest.mark.parametrize("command, options", TEARDOWN_STEPS, ids=TEARDOWN_IDS)
 def test_teardown_final(fncli, command, options):
-    teardown_step(fncli, command, options, keep=True)
+    teardown_step(fncli, command, options, final=True)

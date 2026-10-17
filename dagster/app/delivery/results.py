@@ -29,6 +29,8 @@ MAX_ERROR_LENGTH = 1000
 REVOKED_ERROR = "results repository access revoked"
 # Past these the pull request is opened, so there is nothing left to deliver.
 PAST_PUSHED = {PullRequestResultStep.OPENED, PullRequestResultStep.MERGED, PullRequestResultStep.CLOSED}
+# REVOKED is final too, but nothing was delivered.
+FINAL = PAST_PUSHED | {PullRequestResultStep.REVOKED}
 
 
 class ResultsDelivery:
@@ -54,8 +56,9 @@ class ResultsDelivery:
         IN_PROGRESS: a branch already on the remote is not pushed again, and its pull request
         is looked up before one is opened.
         No result is created when the backend refuses it with a 409 (the task is not SUCCESS, or the
-        results repository assignment is inactive): that is skipped.
-        A results repository assignment that is not active fails the result with an error and
+        results repository assignment is disabled): that is skipped.
+        A revoked assignment gives a result at the final step REVOKED, nothing is delivered and nothing is raised.
+        A results repository assignment that is not active for another reason fails the result with an error and
         raises nothing: it is delivered by a manual relaunch once the assignment is active again.
         Any failure is recorded on the result as an error with one more attempt, its step
         left where it was and its state FAILED, and raised, so the Dagster run fails visibly.
@@ -70,8 +73,21 @@ class ResultsDelivery:
             # The task is not SUCCESS, or the project's link to the results repository is inactive
             self.log.warning(f"Results of task {task.id} not delivered: {e.response.text}")
             return
+        if result.step == PullRequestResultStep.REVOKED:
+            self.log.warning(f"Results of task {task.id} not delivered: {REVOKED_ERROR}")
+            return
         if result.step in PAST_PUSHED:
             self.log.info(f"Results of task {task.id} are already delivered, {result.step.value}")
+            return
+        if repository.revoked:
+            # Revoked after the result was recorded: final, the results are never delivered
+            self.log.warning(f"Results of task {task.id} not delivered: {REVOKED_ERROR}")
+            self.backend_api.patch_result(task.project_id, result.id, {
+                "step": PullRequestResultStep.REVOKED.value,
+                "state": ResultState.FAILED.value,
+                "attempts": result.attempts + 1,
+                "error": REVOKED_ERROR,
+            })
             return
         if not repository.active:
             self.log.warning(f"Results of task {task.id} not delivered: {REVOKED_ERROR}")

@@ -11,6 +11,7 @@ class PullRequestResultStep(str, Enum):
     OPENED: the pull request from that branch is opened.
     MERGED: the pull request is merged into the results repository's default branch.
     CLOSED: the pull request is closed without merging.
+    REVOKED: the project's link to the results repository was revoked: never delivered, final.
     """
 
     UNKNOWN = "UNKNOWN"
@@ -18,6 +19,7 @@ class PullRequestResultStep(str, Enum):
     OPENED = "OPENED"
     MERGED = "MERGED"
     CLOSED = "CLOSED"
+    REVOKED = "REVOKED"
 
     @classmethod
     def from_git(cls, pr: dict) -> "PullRequestResultStep":

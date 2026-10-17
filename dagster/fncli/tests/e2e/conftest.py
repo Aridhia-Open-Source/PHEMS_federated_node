@@ -5,7 +5,8 @@ Fixtures and helpers for the end-to-end tests. Run against a live dev cluster wi
     pytest dagster --e2e success -v    # the happy path only
     pytest dagster --e2e failure -v    # the failure paths only
 
-E2E_KEEP=1 keeps the project afterwards. Nothing here runs at import time, so a normal test run
+The project is cleared at the start of each run and left in place afterwards for inspection; E2E_TEARDOWN=1 also tears it
+down at the end. Nothing here runs at import time, so a normal test run
 collects and skips these tests without a cluster.
 """
 
@@ -77,10 +78,10 @@ def start_sensor(sensor: str):
     DagsterAPI(DagsterConfig().dagster_url).start_sensor(sensor)
 
 
-def teardown_step(fncli, command, options, keep: bool = False):
-    """One teardown step; with keep=True it is skipped when E2E_KEEP=1 (the final teardown)."""
-    if keep and os.environ.get("E2E_KEEP") == "1":
-        pytest.skip("E2E_KEEP=1 keeps the project")
+def teardown_step(fncli, command, options, final: bool = False):
+    """One teardown step; the final teardown only runs with E2E_TEARDOWN=1."""
+    if final and os.environ.get("E2E_TEARDOWN") != "1":
+        pytest.skip("the project is kept for inspection: set E2E_TEARDOWN=1 to tear it down at the end")
     fncli.call(command, **options)
 
 
