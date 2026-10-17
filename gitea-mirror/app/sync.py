@@ -247,6 +247,8 @@ def _replay(mirror: Mirror, state: MirrorState, github, gitea, git_cache: GitCac
     push('refs/heads/*:refs/heads/*',
          *[f'refs/pull/{int(p["number"])}/head:refs/heads/pr/{int(p["number"])}' for p in new])
 
+    gitea.set_default_branch(org, repo, base)
+
     upstream = mirror.upstream_uri.removesuffix('.git')
 
     def mirror_pull_request(pr: dict) -> None:

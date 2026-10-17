@@ -139,6 +139,20 @@ class HttpGiteaClient:
         self._request('PATCH', path, (200,), json={'allow_manual_merge': True})
         return created
 
+    def set_default_branch(self, org: str, repo: str, branch: str, wait: float = 20) -> None:
+        """Make `branch` the default branch (idempotent). Gitea picks the default itself when the
+        first push carries several branches (it may pick a pr/<n> branch), and does so
+        asynchronously after the push: wait until the repository is no longer empty, then set it."""
+        path = self._repo_path(org, repo)
+        deadline = time.monotonic() + wait
+        while True:
+            info = self._request('GET', path, (200,)).json()
+            if not info.get('empty') or time.monotonic() >= deadline:
+                break
+            time.sleep(0.2)
+        if info.get('default_branch') != branch:
+            self._request('PATCH', path, (200,), json={'default_branch': branch})
+
     def add_collaborator(self, org: str, repo: str, login: str) -> None:
         """Give the shadow user write access, needed to open PRs with Sudo on a private repo."""
         self._request(

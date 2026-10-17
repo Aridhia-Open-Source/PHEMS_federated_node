@@ -183,3 +183,30 @@ def test_sync_replays_each_merge_style_and_second_run_is_noop(migrated, auth, up
 
 def count(model):
     return db.session.scalar(select(func.count()).select_from(model))
+
+
+@responses.activate
+def test_first_sync_leaves_default_branch_at_base(migrated, auth, upstream, tmp_path):
+    """Pushing refs/heads/* together with pr/<n> must not make a pr/ branch the default."""
+    name, merges, _ = upstream
+    gitea = HttpGiteaClient.from_env()
+    responses.add_passthru(os.environ['GITEA_MIRROR_GITEA_URL'])
+    responses.get(f'https://api.github.com/repos/{name}/pulls', json=pulls_json(merges))
+    app = create_app(github_client=GithubRestClient(), gitea_client=gitea,
+                     git_cache=sync.GitCache(str(tmp_path / 'cache')))
+    app.testing = True
+    org = f'org-{uuid.uuid4().hex[:8]}'
+    with app.test_client() as client, app.app_context():
+        mirror = Mirror(
+            upstream_uri=f'https://github.com/{name}', secret_namespace='ns', secret_key='key',
+            gitea_owner=org, gitea_repo='mirror', base_branch='main', enabled=True,
+        )
+        db.session.add(mirror)
+        db.session.flush()
+        mid = mirror.id
+        db.session.add(MirrorState(mirror_id=mid, cursor=CURSOR))
+        db.session.commit()
+        for _ in range(2):  # the second run must leave it alone
+            assert client.post(f'/mirrors/{mid}/resync', headers=auth).status_code == 200
+            repo = gitea._request('GET', f'/repos/{org}/mirror', (200,)).json()
+            assert repo['default_branch'] == 'main'
