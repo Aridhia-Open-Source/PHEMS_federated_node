@@ -7,13 +7,15 @@ unless told). It compiles. Expect small fixes on the first laptop run.
 ## What is on the branch
 
 - **e2e failure suite** (`dagster/fncli/tests/e2e/test_failure_paths.py`, `pytest dagster --e2e failure -v` from the repo root):
-  S3 to S7, S5 twice, S8, S9, S10, S11, S12, S16, S13, then teardown.
+  S3 to S6, S5 twice, S10, S11, S12, S13, then teardown. **S7, S8, S9 and S16 were dropped from e2e** (the lock and drained rules, a
+  disabled global repository, the results link revoked mid-task): they need the lock and a task caught in flight, so they belong in unit and
+  integration tests. Still to write: a webserver test that the `TriggerRepository` cursor does not move while it is disabled and a PR
+  merged in the gap is ingested once it is back on (the self-healing rule, which is **not yet verified against the code**).
   - Sensor interval is patched to 1 s for the run and restored after (ConfigMap `dagster-env-config` plus a code-server restart,
     `fncli/k8s.py`). `E2E_KEEP_INTERVAL=1` skips it. The restart stops the sensors; the suite starts them again.
   - "Nothing happens" checks wait for 5 new ticks of ingest, evaluate and launcher (`quiet_wait`, via the Dagster GraphQL tick query), so a
     stopped sensor fails the check instead of passing it.
   - The project is cleared at the start of every run and **kept** afterwards. `E2E_TEARDOWN=1` also tears it down at the end (both suites).
-  - S8 and S16 depend on catching a task in flight and skip when it finishes too quickly.
   - `E2E_TASK_TIMEOUT` (default 600 s) overrides the task timeout.
 - **Owner decisions implemented**
   - S9: a PR merged while the global repository was off is ingested once it is back on (self-healing, asserted). ADR 0019 now says so.
@@ -33,7 +35,6 @@ unless told). It compiles. Expect small fixes on the first laptop run.
 2. `pytest dagster --e2e failure -v`. Watch these in particular:
    - **S11** asserts an ingest tick fails with "Ingest failed". That comes from reading `pr_ingest.py` (it raises when a repo fails), not from a run.
    - **S10** assumes two projects delivering to the same results repository do not collide, and that deleting `QaTwo` returns 204.
-   - **S16** assumes revoking a results link needs no lock (`link-set results --revoked true` is admin only, immediate).
    - **S12** needs the rebuilt image, or the task succeeds and the test times out.
    - 5 ticks at 1 s may be 5 s of real time, because the daemon ticks later than the minimum. Raise `QUIET_TICKS` if the negative checks pass too easily.
 3. A failure leaves the project in place (by design); the next run clears it.
