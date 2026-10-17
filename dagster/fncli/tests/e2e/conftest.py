@@ -19,6 +19,11 @@ from fncli.cmds.common import ProjectConfig, build_backend_api
 from fncli.cmds.state import snapshot
 
 
+@pytest.fixture(autouse=True)
+def env():
+    """Replaces the unit tests' fake settings: the e2e tests use the real .dev.env."""
+
+
 def wait_for(predicate, timeout: float, describe: str, interval: float = 10):
     """Poll predicate() until it returns something truthy, and return that. On timeout fail with `describe()`'s message."""
     deadline = time.monotonic() + timeout
