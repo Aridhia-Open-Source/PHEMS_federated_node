@@ -60,6 +60,166 @@
         }
     },
     "properties": {
+        "giteaMirror": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Gitea mirror service (ADR 0020)",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "replicaCount": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Must be 1: replicas race on migrations"
+                },
+                "image": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "repository": {
+                            "type": "string"
+                        },
+                        "tag": {
+                            "type": [
+                                "string",
+                                "null"
+                            ]
+                        },
+                        "pullPolicy": {
+                            "type": "string",
+                            "enum": [
+                                "Always",
+                                "IfNotPresent",
+                                "Never"
+                            ]
+                        }
+                    }
+                },
+                "port": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535
+                },
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": [
+                            "string",
+                            "number",
+                            "boolean"
+                        ]
+                    }
+                },
+                "resources": {
+                    "type": "object"
+                },
+                "cacheSizeLimit": {
+                    "type": "string"
+                },
+                "db": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "user": {
+                            "type": "string"
+                        },
+                        "secret": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "key": {
+                                    "type": "string",
+                                    "minLength": 1
+                                }
+                            }
+                        }
+                    }
+                },
+                "apiToken": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "create": {
+                            "type": "boolean"
+                        },
+                        "secret": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "key": {
+                                    "type": "string",
+                                    "minLength": 1
+                                }
+                            }
+                        }
+                    }
+                },
+                "giteaToken": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "secret": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "key": {
+                                    "type": "string",
+                                    "minLength": 1
+                                }
+                            }
+                        }
+                    }
+                },
+                "secretAccess": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                            "namespace": {
+                                "type": "string"
+                            },
+                            "names": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                },
+                "networkPolicy": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "webhookPorts": {
+                            "type": "array",
+                            "items": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 65535
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "backend": {
             "type": "object",
             "properties": {

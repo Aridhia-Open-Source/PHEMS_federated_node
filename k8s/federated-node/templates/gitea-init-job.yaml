@@ -16,6 +16,9 @@ spec:
   template:
     spec:
       restartPolicy: Never
+      {{- if .Values.giteaMirror.enabled }}
+      serviceAccountName: gitea-admin-init
+      {{- end }}
       initContainers:
       - name: wait-for-gitea
         image: "{{ .Values.gitea.image.repository }}:{{ .Values.gitea.image.tag | default .Chart.AppVersion }}"
@@ -55,13 +58,51 @@ spec:
           users=$(gitea -C /data/gitea admin user list)
           if echo "$users" | awk -v u="$GITEA_ADMIN_USER" '$2 == u { found = 1 } END { exit !found }'; then
             echo "Admin user $GITEA_ADMIN_USER already exists"
+          else
+            gitea -C /data/gitea admin user create \
+              --username "$GITEA_ADMIN_USER" \
+              --password "$GITEA_ADMIN_PASS" \
+              --email "$GITEA_ADMIN_EMAIL" \
+              --admin
+          fi
+{{- if .Values.giteaMirror.enabled }}
+          # Access token for the mirror service. The value is shown once, so the Secret is
+          # only created together with the token and an existing Secret is never touched.
+          sa=/var/run/secrets/kubernetes.io/serviceaccount
+          url="https://kubernetes.default.svc/api/v1/namespaces/$NAMESPACE/secrets"
+          code=$(curl -s -o /dev/null -w '%{http_code}' --cacert $sa/ca.crt \
+            -H "Authorization: Bearer $(cat $sa/token)" "$url/$TOKEN_SECRET")
+          if [ "$code" = 200 ]; then
+            echo "Secret $TOKEN_SECRET already exists, keeping its token"
             exit 0
           fi
-          gitea -C /data/gitea admin user create \
+          if [ "$code" != 404 ]; then
+            echo "Cannot look up secret $TOKEN_SECRET (HTTP $code)"
+            exit 1
+          fi
+          # Token names must be unique: a timestamp lets a re-run succeed if an earlier
+          # run lost the Secret after creating a token (that token is left unused).
+          token=$(gitea -C /data/gitea admin user generate-access-token \
             --username "$GITEA_ADMIN_USER" \
-            --password "$GITEA_ADMIN_PASS" \
-            --email "$GITEA_ADMIN_EMAIL" \
-            --admin
+            --token-name "gitea-mirror-$(date +%s)" \
+            --scopes "write:admin,write:organization,write:repository,write:user,read:user" \
+            --raw | tail -n 1)
+          if [ -z "$token" ]; then
+            echo "No access token was generated"
+            exit 1
+          fi
+          b64=$(printf %s "$token" | base64 | tr -d '\n')
+          body=$(printf '{"apiVersion":"v1","kind":"Secret","metadata":{"name":"%s","labels":{"app":"gitea-mirror"}},"type":"Opaque","data":{"%s":"%s"}}' \
+            "$TOKEN_SECRET" "$TOKEN_KEY" "$b64")
+          code=$(curl -s -o /dev/null -w '%{http_code}' --cacert $sa/ca.crt -X POST \
+            -H "Authorization: Bearer $(cat $sa/token)" -H 'Content-Type: application/json' \
+            -d "$body" "$url")
+          if [ "$code" != 201 ]; then
+            echo "Could not create secret $TOKEN_SECRET (HTTP $code); the token just generated is unused"
+            exit 1
+          fi
+          echo "Created secret $TOKEN_SECRET"
+{{- end }}
         env:
         - name: GITEA_ADMIN_USER
           value: {{ .Values.gitea.admin.user | default "gitea_admin" | quote }}
@@ -72,6 +113,14 @@ spec:
               key: {{ .Values.gitea.admin.secret.key | default "password" }}
         - name: GITEA_ADMIN_EMAIL
           value: {{ .Values.gitea.admin.email | default "admin@example.com" | quote }}
+        {{- if .Values.giteaMirror.enabled }}
+        - name: NAMESPACE
+          value: {{ .Release.Namespace | quote }}
+        - name: TOKEN_SECRET
+          value: {{ .Values.giteaMirror.giteaToken.secret.name | quote }}
+        - name: TOKEN_KEY
+          value: {{ .Values.giteaMirror.giteaToken.secret.key | quote }}
+        {{- end }}
         volumeMounts:
         - name: gitea-data
           mountPath: /data

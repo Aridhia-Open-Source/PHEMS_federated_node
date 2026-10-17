@@ -468,6 +468,13 @@ giteaMirror:
       name: gitea-mirror-api-token
       key: token
 
+  # Gitea admin access token, created by the gitea-admin-init job (post-install, so do not
+  # use `helm --wait`) the first time and kept on later upgrades. Not the admin password.
+  giteaToken:
+    secret:
+      name: gitea-mirror-gitea-token
+      key: token
+
   # get on these named secrets only: GitHub tokens and webhook HMAC keys. Entries
   # without names grant nothing.
   secretAccess: []
