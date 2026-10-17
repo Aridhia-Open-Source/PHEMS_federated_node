@@ -21,7 +21,7 @@ from fncli.cmds.project import find_project, init_backend_project
 from fncli.backend import FncliBackendAPI
 from app.git_uri import normalise_repo_uri
 from fncli.gitea import GiteaAdminAPI
-from app.models import Project, ProjectResultsRepository, ProjectTriggerRepository
+from app.models import GitProvider, Project, ProjectResultsRepository, ProjectTriggerRepository
 
 logger = logging.getLogger("repository")
 
@@ -32,13 +32,23 @@ def init_gitea_repo(config: RepoConfig, gitea_api: GiteaAdminAPI) -> dict:
     return gitea_repo
 
 
+def init_backend_provider(config: RepoConfig, backend_api: FncliBackendAPI) -> GitProvider:
+    """The backend's git provider for the Gitea the repo is on, shared by both repos and every project."""
+    return backend_api.get_or_create_git_provider(
+        uri=config.provider_uri,
+        name=f"gitea-{config.provider_uri.split('://')[1]}",
+        type="gitea",
+        api_uri=config.gitea_api_uri,
+    )
+
+
 def init_backend_trigger_repo(
     config: TriggerRepoConfig, backend_api: FncliBackendAPI, project: Project, base_branch: str
 ) -> ProjectTriggerRepository:
+    provider = init_backend_provider(config, backend_api)
     repo = backend_api.get_or_create_trigger_repository(
         uri=config.repo_uri,
-        provider="gitea",
-        api_uri=config.gitea_api_uri,
+        provider_id=provider.id,
         secret_label=config.secret_label,
     )
     assignment = backend_api.get_or_assign_repository(
@@ -46,7 +56,7 @@ def init_backend_trigger_repo(
     )
     logger.info(
         f"Backend trigger repository {repo.id}: {repo.uri} "
-        f"(provider {repo.provider}, api_uri {repo.api_uri}, secret {repo.secret.label}), "
+        f"(provider {repo.provider.name}, api_uri {repo.provider.api_uri}, secret {repo.secret.label}), "
         f"assigned to project {assignment.project_id} (branch {assignment.base_branch}, "
         f"watch_dir {assignment.watch_dir}, pr_cursor {assignment.pr_cursor})"
     )
@@ -56,16 +66,16 @@ def init_backend_trigger_repo(
 def init_backend_results_repo(
     config: ResultsRepoConfig, backend_api: FncliBackendAPI, project: Project
 ) -> ProjectResultsRepository:
+    provider = init_backend_provider(config, backend_api)
     repo = backend_api.get_or_create_results_repository(
         uri=config.repo_uri,
-        provider="gitea",
-        api_uri=config.gitea_api_uri,
+        provider_id=provider.id,
         secret_label=config.secret_label,
     )
     assignment = backend_api.get_or_assign_results_repository(project.id, repo, config.target_dir)
     logger.info(
         f"Backend results repository {repo.id}: {repo.uri} "
-        f"(provider {repo.provider}, api_uri {repo.api_uri}, secret {repo.secret.label}), "
+        f"(provider {repo.provider.name}, api_uri {repo.provider.api_uri}, secret {repo.secret.label}), "
         f"assigned to project {assignment.project_id} (target_dir {assignment.target_dir})"
     )
     return assignment
@@ -128,7 +138,7 @@ def load_repo_config(entity: str, from_backend: bool, project: str | None) -> Re
         project_name=backend_project.name,
         repo=name,
         repo_uri=repository.uri,
-        gitea_api_uri=repository.api_uri,
+        gitea_api_uri=repository.provider.api_uri,
         backend_secret_label=repository.secret.label,
     )
     if owner != config.gitea_admin_user:
@@ -205,6 +215,26 @@ def delete_backend_results_repo_command():
     logger.info(f"Deleted backend results repository {repo.uri} ({repo.id})")
 
 
+@click.command("delete-backend-provider")
+def delete_backend_provider_command():
+    """
+    Delete the Gitea git provider from the backend, unless a repository is still on it: another
+    project's repositories on the same Gitea keep it.
+    """
+    config = TriggerRepoConfig()
+    backend_api = build_backend_api(config)
+    provider = backend_api.find_git_provider(config.provider_uri)
+    if provider is None:
+        logger.info(f"Backend git provider {config.provider_uri} does not exist")
+        return
+    repositories = backend_api.get_trigger_repositories() + backend_api.get_results_repositories()
+    if any(repo.provider.id == provider.id for repo in repositories):
+        logger.info(f"Backend git provider {provider.name} ({provider.id}) is still used, leaving it")
+        return
+    backend_api.delete_git_provider(provider.id)
+    logger.info(f"Deleted backend git provider {provider.name} ({provider.id})")
+
+
 @click.command("delete-gitea-repo")
 @entity_option
 @click.confirmation_option("-y", "--yes", prompt="Delete the Gitea repo and all its pull requests?")
@@ -225,4 +255,5 @@ COMMANDS = [
     init_backend_results_repo_command,
     delete_backend_trigger_repo_command,
     delete_backend_results_repo_command,
+    delete_backend_provider_command,
 ]

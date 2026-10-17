@@ -11,6 +11,7 @@ from pydantic import Field
 
 from fncli.backend import FncliBackendAPI
 from app.config import EnvConfig
+from app.git_uri import normalise_repo_uri
 from fncli.gitea import GiteaAdminAPI, GiteaAdminClient
 from fncli.k8s import get_k8s_secret
 from app.utils import BackendAdapter, BackendSession
@@ -69,6 +70,11 @@ class RepoConfig(GiteaConfig, ProjectConfig):
     @property
     def secret_label(self) -> str:
         return self.backend_secret_label or f"{self.repo}-creds"
+
+    @property
+    def provider_uri(self) -> str:
+        """The backend's git provider for the repo's host: the scheme the sensor reaches it by, and the host."""
+        return f"{urlparse(self.gitea_api_uri).scheme}://{normalise_repo_uri(self.repo_uri).split('/')[0]}"
 
 
 class TriggerRepoConfig(RepoConfig):

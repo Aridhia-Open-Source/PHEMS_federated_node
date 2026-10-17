@@ -58,8 +58,8 @@ if [ -z "$project_id" ]; then
 fi
 echo "Project id: $project_id"
 
-echo -e "${BLUE}=== 3/3 Secret, global trigger repository, project link ===${NC}"
-# The secret and the repository are global; the project holds a link to the repository.
+echo -e "${BLUE}=== 3/3 Secret, git provider, global trigger repository, project link ===${NC}"
+# The secret, the provider and the repository are global; the project holds a link to the repository.
 # The secret holds a placeholder token until `fncli init-git-secret` writes a real one.
 secret_label="$TEST_TRIGGER_REPO-creds"
 if ! curl -sf "$BACKEND_URL/global/secrets/$secret_label" \
@@ -71,13 +71,27 @@ if ! curl -sf "$BACKEND_URL/global/secrets/$secret_label" \
 fi
 echo "Secret: $secret_label"
 
+# The provider is the Gitea host: the API's scheme and the repository uri's host
+repo_host="${TEST_TRIGGER_REPO_URI#*://}"
+repo_host="${repo_host%%/*}"
+provider_uri="${GITEA_API_URI%%://*}://$repo_host"
+provider_id=$(curl -sf "$BACKEND_URL/global/providers" \
+  --header "Authorization: Bearer $BACKEND_TOKEN" | jq -r --arg uri "$provider_uri" '.[] | select(.uri == $uri) | .id')
+if [ -z "$provider_id" ]; then
+  provider_id=$(curl -sf "$BACKEND_URL/global/providers" \
+    --header "Content-Type: application/json" \
+    --header "Authorization: Bearer $BACKEND_TOKEN" \
+    --data "{\"name\": \"gitea-$repo_host\", \"type\": \"gitea\", \"uri\": \"$provider_uri\", \"api_uri\": \"$GITEA_API_URI\"}" | jq -r '.id')
+fi
+echo "Git provider id: $provider_id"
+
 repo_id=$(curl -sf "$BACKEND_URL/global/repositories/triggers" \
-  --header "Authorization: Bearer $BACKEND_TOKEN" | jq -r --arg path "$GITEA_ADMIN_USER/$TEST_TRIGGER_REPO" '.[] | select(.uri | endswith($path)) | .id')
+  --header "Authorization: Bearer $BACKEND_TOKEN" | jq -r --arg path "$GITEA_ADMIN_USER/$TEST_TRIGGER_REPO" '.[] | select(.repo_path == $path) | .id')
 if [ -z "$repo_id" ]; then
   repo_id=$(curl -sf "$BACKEND_URL/global/repositories/triggers" \
     --header "Content-Type: application/json" \
     --header "Authorization: Bearer $BACKEND_TOKEN" \
-    --data "{\"uri\": \"$TEST_TRIGGER_REPO_URI\", \"provider\": \"gitea\", \"api_uri\": \"$GITEA_API_URI\", \"secret_label\": \"$secret_label\"}" | jq -r '.id')
+    --data "{\"provider_id\": $provider_id, \"repo_path\": \"$GITEA_ADMIN_USER/$TEST_TRIGGER_REPO\", \"secret_label\": \"$secret_label\"}" | jq -r '.id')
 fi
 echo "Trigger repository id: $repo_id"
 

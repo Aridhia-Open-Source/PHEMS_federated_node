@@ -1,9 +1,14 @@
 from app.backend import BackendAPI
 from app.git_uri import normalise_repo_uri
 from app.models import (
-    Dataset, Project, ProjectDataset, ProjectResultsRepository, ProjectTriggerRepository, ResultsRepository,
+    Dataset, GitProvider, Project, ProjectDataset, ProjectResultsRepository, ProjectTriggerRepository, ResultsRepository,
     TriggerRepository,
 )
+
+
+def repo_path_of(uri: str) -> str:
+    """Where the repository is on its provider (owner/name): the last two segments of its uri"""
+    return "/".join(normalise_repo_uri(uri).split("/")[-2:])
 
 
 class FncliBackendAPI(BackendAPI):
@@ -132,6 +137,32 @@ class FncliBackendAPI(BackendAPI):
         self.session.delete(f"/global/secrets/{label}")
         return True
 
+    def get_git_providers(self) -> list[GitProvider]:
+        """The global git providers"""
+        return [GitProvider(**provider) for provider in self.session.get("/global/providers").json()]
+
+    def find_git_provider(self, uri: str) -> GitProvider | None:
+        """The global git provider with that uri (as the backend keeps it: scheme and host), if any"""
+        for provider in self.get_git_providers():
+            if provider.uri == uri:
+                return provider
+        return None
+
+    def get_or_create_git_provider(self, uri: str, name: str, type: str, api_uri: str) -> GitProvider:
+        """Reuse the global git provider with that uri if there is one, else create it"""
+        provider = self.find_git_provider(uri)
+        if provider:
+            self.logger.info(f"Reusing existing git provider {provider.name} ({provider.id})")
+            return provider
+        self.logger.info(f"Creating git provider {name}")
+        data = {"name": name, "type": type, "uri": uri, "api_uri": api_uri}
+        return GitProvider(**self.session.post("/global/providers", json=data).json())
+
+    def delete_git_provider(self, provider_id: int) -> None:
+        """Delete a global git provider, which no repository may be on"""
+        self.logger.info(f"Deleting git provider {provider_id}")
+        self.session.delete(f"/global/providers/{provider_id}")
+
     def get_trigger_repositories(self) -> list[TriggerRepository]:
         """The global trigger repositories"""
         response = self.session.get("/global/repositories/triggers")
@@ -141,23 +172,23 @@ class FncliBackendAPI(BackendAPI):
         """The global trigger repository with that uri, if any"""
         stored_uri = normalise_repo_uri(uri)
         for repo in self.get_trigger_repositories():
-            if repo.uri == stored_uri:
+            if normalise_repo_uri(repo.uri) == stored_uri:
                 return repo
         return None
 
-    def get_or_create_trigger_repository(self, uri: str, **kwargs) -> TriggerRepository:
-        """Reuse the global trigger repository with that uri if there is one, else create it from kwargs"""
+    def get_or_create_trigger_repository(self, uri: str, provider_id: int, secret_label: str) -> TriggerRepository:
+        """Reuse the global trigger repository with that uri if there is one, else create it on the provider"""
         repo = self.find_trigger_repository(uri)
         if repo:
             self.logger.info(f"Reusing existing repository {repo.uri} ({repo.id})")
             return repo
-        return self.create_repository(uri=uri, **kwargs)
+        return self.create_repository(provider_id, repo_path_of(uri), secret_label)
 
     def find_repository(self, uri: str, project_id: int) -> ProjectTriggerRepository | None:
         """The project's link to the trigger repository with that uri, if any"""
         stored_uri = normalise_repo_uri(uri)
         for assignment in self.get_project_trigger_repositories(project_id):
-            if assignment.trigger_repository.uri == stored_uri:
+            if normalise_repo_uri(assignment.trigger_repository.uri) == stored_uri:
                 return assignment
         return None
 
@@ -187,30 +218,24 @@ class FncliBackendAPI(BackendAPI):
         """The global results repository with that uri, if any"""
         stored_uri = normalise_repo_uri(uri)
         for repo in self.get_results_repositories():
-            if repo.uri == stored_uri:
+            if normalise_repo_uri(repo.uri) == stored_uri:
                 return repo
         return None
 
-    def create_results_repository(
-        self,
-        uri: str,
-        provider: str,
-        api_uri: str,
-        secret_label: str,
-    ) -> ResultsRepository:
+    def create_results_repository(self, provider_id: int, repo_path: str, secret_label: str) -> ResultsRepository:
         """Create a global results repository"""
-        self.logger.info(f"Creating results repository {uri}")
-        data = {"uri": uri, "provider": provider, "api_uri": api_uri, "secret_label": secret_label}
+        self.logger.info(f"Creating results repository {repo_path} on provider {provider_id}")
+        data = {"provider_id": provider_id, "repo_path": repo_path, "secret_label": secret_label}
         response = self.session.post("/global/repositories/results", json=data)
         return ResultsRepository(**response.json())
 
-    def get_or_create_results_repository(self, uri: str, **kwargs) -> ResultsRepository:
-        """Reuse the global results repository with that uri if there is one, else create it from kwargs"""
+    def get_or_create_results_repository(self, uri: str, provider_id: int, secret_label: str) -> ResultsRepository:
+        """Reuse the global results repository with that uri if there is one, else create it on the provider"""
         repo = self.find_results_repository(uri)
         if repo:
             self.logger.info(f"Reusing existing results repository {repo.uri} ({repo.id})")
             return repo
-        return self.create_results_repository(uri=uri, **kwargs)
+        return self.create_results_repository(provider_id, repo_path_of(uri), secret_label)
 
     def get_project_results_repositories(self, project_id: int) -> list[ProjectResultsRepository]:
         """The project's results repository links (it has at most one), inactive ones included"""

@@ -25,6 +25,7 @@ from fncli.cmds.project import (
     project_healthcheck_command,
 )
 from fncli.cmds.repository import (
+    delete_backend_provider_command,
     delete_backend_results_repo_command,
     delete_backend_trigger_repo_command,
     delete_gitea_repo_command,
@@ -72,12 +73,13 @@ def setup_project_command(ctx):
 
 # Each step with the options it runs with. delete_backend_project_command deletes the project
 # with its tasks and assignments only, so it runs first. The global dataset, repos and secrets
-# are then deleted, users before the secrets they use. Gitea token/repo deletes come last.
+# are then deleted, users before the secrets and the provider they use. Gitea token/repo deletes come last.
 TEARDOWN_STEPS = [
     (delete_backend_project_command, {}),
     (delete_backend_dataset_command, {}),
     (delete_backend_results_repo_command, {}),
     (delete_backend_trigger_repo_command, {}),
+    (delete_backend_provider_command, {}),
     (delete_secret_command, {"entity": "trigger"}),
     (delete_secret_command, {"entity": "results"}),
     (delete_secret_command, {"entity": "dataset"}),
@@ -119,6 +121,7 @@ BACKEND_TEARDOWN_STEPS = [
     (delete_backend_dataset_command, {}),
     (delete_backend_results_repo_command, {}),
     (delete_backend_trigger_repo_command, {}),
+    (delete_backend_provider_command, {}),
     (delete_secret_command, {"entity": "trigger"}),
     (delete_secret_command, {"entity": "results"}),
     (delete_secret_command, {"entity": "dataset"}),

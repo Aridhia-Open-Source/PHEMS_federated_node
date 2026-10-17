@@ -9,7 +9,7 @@ EXPECTED_COMMANDS = {
     "setup-gitea", "teardown-gitea", "verify-project", "verify-repo",
     "init-backend-project", "delete-backend-project", "project-healthcheck",
     "init-gitea-repo", "delete-gitea-repo", "init-backend-trigger-repo",
-    "init-backend-results-repo", "delete-backend-trigger-repo", "delete-backend-results-repo",
+    "init-backend-results-repo", "delete-backend-trigger-repo", "delete-backend-results-repo", "delete-backend-provider",
     "init-git-secret", "init-dataset-secret", "init-backend-secret", "verify-git-secret",
     "delete-secret", "delete-gitea-token",
     "init-backend-dataset", "delete-backend-dataset",
@@ -21,8 +21,8 @@ def test_every_expected_command_is_registered():
     assert EXPECTED_COMMANDS <= set(cli.commands)
 
 
-def test_there_are_41_commands():
-    assert len(cli.commands) == 41
+def test_there_are_42_commands():
+    assert len(cli.commands) == 42
 
 
 def test_every_command_has_help_text():

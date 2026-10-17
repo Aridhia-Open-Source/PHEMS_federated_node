@@ -87,11 +87,11 @@ fncli teardown-gitea -y [--project NAME]
 fncli teardown-backend -y
 ```
 
-- `setup-project`: builds the dev project. Side effects: creates two Gitea repos (trigger and results), a Gitea token for each (`fn-sensor`, `fn-results`), the K8s secrets holding them and the dataset's credentials (via the backend; dummies unless the `DATASET_*` env vars are set, see below), and the backend records: the project, the global trigger repository, results repository and dataset, and the project's assignment of each.
+- `setup-project`: builds the dev project. Side effects: creates two Gitea repos (trigger and results), a Gitea token for each (`fn-sensor`, `fn-results`), the K8s secrets holding them and the dataset's credentials (via the backend; dummies unless the `DATASET_*` env vars are set, see below), and the backend records: the project, the global git provider (the Gitea host), trigger repository, results repository and dataset, and the project's assignment of each.
 - `open-pr`: opens a PR in the trigger repo for the sensor to find. Side effects: a new branch, one new file and a PR in Gitea; with `--merge` the PR is merged, which is what the sensor picks up.
-- `teardown-project -y`: deletes the lot, side effects included: the backend project and its assignments, then the global dataset, repositories and secrets (backend and K8s), the Gitea tokens and both Gitea repos with all their PRs. `-y` skips the prompt.
+- `teardown-project -y`: deletes the lot, side effects included: the backend project and its assignments, then the global dataset, repositories, git provider (unless another project's repositories are still on it) and secrets (backend and K8s), the Gitea tokens and both Gitea repos with all their PRs. `-y` skips the prompt.
 
-- `setup-backend`: the backend only, no Gitea call. Side effects: the backend project, the three global secrets (K8s, holding placeholders: git secrets `{"TOKEN": "unset"}`, the dataset's credentials), the global trigger repository, results repository and dataset, and the project's assignment of each (the trigger one watching `main`).
+- `setup-backend`: the backend only, no Gitea call. Side effects: the backend project, the three global secrets (K8s, holding placeholders: git secrets `{"TOKEN": "unset"}`, the dataset's credentials), the global git provider, trigger repository, results repository and dataset, and the project's assignment of each (the trigger one watching `main`).
 - `setup-gitea`: the Gitea side of an existing backend project, which is the reference (not the `TEST_*_REPO` env vars). Side effects: creates the Gitea repos its trigger and results repository records name, issues a Gitea token for each (`fn-sensor`, `fn-results`), writes it into that record's existing secret and checks Gitea accepts it.
 - `teardown-gitea -y`: deletes the Gitea tokens and repos (with all their PRs) named by the project's backend records. The backend is left alone.
 - `teardown-backend -y`: deletes the project (with its assignments), then the global dataset, repositories and secrets (backend and K8s). Gitea is left alone.
@@ -131,9 +131,10 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 |---|---|
 | `init-gitea-repo [--entity]` | Finds or creates the repo in Gitea |
 | `delete-gitea-repo [--entity] [-y]` | Deletes the repo from Gitea, after asking. Backend records are left alone |
-| `init-backend-trigger-repo [--base-branch]` | Creates the global trigger repository if missing and assigns it to the project (watch_dir, base_branch), so the sensor polls it. Without `--base-branch` the branch is the repo's default branch in Gitea (a Gitea call) |
-| `init-backend-results-repo` | Creates the global results repository if missing and assigns it to the project (target_dir) as its results repository |
+| `init-backend-trigger-repo [--base-branch]` | Creates the global git provider (the Gitea host: the API's scheme and the repo uri's host) and then the global trigger repository on it if missing and assigns it to the project (watch_dir, base_branch), so the sensor polls it. Without `--base-branch` the branch is the repo's default branch in Gitea (a Gitea call) |
+| `init-backend-results-repo` | Creates the global git provider if missing and then the global results repository on it if missing and assigns it to the project (target_dir) as its results repository |
 | `delete-backend-trigger-repo`, `delete-backend-results-repo` | Delete that global repository from the backend, and with it every project's assignment of it. The trigger one is refused while any of its assignments has pull requests (delete the project first) |
+| `delete-backend-provider` | Deletes the Gitea git provider from the backend, unless a repository (of any project) is still on it, in which case it is left. Run after the two repository deletes |
 
 **Secret** (`cmds/secret.py`)
 
@@ -184,7 +185,7 @@ BEFORE the launcher: a run that finishes first leaves its task PENDING for good.
 
 `hello-world` prints a greeting, to check the CLI is installed.
 
-The Gitea-facing steps (`init-gitea-repo`, `delete-gitea-repo`, `init-git-secret`, `verify-git-secret`, `delete-gitea-token`) also take `--from-backend` and `--project NAME`. By default the repo and its secret label come from the `TEST_*` env vars. With `--from-backend` they come from the backend project's own trigger or results repository record: the repo is the last uri segment, which must sit under the Gitea admin user (otherwise the command fails), and the secret is the record's. `--project` names the backend project (default `TEST_PROJECT_NAME`). The command fails with a clear message if the project is missing or does not have exactly one record of that kind.
+The Gitea-facing steps (`init-gitea-repo`, `delete-gitea-repo`, `init-git-secret`, `verify-git-secret`, `delete-gitea-token`) also take `--from-backend` and `--project NAME`. By default the repo and its secret label come from the `TEST_*` env vars. With `--from-backend` they come from the backend project's own trigger or results repository record: the repo is the last uri segment (its `repo_path` is `owner/name`), which must sit under the Gitea admin user (otherwise the command fails), and the secret is the record's. `--project` names the backend project (default `TEST_PROJECT_NAME`). The command fails with a clear message if the project is missing or does not have exactly one record of that kind.
 
 `--entity` is `trigger` (default) or `results`. Steps that are the same for both repos (Gitea
 repo, git secret, verify, Gitea token) take `--entity`; steps that differ in fields or

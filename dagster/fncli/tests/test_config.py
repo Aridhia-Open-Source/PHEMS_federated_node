@@ -34,6 +34,13 @@ def test_to_host_url_only_swaps_an_in_cluster_hostname(url, expected):
     assert to_host_url(url) == expected
 
 
+def test_the_provider_uri_is_the_api_scheme_and_the_repo_host(monkeypatch):
+    monkeypatch.setenv("TEST_TRIGGER_REPO_URI", "Gitea.fn.svc:4000/gitea_admin/trigger.git")
+    monkeypatch.setenv("GITEA_API_URI", "http://gitea.fn.svc:4000/api/v1")
+
+    assert TriggerRepoConfig().provider_uri == "http://gitea.fn.svc:4000"
+
+
 def test_values_are_read_from_the_environment(monkeypatch):
     monkeypatch.setenv("TEST_TRIGGER_REPO", "other")
     monkeypatch.setenv("TEST_TRIGGER_REPO_WATCH_DIR", "tasks/")

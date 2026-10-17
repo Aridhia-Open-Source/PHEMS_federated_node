@@ -6,8 +6,12 @@ from fncli.backend import FncliBackendAPI
 from app.models import Dataset, ProjectTriggerRepository, ResultsRepository, TriggerRepository
 
 SECRET = {"id": 3, "project_id": 1, "label": "l", "provider": "K8S", "key": "k", "namespace": "fn", "enabled": True}
+PROVIDER = {
+    "id": 1, "name": "gitea-gitea.fn.svc", "type": "gitea", "uri": "http://gitea.fn.svc", "api_uri": "http://gitea.fn.svc/api/v1",
+    "enabled": True,
+}
 TRIGGER_REPOSITORY = {
-    "id": 1, "uri": "gitea.fn.svc/gitea_admin/trigger", "provider": "gitea", "api_uri": "http://x/api/v1",
+    "id": 1, "uri": "http://gitea.fn.svc/gitea_admin/trigger", "repo_path": "gitea_admin/trigger", "provider": PROVIDER,
     "secret": SECRET, "enabled": True,
 }
 TRIGGER_ASSIGNMENT = {
@@ -81,7 +85,11 @@ class TestProjectDatasets:
 
 
 RESULTS_REPOSITORY = {
-    "id": 2, "uri": "gitea.fn.svc:4000/fn/results", "provider": "gitea", "api_uri": "http://gitea.fn.svc:4000/api/v1",
+    "id": 2, "uri": "http://gitea.fn.svc:4000/fn/results", "repo_path": "fn/results",
+    "provider": {
+        **PROVIDER, "id": 2, "name": "gitea-gitea.fn.svc:4000", "uri": "http://gitea.fn.svc:4000",
+        "api_uri": "http://gitea.fn.svc:4000/api/v1",
+    },
     "secret": {
         "id": 1, "label": "creds", "description": None, "provider": "K8S", "key": "fn-creds", "namespace": None, "enabled": True,
         "created_at": "2026-01-01 00:00:00", "updated_at": "2026-01-01 00:00:00",
@@ -105,21 +113,18 @@ class TestResultsRepositories:
     def test_get_or_create_reuses_an_existing_repository(self, api, session):
         session.get.return_value = response([RESULTS_REPOSITORY])
 
-        assert api.get_or_create_results_repository("gitea.fn.svc:4000/fn/results").id == 2
+        assert api.get_or_create_results_repository("gitea.fn.svc:4000/fn/results", provider_id=2, secret_label="creds").id == 2
         session.post.assert_not_called()
 
     def test_create_posts_no_project(self, api, session):
         session.get.return_value = response([])
         session.post.return_value = response(RESULTS_REPOSITORY)
 
-        api.get_or_create_results_repository(
-            "gitea.fn.svc:4000/fn/results", provider="gitea", api_uri="http://x/api/v1", secret_label="creds"
-        )
+        api.get_or_create_results_repository("gitea.fn.svc:4000/fn/other", provider_id=2, secret_label="creds")
 
         assert session.post.call_args.args == ("/global/repositories/results",)
         assert session.post.call_args.kwargs["json"] == {
-            "uri": "gitea.fn.svc:4000/fn/results", "provider": "gitea", "api_uri": "http://x/api/v1",
-            "secret_label": "creds",
+            "provider_id": 2, "repo_path": "fn/other", "secret_label": "creds",
         }
 
     def test_assign_reuses_the_projects_assignment(self, api, session):
@@ -139,13 +144,41 @@ class TestResultsRepositories:
         assert session.put.call_args.kwargs["json"] == {"target_dir": "results"}
 
 
+class TestGitProviders:
+    def create(self, api):
+        return api.get_or_create_git_provider(
+            uri="http://gitea.fn.svc", name="gitea-gitea.fn.svc", type="gitea", api_uri="http://gitea.fn.svc/api/v1"
+        )
+
+    def test_an_existing_provider_is_reused_by_its_uri(self, api, session):
+        session.get.return_value = response([PROVIDER])
+
+        assert self.create(api).id == 1
+        assert session.get.call_args.args == ("/global/providers",)
+        session.post.assert_not_called()
+
+    def test_a_missing_provider_is_created(self, api, session):
+        session.get.return_value = response([{**PROVIDER, "uri": "http://other"}])
+        session.post.return_value = response(PROVIDER)
+
+        assert self.create(api).id == 1
+        assert session.post.call_args.args == ("/global/providers",)
+        assert session.post.call_args.kwargs["json"] == {
+            "name": "gitea-gitea.fn.svc", "type": "gitea", "uri": "http://gitea.fn.svc",
+            "api_uri": "http://gitea.fn.svc/api/v1",
+        }
+
+    def test_delete(self, api, session):
+        api.delete_git_provider(1)
+
+        assert session.delete.call_args.args == ("/global/providers/1",)
+
+
 class TestTriggerRepositories:
     """The global repository (find or create) and the project's assignment of it (find or assign)."""
 
     def create(self, api, uri):
-        return api.get_or_create_trigger_repository(
-            uri=uri, provider="gitea", api_uri="http://x/api/v1", secret_label="l",
-        )
+        return api.get_or_create_trigger_repository(uri=uri, provider_id=1, secret_label="l")
 
     @pytest.mark.parametrize("uri", [
         "http://gitea.fn.svc/gitea_admin/trigger",
@@ -165,7 +198,7 @@ class TestTriggerRepositories:
         session.post.assert_not_called()
 
     def test_a_scheme_less_uri_with_a_port_is_matched(self, api, session):
-        session.get.return_value = response([{**TRIGGER_REPOSITORY, "uri": "gitea.fn.svc:3000/gitea_admin/trigger"}])
+        session.get.return_value = response([{**TRIGGER_REPOSITORY, "uri": "http://gitea.fn.svc:3000/gitea_admin/trigger"}])
 
         self.create(api, "gitea.fn.svc:3000/gitea_admin/trigger")
 
@@ -179,8 +212,7 @@ class TestTriggerRepositories:
 
         assert session.post.call_args.args == ("/global/repositories/triggers",)
         assert session.post.call_args.kwargs["json"] == {
-            "uri": "http://gitea.fn.svc/gitea_admin/other", "provider": "gitea", "api_uri": "http://x/api/v1",
-            "secret_label": "l",
+            "provider_id": 1, "repo_path": "gitea_admin/other", "secret_label": "l",
         }
 
     def test_get_or_assign_reuses_the_projects_assignment(self, api, session):

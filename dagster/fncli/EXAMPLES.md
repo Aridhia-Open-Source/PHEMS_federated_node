@@ -33,8 +33,8 @@ fncli logs in first with `POST /login` on the backend, then makes its backend ca
   - Backend: stores each token as a secret (`POST /global/secrets`, or `PATCH /global/secrets/{label}` if it exists).
   - Backend: stores dummy dataset credentials as a secret (same call).
   - K8s: reads the secret back to check it holds the new token.
-  - Backend: registers the trigger repo (`POST /global/repositories/triggers`) if it is missing, then assigns it to the project (`PUT /projects/{id}/repositories/triggers/{repository_id}`).
-  - Backend: registers the results repo (`POST /global/repositories/results`) if it is missing, then assigns it to the project (`PUT /projects/{id}/repositories/results/{repository_id}`).
+  - Backend: registers the Gitea host as a git provider (`POST /global/providers`) if it is missing, then the trigger repo (`POST /global/repositories/triggers`, with the provider's id and the repo's `owner/name` path) if it is missing, then assigns it to the project (`PUT /projects/{id}/repositories/triggers/{repository_id}`).
+  - Backend: registers the results repo (`POST /global/repositories/results`, on the same provider) if it is missing, then assigns it to the project (`PUT /projects/{id}/repositories/results/{repository_id}`).
   - Backend: registers the dataset (`POST /global/datasets`) if it is missing, then assigns it to the project (`PUT /projects/{id}/datasets/{dataset_id}`), which makes it the project's default if it is the first.
   - Gitea: checks each token is accepted.
   - Backend: `GET /projects/{id}/healthcheck`.
@@ -123,7 +123,7 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
 
 - `fncli teardown-project -y`
   - Backend: `DELETE /projects/{id}`, which also removes the tasks, triggers and the dataset, results repository and trigger repository assignments under it. Datasets, results repositories and secrets are global and stay.
-  - Backend: the per-record deletes that follow (`DELETE /global/datasets/{id}`, `DELETE /global/repositories/triggers/{id}`, `DELETE /global/repositories/results/{id}`, `DELETE /global/secrets/{label}`) delete what is left (a record already gone is skipped). `DELETE /global/datasets/{id}` and `DELETE /global/repositories/results/{id}` also drop any remaining assignments, and need each project they are assigned to locked and drained.
+  - Backend: the per-record deletes that follow (`DELETE /global/datasets/{id}`, `DELETE /global/repositories/triggers/{id}`, `DELETE /global/repositories/results/{id}`, `DELETE /global/providers/{id}` (only when no repository is left on it), `DELETE /global/secrets/{label}`) delete what is left (a record already gone is skipped). `DELETE /global/datasets/{id}` and `DELETE /global/repositories/results/{id}` also drop any remaining assignments, and need each project they are assigned to locked and drained.
   - Gitea: deletes the tokens (`DELETE users/{user}/tokens/{name}`).
   - Gitea: deletes both repos (`DELETE repos/{user}/{name}`).
   - Does not prompt, because of `-y`.
