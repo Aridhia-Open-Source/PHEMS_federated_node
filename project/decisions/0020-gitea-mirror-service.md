@@ -1,6 +1,6 @@
 # 0020. Gitea mirror service: a self-contained GitHub mirror with generic webhooks
 
-- Status: Proposed. Built (local, unreviewed): stages m0 to m5b and m8 on local branches, nothing pushed. Spike: GO, see [SPIKE.md](../../gitea-mirror/SPIKE.md). Build plan: [gitea-mirror-plan.md](../handover/gitea-mirror-plan.md).
+- Status: Proposed. Built and reviewed on 2026-10-17 (stages m0 to m5b and m8); review findings and their status are tracked in the [handover](../handover/gitea-mirror-plan.md). Still pending: verification on a real cluster. Spike: GO, see [SPIKE.md](../../gitea-mirror/SPIKE.md). Build plan: [gitea-mirror-plan.md](../handover/gitea-mirror-plan.md).
 - Replaces the parked mirror design in [0018](0018-global-resources-and-gitea-mirror.md).
 - Revised 2026-10-16: the service has its own database and API and no ConfigMap; webhooks are generic subscriptions rather than a call to the webserver. It no longer depends on [0019](0019-global-resources-and-shared-pull-requests.md); the node's webhook receiver does.
 
@@ -44,10 +44,19 @@ The node's receiver (a later, node-side change) maps the event to its trigger re
 - Mirrors and webhooks are managed through the service's own cluster-only API (create, list, status, resync, refresh users, register and test webhooks), called by `fncli mirror` or an operator, with a bearer token. No ConfigMap. Resync runs a sync for that mirror now (200, 409 when its lock is held, 502 on upstream errors).
 - The GitHub token is read from Kubernetes by reference and passed to git through an HTTP header, never the remote URL.
 
+## Decisions changed by the 2026-10-17 review
+
+- Upstream is GitHub.com only: `upstream_uri` must be `https://github.com/<owner>/<repo>`, so the GitHub token cannot be sent to another host. Other hosts would need a new decision.
+- The event's `delivery_id` and `X-Gitea-Mirror-Delivery` are a stable UUID per delivery, not the database row id.
+- `X-Gitea-Mirror-Timestamp` is sent but not signed, so it gives no replay protection. Receivers verify the HMAC and dedupe on the delivery id.
+- No redeliver API route. Failed deliveries are requeued by an operator with a helper in the pod (`requeue_failed`); a route can be added if needed.
+- Webhook URLs: private and in-cluster targets are allowed (receivers live in the cluster), loopback, link-local, unspecified and the API server are refused, redirects are not followed.
+- One replica only (the chart refuses more): migrations and the sync timer are not built for several.
+
 ## Needed alongside it
 
-- Cluster: a deployment; a service account with `get` on only the secrets it needs; a network policy with egress to GitHub, Gitea, Postgres and registered webhook endpoints; a Gitea admin token (from the existing admin init job) for orgs, repositories and shadow users.
-- Operations: `fncli mirror` commands (built: add, list, status, resync, users-sync, webhook add, list, deliveries); health and status per mirror (last sync, expired token).
+- Cluster: a deployment; a service account with `get` on only the secrets it needs; a network policy with egress to GitHub, Gitea, Postgres and registered webhook endpoints; a Gitea admin access token for orgs, repositories and shadow users. The existing admin init job only sets a password, which the Gitea API and git do not accept as a token, so the (extended) `gitea-admin-init` post-install hook generates a token into the secret `gitea-mirror-gitea-token` and the deployment reads it from there. The mirror pod cannot start before that secret exists, so the chart must not be installed with `helm --wait`.
+- Operations: `fncli mirror` commands (built: add, list, status, resync, users-sync, delete, disable, enable, webhook add, list, deliveries, delete, disable, enable); health and status per mirror (last sync, expired token).
 - Tests: integration tests against a real Gitea in Docker with recorded GitHub responses.
 - Node side, later: the webhook receiver (needs 0019 stages 1 to 5 for the shared upsert and fan-out), and `mirror_uri` and `mirror_secret_id` on global `trigger_repositories` so a repository can switch between GitHub and its mirror. Until then, register the Gitea repository directly and let the sensors poll it.
 
@@ -74,7 +83,7 @@ Run against Gitea 28.1.0 (the chart's tag) and a public GitHub repository. Verdi
 ## Open items
 
 
-- Known gaps are listed in `gitea-mirror/README.md` (crash between opening a Gitea PR and recording it, multi-commit fast-forward file lists, no branch deletion).
+- Known gaps are listed in `gitea-mirror/README.md` (duplicate-PR lookup before opening, multi-commit fast-forward file lists, no branch deletion).
 - The container runs `python -m app.runner` (API plus sync timer), configured by `GITEA_MIRROR_GIT_CACHE_DIR` and `GITEA_MIRROR_SYNC_INTERVAL_SECONDS` among others.
 - Who creates the Gitea org and the node's read token.
 - One GitHub token per mirror or per org (built as one secret reference per mirror).

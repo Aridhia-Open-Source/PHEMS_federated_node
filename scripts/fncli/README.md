@@ -175,7 +175,7 @@ whose spec has an unknown field, so the PR is rejected.
 | `stop-sensor [--sensor]` | Stops them; `all` stops the launcher first |
 | `sensor-status` | Prints every sensor's status and last 3 ticks (status, skip reason or error) |
 
-**Mirror** (`cmds/mirror.py`; calls the gitea-mirror service, see `gitea-mirror/README.md`). Needs the service port-forwarded on `MIRROR_URL` (default `http://localhost:5050`; an in-cluster `*.fn.svc` host is reached through localhost on the same port) and its bearer token in `MIRROR_API_TOKEN` (the service's `GITEA_MIRROR_API_TOKEN`). Output is the service's JSON. An error response fails the command.
+**Mirror** (`cmds/mirror.py`; calls the gitea-mirror service, see `gitea-mirror/README.md`). Needs the service port-forwarded on `MIRROR_URL` (default `http://localhost:5050`; an in-cluster `*.fn.svc` host is reached through localhost on the same port) and its bearer token in `MIRROR_API_TOKEN` (the service's `GITEA_MIRROR_API_TOKEN`). Output is the service's JSON. An error response fails the command; for 400, 409 and 502 the service's JSON `error` is printed instead of a traceback.
 
 | Command | What it does |
 |---|---|
@@ -183,9 +183,13 @@ whose spec has an unknown field, so the PR is rejected.
 | `mirror list` | Lists the mirrors |
 | `mirror status ID` | Cursor, last sync, last error, PRs mirrored, and `token_expired` |
 | `mirror resync ID` | Runs a sync for the mirror now. 200 with `mirrored`; a held lock (409) or an upstream error (502) fails the command |
+| `mirror disable ID` / `mirror enable ID` | Sets `enabled` false or true (PATCH); a disabled mirror is not synced |
+| `mirror delete ID` | Deletes the mirror, its state and pull request rows, and the webhooks scoped to it. The Gitea repository stays |
 | `mirror users-sync ID` | Creates shadow Gitea users from the upstream contributors and collaborators |
 | `mirror webhook add --url --secret-namespace --secret-key [--mirror-id] [--disabled]` | Registers a webhook; the HMAC key is the `token` field of the named secret. Without `--mirror-id` it gets every mirror's events |
 | `mirror webhook list` | Lists the webhooks |
+| `mirror webhook disable ID` / `mirror webhook enable ID` | Sets the webhook's `enabled` false or true (PATCH) |
+| `mirror webhook delete ID` | Deletes the webhook and its deliveries. There is no redeliver command (no service route) |
 | `mirror webhook deliveries ID [--status pending\|delivered\|failed]` | The webhook's latest 100 deliveries, newest first |
 
 Everything is STOPPED in Dagster by default. The whole path from a merged PR is: `ingest` saves it

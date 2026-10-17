@@ -2,6 +2,7 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 from click.testing import CliRunner
 
 from fncli.cli import cli
@@ -90,6 +91,8 @@ def test_an_in_cluster_url_goes_through_localhost(monkeypatch):
     (["status", "3"], "GET", "/mirrors/3/status"),
     (["resync", "3"], "POST", "/mirrors/3/resync"),
     (["users-sync", "3"], "POST", "/mirrors/3/users/sync"),
+    (["delete", "3"], "DELETE", "/mirrors/3"),
+    (["webhook", "delete", "2"], "DELETE", "/webhooks/2"),
     (["webhook", "list"], "GET", "/webhooks"),
     (["webhook", "deliveries", "2"], "GET", "/webhooks/2/deliveries"),
 ])
@@ -131,3 +134,58 @@ def test_an_error_response_fails_the_command(session):
     result = CliRunner().invoke(cli, ["mirror", "status", "9"])
 
     assert result.exit_code != 0
+
+
+@pytest.mark.parametrize("args, path, enabled", [
+    (["disable", "3"], "/mirrors/3", False),
+    (["enable", "3"], "/mirrors/3", True),
+    (["webhook", "disable", "2"], "/webhooks/2", False),
+    (["webhook", "enable", "2"], "/webhooks/2", True),
+])
+def test_enable_and_disable_patch_enabled(session, args, path, enabled):
+    session.request.return_value = response({"id": 1, "enabled": enabled})
+
+    result = run(*args)
+
+    assert session.request.call_args.args == ("PATCH", f"http://localhost:5050{path}")
+    assert session.request.call_args.kwargs["json"] == {"enabled": enabled}
+    assert json.loads(result.output)["enabled"] is enabled
+
+
+def test_delete_reports_the_id(session):
+    session.request.return_value = response(None, 204)
+
+    result = run("delete", "3")
+
+    assert json.loads(result.output) == {"deleted": 3}
+
+
+def test_there_is_no_redeliver_command():
+    result = CliRunner().invoke(cli, ["mirror", "webhook", "redeliver", "1"])
+
+    assert result.exit_code != 0
+
+
+@pytest.mark.parametrize("status", [400, 409, 502])
+def test_the_services_error_message_is_shown(session, status):
+    resp = response({"error": "another sync holds the lock"}, status)
+    resp.raise_for_status.side_effect = requests.HTTPError("boom", response=resp)
+    session.request.return_value = resp
+
+    result = CliRunner().invoke(cli, ["mirror", "resync", "3"])
+
+    assert result.exit_code != 0
+    assert f"HTTP {status}: another sync holds the lock" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_an_error_without_a_json_body_still_fails_cleanly(session):
+    resp = response(None, 502)
+    resp.json.side_effect = ValueError("no json")
+    resp.raise_for_status.side_effect = requests.HTTPError("502 Bad Gateway", response=resp)
+    session.request.return_value = resp
+
+    result = CliRunner().invoke(cli, ["mirror", "list"])
+
+    assert result.exit_code != 0
+    assert "502" in result.output

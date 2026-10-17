@@ -38,6 +38,10 @@ Webhooks (fields `url` (http or https), `secret_namespace`, `secret_key`, `mirro
 Input rules (400 otherwise). Mirrors: `upstream_uri` must be `https://github.com/<owner>/<repo>` (no userinfo, port, query or fragment); `gitea_owner`/`gitea_repo` only `[A-Za-z0-9_.-]` (no `..`); `base_branch` a plain branch name (no `:`, `..`, spaces, control characters); `secret_namespace`/`secret_key` Kubernetes names. Webhooks: the secret must exist and have its `token` field at registration. The URL must be http(s) without credentials and its host must resolve. In-cluster receivers (`*.svc.cluster.local`, private ranges) are allowed by default; loopback, link-local (including the 169.254.169.254 metadata address), unspecified and the Kubernetes API server are always refused. Set `GITEA_MIRROR_WEBHOOK_ALLOW_PRIVATE=false` to refuse private ranges too. `GITEA_MIRROR_API_TOKEN` must be set and non-empty or the service will not start.
 - `GET /webhooks/<id>/deliveries[?status=pending|delivered|failed]`: the latest 100, newest first.
 
+There is no route to redeliver. After a receiver outage longer than the retry window, deliveries end up `failed`; an operator can put them back in the queue from a shell in the pod with `delivery.requeue_failed(session, webhook_id=None)` (see its docstring in `app/delivery.py`; it resets attempts and returns the number requeued).
+
+`GET /health` needs no token. It returns 200 `{"status": "ok"}`, or, when the sync thread is registered (the container runner), `{"status": "ok", "sync": {"alive": true, "last_tick_at": "<time>"}}`. It returns 503 with `status: error` if the database does not answer, the sync thread is dead, or it has not ticked within 3 times the sync interval.
+
 ## Sync algorithm
 
 Per mirror, under a per-mirror lock, from the cursor (an `updated_at` time, starting at mirror creation):
@@ -73,10 +77,26 @@ The repository is created with `allow_manual_merge` on. Gitea's own PR number di
 Headers:
 
 - `X-Gitea-Mirror-Signature`: `sha256=<hex>`, the HMAC-SHA256 of the raw body keyed with the webhook's secret.
-- `X-Gitea-Mirror-Delivery`: the delivery id, the same as `delivery_id`. Drop repeats of an id you have handled.
+- `X-Gitea-Mirror-Delivery`: the delivery UUID, the same as `delivery_id` in the body. It is stable across retries of the same delivery.
 - `X-Gitea-Mirror-Event`: `pull_request.mirrored`, or `ping` for a test.
+- `X-Gitea-Mirror-Timestamp`: the send time. It is **not** covered by the signature.
 
-Deliveries come from an outbox: at-least-once, 5 attempts with backoff from 30 seconds, doubling. Receivers must be idempotent. A 2xx response counts as delivered.
+Receiver guidance: verify the HMAC over the raw body bytes; dedupe on the delivery id (remember the ids you have handled); treat the timestamp as advisory only. Because it is unsigned, a captured request can be replayed with a fresh timestamp, so the timestamp is no replay protection, the delivery id is.
+
+Deliveries come from an outbox: at-least-once, 5 attempts with backoff from 30 seconds, doubling. Receivers must be idempotent. Only a 2xx response counts as delivered; redirects are not followed and a 3xx counts as a failure. Each delivery is claimed under a lease, and an error on one delivery (for example a webhook whose secret lacks `token`) does not stop the others.
+
+## Designed sync behaviour
+
+These belong to the sync engine, which is being hardened separately; this is the intended behaviour, not a statement of what every build does:
+
+- The Gitea base branch is restored to the upstream tip even when a PR fails, and a PR that keeps failing is quarantined (recorded as an error) so it does not block the mirror.
+- Shadow users get a prefix so a GitHub login cannot collide with the Gitea admin or an organisation name.
+- The GitHub token is only sent to github.com, and git credentials are passed through `GIT_CONFIG_COUNT` environment variables rather than command-line arguments.
+- PRs with equal `updated_at` at the cursor are not skipped, and upstream branches that clash with `pr/<n>` are reported rather than overwriting PR refs.
+
+## Deploying the chart
+
+The `gitea-admin-init` job is a Helm `post-install,post-upgrade` hook. Besides the admin user it creates the Gitea access token and stores it in the secret `gitea-mirror-gitea-token` (`giteaMirror.giteaToken.secret`); an existing secret is kept. The mirror pod reads `GITEA_MIRROR_GITEA_TOKEN` from that secret and cannot start (CreateContainerConfigError) until it exists. `helm install --wait` (or `--atomic`) waits for the Deployment to be ready before it runs post-install hooks, so it deadlocks until the timeout. Install without `--wait`: the pod starts by itself once the job has created the secret. Check with `kubectl get secret gitea-mirror-gitea-token` and `kubectl rollout status deploy/gitea-mirror`. The chart refuses to render with `giteaMirror.replicaCount` other than 1.
 
 ## Running tests
 
@@ -93,7 +113,7 @@ Alembic migrations (`migrations/`) create `mirrors`, `mirror_state`, `mirrored_p
 
 ## Known gaps
 
-- A crash between opening the Gitea pull request and inserting its row leaves an open PR, and the retry's open will fail.
+- Gitea accepts a second pull request for the same head, so a failure after a Gitea PR was opened but before its row is recorded (a crash, or a Gitea error on push or merge) must not be retried by opening again. Designed behaviour: the sync engine looks for an existing PR for head `pr/<n>` before opening one and resumes from the merge step. If that lookup is missing in your build, a retry leaves duplicate open PRs.
 - A multi-commit fast-forward PR shows only its last commit's files (the base is rewound to `merge^1`, as the spike prescribes).
 - Branches deleted upstream are not deleted on Gitea (the push has no `--prune`, which would drop `pr/*`).
 - The rate-limit reset time is held in memory by the timer loop; a restart costs one extra 403.

@@ -154,10 +154,15 @@ fncli mirror list
 fncli mirror resync 1          # runs a sync now (409 if one is already running)
 fncli mirror status 1          # cursor, last error, PRs mirrored, token_expired
 fncli mirror users-sync 1      # refresh the shadow Gitea users
+fncli mirror disable 1         # stop syncing (enable 1 resumes)
+fncli mirror delete 1          # removes the mirror and its webhooks scoped to it; the Gitea repo stays
 
 fncli mirror webhook add --url http://backend.fn.svc/mirror/events \
   --secret-namespace fn --secret-key mirror-hmac --mirror-id 1
 fncli mirror webhook deliveries 1 --status failed
+fncli mirror webhook disable 1  # enable 1 resumes; delete 1 removes it
 ```
+
+A 400, 409 or 502 from the service is shown as its `error` message. There is no redeliver command: failed deliveries are requeued by an operator in the pod (gitea-mirror README).
 
 A new mirror starts from the current time: only pull requests merged after it was added are mirrored.
