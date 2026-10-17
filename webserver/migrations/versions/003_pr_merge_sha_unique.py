@@ -1,6 +1,6 @@
 """A repository's pull requests are unique by merge commit sha as well as by number.
 
-Revision ID: 003_pull_request_merge_sha_unique
+Revision ID: 003_pr_merge_sha_unique
 Revises: 002_git_providers
 Create Date: 2026-10-17 00:00:00.000000
 
@@ -9,7 +9,7 @@ from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision = '003_pull_request_merge_sha_unique'
+revision = '003_pr_merge_sha_unique'
 down_revision = '002_git_providers'
 branch_labels = None
 depends_on = None
