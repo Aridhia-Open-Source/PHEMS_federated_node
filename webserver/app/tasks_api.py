@@ -1,6 +1,5 @@
 """
 tasks-related endpoints, under the project that owns the tasks. A task of another project is a 404:
-- GET /projects/<project_id>/tasks/service-info
 - GET /projects/<project_id>/tasks (page and per_page below 1 are clamped to 1)
 - POST /projects/<project_id>/tasks
 - POST /projects/<project_id>/tasks/validate
@@ -67,19 +66,6 @@ def does_user_own_task(task: Task):
         and not kc_client.is_system_user(token)
     ):
         raise UnauthorizedError("User does not have enough permissions")
-
-
-@bp.route('/service-info', methods=['GET'])
-@audit
-@auth(scope='can_do_admin')
-def get_service_info(project_id):
-    """
-    GET /projects/<project_id>/tasks/service-info endpoint. Gets the server info
-    """
-    return {
-        "name": "Federated Node",
-        "doc": "Part of the PHEMS network"
-    }, HTTPStatus.OK
 
 
 def get_project_task(project_id: int, task_id: int) -> Task:
