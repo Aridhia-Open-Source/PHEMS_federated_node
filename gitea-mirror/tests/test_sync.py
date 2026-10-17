@@ -115,12 +115,16 @@ def test_advance_cursor_stops_at_first_unmirrored_by_updated_at():
 def test_git_error_hides_auth_header(tmp_path):
     with pytest.raises(sync.GitError) as err:
         sync.run_git(['fetch', str(tmp_path / 'missing')], cwd=str(tmp_path),
-                     authorization='Basic c2VjcmV0')
+                     authorization='Basic c2VjcmV0', auth_scope='https://github.com/')
     assert 'c2VjcmV0' not in str(err.value)
 
 
 @pytest.mark.parametrize('login,shadow', [
-    ('alice', 'alice'), ('dependabot[bot]', 'dependabot-bot'), ('a.b_c-d', 'a.b_c-d'),
+    ('alice', 'gh-alice'), ('a.b_c-d', 'gh-a.b_c-d'),
 ])
 def test_shadow_login(login, shadow):
     assert shadow_login(login) == shadow
+
+
+def test_shadow_login_of_bot_keeps_readable_stem():
+    assert shadow_login('dependabot[bot]').startswith('gh-dependabot-bot.')
