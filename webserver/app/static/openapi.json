@@ -3059,7 +3059,7 @@
           "Trigger Repositories"
         ],
         "summary": "Edit a global trigger repository",
-        "description": "Every project it is linked to has to be locked and drained, except when only secret_label is sent (rotating the credentials). Admin only (can_do_admin scope).",
+        "description": "Every project it is linked to has to be locked and drained, except when only secret_label is sent (rotating the credentials). Switching it back on moves every link's cursor to now: pull requests merged while it was off are stored but get no trigger. Admin only (can_do_admin scope).",
         "parameters": [
           {
             "in": "path",
@@ -5047,7 +5047,7 @@
           "Git Providers"
         ],
         "summary": "Edit a global git provider",
-        "description": "Every project linked to a repository on it has to be locked and drained, except when only name is sent. Admin only (can_do_admin scope).",
+        "description": "Every project linked to a repository on it has to be locked and drained, except when only name is sent. Switching it back on moves the cursor of every link to its trigger repositories to now: pull requests merged while it was off are stored but get no trigger. Admin only (can_do_admin scope).",
         "parameters": [
           {
             "in": "path",
