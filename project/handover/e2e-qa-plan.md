@@ -4,7 +4,7 @@ For a Claude Code session running on the owner's laptop. It exercises the real s
 Gitea on the `kind-fn` cluster) and checks what the unit tests cannot: that the sensors, the webserver rules and Gitea work together.
 Out of scope: the Gitea mirror, auth and normal-user permissions. It runs against the owner's local `kind-fn` cluster only: never a shared or production cluster, and it never tears the cluster down.
 
-**Branch under test:** `moonshot/fncli-e2e` (the shared-resources work from PR #553 plus the fncli state commands this plan uses).
+**Branch under test:** `moonshot/shared-resources` (global resources, GitProvider, tasks under projects, fncli in `dagster/fncli`). Run it from the `fn-worktrees/moonshot/shared-resources` worktree.
 
 ## Rules for the runner
 
@@ -21,7 +21,7 @@ Out of scope: the Gitea mirror, auth and normal-user permissions. It runs agains
 From the repo root, with kubectl on context `kind-fn`:
 
 ```bash
-git checkout moonshot/fncli-e2e
+# Work in the fn-worktrees/moonshot/shared-resources worktree (git pull --ff-only); never switch branches in the main checkout.
 # Use the cluster that is already running (kubectl on context kind-fn, tilt green). Only if there is none, create it:
 #   make helm_deps && make deploy && tilt up --stream     (see dagster/fncli/EXAMPLES.md "Run the project from scratch")
 # NEVER run `make teardown` here: it wipes the owner's dev cluster. Ask first.
