@@ -1,6 +1,7 @@
 import base64
+import re
 from datetime import datetime, timezone
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -15,6 +16,7 @@ TIMEOUT = 30
 K8S_API = 'https://kubernetes.default.svc'
 K8S_SA_DIR = '/var/run/secrets/kubernetes.io/serviceaccount'
 SECRET_DATA_FIELD = 'token'
+_NAME = re.compile(r'[A-Za-z0-9_.-]+')
 
 
 class GithubError(UserSyncError):
@@ -39,10 +41,14 @@ def read_secret_token(namespace: str, key: str) -> str:
     Read the GitHub token from the Kubernetes secret named `key` in `namespace`, field
     `token`, with the pod's service account. Tests replace this function.
     """
+    for value in (namespace, key):
+        if not _NAME.fullmatch(value) or value in ('.', '..'):
+            raise GithubError('Invalid secret namespace or key')
     with open(f'{K8S_SA_DIR}/token') as f:
         sa_token = f.read().strip()
+    ns, name = quote(namespace, safe=''), quote(key, safe='')
     response = requests.get(
-        f'{K8S_API}/api/v1/namespaces/{namespace}/secrets/{key}',
+        f'{K8S_API}/api/v1/namespaces/{ns}/secrets/{name}',
         headers={'Authorization': f'Bearer {sa_token}'},
         verify=f'{K8S_SA_DIR}/ca.crt',
         timeout=TIMEOUT,
@@ -55,9 +61,12 @@ def repo_path(upstream_uri: str) -> str:
     """owner/name from https://github.com/owner/name(.git)."""
     path = urlparse(upstream_uri).path.strip('/')
     path = path.removesuffix('.git')
-    if path.count('/') != 1:
-        raise GithubError(f'Cannot read owner/repo from upstream uri {upstream_uri}')
-    return path
+    parts = path.split('/')
+    if len(parts) != 2 or not all(
+        _NAME.fullmatch(part) and part not in ('.', '..') for part in parts
+    ):
+        raise GithubError('Cannot read owner/repo from the upstream uri')
+    return quote(parts[0], safe='') + '/' + quote(parts[1], safe='')
 
 
 def _parse_ts(value: str) -> datetime:
@@ -145,7 +154,7 @@ class GithubRestClient:
     ) -> list[dict]:
         """
         PRs merged into base_branch and updated after `cursor` (an updated_at timestamp),
-        oldest first. Lists closed PRs most recently updated first and stops at the cursor
+        oldest first. Lists closed PRs most recently updated first and stops before the cursor
         (the search API is rate limited harder and lags).
         """
         token = read_secret_token(secret_namespace, secret_key)
@@ -154,8 +163,10 @@ class GithubRestClient:
         merged = []
         for page in self._pages(f'repos/{repo_path(upstream_uri)}/pulls', token, params):
             for pr in page:
-                # updated_at is never before merged_at, so nothing older is newly merged
-                if _parse_ts(pr['updated_at']) <= cursor_dt:
+                # updated_at is never before merged_at, so nothing older is newly merged. A PR
+                # updated exactly at the cursor is still listed (a second PR merged in that
+                # same second may not have been); callers skip what they already mirrored.
+                if _parse_ts(pr['updated_at']) < cursor_dt:
                     return merged[::-1]
                 if pr['merged_at']:
                     merged.append({
