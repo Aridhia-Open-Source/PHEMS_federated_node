@@ -32,6 +32,8 @@ class PullRequest(db.Model, BaseModel):
 
     __table_args__ = (
         sa.UniqueConstraint('trigger_repository_id', 'number', name='uq_pull_requests_repo_number'),
+        # Integrity check: the same merge can't be stored twice under different numbers
+        sa.UniqueConstraint('trigger_repository_id', 'merge_commit_sha', name='uq_pull_requests_repo_merge_commit_sha'),
         sa.Index('ix_pull_requests_repo_merged_at_number', 'trigger_repository_id', 'merged_at', 'number'),
     )
 

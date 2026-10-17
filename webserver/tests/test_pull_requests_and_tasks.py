@@ -20,7 +20,7 @@ def pr(number=1, /, **fields) -> dict:
     """A valid PR body: merged on main, adding triggers/spec.json."""
     body = {
         "number": number, "title": f"PR {number}", "raised_by": "user1", "merged_at": MERGED,
-        "merge_commit_sha": (f"{number}" * 40)[:40], "base_branch": "main", "files_truncated": False,
+        "merge_commit_sha": f"{number:040x}", "base_branch": "main", "files_truncated": False,
         "changed_files": [{"path": "triggers/spec.json", "status": "added"}],
     }
     body.update(fields)
@@ -86,7 +86,7 @@ def test_ingest_fans_out_and_is_idempotent(client, admin_headers, project, globa
     t = client.get(trig_url(project.id, T, 1), headers=admin_headers).json
     assert (t["state"], t["state_cause"], t["title"]) == ("REJECTED", "bad", "original")
     assert (t["number"], t["raised_by"], t["project_id"], t["trigger_repository_id"]) == (1, "user1", project.id, T)
-    assert t["merge_commit_sha"] == "1" * 40 and t["task_id"] is None
+    assert t["merge_commit_sha"] == f"{1:040x}" and t["task_id"] is None
 
     # the same number twice in one batch: first wins
     dup = post_prs(client, admin_headers, T, pr(4, title="first"), pr(4, title="second"))
