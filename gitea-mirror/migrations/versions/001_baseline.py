@@ -36,7 +36,7 @@ def upgrade() -> None:
     op.create_table(
         'mirror_state',
         sa.Column('mirror_id', sa.Integer(), nullable=False),
-        sa.Column('cursor', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('cursor', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column('last_sync_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('last_success_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('last_error', sa.String(length=4096), nullable=True),
@@ -78,6 +78,7 @@ def upgrade() -> None:
     op.create_table(
         'webhook_deliveries',
         sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('delivery_uuid', sa.String(length=36), nullable=False),
         sa.Column('webhook_id', sa.Integer(), nullable=False),
         sa.Column('mirrored_pull_request_id', sa.Integer(), nullable=False),
         sa.Column('status', sa.String(length=64), nullable=False, server_default='pending'),
@@ -87,10 +88,18 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['webhook_id'], ['webhooks.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['mirrored_pull_request_id'], ['mirrored_pull_requests.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('delivery_uuid'),
+        sa.CheckConstraint("status IN ('pending', 'delivered', 'failed')", name='ck_webhook_deliveries_status'),
     )
+    op.create_index('ix_webhook_deliveries_status_next_attempt_at', 'webhook_deliveries', ['status', 'next_attempt_at'])
+    op.create_index('ix_webhook_deliveries_webhook_id', 'webhook_deliveries', ['webhook_id'])
+    op.create_index('ix_webhook_deliveries_mirrored_pull_request_id', 'webhook_deliveries', ['mirrored_pull_request_id'])
 
 
 def downgrade() -> None:
+    op.drop_index('ix_webhook_deliveries_mirrored_pull_request_id', table_name='webhook_deliveries')
+    op.drop_index('ix_webhook_deliveries_webhook_id', table_name='webhook_deliveries')
+    op.drop_index('ix_webhook_deliveries_status_next_attempt_at', table_name='webhook_deliveries')
     op.drop_table('webhook_deliveries')
     op.drop_table('webhooks')
     op.drop_table('mirrored_pull_requests')
