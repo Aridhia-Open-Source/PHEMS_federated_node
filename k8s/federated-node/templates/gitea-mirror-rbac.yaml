@@ -13,7 +13,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: gitea-mirror-secrets
+  name: {{ printf "gitea-mirror-secrets-%d" $i }}
   namespace: {{ $ns }}
   labels:
     app: gitea-mirror
@@ -29,7 +29,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: gitea-mirror-secrets
+  name: {{ printf "gitea-mirror-secrets-%d" $i }}
   namespace: {{ $ns }}
   labels:
     app: gitea-mirror
@@ -40,7 +40,49 @@ subjects:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: gitea-mirror-secrets
+  name: {{ printf "gitea-mirror-secrets-%d" $i }}
 {{- end }}
 {{- end }}
+
+# Lets the gitea-admin-init job store the generated Gitea access token as a Secret
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitea-admin-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: gitea-mirror
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitea-admin-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: gitea-mirror
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ .Values.giteaMirror.giteaToken.secret.name | quote }}]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitea-admin-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: gitea-mirror
+subjects:
+  - kind: ServiceAccount
+    name: gitea-admin-init
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitea-admin-init
 {{- end }}

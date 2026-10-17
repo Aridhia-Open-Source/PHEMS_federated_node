@@ -1,4 +1,7 @@
 {{- if .Values.giteaMirror.enabled }}
+{{- if ne (int .Values.giteaMirror.replicaCount) 1 }}
+{{- fail (printf "giteaMirror.replicaCount must be 1 (got %v): every replica runs the Alembic migrations at start and the sync timer, so more than one races on first install" .Values.giteaMirror.replicaCount) }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -29,7 +32,17 @@ spec:
           imagePullPolicy: {{ .Values.giteaMirror.image.pullPolicy }}
           command: ["/bin/sh"]
           workingDir: /gitea-mirror
-          {{- include "nonRootSC" . | nindent 10 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ "ALL" ]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           args:
             [
               '-c',
@@ -41,7 +54,14 @@ spec:
         - name: gitea-mirror
           image: {{ include "gitea-mirror-image" . }}
           imagePullPolicy: {{ .Values.giteaMirror.image.pullPolicy }}
-          {{- include "nonRootSC" . | nindent 10 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ "ALL" ]
           ports:
             - name: http
               containerPort: {{ .Values.giteaMirror.port }}
@@ -58,8 +78,10 @@ spec:
             - name: GITEA_MIRROR_GITEA_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.gitea.admin.secret.name | default "gitea-admin" }}
-                  key: {{ .Values.gitea.admin.secret.key | default "password" }}
+                  name: {{ .Values.giteaMirror.giteaToken.secret.name }}
+                  key: {{ .Values.giteaMirror.giteaToken.secret.key }}
+            - name: HOME
+              value: /tmp
             - name: GITEA_MIRROR_GIT_CACHE_DIR
               value: /tmp/git-cache
             {{- range $name, $value := .Values.giteaMirror.env }}
@@ -71,18 +93,29 @@ spec:
               path: /health
               port: http
             periodSeconds: 15
-          livenessProbe:
+          startupProbe:
             httpGet:
               path: /health
               port: http
-            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 30
+          # TCP only, so a database blip that fails /health does not restart the pod
+          livenessProbe:
+            tcpSocket:
+              port: http
             periodSeconds: 30
+            failureThreshold: 3
           volumeMounts:
+            - name: tmp
+              mountPath: /tmp
             - name: git-cache
               mountPath: /tmp/git-cache
           resources:
             {{- toYaml .Values.giteaMirror.resources | nindent 12 }}
       volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 100Mi
         - name: git-cache
           emptyDir:
             sizeLimit: {{ .Values.giteaMirror.cacheSizeLimit }}
