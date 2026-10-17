@@ -2,7 +2,7 @@
 
 For a Claude Code session running on the owner's laptop. It exercises the real stack (webserver, Keycloak, Postgres, Dagster,
 Gitea on the `kind-fn` cluster) and checks what the unit tests cannot: that the sensors, the webserver rules and Gitea work together.
-Out of scope: the Gitea mirror, auth and normal-user permissions. Never run it against a shared or production cluster.
+Out of scope: the Gitea mirror, auth and normal-user permissions. It runs against the owner's local `kind-fn` cluster only: never a shared or production cluster, and it never tears the cluster down.
 
 **Branch under test:** `moonshot/fncli-e2e` (the shared-resources work from PR #553 plus the fncli state commands this plan uses).
 
@@ -22,8 +22,9 @@ From the repo root, with kubectl on context `kind-fn`:
 
 ```bash
 git checkout moonshot/fncli-e2e
-make teardown && make helm_deps && make deploy      # a clean cluster; see scripts/fncli/EXAMPLES.md
-tilt up --stream                                    # second terminal; wait until it is green
+# Use the cluster that is already running (kubectl on context kind-fn, tilt green). Only if there is none, create it:
+#   make helm_deps && make deploy && tilt up --stream     (see scripts/fncli/EXAMPLES.md "Run the project from scratch")
+# NEVER run `make teardown` here: it wipes the owner's dev cluster. Ask first.
 pipx install --force --editable scripts/fncli && fncli hello-world
 QA=artifacts/e2e-qa/$(date +%F-%H%M); mkdir -p "$QA"
 snap() { fncli project-show > "$QA/$1.json"; }
