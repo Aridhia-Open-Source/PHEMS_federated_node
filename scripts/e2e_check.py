@@ -54,9 +54,10 @@ def wait_for(check, timeout, interval=10):
         result = check()
         if result is not None:
             return result
-        if time.time() > deadline:
+        remaining = deadline - time.time()
+        if remaining <= 0:
             return None
-        time.sleep(interval)
+        time.sleep(min(interval, remaining))
 
 
 def command_snapshot(api, config, _args):

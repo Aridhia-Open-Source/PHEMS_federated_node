@@ -5,7 +5,7 @@ from the laptop agent's `HANDOVER.md` and `webserver/tests/TEST_PLAN.md`. Delete
 
 ## State
 
-- **Webserver tests (condensed, this branch):** 605 passed, 0 failed in about 2m45s (full run of `webserver/tests`; the audit-overflow test, which was the only xfail, was then removed as out of scope). The new files are `test_trigger_repositories_and_links.py`, `test_pull_requests_and_tasks.py`,
+- **Webserver tests (condensed, this branch):** 606 passed, 0 failed in about 2m35s (full run of `webserver/tests`). The audit-overflow test was removed as out of scope. The new files are `test_trigger_repositories_and_links.py`, `test_pull_requests_and_tasks.py`,
   `test_global_resources.py`, `test_projects_api.py`, `test_pagination_and_filters.py`, `test_results_and_delivery.py`,
   `test_healthchecks_all.py`, `test_e2e_flow.py` and `test_live_client_integration.py` (the live-server test runs the real fncli and
   Dagster backend clients against the Flask app). They were condensed from the first, much larger suite by merging overlap and keeping
@@ -15,6 +15,11 @@ from the laptop agent's `HANDOVER.md` and `webserver/tests/TEST_PLAN.md`. Delete
 - **App changes made because the tests found bugs** (two rounds, see "App changes" below): request DTOs reuse the
   `PullRequestRequest.parse` -> `InvalidRequest` pattern, errors are 400/409 instead of 500, lists paginate consistently, and the
   owner decisions below are implemented. Docs (ADR 0019, `docs/architecture`), Dagster, fncli and the e2e script were updated to match.
+- **Checked before handoff (cloud sandbox):** the migration `001_baseline` upgrades, downgrades and upgrades again on a real Postgres,
+  and the `ck_triggers_state_cause_for_rejected` constraint is as intended (`alembic check` reports one drift, an unused `dars` table
+  that was already there); `helm lint` and `helm template` pass for the chart; `scripts/e2e_check.py` runs correctly against the real
+  routes (`test_e2e_check_script_reads_the_real_routes`); the edited Dagster and fncli files compile with no undefined names;
+  `webserver/app/static/openapi.json` no longer lists `IGNORED`.
 - **Not run anywhere:** the k8s, Keycloak, Gitea and Dagster end to end (no cluster in the cloud session): use
   `scripts/e2e_shared_resources.sh`. The **Dagster unit tests were edited but not run** (the `dagster` package is not installed in the
   cloud sandbox). The fncli test suite had 61 failures before this work and 57 after (old drift: missing `secret.enabled`, missing

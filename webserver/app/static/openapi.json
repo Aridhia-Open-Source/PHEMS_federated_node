@@ -4516,7 +4516,6 @@
               "type": "string",
               "enum": [
                 "UNKNOWN",
-                "IGNORED",
                 "REJECTED",
                 "YIELDED"
               ]
@@ -7439,11 +7438,10 @@
             "type": "string",
             "enum": [
               "UNKNOWN",
-              "IGNORED",
               "REJECTED",
               "YIELDED"
             ],
-            "description": "IGNORED when the pull request does not add a .json file under watch_dir or its base branch differs, with state_cause saying why",
+            "description": "REJECTED when the spec file is invalid, with state_cause saying why. A pull request that does not match the link (base branch, or no added .json file under watch_dir) gets no trigger at all",
             "example": "UNKNOWN"
           },
           "state_cause": {
@@ -7523,7 +7521,6 @@
             "type": "string",
             "enum": [
               "UNKNOWN",
-              "IGNORED",
               "REJECTED",
               "YIELDED"
             ],

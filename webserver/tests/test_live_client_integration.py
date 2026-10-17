@@ -8,6 +8,7 @@ Dagster code location's BackendAPI (dagster/app/backend.py) are pointed at it wi
 Skipped when ../scripts/fncli is not there (the CI container mounts only webserver/tests and webserver/app).
 """
 import importlib
+import importlib.util
 import sys
 import threading
 from pathlib import Path
@@ -390,3 +391,33 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
     with pytest.raises(requests.HTTPError) as exc:
         d.create_repository("github.com/org/live-triggers", "github", "https://api.github.com", "live-creds")
     assert exc.value.response.status_code == 409
+
+
+def test_e2e_check_script_reads_the_real_routes(api, raw, world):
+    """scripts/e2e_check.py (used by scripts/e2e_shared_resources.sh) against the real routes and response shapes."""
+    from types import SimpleNamespace
+    try:
+        spec = importlib.util.spec_from_file_location("e2e_check", SCRIPTS_DIR / "e2e_check.py")
+        e2e = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(e2e)
+    except ImportError as exc:
+        pytest.skip(f"e2e_check is not importable: {exc}")
+    w = world
+    pid, tid = w["project"].id, w["trigger"].id
+    config, args = SimpleNamespace(project_name=w["project"].name), SimpleNamespace(timeout=5)
+
+    # a watched PR (gets a task), an invalid one (REJECTED), and an unwatched one on another branch (no trigger)
+    api.create_pull_requests_batch(tid, [pr(1), pr(2), pr(3, base_branch="dev")])
+    task = raw.ok("POST", f"/projects/{pid}/repositories/triggers/{tid}/pull_requests/1/task", 201,
+                  json={"spec_raw": SPEC_RAW})
+    api.patch_pull_request(pid, tid, 2, {"state": "REJECTED", "state_cause": "bad spec"})
+
+    snap = e2e.snapshot(api, config.project_name)
+    assert len(snap["trigger_links"]) == 1 and snap["trigger_links"][0]["active"] is True
+    assert {p["number"]: p["state"] for p in snap["trigger_links"][0]["pull_requests"]} == {1: "YIELDED", 2: "REJECTED"}
+    assert [t["id"] for t in snap["tasks"]] == [task["id"]]
+
+    assert e2e.command_wait_prs(api, config, args) == 0
+    assert e2e.command_wait_tasks(api, config, args) == 1  # the task is still PENDING
+    raw.ok("PATCH", f"/tasks/{task['id']}", 200, json={"status": "SUCCESS"})
+    assert e2e.command_wait_tasks(api, config, args) == 0

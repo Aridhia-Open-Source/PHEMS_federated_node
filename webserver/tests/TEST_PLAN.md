@@ -1,5 +1,9 @@
 # Route test plan (ADR 0019 layout)
 
+> **Superseded.** This was the plan for the first 83 tests. Those tests were later merged into the condensed files in `tests/`
+> (see `project/handover/shared-resources-tests-handover.md`), and the `IGNORED` state it mentions has been removed: a PR that does not
+> match a link now creates no trigger. Kept for the fixture and trap notes; do not treat the tables below as current expectations.
+
 One agent per file. Write ONLY your file. Never edit `conftest.py` or app code. If a test fails
 because the app disagrees with this plan, leave the test as written, mark it
 `@pytest.mark.xfail(reason="<what differs>")` and report it.
