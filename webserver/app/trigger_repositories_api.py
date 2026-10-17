@@ -24,7 +24,7 @@ from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.query_filters import arg_get
 from app.helpers.project_lock import require_all_drained
-from app.helpers.pull_request_fanout import ingest_pull_requests
+from app.helpers.pull_request_fanout import ingest_pull_requests, skip_gap
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
 from app.models.project import Project
@@ -202,6 +202,9 @@ def patch_repository(repo_id):
         repo.secret_id = Secret.get_enabled_by_label(req.secret_label, repo.secret_id).id
 
     if 'enabled' in body:
+        # Switched back on: what was merged while it was off gets no trigger
+        if req.enabled and not repo.enabled:
+            skip_gap(repo.project_assignments)
         repo.enabled = req.enabled
 
     if 'provider_id' in body:

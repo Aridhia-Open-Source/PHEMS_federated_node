@@ -5,9 +5,12 @@ rules, the link lifecycle gates (lock, in-flight tasks, enabled, revoked) per li
 One lifecycle test per link kind (secret, dataset, trigger, results) is driven through the Ctx helper; rules
 that exist only in the trigger routes use the trigger fixtures directly.
 """
+from datetime import datetime, timedelta
+
 import pytest
 
 from app.helpers.base_model import db
+from app.models.project_trigger_repository import ProjectTriggerRepository
 
 BASE = "/global/repositories/triggers"
 KINDS = ["secret", "dataset", "trigger", "results"]
@@ -372,3 +375,39 @@ def test_two_projects_link_one_repo_independently(client, admin_headers, project
     assert get(client, admin_headers, c.link(project.id)).json["enabled"] is True
     other = get(client, admin_headers, c.link(other_project.id)).json
     assert other["revoked"] is False and other["active"] is False
+
+
+def test_switching_a_repository_back_on_skips_the_gap(client, admin_headers, project, global_trigger_repo):
+    """Pull requests merged before the repository was switched back on are stored but get no trigger; later ones do."""
+    T = global_trigger_repo.id
+    link = f"/projects/{project.id}/repositories/triggers/{T}"
+    assert client.put(link, json={"watch_dir": "triggers"}, headers=admin_headers).status_code == 201
+    # Start the link's cursor far back, so the first pull request is in its scope but for the re-enable
+    assignment = ProjectTriggerRepository.query.filter_by(project_id=project.id, trigger_repository_id=T).one()
+    assignment.initial_cursor = datetime(2000, 1, 1)
+    db.session.commit()
+
+    def pull_request(number, merged_at):
+        return {
+            "number": number, "title": f"PR {number}", "raised_by": "user1",
+            "merged_at": merged_at.strftime("%Y-%m-%dT%H:%M:%SZ"), "merge_commit_sha": f"{number:040x}",
+            "base_branch": "main", "files_truncated": False,
+            "changed_files": [{"path": "triggers/spec.json", "status": "added"}],
+        }
+
+    set_locked(project)
+    assert patch(client, admin_headers, f"{BASE}/{T}", {"enabled": False}).status_code == 200
+    assert patch(client, admin_headers, f"{BASE}/{T}", {"enabled": True}).status_code == 200
+
+    merged_before = datetime.utcnow() - timedelta(hours=1)
+    merged_after = datetime.utcnow() + timedelta(days=1)
+    r = client.post(f"{BASE}/{T}/pull_requests", headers=admin_headers, json={
+        "pull_requests": [pull_request(1, merged_before), pull_request(2, merged_after)]
+    })
+    assert r.status_code == 201, r.json
+    assert r.json["created"] == [1, 2]
+
+    stored = get(client, admin_headers, f"{BASE}/{T}/pull_requests?per_page=50").json
+    assert sorted(i["number"] for i in stored["items"]) == [1, 2]
+    triggers = get(client, admin_headers, f"{link}/pull_requests?per_page=50").json
+    assert [i["number"] for i in triggers["items"]] == [2]

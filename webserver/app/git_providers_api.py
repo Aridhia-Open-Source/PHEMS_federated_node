@@ -17,6 +17,7 @@ from app.dtos.git_provider import GitProviderDTO, GitProviderPatchRequest, GitPr
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.project_lock import require_all_drained
+from app.helpers.pull_request_fanout import skip_gap
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
 
@@ -102,6 +103,7 @@ def patch_provider(provider_id):
         ]
         require_all_drained([a.project for a in links])
 
+    was_enabled = provider.enabled
     try:
         for field in ('name', 'type', 'enabled'):
             if field in body:
@@ -114,6 +116,10 @@ def patch_provider(provider_id):
     except ValueError as e:
         raise InvalidRequest(str(e))
     _check_unique(provider, provider.id)
+
+    # Switched back on: what was merged while it was off gets no trigger
+    if provider.enabled and not was_enabled:
+        skip_gap([a for r in provider.trigger_repositories for a in r.project_assignments])
 
     session.commit()
     return GitProviderDTO.from_model(provider).dump(), HTTPStatus.OK

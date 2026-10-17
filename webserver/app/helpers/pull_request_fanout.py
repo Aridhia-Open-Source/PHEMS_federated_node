@@ -7,6 +7,8 @@ the repository gets a trigger for each one it should evaluate (ADR 0019).
 - `fan_out` creates the triggers of newly stored pull requests for the active assignments.
 - `backfill` creates the triggers an assignment missed: when it is created, enabled or
   un-revoked.
+- `skip_gap` moves the assignments' cursor to now when their repository or provider is switched
+  back on, so what was merged while it was off is stored but gets no trigger.
 
 Both create triggers through `create_triggers`, so a pair (assignment, pull request) gets one
 trigger however it is reached; the unique constraint settles a race.
@@ -27,7 +29,7 @@ from sqlalchemy.orm import selectinload
 from app.dtos.trigger_repository import PullRequestRequest
 from app.helpers.base_model import db
 from app.models.git_provider import GitProvider
-from app.models.project_trigger_repository import ProjectTriggerRepository
+from app.models.project_trigger_repository import ProjectTriggerRepository, now_ts
 from app.models.pull_request import PullRequest, PullRequestFile
 from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.trigger_repository import TriggerRepository
@@ -174,3 +176,15 @@ def backfill(assignment: ProjectTriggerRepository) -> int:
     Creates the triggers the assignment missed: for a new, re-enabled or un-revoked assignment. Only for an active assignment.
     """
     return create_triggers(assignment)
+
+
+def skip_gap(assignments: list[ProjectTriggerRepository]) -> None:
+    """
+    Moves the cursor of the assignments to now (a naive UTC time like the column), for a global
+    repository or provider switched back on: the pull requests merged while it was off are still
+    stored by the sensor's catch-up, but sort before the cursor and get no trigger. Leaves the commit to the caller.
+    """
+    now = now_ts().replace(tzinfo=None)
+    for assignment in assignments:
+        assignment.initial_cursor = now
+        assignment.initial_cursor_number = 0

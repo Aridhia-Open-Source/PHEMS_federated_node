@@ -15,7 +15,7 @@ ACTIONS (rules)
   set_locked(v)               lock or unlock the project: always allowed
   set_link_enabled(v)         turn the link on or off: 200 only if the project is locked and drained, else 409
   set_link_revoked(v)         revoke or re-grant the link: always 200, takes effect at once
-  set_global_enabled(v)       turn the global repository on or off: 200 only if the project is locked and drained, else 409
+  set_global_enabled(v)       turn the global repository on or off: 200 only if the project is locked and drained, else 409; off -> on skips the gap (M6)
 
 INVARIANTS (checked after every action)
   triggers_match_model        the project's triggers (number -> state) are exactly the model's
@@ -25,19 +25,20 @@ INVARIANTS (checked after every action)
 
 THE MODEL'S RULES (to review; each one is a decision, not just a description of the code)
   M1  A stored PR gets a trigger for the link only if it matches (spec file under watch_dir) and the link is active when it is stored.
-  M2  SELF-HEALING: whenever the link becomes active, for ANY reason (link enabled, link re-granted, global repository enabled),
-      every stored matching PR that has no trigger gets one (backfill). The code today backfills when the link is created, enabled or
-      un-revoked, but NOT when the global repository is enabled: if the model is right this machine will find that gap.
+  M2  SELF-HEALING: whenever the LINK becomes active (link enabled, link re-granted), every stored matching PR that has no trigger
+      gets one (backfill), except the ones M6 skips. A link made active by the GLOBAL repository being enabled does not backfill.
   M3  An inactive link refuses to create a task (409) and the trigger stays UNKNOWN.
   M4  Changing the link's or the repository's enabled flag needs the project locked and drained (no task PENDING/QUEUED/RUNNING).
       Results are not modelled yet, so drained = no unfinished task.
   M5  Revoking needs neither the lock nor draining.
-  M6  A disabled global repository refuses new PRs entirely (they are fetched again by the sensor once it is back on, because the
-      ingest cursor is the newest stored PR).
+  M6  A disabled global repository refuses new PRs entirely (the sensor fetches them again once it is back on, the ingest cursor
+      being the newest stored PR). Switching it back on moves the link's cursor to now: every PR that exists at that moment is still
+      stored when ingested but never gets a trigger (not at ingest, not by a backfill); PRs merged after it do.
 """
 
 import json
 from datetime import datetime, timedelta
+from unittest import mock
 
 from hypothesis import HealthCheck, settings, strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, invariant, precondition, rule
@@ -54,15 +55,18 @@ UNFINISHED = {"PENDING", "QUEUED", "RUNNING"}
 FINAL = {"SUCCESS", "FAILED", "CANCELED"}
 WATCH_DIR = "triggers"
 SPEC_RAW = json.dumps({"spec": {"image": "i:1"}})
-FIRST_MERGE = datetime(2030, 1, 1, 10, 0, 0)  # after the link's creation time, so every PR is in its scope
+# Fake clock: the route moves the link's cursor to "now" when the repository is switched back on, so PR merge times and that
+# "now" come from one machine-controlled clock (one minute per tick, after the link's real creation time so every PR is in scope
+# of the creation cursor). The route's clock is patched in __init__.
+CLOCK_START = datetime.utcnow().replace(microsecond=0) + timedelta(days=1)
 
 
-def pr_body(number: int, matching: bool) -> dict:
+def pr_body(number: int, matching: bool, merged_at: datetime) -> dict:
     """A pull request as the ingest posts it. Merge times increase with the number, so the number is also the cursor."""
     path = f"{WATCH_DIR}/spec{number}.json" if matching else f"docs/notes{number}.md"
     return {
         "number": number, "title": f"PR {number}", "raised_by": "user",
-        "merged_at": (FIRST_MERGE + timedelta(minutes=number)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "merged_at": merged_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "merge_commit_sha": f"{number:040x}", "base_branch": "main", "files_truncated": False,
         "changed_files": [{"path": path, "status": "added"}],
     }
@@ -76,6 +80,10 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         self.context = self.app.app_context()
         self.context.push()
         db.create_all()
+        self.tick = 0
+        clock = mock.patch("app.helpers.pull_request_fanout.now_ts", lambda: CLOCK_START + timedelta(minutes=self.tick))
+        clock.start()
+        self.clock = clock
         self.client = self.app.test_client()
         self.headers = {"Content-Type": "application/json", "Authorization": "Bearer admin_token"}
 
@@ -93,12 +101,14 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         self.link_enabled = link.json["enabled"]
         self.link_revoked = link.json["revoked"]
         self.global_enabled = self.call("get", f"/global/repositories/triggers/{self.repo_id}").json["enabled"]
-        self.provider = []          # PRs merged at the git server: {"number", "matching"}
+        self.provider = []          # PRs merged at the git server: {"number", "matching", "merged_at"}
+        self.skip_before = 0        # M6: PRs numbered up to this existed when the repository was last switched back on
         self.stored = {}            # number -> matching, what the repository has stored
         self.triggers = {}          # number -> state, the project's triggers
         self.tasks = {}             # task id -> status
 
     def teardown(self):
+        self.clock.stop()
         close_all_sessions()
         db.drop_all()
         self.context.pop()
@@ -121,17 +131,20 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         return not UNFINISHED & set(self.tasks.values())
 
     def backfill_if_activated(self, was_active: bool):
-        """M2: a link that has become active backfills the triggers of every stored matching PR it is missing."""
+        """M2: a link that has become active backfills the triggers of every stored matching PR it is missing, M6 aside."""
         if self.link_active and not was_active:
             for number, matching in self.stored.items():
-                if matching and number not in self.triggers:
+                if matching and number > self.skip_before and number not in self.triggers:
                     self.triggers[number] = "UNKNOWN"
 
     # ----------------------------------------------------------------------------- the git server and the sensors
 
     @rule(matching=st.booleans())
     def merge_pr(self, matching):
-        self.provider.append({"number": len(self.provider) + 1, "matching": matching})
+        self.tick += 1
+        self.provider.append({
+            "number": len(self.provider) + 1, "matching": matching, "merged_at": CLOCK_START + timedelta(minutes=self.tick),
+        })
 
     @precondition(lambda self: self.global_enabled)
     @rule()
@@ -139,20 +152,20 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         cursor = max(self.stored, default=0)
         batch = [p for p in self.provider if p["number"] > cursor][:100]
         response = self.call("post", f"/global/repositories/triggers/{self.repo_id}/pull_requests",
-                             {"pull_requests": [pr_body(p["number"], p["matching"]) for p in batch]})
+                             {"pull_requests": [pr_body(p["number"], p["matching"], p["merged_at"]) for p in batch]})
         assert response.status_code == 201, response.json
         assert sorted(response.json["created"]) == [p["number"] for p in batch]
         assert response.json["existing"] == []
         for pull in batch:
             self.stored[pull["number"]] = pull["matching"]
-            if pull["matching"] and self.link_active:  # M1
+            if pull["matching"] and self.link_active and pull["number"] > self.skip_before:  # M1, M6
                 self.triggers[pull["number"]] = "UNKNOWN"
 
     @precondition(lambda self: not self.global_enabled)
     @rule()
     def ingest_when_disabled(self):  # M6
         response = self.call("post", f"/global/repositories/triggers/{self.repo_id}/pull_requests",
-                             {"pull_requests": [pr_body(p["number"], p["matching"]) for p in self.provider[:1]]})
+                             {"pull_requests": [pr_body(p["number"], p["matching"], p["merged_at"]) for p in self.provider[:1]]})
         assert response.status_code == 400, response.json
 
     @precondition(lambda self: "UNKNOWN" in self.triggers.values())
@@ -210,13 +223,15 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         self.backfill_if_activated(was)
 
     @rule(value=st.booleans())
-    def set_global_enabled(self, value):  # M4, and M2 when it turns the link active again
-        was = self.link_active
+    def set_global_enabled(self, value):  # M4, and M6 when it is switched back on
+        switched_on = value and not self.global_enabled
+        self.tick += 1  # the route reads the clock during the call: the cursor lands after every PR merged so far
         response = self.call("patch", f"/global/repositories/triggers/{self.repo_id}", {"enabled": value})
         if self.locked and self.drained:
             assert response.status_code == 200, response.json
             self.global_enabled = value
-            self.backfill_if_activated(was)
+            if switched_on:
+                self.skip_before = len(self.provider)
         else:
             assert response.status_code == 409, response.json
 

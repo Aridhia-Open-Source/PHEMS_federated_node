@@ -9,8 +9,8 @@ unless told). It compiles. Expect small fixes on the first laptop run.
 - **e2e failure suite** (`dagster/fncli/tests/e2e/test_failure_paths.py`, `pytest dagster --e2e failure -v` from the repo root):
   S3 to S6, S5 twice, S10, S11, S12, S13, then teardown. **S7, S8, S9 and S16 were dropped from e2e** (the lock and drained rules, a
   disabled global repository, the results link revoked mid-task): they need the lock and a task caught in flight, so they belong in unit and
-  integration tests. Still to write: a webserver test that the `TriggerRepository` cursor does not move while it is disabled and a PR
-  merged in the gap is ingested once it is back on (the self-healing rule, which is **not yet verified against the code**).
+  integration tests. Covered by webserver tests (written, **not run**): a PR merged while the `TriggerRepository` (or its provider) is
+  disabled is stored once it is back on but gets no trigger, because switching it on moves every link's cursor to now.
   - Sensor interval is patched to 1 s for the run and restored after (ConfigMap `dagster-env-config` plus a code-server restart,
     `fncli/k8s.py`). `E2E_KEEP_INTERVAL=1` skips it. The restart stops the sensors; the suite starts them again.
   - "Nothing happens" checks wait for 5 new ticks of ingest, evaluate and launcher (`quiet_wait`, via the Dagster GraphQL tick query), so a
@@ -18,7 +18,7 @@ unless told). It compiles. Expect small fixes on the first laptop run.
   - The project is cleared at the start of every run and **kept** afterwards. `E2E_TEARDOWN=1` also tears it down at the end (both suites).
   - `E2E_TASK_TIMEOUT` (default 600 s) overrides the task timeout.
 - **Owner decisions implemented**
-  - S9: a PR merged while the global repository was off is ingested once it is back on (self-healing, asserted). ADR 0019 now says so.
+  - S9: a PR merged while the global repository (or provider) was off is stored once it is back on but gets NO trigger (switching on moves every link's cursor to now; no new state). A link enabled or un-revoked still backfills. ADR 0019 says so.
   - Revoked results link mid-task: the task runs to the end and nothing is delivered. Killing a running task is post-beta.
     `POST /results` through a revoked link creates the result as step `REVOKED`, state `FAILED` (201). `REVOKED` is final: un-revoking does
     not deliver it. A link inactive for another reason (disabled, global repo off) still gives 409. This confirms decision 5.
@@ -27,7 +27,7 @@ unless told). It compiles. Expect small fixes on the first laptop run.
 - **REVOKED code:** webserver `models/pull_request_result_step.py`, `models/pull_request_result.py`, `results_api.py`, `openapi.json`;
   Dagster `models/pull_request_result_step.py`, `delivery/results.py`; unit tests in `webserver/tests/test_results_and_delivery.py` and
   `dagster/app/tests/test_results_delivery.py` (edited, not run). No migration: `step` is a plain string column.
-- **Docs:** ADR 0019 (decision 13, self-healing), ADR 0008, `docs/architecture/entities.md`, `project/handover/e2e-qa-plan.md` (S12 uses `--kind failing`).
+- **Docs:** ADR 0019 (decision 13, cursor and backfill), ADR 0008, `docs/architecture/entities.md`, `project/handover/e2e-qa-plan.md` (S12 uses `--kind failing`).
 
 ## Simulation (added after the failure suite)
 
