@@ -112,3 +112,12 @@ def test_other_403_is_not_swallowed_on_pulls(client):
     responses.get(f'{API}/pulls', status=403, json={'message': 'forbidden'})
     with pytest.raises(requests.HTTPError):
         merged(client)
+
+
+@responses.activate
+def test_pr_updated_exactly_at_cursor_is_still_listed(client):
+    """Listing must not stop at updated_at == cursor: a second PR merged in that same second
+    would be lost. The done set filters repeats."""
+    responses.get(f'{API}/pulls', json=fixture('pulls_page1.json'))
+    # PR 5 is updated at exactly the cursor second
+    assert [p['number'] for p in merged(client, '2026-03-05T00:00:00Z')] == [5]

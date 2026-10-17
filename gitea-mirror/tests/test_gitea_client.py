@@ -7,7 +7,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 from app.clients import UserSyncError  # noqa: E402
-from app.gitea import GiteaError, HttpGiteaClient, MergeCommitNotInBaseError  # noqa: E402
+from app.gitea import GiteaError, HttpGiteaClient, MergeCommitNotInBaseError, shadow_login  # noqa: E402
 
 
 @pytest.fixture(scope='module')
@@ -46,13 +46,25 @@ def repo(gitea, name):
 def test_ensure_user_creates_then_is_idempotent(gitea, name):
     assert gitea.ensure_user(name) is True
     assert gitea.ensure_user(name) is False
-    user = gitea._request('GET', f'/users/{name}', (200,)).json()
-    assert user['login'] == name
+    user = gitea._request('GET', f'/users/{shadow_login(name)}', (200,)).json()
+    assert user['login'] == shadow_login(name)
+    assert user['email'].endswith('@shadow.invalid')
 
 
-def test_ensure_user_error_is_user_sync_error(gitea):
+def test_ensure_user_error_is_user_sync_error(gitea, monkeypatch):
+    class Reply:
+        status_code, content, reason = 422, b'{}', 'Unprocessable'
+
+        def json(self):
+            return {'message': '[Username]: invalid'}
+
+    monkeypatch.setattr(gitea.session, 'request', lambda *a, **k: Reply())
     with pytest.raises(UserSyncError, match='422'):
-        gitea.ensure_user('bad name!')
+        gitea.ensure_user('anyone')
+
+
+def test_ensure_user_accepts_any_github_login(gitea, name):
+    assert gitea.ensure_user(f'{name}[bot]') is True  # 'bad name!' style input is sanitised
 
 
 def test_ensure_org_idempotent(gitea, name):
@@ -76,19 +88,19 @@ def test_ensure_repo_normal_private_manual_merge_idempotent(gitea, name):
 def test_add_collaborator(gitea, repo, name):
     org, r = repo
     gitea.ensure_user(name)
-    gitea.add_collaborator(org, r, name)
-    perm = gitea._request('GET', f'/repos/{org}/{r}/collaborators/{name}/permission', (200,)).json()
+    gitea.add_collaborator(org, r, shadow_login(name))
+    perm = gitea._request('GET', f'/repos/{org}/{r}/collaborators/{shadow_login(name)}/permission', (200,)).json()
     assert perm['permission'] == 'write'
 
 
 def test_open_pull_request_as_user(gitea, repo, name):
     org, r = repo
     gitea.ensure_user(name)
-    gitea.add_collaborator(org, r, name)
-    index = gitea.open_pull_request(org, r, name, 'A change', 'Mirrored', 'pr/7', 'main')
+    gitea.add_collaborator(org, r, shadow_login(name))
+    index = gitea.open_pull_request(org, r, shadow_login(name), 'A change', 'Mirrored', 'pr/7', 'main')
     assert index == 1
     pull = gitea._request('GET', f'/repos/{org}/{r}/pulls/{index}', (200,)).json()
-    assert pull['user']['login'] == name
+    assert pull['user']['login'] == shadow_login(name)
     assert pull['head']['ref'] == 'pr/7'
     assert pull['base']['ref'] == 'main'
 
@@ -97,14 +109,14 @@ def test_open_pull_request_without_write_access_fails(gitea, repo, name):
     org, r = repo
     gitea.ensure_user(name)
     with pytest.raises(GiteaError):
-        gitea.open_pull_request(org, r, name, 'A change', '', 'pr/7', 'main')
+        gitea.open_pull_request(org, r, shadow_login(name), 'A change', '', 'pr/7', 'main')
 
 
 def test_get_pull_request_files(gitea, repo, name):
     org, r = repo
     gitea.ensure_user(name)
-    gitea.add_collaborator(org, r, name)
-    index = gitea.open_pull_request(org, r, name, 'A change', '', 'pr/7', 'main')
+    gitea.add_collaborator(org, r, shadow_login(name))
+    index = gitea.open_pull_request(org, r, shadow_login(name), 'A change', '', 'pr/7', 'main')
     files = gitea.get_pull_request_files(org, r, index)
     assert [f['filename'] for f in files] == ['change.txt']
 
@@ -112,11 +124,11 @@ def test_get_pull_request_files(gitea, repo, name):
 def test_mark_manually_merged(gitea, repo, name):
     org, r = repo
     gitea.ensure_user(name)
-    gitea.add_collaborator(org, r, name)
-    index = gitea.open_pull_request(org, r, name, 'A change', '', 'pr/7', 'main')
+    gitea.add_collaborator(org, r, shadow_login(name))
+    index = gitea.open_pull_request(org, r, shadow_login(name), 'A change', '', 'pr/7', 'main')
     # the merge commit must already be in the base branch
     merge_sha = _commit(gitea, org, r, 'main', 'merged.txt', 'bQ==')
-    gitea.mark_manually_merged(org, r, name, index, merge_sha)
+    gitea.mark_manually_merged(org, r, shadow_login(name), index, merge_sha)
     pull = gitea._request('GET', f'/repos/{org}/{r}/pulls/{index}', (200,)).json()
     assert pull['merged'] is True
     assert pull['merge_commit_sha'] == merge_sha
@@ -127,14 +139,14 @@ def test_mark_manually_merged(gitea, repo, name):
 def test_mark_manually_merged_commit_not_in_base(gitea, repo, name, known_to_repo):
     org, r = repo
     gitea.ensure_user(name)
-    gitea.add_collaborator(org, r, name)
-    index = gitea.open_pull_request(org, r, name, 'A change', '', 'pr/7', 'main')
+    gitea.add_collaborator(org, r, shadow_login(name))
+    index = gitea.open_pull_request(org, r, shadow_login(name), 'A change', '', 'pr/7', 'main')
     if known_to_repo:  # on pr/7 but not in main: "not found in base branch"
         sha = gitea._request('GET', f'/repos/{org}/{r}/pulls/{index}', (200,)).json()['head']['sha']
     else:  # unknown to the repository: "not found in base repository"
         sha = 'a' * 40
     with pytest.raises(MergeCommitNotInBaseError, match='commit not found in base'):
-        gitea.mark_manually_merged(org, r, name, index, sha)
+        gitea.mark_manually_merged(org, r, shadow_login(name), index, sha)
 
 
 def test_from_env_fails_fast(monkeypatch):
