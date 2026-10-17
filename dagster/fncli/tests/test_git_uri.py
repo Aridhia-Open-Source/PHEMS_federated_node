@@ -1,6 +1,6 @@
 import pytest
 
-from fncli.dagster.git_uri import normalise_repo_uri
+from app.git_uri import normalise_repo_uri
 
 
 @pytest.mark.parametrize("uri", [

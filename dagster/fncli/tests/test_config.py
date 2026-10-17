@@ -9,7 +9,7 @@ from fncli.cmds.common import (
     TriggerRepoConfig,
     to_host_url,
 )
-from fncli.dagster.config import EnvConfig
+from app.config import EnvConfig
 
 
 def test_gitea_config_defaults_to_the_port_forwarded_address(monkeypatch):

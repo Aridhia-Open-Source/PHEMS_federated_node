@@ -10,7 +10,7 @@ import requests
 
 from fncli.cmds import pr
 from fncli.cmds.pr import KINDS, PrConfig, file_for, new_branch_name
-from fncli.dagster.models import TriggerState
+from app.models import TriggerState
 
 @pytest.fixture
 def config():
@@ -84,7 +84,7 @@ class FakeBackend:
         )]
 
     def find_repository(self, uri, project_id):
-        return SimpleNamespace(id=7, repo_path="gitea_admin/trigger")
+        return SimpleNamespace(trigger_repository=SimpleNamespace(id=7), repo_path="gitea_admin/trigger")
 
     def get_pull_requests(self, project_id, repo_id):
         assert (project_id, repo_id) == (1, 7)
@@ -105,7 +105,7 @@ def run_of(status):
 
 
 def pr_of(state, cause=None):
-    return SimpleNamespace(number=5, state=TriggerState(state), state_cause=cause, task_id=9)
+    return SimpleNamespace(project_id=1, number=5, state=TriggerState(state), state_cause=cause, task_id=9)
 
 
 @pytest.fixture

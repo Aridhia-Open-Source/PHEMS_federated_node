@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from fncli.cmds.verify import Links, Report, verify_repo, verify_task
-from fncli.dagster.models import TriggerState
+from app.models import TriggerState
 
 
 class FakeBackend:

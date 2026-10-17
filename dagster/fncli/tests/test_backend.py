@@ -2,13 +2,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from fncli.dagster.backend import BackendAPI
-from fncli.dagster.models import Dataset, ProjectTriggerRepository, ResultsRepository, TriggerRepository
+from fncli.backend import FncliBackendAPI
+from app.models import Dataset, ProjectTriggerRepository, ResultsRepository, TriggerRepository
 
-SECRET = {"id": 3, "project_id": 1, "label": "l", "provider": "K8S", "key": "k", "namespace": "fn"}
+SECRET = {"id": 3, "project_id": 1, "label": "l", "provider": "K8S", "key": "k", "namespace": "fn", "enabled": True}
 TRIGGER_REPOSITORY = {
     "id": 1, "uri": "gitea.fn.svc/gitea_admin/trigger", "provider": "gitea", "api_uri": "http://x/api/v1",
-    "secret": SECRET,
+    "secret": SECRET, "enabled": True,
 }
 TRIGGER_ASSIGNMENT = {
     "id": 5, "project_id": 7, "trigger_repository": TRIGGER_REPOSITORY, "watch_dir": "specs/", "base_branch": "main",
@@ -16,7 +16,7 @@ TRIGGER_ASSIGNMENT = {
 }
 DATASET = {
     "id": 1, "secret": SECRET, "name": "cdm", "host": "db", "port": 5432,
-    "type": "postgres", "slug": "cdm", "url": "https://db/cdm",
+    "type": "postgres", "slug": "cdm", "url": "https://db/cdm", "enabled": True,
 }
 
 
@@ -34,7 +34,7 @@ def session():
 
 @pytest.fixture
 def api(session):
-    return BackendAPI(session=session, logger=MagicMock())
+    return FncliBackendAPI(session=session, logger=MagicMock())
 
 
 def test_create_dataset_body(api, session):
@@ -45,7 +45,7 @@ def test_create_dataset_body(api, session):
         secret_label="creds", read_schema="cdm",
     )
 
-    assert session.post.call_args.args == ("/datasets",)
+    assert session.post.call_args.args == ("/global/datasets",)
     assert session.post.call_args.kwargs["json"] == {
         "name": "cdm", "host": "db", "port": 5432, "type": "postgres",
         "secret_label": "creds", "read_schema": "cdm", "write_schema": None,
@@ -72,20 +72,21 @@ class TestProjectDatasets:
 
     def test_get_or_assign_assigns_when_missing(self, api, session):
         session.get.return_value = response([])
-        session.post.return_value = response(ASSIGNMENT)
+        session.put.return_value = response(ASSIGNMENT)
         dataset = Dataset(**DATASET)
 
         assert api.get_or_assign_dataset(7, dataset).project_id == 7
-        assert session.post.call_args.args == ("/projects/7/datasets",)
-        assert session.post.call_args.kwargs["json"] == {"dataset_id": 1}
+        assert session.put.call_args.args == ("/projects/7/datasets/1",)
+        assert session.put.call_args.kwargs["json"] == {}
 
 
 RESULTS_REPOSITORY = {
     "id": 2, "uri": "gitea.fn.svc:4000/fn/results", "provider": "gitea", "api_uri": "http://gitea.fn.svc:4000/api/v1",
     "secret": {
-        "id": 1, "label": "creds", "description": None, "provider": "K8S", "key": "fn-creds", "namespace": None,
+        "id": 1, "label": "creds", "description": None, "provider": "K8S", "key": "fn-creds", "namespace": None, "enabled": True,
         "created_at": "2026-01-01 00:00:00", "updated_at": "2026-01-01 00:00:00",
     },
+    "enabled": True,
 }
 RESULTS_ASSIGNMENT = {
     "id": 5, "project_id": 7, "results_repository": RESULTS_REPOSITORY, "target_dir": "results",
@@ -99,7 +100,7 @@ class TestResultsRepositories:
 
         assert api.find_results_repository("http://gitea.fn.svc:4000/fn/results.git").id == 2
         assert api.find_results_repository("gitea.fn.svc:4000/fn/other") is None
-        assert session.get.call_args.args == ("/results_repositories",)
+        assert session.get.call_args.args == ("/global/repositories/results",)
 
     def test_get_or_create_reuses_an_existing_repository(self, api, session):
         session.get.return_value = response([RESULTS_REPOSITORY])
@@ -115,7 +116,7 @@ class TestResultsRepositories:
             "gitea.fn.svc:4000/fn/results", provider="gitea", api_uri="http://x/api/v1", secret_label="creds"
         )
 
-        assert session.post.call_args.args == ("/results_repositories",)
+        assert session.post.call_args.args == ("/global/repositories/results",)
         assert session.post.call_args.kwargs["json"] == {
             "uri": "gitea.fn.svc:4000/fn/results", "provider": "gitea", "api_uri": "http://x/api/v1",
             "secret_label": "creds",
@@ -125,17 +126,17 @@ class TestResultsRepositories:
         session.get.return_value = response([RESULTS_ASSIGNMENT])
 
         assert api.get_or_assign_results_repository(7, ResultsRepository(**RESULTS_REPOSITORY), "results").id == 5
-        assert session.get.call_args.args == ("/projects/7/results_repositories",)
+        assert session.get.call_args.args == ("/projects/7/repositories/results",)
         session.post.assert_not_called()
 
     def test_assign_posts_to_the_project(self, api, session):
         session.get.return_value = response([])
-        session.post.return_value = response(RESULTS_ASSIGNMENT)
+        session.put.return_value = response(RESULTS_ASSIGNMENT)
         repository = ResultsRepository(**RESULTS_REPOSITORY)
 
         assert api.get_or_assign_results_repository(7, repository, "results").project_id == 7
-        assert session.post.call_args.args == ("/projects/7/results_repositories",)
-        assert session.post.call_args.kwargs["json"] == {"results_repository_id": 2, "target_dir": "results"}
+        assert session.put.call_args.args == ("/projects/7/repositories/results/2",)
+        assert session.put.call_args.kwargs["json"] == {"target_dir": "results"}
 
 
 class TestTriggerRepositories:
@@ -160,7 +161,7 @@ class TestTriggerRepositories:
         repo = self.create(api, uri)
 
         assert repo.id == 1
-        assert session.get.call_args.args == ("/trigger_repositories",)
+        assert session.get.call_args.args == ("/global/repositories/triggers",)
         session.post.assert_not_called()
 
     def test_a_scheme_less_uri_with_a_port_is_matched(self, api, session):
@@ -176,7 +177,7 @@ class TestTriggerRepositories:
 
         self.create(api, "http://gitea.fn.svc/gitea_admin/other")
 
-        assert session.post.call_args.args == ("/trigger_repositories",)
+        assert session.post.call_args.args == ("/global/repositories/triggers",)
         assert session.post.call_args.kwargs["json"] == {
             "uri": "http://gitea.fn.svc/gitea_admin/other", "provider": "gitea", "api_uri": "http://x/api/v1",
             "secret_label": "l",
@@ -190,26 +191,15 @@ class TestTriggerRepositories:
         )
 
         assert assignment.id == 5
-        assert session.get.call_args.args == ("/project_trigger_repositories",)
+        assert session.get.call_args.args == ("/projects/7/repositories/triggers",)
         session.post.assert_not_called()
-
-    def test_an_assignment_of_another_project_is_not_reused(self, api, session):
-        session.get.return_value = response([{**TRIGGER_ASSIGNMENT, "project_id": 2}])
-        session.post.return_value = response(TRIGGER_ASSIGNMENT)
-
-        api.get_or_assign_repository(7, TriggerRepository(**TRIGGER_REPOSITORY), "specs/", "main")
-
-        assert session.post.call_args.args == ("/projects/7/trigger_repositories",)
-        assert session.post.call_args.kwargs["json"] == {
-            "trigger_repository_id": 1, "watch_dir": "specs/", "base_branch": "main", "initial_cursor": None,
-        }
 
     def test_pull_requests_are_listed_under_the_assignment(self, api, session):
         session.get.return_value = response({"items": [], "total": 0})
 
         api.get_pull_requests(7, 5)
 
-        assert session.get.call_args.args == ("/projects/7/trigger_repositories/5/pull_requests",)
+        assert session.get.call_args.args == ("/projects/7/repositories/triggers/5/pull_requests",)
 
 
 def test_get_task_results_lists_the_tasks_deliveries(api, session):
