@@ -22,6 +22,7 @@ from fncli.cli import cli
 from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
 from fncli.cmds.common import DagsterConfig, ProjectConfig, build_backend_api
 from fncli.cmds.state import snapshot
+from fncli.k8s import ENV_CONFIGMAP, get_configmap_value, restart_code_server, set_configmap_value
 from fncli.sensors import DagsterAPI
 
 logger = logging.getLogger("e2e")
@@ -78,9 +79,28 @@ def teardown_step(fncli, command, options, keep: bool = False):
     fncli.call(command, **options)
 
 
+INTERVAL_KEY = "DAGSTER_SENSORS_MIN_INTERVAL_SECONDS"
+_tick_seconds = {"value": float(os.environ.get(INTERVAL_KEY, 10))}
+
+
 def tick_seconds() -> float:
-    """The shortest interval of a sensor tick, as the sensors are configured."""
-    return float(os.environ.get("DAGSTER_SENSORS_MIN_INTERVAL_SECONDS", 10))
+    """The shortest interval of a sensor tick, as the sensors are configured (or as a test set it)."""
+    return _tick_seconds["value"]
+
+
+def set_sensor_interval(seconds: int) -> str | None:
+    """Patch the sensor interval in the cluster's Dagster config and restart the code server so it takes effect.
+
+    Returns the previous value, to restore it with the same call. The restart stops the sensors (their initial status is
+    STOPPED unless the chart says otherwise), so start them again afterwards.
+    """
+    namespace = ProjectConfig().namespace
+    previous = get_configmap_value(ENV_CONFIGMAP, namespace, INTERVAL_KEY)
+    logger.info(f"Setting the sensor interval to {seconds}s (was {previous}) and restarting the code server")
+    set_configmap_value(ENV_CONFIGMAP, namespace, INTERVAL_KEY, str(seconds))
+    restart_code_server(namespace)
+    _tick_seconds["value"] = float(seconds)
+    return previous
 
 
 def quiet_wait(ticks: int = 3):

@@ -7,8 +7,10 @@ project as the next expects it: unlocked, links active, tokens restored.
 TODO, not covered yet: S8 (a task in flight blocks lock-gated changes: timing dependent), S10 (a
 second project on the same repository) and S13 (sensors restarted mid-flow).
 
-The "nothing happens" checks wait a few sensor ticks (DAGSTER_SENSORS_MIN_INTERVAL_SECONDS, default 10).
+The "nothing happens" checks wait a few sensor ticks (5 ticks of the 1 s interval the suite sets; E2E_KEEP_INTERVAL=1 leaves the cluster's own).
 """
+
+import os
 
 import pytest
 
@@ -26,6 +28,7 @@ from fncli.cmds.sensor import ALL_SENSORS, sensor_status_command, start_sensor_c
 from fncli.cmds.state import global_set_command, link_set_command, project_set_command
 from fncli.tests.e2e.conftest import (
     SETUP_IDS,
+    set_sensor_interval,
     TEARDOWN_IDS,
     counts,
     logger,
@@ -38,11 +41,33 @@ from fncli.tests.e2e.conftest import (
 
 pytestmark = [pytest.mark.e2e, pytest.mark.e2e_failure]
 
+SENSOR_INTERVAL = 1  # seconds: the "nothing happens" checks then take QUIET_TICKS of these
+QUIET_TICKS = 5
 TASK_TIMEOUT = 600
 STEP_TIMEOUT = 300
 # A task that has not finished, and a result that is still being delivered, block lock-gated changes
 UNFINISHED_TASK = ["PENDING", "QUEUED", "RUNNING"]
 DELIVERED = ["OPENED", "MERGED"]
+
+
+@pytest.fixture(scope="module", autouse=True)
+def fast_sensors(request):
+    """Run the suite with a 1 s sensor interval, and put the cluster's interval back afterwards, even when a test failed.
+
+    Skipped when E2E_KEEP_INTERVAL=1. The code server restarts both times, which stops the sensors: test_start_sensor
+    starts them again after setup, and the restore leaves them stopped, as a fresh install does.
+    """
+    if os.environ.get("E2E_KEEP_INTERVAL") == "1":
+        yield
+        return
+    previous = set_sensor_interval(SENSOR_INTERVAL)
+
+    def restore():
+        if previous is not None:
+            set_sensor_interval(int(previous))
+
+    request.addfinalizer(restore)
+    yield
 
 
 @pytest.fixture(scope="module")
@@ -188,7 +213,7 @@ def test_s4_merge_pr(fncli, flow):
 
 
 def test_s4_nothing_created(fncli, flow):
-    quiet_wait()
+    quiet_wait(QUIET_TICKS)
     fncli.assert_counts(flow["s4_before"], "unwatched PR")
 
 
@@ -208,7 +233,7 @@ def test_s5_start_ingest(fncli):
 
 
 def test_s5_counts_unchanged(fncli, flow):
-    quiet_wait()
+    quiet_wait(QUIET_TICKS)
     fncli.assert_counts(flow["s5_before"], "ingest restarted")
 
 
@@ -243,7 +268,7 @@ def test_s6_merge_pr(fncli, flow):
 
 
 def test_s6_nothing_ingested_while_revoked(fncli, flow):
-    quiet_wait()
+    quiet_wait(QUIET_TICKS)
     fncli.assert_counts(flow["s6_before"], "revoked link")
 
 
@@ -294,7 +319,7 @@ def test_s7_merge_pr(fncli, flow):
 
 
 def test_s7_nothing_ingested_while_disabled(fncli, flow):
-    quiet_wait()
+    quiet_wait(QUIET_TICKS)
     fncli.assert_counts(flow["s7_before"], "disabled link")
 
 
@@ -326,7 +351,7 @@ def test_s5b_start_ingest(fncli):
 
 
 def test_s5b_counts_unchanged(fncli, flow):
-    quiet_wait()
+    quiet_wait(QUIET_TICKS)
     fncli.assert_counts(flow["s5b_before"], "ingest restarted after S6 and S7")
 
 
@@ -365,7 +390,7 @@ def test_s9_merge_pr(fncli, flow):
 
 
 def test_s9_nothing_ingested_while_global_disabled(fncli, flow):
-    quiet_wait()
+    quiet_wait(QUIET_TICKS)
     fncli.assert_counts(flow["s9_before"], "global repository disabled")
 
 
@@ -417,7 +442,7 @@ def test_s11_merge_pr(fncli, flow):
 
 
 def test_s11_nothing_ingested_without_token(fncli, flow):
-    quiet_wait()
+    quiet_wait(QUIET_TICKS)
     fncli.assert_counts(flow["s11_before"], "trigger token deleted")
 
 
