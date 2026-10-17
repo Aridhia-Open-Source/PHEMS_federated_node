@@ -196,6 +196,21 @@ from `GITEA_TOKEN_NAME`), `DEFAULT_PROJECT_DATASET` and `TEST_PR_IMAGE`.
 
 The dataset defaults to a dummy stand-in. These env vars point it at a real database (all optional, defaults in brackets): `CLUSTER_DATASET_HOST` (`db-datasets.fn.svc`), `DATASET_PORT` (`5432`), `DATASET_TYPE` (`postgres`), `DATASET_SCHEMA` (`cdm`, the read schema), `DATASET_SCHEMA_WRITE` (`results`), `DATASET_USERNAME` and `DATASET_PASSWORD` (`dummy`, stored in the dataset's secret). They are the names `dev.db/.env` uses.
 
+## State and rules (for the end-to-end QA plan)
+
+`project/handover/e2e-qa-plan.md` uses these to look at the test project and to change the state the webserver's rules act on.
+Every write prints the HTTP status and body; `--expect STATUS` asserts the status (exit 1 if it differs), which is how the plan
+checks the 409 rules. `KIND` is `trigger`, `results`, `dataset` or `secret`; `--project NAME` picks another project.
+
+| Command | What it does |
+|---|---|
+| `project-show [--project]` | JSON of the project's links (enabled, revoked, active), their pull requests (state, task), tasks and results. Read-only; stdout is clean JSON, so it pipes into `jq` |
+| `project-set --enabled/--locked true\|false` | Sets the project's flags (`PATCH /projects/<id>`) |
+| `link-set KIND --enabled/--revoked true\|false` | Sets the flags of the project's link to a global resource. `--revoked` is admin only and immediate; other changes need the project locked and drained |
+| `global-set KIND --enabled true\|false` | Turns the global resource behind the link on or off. Every project that links it must be locked and drained (no task in flight, no result still being delivered) |
+| `second-project-setup NAME` | Creates a second project linked to the same global resources (secrets, dataset, trigger and results repositories), enabled |
+| `second-project-teardown NAME` | Locks and deletes that project. The global resources stay |
+
 ## UC1 seed
 
 `make uc1-seed` (`dev.db/uc1_make_seed.sh`) loads the UC1 OMOP data into the dataset database, then runs `fncli setup-project` with the `DATASET_*` values from `dev.db/.env` and `DEFAULT_PROJECT_DATASET` set to the database name. It needs `fncli` on PATH and `.dev.env` at the repo root. It only touches the project `TEST_PROJECT_NAME` names, so it is safe to re-run and never deletes other datasets or repositories. To remove what it registered, use `fncli teardown-project`.

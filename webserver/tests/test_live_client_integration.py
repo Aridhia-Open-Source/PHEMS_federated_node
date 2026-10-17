@@ -421,3 +421,59 @@ def test_e2e_check_script_reads_the_real_routes(api, raw, world):
     assert e2e.command_wait_tasks(api, config, args) == 1  # the task is still PENDING
     raw.ok("PATCH", f"/tasks/{task['id']}", 200, json={"status": "SUCCESS"})
     assert e2e.command_wait_tasks(api, config, args) == 0
+
+
+def test_fncli_state_commands_against_the_real_routes(api, raw, world):
+    """fncli/cmds/state.py (the QA plan's commands for rule scenarios) against the real routes and response shapes."""
+    from types import SimpleNamespace
+    try:
+        from fncli.cmds import state
+    except ImportError as exc:
+        pytest.skip(f"fncli.cmds.state is not importable: {exc}")
+    w = world
+    pid, tid = w["project"].id, w["trigger"].id
+    name = w["project"].name
+    config = SimpleNamespace(project_name=name)
+
+    raw.ok("PUT", f"/projects/{pid}/secrets/live-creds", 201, json={})  # `world` creates the secret but does not link it
+    api.create_pull_requests_batch(tid, [pr(1)])
+    task = raw.ok("POST", f"/projects/{pid}/repositories/triggers/{tid}/pull_requests/1/task", 201,
+                  json={"spec_raw": SPEC_RAW})
+    raw.ok("PATCH", f"/tasks/{task['id']}", 200, json={"status": "SUCCESS"})
+    result = raw.ok("POST", f"/projects/{pid}/results", 201,
+                    json={"task_id": task["id"], "results_repository_id": w["results"].id})
+
+    snap = state.snapshot(api, name)
+    assert snap["project"]["id"] == pid
+    assert [(p["number"], p["state"]) for p in snap["trigger_links"][0]["pull_requests"]] == [(1, "YIELDED")]
+    assert [t["status"] for t in snap["tasks"]] == ["SUCCESS"] and snap["results"][0]["step"] == "UNKNOWN"
+    assert snap["results_links"][0]["target_dir"] == "results" and snap["secret_links"][0]["secret"] == "live-creds"
+
+    # revoke and un-revoke a link: immediate, no lock needed
+    assert state.set_link(api, name, "trigger", None, "true", 200) == 0
+    assert state.snapshot(api, name)["trigger_links"][0]["active"] is False
+    assert state.set_link(api, name, "trigger", None, "false", 200) == 0
+    assert state.snapshot(api, name)["trigger_links"][0]["active"] is True
+
+    # a global resource cannot be disabled while a linking project is unlocked (409) ...
+    assert state.set_global(api, name, "trigger", "false", 409) == 0
+    # ... nor while its delivery is still in progress, even if the project is locked (409, "tasks in flight") ...
+    assert state.set_project(api, name, None, "true", 200) == 0
+    assert state.set_global(api, name, "trigger", "false", 409) == 0
+    # ... but can once the delivery is done
+    raw.ok("PATCH", f"/projects/{pid}/results/{result['id']}", 200,
+           json={"step": "OPENED", "state": "DELIVERED", "number": 1, "url": "https://x/pull/1"})
+    assert state.set_global(api, name, "trigger", "false", 200) == 0
+    assert state.snapshot(api, name)["trigger_links"][0]["global_enabled"] is False
+    assert state.set_global(api, name, "trigger", "true", 200) == 0
+    assert state.set_project(api, name, None, "false", 200) == 0
+    assert state.set_project(api, name, None, "false", 500) == 1  # --expect is checked, a mismatch is a failure
+
+    # a second project on the SAME global resources, then removed again (the global resources stay)
+    assert state.setup_second_project(api, config, "QaTwo") == 0
+    two = state.snapshot(api, "QaTwo")
+    assert two["trigger_links"][0]["repository_id"] == tid and two["project"]["enabled"] is True
+    assert two["results_links"] and two["dataset_links"] and two["secret_links"]
+    assert state.teardown_second_project(api, "QaTwo", 204) == 0
+    assert api.find_project("QaTwo") is None
+    assert api.find_project(name) is not None
