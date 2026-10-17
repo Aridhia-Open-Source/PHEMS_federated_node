@@ -71,7 +71,7 @@ Add `--watch` to follow the merged PR in real time (and `--timeout <seconds>`, d
 
 - `fncli open-pr --kind watched --merge --watch`, or `fncli merge-gitea-pr --number <n> --watch`
   - Backend: `GET /projects/{project_id}/repositories/triggers/{repository_id}/pull_requests`, until the PR shows up ("waiting for ingest") and shows its state (UNKNOWN, then YIELDED or REJECTED, with its state_cause).
-  - Backend: `GET /tasks/{task_id}` for a YIELDED PR, showing the task's status.
+  - Backend: `GET /projects/{project_id}/tasks/{task_id}` for a YIELDED PR, showing the task's status.
   - Dagster: GraphQL `runsOrError` filtered by the task_id tag, showing the run's id and status until SUCCESS, FAILURE or CANCELED.
   - Exits 0 on SUCCESS.
 
@@ -109,15 +109,15 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
   - Backend: `GET /projects/{project_id}/repositories/triggers/{repository_id}/pull_requests`, for every PR of the project's link to the repository.
   - A PR the sensor rejected has no task, so it passes with a note.
   - A PR still `UNKNOWN` fails: the evaluate sensor hasn't run on it.
-  - For a `YIELDED` PR, Backend: `GET /tasks/{id}`, for the task's status, run id, attempt and times.
+  - For a `YIELDED` PR, Backend: `GET /projects/{project_id}/tasks/{id}`, for the task's status, run id, attempt and times.
   - For a `YIELDED` PR, Dagster: finds the run tagged with the task's id, and checks it is a `k8s_pipes_job`.
   - Checks the task's status, run id and attempt match the run, and that `started_at` and `completed_at` are set when they should be.
   - Checks the run succeeded.
-  - For a succeeded run, Backend: `GET /tasks/{id}/results`, and checks the task has exactly one results delivery, its results PR was opened (state `OPENED`, `MERGED` or `CLOSED`; a failed delivery shows its error), it has a `commit_sha`, and it has a results PR (number and url; its state is shown).
+  - For a succeeded run, Backend: `GET /projects/{project_id}/tasks/{id}/results`, and checks the task has exactly one results delivery, its results PR was opened (state `OPENED`, `MERGED` or `CLOSED`; a failed delivery shows its error), it has a `commit_sha`, and it has a results PR (number and url; its state is shown).
   - Does not check the files in the results repo: it only reads the backend and Dagster.
 - `fncli verify-repo --tail 10`
   - The same, for only the last 10 PRs by number.
-- `merge-gitea-pr --watch` and `open-pr --merge --watch` print the same per-PR checks when the run ends. After a succeeded run they first wait up to 60s for the delivery to open its results PR (state `OPENED` or later) or fail (an error is recorded), printing a `Delivery:` line each time its state changes (Backend: `GET /tasks/{id}/results`). If it does not finish, they name the delivery sensor if it is not running, and the delivery check fails.
+- `merge-gitea-pr --watch` and `open-pr --merge --watch` print the same per-PR checks when the run ends. After a succeeded run they first wait up to 60s for the delivery to open its results PR (state `OPENED` or later) or fail (an error is recorded), printing a `Delivery:` line each time its state changes (Backend: `GET /projects/{project_id}/tasks/{id}/results`). If it does not finish, they name the delivery sensor if it is not running, and the delivery check fails.
 
 ### 5. Tear down
 

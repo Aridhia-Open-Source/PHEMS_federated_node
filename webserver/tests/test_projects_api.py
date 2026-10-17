@@ -237,10 +237,10 @@ def test_delete_removes_tasks_and_project_prs_but_keeps_global_prs(
     tid = make_task(status="FAILED").id
     yielded = client.post(pr_trigger + "/task", json={"spec_raw": spec_raw}, headers=admin_headers)  # task from a PR
     assert yielded.status_code == 201, yielded.json
-    client.patch(f"/tasks/{yielded.json['id']}", json={"status": "FAILED"}, headers=admin_headers)
+    client.patch(f"/projects/{lock_project.id}/tasks/{yielded.json['id']}", json={"status": "FAILED"}, headers=admin_headers)
     assert client.delete(f"/projects/{lock_project.id}", headers=admin_headers).status_code == 204
-    assert client.get(f"/tasks/{tid}", headers=admin_headers).status_code == 404
-    assert client.get(f"/tasks/{yielded.json['id']}", headers=admin_headers).status_code == 404
+    assert client.get(f"/projects/{lock_project.id}/tasks/{tid}", headers=admin_headers).status_code == 404
+    assert client.get(f"/projects/{lock_project.id}/tasks/{yielded.json['id']}", headers=admin_headers).status_code == 404
     assert client.get(pr_trigger, headers=admin_headers).status_code == 404
     glob = client.get(f"/global/repositories/triggers/{global_trigger_repo.id}/pull_requests", headers=admin_headers)
     assert glob.status_code == 200 and glob.json["total"] == 1

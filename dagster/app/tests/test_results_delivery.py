@@ -119,7 +119,7 @@ def deliver(backend_api, remote, artifacts, git_apis=None, max_zip_bytes=1048576
     with patch("app.secrets.SecretProvider") as provider, \
             patch.object(git_push, "clone_url", return_value=str(remote)):
         provider.return_value.get.return_value = "tok"
-        ResultsDelivery(backend_api, git_apis or MagicMock(), config, MagicMock())(7, RUN_ID)
+        ResultsDelivery(backend_api, git_apis or MagicMock(), config, MagicMock())(1, 7, RUN_ID)
     return provider
 
 
@@ -356,14 +356,14 @@ def test_the_token_stays_out_of_the_command_line():
 
 
 def test_the_sensor_requests_a_delivery_run_for_a_successful_task_run():
-    run = MagicMock(tags={"trigger": "task", "task_id": "7", "attempt": "2"}, run_id=RUN_ID)
+    run = MagicMock(tags={"trigger": "task", "task_id": "7", "attempt": "2", "project_id": "1"}, run_id=RUN_ID)
     context = MagicMock(dagster_run=run)
 
     result = task_results_delivery_sensor._run_status_sensor_fn(context)
 
     assert result.run_key == "deliver/7/2"
     assert result.tags == {"trigger": "delivery", "delivery_task_id": "7"}
-    assert result.run_config == {"ops": {"deliver_results": {"config": {"task_id": 7, "run_id": RUN_ID}}}}
+    assert result.run_config == {"ops": {"deliver_results": {"config": {"project_id": 1, "task_id": 7, "run_id": RUN_ID}}}}
 
 
 def test_a_hung_git_command_fails_with_a_timeout():

@@ -41,6 +41,7 @@ class TaskRunStatusSensor(BaseSensor):
         run = self.context.dagster_run
         task_status = self.STATUS_MAP[run.status]
         task_id = int(run.tags["task_id"])
+        project_id = int(run.tags["project_id"])
 
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         fields = {"status": task_status.value, "dagster_run_id": run.run_id}
@@ -53,7 +54,7 @@ class TaskRunStatusSensor(BaseSensor):
             )
 
         try:
-            self.backend_api.patch_task(task_id, fields)
+            self.backend_api.patch_task(project_id, task_id, fields)
         except requests.HTTPError as e:
             if e.response.status_code != HTTPStatus.CONFLICT:
                 raise

@@ -46,7 +46,7 @@ class ResultsDelivery:
         self.config = config
         self.log = log
 
-    def __call__(self, task_id: int, run_id: str) -> None:
+    def __call__(self, project_id: int, task_id: int, run_id: str) -> None:
         """
         Deliver the results of a task run, whose artifacts are in a folder named after run_id,
         which the sensor read from the finished run: record the step PUSHED once the branch is
@@ -61,7 +61,7 @@ class ResultsDelivery:
         Any failure is recorded on the result as an error with one more attempt, its step
         left where it was and its state FAILED, and raised, so the Dagster run fails visibly.
         """
-        task = self.backend_api.get_task(task_id)
+        task = self.backend_api.get_task(project_id, task_id)
         repository = self.backend_api.get_results_repository(task.project_id)
         try:
             result = self.backend_api.create_result(task.project_id, task.id, repository.results_repository.id)

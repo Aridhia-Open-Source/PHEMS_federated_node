@@ -189,8 +189,8 @@ def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, links: Links
         return
 
     task = report.check(
-        f"Task {pr.task_id} is in the backend: GET /tasks/{pr.task_id}",
-        lambda: backend_api.get_task(pr.task_id),
+        f"Task {pr.task_id} is in the backend: GET /projects/{pr.project_id}/tasks/{pr.task_id}",
+        lambda: backend_api.get_task(pr.project_id, pr.task_id),
         lambda t: f"{t.status}, attempt {t.attempt}",
     )
     run = report.check(
@@ -227,17 +227,17 @@ def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, links: Links
         report.record(task.completed_at is not None, "Task has completed_at", str(task.completed_at))
     report.record(run["status"] == "SUCCESS", "Run succeeded", run["status"])
     if run["status"] == "SUCCESS":
-        verify_delivery(report, backend_api, pr.task_id)
+        verify_delivery(report, backend_api, pr.project_id, pr.task_id)
 
 
-def verify_delivery(report: Report, backend_api, task_id: int):
+def verify_delivery(report: Report, backend_api, project_id: int, task_id: int):
     """
     A succeeded task's results are delivered: one result, past PUSHED (OPENED, MERGED or
     CLOSED), with a commit and a results PR.
     """
     results = report.check(
-        f"Task {task_id} has one results delivery: GET /tasks/{task_id}/results",
-        lambda: exactly_one(backend_api.get_task_results(task_id)),
+        f"Task {task_id} has one results delivery: GET /projects/{project_id}/tasks/{task_id}/results",
+        lambda: exactly_one(backend_api.get_task_results(project_id, task_id)),
         lambda r: f"{r.step}, {r.state}, attempts {r.attempts}",
     )
     if results is None:

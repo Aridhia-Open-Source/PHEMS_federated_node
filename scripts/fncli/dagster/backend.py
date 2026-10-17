@@ -108,15 +108,15 @@ class BackendAPI:
         )
         return PullRequestTrigger(**response.json())
 
-    def get_task(self, task_id: int) -> Task:
+    def get_task(self, project_id: int, task_id: int) -> Task:
         """Get single task"""
         self.logger.info(f"Fetching task {task_id}")
-        return Task(**self.session.get(f"/tasks/{task_id}").json())
+        return Task(**self.session.get(f"/projects/{project_id}/tasks/{task_id}").json())
 
-    def get_task_results(self, task_id: int) -> list[PullRequestResult]:
+    def get_task_results(self, project_id: int, task_id: int) -> list[PullRequestResult]:
         """The task's result deliveries, one per results repository"""
         self.logger.info(f"Fetching results of task {task_id}")
-        return [PullRequestResult(**result) for result in self.session.get(f"/tasks/{task_id}/results").json()]
+        return [PullRequestResult(**result) for result in self.session.get(f"/projects/{project_id}/tasks/{task_id}/results").json()]
 
     def create_dataset(
         self,

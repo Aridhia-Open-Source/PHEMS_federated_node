@@ -85,7 +85,7 @@ def test_a_task_whose_dataset_is_not_active_is_not_launched():
 
     assert len(result) == 1 and isinstance(result[0], SkipReason)
     backend_api.patch_task.assert_called_once_with(
-        9, {"status": "FAILED", "state_cause": "Dataset cdm is not active in project proj1"}
+        1, 9, {"status": "FAILED", "state_cause": "Dataset cdm is not active in project proj1"}
     )
 
 
@@ -98,7 +98,7 @@ def test_a_task_whose_dataset_secret_is_disabled_is_failed_with_the_cause():
 
     assert len(result) == 1 and isinstance(result[0], SkipReason)
     backend_api.patch_task.assert_called_once_with(
-        9, {"status": "FAILED", "state_cause": "The secret of dataset cdm is disabled"}
+        1, 9, {"status": "FAILED", "state_cause": "The secret of dataset cdm is disabled"}
     )
 
 

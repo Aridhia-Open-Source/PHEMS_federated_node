@@ -50,7 +50,7 @@ class TaskLauncherSensor(BaseSensor):
             if cause:
                 self.log.warning(f"Task {task.id} not launched: {cause}")
                 self.backend_api.patch_task(
-                    task.id, {"status": TaskStatus.FAILED.value, "state_cause": cause}
+                    project.id, task.id, {"status": TaskStatus.FAILED.value, "state_cause": cause}
                 )
                 return None
             dataset = assignment.dataset

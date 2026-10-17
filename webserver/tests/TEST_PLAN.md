@@ -134,8 +134,8 @@ Fixtures: `client, admin_headers, project, global_trigger_repo, pr_trigger, inge
 | `test_task_gets_default_dataset` | request `linked_dataset` BEFORE `pr_trigger` in the parameter list | POST `P + "/task"` `{"spec_raw": spec_raw}` | 201, `spec["dataset_id"] == D` |
 | `test_bad_spec_rejects_pr` | `pr_trigger` | POST `P + "/task"` `{"spec_raw": "{}"}`; GET `P` | 400; PR `state == "REJECTED"`, `"spec"` in `state_cause` |
 | `test_missing_spec_raw` | `pr_trigger` | POST `P + "/task"` `{}` | 400 |
-| `test_tasks_routes` | `pr_trigger`; create task (201) -> `tid` | GET `/tasks?project_id=<pid>`; GET `/tasks/<tid>`; GET `/tasks/999` | 200 with `total == 1`, `tasks[0]["id"] == tid`; 200; 404 |
-| `test_patch_task` | as above | PATCH `/tasks/<tid>` `{"status": "RUNNING", "dagster_run_id": "run-1"}`; PATCH `/tasks/<tid>` `{"bogus": 1}`; GET `/tasks/<tid>/results` | 200 `status == "RUNNING"`, `dagster_run_id == "run-1"`; 400; 200 `[]` |
+| `test_tasks_routes` | `pr_trigger`; create task (201) -> `tid` | GET `/projects/<pid>/tasks`; GET `/projects/<pid>/tasks/<tid>`; GET `/projects/<pid>/tasks/999` | 200 with `total == 1`, `tasks[0]["id"] == tid`; 200; 404 |
+| `test_patch_task` | as above | PATCH `/projects/<pid>/tasks/<tid>` `{"status": "RUNNING", "dagster_run_id": "run-1"}`; PATCH `/projects/<pid>/tasks/<tid>` `{"bogus": 1}`; GET `/projects/<pid>/tasks/<tid>/results` | 200 `status == "RUNNING"`, `dagster_run_id == "run-1"`; 400; 200 `[]` |
 
 ## 5. `tests/test_datasets.py` (10 tests)
 
@@ -235,10 +235,10 @@ Fixtures: `client, admin_headers, k8s_client, project, make_pr_batch, spec_raw`.
 12. `batch = make_pr_batch(1, 2)`; `batch["pull_requests"] += make_pr_batch(3, base_branch="dev")["pull_requests"]`; POST `/global/repositories/triggers/<T>/pull_requests` batch -> 201, `created == [1, 2, 3]`.
 13. GET `/projects/<pid>/repositories/triggers/<T>/pull_requests` -> `total == 3`; states by number: `{1: "UNKNOWN", 2: "UNKNOWN", 3: "IGNORED"}`.
 14. POST `/projects/<pid>/repositories/triggers/<T>/pull_requests/1/task` `{"spec_raw": spec_raw}` -> 201, `spec["dataset_id"] == D`, `tid = r.json["id"]`.
-15. PATCH `/tasks/<tid>` `{"status": "SUCCESS"}` -> 200.
+15. PATCH `/projects/<pid>/tasks/<tid>` `{"status": "SUCCESS"}` -> 200.
 16. POST `/projects/<pid>/results` `{"task_id": tid, "results_repository_id": R}` -> 201, `rid = r.json["id"]`.
 17. PATCH `/projects/<pid>/results/<rid>` `{"step": "OPENED", "state": "DELIVERED", "number": 7, "url": "https://github.com/org/e2e-results/pull/7"}` -> 200, `step == "OPENED"`, `state == "DELIVERED"`.
-18. GET `/tasks/<tid>/results` -> 200, length 1, `[0]["results_repository_id"] == R`.
+18. GET `/projects/<pid>/tasks/<tid>/results` -> 200, length 1, `[0]["results_repository_id"] == R`.
 19. GET `/projects/<pid>/results?step=OPENED` -> 200, length 1.
 
 ---

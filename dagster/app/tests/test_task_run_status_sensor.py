@@ -15,7 +15,7 @@ from app.definitions.sensors.task import (
 from app.definitions.sensors.task.run_status import TaskRunStatusSensor
 from app.tests.conftest import make_dagster_run, make_success_event
 
-TAGS = {"trigger": "task", "task_id": "9", "attempt": "1"}
+TAGS = {"trigger": "task", "task_id": "9", "attempt": "1", "project_id": "3"}
 END_TIME = 1700000000.0
 
 
@@ -39,8 +39,8 @@ def test_the_run_status_maps_to_the_task_status(status, task_status, time_field)
 
     sensor_for(status, backend_api=backend_api)()
 
-    (task_id, fields), _ = backend_api.patch_task.call_args
-    assert task_id == 9
+    (project_id, task_id, fields), _ = backend_api.patch_task.call_args
+    assert (project_id, task_id) == (3, 9)
     assert fields["status"] == task_status
     assert set(fields) - {"status", "dagster_run_id"} == ({time_field} if time_field else set())
     assert fields["dagster_run_id"] == "test-run-id"
@@ -89,7 +89,7 @@ def test_registered_sensor_patches_for_task_runs(backend_api, dagster_instance, 
     task_success_sensor(context_for(run, dagster_instance))
 
     backend_api.patch_task.assert_called_once()
-    assert backend_api.patch_task.call_args[0][1]["status"] == "SUCCESS"
+    assert backend_api.patch_task.call_args[0][2]["status"] == "SUCCESS"
 
 
 def test_registered_sensor_ignores_runs_of_other_triggers(backend_api, dagster_instance):

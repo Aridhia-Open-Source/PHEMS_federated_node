@@ -314,13 +314,21 @@
         }
       }
     },
-    "/tasks/{id}": {
+    "/projects/{project_id}/tasks/{task_id}": {
       "get": {
         "operationId": "get_task_by_id",
         "parameters": [
           {
             "in": "path",
-            "name": "id",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "task_id",
             "description": "Unique task identifier",
             "required": true,
             "schema": {
@@ -355,7 +363,15 @@
         "parameters": [
           {
             "in": "path",
-            "name": "id",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "task_id",
             "description": "Unique task identifier",
             "required": true,
             "schema": {
@@ -406,7 +422,7 @@
         }
       }
     },
-    "/tasks": {
+    "/projects/{project_id}/tasks": {
       "get": {
         "operationId": "get_tasks",
         "tags": [
@@ -414,6 +430,14 @@
         ],
         "summary": "Get a full list of tasks",
         "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
           {
             "$ref": "#/components/parameters/paginationPage"
           },
@@ -476,10 +500,20 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
       }
     },
-    "/tasks/validate": {
+    "/projects/{project_id}/tasks/validate": {
       "post": {
         "operationId": "validate_task",
         "tags": [
@@ -511,10 +545,20 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
       }
     },
-    "/tasks/{id}/cancel": {
+    "/projects/{project_id}/tasks/{task_id}/cancel": {
       "post": {
         "operationId": "cancel_task",
         "tags": [
@@ -523,7 +567,15 @@
         "parameters": [
           {
             "in": "path",
-            "name": "id",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "task_id",
             "description": "Unique task identifier",
             "required": true,
             "schema": {
@@ -551,13 +603,21 @@
         }
       }
     },
-    "/tasks/{id}/results": {
+    "/projects/{project_id}/tasks/{task_id}/results": {
       "get": {
         "operationId": "get_task_results",
         "parameters": [
           {
             "in": "path",
-            "name": "id",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "task_id",
             "description": "Unique task identifier",
             "required": true,
             "schema": {
@@ -588,13 +648,21 @@
         }
       }
     },
-    "/tasks/{id}/results/approve": {
+    "/projects/{project_id}/tasks/{task_id}/results/approve": {
       "post": {
         "operationId": "approve_results",
         "parameters": [
           {
             "in": "path",
-            "name": "id",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "task_id",
             "description": "Unique task identifier",
             "required": true,
             "schema": {
@@ -628,13 +696,21 @@
         }
       }
     },
-    "/tasks/{id}/results/block": {
+    "/projects/{project_id}/tasks/{task_id}/results/block": {
       "post": {
         "operationId": "block_results",
         "parameters": [
           {
             "in": "path",
-            "name": "id",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "task_id",
             "description": "Unique task identifier",
             "required": true,
             "schema": {
@@ -668,13 +744,21 @@
         }
       }
     },
-    "/tasks/{id}/logs": {
+    "/projects/{project_id}/tasks/{task_id}/logs": {
       "get": {
         "operationId": "get_task_logs",
         "parameters": [
           {
             "in": "path",
-            "name": "id",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "task_id",
             "description": "Unique task identifier",
             "required": true,
             "schema": {

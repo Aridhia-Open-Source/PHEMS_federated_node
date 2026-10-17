@@ -17,7 +17,7 @@ flowchart TD
     F -->|"RunRequest task/id/attempt"| G[k8s_pipes_job]
     G -->|"launches"| P[[task pod in the task namespace, artifacts volume]]
     G --> H["run-status sensors (QUEUED, RUNNING, SUCCESS, FAILED, CANCELED)"]
-    H -->|"PATCH /tasks/id"| T[Task status mirrors the run]
+    H -->|"PATCH /projects/{project_id}/tasks/id"| T[Task status mirrors the run]
     G -->|"run SUCCESS"| J[task_results_delivery_sensor]
     J -->|"RunRequest deliver/task/attempt"| K[deliver_results_job]
     K -->|"zip, spec.json, metadata.json pushed to a branch"| L[result PUSHED]

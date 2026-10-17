@@ -43,7 +43,7 @@ def snapshot(api, project_name):
         )
     out["tasks"] = [
         {k: task.get(k) for k in ("id", "status", "name")}
-        for task in get_json(api, "/tasks", project_id=project.id, per_page=100)["tasks"]
+        for task in get_json(api, f"/projects/{project.id}/tasks", per_page=100)["tasks"]
     ]
     return out
 

@@ -135,7 +135,7 @@ def stuck_sensors(dagster_api: DagsterAPI, stage: str) -> list[str]:
     ]
 
 
-def wait_for_delivery(backend_api, dagster_api: DagsterAPI, task_id: int):
+def wait_for_delivery(backend_api, dagster_api: DagsterAPI, project_id: int, task_id: int):
     """
     Print each change of the task's delivery step until its results PR is opened or the
     delivery fails (its state is FAILED, with an error, and its step is left), or the wait ends.
@@ -143,7 +143,7 @@ def wait_for_delivery(backend_api, dagster_api: DagsterAPI, task_id: int):
     deadline = time.monotonic() + DELIVERY_SECONDS
     last = ""
     while time.monotonic() < deadline:
-        results = backend_api.get_task_results(task_id)
+        results = backend_api.get_task_results(project_id, task_id)
         step = results[0].step if results else None
         state = results[0].state if results else None
         error = results[0].error if results else None
@@ -190,7 +190,7 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
                 stage = "evaluate"
             if pr and pr.state == TriggerState.YIELDED:
                 stage = "launcher"
-                task = backend_api.get_task(pr.task_id)
+                task = backend_api.get_task(project.id, pr.task_id)
                 lines["task"] = f"Task {task.id}: {task.status}"
                 run = dagster_api.get_task_run(task.id)
                 if run:
@@ -217,12 +217,12 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
         if run and run["status"] in RUN_DONE:
             settle_deadline = time.monotonic() + SETTLE_SECONDS
             while (
-                backend_api.get_task(task.id).status != RUN_TO_TASK_STATUS[run["status"]]
+                backend_api.get_task(project.id, task.id).status != RUN_TO_TASK_STATUS[run["status"]]
                 and time.monotonic() < settle_deadline
             ):
                 time.sleep(POLL_SECONDS)
             if run["status"] == "SUCCESS":
-                wait_for_delivery(backend_api, dagster_api, task.id)
+                wait_for_delivery(backend_api, dagster_api, project.id, task.id)
             report = Report()
             verify_task(report, backend_api, dagster_api, links, project.id, repo.trigger_repository.id, number)
             report.echo()

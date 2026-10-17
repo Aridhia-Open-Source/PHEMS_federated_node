@@ -105,8 +105,7 @@ class TestNewTaskDTOFromSpec:
 
 class TestPostTasks:
     def post(self, client, headers, project, body):
-        headers = {**headers, "project-name": project.name}
-        return client.post('/tasks', json=body, headers=headers)
+        return client.post(f'/projects/{project.id}/tasks', json=body, headers=headers)
 
     def test_creates_request_and_task_once(
             self, client, cr_client, registry_client, post_json_admin_header, task_body, project, dataset
@@ -136,7 +135,7 @@ class TestPostTasks:
             self, client, cr_client, registry_client, post_json_admin_header, task_body, project, dataset
         ):
         created = self.post(client, post_json_admin_header, project, task_body)
-        response = client.get(f"/tasks/{created.json['id']}", headers=post_json_admin_header)
+        response = client.get(f"/projects/{project.id}/tasks/{created.json['id']}", headers=post_json_admin_header)
         assert response.status_code == 200
         assert response.json["spec"] == {
             "image": task_body["executors"][0]["image"], "dataset_id": dataset.id,
@@ -237,14 +236,12 @@ class TestPostTasks:
     def test_unknown_project_records_nothing(
             self, client, cr_client, registry_client, post_json_admin_header, task_body
         ):
-        response = client.post(
-            '/tasks', json=task_body, headers={**post_json_admin_header, "project-name": "NoSuchProject"}
-        )
-        assert response.status_code in (403, 404)
+        response = client.post('/projects/99999/tasks', json=task_body, headers=post_json_admin_header)
+        assert response.status_code == 404
         assert ApiRequestTrigger.query.count() == 0
         assert Task.query.count() == 0
 
     def test_unauthenticated_records_nothing(self, client, task_body, project):
-        response = client.post('/tasks', json=task_body, headers={"project-name": project.name})
+        response = client.post(f'/projects/{project.id}/tasks', json=task_body)
         assert response.status_code == 401
         assert ApiRequestTrigger.query.count() == 0

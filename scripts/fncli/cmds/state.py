@@ -141,7 +141,7 @@ def snapshot(api: BackendAPI, name: str) -> dict:
         ],
         "tasks": [
             {k: t.get(k) for k in ("id", "status", "name")}
-            for t in get(api, "/tasks", project_id=pid, per_page=100)["tasks"]
+            for t in get(api, f"/projects/{pid}/tasks", per_page=100)["tasks"]
         ],
         "results": [
             {k: r.get(k) for k in ("id", "task_id", "step", "state", "number", "url")}

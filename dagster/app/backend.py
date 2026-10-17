@@ -156,24 +156,24 @@ class BackendAPI:
         tasks = []
         page = 1
         while True:
-            params = {"status": status, "project_id": project_id, "page": page, "per_page": 100}
-            response = self.session.get("/tasks", params=params)
+            params = {"status": status, "page": page, "per_page": 100}
+            response = self.session.get(f"/projects/{project_id}/tasks", params=params)
             data = response.json()
             tasks.extend(Task(**task) for task in data["tasks"])
             if page >= data["pages"]:
                 return tasks
             page += 1
 
-    def patch_task(self, task_id: int, data: dict) -> Task:
+    def patch_task(self, project_id: int, task_id: int, data: dict) -> Task:
         """Update task"""
         self.logger.info(f"Updating task {task_id}")
-        response = self.session.patch(f"/tasks/{task_id}", json=data)
+        response = self.session.patch(f"/projects/{project_id}/tasks/{task_id}", json=data)
         return Task(**response.json())
 
-    def get_task(self, task_id: int) -> Task:
+    def get_task(self, project_id: int, task_id: int) -> Task:
         """Get single task"""
         self.logger.info(f"Fetching task {task_id}")
-        response = self.session.get(f"/tasks/{task_id}")
+        response = self.session.get(f"/projects/{project_id}/tasks/{task_id}")
         return Task(**response.json())
 
     def get_results_repository(self, project_id: int) -> ProjectResultsRepository:
@@ -192,10 +192,10 @@ class BackendAPI:
         response = self.session.get(f"/projects/{project_id}/repositories/results/{repository_id}")
         return ProjectResultsRepository(**response.json())
 
-    def get_task_results(self, task_id: int) -> list[PullRequestResult]:
+    def get_task_results(self, project_id: int, task_id: int) -> list[PullRequestResult]:
         """Get the deliveries of a task's results"""
         self.logger.info(f"Fetching results of task {task_id}")
-        response = self.session.get(f"/tasks/{task_id}/results")
+        response = self.session.get(f"/projects/{project_id}/tasks/{task_id}/results")
         return [PullRequestResult(**result) for result in response.json()]
 
     def create_result(self, project_id: int, task_id: int, results_repository_id: int) -> PullRequestResult:

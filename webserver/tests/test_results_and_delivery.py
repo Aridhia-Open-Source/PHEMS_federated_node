@@ -45,7 +45,7 @@ def post_result(client, admin_headers, project, task, repo):
 
 def new_result(client, admin_headers, project, task, repo):
     """A result can only be posted for a SUCCESS task: finish it first."""
-    assert client.patch(f"/tasks/{task.id}", json={"status": "SUCCESS"}, headers=admin_headers).status_code == 200
+    assert client.patch(f"/projects/{project.id}/tasks/{task.id}", json={"status": "SUCCESS"}, headers=admin_headers).status_code == 200
     response = post_result(client, admin_headers, project, task, repo)
     assert response.status_code == 201, response.json
     return response.json["id"]
@@ -428,6 +428,6 @@ def test_results_are_scoped_to_their_project(
 def test_task_results_route(client, admin_headers, project, global_results_repo, linked_results_repo, make_task):
     task = make_task()
     rid = new_result(client, admin_headers, project, task, global_results_repo)
-    response = client.get(f"/tasks/{task.id}/results", headers=admin_headers)
+    response = client.get(f"/projects/{project.id}/tasks/{task.id}/results", headers=admin_headers)
     assert [r["id"] for r in response.json] == [rid]
     assert response.json[0]["results_repository_id"] == global_results_repo.id

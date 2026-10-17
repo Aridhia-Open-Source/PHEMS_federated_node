@@ -69,7 +69,7 @@ class FakeBackend:
         self.task_status = task_status
         self.deliveries = list(deliveries)
 
-    def get_task_results(self, task_id):
+    def get_task_results(self, project_id, task_id):
         """Each delivery is None (no result yet), a step, or a (step, error) of a failed attempt."""
         delivery = self.deliveries.pop(0) if len(self.deliveries) > 1 else self.deliveries[0]
         if delivery is None:
@@ -90,7 +90,7 @@ class FakeBackend:
         assert (project_id, repo_id) == (1, 7)
         return self.prs.pop(0) if len(self.prs) > 1 else self.prs[0]
 
-    def get_task(self, task_id):
+    def get_task(self, project_id, task_id):
         return SimpleNamespace(
             id=task_id, status=self.task_status, attempt=1, dagster_run_id="abc",
             started_at="2026-01-01T10:00:00Z", completed_at="2026-01-01T10:01:00Z",

@@ -221,7 +221,7 @@ def test_get_task_results_lists_the_tasks_deliveries(api, session):
     }]
     session.get.return_value = response(body)
 
-    results = api.get_task_results(9)
+    results = api.get_task_results(1, 9)
 
-    session.get.assert_called_once_with("/tasks/9/results")
+    session.get.assert_called_once_with("/projects/1/tasks/9/results")
     assert [(r.id, r.step, r.state, r.commit_sha) for r in results] == [(4, "OPENED", "DELIVERED", "abc")]

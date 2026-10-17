@@ -46,7 +46,7 @@ def paged(request, client):
     if kind == "tasks":
         make_task = request.getfixturevalue("make_task")
         make_task(), make_task()
-        return "/tasks", "tasks"
+        return f"/projects/{request.getfixturevalue('project').id}/tasks", "tasks"
     request.getfixturevalue("linked_trigger_repo")
     repo = request.getfixturevalue("global_trigger_repo")
     request.getfixturevalue("ingest_prs")(repo.id, 1, 2)
@@ -133,32 +133,32 @@ def test_datasets_list_shape(client, admin_headers, make_global_dataset, global_
 
 # ---------------------------------------------------------------- tasks
 
-def test_tasks_pages_and_ordering(client, admin_headers, make_task):
-    empty = get(client, admin_headers, "/tasks").json
+def test_tasks_pages_and_ordering(client, admin_headers, make_task, project):
+    tasks_url = f"/projects/{project.id}/tasks"
+    empty = get(client, admin_headers, tasks_url).json
     assert empty["tasks"] == [] and empty["total"] == 0 and empty["pages"] == 0
     created = [make_task() for _ in range(12)]
-    first = get(client, admin_headers, "/tasks").json
+    first = get(client, admin_headers, tasks_url).json
     assert (first["page"], first["per_page"], first["total"], first["pages"]) == (1, 10, 12, 2)
-    second = get(client, admin_headers, "/tasks?page=2").json
+    second = get(client, admin_headers, f"{tasks_url}?page=2").json
     assert ids(first["tasks"]) + ids(second["tasks"]) == [t.id for t in created]  # ordered by id
 
 
 def test_tasks_filters(client, admin_headers, make_task, project, other_project):
+    tasks_url = f"/projects/{project.id}/tasks"
     by_status = {status: make_task(status=status) for status in TASK_STATUSES}
     for status, task in by_status.items():
-        response = get(client, admin_headers, f"/tasks?status={status}")
+        response = get(client, admin_headers, f"{tasks_url}?status={status}")
         assert response.status_code == 200 and ids(response.json["tasks"]) == [task.id]
     theirs = make_task(project=other_project, status="FAILED")
-    mine = get(client, admin_headers, f"/tasks?project_id={project.id}").json
+    mine = get(client, admin_headers, tasks_url).json
     assert theirs.id not in ids(mine["tasks"]) and mine["total"] == len(TASK_STATUSES)
-    both = get(client, admin_headers, f"/tasks?project_id={other_project.id}&status=FAILED").json
+    both = get(client, admin_headers, f"/projects/{other_project.id}/tasks?status=FAILED").json
     assert ids(both["tasks"]) == [theirs.id]
-    paged_by_status = get(client, admin_headers, "/tasks?status=FAILED&per_page=1").json
-    assert paged_by_status["total"] == 2 and paged_by_status["pages"] == 2
-    unknown = get(client, admin_headers, "/tasks?project_id=9999").json
-    assert unknown["tasks"] == [] and unknown["total"] == 0
-    for bad in ("status=NOPE", "status=pending", "status=", "project_id=abc"):
-        assert get(client, admin_headers, f"/tasks?{bad}").status_code == 400, bad
+    paged_by_status = get(client, admin_headers, f"{tasks_url}?status=FAILED&per_page=1").json
+    assert paged_by_status["total"] == 1 and paged_by_status["pages"] == 1
+    for bad in ("status=NOPE", "status=pending", "status="):
+        assert get(client, admin_headers, f"{tasks_url}?{bad}").status_code == 400, bad
 
 
 # ---------------------------------------------------------------- trigger repositories and pull requests

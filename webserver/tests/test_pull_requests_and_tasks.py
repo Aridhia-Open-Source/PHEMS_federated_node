@@ -363,7 +363,7 @@ def test_create_task_yields_pr_and_is_idempotent(client, admin_headers, project,
     for body in ({"spec_raw": spec(image="other:2")}, {}):
         again = client.post(f"{pr_trigger}/task", json=body, headers=admin_headers)
         assert again.status_code == 200 and again.json["id"] == task["id"] and again.json["spec"]["image"] == "img:1"
-    assert client.get("/tasks", headers=admin_headers).json["total"] == 1
+    assert client.get(f"/projects/{project.id}/tasks", headers=admin_headers).json["total"] == 1
 
 
 def test_spec_options_are_kept(client, admin_headers, pr_trigger):
@@ -462,31 +462,31 @@ def tid(client, admin_headers, pr_trigger, spec_raw) -> int:
     return create_task(client, admin_headers, pr_trigger, spec_raw)["id"]
 
 
-def patch_task(client, admin_headers, task_id, body):
-    return client.patch(f"/tasks/{task_id}", json=body, headers=admin_headers)
+def patch_task(client, admin_headers, project, task_id, body):
+    return client.patch(f"/projects/{project.id}/tasks/{task_id}", json=body, headers=admin_headers)
 
 
-def test_task_status_lifecycle_fields_and_get(client, admin_headers, tid):
-    one = client.get(f"/tasks/{tid}", headers=admin_headers)
+def test_task_status_lifecycle_fields_and_get(client, admin_headers, project, tid):
+    one = client.get(f"/projects/{project.id}/tasks/{tid}", headers=admin_headers)
     assert {"id", "name", "status", "spec", "project_id"} <= set(one.json)
     for status in ("QUEUED", "RUNNING"):
-        assert patch_task(client, admin_headers, tid, {"status": status}).json["status"] == status
-    r = patch_task(client, admin_headers, tid, {"status": "FAILED", "dagster_run_id": "run-1", "exit_code": 137,
+        assert patch_task(client, admin_headers, project, tid, {"status": status}).json["status"] == status
+    r = patch_task(client, admin_headers, project, tid, {"status": "FAILED", "dagster_run_id": "run-1", "exit_code": 137,
                                                 "state_cause": "oom"})
     assert r.status_code == 200
     assert (r.json["status"], r.json["dagster_run_id"], r.json["exit_code"], r.json["state_cause"]) \
         == ("FAILED", "run-1", 137, "oom")
-    assert client.get("/tasks/999999", headers=admin_headers).status_code == 404
-    assert patch_task(client, admin_headers, 999, {"status": "RUNNING"}).status_code == 404
-    assert client.get(f"/tasks/{tid}/results", headers=admin_headers).json == []
+    assert client.get(f"/projects/{project.id}/tasks/999999", headers=admin_headers).status_code == 404
+    assert patch_task(client, admin_headers, project, 999, {"status": "RUNNING"}).status_code == 404
+    assert client.get(f"/projects/{project.id}/tasks/{tid}/results", headers=admin_headers).json == []
 
 
 @pytest.mark.parametrize("terminal", ["SUCCESS", "CANCELED"])
-def test_finished_tasks_cannot_change_status(client, admin_headers, tid, terminal):
-    assert patch_task(client, admin_headers, tid, {"status": terminal}).status_code == 200
-    assert patch_task(client, admin_headers, tid, {"status": "RUNNING"}).status_code == 409
-    assert client.get(f"/tasks/{tid}", headers=admin_headers).json["status"] == terminal
-    same = patch_task(client, admin_headers, tid, {"status": terminal})  # the same status again is fine
+def test_finished_tasks_cannot_change_status(client, admin_headers, project, tid, terminal):
+    assert patch_task(client, admin_headers, project, tid, {"status": terminal}).status_code == 200
+    assert patch_task(client, admin_headers, project, tid, {"status": "RUNNING"}).status_code == 409
+    assert client.get(f"/projects/{project.id}/tasks/{tid}", headers=admin_headers).json["status"] == terminal
+    same = patch_task(client, admin_headers, project, tid, {"status": terminal})  # the same status again is fine
     assert same.status_code == 200 and same.json["status"] == terminal
 
 
@@ -497,15 +497,15 @@ def test_finished_tasks_cannot_change_status(client, admin_headers, tid, termina
     {"dagster_run_id": 42},                            # wrong type
     {},
 ])
-def test_bad_task_patches_are_400_and_change_nothing(client, admin_headers, tid, body):
-    assert patch_task(client, admin_headers, tid, body).status_code == 400
-    assert client.get(f"/tasks/{tid}", headers=admin_headers).json["status"] == "PENDING"
+def test_bad_task_patches_are_400_and_change_nothing(client, admin_headers, project, tid, body):
+    assert patch_task(client, admin_headers, project, tid, body).status_code == 400
+    assert client.get(f"/projects/{project.id}/tasks/{tid}", headers=admin_headers).json["status"] == "PENDING"
 
 
-def test_retry_resets_a_failed_task_only(client, admin_headers, tid):
-    assert client.post(f"/tasks/{tid}/retry", json={}, headers=admin_headers).status_code == 400  # not failed yet
-    patch_task(client, admin_headers, tid, {"status": "FAILED", "dagster_run_id": "r", "exit_code": 1})
-    retry = client.post(f"/tasks/{tid}/retry", json={}, headers=admin_headers)
+def test_retry_resets_a_failed_task_only(client, admin_headers, project, tid):
+    assert client.post(f"/projects/{project.id}/tasks/{tid}/retry", json={}, headers=admin_headers).status_code == 400  # not failed yet
+    patch_task(client, admin_headers, project, tid, {"status": "FAILED", "dagster_run_id": "r", "exit_code": 1})
+    retry = client.post(f"/projects/{project.id}/tasks/{tid}/retry", json={}, headers=admin_headers)
     assert retry.status_code == 200 and retry.json["status"] == "PENDING"
     assert retry.json["dagster_run_id"] is None and retry.json["exit_code"] is None
 
@@ -513,33 +513,44 @@ def test_retry_resets_a_failed_task_only(client, admin_headers, tid):
 def test_task_results_list_the_delivery(client, admin_headers, project, linked_results_repo, global_results_repo,
                                         make_task):
     task = make_task()
-    assert patch_task(client, admin_headers, task.id, {"status": "SUCCESS"}).status_code == 200
+    assert patch_task(client, admin_headers, project, task.id, {"status": "SUCCESS"}).status_code == 200
     posted = client.post(f"/projects/{project.id}/results",
                          json={"task_id": task.id, "results_repository_id": global_results_repo.id},
                          headers=admin_headers)
     assert posted.status_code == 201
-    results = client.get(f"/tasks/{task.id}/results", headers=admin_headers)
+    results = client.get(f"/projects/{project.id}/tasks/{task.id}/results", headers=admin_headers)
     assert [r["id"] for r in results.json] == [posted.json["id"]]
-    assert client.get("/tasks/999/results", headers=admin_headers).status_code == 404
+    assert client.get(f"/projects/{project.id}/tasks/999/results", headers=admin_headers).status_code == 404
 
 
 def test_tasks_list_filters_and_pagination(client, admin_headers, project, other_project, make_task):
     ids = [make_task(status="RUNNING").id, make_task(status="RUNNING").id, make_task(status="FAILED").id,
            make_task().id]
     other = make_task(project=other_project, status="RUNNING")
-    tasks = lambda q="": client.get(f"/tasks{q}", headers=admin_headers)  # noqa: E731
+    tasks = lambda q="": client.get(f"/projects/{project.id}/tasks{q}", headers=admin_headers)  # noqa: E731
 
-    assert tasks().json["total"] == 5
+    assert tasks().json["total"] == 4
     assert {t["status"] for t in tasks("?status=RUNNING").json["tasks"]} == {"RUNNING"}
-    assert tasks(f"?project_id={project.id}").json["total"] == 4
-    assert [t["id"] for t in tasks(f"?project_id={other_project.id}&status=RUNNING").json["tasks"]] == [other.id]
-    assert tasks(f"?project_id={project.id}&status=SUCCESS").json["total"] == 0
+    assert other.id not in [t["id"] for t in tasks().json["tasks"]]
+    others = client.get(f"/projects/{other_project.id}/tasks?status=RUNNING", headers=admin_headers)
+    assert [t["id"] for t in others.json["tasks"]] == [other.id]
+    assert tasks("?status=SUCCESS").json["total"] == 0
     assert tasks("?status=bogus").status_code == 400
 
     first = tasks("?page=1&per_page=2").json
     assert [t["id"] for t in first["tasks"]] == ids[:2]
-    assert (first["total"], first["pages"], first["page"], first["per_page"]) == (5, 3, 1, 2)
+    assert (first["total"], first["pages"], first["page"], first["per_page"]) == (4, 2, 1, 2)
     assert tasks("?page=9&per_page=2").json["tasks"] == []  # past the end is an empty page
     for clamped in ("page=0", "per_page=-1"):  # below one is clamped
         assert tasks(f"?{clamped}").status_code == 200
     assert 400 <= tasks("?page=abc").status_code < 500
+
+
+def test_a_task_of_another_project_is_a_404(client, admin_headers, other_project, make_task):
+    task = make_task()
+    url = f"/projects/{other_project.id}/tasks/{task.id}"
+    assert client.get(url, headers=admin_headers).status_code == 404
+    assert client.get(f"{url}/results", headers=admin_headers).status_code == 404
+    assert client.patch(url, json={"status": "RUNNING"}, headers=admin_headers).status_code == 404
+    assert client.post(f"{url}/retry", json={}, headers=admin_headers).status_code == 404
+    assert client.get("/projects/99999/tasks", headers=admin_headers).status_code == 404

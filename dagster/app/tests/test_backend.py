@@ -266,9 +266,8 @@ class TestTasks:
         tasks = api.get_tasks(status="PENDING", project_id=1)
 
         assert [t.id for t in tasks] == [9]
-        assert session.get.call_args.args == ("/tasks",)
-        params = session.get.call_args.kwargs["params"]
-        assert (params["status"], params["project_id"]) == ("PENDING", 1)
+        assert session.get.call_args.args == ("/projects/1/tasks",)
+        assert session.get.call_args.kwargs["params"]["status"] == "PENDING"
 
     def test_get_tasks_follows_the_pages(self, api, session):
         second = {**SAMPLE_TASK, "id": 10}
@@ -282,10 +281,10 @@ class TestTasks:
     def test_patch_task_reads_the_run_fields(self, api, session):
         session.patch.return_value = make_response({**SAMPLE_TASK, "dagster_run_id": "r1", "exit_code": 0})
 
-        task = api.patch_task(9, {"status": "QUEUED"})
+        task = api.patch_task(1, 9, {"status": "QUEUED"})
 
         assert (task.dagster_run_id, task.exit_code) == ("r1", 0)
-        assert session.patch.call_args.args == ("/tasks/9",)
+        assert session.patch.call_args.args == ("/projects/1/tasks/9",)
         assert session.patch.call_args.kwargs["json"] == {"status": "QUEUED"}
 
 
@@ -334,9 +333,9 @@ class TestResults:
         session.get.return_value = make_response([self.RESULT])
 
         assert api.patch_result(1, 9, {"step": "PUSHED"}).step == PullRequestResultStep.PUSHED
-        assert api.get_task_results(7)[0].id == 9
+        assert api.get_task_results(1, 7)[0].id == 9
         session.patch.assert_called_once_with("/projects/1/results/9", json={"step": "PUSHED"})
-        session.get.assert_called_once_with("/tasks/7/results")
+        session.get.assert_called_once_with("/projects/1/tasks/7/results")
 
     def test_list_by_step(self, api, session):
         session.get.return_value = make_response([{**self.RESULT, "step": "OPENED"}])

@@ -12,13 +12,13 @@ class FakeBackend:
         self.task = task
         self.results = [result_of()] if results is None else results
 
-    def get_task_results(self, task_id):
+    def get_task_results(self, project_id, task_id):
         return self.results
 
     def get_pull_requests(self, project_id, repo_id):
         return [self.pr] if self.pr else []
 
-    def get_task(self, task_id):
+    def get_task(self, project_id, task_id):
         return self.task
 
 
@@ -39,7 +39,7 @@ def result_of(**fields):
 
 
 def pr_of(state="YIELDED"):
-    return SimpleNamespace(number=5, state=TriggerState(state), state_cause=None, task_id=9)
+    return SimpleNamespace(number=5, state=TriggerState(state), state_cause=None, task_id=9, project_id=1)
 
 
 def task_of(**fields):
@@ -133,8 +133,8 @@ def test_each_mismatch_is_reported(task_fields, run_fields, failed):
     ([result_of(commit_sha=None)], ["Delivery has a commit_sha"]),
     ([result_of(number=None)], ["Delivery has a results PR"]),
     ([result_of(url=None)], ["Delivery has a results PR"]),
-    ([], ["Task 9 has one results delivery: GET /tasks/9/results"]),
-    ([result_of(), result_of(id=2)], ["Task 9 has one results delivery: GET /tasks/9/results"]),
+    ([], ["Task 9 has one results delivery: GET /projects/1/tasks/9/results"]),
+    ([result_of(), result_of(id=2)], ["Task 9 has one results delivery: GET /projects/1/tasks/9/results"]),
 ])
 def test_each_delivery_problem_is_reported(results, failed):
     report = verify(pr_of(), task_of(), run_of(), results)
@@ -177,19 +177,19 @@ class RepoBackend:
         self.prs = prs
         self.task = task or task_of()
 
-    def get_task_results(self, task_id):
+    def get_task_results(self, project_id, task_id):
         return [result_of()]
 
     def get_pull_requests(self, project_id, repo_id):
         return self.prs
 
-    def get_task(self, task_id):
+    def get_task(self, project_id, task_id):
         return self.task
 
 
 def numbered(number, state="YIELDED", cause=None):
     return SimpleNamespace(
-        number=number, title=f"PR {number}", state=TriggerState(state), state_cause=cause, task_id=9
+        number=number, title=f"PR {number}", state=TriggerState(state), state_cause=cause, task_id=9, project_id=1
     )
 
 

@@ -44,7 +44,7 @@ def test_full_flow(client, admin_headers, k8s_client, project, make_pr_batch, sp
     task = call("post", f"/projects/{pid}/repositories/triggers/{T}/pull_requests/1/task", 201, json={"spec_raw": spec_raw})
     assert task["spec"]["dataset_id"] == D
     tid = task["id"]
-    call("patch", f"/tasks/{tid}", 200, json={"status": "SUCCESS"})
+    call("patch", f"/projects/{pid}/tasks/{tid}", 200, json={"status": "SUCCESS"})
 
     # 16-17. Post a result for the task; it is delivered as an opened pull request
     rid = call("post", f"/projects/{pid}/results", 201, json={"task_id": tid, "results_repository_id": R})["id"]
@@ -53,6 +53,6 @@ def test_full_flow(client, admin_headers, k8s_client, project, make_pr_batch, sp
     assert (body["step"], body["state"]) == ("OPENED", "DELIVERED")
 
     # 18-19. Results of the task; project results filtered by step
-    body = call("get", f"/tasks/{tid}/results", 200)
+    body = call("get", f"/projects/{pid}/tasks/{tid}/results", 200)
     assert len(body) == 1 and body[0]["results_repository_id"] == R
     assert len(call("get", f"/projects/{pid}/results?step=OPENED", 200)) == 1

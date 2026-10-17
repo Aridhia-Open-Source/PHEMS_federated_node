@@ -260,16 +260,16 @@ def test_fncli_task_and_results(api, raw, world):
     api.create_pull_requests_batch(tid, [pr(1)])
     task = raw.ok("POST", f"/projects/{pid}/repositories/triggers/{tid}/pull_requests/1/task", 201,
                   json={"spec_raw": SPEC_RAW})
-    fetched = api.get_task(task["id"])
+    fetched = api.get_task(pid, task["id"])
     assert isinstance(fetched, fn_models.Task) and fetched.spec.image == "img:1"
     assert fetched.spec.dataset_id is None or fetched.spec.dataset_id == w["dataset"].id
     assert fetched.project_id == pid
-    assert api.get_task_results(task["id"]) == []
+    assert api.get_task_results(pid, task["id"]) == []
 
     raw.ok("POST", f"/projects/{pid}/results", 409, json={"task_id": task["id"], "results_repository_id": rid})
-    raw.ok("PATCH", f"/tasks/{task['id']}", 200, json={"status": "SUCCESS"})
+    raw.ok("PATCH", f"/projects/{pid}/tasks/{task['id']}", 200, json={"status": "SUCCESS"})
     result = raw.ok("POST", f"/projects/{pid}/results", 201, json={"task_id": task["id"], "results_repository_id": rid})
-    results = api.get_task_results(task["id"])
+    results = api.get_task_results(pid, task["id"])
     assert len(results) == 1 and isinstance(results[0], fn_models.PullRequestResult)
     assert results[0].id == result["id"] and results[0].step == "UNKNOWN" and results[0].state == "IN_PROGRESS"
 
@@ -279,7 +279,7 @@ def test_fncli_errors(api, world):
     pid, tid = w["project"].id, w["trigger"].id
     creds = ("github.com/org/new", "github", "https://api.github.com", "missing-secret")
     cases = [
-        (404, lambda: api.get_task(9999)),
+        (404, lambda: api.get_task(pid, 9999)),
         (404, lambda: api.get_dataset(9999)),
         (404, lambda: api.get_project(9999)),
         (404, lambda: api.get_project_trigger_repository(pid, 9999)),
@@ -348,14 +348,14 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
     assert created2 is False and task2.id == task.id
     assert [t.id for t in d.get_tasks("PENDING", pid)] == [task.id]
     assert d.get_tasks("RUNNING", pid) == []
-    running = d.patch_task(task.id, {"status": "RUNNING", "dagster_run_id": "run-1"})
+    running = d.patch_task(pid, task.id, {"status": "RUNNING", "dagster_run_id": "run-1"})
     assert running.status == "RUNNING" and running.dagster_run_id == "run-1"
-    assert d.get_task(task.id).dagster_run_id == "run-1"
-    assert d.patch_task(task.id, {"status": "SUCCESS"}).status == "SUCCESS"
+    assert d.get_task(pid, task.id).dagster_run_id == "run-1"
+    assert d.patch_task(pid, task.id, {"status": "SUCCESS"}).status == "SUCCESS"
     with pytest.raises(requests.HTTPError) as exc:  # a finished task cannot change status
-        d.patch_task(task.id, {"status": "FAILED"})
+        d.patch_task(pid, task.id, {"status": "FAILED"})
     assert exc.value.response.status_code == 409
-    assert d.get_task_results(task.id) == []
+    assert d.get_task_results(pid, task.id) == []
 
     result = d.create_result(pid, task.id, rid)
     assert result.step.value == "UNKNOWN" and result.state.value == "IN_PROGRESS" and result.type == "PR"
@@ -365,7 +365,7 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
     assert [r.id for r in d.get_results_by_step(pid, ["OPENED"])] == [result.id]
     assert [r.id for r in d.get_results_by_step(pid, ["PUSHED", "OPENED"])] == [result.id]
     assert d.get_results_by_step(pid, ["PUSHED"]) == []
-    assert [r.id for r in d.get_task_results(task.id)] == [result.id]
+    assert [r.id for r in d.get_task_results(pid, task.id)] == [result.id]
 
     # setup methods of the dagster client
     ds = d.create_dataset("DagDs", "db", 5432, "postgres", "live-creds")
@@ -380,7 +380,7 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
     d.delete_dataset(ds.id)
     d.delete_repository(repo.id)
     with pytest.raises(requests.HTTPError) as exc:
-        d.get_task(9999)
+        d.get_task(pid, 9999)
     assert exc.value.response.status_code == 404
     with pytest.raises(requests.HTTPError) as exc:
         d.create_result(pid, task.id, 9999)
@@ -419,7 +419,7 @@ def test_e2e_check_script_reads_the_real_routes(api, raw, world):
 
     assert e2e.command_wait_prs(api, config, args) == 0
     assert e2e.command_wait_tasks(api, config, args) == 1  # the task is still PENDING
-    raw.ok("PATCH", f"/tasks/{task['id']}", 200, json={"status": "SUCCESS"})
+    raw.ok("PATCH", f"/projects/{pid}/tasks/{task['id']}", 200, json={"status": "SUCCESS"})
     assert e2e.command_wait_tasks(api, config, args) == 0
 
 
@@ -439,7 +439,7 @@ def test_fncli_state_commands_against_the_real_routes(api, raw, world):
     api.create_pull_requests_batch(tid, [pr(1)])
     task = raw.ok("POST", f"/projects/{pid}/repositories/triggers/{tid}/pull_requests/1/task", 201,
                   json={"spec_raw": SPEC_RAW})
-    raw.ok("PATCH", f"/tasks/{task['id']}", 200, json={"status": "SUCCESS"})
+    raw.ok("PATCH", f"/projects/{pid}/tasks/{task['id']}", 200, json={"status": "SUCCESS"})
     result = raw.ok("POST", f"/projects/{pid}/results", 201,
                     json={"task_id": task["id"], "results_repository_id": w["results"].id})
 

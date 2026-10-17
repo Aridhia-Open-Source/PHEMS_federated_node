@@ -246,7 +246,7 @@ stateDiagram-v2
     REJECTED --> [*]
 ```
 
-`state_cause` is required for `REJECTED`, which is final, and forbidden otherwise (check constraint and `set_state`). An `ApiRequestTrigger` is validated inside `POST /tasks`: it is recorded `REJECTED` (with the cause) when invalid, else `YIELDED` with its task, and is never `UNKNOWN` for long.
+`state_cause` is required for `REJECTED`, which is final, and forbidden otherwise (check constraint and `set_state`). An `ApiRequestTrigger` is validated inside `POST /projects/{project_id}/tasks`: it is recorded `REJECTED` (with the cause) when invalid, else `YIELDED` with its task, and is never `UNKNOWN` for long.
 
 ## Task status
 
@@ -260,8 +260,8 @@ stateDiagram-v2
     RUNNING --> FAILED : run failed
     QUEUED --> CANCELED : run canceled
     RUNNING --> CANCELED : run canceled
-    FAILED --> PENDING : POST /tasks/id/retry, attempt + 1
-    CANCELED --> PENDING : POST /tasks/id/retry, attempt + 1
+    FAILED --> PENDING : POST /projects/{project_id}/tasks/id/retry, attempt + 1
+    CANCELED --> PENDING : POST /projects/{project_id}/tasks/id/retry, attempt + 1
     SUCCESS --> [*]
 ```
 
