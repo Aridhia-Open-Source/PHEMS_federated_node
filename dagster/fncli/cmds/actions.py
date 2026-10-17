@@ -33,6 +33,7 @@ from fncli.cmds.repository import (
     init_backend_trigger_repo_command,
     init_gitea_repo_command,
 )
+from fncli.cmds.state import project_set_command
 from fncli.cmds.secret import (
     delete_gitea_token_command,
     delete_secret_command,
@@ -58,6 +59,8 @@ SETUP_STEPS = [
     (init_backend_dataset_command, {}),
     (verify_git_secret_command, {"entity": "trigger"}),
     (verify_git_secret_command, {"entity": "results"}),
+    # New projects start locked so their links can be set up; unlock once they are
+    (project_set_command, {"locked": "false"}),
     (project_healthcheck_command, {}),
 ]
 

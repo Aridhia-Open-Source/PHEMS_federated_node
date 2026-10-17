@@ -27,16 +27,16 @@ def test_create_and_get_shape_defaults(client, admin_headers):
     assert set(got) == {"id", "name", "description", "enabled", "locked", "default_dataset_id",
                         "created_at", "updated_at"}
     assert (got["name"], got["description"], got["enabled"], got["locked"], got["default_dataset_id"]) == \
-        ("Alpha", "first", False, False, None)
+        ("Alpha", "first", False, True, None)
     plain = create(client, admin_headers, name="Plain", enabled=True)
     plain_json = client.get(f"/projects/{plain.json['id']}", headers=admin_headers).json
-    assert plain_json["description"] is None and plain_json["enabled"] is True and plain_json["locked"] is False
+    assert plain_json["description"] is None and plain_json["enabled"] is True and plain_json["locked"] is True
 
 
 def test_create_cannot_set_locked(client, admin_headers):
     response = create(client, admin_headers, name="Sneaky", locked=True)  # accepted but ignored
     assert response.status_code == 201, response.json
-    assert client.get(f"/projects/{response.json['id']}", headers=admin_headers).json["locked"] is False
+    assert client.get(f"/projects/{response.json['id']}", headers=admin_headers).json["locked"] is True
 
 
 def test_create_duplicate_name_is_409(client, admin_headers, project):
@@ -84,6 +84,7 @@ def test_lock_and_unlock_always_allowed_even_with_tasks(client, admin_headers, p
 
 def test_enable_and_disable_need_lock(client, admin_headers, lock_project):
     unlocked_fresh = client.post("/projects", json={"name": "Fresh"}, headers=admin_headers).json["id"]
+    assert patch(client, admin_headers, unlocked_fresh, locked=False).status_code == 200  # new projects start locked
     assert patch(client, admin_headers, unlocked_fresh, enabled=True).status_code == 409
     # the drain guard sees the state before the patch, so locking in the same call does not help
     assert patch(client, admin_headers, unlocked_fresh, enabled=True, locked=True).status_code == 409

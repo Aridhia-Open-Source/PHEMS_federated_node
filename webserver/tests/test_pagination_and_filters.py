@@ -93,8 +93,8 @@ def test_projects_default_shape_and_walk(client, admin_headers):
 
 
 def test_projects_filters(client, admin_headers):
-    make_projects(2, prefix="off")
-    enabled = make_projects(2, prefix="on", enabled=True)
+    make_projects(2, prefix="off", locked=False)
+    enabled = make_projects(2, prefix="on", enabled=True, locked=False)
     both = make_projects(1, prefix="both", enabled=True, locked=True)
     locked_only = make_projects(1, prefix="lock", locked=True)
 

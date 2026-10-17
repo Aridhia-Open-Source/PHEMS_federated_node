@@ -22,7 +22,7 @@ class Project(db.Model, BaseModel):
     enabled = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
     # While locked, ingest and evaluation skip the project and API tasks are rejected, so
     # its configuration can change once what is in flight has drained.
-    locked = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
+    locked = sa.Column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
     # Tied to the project's own assignment by the composite foreign key below, so a default
     # can only be a dataset the project has been assigned.
     default_dataset_id = sa.Column(sa.Integer, nullable=True)

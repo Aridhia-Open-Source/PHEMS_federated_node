@@ -227,6 +227,7 @@ def reg_k8s_client(k8s_client):
 def project(client) -> Project:
     """The project datasets, tasks and whitelisted images belong to in tests."""
     project = Project(name="TestProject")
+    project.locked = False
     project.add()
     return project
 
@@ -270,6 +271,7 @@ def make_task(client, project):
 def other_project(client) -> Project:
     """A second project, for checking one project cannot reach another's rows."""
     project = Project(name="OtherProject")
+    project.locked = False
     project.add()
     return project
 

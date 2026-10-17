@@ -94,6 +94,8 @@ class FncliBackendAPI(BackendAPI):
     def delete_project(self, project_id: int) -> None:
         """Delete the project and everything under it"""
         self.logger.info(f"Deleting project {project_id}")
+        # Deleting needs the project locked
+        self.patch_project(project_id, {"locked": True})
         self.session.delete(f"/projects/{project_id}")
 
     def get_project_healthcheck(self, project_id: int) -> dict:
