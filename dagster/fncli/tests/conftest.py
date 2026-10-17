@@ -17,7 +17,9 @@ ENV = {
 
 
 @pytest.fixture(autouse=True)
-def env(monkeypatch):
-    """Every setting the configs require, as the dev .env provides them."""
+def env(request, monkeypatch):
+    """Every setting the configs require, as the dev .env provides them. The e2e tests use the real .dev.env."""
+    if "e2e" in request.node.keywords:
+        return
     for key, value in ENV.items():
         monkeypatch.setenv(key, value)
