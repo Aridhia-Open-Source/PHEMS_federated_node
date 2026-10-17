@@ -1,25 +1,34 @@
 """
 A PR in the Gitea trigger repo, through a task, to a merged results PR in the results repo.
-The steps share one project and run in order.
+One test per fncli command or state change, run in order on one project: a failure names the
+hop, and the first failure stops the run.
 """
 
-import json
+import os
 
 import pytest
 
+from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
+from fncli.cmds.common import DagsterConfig
 from fncli.cmds.pr import (
     commit_gitea_file_command,
     create_gitea_branch_command,
     create_gitea_pr_command,
     merge_gitea_pr_command,
+    merge_results_pr_command,
     new_branch_name,
 )
-from fncli.tests.e2e.conftest import wait_for
+from fncli.cmds.sensor import ALL_SENSORS
+from fncli.sensors import DagsterAPI
+from fncli.tests.e2e.conftest import PR_STATES, RESULT_STEPS, TASK_STATUSES, pull_requests, reached, step_id
 
 pytestmark = pytest.mark.e2e
 
 TASK_TIMEOUT = 600
 STEP_TIMEOUT = 300
+
+SETUP_IDS = [step_id(step) for step in SETUP_STEPS]
+TEARDOWN_IDS = [step_id(step) for step in TEARDOWN_STEPS]
 
 
 @pytest.fixture(scope="module")
@@ -28,66 +37,130 @@ def flow():
     return {}
 
 
-def wait_for_state(fncli, what: str, timeout: float, check):
-    """Poll the project snapshot until check(snapshot) is truthy and return it. On timeout the failure carries the last snapshot of PRs, tasks and results."""
-    last = {}
-
-    def poll():
-        last["snapshot"] = fncli.snapshot()
-        return check(last["snapshot"])
-
-    try:
-        return wait_for(poll, timeout, what)
-    except pytest.fail.Exception as failure:
-        shown = {
-            "prs": [pr for link in last["snapshot"]["trigger_links"] for pr in link["pull_requests"]],
-            "tasks": last["snapshot"]["tasks"],
-            "results": last["snapshot"]["results"],
-        }
-        pytest.fail(f"{failure.msg}\nLast snapshot: {json.dumps(shown, indent=2)}")
+def our_pr(snapshot, flow):
+    return next((pr for pr in pull_requests(snapshot) if pr["number"] == flow["pr_number"]), None)
 
 
-def test_open_and_merge_pr(fncli, flow):
-    fncli.run("start-sensor", "--sensor", "all")
-    # The steps open-pr runs, called directly to get the PR's number back
-    branch = new_branch_name()
-    fncli.call(create_gitea_branch_command, branch=branch)
-    fncli.call(commit_gitea_file_command, branch=branch, kind="watched")
-    flow["pr_number"] = fncli.call(create_gitea_pr_command, branch=branch, kind="watched")["number"]
+def our_task(snapshot, flow):
+    return next((t for t in snapshot["tasks"] if t["id"] == flow["task_id"]), None)
+
+
+def our_result(snapshot, flow):
+    return next((r for r in snapshot["results"] if r["task_id"] == flow["task_id"]), None)
+
+
+@pytest.mark.parametrize("command, options", TEARDOWN_STEPS, ids=TEARDOWN_IDS)
+def test_teardown_leftovers(fncli, command, options):
+    fncli.call(command, **options)
+
+
+@pytest.mark.parametrize("command, options", SETUP_STEPS, ids=SETUP_IDS)
+def test_setup(fncli, command, options):
+    fncli.call(command, **options)
+
+
+def test_verify_project_after_setup(fncli):
+    fncli.run("verify-project")
+
+
+@pytest.mark.parametrize("sensor", ALL_SENSORS)
+def test_start_sensor(sensor):
+    # start-sensor takes a group, not a name, so the API call it makes for each sensor is made here
+    DagsterAPI(DagsterConfig().dagster_url).start_sensor(sensor)
+
+
+def test_create_gitea_branch(fncli, flow):
+    flow["branch"] = new_branch_name()
+    fncli.call(create_gitea_branch_command, branch=flow["branch"])
+
+
+def test_commit_gitea_file(fncli, flow):
+    fncli.call(commit_gitea_file_command, branch=flow["branch"], kind="watched")
+
+
+def test_create_gitea_pr(fncli, flow):
+    flow["pr_number"] = fncli.call(create_gitea_pr_command, branch=flow["branch"], kind="watched")["number"]
+
+
+def test_merge_gitea_pr(fncli, flow):
     fncli.call(merge_gitea_pr_command, number=flow["pr_number"], watch=False, timeout=0)
 
 
-def test_pr_yields_task(fncli, flow):
+def test_pr_ingested(fncli, flow):
+    def ingested(snapshot):
+        pr = our_pr(snapshot, flow)
+        return pr and reached(PR_STATES, pr["state"], "UNKNOWN")
+
+    fncli.wait_for_state(f"PR #{flow['pr_number']} ingested (UNKNOWN or later)", STEP_TIMEOUT, ingested)
+
+
+def test_pr_yielded(fncli, flow):
     def yielded(snapshot):
-        prs = [pr for link in snapshot["trigger_links"] for pr in link["pull_requests"]]
-        return next((pr for pr in prs if pr["number"] == flow["pr_number"] and pr["state"] == "YIELDED" and pr["task_id"]), None)
+        pr = our_pr(snapshot, flow)
+        return pr if pr and pr["state"] == "YIELDED" and pr["task_id"] else None
 
-    flow["task_id"] = wait_for_state(fncli, f"PR #{flow['pr_number']} YIELDED with a task_id", STEP_TIMEOUT, yielded)["task_id"]
-
-
-def test_task_succeeds(fncli, flow):
-    def succeeded(snapshot):
-        return any(t["id"] == flow["task_id"] and t["status"] == "SUCCESS" for t in snapshot["tasks"])
-
-    wait_for_state(fncli, f"task {flow['task_id']} SUCCESS", TASK_TIMEOUT, succeeded)
+    flow["task_id"] = fncli.wait_for_state(f"PR #{flow['pr_number']} YIELDED with a task_id", STEP_TIMEOUT, yielded)["task_id"]
 
 
-def test_results_pr_opened(fncli, flow):
-    def opened(snapshot):
-        return next((r for r in snapshot["results"] if r["task_id"] == flow["task_id"] and r["step"] == "OPENED"), None)
-
-    flow["results_number"] = wait_for_state(fncli, f"a result of task {flow['task_id']} at step OPENED", STEP_TIMEOUT, opened)["number"]
+def test_task_created(fncli, flow):
+    fncli.wait_for_state(f"task {flow['task_id']} created", STEP_TIMEOUT, lambda s: our_task(s, flow))
 
 
-def test_results_pr_merged(fncli, flow):
-    fncli.run("merge-results-pr", "--number", str(flow["results_number"]))
+@pytest.mark.parametrize(
+    "status, timeout",
+    [("QUEUED", STEP_TIMEOUT), ("RUNNING", STEP_TIMEOUT), ("SUCCESS", TASK_TIMEOUT)],
+    ids=["queued", "started", "success"],
+)
+def test_task_status(fncli, flow, status, timeout):
+    def check(snapshot):
+        task = our_task(snapshot, flow)
+        return task and reached(TASK_STATUSES, task["status"], status)
 
-    def merged(snapshot):
-        return any(r["task_id"] == flow["task_id"] and r["step"] == "MERGED" for r in snapshot["results"])
-
-    wait_for_state(fncli, f"the result of task {flow['task_id']} at step MERGED", STEP_TIMEOUT, merged)
+    fncli.wait_for_state(f"task {flow['task_id']} {status} (or later)", timeout, check)
 
 
-def test_verify(fncli):
+def test_result_exists(fncli, flow):
+    fncli.wait_for_state(f"a result of task {flow['task_id']}", STEP_TIMEOUT, lambda s: our_result(s, flow))
+
+
+def test_result_pushed(fncli, flow):
+    def check(snapshot):
+        result = our_result(snapshot, flow)
+        return result and reached(RESULT_STEPS, result["step"], "PUSHED")
+
+    fncli.wait_for_state(f"the result of task {flow['task_id']} at step PUSHED (or later)", STEP_TIMEOUT, check)
+
+
+def test_result_opened(fncli, flow):
+    def check(snapshot):
+        result = our_result(snapshot, flow)
+        return result if result and reached(RESULT_STEPS, result["step"], "OPENED") else None
+
+    flow["results_number"] = fncli.wait_for_state(f"the result of task {flow['task_id']} at step OPENED (or later)", STEP_TIMEOUT, check)["number"]
+
+
+def test_merge_results_pr(fncli, flow):
+    fncli.call(merge_results_pr_command, number=flow["results_number"])
+
+
+def test_result_merged(fncli, flow):
+    def check(snapshot):
+        result = our_result(snapshot, flow)
+        return result and reached(RESULT_STEPS, result["step"], "MERGED")
+
+    fncli.wait_for_state(f"the result of task {flow['task_id']} at step MERGED", STEP_TIMEOUT, check)
+
+
+def test_verify_project_at_end(fncli):
     fncli.run("verify-project")
-    fncli.run("verify-repo")
+
+
+def test_verify_repo(fncli):
+    fncli.run("verify-repo", "--tail", "1")
+
+
+@pytest.mark.parametrize("command, options", TEARDOWN_STEPS, ids=TEARDOWN_IDS)
+def test_teardown_final(fncli, command, options):
+    if os.environ.get("E2E_KEEP") == "1":
+        pytest.skip("E2E_KEEP=1 keeps the project")
+    fncli.call(command, **options)

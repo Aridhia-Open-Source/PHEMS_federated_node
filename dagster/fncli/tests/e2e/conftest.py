@@ -7,10 +7,11 @@ E2E_KEEP=1 keeps the project afterwards. Nothing here runs at import time, so a 
 collects and skips these tests without a cluster.
 """
 
+import json
 import logging
-import os
 import time
 
+import click
 import pytest
 from dotenv import find_dotenv, load_dotenv
 
@@ -19,6 +20,26 @@ from fncli.cmds.common import ProjectConfig, build_backend_api
 from fncli.cmds.state import snapshot
 
 logger = logging.getLogger("e2e")
+
+# Each state list runs in the order a state is reached; a poll can miss one in between.
+PR_STATES = ["UNKNOWN", "YIELDED"]
+TASK_STATUSES = ["PENDING", "QUEUED", "RUNNING", "SUCCESS"]
+RESULT_STEPS = ["UNKNOWN", "PUSHED", "OPENED", "MERGED"]
+
+
+def reached(order: list[str], value: str, minimum: str) -> bool:
+    """Whether value is minimum or later in order. A value outside it (FAILED, REJECTED, CLOSED) has not reached it."""
+    return value in order and order.index(value) >= order.index(minimum)
+
+
+def step_id(step) -> str:
+    """The test id of a (command, options) step: `init-gitea-repo[trigger]`, or just the name."""
+    command, options = step
+    return f"{command.name}[{','.join(map(str, options.values()))}]" if options else command.name
+
+
+def pull_requests(snapshot: dict) -> list[dict]:
+    return [pr for link in snapshot["trigger_links"] for pr in link["pull_requests"]]
 
 
 @pytest.fixture(autouse=True)
@@ -55,19 +76,33 @@ class Fncli:
         assert not isinstance(code, int) or code == 0, f"fncli {' '.join(args)} exited {code}"
 
     def call(self, command, **options):
-        """Run one command's function and return what it returns, which a CliRunner run drops."""
-        return command.callback(**options)
+        """Run one command with its options, the unset ones at their defaults, and return what it returns."""
+        with click.Context(command) as ctx:
+            return ctx.invoke(command, **options)
 
     def snapshot(self) -> dict:
         return snapshot(self.backend_api, self.config.project_name)
 
 
+    def wait_for_state(self, what: str, timeout: float, check):
+        """Poll the project snapshot until check(snapshot) is truthy and return that. On timeout the failure carries the last snapshot of PRs, tasks and results."""
+        last = {}
+
+        def poll():
+            last["snapshot"] = self.snapshot()
+            return check(last["snapshot"])
+
+        try:
+            return wait_for(poll, timeout, what)
+        except pytest.fail.Exception as failure:
+            shown = {
+                "prs": pull_requests(last["snapshot"]),
+                "tasks": last["snapshot"]["tasks"],
+                "results": last["snapshot"]["results"],
+            }
+            pytest.fail(f"{failure.msg}\nLast snapshot: {json.dumps(shown, indent=2)}")
+
+
 @pytest.fixture(scope="module")
 def fncli():
-    fn = Fncli()
-    fn.run("teardown-project", "-y")
-    fn.run("setup-project")
-    fn.run("verify-project")
-    yield fn
-    if os.environ.get("E2E_KEEP") != "1":
-        fn.run("teardown-project", "-y")
+    return Fncli()
