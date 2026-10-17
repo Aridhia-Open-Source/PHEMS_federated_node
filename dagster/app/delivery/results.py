@@ -157,7 +157,10 @@ class ResultsDelivery:
         if existing:
             self.log.info(f"Branch {branch} already has pull request #{existing['number']}")
             return existing
-        body = f"Results of the task run for pull request #{pull_request.number}, merged at {pull_request.merge_commit_sha}."
+        body = (
+            f"Results of the task run for pull request #{pull_request.number}, "
+            f"merged at {pull_request.merge_commit_sha}."
+        )
         return git_api.create_pull_request(repository.repo_path, branch, base_branch, title, body)
 
     def _find_pull_request(self, task: Task) -> tuple[TriggerRepository, PullRequestTrigger]:

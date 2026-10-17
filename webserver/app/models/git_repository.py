@@ -1,5 +1,6 @@
 import time
-import urllib.parse
+from collections.abc import Callable
+from functools import partial
 
 import requests
 import sqlalchemy as sa
@@ -7,6 +8,7 @@ from kubernetes.client.exceptions import ApiException
 from sqlalchemy.orm import validates
 
 from app.helpers.const import DEFAULT_NAMESPACE
+from app.helpers.git_uri import normalise_repo_uri, validate_api_uri
 from app.helpers.kubernetes import KubernetesClient
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, GitProvider
 
@@ -38,10 +40,13 @@ class GitRepositoryMixin:
 
     @validates('uri')
     def validate_uri(self, key, value):
-        """Strip http/https schema from URI on save/update."""
-        if value:
-            value = self.parse_repo_uri(value)
-        return value
+        """Keep the uri in its normalised form (see normalise_repo_uri)."""
+        return normalise_repo_uri(value)
+
+    @validates('api_uri')
+    def check_api_uri(self, key, value):
+        """Keep the api_uri on the repository's host (see validate_api_uri). Set after uri."""
+        return validate_api_uri(value, self.uri)
 
     @validates('provider')
     def validate_provider(self, key, value):
@@ -51,16 +56,6 @@ class GitRepositoryMixin:
         except ValueError:
             valid = ', '.join(p.value for p in GitProvider)
             raise ValueError(f"provider must be one of: {valid}")
-
-    @classmethod
-    def parse_repo_uri(cls, uri: str) -> str:
-        """
-        Parse the repository URI to extract the host and path. Safe to apply twice: a URI
-        that already lost its scheme ('host:3000/owner/repo') has none to strip, and
-        urlparse alone would read the host as the scheme.
-        """
-        parsed = urllib.parse.urlparse(uri if '://' in uri else f'//{uri}')
-        return (parsed.netloc + parsed.path).lower().rstrip('/')
 
     @property
     def repo_path(self) -> str:
@@ -81,25 +76,37 @@ class GitRepositoryMixin:
         return KubernetesClient.decode_secret_value(secret.data['TOKEN'])
 
     def check_connection(self) -> ConnectionCheck:
+        return self.prepare_connection_check()()
+
+    def prepare_connection_check(self) -> Callable[[], ConnectionCheck]:
         """
         Whether the repository can be reached with its token, the way the sensors reach it:
         through api_uri (not uri, which is the address people use), authenticating as a
         bearer token. Nothing returned includes the token.
+
+        Reads the token (the database and the cluster) now, and returns the network call
+        to make later, which touches neither so it can run in a thread.
         """
         try:
             token = self.get_token()
         except KeyError:
-            return ConnectionCheck(
+            check = ConnectionCheck(
                 ConnectionStatus.SECRET_MISSING, f"Secret {self.secret.label} has no TOKEN"
             )
+            return lambda: check
         except ApiException as e:
             if e.status != 404:
                 raise
-            return ConnectionCheck(
+            check = ConnectionCheck(
                 ConnectionStatus.SECRET_MISSING, f"Secret {self.secret.label} not found"
             )
+            return lambda: check
 
         url = f"{self.api_uri.rstrip('/')}/{GitProvider(self.provider).repo_api_path(self.repo_path)}"
+        return partial(self._request_check, url, token)
+
+    @classmethod
+    def _request_check(cls, url: str, token: str) -> ConnectionCheck:
         started = time.perf_counter()
         try:
             response = requests.get(
@@ -113,8 +120,8 @@ class GitRepositoryMixin:
         latency_ms = round((time.perf_counter() - started) * 1000)
 
         return ConnectionCheck(
-            self._status_of(response.status_code, response.ok),
-            self._message_of(response),
+            cls._status_of(response.status_code, response.ok),
+            cls._message_of(response),
             status_code=response.status_code,
             latency_ms=latency_ms,
         )

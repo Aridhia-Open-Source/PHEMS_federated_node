@@ -102,14 +102,6 @@ class Dataset(db.Model, BaseModel):
         data = dict(data)  # prevent mutation
         return super().validate(data)
 
-    @classmethod
-    def parse_repo_uri(cls, uri: str) -> str:
-        """
-        Parse the repository URI to extract the host and path.
-        """
-        parsed = urllib.parse.urlparse(uri)
-        return (parsed.netloc + parsed.path).lower().rstrip('/')
-
     def slugify_name(self) -> str:
         """
         Based on the provided name, it will return the slugified name

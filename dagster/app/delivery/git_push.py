@@ -7,16 +7,18 @@ import zipfile
 from pathlib import Path
 from urllib.parse import urlparse
 
+from app.git_uri import normalise_repo_uri
+
 COMMITTER_NAME = "phems-bot"
 COMMITTER_EMAIL = "phems-federated-node@users.noreply.github.com"
 
 
 def clone_url(uri: str, api_uri: str) -> str:
     """
-    The URL to clone a repository from. The backend stores a repository's uri without its
-    scheme, so the scheme comes from the provider's API URL.
+    The URL to clone a repository from. The scheme comes from the provider's API URL, the
+    rest from the normalised uri, so '.git' is added exactly once.
     """
-    return f"{urlparse(api_uri).scheme}://{uri}.git"
+    return f"{urlparse(api_uri).scheme}://{normalise_repo_uri(uri)}.git"
 
 
 def auth_env(token: str) -> dict[str, str]:
@@ -41,6 +43,7 @@ def git(args: list[str], cwd: str | Path | None = None, env: dict[str, str] | No
         env={**os.environ, **(env or {})},
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode:
         raise RuntimeError(f"git {args[0]} failed: {result.stderr.strip()}")
