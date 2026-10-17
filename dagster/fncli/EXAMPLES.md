@@ -24,6 +24,31 @@ fncli calls three things. Each line below says which:
 
 fncli logs in first with `POST /login` on the backend, then makes its backend calls.
 
+### Quick happy-path check
+
+A PR in the Gitea trigger repo, through a task, to a merged results PR in the Gitea results repo:
+
+```bash
+fncli setup-project && fncli verify-project
+fncli start-sensor --sensor all
+fncli open-pr --kind watched --merge --watch --timeout 300
+
+# Every minute or so:
+fncli project-show | jq '{prs: .trigger_links[0].pull_requests | map({number,state,task_id}), tasks: .tasks | map({id,status}), results: .results | map({number,step,state})}'
+```
+
+Wait for, in order: the PR `YIELDED` with a `task_id`, the task `SUCCESS`, then a result with `step` `OPENED`. Then:
+
+```bash
+fncli merge-results-pr --number "$(fncli project-show | jq '.results[0].number')"
+# About a minute later the result's step is MERGED
+fncli verify-project && fncli verify-repo
+```
+
+The same flow is automated with `pytest dagster/fncli/tests/e2e --e2e -v` from the repo root (`E2E_KEEP=1` keeps the project).
+
+If something sticks: `fncli sensor-status`, and the backend and Dagster pod logs.
+
 ### 1. Set up the dev project
 
 - `fncli setup-project`

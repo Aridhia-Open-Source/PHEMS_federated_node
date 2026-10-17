@@ -4,6 +4,7 @@
 !fncli/**
 !requirements.txt
 !pyproject.toml
+!conftest.py
 !dagster.yaml
 !workspace.yaml
 
