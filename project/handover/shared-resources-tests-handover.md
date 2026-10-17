@@ -109,7 +109,7 @@ cd webserver && python -m venv .venv && .venv/bin/pip install -r requirements-de
 ```
 - Each test creates and drops all tables in the database named by `BACKEND_DB_NAME`, so two pytest processes need **different
   databases** (create `test_app_1`, `test_app_2`, ... and set `PGDATABASE` and `BACKEND_DB_NAME` per process).
-- `test_live_client_integration.py` skips itself when `scripts/fncli` is not importable (the CI test container mounts only
+- `test_live_client_integration.py` skips itself when `dagster/fncli` is not importable (the CI test container mounts only
   `webserver/tests` and `webserver/app`), so CI runs everything else.
 - Parallel agents: give each its own git worktree **created by hand from the branch tip** (`git worktree add -b <name> <path> HEAD`);
   the agent tool's own worktree isolation cut some worktrees from an old commit, so they lacked the new code. Override `PYTHONPATH` to
@@ -126,7 +126,7 @@ from a venv. A local kind cluster does not start in that sandbox (runc sandbox c
 start-sensor --sensor all`, opens and merges a watched, an unwatched and an invalid PR, waits for YIELDED (with a task) and REJECTED
 and checks the unwatched PR created **no trigger** (each link has exactly 2 PRs), then waits for the task to reach SUCCESS, prints a
 snapshot and tears down. `KEEP=1` leaves the project; `SKIP_TASKS=1` stops after the PRs are evaluated. It needs the dev cluster from
-`scripts/fncli/EXAMPLES.md` ("Run the project from scratch"). It has **never been run**: expect small fixes on the first go. If a step
+`dagster/fncli/EXAMPLES.md` ("Run the project from scratch"). It has **never been run**: expect small fixes on the first go. If a step
 fails it prints `fncli sensor-status`.
 
 ## Suggested next steps

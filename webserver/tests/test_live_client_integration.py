@@ -2,10 +2,10 @@
 The real clients against the real Flask app over HTTP, no Kubernetes.
 
 The app of the `client` fixture is served by werkzeug on 127.0.0.1 in a thread, with the same
-process-wide Keycloak/k8s mocks, and the fncli BackendAPI (scripts/fncli/dagster/backend.py) and the
+process-wide Keycloak/k8s mocks, and the fncli backend client (dagster/fncli/backend.py) and the
 Dagster code location's BackendAPI (dagster/app/backend.py) are pointed at it with the admin bearer token.
 
-Skipped when ../scripts/fncli is not there (the CI container mounts only webserver/tests and webserver/app).
+Skipped when ../dagster is not there (the CI container mounts only webserver/tests and webserver/app).
 """
 import importlib
 import importlib.util
@@ -17,19 +17,11 @@ import pytest
 import requests
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPTS_DIR = REPO_ROOT / "scripts"
 DAGSTER_DIR = REPO_ROOT / "dagster"
+SCRIPTS_DIR = REPO_ROOT / "scripts"
 
-if not (SCRIPTS_DIR / "fncli" / "dagster" / "backend.py").is_file():
-    pytest.skip("scripts/fncli is not available", allow_module_level=True)
-
-sys.path.insert(0, str(SCRIPTS_DIR))
-try:
-    from fncli.dagster.backend import BackendAPI as FnBackendAPI
-    from fncli.dagster.utils import BackendAdapter as FnBackendAdapter, BackendSession as FnBackendSession
-    from fncli.dagster import models as fn_models
-except ImportError as exc:  # pragma: no cover
-    pytest.skip(f"fncli is not importable: {exc}", allow_module_level=True)
+if not (DAGSTER_DIR / "fncli" / "backend.py").is_file():
+    pytest.skip("dagster/fncli is not available", allow_module_level=True)
 
 from werkzeug.serving import make_server  # noqa: E402
 
@@ -49,8 +41,12 @@ def _load_dagster_client():
         backend = importlib.import_module("app.backend")
         utils = importlib.import_module("app.utils")
         models = importlib.import_module("app.models")
-        loaded = {k: v for k, v in sys.modules.items() if k == "app" or k.startswith("app.")}
-        return backend.BackendAPI, utils, models, loaded
+        fncli_backend = importlib.import_module("fncli.backend")
+        fncli_state = importlib.import_module("fncli.cmds.state")
+        spec = importlib.util.spec_from_file_location("e2e_check", SCRIPTS_DIR / "e2e_check.py")
+        e2e_check = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(e2e_check)
+        return backend.BackendAPI, utils, models, fncli_backend.FncliBackendAPI, fncli_state, e2e_check
     except Exception:  # pragma: no cover
         return None
     finally:
@@ -61,7 +57,9 @@ def _load_dagster_client():
 
 
 _dagster = _load_dagster_client()
-DagsterBackendAPI = _dagster[0] if _dagster else None
+if _dagster is None:
+    pytest.skip("dagster/app and dagster/fncli are not importable", allow_module_level=True)
+DagsterBackendAPI, _utils, fn_models, FnBackendAPI, state, e2e = _dagster
 
 
 @pytest.fixture
@@ -79,20 +77,17 @@ def live_url(client, k8s_client, mock_connection_checks, responses):
 
 
 @pytest.fixture
-def api(live_url, login_admin) -> FnBackendAPI:
-    adapter = FnBackendAdapter(live_url, "admin", "pw")
+def api(live_url, login_admin):
+    adapter = _utils.BackendAdapter(live_url, "admin", "pw")
     adapter.access_token = login_admin
-    return FnBackendAPI(FnBackendSession(adapter))
+    return FnBackendAPI(_utils.BackendSession(adapter))
 
 
 @pytest.fixture
 def dagster_api(live_url, login_admin):
-    if DagsterBackendAPI is None:
-        pytest.skip("dagster/app is not importable")
-    utils = _dagster[1]
-    adapter = utils.BackendAdapter(live_url, "admin", "pw")
+    adapter = _utils.BackendAdapter(live_url, "admin", "pw")
     adapter.access_token = login_admin
-    return DagsterBackendAPI(utils.BackendSession(adapter))
+    return DagsterBackendAPI(_utils.BackendSession(adapter))
 
 
 @pytest.fixture
@@ -398,12 +393,6 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
 def test_e2e_check_script_reads_the_real_routes(api, raw, world):
     """scripts/e2e_check.py (used by scripts/e2e_shared_resources.sh) against the real routes and response shapes."""
     from types import SimpleNamespace
-    try:
-        spec = importlib.util.spec_from_file_location("e2e_check", SCRIPTS_DIR / "e2e_check.py")
-        e2e = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(e2e)
-    except ImportError as exc:
-        pytest.skip(f"e2e_check is not importable: {exc}")
     w = world
     pid, tid = w["project"].id, w["trigger"].id
     config, args = SimpleNamespace(project_name=w["project"].name), SimpleNamespace(timeout=5)
@@ -428,10 +417,6 @@ def test_e2e_check_script_reads_the_real_routes(api, raw, world):
 def test_fncli_state_commands_against_the_real_routes(api, raw, world):
     """fncli/cmds/state.py (the QA plan's commands for rule scenarios) against the real routes and response shapes."""
     from types import SimpleNamespace
-    try:
-        from fncli.cmds import state
-    except ImportError as exc:
-        pytest.skip(f"fncli.cmds.state is not importable: {exc}")
     w = world
     pid, tid = w["project"].id, w["trigger"].id
     name = w["project"].name

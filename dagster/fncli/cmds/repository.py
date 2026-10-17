@@ -18,10 +18,10 @@ from fncli.cmds.common import (
     entity_option,
 )
 from fncli.cmds.project import find_project, init_backend_project
-from fncli.dagster.backend import BackendAPI
-from fncli.dagster.git_uri import normalise_repo_uri
-from fncli.dagster.gitea import GiteaAdminAPI
-from fncli.dagster.models import Project, ProjectResultsRepository, ProjectTriggerRepository
+from fncli.backend import FncliBackendAPI
+from app.git_uri import normalise_repo_uri
+from fncli.gitea import GiteaAdminAPI
+from app.models import Project, ProjectResultsRepository, ProjectTriggerRepository
 
 logger = logging.getLogger("repository")
 
@@ -33,7 +33,7 @@ def init_gitea_repo(config: RepoConfig, gitea_api: GiteaAdminAPI) -> dict:
 
 
 def init_backend_trigger_repo(
-    config: TriggerRepoConfig, backend_api: BackendAPI, project: Project, base_branch: str
+    config: TriggerRepoConfig, backend_api: FncliBackendAPI, project: Project, base_branch: str
 ) -> ProjectTriggerRepository:
     repo = backend_api.get_or_create_trigger_repository(
         uri=config.repo_uri,
@@ -54,7 +54,7 @@ def init_backend_trigger_repo(
 
 
 def init_backend_results_repo(
-    config: ResultsRepoConfig, backend_api: BackendAPI, project: Project
+    config: ResultsRepoConfig, backend_api: FncliBackendAPI, project: Project
 ) -> ProjectResultsRepository:
     repo = backend_api.get_or_create_results_repository(
         uri=config.repo_uri,
@@ -85,7 +85,7 @@ def backend_source_options(command):
     )(command)
 
 
-def get_backend_repo_record(entity: str, backend_api: BackendAPI, project: Project):
+def get_backend_repo_record(entity: str, backend_api: FncliBackendAPI, project: Project):
     """The project's one trigger or results repository assignment."""
     if entity == "trigger":
         records = backend_api.get_project_trigger_repositories(project.id)

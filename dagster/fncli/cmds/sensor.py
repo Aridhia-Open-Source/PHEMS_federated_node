@@ -8,7 +8,7 @@ import logging
 import click
 
 from fncli.cmds.common import DagsterConfig
-from fncli.dagster.sensors import DagsterAPI
+from fncli.sensors import DagsterAPI
 
 logger = logging.getLogger("sensor")
 

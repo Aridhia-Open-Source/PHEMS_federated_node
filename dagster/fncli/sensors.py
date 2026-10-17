@@ -1,6 +1,6 @@
 """Dagster GraphQL calls to start, stop and inspect sensors. The webserver needs no auth."""
 
-from fncli.dagster.utils import HttpClient
+from app.utils import HttpClient
 
 LOCATION = "dagster-fn"
 REPOSITORY = "__repository__"

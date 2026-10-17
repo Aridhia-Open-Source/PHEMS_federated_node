@@ -17,8 +17,8 @@ from fncli.cmds.common import (
     to_host_url,
 )
 from fncli.cmds.project import find_project
-from fncli.dagster.models import TriggerState
-from fncli.dagster.sensors import DagsterAPI
+from app.models import TriggerState
+from fncli.sensors import DagsterAPI
 
 # The task status the run-status sensors give each Dagster run status.
 # NOT_STARTED and STARTING come before the run is picked up, so the task is still QUEUED.

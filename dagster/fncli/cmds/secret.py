@@ -17,9 +17,10 @@ from fncli.cmds.common import (
     entity_option,
 )
 from fncli.cmds.repository import backend_source_options, init_gitea_repo, load_repo_config
-from fncli.dagster.backend import BackendAPI
-from fncli.dagster.gitea import GiteaAdminAPI, GiteaAPI, GiteaClient
-from fncli.dagster.k8s import get_k8s_secret
+from fncli.backend import FncliBackendAPI
+from app.gitea import GiteaAPI, GiteaClient
+from fncli.gitea import GiteaAdminAPI
+from fncli.k8s import get_k8s_secret
 
 logger = logging.getLogger("secret")
 
@@ -27,7 +28,7 @@ logger = logging.getLogger("secret")
 GIT_PLACEHOLDER = {"TOKEN": "unset"}
 
 
-def init_git_secret(config: RepoConfig, gitea_api: GiteaAdminAPI, backend_api: BackendAPI) -> str:
+def init_git_secret(config: RepoConfig, gitea_api: GiteaAdminAPI, backend_api: FncliBackendAPI) -> str:
     """Store a fresh Gitea token where the backend reads it."""
     token = gitea_api.replace_token(config.token_name, [config.token_scope])
     secret = backend_api.upsert_secret(config.secret_label, {"TOKEN": token})
@@ -52,7 +53,6 @@ def verify_gitea_accepts_bearer_token(config: RepoConfig, token: str, gitea_repo
     sensor_api = GiteaAPI(GiteaClient(token, base_uri=config.gitea_host_api_uri))
     merged_pulls = sensor_api.get_new_merged_pulls(
         repo_path=gitea_repo["full_name"],
-        base_branch=gitea_repo["default_branch"],
         merged_after="",
     )
     logger.info(
@@ -65,7 +65,7 @@ def dataset_credentials(config: DatasetConfig) -> dict:
     return {"USERNAME": config.dataset_username, "PASSWORD": config.dataset_password}
 
 
-def init_dataset_secret(config: DatasetConfig, backend_api: BackendAPI) -> dict:
+def init_dataset_secret(config: DatasetConfig, backend_api: FncliBackendAPI) -> dict:
     secret = backend_api.upsert_secret(config.secret_label, dataset_credentials(config))
     logger.info(f"Secret {config.secret_label} is {secret['key']}")
     return secret
@@ -91,7 +91,7 @@ def init_dataset_secret_command():
     init_dataset_secret(config, build_backend_api(config))
 
 
-def init_backend_secret(config: RepoConfig | DatasetConfig, backend_api: BackendAPI):
+def init_backend_secret(config: RepoConfig | DatasetConfig, backend_api: FncliBackendAPI):
     """Create the secret with placeholder values unless it exists, so a real token is kept."""
     label = config.secret_label
     if any(secret["label"] == label for secret in backend_api.get_secrets()):

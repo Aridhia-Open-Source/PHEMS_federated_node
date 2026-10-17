@@ -25,8 +25,8 @@ from fncli.cmds.project import find_project
 from fncli.cmds.repository import init_gitea_repo
 from fncli.cmds.sensor import SENSORS
 from fncli.cmds.verify import PAST_PUSHED, RUN_TO_TASK_STATUS, Links, Report, verify_task
-from fncli.dagster.models import TriggerState
-from fncli.dagster.sensors import DagsterAPI
+from app.models import TriggerState
+from fncli.sensors import DagsterAPI
 
 logger = logging.getLogger("pr")
 

@@ -1,146 +1,13 @@
-import logging
-
-from fncli.dagster.git_uri import normalise_repo_uri
-from fncli.dagster.utils import BackendSession
-from fncli.dagster.models import (
-    Dataset, Project, ProjectDataset, ProjectResultsRepository, ProjectTriggerRepository, PullRequestResult,
-    PullRequestTrigger, ResultsRepository, Task, TriggerRepository,
+from app.backend import BackendAPI
+from app.git_uri import normalise_repo_uri
+from app.models import (
+    Dataset, Project, ProjectDataset, ProjectResultsRepository, ProjectTriggerRepository, ResultsRepository,
+    TriggerRepository,
 )
 
-default_logger = logging.getLogger(__name__)
 
-
-class BackendAPI:
-    """Backend API client. All requests auto-refresh tokens on 401/403."""
-
-    def __init__(self, session: BackendSession, logger=None):
-        self.session = session
-        self.logger = logger or default_logger
-
-    def login(self, username: str, password: str) -> dict:
-        """Login and return token"""
-        self.logger.info(f"Logging in as {username}")
-        response = self.session.post(
-            "/login",
-            data={"username": username, "password": password},
-        )
-        data = response.json()
-        token = data.get("refresh_token") or data.get("token")
-        if token:
-            self.session.adapter.access_token = token
-        return data
-
-    def get_project_trigger_repositories(self, project_id: int) -> list[ProjectTriggerRepository]:
-        """Get a project's links to trigger repositories, inactive ones included"""
-        self.logger.info(f"Fetching trigger repositories of project {project_id}")
-        response = self.session.get(f"/projects/{project_id}/repositories/triggers")
-        return [ProjectTriggerRepository(**repo) for repo in response.json()]
-
-    def get_project_trigger_repository(self, project_id: int, repository_id: int) -> ProjectTriggerRepository:
-        """Get a project's link to a trigger repository, by the repository's id"""
-        self.logger.info(f"Fetching trigger repository {repository_id} of project {project_id}")
-        response = self.session.get(f"/projects/{project_id}/repositories/triggers/{repository_id}")
-        return ProjectTriggerRepository(**response.json())
-
-    def patch_project_trigger_repository(self, project_id: int, repository_id: int, data: dict) -> ProjectTriggerRepository:
-        """Update a project's link to a trigger repository"""
-        self.logger.info(f"Updating trigger repository {repository_id} of project {project_id}")
-        response = self.session.patch(f"/projects/{project_id}/repositories/triggers/{repository_id}", json=data)
-        return ProjectTriggerRepository(**response.json())
-
-    def get_pull_requests(self, project_id: int, repository_id: int, **query_params) -> list[PullRequestTrigger]:
-        """Get all pull requests for a project's trigger repository link, automatically handling pagination"""
-        self.logger.info(f"Fetching all pull requests for repo {repository_id}")
-        all_prs = []
-        page = 1
-        per_page = 100
-
-        while True:
-            params = {**query_params, "page": page, "per_page": per_page}
-            response = self.session.get(
-                f"/projects/{project_id}/repositories/triggers/{repository_id}/pull_requests",
-                params=params,
-            )
-            data = response.json()
-            items = data.get("items", [])
-
-            if not items:
-                break
-
-            all_prs.extend([PullRequestTrigger(**pr) for pr in items])
-            self.logger.info(f"Fetched page {page}: {len(items)} PRs (total: {len(all_prs)})")
-
-            total = data.get("total") if isinstance(data, dict) else None
-            if total is None or len(all_prs) >= total:
-                break
-
-            page += 1
-
-        self.logger.info(f"Fetched all {len(all_prs)} pull requests for repo {repository_id}")
-        return all_prs
-
-    def create_pull_requests_batch(self, repository_id: int, pull_requests: list[dict]) -> dict:
-        """
-        Ingest up to 100 pull requests on a global trigger repository, once for all projects: the numbers
-        stored and those already there.
-        """
-        if len(pull_requests) > 100:
-            raise ValueError("Maximum 100 pull requests per batch")
-
-        self.logger.info(f"Creating batch of {len(pull_requests)} pull requests for trigger repository {repository_id}")
-        response = self.session.post(
-            f"/global/repositories/triggers/{repository_id}/pull_requests", json={"pull_requests": pull_requests}
-        )
-        return response.json()
-
-    def patch_pull_request(
-        self,
-        project_id: int,
-        repository_id: int,
-        number: int,
-        data: dict,
-    ) -> PullRequestTrigger:
-        """Update a project's trigger for a pull request"""
-        self.logger.info(f"Updating PR #{number} in repo {repository_id}")
-        response = self.session.patch(
-            f"/projects/{project_id}/repositories/triggers/{repository_id}/pull_requests/{number}",
-            json=data,
-        )
-        return PullRequestTrigger(**response.json())
-
-    def get_task(self, project_id: int, task_id: int) -> Task:
-        """Get single task"""
-        self.logger.info(f"Fetching task {task_id}")
-        return Task(**self.session.get(f"/projects/{project_id}/tasks/{task_id}").json())
-
-    def get_task_results(self, project_id: int, task_id: int) -> list[PullRequestResult]:
-        """The task's result deliveries, one per results repository"""
-        self.logger.info(f"Fetching results of task {task_id}")
-        return [PullRequestResult(**result) for result in self.session.get(f"/projects/{project_id}/tasks/{task_id}/results").json()]
-
-    def create_dataset(
-        self,
-        name: str,
-        host: str,
-        port: int,
-        db_type: str,
-        secret_label: str,
-        read_schema: str | None = None,
-        write_schema: str | None = None,
-    ) -> Dataset:
-        """Create a global dataset. secret_label names an existing secret."""
-        self.logger.info(f"Creating dataset {name}")
-        data = {
-            "name": name,
-            "host": host,
-            "port": port,
-            "type": db_type,
-            "secret_label": secret_label,
-            "read_schema": read_schema,
-            "write_schema": write_schema,
-        }
-        response = self.session.post("/global/datasets", json=data)
-        return Dataset(**response.json())
+class FncliBackendAPI(BackendAPI):
+    """The Dagster code location's backend client, plus the setup and teardown calls only the dev CLI makes."""
 
     def _get_all_pages(self, path: str, **filters: str) -> list[dict]:
         """Every item of a paginated list endpoint, filtered by the webserver's query options"""
@@ -153,17 +20,17 @@ class BackendAPI:
                 return items
             page += 1
 
-    def get_datasets(self) -> list[Dataset]:
-        """Get all datasets"""
-        self.logger.info("Fetching datasets")
-        return [Dataset(**ds) for ds in self._get_all_pages("/global/datasets")]
-
     def find_dataset(self, name: str) -> Dataset | None:
         """The global dataset of that name, if any"""
         for dataset in self.get_datasets():
             if dataset.name.lower() == name.lower():
                 return dataset
         return None
+
+    def get_datasets(self) -> list[Dataset]:
+        """Get all datasets, over every page"""
+        self.logger.info("Fetching datasets")
+        return [Dataset(**ds) for ds in self._get_all_pages("/global/datasets")]
 
     def get_or_create_dataset(self, name: str, **kwargs) -> Dataset:
         """Reuse the dataset of that name if there is one, else create it from kwargs"""
@@ -194,33 +61,6 @@ class BackendAPI:
         self.logger.info(f"Assigning dataset {dataset.name} to project {project_id}")
         response = self.session.put(f"/projects/{project_id}/datasets/{dataset.id}", json={})
         return ProjectDataset(**response.json())
-
-    def get_dataset(self, dataset_id: int) -> Dataset:
-        """Get single dataset"""
-        self.logger.info(f"Fetching dataset {dataset_id}")
-        response = self.session.get(f"/global/datasets/{dataset_id}")
-        return Dataset(**response.json())
-
-    def delete_dataset(self, dataset_id: int) -> None:
-        """Delete a dataset"""
-        self.logger.info(f"Deleting dataset {dataset_id}")
-        self.session.delete(f"/global/datasets/{dataset_id}")
-
-    def create_repository(self, uri: str, provider: str, api_uri: str, secret_label: str) -> TriggerRepository:
-        """Create a global trigger repository"""
-        self.logger.info(f"Creating repository {uri}")
-        data = {"uri": uri, "provider": provider, "api_uri": api_uri, "secret_label": secret_label}
-        response = self.session.post("/global/repositories/triggers", json=data)
-        return TriggerRepository(**response.json())
-
-    def delete_repository(self, repo_id: int) -> None:
-        """Delete a global trigger repository, and with it every project's link to it"""
-        self.session.delete(f"/global/repositories/triggers/{repo_id}")
-
-    def get_projects(self) -> list[Project]:
-        """Get all projects"""
-        self.logger.info("Fetching projects")
-        return [Project(**p) for p in self._get_all_pages("/projects")]
 
     def find_project(self, name: str) -> Project | None:
         """The project of that name, if any"""

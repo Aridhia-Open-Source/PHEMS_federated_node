@@ -58,7 +58,7 @@ python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 ## Known issues (don't chase these)
 
 - **`test_dtos.py`:** 2 stale tests. The dataset output now has `enabled`, and its `url` is `/global/datasets/<id>`. Fix them, since they're tiny.
-- **Contract fixtures:** `scripts/fncli/tests/test_contract_fixtures.py` reads the deleted `webserver/tests/contracts/`. `dagster/app/tests/test_contract_fixtures.py` and `scripts/sync_contract_fixtures.sh` are now unused. Leave them alone.
+- **Contract fixtures:** `dagster/fncli/tests/test_contract_fixtures.py` was deleted (it read the deleted `webserver/tests/contracts/`). `dagster/app/tests/test_contract_fixtures.py` and `scripts/sync_contract_fixtures.sh` are now unused. Leave them alone.
 - **Dagster and fncli tests:** most still use the old routes. That's out of scope here.
 
 App behaviour the plan's author flagged. Don't fix any of it; just confirm or deny it in your report:

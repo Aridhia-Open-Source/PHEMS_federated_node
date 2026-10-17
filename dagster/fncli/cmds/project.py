@@ -8,13 +8,13 @@ import logging
 import click
 
 from fncli.cmds.common import ProjectConfig, build_backend_api
-from fncli.dagster.backend import BackendAPI
-from fncli.dagster.models import Project
+from fncli.backend import FncliBackendAPI
+from app.models import Project
 
 logger = logging.getLogger("project")
 
 
-def init_backend_project(config: ProjectConfig, backend_api: BackendAPI) -> Project:
+def init_backend_project(config: ProjectConfig, backend_api: FncliBackendAPI) -> Project:
     """The simulation needs sensors to act on this project, so make sure it is enabled."""
     project = backend_api.get_or_create_project(
         name=config.project_name,
@@ -27,7 +27,7 @@ def init_backend_project(config: ProjectConfig, backend_api: BackendAPI) -> Proj
     return project
 
 
-def find_project(config: ProjectConfig, backend_api: BackendAPI) -> Project | None:
+def find_project(config: ProjectConfig, backend_api: FncliBackendAPI) -> Project | None:
     """For the delete steps: a project that is already gone is not an error."""
     project = backend_api.find_project(config.project_name)
     if project is None:
@@ -54,7 +54,7 @@ def delete_backend_project_command():
     logger.info(f"Deleted backend project {project.name} ({project.id})")
 
 
-def get_project_healthcheck(config: ProjectConfig, backend_api: BackendAPI) -> dict:
+def get_project_healthcheck(config: ProjectConfig, backend_api: FncliBackendAPI) -> dict:
     project = backend_api.find_project(config.project_name)
     if project is None:
         raise click.ClickException(

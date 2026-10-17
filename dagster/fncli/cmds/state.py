@@ -11,7 +11,7 @@ import logging
 import click
 
 from fncli.cmds.common import ProjectConfig, build_backend_api
-from fncli.dagster.backend import BackendAPI
+from fncli.backend import FncliBackendAPI
 
 logger = logging.getLogger("state")
 
@@ -19,7 +19,7 @@ KINDS = ("trigger", "results", "dataset", "secret")
 BOOL = click.Choice(["true", "false"])
 
 
-def call(api: BackendAPI, method: str, path: str, **kwargs):
+def call(api: FncliBackendAPI, method: str, path: str, **kwargs):
     return api.session.request(method, path, raise_for_status=False, **kwargs)
 
 
@@ -30,21 +30,21 @@ def body_of(response):
         return response.text
 
 
-def get(api: BackendAPI, path: str, **params):
+def get(api: FncliBackendAPI, path: str, **params):
     response = call(api, "GET", path, params=params or None)
     if response.status_code >= 400:
         raise click.ClickException(f"GET {path} -> {response.status_code}: {response.text[:300]}")
     return body_of(response)
 
 
-def find_project(api: BackendAPI, name: str):
+def find_project(api: FncliBackendAPI, name: str):
     project = api.find_project(name)
     if project is None:
         raise click.ClickException(f"Project {name} not found, run setup-project first")
     return project
 
 
-def project_links(api: BackendAPI, project_id: int) -> dict:
+def project_links(api: FncliBackendAPI, project_id: int) -> dict:
     return {
         "trigger": get(api, f"/projects/{project_id}/repositories/triggers"),
         "results": get(api, f"/projects/{project_id}/repositories/results"),
@@ -81,7 +81,7 @@ def global_path(kind: str, key) -> str:
     }[kind]
 
 
-def first_link(api: BackendAPI, project_id: int, kind: str) -> dict:
+def first_link(api: FncliBackendAPI, project_id: int, kind: str) -> dict:
     found = project_links(api, project_id)[kind]
     if not found:
         raise click.ClickException(f"The project has no {kind} link")
@@ -99,7 +99,7 @@ def report(response, expect: int | None) -> int:
     return 0 if ok else 1
 
 
-def snapshot(api: BackendAPI, name: str) -> dict:
+def snapshot(api: FncliBackendAPI, name: str) -> dict:
     """Everything about the project the QA plan asserts on: its links, their pull requests, tasks and results."""
     project = find_project(api, name)
     pid = project.id
@@ -150,7 +150,7 @@ def snapshot(api: BackendAPI, name: str) -> dict:
     }
 
 
-def set_project(api: BackendAPI, name: str, enabled: str | None, locked: str | None, expect: int | None) -> int:
+def set_project(api: FncliBackendAPI, name: str, enabled: str | None, locked: str | None, expect: int | None) -> int:
     data = {}
     if enabled is not None:
         data["enabled"] = enabled == "true"
@@ -162,7 +162,7 @@ def set_project(api: BackendAPI, name: str, enabled: str | None, locked: str | N
     return report(call(api, "PATCH", f"/projects/{project.id}", json=data), expect)
 
 
-def set_link(api: BackendAPI, name: str, kind: str, enabled: str | None, revoked: str | None, expect: int | None) -> int:
+def set_link(api: FncliBackendAPI, name: str, kind: str, enabled: str | None, revoked: str | None, expect: int | None) -> int:
     data = {}
     if enabled is not None:
         data["enabled"] = enabled == "true"
@@ -175,14 +175,14 @@ def set_link(api: BackendAPI, name: str, kind: str, enabled: str | None, revoked
     return report(call(api, "PATCH", link_path(kind, project.id, key), json=data), expect)
 
 
-def set_global(api: BackendAPI, name: str, kind: str, enabled: str, expect: int | None) -> int:
+def set_global(api: FncliBackendAPI, name: str, kind: str, enabled: str, expect: int | None) -> int:
     """Turn the global resource behind the project's link on or off."""
     project = find_project(api, name)
     key = link_key(kind, first_link(api, project.id, kind))
     return report(call(api, "PATCH", global_path(kind, key), json={"enabled": enabled == "true"}), expect)
 
 
-def setup_second_project(api: BackendAPI, config: ProjectConfig, name: str) -> int:
+def setup_second_project(api: FncliBackendAPI, config: ProjectConfig, name: str) -> int:
     """A second project linked to the SAME global resources, in the order the webserver's lock rules need."""
     first = find_project(api, config.project_name)
     found = project_links(api, first.id)
@@ -214,7 +214,7 @@ def setup_second_project(api: BackendAPI, config: ProjectConfig, name: str) -> i
     return 0
 
 
-def teardown_second_project(api: BackendAPI, name: str, expect: int | None) -> int:
+def teardown_second_project(api: FncliBackendAPI, name: str, expect: int | None) -> int:
     project = find_project(api, name)
     call(api, "PATCH", f"/projects/{project.id}", json={"locked": True})
     return report(call(api, "DELETE", f"/projects/{project.id}"), expect)

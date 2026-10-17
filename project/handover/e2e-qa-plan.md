@@ -23,9 +23,9 @@ From the repo root, with kubectl on context `kind-fn`:
 ```bash
 git checkout moonshot/fncli-e2e
 # Use the cluster that is already running (kubectl on context kind-fn, tilt green). Only if there is none, create it:
-#   make helm_deps && make deploy && tilt up --stream     (see scripts/fncli/EXAMPLES.md "Run the project from scratch")
+#   make helm_deps && make deploy && tilt up --stream     (see dagster/fncli/EXAMPLES.md "Run the project from scratch")
 # NEVER run `make teardown` here: it wipes the owner's dev cluster. Ask first.
-pipx install --force --editable scripts/fncli && fncli hello-world
+pipx install --force --editable './dagster[cli]' && fncli hello-world
 QA=artifacts/e2e-qa/$(date +%F-%H%M); mkdir -p "$QA"
 snap() { fncli project-show > "$QA/$1.json"; }
 prs()  { fncli project-show | jq -c '.trigger_links[0].pull_requests | map({number,state,task_id})'; }

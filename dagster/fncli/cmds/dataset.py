@@ -10,14 +10,14 @@ import click
 
 from fncli.cmds.common import DatasetConfig, build_backend_api
 from fncli.cmds.project import init_backend_project
-from fncli.dagster.backend import BackendAPI
-from fncli.dagster.models import Dataset, Project
+from fncli.backend import FncliBackendAPI
+from app.models import Dataset, Project
 
 logger = logging.getLogger("dataset")
 
 
 def init_backend_dataset(
-    config: DatasetConfig, backend_api: BackendAPI, project: Project
+    config: DatasetConfig, backend_api: FncliBackendAPI, project: Project
 ) -> Dataset:
     dataset = backend_api.get_or_create_dataset(
         config.dataset_name,

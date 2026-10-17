@@ -75,7 +75,7 @@ Dagster sensors use these directly:
 - **Delivery** uses the task's results link.
 - The evaluate job tag carries the project id and the global repository id.
 
-Dagster's `Secret` model needs only `key`, `namespace` and `provider`. Its repository and dataset models are split into a global model and a link model. `scripts/fncli` has its own copies of these models.
+Dagster's `Secret` model needs only `key`, `namespace` and `provider`. Its repository and dataset models are split into a global model and a link model. `dagster/fncli` imports these models from `dagster/app`.
 
 ### 5. Results repository lookups
 

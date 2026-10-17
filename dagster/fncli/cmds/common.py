@@ -9,11 +9,11 @@ from urllib.parse import urlparse
 import click
 from pydantic import Field
 
-from fncli.dagster.backend import BackendAPI
-from fncli.dagster.config import EnvConfig
-from fncli.dagster.gitea import GiteaAdminAPI, GiteaAdminClient
-from fncli.dagster.k8s import get_k8s_secret
-from fncli.dagster.utils import BackendAdapter, BackendSession
+from fncli.backend import FncliBackendAPI
+from app.config import EnvConfig
+from fncli.gitea import GiteaAdminAPI, GiteaAdminClient
+from fncli.k8s import get_k8s_secret
+from app.utils import BackendAdapter, BackendSession
 
 IN_CLUSTER_SUFFIX = "fn.svc"
 
@@ -128,7 +128,7 @@ def build_gitea_api(config: GiteaConfig) -> GiteaAdminAPI:
     return GiteaAdminAPI(client, config.gitea_admin_user)
 
 
-def build_backend_api(config: BackendConfig) -> BackendAPI:
+def build_backend_api(config: BackendConfig) -> FncliBackendAPI:
     """Logs in as the dagster system user, the identity the sensors use."""
     adapter = BackendAdapter(
         base_url=config.backend_url,
@@ -143,4 +143,4 @@ def build_backend_api(config: BackendConfig) -> BackendAPI:
             key="DAGSTER_KC_PASSWORD",
         ),
     )
-    return BackendAPI(BackendSession(adapter))
+    return FncliBackendAPI(BackendSession(adapter))

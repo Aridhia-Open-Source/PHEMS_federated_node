@@ -33,8 +33,7 @@ dev = [
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
-# fncli is the dev CLI, installed with the `cli` extra. It is left out of the runtime image
-# (see .dockerignore), so only the packages that are present are picked up.
+# fncli is the dev CLI, installed with the `cli` extra. Its tests run in the Dagster test image.
 [tool.setuptools.packages.find]
 include = ["app*", "fncli*"]
 

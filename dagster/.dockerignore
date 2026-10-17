@@ -1,6 +1,7 @@
 *
 
 !app/**
+!fncli/**
 !requirements.txt
 !pyproject.toml
 !dagster.yaml

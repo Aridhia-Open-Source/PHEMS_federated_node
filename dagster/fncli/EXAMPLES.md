@@ -9,7 +9,7 @@ Run from the repo root.
 - `make helm_deps`
 - `make deploy`
 - `tilt up --stream` (in a second terminal; wait until it's green)
-- `pipx install --force --editable scripts/fncli`
+- `pipx install --force --editable './dagster[cli]'`
 
 ## Test the trigger → task → run flow
 

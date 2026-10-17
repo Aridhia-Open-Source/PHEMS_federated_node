@@ -6,7 +6,7 @@
 #   KEEP=1 scripts/e2e_shared_resources.sh    leave the project in place to look at
 #   SKIP_TASKS=1 scripts/e2e_shared_resources.sh   stop after the PRs are evaluated and tasks exist (no run needed)
 #
-# Needs (see scripts/fncli/README.md and EXAMPLES.md): kubectl on context kind-fn, `make deploy` done, `tilt up` green
+# Needs (see dagster/fncli/README.md and EXAMPLES.md): kubectl on context kind-fn, `make deploy` done, `tilt up` green
 # with the port-forwards running (backend :5000, Gitea :4000, Dagster :3000), fncli installed with pipx, .dev.env present.
 #
 # NOT RUN in the cloud session that wrote it (no cluster there), so expect to fix small things on the first run.
@@ -16,7 +16,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 PIPX_VENVS="$(pipx environment --value PIPX_LOCAL_VENVS 2>/dev/null || echo "$HOME/.local/share/pipx/venvs")"
-PY="$PIPX_VENVS/fncli/bin/python"
+PY="$PIPX_VENVS/phems/bin/python"
 CHECK="$PY scripts/e2e_check.py"
 step() { printf '\n=== %s\n' "$*"; }
 fail() { printf '\nFAILED at: %s\n' "$*"; failed=1; }
@@ -25,7 +25,7 @@ failed=0
 
 step "Preflight"
 [[ "$(kubectl config current-context)" == "kind-fn" ]] || { echo "kubectl context must be kind-fn"; exit 2; }
-[[ -x "$PY" ]] || { echo "fncli not found in pipx: pipx install --editable scripts/fncli"; exit 2; }
+[[ -x "$PY" ]] || { echo "fncli not found in pipx: pipx install --force --editable './dagster[cli]'"; exit 2; }
 fncli hello-world >/dev/null || { echo "fncli does not run"; exit 2; }
 curl -fsS -o /dev/null localhost:5000/ready 2>/dev/null || curl -sS -o /dev/null localhost:5000 || { echo "backend not on :5000 (tilt port-forwards?)"; exit 2; }
 curl -sS -o /dev/null localhost:4000 || { echo "Gitea not on :4000"; exit 2; }
