@@ -23,16 +23,12 @@ SYNCED = [PullRequestResultStep.PUSHED, PullRequestResultStep.OPENED]
 
 
 def get_synced_results(backend_api: BackendAPI) -> list[PullRequestResult]:
-    """
-    The results to sync, of every project. Filtered here as well: a backend that does not
-    know the step filter ignores it and returns every result.
-    """
-    results = [
+    """The results to sync, of every project: the backend filters them by step."""
+    return [
         result
         for project in backend_api.get_projects()
         for result in backend_api.get_results_by_step(project.id, [step.value for step in SYNCED])
     ]
-    return [result for result in results if result.step in SYNCED]
 
 
 @dg.op(required_resource_keys={"backend_api", "git_apis"})

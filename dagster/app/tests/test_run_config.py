@@ -5,7 +5,7 @@ DATASET = Dataset(
     id=1,
     secret={
         "id": 3, "project_id": 1, "label": "cdm-creds", "provider": "K8S",
-        "key": "cdm-creds-abc", "namespace": "fn",
+        "key": "cdm-creds-abc", "namespace": "fn", "enabled": True,
     },
     name="cdm",
     host="db.host",
@@ -13,6 +13,7 @@ DATASET = Dataset(
     read_schema="cdm",
     write_schema="results",
     type="postgres",
+    enabled=True,
     slug="cdm",
     url="https://db.host/cdm",
 )

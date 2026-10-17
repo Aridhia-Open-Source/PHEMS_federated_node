@@ -248,6 +248,22 @@ def test_pr_list_state_filter(client, admin_headers, project, linked_trigger_rep
         assert state(bad).status_code == 400, bad
 
 
+def test_pr_list_task_id_filter(client, admin_headers, project, linked_trigger_repo, global_trigger_repo, ingest_prs,
+                                spec_raw):
+    ingest_prs(global_trigger_repo.id, 1, 2)
+    created = client.post(pr_list_url(project, global_trigger_repo, "/2/task"), json={"spec_raw": spec_raw},
+                          headers=admin_headers)
+    assert created.status_code == 201, created.json
+
+    def by_task(value):
+        return get(client, admin_headers, pr_list_url(project, global_trigger_repo, f"?task_id={value}"))
+
+    only = by_task(created.json["id"])
+    assert [i["number"] for i in only.json["items"]] == [2] and only.json["total"] == 1
+    assert by_task(created.json["id"] + 1000).json["total"] == 0
+    assert by_task("nope").status_code == 400
+
+
 def test_pr_list_state_reflects_patch_and_is_scoped_to_link(client, admin_headers, project, other_project, pr_trigger,
                                                             global_trigger_repo):
     patched = client.patch(pr_trigger, json={"state": "REJECTED", "state_cause": "bad"}, headers=admin_headers)

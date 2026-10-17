@@ -24,14 +24,13 @@ class PullRequestEvaluateSensor(GitSensor):
         tick evaluated twice in the same minute does not double the run. A repository with
         a run still queued or started is skipped.
         """
-        projects = [p for p in self.backend_api.get_projects() if p.enabled and not p.locked]
         launched = 0
-        for project in projects:
+        for project in self.backend_api.get_projects(enabled=True, locked=False):
             for repo in self.backend_api.get_project_trigger_repositories(project.id, active=True):
                 if self._run_in_flight(repo):
                     self.log.info(f"Evaluation of repo {repo.trigger_repository.id} of project {repo.project_id} is already in flight")
                     continue
-                if not self.backend_api.get_pull_requests(repo.project_id, repo.trigger_repository.id, TriggerState.UNKNOWN.value):
+                if not self.backend_api.get_pull_requests(repo.project_id, repo.trigger_repository.id, state=TriggerState.UNKNOWN.value):
                     continue
                 yield self._run_request(repo)
                 launched += 1

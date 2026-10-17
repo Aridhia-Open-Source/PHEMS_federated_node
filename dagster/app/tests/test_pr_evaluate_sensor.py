@@ -12,13 +12,18 @@ def project(id, enabled=True, locked=False):
 
 
 def repo(id, project_id):
-    return MagicMock(id=id, project_id=project_id)
+    return MagicMock(project_id=project_id, trigger_repository=MagicMock(id=id))
 
 
 def run(projects, repos, unknown=None, in_flight=()):
     backend_api = MagicMock()
-    backend_api.get_projects.return_value = projects
-    backend_api.get_project_trigger_repositories.return_value = repos
+    # The backend filters the projects
+    backend_api.get_projects.side_effect = lambda enabled, locked: [
+        p for p in projects if p.enabled == enabled and p.locked == locked
+    ]
+    backend_api.get_project_trigger_repositories.side_effect = lambda project_id, active: [
+        r for r in repos if r.project_id == project_id
+    ]
     backend_api.get_pull_requests.side_effect = lambda project_id, repo_id, state: (unknown or {}).get(repo_id, [])
     context = MagicMock()
     context.instance.get_runs.side_effect = lambda filters, limit: [MagicMock()] if filters.tags["repo_id"] in in_flight else []
@@ -33,7 +38,7 @@ def test_one_run_per_repository_with_unknown_prs():
 
     assert [r.tags["repo_id"] for r in result] == ["10", "12"]
     assert all(isinstance(r, dg.RunRequest) for r in result)
-    backend_api.get_pull_requests.assert_any_call(1, 10, TriggerState.UNKNOWN.value)
+    backend_api.get_pull_requests.assert_any_call(1, 10, state=TriggerState.UNKNOWN.value)
 
 
 def test_the_run_is_configured_and_tagged_for_its_repository():
@@ -46,7 +51,7 @@ def test_the_run_is_configured_and_tagged_for_its_repository():
 def test_the_run_key_includes_the_minute():
     result, _, _ = run([project(1)], [repo(10, 1)], unknown={10: ["a"]})
 
-    assert re.fullmatch(r"evaluate/10/\d{12}", result[0].run_key)
+    assert re.fullmatch(r"evaluate/1/10/\d{12}", result[0].run_key)
 
 
 def test_a_locked_project_is_not_evaluated():
@@ -65,9 +70,10 @@ def test_only_enabled_projects_are_evaluated():
     assert [r.tags["repo_id"] for r in result] == ["11"]
 
 
-def test_only_active_assignments_are_requested():
+def test_only_enabled_unlocked_projects_and_active_assignments_are_requested():
     _, backend_api, _ = run([project(1)], [repo(10, 1)], unknown={10: ["a"]})
 
+    backend_api.get_projects.assert_called_once_with(enabled=True, locked=False)
     backend_api.get_project_trigger_repositories.assert_called_once_with(1, active=True)
 
 

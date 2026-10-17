@@ -18,7 +18,7 @@ class TestSecret:
         assert (secret.key, secret.namespace, secret.label) == ("git-token-abc", "fn", "git-token")
 
     def test_namespace_and_description_are_optional(self):
-        secret = Secret(id=1, project_id=1, label="l", provider="K8S", key="k")
+        secret = Secret(id=1, label="l", provider="K8S", key="k", enabled=True)
 
         assert secret.namespace is None and secret.description is None
 
@@ -65,12 +65,12 @@ class TestProjectTriggerRepository:
         assert repo.pr_count == 0
         assert (repo.enabled, repo.revoked, repo.active) == (True, False, True)
 
-    def test_dataset_id_and_initial_cursor_are_optional(self):
-        payload = {k: v for k, v in SAMPLE_REPOSITORY_OBJ.items() if k not in ("dataset_id", "initial_cursor")}
+    def test_dataset_id_is_optional(self):
+        payload = {k: v for k, v in SAMPLE_REPOSITORY_OBJ.items() if k != "dataset_id"}
 
         repo = ProjectTriggerRepository(**payload)
 
-        assert repo.dataset_id is None and repo.initial_cursor is None
+        assert repo.dataset_id is None
 
     def test_nested_pull_requests_are_parsed(self):
         repo = ProjectTriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "pull_requests": [SAMPLE_PR]})

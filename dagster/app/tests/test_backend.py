@@ -74,15 +74,15 @@ class TestRepositories:
     def test_get_repository(self, api, session):
         session.get.return_value = make_response(SAMPLE_REPOSITORY_OBJ)
 
-        assert api.get_repository(4, 1).id == 1
-        session.get.assert_called_once_with("/projects/4/trigger_repositories/1")
+        assert api.get_project_trigger_repository(4, 1).trigger_repository.id == 1
+        session.get.assert_called_once_with("/projects/4/repositories/triggers/1")
 
     def test_patch_repository(self, api, session):
         session.patch.return_value = make_response(SAMPLE_REPOSITORY_OBJ)
 
-        api.patch_repository(4, 1, {"base_branch": "dev"})
+        api.patch_project_trigger_repository(4, 1, {"base_branch": "dev"})
 
-        assert session.patch.call_args.args[0] == "/projects/4/trigger_repositories/1"
+        assert session.patch.call_args.args[0] == "/projects/4/repositories/triggers/1"
         assert session.patch.call_args.kwargs["json"] == {"base_branch": "dev"}
 
     def test_create_repository_is_global(self, api, session):
@@ -91,24 +91,22 @@ class TestRepositories:
         repo = api.create_repository("github.com/org/repo", "github", "https://api.github.com", "creds")
 
         assert type(repo) is TriggerRepository
-        assert session.post.call_args.args == ("/trigger_repositories",)
+        assert session.post.call_args.args == ("/global/repositories/triggers",)
         assert set(session.post.call_args.kwargs["json"]) == {"uri", "provider", "api_uri", "secret_label"}
 
-    def test_assign_repository_posts_under_the_project(self, api, session):
-        session.post.return_value = make_response(SAMPLE_REPOSITORY_OBJ)
+    def test_assign_repository_puts_under_the_project(self, api, session):
+        session.put.return_value = make_response(SAMPLE_REPOSITORY_OBJ)
 
         assignment = api.assign_repository(4, 1, "specs", "main")
 
         assert type(assignment) is ProjectTriggerRepository
-        assert session.post.call_args.args == ("/projects/4/trigger_repositories",)
-        assert session.post.call_args.kwargs["json"] == {
-            "trigger_repository_id": 1, "watch_dir": "specs", "base_branch": "main", "initial_cursor": None,
-        }
+        assert session.put.call_args.args == ("/projects/4/repositories/triggers/1",)
+        assert session.put.call_args.kwargs["json"] == {"watch_dir": "specs", "base_branch": "main"}
 
     def test_delete_repository(self, api, session):
         api.delete_repository(3)
 
-        session.delete.assert_called_once_with("/trigger_repositories/3")
+        session.delete.assert_called_once_with("/global/repositories/triggers/3")
 
 
 class TestPullRequests:
@@ -118,7 +116,7 @@ class TestPullRequests:
     def test_single_page(self, api, session):
         session.get.return_value = self._page([SAMPLE_PR], 1)
 
-        prs = api.get_pull_requests(project_id=1, repo_id=1, state="UNKNOWN")
+        prs = api.get_pull_requests(project_id=1, repository_id=1, state="UNKNOWN")
 
         assert [type(p) for p in prs] == [PullRequestTrigger]
         assert session.get.call_count == 1
@@ -127,7 +125,7 @@ class TestPullRequests:
         second = {**SAMPLE_PR, "number": 6}
         session.get.side_effect = [self._page([SAMPLE_PR], 2), self._page([second], 2)]
 
-        prs = api.get_pull_requests(project_id=1, repo_id=1, state="UNKNOWN")
+        prs = api.get_pull_requests(project_id=1, repository_id=1, state="UNKNOWN")
 
         assert [p.number for p in prs] == [5, 6]
         assert session.get.call_args_list[1].kwargs["params"]["page"] == 2
@@ -135,29 +133,28 @@ class TestPullRequests:
     def test_pagination_stops_on_an_empty_page(self, api, session):
         session.get.side_effect = [self._page([SAMPLE_PR], 99), self._page([], 99)]
 
-        assert len(api.get_pull_requests(project_id=1, repo_id=1, state="UNKNOWN")) == 1
+        assert len(api.get_pull_requests(project_id=1, repository_id=1, state="UNKNOWN")) == 1
 
     def test_the_state_is_sent_as_a_query_param(self, api, session):
         session.get.return_value = self._page([], 0)
 
-        api.get_pull_requests(project_id=1, repo_id=1, state="UNKNOWN")
+        api.get_pull_requests(project_id=1, repository_id=1, state="UNKNOWN")
 
         assert session.get.call_args.kwargs["params"]["state"] == "UNKNOWN"
 
-    def test_create_pull_request(self, api, session):
-        session.post.return_value = make_response(SAMPLE_PR)
+    def test_the_task_id_is_sent_as_a_query_param(self, api, session):
+        session.get.return_value = self._page([SAMPLE_PR], 1)
 
-        api.create_pull_request(project_id=1, project_trigger_repository_id=1, pull_request={"number": 5})
+        api.get_pull_requests(project_id=1, repository_id=1, task_id=9)
 
-        assert session.post.call_args.args[0] == "/projects/1/trigger_repositories/1/pull_requests"
-        assert session.post.call_args.kwargs["json"] == {"number": 5}
+        assert session.get.call_args.kwargs["params"] == {"task_id": 9, "page": 1, "per_page": 100}
 
     def test_batch_creation(self, api, session):
         session.post.return_value = make_response({"created": [1], "existing": [2]})
 
         result = api.create_pull_requests_batch(3, [{"number": 1}, {"number": 2}])
 
-        assert session.post.call_args.args[0] == "/trigger_repositories/3/pull_requests/batch"
+        assert session.post.call_args.args[0] == "/global/repositories/triggers/3/pull_requests"
         assert session.post.call_args.kwargs["json"] == {"pull_requests": [{"number": 1}, {"number": 2}]}
         assert result == {"created": [1], "existing": [2]}
 
@@ -170,7 +167,7 @@ class TestPullRequests:
 
         api.patch_pull_request(4, 1, 5, {"state": "REJECTED", "state_cause": "no spec"})
 
-        assert session.patch.call_args.args[0] == "/projects/4/trigger_repositories/1/pull_requests/5"
+        assert session.patch.call_args.args[0] == "/projects/4/repositories/triggers/1/pull_requests/5"
         assert session.patch.call_args.kwargs["json"] == {"state": "REJECTED", "state_cause": "no spec"}
 
     @pytest.mark.parametrize("status_code,created", [(201, True), (200, False)])
@@ -180,7 +177,7 @@ class TestPullRequests:
         task, was_created = api.create_task_for_pull_request(4, 1, 5, '{"spec": {"image": "a/b:1"}}')
 
         assert task.id == 9 and was_created is created
-        assert session.post.call_args.args == ("/projects/4/trigger_repositories/1/pull_requests/5/task",)
+        assert session.post.call_args.args == ("/projects/4/repositories/triggers/1/pull_requests/5/task",)
         assert session.post.call_args.kwargs["json"] == {"spec_raw": '{"spec": {"image": "a/b:1"}}'}
 
 
@@ -201,30 +198,16 @@ class TestDatasets:
         session.get.return_value = make_response(SAMPLE_DATASET)
 
         assert api.get_dataset(1).name == "cdm"
-        session.get.assert_called_once_with("/datasets/1")
+        session.get.assert_called_once_with("/global/datasets/1")
 
     def test_get_project_dataset_finds_the_assignment_by_dataset_id(self, api, session):
-        assignment = {
-            "id": 3, "project_id": 1, "dataset": SAMPLE_DATASET, "enabled": True, "revoked": False, "active": True
-        }
-        other = {**assignment, "id": 4, "dataset": {**SAMPLE_DATASET, "id": 2, "name": "other"}}
-        session.get.return_value = make_response([other, assignment])
+        assignment = {"project_id": 1, "dataset": SAMPLE_DATASET, "enabled": True, "revoked": False, "active": True}
+        session.get.return_value = make_response(assignment)
 
         found = api.get_project_dataset(1, 1)
 
-        assert isinstance(found, ProjectDataset) and found.id == 3
-        session.get.assert_called_once_with("/projects/1/datasets")
-
-    def test_get_project_dataset_raises_when_not_assigned(self, api, session):
-        session.get.return_value = make_response([])
-
-        with pytest.raises(LookupError):
-            api.get_project_dataset(1, 1)
-
-    def test_get_dataset_by_name_swallows_failures(self, api, session):
-        session.get.side_effect = RuntimeError("404")
-
-        assert api.get_dataset_by_name("nope") is None
+        assert isinstance(found, ProjectDataset) and found.dataset.id == 1
+        session.get.assert_called_once_with("/projects/1/datasets/1")
 
     def test_create_dataset(self, api, session):
         session.post.return_value = make_response(SAMPLE_DATASET)
@@ -234,7 +217,7 @@ class TestDatasets:
             secret_label="cdm-creds", read_schema="cdm",
         )
 
-        assert session.post.call_args.args == ("/datasets",)
+        assert session.post.call_args.args == ("/global/datasets",)
         assert session.post.call_args.kwargs["json"] == {
             "name": "cdm", "host": "db.host", "port": 5432, "type": "postgres",
             "secret_label": "cdm-creds", "read_schema": "cdm", "write_schema": None,
@@ -262,6 +245,13 @@ class TestProjects:
 
         assert [(p.id, p.enabled) for p in projects] == [(1, True), (2, False)]
         assert session.get.call_args_list[1].kwargs["params"]["page"] == 2
+
+    def test_filters_are_sent_as_query_options(self, api, session):
+        session.get.return_value = page([], 0)
+
+        api.get_projects(enabled=True, locked=False)
+
+        assert session.get.call_args.kwargs["params"] == {"enabled": "true", "locked": "false", "page": 1, "per_page": 100}
 
     def test_no_projects(self, api, session):
         session.get.return_value = page([], 0)
@@ -304,9 +294,9 @@ class TestResults:
               "attempts": 0}
 
     ASSIGNMENT = {
-        "id": 5, "project_id": 1,
+        "project_id": 1,
         "results_repository": {
-            "id": 2, "uri": "h/o/r", "provider": "gitea", "api_uri": "http://h/api/v1", "secret": SAMPLE_SECRET,
+            "id": 2, "uri": "h/o/r", "provider": "gitea", "api_uri": "http://h/api/v1", "secret": SAMPLE_SECRET, "enabled": True,
         },
         "target_dir": "results", "owned_by_federated_node": True, "enabled": True, "revoked": False, "active": True,
     }
@@ -316,8 +306,8 @@ class TestResults:
 
         result = api.get_results_repository(1)
 
-        session.get.assert_called_once_with("/projects/1/results_repositories")
-        assert (result.id, result.results_repository.id, result.target_dir) == (5, 2, "results")
+        session.get.assert_called_once_with("/projects/1/repositories/results")
+        assert (result.results_repository.id, result.target_dir) == (2, "results")
 
     def test_an_inactive_assignment_is_still_returned(self, api, session):
         session.get.return_value = make_response([{**self.ASSIGNMENT, "revoked": True, "active": False}])
@@ -327,31 +317,31 @@ class TestResults:
     def test_the_results_repository_is_fetched_by_project_and_assignment_id(self, api, session):
         session.get.return_value = make_response(self.ASSIGNMENT)
 
-        result = api.get_results_repository_by_id(1, 5)
+        result = api.get_results_repository_by_id(1, 2)
 
-        session.get.assert_called_once_with("/projects/1/results_repositories/5")
-        assert result.id == 5
+        session.get.assert_called_once_with("/projects/1/repositories/results/2")
+        assert result.results_repository.id == 2
 
     def test_create_posts_the_task_and_repository(self, api, session):
         session.post.return_value = make_response(self.RESULT)
 
-        api.create_result(7, 5)
+        api.create_result(1, 7, 5)
 
-        session.post.assert_called_once_with("/results", json={"task_id": 7, "results_repository_id": 5})
+        session.post.assert_called_once_with("/projects/1/results", json={"task_id": 7, "results_repository_id": 5})
 
     def test_patch_and_list(self, api, session):
         session.patch.return_value = make_response({**self.RESULT, "step": "PUSHED"})
         session.get.return_value = make_response([self.RESULT])
 
-        assert api.patch_result(9, {"step": "PUSHED"}).step == PullRequestResultStep.PUSHED
+        assert api.patch_result(1, 9, {"step": "PUSHED"}).step == PullRequestResultStep.PUSHED
         assert api.get_task_results(7)[0].id == 9
-        session.patch.assert_called_once_with("/results/9", json={"step": "PUSHED"})
+        session.patch.assert_called_once_with("/projects/1/results/9", json={"step": "PUSHED"})
         session.get.assert_called_once_with("/tasks/7/results")
 
     def test_list_by_step(self, api, session):
         session.get.return_value = make_response([{**self.RESULT, "step": "OPENED"}])
 
-        (result,) = api.get_results_by_step(["PUSHED", "OPENED"])
+        (result,) = api.get_results_by_step(1, ["PUSHED", "OPENED"])
 
         assert result.step == PullRequestResultStep.OPENED
-        session.get.assert_called_once_with("/results", params={"step": ["PUSHED", "OPENED"]})
+        session.get.assert_called_once_with("/projects/1/results", params={"step": ["PUSHED", "OPENED"]})

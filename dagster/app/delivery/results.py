@@ -9,7 +9,10 @@ results_pull_request_sync_sensor only heals a pull request opened but not record
 import json
 import tempfile
 from datetime import datetime, timezone
+from http import HTTPStatus
 from pathlib import Path
+
+import requests
 
 from app.backend import BackendAPI
 from app.config import ResultsDeliveryConfig
@@ -17,9 +20,8 @@ from app.delivery import git_push
 from app.models import (
     ProjectResultsRepository, ProjectTriggerRepository, PullRequestResultStep, PullRequestTrigger, ResultState, Task,
     TriggerRepository,
-    TriggerState,
 )
-from app.secrets import SecretProvider
+from app.secrets import read_secret_value
 
 ZIP_NAME = "results.zip"
 METADATA_NAME = "metadata.json"
@@ -52,6 +54,8 @@ class ResultsDelivery:
         past PUSHED is left alone, and one in UNKNOWN or PUSHED resumes, a FAILED one back to
         IN_PROGRESS: a branch already on the remote is not pushed again, and its pull request
         is looked up before one is opened.
+        No result is created when the backend refuses it with a 409 (the task is not SUCCESS, or the
+        results repository assignment is inactive): that is skipped.
         A results repository assignment that is not active fails the result with an error and
         raises nothing: it is delivered by a manual relaunch once the assignment is active again.
         Any failure is recorded on the result as an error with one more attempt, its step
@@ -59,7 +63,14 @@ class ResultsDelivery:
         """
         task = self.backend_api.get_task(task_id)
         repository = self.backend_api.get_results_repository(task.project_id)
-        result = self.backend_api.create_result(task.project_id, task.id, repository.results_repository.id)
+        try:
+            result = self.backend_api.create_result(task.project_id, task.id, repository.results_repository.id)
+        except requests.HTTPError as e:
+            if e.response.status_code != HTTPStatus.CONFLICT:
+                raise
+            # The task is not SUCCESS, or the project's link to the results repository is inactive
+            self.log.warning(f"Results of task {task.id} not delivered: {e.response.text}")
+            return
         if result.step in PAST_PUSHED:
             self.log.info(f"Results of task {task.id} are already delivered, {result.step.value}")
             return
@@ -120,9 +131,7 @@ class ResultsDelivery:
         so a branch already on the remote is from an earlier attempt and is not pushed again.
         """
         # TODO(auth): the token read and the Keycloak system user are being reworked
-        secret = repository.results_repository.secret
-        token = SecretProvider(secret.provider).get(secret.key, secret.namespace, "TOKEN")
-        env = git_push.auth_env(token)
+        env = git_push.auth_env(read_secret_value(repository.results_repository.secret, "TOKEN"))
 
         layout = Path(repository.target_dir.strip("/")) / self._name(trigger_repository) / str(
             pull_request.number
@@ -188,10 +197,9 @@ class ResultsDelivery:
         """The project's link to the trigger repository and the pull request that yielded the task."""
         for assignment in self.backend_api.get_project_trigger_repositories(task.project_id):
             for pull_request in self.backend_api.get_pull_requests(
-                task.project_id, assignment.trigger_repository.id, TriggerState.YIELDED.value
+                task.project_id, assignment.trigger_repository.id, task_id=task.id
             ):
-                if pull_request.task_id == task.id:
-                    return assignment, pull_request
+                return assignment, pull_request
         raise LookupError(f"Task {task.id} has no pull request, so its results have no place in the layout")
 
     @staticmethod

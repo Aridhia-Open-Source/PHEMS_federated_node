@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
+from http import HTTPStatus
 
+import requests
 import dagster as dg
 from dagster import RunStatusSensorContext
 
@@ -34,6 +36,7 @@ class TaskRunStatusSensor(BaseSensor):
         When the run starts the task records the start time. When it reaches a terminal status
         the task records the time the run ended.
         The exit code is not recorded: the run does not expose it.
+        A finished task refuses a status change with a 409, which is skipped.
         """
         run = self.context.dagster_run
         task_status = self.STATUS_MAP[run.status]
@@ -49,5 +52,12 @@ class TaskRunStatusSensor(BaseSensor):
                 "%Y-%m-%dT%H:%M:%SZ"
             )
 
-        self.backend_api.patch_task(task_id, fields)
+        try:
+            self.backend_api.patch_task(task_id, fields)
+        except requests.HTTPError as e:
+            if e.response.status_code != HTTPStatus.CONFLICT:
+                raise
+            # The task finished already and keeps its status
+            self.log.warning(f"Task {task_id} not moved to {task_status.value}: {e.response.text}")
+            return
         self.log.info(f"Updated task {task_id} to status: {task_status.value}")

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import dagster as dg
 import pytest
+import requests
 
 from app.config import ResultsDeliveryConfig
 from app.definitions.sensors.task import JOBS, SENSORS
@@ -12,7 +13,7 @@ from app.definitions.sensors.task.delivery import deliver_results_job, task_resu
 from app.delivery import git_push
 from app.delivery.results import ResultsDelivery
 from app.models import (
-    ProjectResultsRepository, ProjectTriggerRepository, PullRequestResult, PullRequestTrigger, ResultsRepository, Task,
+    ProjectResultsRepository, ProjectTriggerRepository, PullRequestResult, PullRequestTrigger, ResultsRepository, Secret, Task,
     TriggerRepository
 )
 from app.tests.conftest import SAMPLE_SECRET
@@ -24,7 +25,7 @@ TASK = Task(
 )
 GLOBAL_REPOSITORY = ResultsRepository(
     id=2, uri="gitea.fn.svc:3000/fn/results", provider="gitea",
-    api_uri="http://gitea.fn.svc:3000/api/v1", secret=SAMPLE_SECRET,
+    api_uri="http://gitea.fn.svc:3000/api/v1", secret=SAMPLE_SECRET, enabled=True,
 )
 REPOSITORY = ProjectResultsRepository(
     id=5, project_id=1, results_repository=GLOBAL_REPOSITORY, target_dir="/results/",
@@ -32,7 +33,7 @@ REPOSITORY = ProjectResultsRepository(
 )
 TRIGGER_REPOSITORY = TriggerRepository(
     id=2, uri="gitea.fn.svc:3000/fn/analysis", provider="gitea", api_uri="http://x/api/v1",
-    secret=SAMPLE_SECRET,
+    secret=SAMPLE_SECRET, enabled=True,
 )
 TRIGGER_ASSIGNMENT = ProjectTriggerRepository(
     id=8, project_id=1, trigger_repository=TRIGGER_REPOSITORY, watch_dir="w", base_branch="main", pr_cursor="c",
@@ -115,7 +116,7 @@ def git_apis(git_api):
 
 def deliver(backend_api, remote, artifacts, git_apis=None, max_zip_bytes=10485760):
     config = ResultsDeliveryConfig(DAGSTER_ARTIFACT_MOUNT_PATH=str(artifacts), RESULTS_MAX_ZIP_BYTES=max_zip_bytes)
-    with patch("app.delivery.results.SecretProvider") as provider, \
+    with patch("app.secrets.SecretProvider") as provider, \
             patch.object(git_push, "clone_url", return_value=str(remote)):
         provider.return_value.get.return_value = "tok"
         ResultsDelivery(backend_api, git_apis or MagicMock(), config, MagicMock())(7, RUN_ID)
@@ -125,8 +126,8 @@ def deliver(backend_api, remote, artifacts, git_apis=None, max_zip_bytes=1048576
 def patches(backend_api):
     """The fields of each patch of the result, in order."""
     calls = backend_api.patch_result.call_args_list
-    assert {c.args[0] for c in calls} <= {9}
-    return [c.args[1] for c in calls]
+    assert {c.args[:2] for c in calls} <= {(1, 9)}
+    return [c.args[2] for c in calls]
 
 
 def test_success_pushes_a_branch_with_the_layout_and_records_pushed_then_opened(
@@ -225,7 +226,8 @@ def test_an_inactive_trigger_assignment_is_still_resolved(backend_api, remote, a
     deliver(backend_api, remote, artifacts, git_apis)
 
     assert patches(backend_api)[-1]["state"] == "DELIVERED"
-    backend_api.get_project_trigger_repositories.assert_called_once_with()
+    backend_api.get_project_trigger_repositories.assert_called_once_with(1)
+    backend_api.get_pull_requests.assert_called_once_with(1, 2, task_id=7)
 
 
 @pytest.mark.parametrize("step", ["OPENED", "MERGED", "CLOSED"])
@@ -382,3 +384,33 @@ def test_the_sensor_defaults_to_stopped_and_targets_the_delivery_job():
     assert task_results_delivery_sensor.default_status == dg.DefaultSensorStatus.STOPPED
     assert task_results_delivery_sensor in SENSORS
     assert deliver_results_job in JOBS
+
+
+def test_a_refused_result_is_skipped_not_failed(backend_api, remote, artifacts):
+    response = MagicMock(status_code=409, text="Task 7 is RUNNING, only a SUCCESS task has results")
+    backend_api.create_result.side_effect = requests.HTTPError(response=response)
+
+    deliver(backend_api, remote, artifacts)
+
+    backend_api.patch_result.assert_not_called()
+
+
+def test_any_other_result_error_raises(backend_api, remote, artifacts):
+    backend_api.create_result.side_effect = requests.HTTPError(response=MagicMock(status_code=500))
+
+    with pytest.raises(requests.HTTPError):
+        deliver(backend_api, remote, artifacts)
+
+
+def test_a_disabled_secret_fails_the_delivery_before_its_token_is_read(backend_api, remote, artifacts):
+    disabled = SAMPLE_SECRET | {"enabled": False}
+    global_repository = GLOBAL_REPOSITORY.model_copy(update={"secret": Secret(**disabled)})
+    backend_api.get_results_repository.return_value = REPOSITORY.model_copy(
+        update={"results_repository": global_repository}
+    )
+
+    with pytest.raises(PermissionError):
+        deliver(backend_api, remote, artifacts)
+
+    (fields,) = patches(backend_api)
+    assert fields["state"] == "FAILED" and fields["error"].startswith("PermissionError")

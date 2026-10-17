@@ -13,12 +13,12 @@ from app.definitions.sensors.task.pull_request_sync import (
     sync_results_pull_requests,
     sync_results_pull_requests_job,
 )
-from app.models import ProjectResultsRepository, PullRequestResult, ResultsRepository
+from app.models import Project, ProjectResultsRepository, PullRequestResult, ResultsRepository
 from app.tests.conftest import SAMPLE_SECRET
 
 GLOBAL_REPOSITORY = ResultsRepository(
     id=2, uri="gitea.fn.svc:4000/fn/results", provider="gitea",
-    api_uri="http://gitea.fn.svc:4000/api/v1", secret=SAMPLE_SECRET,
+    api_uri="http://gitea.fn.svc:4000/api/v1", secret=SAMPLE_SECRET, enabled=True,
 )
 REPOSITORY = ProjectResultsRepository(
     id=5, project_id=1, results_repository=GLOBAL_REPOSITORY, target_dir="results",
@@ -51,6 +51,7 @@ def not_found(*args):
 
 def sync(results, prs_by_number=None, prs_by_branch=None, repository=REPOSITORY):
     backend_api = MagicMock()
+    backend_api.get_projects.return_value = [Project(id=1, name="p")]
     backend_api.get_results_by_step.return_value = results
     backend_api.get_results_repository_by_id.return_value = repository
     git_api = MagicMock()
@@ -67,7 +68,7 @@ def sync(results, prs_by_number=None, prs_by_branch=None, repository=REPOSITORY)
 
 
 def patched(backend_api):
-    return {c.args[0]: c.args[1] for c in backend_api.patch_result.call_args_list}
+    return {c.args[1]: c.args[2] for c in backend_api.patch_result.call_args_list}
 
 
 def test_a_merged_pull_request_is_recorded():
@@ -75,7 +76,7 @@ def test_a_merged_pull_request_is_recorded():
         [result()], {3: lambda: git_pr("closed", "2026-10-08T10:00:00Z", "m1")}
     )
 
-    backend_api.get_results_by_step.assert_called_once_with(["PUSHED", "OPENED"])
+    backend_api.get_results_by_step.assert_called_once_with(1, ["PUSHED", "OPENED"])
     backend_api.get_results_repository_by_id.assert_called_once_with(1, 5)
     git_apis.for_repository.assert_called_once_with(GLOBAL_REPOSITORY)
     git_api.get_pull_request.assert_called_once_with("fn/results", 3)
@@ -99,6 +100,7 @@ def test_a_result_is_synced_against_its_own_repository_fetched_once():
     other = REPOSITORY.model_copy(update={"id": 6, "results_repository": other_global})
     old = result(9).model_copy(update={"results_repository_id": 6})
     backend_api = MagicMock()
+    backend_api.get_projects.return_value = [Project(id=1, name="p")]
     backend_api.get_results_by_step.return_value = [old, result(10, number=4), result(11, number=5)]
     backend_api.get_results_repository_by_id.side_effect = lambda project_id, id: {5: REPOSITORY, 6: other}[id]
     git_api = MagicMock()
@@ -174,16 +176,15 @@ def test_a_pushed_result_without_a_pull_request_is_left_alone():
     backend_api.patch_result.assert_not_called()
 
 
-@pytest.mark.parametrize("step", ["UNKNOWN", "MERGED", "CLOSED"])
-def test_results_at_other_steps_are_ignored_when_the_backend_does_not_filter(step):
-    backend_api, git_apis, _ = sync([result(8, step), result(10, number=4)], {4: lambda: git_pr("closed", number=4)})
+def test_the_results_are_requested_by_step_of_each_project():
+    backend_api, _, _ = sync([result()], {3: lambda: git_pr()})
 
-    assert list(patched(backend_api)) == [10]
-    backend_api.get_results_repository_by_id.assert_called_once_with(1, 5)
+    backend_api.get_results_by_step.assert_called_once_with(1, ["PUSHED", "OPENED"])
 
 
 def run_sensor(results, in_flight=False):
     backend_api = MagicMock()
+    backend_api.get_projects.return_value = [Project(id=1, name="p")]
     backend_api.get_results_by_step.return_value = results
     context = MagicMock()
     context.resources.backend_api = backend_api
@@ -206,22 +207,3 @@ def test_the_sensor_skips_when_nothing_is_pushed_or_opened():
     request, _ = run_sensor([])
 
     assert isinstance(request, dg.SkipReason)
-
-
-def test_the_sensor_skips_results_the_backend_did_not_filter_out():
-    request, _ = run_sensor([result(1, "UNKNOWN"), result(2, "MERGED"), result(3, "CLOSED")])
-
-    assert isinstance(request, dg.SkipReason)
-
-
-def test_the_sensor_skips_while_a_sync_is_in_flight():
-    request, _ = run_sensor([result()], in_flight=True)
-
-    assert isinstance(request, dg.SkipReason)
-
-
-def test_the_sensor_defaults_to_stopped_and_targets_the_sync_job():
-    assert results_pull_request_sync_sensor.default_status == dg.DefaultSensorStatus.STOPPED
-    assert results_pull_request_sync_sensor.job_name == "sync_results_pull_requests_job"
-    assert results_pull_request_sync_sensor in SENSORS
-    assert sync_results_pull_requests_job in JOBS

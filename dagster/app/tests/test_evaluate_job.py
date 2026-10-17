@@ -74,6 +74,15 @@ def test_a_400_from_the_task_endpoint_is_left_as_the_backend_rejected_it():
     backend_api.patch_pull_request.assert_not_called()
 
 
+def test_a_409_from_the_task_endpoint_skips_the_pr():
+    backend_api = MagicMock()
+    backend_api.create_task_for_pull_request.side_effect = http_error(409, "The link is not active")
+
+    run_evaluate(backend_api=backend_api)
+
+    backend_api.patch_pull_request.assert_not_called()
+
+
 def test_a_backend_failure_raises_and_leaves_the_pr_untouched():
     backend_api = MagicMock()
     backend_api.create_task_for_pull_request.side_effect = http_error(503)
@@ -108,7 +117,7 @@ def test_the_load_op_emits_the_unknown_prs_oldest_first():
 
     outputs = list(load_unknown_pull_requests(context))
 
-    backend_api.get_pull_requests.assert_called_once_with(4, 1, "UNKNOWN")
+    backend_api.get_pull_requests.assert_called_once_with(4, 1, state="UNKNOWN")
     assert [o.mapping_key for o in outputs] == ["5", "7"]
 
 

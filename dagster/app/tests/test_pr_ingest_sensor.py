@@ -4,16 +4,12 @@ import dagster as dg
 import pytest
 
 from app.definitions.sensors.git.pr_ingest import PullRequestIngestSensor
-from app.models import ProjectTriggerRepository
-from app.tests.conftest import SAMPLE_REPOSITORY_OBJ
+from app.models import TriggerRepository
+from app.tests.conftest import SAMPLE_TRIGGER_REPOSITORY
 
 
-def repo(id=1, uri="github.com/org/repo", pr_cursor="2026-01-01T00:00:00Z", base_branch="main", project_id=1):
-    return ProjectTriggerRepository(
-        **{**SAMPLE_REPOSITORY_OBJ, "id": id, "pr_cursor": pr_cursor, "base_branch": base_branch,
-         "project_id": project_id,
-         "trigger_repository": {**SAMPLE_REPOSITORY_OBJ["trigger_repository"], "id": id, "uri": uri}}
-    )
+def repo(id=1, uri="github.com/org/repo", pr_cursor="2026-01-01T00:00:00Z"):
+    return TriggerRepository(**{**SAMPLE_TRIGGER_REPOSITORY, "id": id, "uri": uri, "pr_cursor": pr_cursor})
 
 
 def git_pr(number):
@@ -33,7 +29,7 @@ def fake_git_api(merged_numbers):
 
 def run(repos, git_apis_by_repo_id):
     backend_api = MagicMock()
-    backend_api.get_project_trigger_repositories.return_value = repos
+    backend_api.get_active_trigger_repositories.return_value = repos
     git_apis = MagicMock()
     git_apis.for_repository.side_effect = lambda r: git_apis_by_repo_id[r.id]
     sensor = PullRequestIngestSensor(context=MagicMock(), backend_api=backend_api, git_apis=git_apis)
@@ -48,23 +44,10 @@ def test_skips_when_there_are_no_repositories():
     backend_api.create_pull_requests_batch.assert_not_called()
 
 
-def test_two_assignments_of_one_repository_are_polled_once():
-    git_api = fake_git_api([5])
-    first, second = repo(1, project_id=1), repo(2, project_id=2)
-    second.trigger_repository = first.trigger_repository
-
-    results, backend_api = run([first, second], {1: git_api})
-
-    git_api.get_new_merged_pulls.assert_called_once()
-    backend_api.create_pull_requests_batch.assert_called_once()
-    assert backend_api.create_pull_requests_batch.call_args.args[0] == 1
-    assert "Saved 1 new pull requests" in results[0].skip_message
-
-
 def test_only_polls_active_repositories_of_enabled_projects():
     _, backend_api = run([repo(1)], {1: fake_git_api([])})
 
-    backend_api.get_project_trigger_repositories.assert_called_once_with(active_only=True, project_enabled=True)
+    backend_api.get_active_trigger_repositories.assert_called_once_with()
     backend_api.get_projects.assert_not_called()
 
 
@@ -96,24 +79,12 @@ def test_the_batch_carries_the_facts_and_the_changed_paths():
 
 def test_queries_the_provider_from_the_global_cursor_without_a_base_branch():
     git_api = fake_git_api([5])
-    assignment = repo(1, uri="https://gitea.fn.svc:3000/org/repo", pr_cursor="2026-01-01T00:00:00Z", base_branch="dev")
-    assignment.trigger_repository.pr_cursor = "2026-03-03T03:03:03Z"
+    repository = repo(1, uri="https://gitea.fn.svc:3000/org/repo", pr_cursor="2026-03-03T03:03:03Z")
 
-    run([assignment], {1: git_api})
+    run([repository], {1: git_api})
 
     git_api.get_new_merged_pulls.assert_called_once_with(repo_path="org/repo", merged_after="2026-03-03T03:03:03Z")
     git_api.get_pull_request.assert_called_once_with("org/repo", 5)
-
-
-def test_a_repository_without_stored_prs_starts_at_the_earliest_assignment_cursor():
-    git_api = fake_git_api([])
-    first = repo(1, project_id=1, pr_cursor="2026-02-02T00:00:00Z")
-    second = repo(2, project_id=2, pr_cursor="2026-01-01T00:00:00Z")
-    second.trigger_repository = first.trigger_repository
-
-    run([first, second], {1: git_api})
-
-    git_api.get_new_merged_pulls.assert_called_once_with(repo_path="org/repo", merged_after="2026-01-01T00:00:00Z")
 
 
 def test_a_repository_without_new_prs_posts_nothing():
@@ -132,19 +103,48 @@ def test_skips_when_no_repository_has_new_prs():
     backend_api.create_pull_requests_batch.assert_not_called()
 
 
-def test_a_failing_repository_aborts_the_tick_after_the_earlier_ones_were_saved():
-    """The sensor fails fast: the error surfaces, and what was already posted stays posted."""
+def test_batches_are_at_most_100_pull_requests_oldest_first():
+    numbers = list(range(1, 251))
+    git_api = fake_git_api(reversed(numbers))
+    git_api.get_pull_request.side_effect = lambda repo_path, number: {
+        **git_pr(number), "merged_at": f"2026-06-26T10:{number // 60:02d}:{number % 60:02d}Z"
+    }
+
+    results, backend_api = run([repo(1)], {1: git_api})
+
+    batches = [[p["number"] for p in c.args[1]] for c in backend_api.create_pull_requests_batch.call_args_list]
+    assert [len(b) for b in batches] == [100, 100, 50]
+    assert [n for b in batches for n in b] == numbers
+    assert "Saved 250 new pull requests" in results[0].skip_message
+
+
+def test_a_failing_repository_does_not_stop_the_others_and_fails_the_tick_at_the_end():
     broken = MagicMock()
     broken.get_new_merged_pulls.side_effect = RuntimeError("provider down")
     apis = {1: fake_git_api([5]), 2: broken, 3: fake_git_api([7])}
 
     backend_api = MagicMock()
-    backend_api.get_project_trigger_repositories.return_value = [repo(1), repo(2), repo(3)]
+    backend_api.get_active_trigger_repositories.return_value = [repo(1), repo(2, uri="github.com/org/bad"), repo(3)]
     git_apis = MagicMock()
     git_apis.for_repository.side_effect = lambda r: apis[r.id]
     sensor = PullRequestIngestSensor(context=MagicMock(), backend_api=backend_api, git_apis=git_apis)
 
-    with pytest.raises(RuntimeError, match="provider down"):
+    with pytest.raises(RuntimeError, match="github.com/org/bad"):
         list(sensor())
 
-    assert [c.args[0] for c in backend_api.create_pull_requests_batch.call_args_list] == [1]
+    assert [c.args[0] for c in backend_api.create_pull_requests_batch.call_args_list] == [1, 3]
+
+
+def test_a_batch_the_backend_refuses_fails_only_its_repository():
+    apis = {1: fake_git_api([5]), 2: fake_git_api([7])}
+    backend_api = MagicMock()
+    backend_api.get_active_trigger_repositories.return_value = [repo(1), repo(2, uri="github.com/org/other")]
+    backend_api.create_pull_requests_batch.side_effect = [RuntimeError("400"), {}]
+    git_apis = MagicMock()
+    git_apis.for_repository.side_effect = lambda r: apis[r.id]
+    sensor = PullRequestIngestSensor(context=MagicMock(), backend_api=backend_api, git_apis=git_apis)
+
+    with pytest.raises(RuntimeError, match="github.com/org/repo"):
+        list(sensor())
+
+    assert backend_api.create_pull_requests_batch.call_count == 2

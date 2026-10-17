@@ -3,6 +3,9 @@ import dagster as dg
 from app.definitions.sensors.git.base import GitAPI, GitSensor
 from app.models import NewPullRequest, TriggerRepository
 
+# The most pull requests the backend takes in one ingest
+MAX_BATCH_SIZE = 100
+
 
 class PullRequestIngestSensor(GitSensor):
     """
@@ -20,7 +23,16 @@ class PullRequestIngestSensor(GitSensor):
             yield dg.SkipReason("No repositories of enabled projects found in database.")
             return
 
-        saved = sum(self._ingest(repo) for repo in repos)
+        saved = 0
+        failed = []
+        for repo in repos:
+            try:
+                saved += self._ingest(repo)
+            except Exception:  # pylint: disable=broad-exception-caught  # one repository must not stop the others
+                self.log.exception(f"Ingesting pull requests of {repo.uri} failed")
+                failed.append(repo.uri)
+        if failed:
+            raise RuntimeError(f"Ingest failed for {', '.join(failed)}; saved {saved} new pull requests of the others")
         if not saved:
             yield dg.SkipReason("No new pull requests found for repositories.")
             return
@@ -30,26 +42,22 @@ class PullRequestIngestSensor(GitSensor):
     def _ingest(self, repo: TriggerRepository) -> int:
         """
         Posts the PRs merged on the repository since its cursor, the latest stored merge or, with
-        none stored, the earliest cursor of its links. Returns how many were posted.
+        none stored, the earliest cursor of its links, in batches of at most MAX_BATCH_SIZE, oldest
+        first: the cursor only moves once a batch is stored, so a batch never leaves an older
+        unposted PR behind it. Returns how many were posted.
         """
-        cursor = repo.pr_cursor
-        # Claude (issue 1): repo.pr_cursor is max(merged_at) of the STORED PRs, so it only
-        # moves once a batch is accepted. A refused batch = same cursor = same failure every tick.
-        # A new repository starts at the earliest project cursor and polls all branches,
-        # so this fetch can easily return more than 100 PRs.
         git_api = self.git_apis.for_repository(repo)
-        self.log.info(f"Fetching PRs for {repo.repo_path} since {cursor}")
-        merged = git_api.get_new_merged_pulls(repo_path=repo.repo_path, merged_after=cursor)
+        self.log.info(f"Fetching PRs for {repo.repo_path} since {repo.pr_cursor}")
+        merged = git_api.get_new_merged_pulls(repo_path=repo.repo_path, merged_after=repo.pr_cursor)
         self.log.info(f"Git provider returned {len(merged)} PRs for {repo.repo_path}")
-        if not merged:
-            return 0
 
-        pull_requests = [self._fetch_pr(git_api, repo, pr["number"]) for pr in merged]
-        self.log.info(f"Saving batch of {len(pull_requests)} PRs for repo {repo.id}")
-        # Claude (issue 1): everything goes in ONE post, but the batch is capped at 100 and is
-        # refused whole if one PR is invalid. Fix: sort by (merged_at, number) and post in chunks
-        # of 100, so the cursor advances chunk by chunk and never skips an unposted PR.
-        self.backend_api.create_pull_requests_batch(repo.id, [pr.model_dump() for pr in pull_requests])
+        pull_requests = sorted(
+            (self._fetch_pr(git_api, repo, pr["number"]) for pr in merged), key=lambda pr: (pr.merged_at, pr.number)
+        )
+        for start in range(0, len(pull_requests), MAX_BATCH_SIZE):
+            batch = pull_requests[start:start + MAX_BATCH_SIZE]
+            self.log.info(f"Saving batch of {len(batch)} PRs for repo {repo.id}")
+            self.backend_api.create_pull_requests_batch(repo.id, [pr.model_dump() for pr in batch])
         return len(pull_requests)
 
     def _fetch_pr(self, git_api: GitAPI, repo: TriggerRepository, pr_number: int) -> NewPullRequest:

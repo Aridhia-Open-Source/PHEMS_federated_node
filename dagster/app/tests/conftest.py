@@ -17,6 +17,7 @@ SAMPLE_SECRET = {
     "description": None,
     "provider": "K8S",
     "key": "git-token-abc",
+    "enabled": True,
     "namespace": "fn",
     "created_at": "2026-01-01T00:00:00Z",
     "updated_at": "2026-01-01T00:00:00Z",
@@ -34,6 +35,7 @@ SAMPLE_DATASET = {
     "extra_connection_args": None,
     "created_at": "2026-01-01T00:00:00Z",
     "updated_at": "2026-01-01T00:00:00Z",
+    "enabled": True,
     "slug": "cdm",
     "url": "https://db.host/cdm",
 }
@@ -44,6 +46,7 @@ SAMPLE_TRIGGER_REPOSITORY = {
     "provider": "github",
     "api_uri": "https://api.github.com",
     "secret": SAMPLE_SECRET,
+    "enabled": True,
 }
 
 SAMPLE_REPO = {

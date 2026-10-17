@@ -15,7 +15,7 @@ def repo(provider, api_uri):
 
 @pytest.fixture
 def secret_get():
-    with patch("app.definitions.sensors.git.base.SecretProvider.get", return_value="tok") as get:
+    with patch("app.secrets.SecretProvider.get", return_value="tok") as get:
         yield get
 
 
@@ -44,3 +44,14 @@ def test_the_token_is_read_from_the_repository_secret(secret_get):
 def test_an_unknown_provider_is_rejected(secret_get):
     with pytest.raises(ValueError, match="Unsupported git provider 'gitlab'"):
         GitAPIFactory().for_repository(repo("gitlab", "https://gitlab.com/api/v4"))
+
+
+def test_a_disabled_secret_is_never_read(secret_get):
+    disabled = TriggerRepository(
+        **{**SAMPLE_TRIGGER_REPOSITORY, "secret": {**SAMPLE_TRIGGER_REPOSITORY["secret"], "enabled": False}}
+    )
+
+    with pytest.raises(PermissionError, match="disabled"):
+        GitAPIFactory().for_repository(disabled)
+
+    secret_get.assert_not_called()

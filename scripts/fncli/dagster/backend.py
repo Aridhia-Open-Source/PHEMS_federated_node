@@ -142,12 +142,12 @@ class BackendAPI:
         response = self.session.post("/global/datasets", json=data)
         return Dataset(**response.json())
 
-    def _get_all_pages(self, path: str) -> list[dict]:
-        """Every item of a paginated list endpoint"""
+    def _get_all_pages(self, path: str, **filters: str) -> list[dict]:
+        """Every item of a paginated list endpoint, filtered by the webserver's query options"""
         items = []
         page = 1
         while True:
-            data = self.session.get(path, params={"page": page, "per_page": 100}).json()
+            data = self.session.get(path, params={**filters, "page": page, "per_page": 100}).json()
             items.extend(data["items"])
             if page >= data["pages"]:
                 return items
@@ -224,7 +224,8 @@ class BackendAPI:
 
     def find_project(self, name: str) -> Project | None:
         """The project of that name, if any"""
-        return next((p for p in self.get_projects() if p.name == name), None)
+        projects = self._get_all_pages("/projects", name=name)
+        return Project(**projects[0]) if projects else None
 
     def get_or_create_project(
         self, name: str, description: str | None = None, enabled: bool = False

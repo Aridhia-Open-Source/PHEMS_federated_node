@@ -6,8 +6,8 @@ from app.definitions.sensors.task.launcher import TaskLauncherSensor
 from app.models import Dataset, Project, ProjectDataset, Task
 
 DATASET = Dataset(
-    id=7, secret={"id": 3, "project_id": 1, "label": "cdm-creds", "provider": "K8S", "key": "cdm-creds-abc"}, name="cdm", host="db.host", port=5432,
-    read_schema="cdm", type="postgres", slug="cdm", url="https://db.host/cdm",
+    id=7, secret={"id": 3, "project_id": 1, "label": "cdm-creds", "provider": "K8S", "key": "cdm-creds-abc", "enabled": True}, name="cdm", host="db.host", port=5432,
+    read_schema="cdm", type="postgres", enabled=True, slug="cdm", url="https://db.host/cdm",
 )
 
 
@@ -30,7 +30,8 @@ def task(id=9, project_id=1, attempt=1, dataset_id=7):
 
 def make_backend(projects, tasks_by_project):
     backend_api = MagicMock()
-    backend_api.get_projects.return_value = projects
+    # The backend filters the projects
+    backend_api.get_projects.side_effect = lambda enabled: [p for p in projects if p.enabled == enabled]
     backend_api.get_tasks.side_effect = lambda status, project_id: tasks_by_project[project_id]
     backend_api.get_project_dataset.return_value = assignment()
     return backend_api
@@ -88,6 +89,19 @@ def test_a_task_whose_dataset_is_not_active_is_not_launched():
     )
 
 
+def test_a_task_whose_dataset_secret_is_disabled_is_failed_with_the_cause():
+    backend_api = make_backend([project()], {1: [task()]})
+    secret = DATASET.secret.model_copy(update={"enabled": False})
+    backend_api.get_project_dataset.return_value = assignment(dataset=DATASET.model_copy(update={"secret": secret}))
+
+    result = run(backend_api)
+
+    assert len(result) == 1 and isinstance(result[0], SkipReason)
+    backend_api.patch_task.assert_called_once_with(
+        9, {"status": "FAILED", "state_cause": "The secret of dataset cdm is disabled"}
+    )
+
+
 def test_other_tasks_are_launched_when_one_dataset_is_not_active():
     backend_api = make_backend([project()], {1: [task(id=9, dataset_id=7), task(id=10, dataset_id=None)]})
     backend_api.get_project_dataset.return_value = assignment(active=False)
@@ -113,6 +127,7 @@ def test_only_enabled_projects_are_acted_on():
     result = run(backend_api)
 
     assert [r.run_key for r in result] == ["task/4/1"]
+    backend_api.get_projects.assert_called_once_with(enabled=True)
     backend_api.get_tasks.assert_called_once_with(status="PENDING", project_id=2)
 
 

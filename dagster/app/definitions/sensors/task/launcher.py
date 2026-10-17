@@ -21,9 +21,8 @@ class TaskLauncherSensor(BaseSensor):
         has the run, and the run key (task id and attempt) de-duplicates the re-yield until
         then. A retry bumps the attempt, so it gets a new run key.
         """
-        projects = [p for p in self.backend_api.get_projects() if p.enabled]
         launched = 0
-        for project in projects:
+        for project in self.backend_api.get_projects(enabled=True):
             for task in self.backend_api.get_tasks(status=TaskStatus.PENDING.value, project_id=project.id):
                 run_request = self._launch(project, task)
                 if run_request is None:
@@ -36,15 +35,19 @@ class TaskLauncherSensor(BaseSensor):
 
     def _launch(self, project: Project, task: Task) -> dg.RunRequest | None:
         """
-        The run for the task, or None when its dataset is not active in the project: the task
-        is failed with the cause recorded, and a manual retry launches it once the dataset is
+        The run for the task, or None when its dataset is not active in the project or its secret is
+        disabled: the task is failed with the cause recorded, and a manual retry launches it once the dataset is
         active again.
         """
         dataset = None
         if task.spec.dataset_id:
             assignment = self.backend_api.get_project_dataset(project.id, task.spec.dataset_id)
+            cause = None
             if not assignment.active:
                 cause = f"Dataset {assignment.dataset.name} is not active in project {project.name}"
+            elif not assignment.dataset.secret.enabled:
+                cause = f"The secret of dataset {assignment.dataset.name} is disabled"
+            if cause:
                 self.log.warning(f"Task {task.id} not launched: {cause}")
                 self.backend_api.patch_task(
                     task.id, {"status": TaskStatus.FAILED.value, "state_cause": cause}

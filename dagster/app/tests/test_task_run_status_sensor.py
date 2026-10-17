@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import dagster as dg
 import pytest
+import requests
 
 from app.definitions.sensors.task import (
     SENSORS,
@@ -105,3 +106,18 @@ def test_run_status_sensors_are_registered_and_stopped_by_default():
 
     assert all(s in SENSORS for s in sensors)
     assert all(s.default_status == dg.DefaultSensorStatus.STOPPED for s in sensors)
+
+
+def test_a_409_from_a_finished_task_is_skipped():
+    backend_api = MagicMock()
+    backend_api.patch_task.side_effect = requests.HTTPError(response=MagicMock(status_code=409, text="finished"))
+
+    sensor_for(dg.DagsterRunStatus.STARTED, backend_api=backend_api)()
+
+
+def test_any_other_backend_error_raises():
+    backend_api = MagicMock()
+    backend_api.patch_task.side_effect = requests.HTTPError(response=MagicMock(status_code=500))
+
+    with pytest.raises(requests.HTTPError):
+        sensor_for(dg.DagsterRunStatus.STARTED, backend_api=backend_api)()

@@ -30,13 +30,14 @@ class BackendAPI:
             self.session.adapter.access_token = token
         return data
 
-    def get_projects(self) -> list[Project]:
-        """Get all projects, automatically handling pagination"""
+    def get_projects(self, **filters: bool) -> list[Project]:
+        """Get all projects, automatically handling pagination. Filters are the webserver's, e.g. enabled=True, locked=False."""
         self.logger.info("Fetching projects")
+        query = {name: str(value).lower() for name, value in filters.items()}
         projects = []
         page = 1
         while True:
-            response = self.session.get("/projects", params={"page": page, "per_page": 100})
+            response = self.session.get("/projects", params={**query, "page": page, "per_page": 100})
             data = response.json()
             projects.extend(Project(**project) for project in data["items"])
             if page >= data["pages"]:
@@ -71,15 +72,18 @@ class BackendAPI:
         response = self.session.patch(f"/projects/{project_id}/repositories/triggers/{repository_id}", json=data)
         return ProjectTriggerRepository(**response.json())
 
-    def get_pull_requests(self, project_id: int, repository_id: int, state: str) -> list[PullRequestTrigger]:
-        """Get all pull requests of a project's trigger repository link in a state, automatically handling pagination"""
-        self.logger.info(f"Fetching all {state} pull requests for repo {repository_id}")
+    def get_pull_requests(self, project_id: int, repository_id: int, **filters: str | int) -> list[PullRequestTrigger]:
+        """
+        Get all pull requests of a project's trigger repository link, automatically handling pagination.
+        Filters are the webserver's: state=, or task_id= for the pull request that yielded a task.
+        """
+        self.logger.info(f"Fetching pull requests for repo {repository_id} matching {filters}")
         all_prs = []
         page = 1
         per_page = 100
 
         while True:
-            params = {"state": state, "page": page, "per_page": per_page}
+            params = {**filters, "page": page, "per_page": per_page}
             response = self.session.get(
                 f"/projects/{project_id}/repositories/triggers/{repository_id}/pull_requests",
                 params=params,
@@ -107,8 +111,6 @@ class BackendAPI:
         Ingest up to 100 pull requests on a global trigger repository, once for all projects: the numbers
         stored and those already there.
         """
-        # Claude (issue 1): PullRequestIngestSensor passes everything since the cursor, so this
-        # raises for a repository with more than 100 new PRs, on every tick.
         if len(pull_requests) > 100:
             raise ValueError("Maximum 100 pull requests per batch")
 
@@ -178,6 +180,9 @@ class BackendAPI:
         """Get the project's link to a results repository, active or not. A project has exactly one."""
         self.logger.info(f"Fetching the results repository of project {project_id}")
         response = self.session.get(f"/projects/{project_id}/repositories/results")
+        # No results link means something has gone very wrong: this raises and the delivery run fails.
+        # Not handled for the MVP; the fix is to refuse unlinking the results repository while tasks
+        # are in flight.
         (assignment,) = response.json()
         return ProjectResultsRepository(**assignment)
 
