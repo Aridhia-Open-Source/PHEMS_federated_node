@@ -11,6 +11,7 @@ from app.helpers.const import (
     MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, ENABLE_IMAGE_WHITELIST
 )
 from app.helpers.base_model import BaseModel, db
+from app.helpers.git_uri import normalise_repo_uri
 from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import InvalidRequest, NotImplementedException, TaskImageException
 from app.models import Models, sqla_column
@@ -105,9 +106,12 @@ class Task(db.Model, BaseModel):
         # allow-list are both scoped to it, so neither resolves without one.
         repo = None
         if repository:
-            assignments = Models.ProjectTriggerRepository.query.join(Models.TriggerRepository).filter(
-                Models.TriggerRepository.uri == RepositoryUriRequest.normalised(repository)
-            ).all()
+            uri = RepositoryUriRequest.normalised(repository)
+            assignments = [
+                a for a in Models.ProjectTriggerRepository.query.join(Models.TriggerRepository).filter(
+                    Models.TriggerRepository.repo_path == "/".join(uri.split("/")[-2:])
+                ) if normalise_repo_uri(a.trigger_repository.uri) == uri
+            ]
             if not assignments:
                 raise InvalidRequest(f"No datasets linked with the repository {repository}")
             if len(assignments) > 1:

@@ -73,6 +73,11 @@ class ModelRegistry:
         return WhitelistedImage
 
     @cached_property
+    def GitProvider(self):
+        from app.models.git_provider import GitProvider
+        return GitProvider
+
+    @cached_property
     def TriggerRepository(self):
         from app.models.trigger_repository import TriggerRepository
         return TriggerRepository
@@ -163,6 +168,7 @@ _ = (
     Models.Registry,
     Models.Task,
     Models.WhitelistedImage,
+    Models.GitProvider,
     Models.TriggerRepository,
     Models.ProjectTriggerRepository,
     Models.ResultsRepository,

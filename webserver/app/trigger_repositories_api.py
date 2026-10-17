@@ -18,7 +18,7 @@ import sqlalchemy as sa
 from flask import Blueprint, request
 
 from app.dtos.base import page_of
-from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest, RepositoryUriRequest
+from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
 from app.dtos.trigger_repository import PullRequestDTO, PullRequestRequest, TriggerRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
@@ -48,16 +48,20 @@ def auth_before():
 def get_repositories():
     """
     GET /global/repositories/triggers/ — list the repositories. With ?active_link=true only those with an
-    active link (enabled and not revoked) of an enabled project, and only enabled repositories, which is
-    what Dagster polls.
+    active link (enabled and not revoked) of an enabled project, and only enabled repositories on an
+    enabled provider, which is what Dagster polls.
     """
     query = TriggerRepository.query
     if request.args.get('active_link', '').lower() == 'true':
-        query = query.filter(TriggerRepository.enabled.is_(True), TriggerRepository.project_assignments.any(sa.and_(
-            ProjectTriggerRepository.enabled.is_(True),
-            ProjectTriggerRepository.revoked.is_(False),
-            ProjectTriggerRepository.project.has(Project.enabled.is_(True)),
-        )))
+        query = query.filter(
+            TriggerRepository.enabled.is_(True),
+            TriggerRepository.provider.has(GitProvider.enabled.is_(True)),
+            TriggerRepository.project_assignments.any(sa.and_(
+                ProjectTriggerRepository.enabled.is_(True),
+                ProjectTriggerRepository.revoked.is_(False),
+                ProjectTriggerRepository.project.has(Project.enabled.is_(True)),
+            )),
+        )
     return [TriggerRepositoryDTO.from_model(r).dump() for r in query.order_by(TriggerRepository.id)], HTTPStatus.OK
 
 
@@ -98,7 +102,7 @@ def post_pull_requests_batch(repo_id):
     Body: {"pull_requests": [pull requests, see PullRequestRequest]}
     """
     repo = TriggerRepository.get_by_id(repo_id)
-    if not repo.enabled:
+    if not repo.active:
         raise InvalidRequest(f"Trigger repository {repo.uri} is disabled")
     body = (request.json or {}).get('pull_requests')
     if not isinstance(body, list):
@@ -151,21 +155,22 @@ def post_repository():
         )
     req = RepositoryRequest.parse(body)
 
-    uri = RepositoryUriRequest.normalised(req.uri)
+    provider = GitProvider.get_by_request_id(req.provider_id)
     secret = Secret.get_enabled_by_label(req.secret_label)
 
     try:
         repo = TriggerRepository(
-            uri=uri,
-            provider=req.provider,
-            api_uri=req.api_uri or GitProvider(req.provider).default_api_uri(uri),
+            provider_id=provider.id,
+            repo_path=req.repo_path,
             secret_id=secret.id,
             enabled=req.enabled,
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
-    if TriggerRepository.query.filter_by(uri=repo.uri).first():
-        raise InvalidRequest(f"Trigger repository {repo.uri} already exists", code=HTTPStatus.CONFLICT)
+    if TriggerRepository.query.filter_by(provider_id=provider.id, repo_path=repo.repo_path).first():
+        raise InvalidRequest(
+            f"Trigger repository {provider.uri}/{repo.repo_path} already exists", code=HTTPStatus.CONFLICT
+        )
     repo.add()
 
     return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.CREATED
@@ -184,12 +189,12 @@ def patch_repository(repo_id):
     body = request.json or {}
     if not body:
         raise InvalidRequest("No fields provided to update")
-    unknown = set(body) - {'provider', 'api_uri', 'secret_label', 'enabled'}
+    unknown = set(body) - {'provider_id', 'secret_label', 'enabled'}
     if unknown:
         raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
     req = RepositoryPatchRequest.parse(body)
 
-    # Rotating the credentials only is exempt from the lock, the uri is not changed
+    # Rotating the credentials only is exempt from the lock, the provider is not changed
     if set(body) != {'secret_label'}:
         require_all_drained([a.project for a in repo.project_assignments])
 
@@ -199,12 +204,15 @@ def patch_repository(repo_id):
     if 'enabled' in body:
         repo.enabled = req.enabled
 
-    for field in ('provider', 'api_uri'):
-        if field in body:
-            try:
-                setattr(repo, field, getattr(req, field))
-            except ValueError as e:
-                raise InvalidRequest(str(e))
+    if 'provider_id' in body:
+        provider = GitProvider.get_by_request_id(req.provider_id)
+        if TriggerRepository.query.filter(
+            TriggerRepository.provider_id == provider.id, TriggerRepository.repo_path == repo.repo_path, TriggerRepository.id != repo.id
+        ).first():
+            raise InvalidRequest(
+                f"Trigger repository {provider.uri}/{repo.repo_path} already exists", code=HTTPStatus.CONFLICT
+            )
+        repo.provider_id = provider.id
 
     session.commit()
     return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK

@@ -26,6 +26,7 @@ from sqlalchemy.orm import selectinload
 
 from app.dtos.trigger_repository import PullRequestRequest
 from app.helpers.base_model import db
+from app.models.git_provider import GitProvider
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request import PullRequest, PullRequestFile
 from app.models.pull_request_trigger import PullRequestTrigger
@@ -114,7 +115,9 @@ def active_assignments(trigger_repository_id: int) -> list[ProjectTriggerReposit
         ProjectTriggerRepository.trigger_repository_id == trigger_repository_id,
         ProjectTriggerRepository.enabled.is_(True),
         ProjectTriggerRepository.revoked.is_(False),
-        ProjectTriggerRepository.trigger_repository.has(TriggerRepository.enabled.is_(True)),
+        ProjectTriggerRepository.trigger_repository.has(sa.and_(
+            TriggerRepository.enabled.is_(True), TriggerRepository.provider.has(GitProvider.enabled.is_(True))
+        )),
     ).order_by(ProjectTriggerRepository.id).all()
 
 

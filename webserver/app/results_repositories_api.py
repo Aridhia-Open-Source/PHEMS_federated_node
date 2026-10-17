@@ -14,7 +14,7 @@ from http import HTTPStatus
 
 from flask import Blueprint, request
 
-from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest, RepositoryUriRequest
+from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
 from app.dtos.results_repository import ResultsRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
@@ -87,21 +87,22 @@ def post_repository():
         )
     req = RepositoryRequest.parse(body)
 
-    uri = RepositoryUriRequest.normalised(req.uri)
+    provider = GitProvider.get_by_request_id(req.provider_id)
     secret = Secret.get_enabled_by_label(req.secret_label)
 
     try:
         repo = ResultsRepository(
-            uri=uri,
-            provider=req.provider,
-            api_uri=req.api_uri or GitProvider(req.provider).default_api_uri(uri),
+            provider_id=provider.id,
+            repo_path=req.repo_path,
             secret_id=secret.id,
             enabled=req.enabled,
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
-    if ResultsRepository.query.filter_by(uri=repo.uri).first():
-        raise InvalidRequest(f"Results repository {repo.uri} already exists", code=HTTPStatus.CONFLICT)
+    if ResultsRepository.query.filter_by(provider_id=provider.id, repo_path=repo.repo_path).first():
+        raise InvalidRequest(
+            f"Results repository {provider.uri}/{repo.repo_path} already exists", code=HTTPStatus.CONFLICT
+        )
     repo.add()
 
     return ResultsRepositoryDTO.from_model(repo).dump(), HTTPStatus.CREATED
@@ -120,12 +121,12 @@ def patch_repository(repo_id):
     body = request.json or {}
     if not body:
         raise InvalidRequest("No fields provided to update")
-    unknown = set(body) - {'provider', 'api_uri', 'secret_label', 'enabled'}
+    unknown = set(body) - {'provider_id', 'secret_label', 'enabled'}
     if unknown:
         raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
     req = RepositoryPatchRequest.parse(body)
 
-    # Rotating the credentials only is exempt from the lock, the uri is not changed
+    # Rotating the credentials only is exempt from the lock, the provider is not changed
     if set(body) != {'secret_label'}:
         require_all_drained([a.project for a in repo.project_assignments])
 
@@ -135,12 +136,15 @@ def patch_repository(repo_id):
     if 'enabled' in body:
         repo.enabled = req.enabled
 
-    for field in ('provider', 'api_uri'):
-        if field in body:
-            try:
-                setattr(repo, field, getattr(req, field))
-            except ValueError as e:
-                raise InvalidRequest(str(e))
+    if 'provider_id' in body:
+        provider = GitProvider.get_by_request_id(req.provider_id)
+        if ResultsRepository.query.filter(
+            ResultsRepository.provider_id == provider.id, ResultsRepository.repo_path == repo.repo_path, ResultsRepository.id != repo.id
+        ).first():
+            raise InvalidRequest(
+                f"Results repository {provider.uri}/{repo.repo_path} already exists", code=HTTPStatus.CONFLICT
+            )
+        repo.provider_id = provider.id
 
     session.commit()
     return ResultsRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK

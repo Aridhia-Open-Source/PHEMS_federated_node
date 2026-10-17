@@ -6,7 +6,7 @@ from app.helpers.git_uri import normalise_repo_uri
 
 class RepositoryUriRequest(BaseModel):
     """
-    The uri of a trigger or results repository in a create or patch request, normalised.
+    The uri of a trigger or results repository named by a task, normalised.
     """
     model_config = ConfigDict(extra="forbid")
 
@@ -29,10 +29,9 @@ class RepositoryRequest(BaseModel):
     """A trigger or results repository in a create request."""
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    uri: str = Field(min_length=1, max_length=4096)
-    provider: str = Field(min_length=1)
+    provider_id: int
+    repo_path: str = Field(min_length=1, max_length=512)
     secret_label: str = Field(min_length=1)
-    api_uri: str | None = Field(default=None, min_length=1, max_length=4096)
     enabled: bool = True
 
     @classmethod
@@ -47,9 +46,8 @@ class RepositoryPatchRequest(BaseModel):
     """The fields of a trigger or results repository that can be updated, all optional but never null."""
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    provider: str | None = Field(default=None, min_length=1)
+    provider_id: int | None = None
     secret_label: str | None = Field(default=None, min_length=1)
-    api_uri: str | None = Field(default=None, min_length=1, max_length=4096)
     enabled: bool | None = None
 
     @model_validator(mode="after")

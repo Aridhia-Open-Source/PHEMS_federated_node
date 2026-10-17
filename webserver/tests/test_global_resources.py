@@ -10,11 +10,14 @@ DS = "/global/datasets"
 SEC = "/global/secrets"
 TRIG = "/global/repositories/triggers"
 RES = "/global/repositories/results"
+PROV = "/global/providers"
 REPO_KINDS = [(TRIG, "global_trigger_repo"), (RES, "global_results_repo")]
 
 
-def repo_body(**fields):
-    return {"uri": "github.com/org/new", "provider": "github", "secret_label": "test-creds", **fields}
+def repo_body(git_provider, **fields):
+    return {
+        "provider_id": git_provider.id, "repo_path": "org/new", "secret_label": "test-creds", **fields
+    }
 
 
 def ds_body(**fields):
@@ -39,82 +42,100 @@ def disable_secret(make_global_secret, label="off-creds"):
 # ---------------------------------------------------------------- repositories: create
 
 @pytest.mark.parametrize("base,raw", [
-    (TRIG, "https://GitHub.com/Org/NEW.git/"),  # scheme, case, .git and trailing slash are normalised away
-    (RES, "  github.com/org/new/  "),
-    (TRIG, "https://github.com:443/org/new"),  # default port dropped
+    (TRIG, "Org/NEW.git"),  # case and .git are normalised away
+    (RES, "  /org/new/  "),
 ])
-def test_repo_uri_normalised_on_create(client, admin_headers, global_secret, base, raw):
-    response = client.post(base, json=repo_body(uri=raw), headers=admin_headers)
+def test_repo_path_normalised_on_create(client, admin_headers, global_secret, git_provider, base, raw):
+    response = client.post(base, json=repo_body(git_provider, repo_path=raw), headers=admin_headers)
     assert response.status_code == 201, response.json
-    assert response.json["uri"] == "github.com/org/new"
-    assert response.json["api_uri"] == "https://api.github.com"
+    assert response.json["repo_path"] == "org/new"
+    assert response.json["uri"] == "https://github.com/org/new"  # derived from the provider
+    assert response.json["provider"] == {
+        "id": git_provider.id, "name": "github-github.com", "type": "github", "uri": "https://github.com",
+        "api_uri": "https://api.github.com", "enabled": True,
+    }
     assert response.json["enabled"] is True
 
 
-@pytest.mark.parametrize("base,variant", [(TRIG, "https://GITHUB.COM/ORG/NEW.git"), (RES, " github.com/org/new/ ")])
-def test_repo_duplicate_is_409_after_normalisation(client, admin_headers, global_secret, base, variant):
-    assert client.post(base, json=repo_body(), headers=admin_headers).status_code == 201
-    assert_error(client.post(base, json=repo_body(uri=variant), headers=admin_headers), 409)
+@pytest.mark.parametrize("base,variant", [(TRIG, "ORG/NEW.git"), (RES, " org/new/ ")])
+def test_repo_duplicate_is_409_after_normalisation(client, admin_headers, global_secret, git_provider, base, variant):
+    assert client.post(base, json=repo_body(git_provider), headers=admin_headers).status_code == 201
+    assert_error(client.post(base, json=repo_body(git_provider, repo_path=variant), headers=admin_headers), 409)
 
 
-def test_repo_non_default_port_is_kept_and_distinct(client, admin_headers, global_secret):
-    gitea = repo_body(uri="git.example.com:8443/org/new", provider="gitea")
-    first = client.post(TRIG, json=gitea, headers=admin_headers)
-    assert first.status_code == 201 and first.json["uri"] == "git.example.com:8443/org/new"
-    other = client.post(TRIG, json={**gitea, "uri": "git.example.com/org/new"}, headers=admin_headers)
+@pytest.mark.parametrize("base", [TRIG, RES])
+def test_same_repo_path_on_another_provider_is_a_different_repo(
+        client, admin_headers, global_secret, git_provider, make_provider, base):
+    gitea = make_provider("git.example.com", type="gitea")
+    assert client.post(base, json=repo_body(git_provider), headers=admin_headers).status_code == 201
+    other = client.post(base, json=repo_body(gitea), headers=admin_headers)
     assert other.status_code == 201
-    assert other.json["api_uri"] == "https://git.example.com/api/v1"  # gitea default api is on the repo host
+    assert other.json["uri"] == "https://git.example.com/org/new"
 
 
 @pytest.mark.parametrize("base,body", [
-    (TRIG, {"uri": "ssh://git@github.com/org/new.git"}),  # scheme not http(s)
-    (TRIG, {"uri": "https://user:pw@github.com/org/new"}),  # credentials in the uri
-    (RES, {"uri": "github.com/org"}),  # no repo path
-    (RES, {"uri": "   "}),
-    (TRIG, {"uri": 123}),
-    (TRIG, {"uri": "github.com/org/" + "a" * 5000}),  # absurdly long, still a clean error
-    (TRIG, {"provider": "GitHub "}),
-    (RES, {"provider": 5}),
+    (TRIG, {"repo_path": "org"}),  # no repo name
+    (RES, {"repo_path": "a/b/c"}),
+    (RES, {"repo_path": "https://github.com/org/new"}),  # a uri, not a path
+    (RES, {"repo_path": "   "}),
+    (TRIG, {"repo_path": 123}),
+    (TRIG, {"repo_path": "org/" + "a" * 5000}),  # absurdly long, still a clean error
+    (TRIG, {"provider_id": "1"}),
+    (RES, {"provider_id": 999999}),  # no such provider
     (TRIG, {"secret_label": ""}),
     (RES, {"secret_label": 5}),
     (TRIG, {"secret_label": "nope"}),
     (RES, {"enabled": "yes"}),
-    (TRIG, {"api_uri": "https://evil.example.com"}),  # api_uri must be on the repo's own api host
-    (RES, {"api_uri": "https://user:pw@api.github.com"}),
-    (TRIG, {"username": "u"}),  # unknown fields are refused, not ignored
+    (TRIG, {"uri": "github.com/org/new"}),  # the old fields are refused, not ignored
+    (RES, {"provider": "github"}),
+    (TRIG, {"api_uri": "https://api.github.com"}),
+    (TRIG, {"username": "u"}),
     (RES, {"bogus": "x"}),
 ])
-def test_repo_create_invalid(client, admin_headers, global_secret, base, body):
-    assert_error(client.post(base, json=repo_body(**body), headers=admin_headers), 400)
+def test_repo_create_invalid(client, admin_headers, global_secret, git_provider, base, body):
+    assert_error(client.post(base, json=repo_body(git_provider, **body), headers=admin_headers), 400)
 
 
 @pytest.mark.parametrize("base", [TRIG, RES])
-def test_repo_create_missing_field_is_400(client, admin_headers, global_secret, base):
-    for missing in ("uri", "provider", "secret_label"):
-        body = repo_body()
+def test_repo_create_missing_field_is_400(client, admin_headers, global_secret, git_provider, base):
+    for missing in ("provider_id", "repo_path", "secret_label"):
+        body = repo_body(git_provider)
         del body[missing]
         response = client.post(base, json=body, headers=admin_headers)
         assert_error(response, 400)
         assert missing in response.json["error"]
 
 
-def test_repo_custom_api_uri_on_repo_host_accepted(client, admin_headers, global_secret):
-    response = client.post(
-        TRIG, json=repo_body(uri="git.example.com/org/new", provider="gitea", api_uri="https://git.example.com/x/api"),
-        headers=admin_headers)
-    assert response.status_code == 201, response.json
-    assert response.json["api_uri"] == "https://git.example.com/x/api"
-
-
 # ---------------------------------------------------------------- repositories: patch
 
 @pytest.mark.parametrize("body", [
-    {}, {"bogus": 1}, {"uri": "github.com/org/other"},  # empty, unknown and immutable fields
-    {"provider": "bogus"}, {"api_uri": "https://evil.example.com"}, {"enabled": "false"},
+    {}, {"bogus": 1}, {"repo_path": "org/other"}, {"uri": "github.com/org/other"},  # empty, unknown and immutable fields
+    {"provider": "github"}, {"api_uri": "https://api.github.com"},
+    {"provider_id": "x"}, {"provider_id": None}, {"provider_id": 999999}, {"enabled": "false"},
     {"secret_label": "nope"}, {"secret_label": ""},
 ])
 def test_repo_patch_invalid(client, admin_headers, global_trigger_repo, body):
     assert_error(client.patch(f"{TRIG}/{global_trigger_repo.id}", json=body, headers=admin_headers), 400)
+
+
+@pytest.mark.parametrize("base,make", REPO_KINDS)
+def test_repo_patch_provider_id(client, admin_headers, request, make_provider, base, make):
+    repo = request.getfixturevalue(make)
+    gitea = make_provider("git.example.com", type="gitea")
+    moved = client.patch(f"{base}/{repo.id}", json={"provider_id": gitea.id}, headers=admin_headers)
+    assert moved.status_code == 200, moved.json
+    assert moved.json["provider"]["id"] == gitea.id and moved.json["uri"] == f"https://git.example.com/{moved.json['repo_path']}"
+
+
+@pytest.mark.parametrize("base,make", REPO_KINDS)
+def test_repo_patch_provider_id_onto_a_taken_repo_path_is_409(
+        client, admin_headers, request, make_provider, base, make):
+    repo = request.getfixturevalue(make)
+    gitea = make_provider("git.example.com", type="gitea")
+    assert client.post(
+        base, json={"provider_id": gitea.id, "repo_path": repo.repo_path, "secret_label": "test-creds"}, headers=admin_headers
+    ).status_code == 201
+    assert_error(client.patch(f"{base}/{repo.id}", json={"provider_id": gitea.id}, headers=admin_headers), 409)
 
 
 @pytest.mark.parametrize("base,make", REPO_KINDS)
@@ -132,10 +153,13 @@ def test_repo_patch_enabled_secret_and_disabled_own_secret(
     assert client.patch(url, json={"secret_label": "other-creds"}, headers=admin_headers).status_code == 200
 
 
-@pytest.mark.parametrize("url,body", [(TRIG, repo_body), (DS, ds_body)])
-def test_create_referencing_disabled_secret_is_400(client, admin_headers, make_global_secret, url, body):
+@pytest.mark.parametrize("url,body", [
+    (TRIG, lambda provider: repo_body(provider, secret_label="off-creds")),
+    (DS, lambda provider: ds_body(secret_label="off-creds")),
+])
+def test_create_referencing_disabled_secret_is_400(client, admin_headers, make_global_secret, git_provider, url, body):
     disable_secret(make_global_secret)
-    assert_error(client.post(url, json=body(secret_label="off-creds"), headers=admin_headers), 400)
+    assert_error(client.post(url, json=body(git_provider), headers=admin_headers), 400)
 
 
 # ---------------------------------------------------------------- datasets
@@ -322,20 +346,20 @@ def test_linked_repo_needs_lock_to_delete_or_disable(client, admin_headers, link
 
 @pytest.mark.parametrize("bad_id", ["abc", "1.5", "0", "999999", str(2**63)])  # non-integer, unknown, out of range
 def test_non_integer_or_unknown_id_is_404(client, admin_headers, bad_id):
-    for base in (DS, TRIG, RES):
+    for base in (DS, TRIG, RES, PROV):
         for method in ("get", "patch", "delete"):
             assert_error(getattr(client, method)(f"{base}/{bad_id}", json={"enabled": True}, headers=admin_headers), 404)
 
 
 def test_methods_bodies_and_empty_lists(client, admin_headers, global_dataset):
-    for url in (DS, SEC, TRIG, RES):
+    for url in (DS, SEC, TRIG, RES, PROV):
         for method in ("put", "delete", "patch"):
             assert_error(getattr(client, method)(url, json={}, headers=admin_headers), 405)
         assert_error(client.post(url, data="[1, 2]", headers=admin_headers), 400)  # non-object JSON
         malformed = client.post(url, data="{not json", headers=admin_headers)
         assert 400 <= malformed.status_code < 500 and "error" in malformed.json
     assert_error(client.put(f"{DS}/{global_dataset.id}", json={}, headers=admin_headers), 405)
-    for url in (DS, SEC, TRIG, RES):
+    for url in (DS, SEC, TRIG, RES, PROV):
         body = client.get(url + "/", headers=admin_headers).json  # trailing slash works
         items = body if isinstance(body, list) else body["items"]
         assert len(items) == (1 if url in (DS, SEC) else 0)  # the dataset fixture brings its secret

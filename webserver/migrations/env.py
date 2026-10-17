@@ -29,6 +29,7 @@ import app.models.trigger
 import app.models.task
 import app.models.task_status
 import app.models.result
+import app.models.git_provider
 import app.models.trigger_repository
 import app.models.project_trigger_repository
 import app.models.results_repository

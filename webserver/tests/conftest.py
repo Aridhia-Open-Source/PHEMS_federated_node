@@ -19,7 +19,7 @@ from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
 from app.models.task import Task
 from app.models.extras.dar import DAR
-from app.models.git_provider import ConnectionCheck, ConnectionStatus
+from app.models.git_provider import ConnectionCheck, ConnectionStatus, GitProvider
 from app.models.git_repository import GitRepositoryMixin
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.trigger_repository import TriggerRepository
@@ -54,6 +54,28 @@ def check_database_connection():
 
 
 sample_repo_uri = "github.com/org/test-repo"
+
+
+def provider_of(uri: str, type: str = "github", api_uri: str | None = None) -> GitProvider:
+    """The git provider serving a schemeless repository uri (host/owner/repo), created on first use."""
+    host = uri.split("/")[0]
+    provider = GitProvider.query.filter_by(uri=f"https://{host}").one_or_none()
+    if provider is None:
+        default_api = "https://api.github.com" if host == "github.com" else f"https://{host}/api/v1"
+        provider = GitProvider(
+            name=f"{type}-{host}", type=type, uri=f"https://{host}", api_uri=api_uri or default_api
+        )
+        provider.add()
+    return provider
+
+
+def new_repo(model, uri: str, secret_id: int, type: str = "github", api_uri: str | None = None):
+    """A global trigger or results repository (model) at a schemeless uri, its provider found or created."""
+    repo = model(
+        provider_id=provider_of(uri, type, api_uri).id, repo_path="/".join(uri.split("/")[-2:]), secret_id=secret_id
+    )
+    repo.add()
+    return repo
 
 sample_ds_body = {
     "name": "TestDs",
@@ -260,25 +282,42 @@ def secret(client) -> Secret:
     return secret
 
 
+# Git provider fixtures
+@fixture
+def git_provider(client) -> GitProvider:
+    """The github.com provider the repository fixtures are on."""
+    return provider_of(sample_repo_uri)
+
+
+@fixture
+def make_provider(client):
+    """Factory for a global git provider at https://<host>, its API on the host as provider_of builds it."""
+    def _make(host: str = "github.com", type: str = "github", **fields) -> GitProvider:
+        provider = provider_of(f"{host}/org/repo", type)
+        for name, value in fields.items():
+            setattr(provider, name, value)
+        db.session.commit()
+        return provider
+    return _make
+
+
 # Trigger repository fixtures
 @fixture
 def trigger_repo(client, secret) -> TriggerRepository:
     """A global trigger repository, assigned to no project."""
-    repo = TriggerRepository(
-        uri=sample_repo_uri, provider="github", api_uri="https://api.github.com", secret_id=secret.id
-    )
-    repo.add()
-    return repo
+    return new_repo(TriggerRepository, sample_repo_uri, secret.id)
 
 
 @fixture
 def assign_trigger(client, project, secret):
     """Factory for a global trigger repository and its assignment to a project."""
-    def _assign(uri, watch_dir="", project=project, provider="github", api_uri="https://api.github.com"):
-        repo = TriggerRepository.query.filter_by(uri=uri).one_or_none()
+    def _assign(uri, watch_dir="", project=project, provider="github", api_uri=None):
+        provider_row = provider_of(uri, provider, api_uri)
+        repo = TriggerRepository.query.filter_by(
+            provider_id=provider_row.id, repo_path="/".join(uri.split("/")[-2:])
+        ).one_or_none()
         if repo is None:
-            repo = TriggerRepository(uri=uri, provider=provider, api_uri=api_uri, secret_id=secret.id)
-            repo.add()
+            repo = new_repo(TriggerRepository, uri, secret.id, provider, api_uri)
         assignment = ProjectTriggerRepository(project.id, repo.id, watch_dir=watch_dir)
         assignment.add()
         return assignment
@@ -303,12 +342,7 @@ def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret,
 @fixture
 def results_repo(client, secret) -> ResultsRepository:
     """A global results repository, assigned to no project."""
-    repo = ResultsRepository(
-        uri="github.com/org/results", provider="github", api_uri="https://api.github.com",
-        secret_id=secret.id
-    )
-    repo.add()
-    return repo
+    return new_repo(ResultsRepository, "github.com/org/results", secret.id)
 
 
 @fixture
@@ -347,22 +381,14 @@ def make_global_dataset(client, user_uuid, k8s_client, mock_kc_client, secret):
 @fixture
 def make_trigger_repo(client, secret):
     def _make(uri="github.com/org/triggers", secret=secret) -> TriggerRepository:
-        repo = TriggerRepository(
-            uri=uri, provider="github", api_uri="https://api.github.com", secret_id=secret.id
-        )
-        repo.add()
-        return repo
+        return new_repo(TriggerRepository, uri, secret.id)
     return _make
 
 
 @fixture
 def make_results_repo(client, secret):
     def _make(uri="github.com/org/results-global", secret=secret) -> ResultsRepository:
-        repo = ResultsRepository(
-            uri=uri, provider="github", api_uri="https://api.github.com", secret_id=secret.id
-        )
-        repo.add()
-        return repo
+        return new_repo(ResultsRepository, uri, secret.id)
     return _make
 
 
@@ -521,11 +547,7 @@ def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, se
     ProjectDataset(project.id, dataset.id).add()
 
     # Then the repository, assigned to the project
-    repo = TriggerRepository(
-        uri="github.com/organisation/repository", provider="github", api_uri="https://api.github.com",
-        secret_id=secret.id
-    )
-    repo.add()
+    repo = new_repo(TriggerRepository, "github.com/organisation/repository", secret.id)
     ProjectTriggerRepository(project.id, repo.id, watch_dir="").add()
 
     return dataset

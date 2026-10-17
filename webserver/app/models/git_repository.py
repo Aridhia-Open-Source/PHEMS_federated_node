@@ -1,20 +1,15 @@
-import time
 from collections.abc import Callable
 from functools import partial
 
-import requests
 import sqlalchemy as sa
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy.orm import validates
 
 from app.helpers.const import DEFAULT_NAMESPACE
-from app.helpers.git_uri import normalise_repo_uri, validate_api_uri
+from app.helpers.git_uri import normalise_repo_path
 from app.helpers.kubernetes import KubernetesClient
-from app.models.git_provider import ConnectionCheck, ConnectionStatus, GitProvider
-
-
-CONNECTION_TIMEOUT = 5
-MAX_MESSAGE_LENGTH = 200
+from app.models.git_provider import ConnectionCheck, ConnectionStatus, request_check
+from app.models.git_provider_type import GitProviderType
 
 
 class GitRepositoryMixin:
@@ -27,43 +22,31 @@ class GitRepositoryMixin:
     # The keys the repository's secret holds
     SECRET_KEYS = ("TOKEN",)
 
-    uri = sa.Column(sa.String(4096), nullable=False)
-    provider = sa.Column(sa.String(16), nullable=False)
-    # The scheme is stripped from uri, so the provider's API base URL is kept explicitly.
-    api_uri = sa.Column(sa.String(4096), nullable=False)
+    provider_id = sa.Column(
+        sa.Integer, sa.ForeignKey('git_providers.id', ondelete='RESTRICT'), nullable=False
+    )
+    # Where the repository is on the provider (owner/name)
+    repo_path = sa.Column(sa.String(512), nullable=False)
     # The secret holding the git token (under the key TOKEN). Set explicitly rather than
-    # derived from uri, so repositories can share one credential.
+    # derived from the repository, so repositories can share one credential.
     secret_id = sa.Column(
         sa.Integer, sa.ForeignKey('secrets.id', ondelete='RESTRICT'), nullable=False
     )
 
-    @validates('uri')
-    def validate_uri(self, key, value):
-        """Keep the uri in its normalised form (see normalise_repo_uri)."""
-        return normalise_repo_uri(value)
-
-    @validates('api_uri')
-    def check_api_uri(self, key, value):
-        """Keep the api_uri on the repository's host (see validate_api_uri). Set after uri."""
-        return validate_api_uri(value, self.uri)
-
-    @validates('provider')
-    def validate_provider(self, key, value):
-        """Only providers the Dagster side has an API client for."""
-        try:
-            return GitProvider(value).value
-        except ValueError:
-            valid = ', '.join(p.value for p in GitProvider)
-            raise ValueError(f"provider must be one of: {valid}")
+    @validates('repo_path')
+    def validate_repo_path(self, key, value):
+        """Keep the repo_path in its normalised form (see normalise_repo_path)."""
+        return normalise_repo_path(value)
 
     @property
-    def repo_path(self) -> str:
-        """
-        Where the repository is on the provider's API (owner/repo): the last two path
-        segments of the uri. Right for GitHub and Gitea; GitLab nested groups, Bitbucket
-        Server and Azure DevOps need provider-specific handling.
-        """
-        return '/'.join(self.uri.split('/')[-2:])
+    def uri(self) -> str:
+        """The repository's address: the provider's uri and the repo_path."""
+        return f"{self.provider.uri}/{self.repo_path}"
+
+    @property
+    def active(self) -> bool:
+        """Whether the repository is turned on, and so is its provider."""
+        return self.enabled and self.provider.enabled
 
     def get_token(self) -> str:
         """
@@ -80,7 +63,7 @@ class GitRepositoryMixin:
     def prepare_connection_check(self) -> Callable[[], ConnectionCheck]:
         """
         Whether the repository can be reached with its token, the way the sensors reach it:
-        through api_uri (not uri, which is the address people use), authenticating as a
+        through the provider's api_uri (not the uri, which is the address people use), authenticating as a
         bearer token. Nothing returned includes the token.
 
         Reads the token (the database and the cluster) now, and returns the network call
@@ -101,46 +84,9 @@ class GitRepositoryMixin:
             )
             return lambda: check
 
-        url = f"{self.api_uri.rstrip('/')}/{GitProvider(self.provider).repo_api_path(self.repo_path)}"
+        url = f"{self.provider.api_uri.rstrip('/')}/{GitProviderType(self.provider.type).repo_api_path(self.repo_path)}"
         return partial(self._request_check, url, token)
 
-    @classmethod
-    def _request_check(cls, url: str, token: str) -> ConnectionCheck:
-        started = time.perf_counter()
-        try:
-            response = requests.get(
-                url, headers={"Authorization": f"Bearer {token}"}, timeout=CONNECTION_TIMEOUT
-            )
-        except requests.RequestException as e:
-            latency_ms = round((time.perf_counter() - started) * 1000)
-            return ConnectionCheck(
-                ConnectionStatus.UNREACHABLE, type(e).__name__, latency_ms=latency_ms
-            )
-        latency_ms = round((time.perf_counter() - started) * 1000)
-
-        return ConnectionCheck(
-            cls._status_of(response.status_code, response.ok),
-            cls._message_of(response),
-            status_code=response.status_code,
-            latency_ms=latency_ms,
-        )
-
     @staticmethod
-    def _status_of(status_code: int, ok: bool) -> ConnectionStatus:
-        if ok:
-            return ConnectionStatus.OK
-        if status_code in (401, 403):
-            return ConnectionStatus.UNAUTHORIZED
-        if status_code == 404:
-            return ConnectionStatus.NOT_FOUND
-        return ConnectionStatus.ERROR
-
-    @staticmethod
-    def _message_of(response) -> str:
-        """The provider's own message on an error ("Bad credentials"), else the HTTP reason."""
-        try:
-            body = response.json()
-        except ValueError:
-            body = None
-        message = body.get("message") if isinstance(body, dict) else None
-        return str(message or response.reason)[:MAX_MESSAGE_LENGTH]
+    def _request_check(url: str, token: str) -> ConnectionCheck:
+        return request_check(url, token)

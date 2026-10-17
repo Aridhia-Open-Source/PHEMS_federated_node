@@ -387,7 +387,7 @@ def _results_link(project_id: int, repository_id: int) -> ProjectResultsReposito
 def _check_results_loop(assignment: ProjectResultsRepository):
     """Refuses the change, rolling it back, if the results would land where a trigger watches."""
     try:
-        check_no_loop(assignment.results_repository.uri)
+        check_no_loop(assignment.results_repository.provider_id, assignment.results_repository.repo_path)
     except InvalidRequest:
         db.session.rollback()
         raise

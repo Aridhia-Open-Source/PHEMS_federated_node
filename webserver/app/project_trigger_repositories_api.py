@@ -53,7 +53,7 @@ def _assignment(project_id: int, repo_id: int) -> ProjectTriggerRepository:
 def _check_loop(assignment: ProjectTriggerRepository):
     """Refuses the change, rolling it back, if the trigger would watch where results land."""
     try:
-        check_no_loop(assignment.trigger_repository.uri)
+        check_no_loop(assignment.trigger_repository.provider_id, assignment.trigger_repository.repo_path)
     except InvalidRequest:
         session.rollback()
         raise

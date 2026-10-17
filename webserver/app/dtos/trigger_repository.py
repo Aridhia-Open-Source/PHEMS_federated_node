@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from app.dtos.base import DTO
+from app.dtos.git_provider import GitProviderRefDTO
 from app.dtos.secret import SecretDTO
 from app.helpers.exceptions import InvalidRequest
 from app.models.project_trigger_repository import ProjectTriggerRepository
@@ -13,8 +14,8 @@ from app.models.trigger_repository import TriggerRepository
 class TriggerRepositoryDTO(DTO):
     id: int
     uri: str
-    provider: str
-    api_uri: str
+    repo_path: str
+    provider: GitProviderRefDTO
     secret: SecretDTO
     enabled: bool
     # Where polling the provider resumes, see TriggerRepository.get_ingest_cursor
@@ -25,8 +26,8 @@ class TriggerRepositoryDTO(DTO):
         return cls(
             id=obj.id,
             uri=obj.uri,
-            provider=obj.provider,
-            api_uri=obj.api_uri,
+            repo_path=obj.repo_path,
+            provider=GitProviderRefDTO.from_model(obj.provider),
             secret=SecretDTO.from_model(obj.secret),
             enabled=obj.enabled,
             pr_cursor=obj.get_ingest_cursor(),

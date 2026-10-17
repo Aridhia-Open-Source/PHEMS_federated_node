@@ -68,12 +68,12 @@ def result_id(client, admin_headers, project, global_results_repo, linked_result
 # ---------------------------------------------------------------- global results repository
 
 
-def test_global_results_repo_create_get(client, admin_headers, global_secret, global_results_repo):
-    body = {"uri": "github.com/org/r2", "provider": "github", "secret_label": "test-creds"}
+def test_global_results_repo_create_get(client, admin_headers, global_secret, global_results_repo, git_provider):
+    body = {"provider_id": git_provider.id, "repo_path": "org/r2", "secret_label": "test-creds"}
     assert client.post(RESULTS_GLOBAL, json=body, headers=admin_headers).status_code == 201
     assert client.post(RESULTS_GLOBAL, json=body, headers=admin_headers).status_code == 409
     # target_dir belongs to the link, not the global repository
-    assert client.post(RESULTS_GLOBAL, json={**body, "uri": "github.com/org/r3", "target_dir": "x"},
+    assert client.post(RESULTS_GLOBAL, json={**body, "repo_path": "org/r3", "target_dir": "x"},
                        headers=admin_headers).status_code == 400
     assert client.get(f"{RESULTS_GLOBAL}/{global_results_repo.id}", headers=admin_headers).status_code == 200
     assert client.get(f"{RESULTS_GLOBAL}/999", headers=admin_headers).status_code == 404

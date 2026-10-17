@@ -13,6 +13,18 @@ class RepositoryConnectionDTO(DTO):
     health_check: HealthCheckDTO
 
 
+class GitProviderHealthDTO(DTO):
+    """A global git provider, and whether its API answers."""
+    id: int
+    name: str
+    type: str
+    uri: str
+    api_uri: str
+    enabled: bool
+    status: str
+    health_check: HealthCheckDTO
+
+
 class DatasetHealthDTO(DTO):
     """A global dataset, and whether the node can connect to its database with its secret."""
     id: int

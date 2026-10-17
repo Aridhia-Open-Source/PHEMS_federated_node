@@ -126,17 +126,18 @@ def world(api, raw):
     secret = api.upsert_secret("live-creds", {"TOKEN": "t", "USERNAME": "u", "PASSWORD": "p"})
     project = api.get_or_create_project("LiveProject", description="d", enabled=False)
     dataset = api.create_dataset("LiveDs", "db", 5432, "postgres", "live-creds", "read", "write")
-    trigger = api.create_repository("github.com/org/live-triggers", "github", "https://api.github.com", "live-creds")
-    results = api.create_results_repository(
-        "github.com/org/live-results", "github", "https://api.github.com", "live-creds"
+    provider = api.get_or_create_git_provider(
+        "https://github.com", "github-github.com", "github", "https://api.github.com"
     )
+    trigger = api.create_repository(provider.id, "org/live-triggers", "live-creds")
+    results = api.create_results_repository(provider.id, "org/live-results", "live-creds")
     link_ds = api.get_or_assign_dataset(project.id, dataset)
     link_trigger = api.get_or_assign_repository(project.id, trigger, "triggers", "main")
     api.patch_project(project.id, {"locked": True})
     link_results = api.get_or_assign_results_repository(project.id, results, "results")
     project = api.patch_project(project.id, {"enabled": True, "locked": False})
     return dict(
-        secret=secret, project=project, dataset=dataset, trigger=trigger, results=results,
+        secret=secret, project=project, dataset=dataset, provider=provider, trigger=trigger, results=results,
         link_ds=link_ds, link_trigger=link_trigger, link_results=link_results,
     )
 
@@ -150,7 +151,8 @@ def test_fncli_setup_models_parse(api, world):
     assert isinstance(w["dataset"], fn_models.Dataset) and w["dataset"].name == "liveds"
     assert w["dataset"].secret.label == "live-creds" and w["dataset"].read_schema == "read"
     assert isinstance(w["trigger"], fn_models.TriggerRepository)
-    assert w["trigger"].uri == "github.com/org/live-triggers" and w["trigger"].repo_path == "org/live-triggers"
+    assert isinstance(w["provider"], fn_models.GitProvider) and w["trigger"].provider.id == w["provider"].id
+    assert w["trigger"].uri == "https://github.com/org/live-triggers" and w["trigger"].repo_path == "org/live-triggers"
     assert isinstance(w["results"], fn_models.ResultsRepository)
     assert w["link_ds"].active and w["link_ds"].dataset.id == w["dataset"].id
     assert w["link_trigger"].watch_dir == "triggers" and w["link_trigger"].base_branch == "main"
@@ -174,17 +176,26 @@ def test_fncli_setup_models_parse(api, world):
     assert [r.id for r in api.get_trigger_repositories()] == [w["trigger"].id]
     assert api.find_trigger_repository("https://github.com/org/live-triggers").id == w["trigger"].id
     assert api.find_trigger_repository("github.com/org/none") is None
-    assert api.get_or_create_trigger_repository("github.com/org/live-triggers").id == w["trigger"].id
+    assert [p.id for p in api.get_git_providers()] == [w["provider"].id]
+    assert api.find_git_provider("https://github.com").id == w["provider"].id and api.find_git_provider("x") is None
+    assert api.get_or_create_git_provider(
+        "https://github.com", "github-github.com", "github", "https://api.github.com"
+    ).id == w["provider"].id
+    assert api.get_or_create_trigger_repository(
+        "github.com/org/live-triggers", provider_id=w["provider"].id, secret_label="live-creds"
+    ).id == w["trigger"].id
     assert api.find_repository("github.com/org/live-triggers", w["project"].id).watch_dir == "triggers"
     assert api.find_repository("github.com/org/none", w["project"].id) is None
     assert api.get_or_assign_repository(w["project"].id, w["trigger"], "other", "dev").watch_dir == "triggers"
     assert [r.id for r in api.get_results_repositories()] == [w["results"].id]
     assert api.find_results_repository("github.com/org/live-results").id == w["results"].id
     assert api.find_results_repository("github.com/org/none") is None
-    assert api.get_or_create_results_repository("github.com/org/live-results").id == w["results"].id
     assert api.get_or_create_results_repository(
-        "github.com/org/second-results", provider="github", api_uri="https://api.github.com", secret_label="live-creds"
-    ).uri == "github.com/org/second-results"
+        "github.com/org/live-results", provider_id=w["provider"].id, secret_label="live-creds"
+    ).id == w["results"].id
+    assert api.get_or_create_results_repository(
+        "github.com/org/second-results", provider_id=w["provider"].id, secret_label="live-creds"
+    ).uri == "https://github.com/org/second-results"
     assert api.get_project_results_repositories(w["project"].id)[0].target_dir == "results"
     assert api.get_or_assign_results_repository(w["project"].id, w["results"], "x").target_dir == "results"
     assert api.get_project_datasets(w["project"].id)[0].dataset.id == w["dataset"].id
@@ -297,9 +308,13 @@ def test_fncli_deletes(api, world):
     api.patch_project(pid, {"locked": True})
     api.delete_dataset(w["dataset"].id)
     api.delete_repository(w["trigger"].id)
+    with pytest.raises(requests.HTTPError) as exc:
+        api.delete_git_provider(w["provider"].id)  # repositories are still on it
+    assert exc.value.response.status_code == 409
     api.delete_results_repository(w["results"].id)
+    api.delete_git_provider(w["provider"].id)
     assert api.get_datasets() == [] and api.get_trigger_repositories() == []
-    assert api.get_results_repositories() == []
+    assert api.get_results_repositories() == [] and api.get_git_providers() == []
     assert api.delete_secret("live-creds") is True
     with pytest.raises(requests.HTTPError) as exc:
         api.get_secret("live-creds")
@@ -367,7 +382,7 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
     # setup methods of the dagster client
     ds = d.create_dataset("DagDs", "db", 5432, "postgres", "live-creds")
     assert ds.name == "dagds"
-    repo = d.create_repository("github.com/org/dag-triggers", "github", "https://api.github.com", "live-creds")
+    repo = d.create_repository(world["provider"].id, "org/dag-triggers", "live-creds")
     link = d.assign_repository(pid, repo.id, "dag", "main")
     assert link.watch_dir == "dag" and link.trigger_repository.id == repo.id
     api.patch_project(pid, {"locked": True})

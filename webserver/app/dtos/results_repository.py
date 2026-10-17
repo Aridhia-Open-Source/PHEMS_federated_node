@@ -1,4 +1,5 @@
 from app.dtos.base import DTO
+from app.dtos.git_provider import GitProviderRefDTO
 from app.dtos.secret import SecretDTO
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.results_repository import ResultsRepository
@@ -7,8 +8,8 @@ from app.models.results_repository import ResultsRepository
 class ResultsRepositoryDTO(DTO):
     id: int
     uri: str
-    provider: str
-    api_uri: str
+    repo_path: str
+    provider: GitProviderRefDTO
     secret: SecretDTO
     enabled: bool
 
@@ -17,8 +18,8 @@ class ResultsRepositoryDTO(DTO):
         return cls(
             id=obj.id,
             uri=obj.uri,
-            provider=obj.provider,
-            api_uri=obj.api_uri,
+            repo_path=obj.repo_path,
+            provider=GitProviderRefDTO.from_model(obj.provider),
             secret=SecretDTO.from_model(obj.secret),
             enabled=obj.enabled,
         )

@@ -8,6 +8,7 @@ only the network calls run in the threads.
 - GET /global/healthcheck, every global resource of the four kinds
 - GET /global/datasets/<dataset_id>/healthcheck, can the node connect to its database
 - GET /global/secrets/<label>/healthcheck, is it in its store with the keys its users need
+- GET /global/providers/<provider_id>/healthcheck, does the git provider's API answer
 - GET /global/repositories/triggers/<repository_id>/healthcheck
 - GET /global/repositories/results/<repository_id>/healthcheck
 - GET /projects/<project_id>/healthcheck, the project's trigger and results repository links
@@ -23,13 +24,13 @@ from http import HTTPStatus
 from flask import Blueprint
 
 from app.dtos.healthcheck import (
-    DatasetHealthDTO, GlobalHealthDTO, ProjectDatasetHealthDTO, ProjectResultsRepositoryHealthDTO,
+    DatasetHealthDTO, GitProviderHealthDTO, GlobalHealthDTO, ProjectDatasetHealthDTO, ProjectResultsRepositoryHealthDTO,
     ProjectSecretHealthDTO, ProjectTriggerRepositoryHealthDTO, RepositoryConnectionDTO, SecretHealthDTO
 )
 from app.dtos.project import HealthCheckDTO, ProjectHealthDTO, RepositoryHealthDTO, ResultsRepositoryHealthDTO
 from app.helpers.wrappers import audit, auth
 from app.models.dataset import Dataset
-from app.models.git_provider import ConnectionCheck, ConnectionStatus
+from app.models.git_provider import ConnectionCheck, ConnectionStatus, GitProvider
 from app.models.git_repository import GitRepositoryMixin
 from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
@@ -64,13 +65,29 @@ def _is_ok(items) -> bool:
 
 def prepare_repository_health(repository: GitRepositoryMixin) -> Callable[[], RepositoryConnectionDTO]:
     """A global trigger or results repository: can it be reached with its own secret."""
-    id, uri, provider, enabled = repository.id, repository.uri, repository.provider, repository.enabled
+    id, uri, provider, enabled = repository.id, repository.uri, repository.provider.type, repository.enabled
     prepared = repository.prepare_connection_check()
 
     def run():
         check = prepared()
         return RepositoryConnectionDTO(
             id=id, uri=uri, provider=provider, enabled=enabled,
+            status=check.status.value, health_check=_health_check(check),
+        )
+    return run
+
+
+def prepare_provider_health(provider: GitProvider) -> Callable[[], GitProviderHealthDTO]:
+    """A global git provider: does its API answer, without a token."""
+    id, name, type, uri, api_uri, enabled = (
+        provider.id, provider.name, provider.type, provider.uri, provider.api_uri, provider.enabled
+    )
+    prepared = provider.prepare_connection_check()
+
+    def run():
+        check = prepared()
+        return GitProviderHealthDTO(
+            id=id, name=name, type=type, uri=uri, api_uri=api_uri, enabled=enabled,
             status=check.status.value, health_check=_health_check(check),
         )
     return run
@@ -202,6 +219,16 @@ def secret_healthcheck(label: str):
     keys its datasets and repositories need. Never the values.
     """
     return prepare_secret_health(_get_secret(label))().dump(), HTTPStatus.OK
+
+
+@bp.route('/global/providers/<int:provider_id>/healthcheck', methods=['GET'])
+@audit
+@auth(scope='can_admin_dataset')
+def provider_healthcheck(provider_id: int):
+    """
+    GET /global/providers/<provider_id>/healthcheck endpoint. Whether the provider's API answers.
+    """
+    return prepare_provider_health(GitProvider.get_by_id(provider_id))().dump(), HTTPStatus.OK
 
 
 @bp.route('/global/repositories/triggers/<int:repository_id>/healthcheck', methods=['GET'])

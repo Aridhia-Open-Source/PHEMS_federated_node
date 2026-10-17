@@ -75,6 +75,10 @@
     {
       "name": "Pull Requests",
       "description": "Pull request storage, fan-out and per-link evaluation endpoints"
+    },
+    {
+      "name": "Git Providers",
+      "description": "Global git provider endpoints: the git hosts the repositories live on"
     }
   ],
   "paths": {
@@ -2727,13 +2731,13 @@
             }
           },
           "400": {
-            "description": "A required field is missing, a per-project field was sent, the provider or uri is invalid"
+            "description": "A required field is missing, a per-project field was sent, the repo_path is invalid or the provider_id does not exist"
           },
           "404": {
             "description": "secret_label does not exist"
           },
           "409": {
-            "description": "A repository with this uri already exists"
+            "description": "A repository with this provider and repo_path already exists"
           },
           "401": {
             "description": "Not authenticated"
@@ -2831,7 +2835,7 @@
             "description": "Repository or secret not found"
           },
           "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
+            "description": "A repository with this provider and repo_path already exists, or a project is not locked or has tasks in flight (their ids are in details)"
           },
           "401": {
             "description": "Not authenticated"
@@ -2990,13 +2994,13 @@
             }
           },
           "400": {
-            "description": "A required field is missing, a per-project field was sent, the provider or uri is invalid"
+            "description": "A required field is missing, a per-project field was sent, the repo_path is invalid or the provider_id does not exist"
           },
           "404": {
             "description": "secret_label does not exist"
           },
           "409": {
-            "description": "A repository with this uri already exists"
+            "description": "A repository with this provider and repo_path already exists"
           },
           "401": {
             "description": "Not authenticated"
@@ -3094,7 +3098,7 @@
             "description": "Repository or secret not found"
           },
           "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
+            "description": "A repository with this provider and repo_path already exists, or a project is not locked or has tasks in flight (their ids are in details)"
           },
           "401": {
             "description": "Not authenticated"
@@ -4912,6 +4916,255 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not authorised"
+          }
+        }
+      }
+    },
+    "/global/providers": {
+      "get": {
+        "operationId": "get_git_providers",
+        "tags": [
+          "Git Providers"
+        ],
+        "summary": "List the global git providers",
+        "description": "Requires the can_admin_dataset scope.",
+        "responses": {
+          "200": {
+            "description": "The git providers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GitProviderObject"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not authorised"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_git_provider",
+        "tags": [
+          "Git Providers"
+        ],
+        "summary": "Create a global git provider",
+        "description": "Admin only (can_do_admin scope).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitProviderPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitProviderObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A required field is missing, or the type, uri or api_uri is invalid"
+          },
+          "409": {
+            "description": "A provider with this name or uri already exists"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not authorised"
+          }
+        }
+      }
+    },
+    "/global/providers/{id}": {
+      "get": {
+        "operationId": "get_git_provider",
+        "tags": [
+          "Git Providers"
+        ],
+        "summary": "Get a global git provider",
+        "description": "Requires the can_admin_dataset scope.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The git provider id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitProviderObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Provider not found"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not authorised"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patch_git_provider",
+        "tags": [
+          "Git Providers"
+        ],
+        "summary": "Edit a global git provider",
+        "description": "Every project linked to a repository on it has to be locked and drained, except when only name is sent. Admin only (can_do_admin scope).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The git provider id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitProviderPatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitProviderObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No fields, or an invalid value"
+          },
+          "404": {
+            "description": "Provider not found"
+          },
+          "409": {
+            "description": "The name or uri is taken, or a project is not locked or has tasks in flight (their ids are in details)"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not authorised"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_git_provider",
+        "tags": [
+          "Git Providers"
+        ],
+        "summary": "Delete a global git provider",
+        "description": "Admin only (can_do_admin scope).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The git provider id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Provider deleted"
+          },
+          "404": {
+            "description": "Provider not found"
+          },
+          "409": {
+            "description": "A trigger or results repository is still on it"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not authorised"
+          }
+        }
+      }
+    },
+    "/global/providers/{id}/healthcheck": {
+      "get": {
+        "operationId": "get_git_provider_healthcheck",
+        "tags": [
+          "Git Providers"
+        ],
+        "summary": "Check a git provider's API answers",
+        "description": "Requests the provider's API without a token. Requires the can_admin_dataset scope.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The git provider id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The health. A failed check is reported in the body, with a 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitProviderHealthObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Provider not found"
           },
           "401": {
             "description": "Not authenticated"
@@ -7129,17 +7382,23 @@
             "type": "integer",
             "example": 1
           },
-          "api_uri": {
-            "type": "string",
-            "example": "https://api.github.com"
-          },
           "provider": {
-            "type": "string",
-            "example": "github"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GitProviderRefObject"
+              }
+            ],
+            "description": "The git provider the repository is on"
           },
           "uri": {
             "type": "string",
-            "example": "github.com/org/results"
+            "description": "The provider's uri and the repo_path",
+            "example": "https://github.com/org/results"
+          },
+          "repo_path": {
+            "type": "string",
+            "description": "The repository on the provider, owner/name",
+            "example": "org/results"
           },
           "secret": {
             "allOf": [
@@ -7164,17 +7423,23 @@
             "type": "integer",
             "example": 1
           },
-          "api_uri": {
-            "type": "string",
-            "example": "https://api.github.com"
-          },
           "provider": {
-            "type": "string",
-            "example": "github"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GitProviderRefObject"
+              }
+            ],
+            "description": "The git provider the repository is on"
           },
           "uri": {
             "type": "string",
-            "example": "github.com/org/test-repo"
+            "description": "The provider's uri and the repo_path",
+            "example": "https://github.com/org/test-repo"
+          },
+          "repo_path": {
+            "type": "string",
+            "description": "The repository on the provider, owner/name",
+            "example": "org/test-repo"
           },
           "secret": {
             "allOf": [
@@ -7200,25 +7465,21 @@
       "GitRepositoryPostBody": {
         "type": "object",
         "required": [
-          "uri",
-          "provider",
+          "provider_id",
+          "repo_path",
           "secret_label"
         ],
         "description": "project_id and the per-project fields (target_dir, watch_dir, base_branch) are not accepted (400): they belong to the link",
         "properties": {
-          "uri": {
-            "type": "string",
-            "description": "Unique across the node (409 on a duplicate)",
-            "example": "github.com/org/repo"
+          "provider_id": {
+            "type": "integer",
+            "description": "Id of an existing git provider (see POST /global/providers)",
+            "example": 1
           },
-          "provider": {
+          "repo_path": {
             "type": "string",
-            "example": "github"
-          },
-          "api_uri": {
-            "type": "string",
-            "description": "Defaults to the provider's API for the uri",
-            "example": "https://api.github.com"
+            "description": "The repository on the provider, owner/name. Unique per provider (409 on a duplicate)",
+            "example": "org/repo"
           },
           "secret_label": {
             "type": "string",
@@ -7234,15 +7495,11 @@
       },
       "GitRepositoryPatchBody": {
         "type": "object",
-        "description": "Any of the fields. The uri cannot be edited",
+        "description": "Any of the fields. The repo_path cannot be edited",
         "properties": {
-          "provider": {
-            "type": "string",
-            "example": "github"
-          },
-          "api_uri": {
-            "type": "string",
-            "example": "https://api.github.com"
+          "provider_id": {
+            "type": "integer",
+            "example": 1
           },
           "secret_label": {
             "type": "string",
@@ -8151,6 +8408,226 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/RepositoryConnectionObject"
+            }
+          }
+        }
+      },
+      "GitProviderRefObject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "github-github.com"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "github",
+              "gitea"
+            ],
+            "example": "github"
+          },
+          "uri": {
+            "type": "string",
+            "description": "The host's web address",
+            "example": "https://github.com"
+          },
+          "api_uri": {
+            "type": "string",
+            "description": "The host's API base URL, which the repositories' tokens are sent to. On the uri's host (api.github.com for github.com)",
+            "example": "https://api.github.com"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Turned on or off for the whole node. The repositories on a disabled provider are not active",
+            "example": true
+          }
+        },
+        "description": "A git provider as nested in a repository"
+      },
+      "GitProviderObject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "github-github.com"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "github",
+              "gitea"
+            ],
+            "example": "github"
+          },
+          "uri": {
+            "type": "string",
+            "description": "The host's web address",
+            "example": "https://github.com"
+          },
+          "api_uri": {
+            "type": "string",
+            "description": "The host's API base URL, which the repositories' tokens are sent to. On the uri's host (api.github.com for github.com)",
+            "example": "https://api.github.com"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Turned on or off for the whole node. The repositories on a disabled provider are not active",
+            "example": true
+          },
+          "created_at": {
+            "type": "string",
+            "example": "2026-01-01 00:00:00"
+          },
+          "updated_at": {
+            "type": "string",
+            "example": "2026-01-01 00:00:00"
+          }
+        },
+        "description": "A global git provider"
+      },
+      "GitProviderPostBody": {
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "uri",
+          "api_uri"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Unique across the node (409 on a duplicate)",
+            "example": "github-github.com"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "github",
+              "gitea"
+            ],
+            "example": "github"
+          },
+          "uri": {
+            "type": "string",
+            "description": "Unique across the node (409 on a duplicate)",
+            "example": "https://github.com"
+          },
+          "api_uri": {
+            "type": "string",
+            "example": "https://api.github.com"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "GitProviderPatchBody": {
+        "type": "object",
+        "description": "Any of the fields. None can be null",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Unique across the node (409 on a duplicate)",
+            "example": "github-github.com"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "github",
+              "gitea"
+            ],
+            "example": "github"
+          },
+          "uri": {
+            "type": "string",
+            "description": "Unique across the node (409 on a duplicate)",
+            "example": "https://github.com"
+          },
+          "api_uri": {
+            "type": "string",
+            "example": "https://api.github.com"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "GitProviderHealthObject": {
+        "type": "object",
+        "description": "A global git provider and whether its API answers",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "github-github.com"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "github",
+              "gitea"
+            ],
+            "example": "github"
+          },
+          "uri": {
+            "type": "string",
+            "description": "The host's web address",
+            "example": "https://github.com"
+          },
+          "api_uri": {
+            "type": "string",
+            "description": "The host's API base URL, which the repositories' tokens are sent to. On the uri's host (api.github.com for github.com)",
+            "example": "https://api.github.com"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Turned on or off for the whole node. The repositories on a disabled provider are not active",
+            "example": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unauthorized",
+              "not_found",
+              "unreachable",
+              "secret_missing",
+              "error"
+            ]
+          },
+          "health_check": {
+            "type": "object",
+            "description": "What the check found",
+            "properties": {
+              "message": {
+                "type": "string",
+                "description": "The reason on a failure, else OK or the HTTP reason",
+                "example": "OK"
+              },
+              "status_code": {
+                "type": "integer",
+                "nullable": true,
+                "description": "The provider's HTTP status. Null if no request was made, and for datasets and secrets"
+              },
+              "latency_ms": {
+                "type": "integer",
+                "nullable": true,
+                "description": "How long the check took. Null if no connection was attempted"
+              }
             }
           }
         }

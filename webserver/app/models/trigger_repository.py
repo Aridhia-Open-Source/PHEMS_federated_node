@@ -20,10 +20,11 @@ class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
     updated_at = sqla_column.updated_at()
 
     __table_args__ = (
-        sa.UniqueConstraint('uri', name='uq_trigger_repositories_uri'),
+        sa.UniqueConstraint('provider_id', 'repo_path', name='uq_trigger_repositories_provider_repo_path'),
     )
 
     project_assignments = relationship("ProjectTriggerRepository", back_populates="trigger_repository")
+    provider = relationship("GitProvider", back_populates="trigger_repositories")
     secret = relationship(
         "Secret", back_populates="trigger_repositories"
     )
@@ -49,15 +50,13 @@ class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
 
     def __init__(
         self,
-        uri: str,
-        provider: str,
-        api_uri: str,
+        provider_id: int,
+        repo_path: str,
         secret_id: int,
         enabled: bool = True,
     ):
-        self.uri = uri
-        self.provider = provider
-        self.api_uri = api_uri
+        self.provider_id = provider_id
+        self.repo_path = repo_path
         self.secret_id = secret_id
         self.enabled = enabled
 

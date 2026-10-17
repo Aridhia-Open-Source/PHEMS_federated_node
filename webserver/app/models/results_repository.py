@@ -17,25 +17,24 @@ class ResultsRepository(GitRepositoryMixin, db.Model, BaseModel):
     updated_at = sqla_column.updated_at()
 
     __table_args__ = (
-        sa.UniqueConstraint('uri', name='uq_results_repositories_uri'),
+        sa.UniqueConstraint('provider_id', 'repo_path', name='uq_results_repositories_provider_repo_path'),
     )
 
     project_assignments = relationship("ProjectResultsRepository", back_populates="results_repository")
+    provider = relationship("GitProvider", back_populates="results_repositories")
     secret = relationship(
         "Secret", back_populates="results_repositories"
     )
 
     def __init__(
         self,
-        uri: str,
-        provider: str,
-        api_uri: str,
+        provider_id: int,
+        repo_path: str,
         secret_id: int,
         enabled: bool = True,
     ):
-        self.uri = uri
-        self.provider = provider
-        self.api_uri = api_uri
+        self.provider_id = provider_id
+        self.repo_path = repo_path
         self.secret_id = secret_id
         self.enabled = enabled
 

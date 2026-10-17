@@ -74,36 +74,36 @@ def get(client, admin_headers, url):
 # --------------------------------------------------------------------------- global trigger repositories
 
 
-def test_create_get_and_404(client, admin_headers, global_secret):
-    body = {"uri": "github.com/org/new", "provider": "github", "secret_label": "test-creds"}
+def test_create_get_and_404(client, admin_headers, global_secret, git_provider):
+    body = {"provider_id": git_provider.id, "repo_path": "org/new", "secret_label": "test-creds"}
     created = client.post(BASE, json=body, headers=admin_headers)
     assert created.status_code == 201
-    assert created.json["api_uri"] == "https://api.github.com"
+    assert created.json["provider"]["api_uri"] == "https://api.github.com"
     assert created.json["enabled"] is True
     assert created.json["secret"]["label"] == "test-creds"
 
-    assert get(client, admin_headers, f"{BASE}/{created.json['id']}").json["uri"] == "github.com/org/new"
+    assert get(client, admin_headers, f"{BASE}/{created.json['id']}").json["uri"] == "https://github.com/org/new"
     assert get(client, admin_headers, f"{BASE}/999").status_code == 404
 
-    # the same repository under another spelling of the uri is a duplicate
-    again = client.post(BASE, json={**body, "uri": "https://github.com/org/new"}, headers=admin_headers)
+    # the same repository under another spelling of the path is a duplicate
+    again = client.post(BASE, json={**body, "repo_path": "Org/New.git"}, headers=admin_headers)
     assert again.status_code == 409
 
 
 @pytest.mark.parametrize("changes", [
     {"secret_label": "nope"},      # unknown secret
-    {"provider": "bogus"},         # unknown provider
+    {"provider_id": 999999},       # unknown provider
     {"watch_dir": "x"},            # watch_dir belongs to the project link, not the global repository
 ])
-def test_create_validation_failures_are_400(client, admin_headers, global_secret, changes):
-    body = {"uri": "github.com/org/new", "provider": "github", "secret_label": "test-creds", **changes}
+def test_create_validation_failures_are_400(client, admin_headers, global_secret, git_provider, changes):
+    body = {"provider_id": git_provider.id, "repo_path": "org/new", "secret_label": "test-creds", **changes}
     assert client.post(BASE, json=body, headers=admin_headers).status_code == 400
 
 
 def test_patch_and_delete_need_a_drained_lock_except_secret_swap(client, admin_headers, linked_trigger_repo, project):
     T = linked_trigger_repo["trigger_repository"]["id"]
     assert patch(client, admin_headers, f"{BASE}/{T}", {"enabled": False}).status_code == 409
-    assert patch(client, admin_headers, f"{BASE}/{T}", {"api_uri": "https://api.example.com"}).status_code == 409
+    assert patch(client, admin_headers, f"{BASE}/{T}", {"provider_id": linked_trigger_repo["trigger_repository"]["provider"]["id"]}).status_code == 409
     # swapping the secret is exempt from the lock
     assert patch(client, admin_headers, f"{BASE}/{T}", {"secret_label": "test-creds"}).status_code == 200
 

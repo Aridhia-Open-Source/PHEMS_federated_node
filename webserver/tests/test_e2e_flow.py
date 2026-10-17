@@ -7,11 +7,14 @@ def test_full_flow(client, admin_headers, k8s_client, project, make_pr_batch, sp
         return r.json
 
     creds = {"label": "e2e-creds", "provider": "K8S", "values": {"TOKEN": "t", "USERNAME": "u", "PASSWORD": "p"}}
-    repo = {"provider": "github", "secret_label": "e2e-creds"}
-    # 1-4. Global secret, trigger repository, results repository, dataset
+    # 1-4. Global secret, git provider, trigger repository, results repository, dataset
     call("post", "/global/secrets", 201, json=creds)
-    T = call("post", "/global/repositories/triggers", 201, json={"uri": "github.com/org/e2e-triggers", **repo})["id"]
-    R = call("post", "/global/repositories/results", 201, json={"uri": "github.com/org/e2e-results", **repo})["id"]
+    provider = call("post", "/global/providers", 201, json={
+        "name": "github", "type": "github", "uri": "https://github.com", "api_uri": "https://api.github.com"
+    })["id"]
+    repo = {"provider_id": provider, "secret_label": "e2e-creds"}
+    T = call("post", "/global/repositories/triggers", 201, json={"repo_path": "org/e2e-triggers", **repo})["id"]
+    R = call("post", "/global/repositories/results", 201, json={"repo_path": "org/e2e-results", **repo})["id"]
     D = call("post", "/global/datasets", 201,
              json={"name": "E2eDs", "host": "db", "port": 5432, "secret_label": "e2e-creds"})["id"]
 

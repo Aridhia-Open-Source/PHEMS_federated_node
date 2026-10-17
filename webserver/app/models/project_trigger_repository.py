@@ -59,7 +59,7 @@ class ProjectTriggerRepository(db.Model, BaseModel):
 
     @property
     def active(self) -> bool:
-        return self.trigger_repository.enabled and self.enabled and not self.revoked
+        return self.trigger_repository.active and self.enabled and not self.revoked
 
     @property
     def dataset(self):
