@@ -6,7 +6,7 @@ from app import main, mirrors, webhooks
 from app.gitea import HttpGiteaClient
 from app.github import GithubRestClient
 from app.sync import GitCache
-from app.helpers.auth import check_bearer_token
+from app.helpers.auth import check_bearer_token, require_api_token
 from app.helpers.errors import register_error_handlers
 
 
@@ -14,7 +14,7 @@ def create_app(github_client=None, gitea_client=None, git_cache=None):
     app = Flask(__name__)
     app.config['SQLALCHEMY_DATABASE_URI'] = build_sql_uri()
 
-    api_token = os.environ['GITEA_MIRROR_API_TOKEN']
+    api_token = require_api_token(os.environ['GITEA_MIRROR_API_TOKEN'])
     app.extensions['github_client'] = github_client or GithubRestClient()
     app.extensions['gitea_client'] = gitea_client or HttpGiteaClient.from_env()
     app.extensions['git_cache'] = git_cache or GitCache.from_env()
