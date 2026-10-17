@@ -4,13 +4,11 @@ import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx
 
 from app.backend import BackendAPI
-from app.config import DEFAULT_SENSOR_STATUS
+from app.config import DEFAULT_SENSOR_STATUS, MIN_SENSOR_INTERVAL_SECONDS
 from app.definitions.sensors.git.base import GitAPIFactory
 from app.definitions.sensors.git.pr_ingest import PullRequestIngestSensor
 from app.definitions.sensors.git.evaluate_job import evaluate_repository_pull_requests_job
 from app.definitions.sensors.git.pr_evaluate import PullRequestEvaluateSensor
-
-MIN_SENSOR_INTERVAL_SECONDS = 10
 
 
 @dg.sensor(

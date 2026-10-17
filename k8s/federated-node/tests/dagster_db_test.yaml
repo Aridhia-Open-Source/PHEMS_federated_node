@@ -136,6 +136,24 @@ tests:
           path: data.DAGSTER_SENSORS_INITIAL_STATUS
           value: RUNNING
 
+  - it: passes the sensor minimum interval to the code server, 30 by default
+    template: dagster-env-config.yaml
+    asserts:
+      - equal:
+          path: data.DAGSTER_SENSORS_MIN_INTERVAL_SECONDS
+          value: "30"
+
+  - it: passes a configured sensor minimum interval to the code server
+    template: dagster-env-config.yaml
+    set:
+      fnDagster:
+        sensors:
+          minIntervalSeconds: 2
+    asserts:
+      - equal:
+          path: data.DAGSTER_SENSORS_MIN_INTERVAL_SECONDS
+          value: "2"
+
   - it: rejects an initial sensor status other than STOPPED or RUNNING
     template: dagster-env-config.yaml
     set:

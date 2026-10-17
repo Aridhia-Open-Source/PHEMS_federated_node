@@ -12,12 +12,11 @@ import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, SensorEvaluationContext
 
 from app.backend import BackendAPI
-from app.config import DEFAULT_SENSOR_STATUS
+from app.config import DEFAULT_SENSOR_STATUS, MIN_SENSOR_INTERVAL_SECONDS
 from app.definitions.sensors.git.base import GitAPIFactory
 from app.definitions.sensors.git.pr_evaluate import IN_FLIGHT
 from app.models import PullRequestResult, PullRequestResultStep, ResultState
 
-MIN_SENSOR_INTERVAL_SECONDS = 10
 # PUSHED may have a pull request its result missed, OPENED may be merged or closed since.
 SYNCED = [PullRequestResultStep.PUSHED, PullRequestResultStep.OPENED]
 

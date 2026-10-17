@@ -267,6 +267,8 @@ fnDagster:
     # Status every Dagster sensor starts in: STOPPED or RUNNING. Only applies to a sensor
     # Dagster has not seen before; a sensor started or stopped since keeps its status.
     initialStatus: STOPPED
+    # Minimum seconds between ticks of every Dagster sensor. Dev values use 2.
+    minIntervalSeconds: 30
   webserver:
     # In-cluster URL the Federated Node API uses to reach the Dagster webserver's GraphQL
     # API. Leave empty to derive it from the release name and namespace

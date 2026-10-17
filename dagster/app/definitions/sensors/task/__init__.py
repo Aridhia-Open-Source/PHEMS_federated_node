@@ -4,7 +4,7 @@ import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
 from app.backend import BackendAPI
-from app.config import DEFAULT_SENSOR_STATUS, BackendConfig
+from app.config import DEFAULT_SENSOR_STATUS, MIN_SENSOR_INTERVAL_SECONDS, BackendConfig
 from app.definitions.jobs import k8s_pipes_job
 from app.definitions.sensors.task.delivery import deliver_results_job, task_results_delivery_sensor
 from app.definitions.sensors.task.launcher import TaskLauncherSensor
@@ -14,8 +14,6 @@ from app.definitions.sensors.task.pull_request_sync import (
 )
 from app.definitions.sensors.task.run_status import TaskRunStatusSensor
 from app.utils import BackendAdapter, BackendSession
-
-MIN_SENSOR_INTERVAL_SECONDS = 10
 
 
 @dg.sensor(
