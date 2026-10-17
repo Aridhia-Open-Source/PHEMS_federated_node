@@ -13,8 +13,7 @@ from app.definitions.sensors.task.delivery import deliver_results_job, task_resu
 from app.delivery import git_push
 from app.delivery.results import ResultsDelivery
 from app.models import (
-    ProjectResultsRepository, ProjectTriggerRepository, PullRequestResult, PullRequestTrigger, ResultsRepository, Secret, Task,
-    TriggerRepository
+    ProjectResultsRepository, PullRequestResult, ResultsRepository, Secret, Task, TaskTrigger, TriggerRepositoryRef
 )
 from app.tests.conftest import SAMPLE_SECRET
 
@@ -31,17 +30,10 @@ REPOSITORY = ProjectResultsRepository(
     id=5, project_id=1, results_repository=GLOBAL_REPOSITORY, target_dir="/results/",
     owned_by_federated_node=True, enabled=True, revoked=False, active=True,
 )
-TRIGGER_REPOSITORY = TriggerRepository(
-    id=2, uri="gitea.fn.svc:3000/fn/analysis", provider="gitea", api_uri="http://x/api/v1",
-    secret=SAMPLE_SECRET, enabled=True,
-)
-TRIGGER_ASSIGNMENT = ProjectTriggerRepository(
-    id=8, project_id=1, trigger_repository=TRIGGER_REPOSITORY, watch_dir="w", base_branch="main", pr_cursor="c",
-    enabled=True, revoked=False, active=True,
-)
-PULL_REQUEST = PullRequestTrigger(
-    project_id=1, trigger_repository_id=8, number=12, title="t", raised_by="u", merged_at="2026-01-01T00:00:00Z",
-    merge_commit_sha="abc", state="YIELDED", task_id=7,
+TRIGGER_REPOSITORY = TriggerRepositoryRef(id=2, repo_path="fn/analysis", uri="gitea.fn.svc:3000/fn/analysis")
+PULL_REQUEST = TaskTrigger(
+    project_id=1, trigger_repository_id=2, number=12, title="t", raised_by="u", merged_at="2026-01-01T00:00:00Z",
+    merge_commit_sha="abc", state="YIELDED", task_id=7, trigger_repository=TRIGGER_REPOSITORY,
 )
 LAYOUT = "results/analysis/12/7"
 BRANCH = "results/analysis/12/7-abc"
@@ -87,8 +79,7 @@ def backend_api():
     api = MagicMock()
     api.get_task.return_value = TASK
     api.get_results_repository.return_value = REPOSITORY
-    api.get_project_trigger_repositories.return_value = [TRIGGER_ASSIGNMENT]
-    api.get_pull_requests.return_value = [PULL_REQUEST]
+    api.get_task_trigger.return_value = PULL_REQUEST
     api.create_result.return_value = result()
     return api
 
@@ -201,13 +192,13 @@ def test_missing_artifacts_fail_the_delivery(backend_api, remote, tmp_path):
 
 
 def test_a_task_without_a_pull_request_fails_the_delivery(backend_api, remote, artifacts):
-    backend_api.get_pull_requests.return_value = []
+    backend_api.get_task_trigger.side_effect = requests.HTTPError(response=MagicMock(status_code=404))
 
-    with pytest.raises(LookupError):
+    with pytest.raises(requests.HTTPError):
         deliver(backend_api, remote, artifacts)
 
     (fields,) = patches(backend_api)
-    assert fields["error"].startswith("LookupError")
+    assert fields["error"].startswith("HTTPError")
 
 
 def test_a_revoked_results_repository_fails_the_delivery_with_the_error_and_raises_nothing(
@@ -220,14 +211,11 @@ def test_a_revoked_results_repository_fails_the_delivery_with_the_error_and_rais
     assert patches(backend_api) == [{"state": "FAILED", "attempts": 1, "error": "results repository access revoked"}]
 
 
-def test_an_inactive_trigger_assignment_is_still_resolved(backend_api, remote, artifacts, git_apis):
-    backend_api.get_project_trigger_repositories.return_value = [TRIGGER_ASSIGNMENT.model_copy(update={"revoked": True, "active": False})]
-
+def test_the_pull_request_is_found_with_one_call(backend_api, remote, artifacts, git_apis):
     deliver(backend_api, remote, artifacts, git_apis)
 
     assert patches(backend_api)[-1]["state"] == "DELIVERED"
-    backend_api.get_project_trigger_repositories.assert_called_once_with(1)
-    backend_api.get_pull_requests.assert_called_once_with(1, 2, task_id=7)
+    backend_api.get_task_trigger.assert_called_once_with(1, 7)
 
 
 @pytest.mark.parametrize("step", ["OPENED", "MERGED", "CLOSED"])

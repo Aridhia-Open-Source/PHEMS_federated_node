@@ -5,7 +5,7 @@ from app.models.project import Project
 from app.models.pull_request import ChangedFile, NewPullRequest, PullRequest
 from app.models.pull_request_result import PullRequestResult
 from app.models.pull_request_result_step import PullRequestResultStep
-from app.models.pull_request_trigger import PullRequestTrigger
+from app.models.pull_request_trigger import PullRequestTrigger, TaskTrigger, TriggerRepositoryRef
 from app.models.result_state import ResultState
 from app.models.results_repository import ProjectResultsRepository, ResultsRepository
 from app.models.secret import Secret
@@ -37,6 +37,8 @@ __all__ = [
     "Task",
     "TaskSpec",
     "TaskStatus",
+    "TaskTrigger",
     "TriggerRepository",
+    "TriggerRepositoryRef",
     "TriggerState",
 ]

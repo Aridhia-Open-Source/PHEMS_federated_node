@@ -142,12 +142,15 @@ class TestPullRequests:
 
         assert session.get.call_args.kwargs["params"]["state"] == "UNKNOWN"
 
-    def test_the_task_id_is_sent_as_a_query_param(self, api, session):
-        session.get.return_value = self._page([SAMPLE_PR], 1)
+    def test_get_task_trigger_reads_the_pull_request_and_its_repository(self, api, session):
+        session.get.return_value = make_response({
+            **SAMPLE_PR, "trigger_repository": {"id": 1, "repo_path": "org/repo", "uri": "github.com/org/repo"},
+        })
 
-        api.get_pull_requests(project_id=1, repository_id=1, task_id=9)
+        trigger = api.get_task_trigger(1, 9)
 
-        assert session.get.call_args.kwargs["params"] == {"task_id": 9, "page": 1, "per_page": 100}
+        session.get.assert_called_once_with("/projects/1/tasks/9/trigger")
+        assert (trigger.number, trigger.trigger_repository.repo_path) == (SAMPLE_PR["number"], "org/repo")
 
     def test_batch_creation(self, api, session):
         session.post.return_value = make_response({"created": [1], "existing": [2]})

@@ -17,3 +17,17 @@ class PullRequestTrigger(BaseModel):
     state: TriggerState
     state_cause: str | None = None
     task_id: int | None = None
+
+
+class TriggerRepositoryRef(BaseModel):
+    """A trigger repository named by where it is, nested in the trigger of a task."""
+    model_config = ConfigDict(extra="allow")
+
+    id: int
+    repo_path: str
+    uri: str
+
+
+class TaskTrigger(PullRequestTrigger):
+    """The pull request that yielded a task, with the repository it was merged in."""
+    trigger_repository: TriggerRepositoryRef

@@ -11,6 +11,7 @@ tasks-related endpoints, under the project that owns the tasks. A task of anothe
 - POST /projects/<project_id>/tasks/<task_id>/results/approve
 - POST /projects/<project_id>/tasks/<task_id>/results/block
 - GET /projects/<project_id>/tasks/<task_id>/logs
+- GET /projects/<project_id>/tasks/<task_id>/trigger (the pull request that yielded the task, 404 if none)
 """
 from datetime import datetime as dt
 from http import HTTPStatus
@@ -28,9 +29,11 @@ from app.helpers.query_filters import arg_get
 from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.wrappers import audit, auth
 from app.dtos.task import NewTaskDTO, TaskDTO
+from app.dtos.trigger_repository import TaskTriggerDTO
 from app.dtos.result import dump_result
 from app.models.api_request_trigger import ApiRequestTrigger
 from app.models.project import Project
+from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.task import Task
 from app.models.task_status import TaskStatus
 from app.models.trigger_state import TriggerState
@@ -289,6 +292,21 @@ def post_tasks_validate(project_id):
     req_body["docker_image"] = spec.image
     Task.validate(req_body)
     return "Ok", 200
+
+
+@bp.route('/<int:task_id>/trigger', methods=['GET'])
+@audit
+@auth(scope='can_exec_task')
+def get_task_trigger(project_id, task_id):
+    """
+    GET /projects/<project_id>/tasks/id/trigger endpoint. The pull request that yielded the task,
+    with its trigger repository. A task created by hand has none: 404
+    """
+    task = get_project_task(project_id, task_id)
+    does_user_own_task(task)
+    if not isinstance(task.trigger, PullRequestTrigger):
+        raise DBRecordNotFoundError(f"Task with id {task_id} has no pull request trigger")
+    return TaskTriggerDTO.from_model(task.trigger).dump(), HTTPStatus.OK
 
 
 @bp.route('/<int:task_id>/results', methods=['GET'])

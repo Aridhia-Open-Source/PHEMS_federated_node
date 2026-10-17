@@ -243,7 +243,6 @@ def get_pull_requests(project_id: int, repo_id: int):
         - page: page number (default 1)
         - per_page: items per page (default 20)
         - state: filter by state (optional), one of: UNKNOWN, REJECTED, YIELDED
-        - task_id: only the pull request that yielded this task (optional)
     Sorted by merged_at DESC (most recent first).
     """
     assignment = _assignment(project_id, repo_id)
@@ -251,7 +250,6 @@ def get_pull_requests(project_id: int, repo_id: int):
     page = arg_get('page', 1, type=int)
     per_page = arg_get('per_page', 20, type=int)
     state = request.args.get('state', None)
-    task_id = arg_get('task_id', type=int)
 
     query = PullRequestTrigger.query.join(PullRequest).filter(
         PullRequestTrigger.project_trigger_repository_id == assignment.id
@@ -262,8 +260,6 @@ def get_pull_requests(project_id: int, repo_id: int):
             valid = ', '.join([s.value for s in TriggerState])
             raise InvalidRequest(f"Invalid state: {state}. Must be one of: {valid}")
         query = query.filter(PullRequestTrigger.state == state)
-    if task_id is not None:
-        query = query.filter(PullRequestTrigger.task.has(id=task_id))
 
     query = query.order_by(PullRequest.merged_at.desc(), PullRequest.number.desc())
     paginated = query.paginate(page=page, per_page=per_page, error_out=False)

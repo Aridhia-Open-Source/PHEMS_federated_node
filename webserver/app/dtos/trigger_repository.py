@@ -6,6 +6,7 @@ from app.dtos.base import DTO
 from app.dtos.secret import SecretDTO
 from app.helpers.exceptions import InvalidRequest
 from app.models.project_trigger_repository import ProjectTriggerRepository
+from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.trigger_repository import TriggerRepository
 
 
@@ -30,6 +31,13 @@ class TriggerRepositoryDTO(DTO):
             enabled=obj.enabled,
             pr_cursor=obj.get_ingest_cursor(),
         )
+
+
+class TriggerRepositoryRefDTO(DTO):
+    """A trigger repository named by where it is, without its secret or cursor."""
+    id: int
+    repo_path: str
+    uri: str
 
 
 class ProjectTriggerRepositoryDTO(DTO):
@@ -85,6 +93,18 @@ class PullRequestTriggerDTO(DTO):
     state: str
     state_cause: str | None
     task_id: int | None
+
+
+class TaskTriggerDTO(PullRequestTriggerDTO):
+    """The pull request that yielded a task, with the repository it was merged in nested."""
+    trigger_repository: TriggerRepositoryRefDTO
+
+    @classmethod
+    def from_model(cls, obj: PullRequestTrigger):
+        return cls(
+            **PullRequestTriggerDTO.from_model(obj).model_dump(),
+            trigger_repository=TriggerRepositoryRefDTO.from_model(obj.project_trigger_repository.trigger_repository),
+        )
 
 
 class ChangedFileRequest(BaseModel):

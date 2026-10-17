@@ -351,6 +351,8 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
     running = d.patch_task(pid, task.id, {"status": "RUNNING", "dagster_run_id": "run-1"})
     assert running.status == "RUNNING" and running.dagster_run_id == "run-1"
     assert d.get_task(pid, task.id).dagster_run_id == "run-1"
+    trigger = d.get_task_trigger(pid, task.id)
+    assert (trigger.number, trigger.trigger_repository.id) == (1, tid)
     assert d.patch_task(pid, task.id, {"status": "SUCCESS"}).status == "SUCCESS"
     with pytest.raises(requests.HTTPError) as exc:  # a finished task cannot change status
         d.patch_task(pid, task.id, {"status": "FAILED"})

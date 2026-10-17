@@ -789,6 +789,59 @@
         }
       }
     },
+    "/projects/{project_id}/tasks/{task_id}/trigger": {
+      "get": {
+        "operationId": "get_task_trigger",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Get the pull request that yielded a task, with its trigger repository",
+        "description": "404 if the task has no pull request trigger (tasks created by hand).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "task_id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The task's trigger",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskTriggerObject"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/login": {
       "post": {
         "operationId": "login",
@@ -7539,6 +7592,32 @@
             "example": null
           }
         }
+      },
+      "TaskTriggerObject": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PullRequestTriggerObject"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "trigger_repository": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "repo_path": {
+                    "type": "string"
+                  },
+                  "uri": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        ]
       },
       "PullRequestFactsPage": {
         "type": "object",

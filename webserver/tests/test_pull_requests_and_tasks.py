@@ -554,3 +554,24 @@ def test_a_task_of_another_project_is_a_404(client, admin_headers, other_project
     assert client.patch(url, json={"status": "RUNNING"}, headers=admin_headers).status_code == 404
     assert client.post(f"{url}/retry", json={}, headers=admin_headers).status_code == 404
     assert client.get("/projects/99999/tasks", headers=admin_headers).status_code == 404
+
+
+def test_task_trigger_is_the_pull_request_with_its_repository(client, admin_headers, project, other_project,
+                                                              global_trigger_repo, pr_trigger, spec_raw):
+    task = create_task(client, admin_headers, pr_trigger, spec_raw)
+    url = f"/projects/{project.id}/tasks/{task['id']}/trigger"
+    response = client.get(url, headers=admin_headers)
+    assert response.status_code == 200, response.json
+    assert response.json == {
+        **client.get(pr_trigger, headers=admin_headers).json,
+        "trigger_repository": {
+            "id": global_trigger_repo.id, "repo_path": global_trigger_repo.repo_path, "uri": global_trigger_repo.uri,
+        },
+    }
+    assert response.json["number"] == 1 and response.json["merge_commit_sha"]
+    assert client.get(f"/projects/{other_project.id}/tasks/{task['id']}/trigger", headers=admin_headers).status_code == 404
+
+
+def test_task_trigger_of_a_task_made_by_hand_is_a_404(client, admin_headers, project, make_task):
+    task = make_task()
+    assert client.get(f"/projects/{project.id}/tasks/{task.id}/trigger", headers=admin_headers).status_code == 404

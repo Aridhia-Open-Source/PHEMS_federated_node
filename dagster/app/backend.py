@@ -4,7 +4,7 @@ from http import HTTPStatus
 from app.utils import BackendSession
 from app.models import (
     ProjectTriggerRepository, TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository, Task,
-    PullRequestResult, Dataset, ProjectDataset
+    TaskTrigger, PullRequestResult, Dataset, ProjectDataset
 )
 
 default_logger = logging.getLogger(__name__)
@@ -75,7 +75,7 @@ class BackendAPI:
     def get_pull_requests(self, project_id: int, repository_id: int, **filters: str | int) -> list[PullRequestTrigger]:
         """
         Get all pull requests of a project's trigger repository link, automatically handling pagination.
-        Filters are the webserver's: state=, or task_id= for the pull request that yielded a task.
+        Filters are the webserver's, e.g. state=.
         """
         self.logger.info(f"Fetching pull requests for repo {repository_id} matching {filters}")
         all_prs = []
@@ -175,6 +175,12 @@ class BackendAPI:
         self.logger.info(f"Fetching task {task_id}")
         response = self.session.get(f"/projects/{project_id}/tasks/{task_id}")
         return Task(**response.json())
+
+    def get_task_trigger(self, project_id: int, task_id: int) -> TaskTrigger:
+        """Get the pull request that yielded a task, with its trigger repository. 404 if the task has none."""
+        self.logger.info(f"Fetching the trigger of task {task_id}")
+        response = self.session.get(f"/projects/{project_id}/tasks/{task_id}/trigger")
+        return TaskTrigger(**response.json())
 
     def get_results_repository(self, project_id: int) -> ProjectResultsRepository:
         """Get the project's link to a results repository, active or not. A project has exactly one."""
