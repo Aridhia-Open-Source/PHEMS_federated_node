@@ -1,5 +1,5 @@
 """
-Switch for the end-to-end tests (fncli/tests/e2e), which need a live dev cluster: `pytest --e2e`
+Switch for the end-to-end tests (fncli/tests/e2e), which need a live dev cluster: `pytest dagster --e2e` (from the repo root, where fncli finds .dev.env)
 runs only them, and a plain `pytest` skips them.
 """
 

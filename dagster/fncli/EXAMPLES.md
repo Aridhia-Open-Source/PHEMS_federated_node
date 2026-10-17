@@ -45,7 +45,7 @@ fncli merge-results-pr --number "$(fncli project-show | jq '.results[0].number')
 fncli verify-project && fncli verify-repo
 ```
 
-The same flow is automated with `cd dagster && pytest --e2e -v` (`E2E_KEEP=1` keeps the project).
+The same flow is automated with `pytest dagster --e2e -v` from the repo root (`E2E_KEEP=1` keeps the project).
 
 If something sticks: `fncli sensor-status`, and the backend and Dagster pod logs.
 
