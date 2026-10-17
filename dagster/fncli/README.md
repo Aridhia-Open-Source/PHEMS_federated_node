@@ -273,3 +273,16 @@ dagster/fncli/
 
 fncli imports the shared client code and models from `app` (`app.backend`, `app.gitea`,
 `app.models`, ...). Anything only the CLI needs lives here, never in `dagster/app`.
+
+## Simulation (several providers, repositories and projects)
+
+`fncli simulate-setup`, `simulate-run`, `simulate-check` and `simulate-teardown` run a multi-provider simulation on the dev cluster
+(`fncli/cmds/simulate.py`, logic in `fncli/simulation.py`). Four projects (`SimOne` to `SimFour`) link three trigger repositories and
+two results repositories over two `GitProvider`s: the cluster's Gitea under its own name, and under an alias host `gitea-b` (a
+Kubernetes ExternalName service the setup creates, so the providers' `uri` stay unique). One project watches repositories on both
+providers, one repository is shared by two projects, and the projects deliver to different results repositories.
+`simulate-run --seed N --prs-per-repo N` merges seeded pull requests (watched, invalid, unwatched and failing) in all trigger
+repositories at once, waits for the sensors, then checks per project and repository: the right pull requests and tasks, no task shared
+between projects, results delivered only to the project's own results repository. It writes a report to `artifacts/simulation/`.
+It needs `GITEA_API_URI`, `NAMESPACE` and the usual backend settings in `.dev.env`, and has not been run. Later: an outage step (break
+one provider's token or `api_uri`), then retries.

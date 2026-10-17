@@ -29,6 +29,15 @@ unless told). It compiles. Expect small fixes on the first laptop run.
   `dagster/app/tests/test_results_delivery.py` (edited, not run). No migration: `step` is a plain string column.
 - **Docs:** ADR 0019 (decision 13, self-healing), ADR 0008, `docs/architecture/entities.md`, `project/handover/e2e-qa-plan.md` (S12 uses `--kind failing`).
 
+## Simulation (added after the failure suite)
+
+`fncli simulate-setup | simulate-run | simulate-check | simulate-teardown`: four projects over two `GitProvider`s (one Gitea, a second
+host name through an ExternalName service) and several trigger and results repositories, PRs merged concurrently, end state checked per
+project and repository. See `dagster/fncli/README.md`. Unit tests: `dagster/fncli/tests/test_simulation.py`. **Never run**, including its
+unit tests. Assumptions to check on the laptop: the ExternalName alias reaches Gitea from the Dagster code server and the webserver;
+the sensors need no dataset on the projects; two projects delivering results from one trigger repository to different results
+repositories do not collide. Next: an outage step, then retries.
+
 ## First things to do on the laptop
 
 1. Rebuild the images, run the webserver tests (`webserver/run_tests.sh`) and the Dagster tests (`dagster/run_tests.sh`).
