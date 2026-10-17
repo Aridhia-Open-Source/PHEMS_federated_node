@@ -411,14 +411,11 @@ gitea:
       type: ClusterIP
       port: 4000
     ssh:
-      type: ClusterIP
       port: 22
 
   persistence:
-    enabled: true
     storageClass: local-path
     size: 10Gi
-    mountPath: /data
 
   # Uses shared Postgres database (db.host, db.port, db.secret)
   # Gitea role/database created by gitea-db-init Job

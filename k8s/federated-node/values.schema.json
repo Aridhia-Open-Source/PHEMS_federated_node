@@ -164,12 +164,6 @@
                     "$ref": "#/definitions/namespaces",
                     "description": "Namespaces this chart uses"
                 },
-                "host": {
-                    "$ref": "#/definitions/host"
-                },
-                "taskReview": {
-                    "$ref": "#/definitions/taskReview"
-                },
                 "postgresqlSecretName": {
                     "type": "string",
                     "description": "Name of the secret holding Dagster's database password. Read by the dagster subchart and by this chart's db-init job; the key is always postgresql-password",

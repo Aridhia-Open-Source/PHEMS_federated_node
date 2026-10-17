@@ -18,9 +18,7 @@ create_db_deployment: true   # run Postgres in the cluster instead of a managed 
 # taskReview: true           # tasks need approval before they run
 # smoketests: true           # `helm test` creates and deletes real db/keycloak rows
 
-host: &host phems-federatednode.net
-global:
-  host: *host
+host: phems-federatednode.net
 
 # The one Postgres server. The *-db-init hooks create the databases, roles and
 # passwords. The .svc name embeds the namespace - keep it in step with NAMESPACE.
