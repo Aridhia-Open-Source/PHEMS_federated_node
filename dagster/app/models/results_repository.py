@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
+from app.git_uri import normalise_repo_uri
 from app.models.secret import Secret
 
 
@@ -25,4 +26,4 @@ class ResultsRepository(BaseModel):
     @property
     def repo_path(self) -> str:
         """Where the repository is on the provider's API (owner/repo), as TriggerRepository.repo_path."""
-        return "/".join(self.uri.removesuffix("/").removesuffix(".git").split("/")[-2:])
+        return "/".join(normalise_repo_uri(self.uri).split("/")[-2:])

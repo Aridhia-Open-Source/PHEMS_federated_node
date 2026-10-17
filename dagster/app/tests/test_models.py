@@ -78,7 +78,6 @@ class TestTriggerRepository:
         ("https://github.com/org/repo", "org/repo"),
         ("http://gitea.fn.svc:3000/org/repo", "org/repo"),
         ("gitea.fn.svc:3000/org/repo", "org/repo"),
-        ("org/repo", "org/repo"),
     ])
     def test_repo_path_is_the_last_two_segments(self, uri, expected):
         assert TriggerRepository(**{**SAMPLE_REPOSITORY_OBJ, "uri": uri}).repo_path == expected

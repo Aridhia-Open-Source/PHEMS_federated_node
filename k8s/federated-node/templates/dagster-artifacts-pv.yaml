@@ -27,7 +27,7 @@ parameters:
 provisioner: {{ .Values.storage.nfs.provisioner }}
 {{- end }}
 ---
-{{- include "fn.dagsterArtifactsVolume" (dict "ctx" . "namespace" .Release.Namespace "suffix" "" "subpath" "") }}
+{{ include "fn.dagsterArtifactsVolume" (dict "ctx" . "namespace" .Release.Namespace "suffix" "" "subpath" "") }}
 ---
-{{- include "fn.dagsterArtifactsVolume" (dict "ctx" . "namespace" (include "tasks_namespace" .) "suffix" "-tasks" "subpath" "/") }}
+{{ include "fn.dagsterArtifactsVolume" (dict "ctx" . "namespace" (include "tasks_namespace" .) "suffix" "-tasks" "subpath" "/") }}
 {{- end }}

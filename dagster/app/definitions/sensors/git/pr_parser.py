@@ -25,6 +25,15 @@ class ParsedPullRequest(BaseModel):
     state_cause: str | None = None
 
 
+def is_under_dir(filename: str, directory: str) -> bool:
+    """
+    Whether the file's directory is the given directory or inside it, matching whole path
+    segments. An empty directory is the whole repository.
+    """
+    wanted = [s for s in directory.split("/") if s not in ("", ".")]
+    return filename.split("/")[:-1][:len(wanted)] == wanted
+
+
 class PullRequestParser:
     """
     Reads the spec a pull request carries: finds the new spec file in the repository's
@@ -75,7 +84,7 @@ class PullRequestParser:
 
     def _filter_watched_files(self, pr_files: list[dict]):
         def _is_watched_json_file(f):
-            is_dir = f["filename"].startswith(self.repo.watch_dir)
+            is_dir = is_under_dir(f["filename"], self.repo.watch_dir)
             is_ext = f["filename"].endswith('.json')
             is_new = f["status"] == "added"
             return is_dir and is_ext and is_new

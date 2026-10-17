@@ -375,7 +375,7 @@ class TestValidateTask:
         Simple test to make sure the task validates with a specific dataset repo
         """
         task_body["tags"] = {}
-        task_body["repository"] = "organisation/repository"
+        task_body["repository"] = "github.com/organisation/repository"
         response = client.post(
             '/tasks/validate',
             json=task_body,
@@ -397,14 +397,14 @@ class TestValidateTask:
         has no dataset linked to it
         """
         task_body["tags"] = {}
-        task_body["repository"] = "organisation/repository2"
+        task_body["repository"] = "github.com/organisation/repository2"
         response = client.post(
             '/tasks/validate',
             json=task_body,
             headers=post_json_admin_header
         )
         assert response.status_code == 400
-        assert response.json["error"] == "No datasets linked with the repository organisation/repository2"
+        assert response.json["error"] == "No datasets linked with the repository github.com/organisation/repository2"
 
     def test_validate_task_admin_missing_dataset(
             self,

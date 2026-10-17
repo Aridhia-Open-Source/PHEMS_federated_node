@@ -11,6 +11,8 @@ from app.models import PullRequestResultState
 @pytest.mark.parametrize("uri, api_uri, expected", [
     ("github.com/org/results", "https://api.github.com", "https://github.com/org/results.git"),
     ("ghe.example.com/org/results", "https://ghe.example.com/api/v3", "https://ghe.example.com/org/results.git"),
+    ("github.com/org/results.git", "https://api.github.com", "https://github.com/org/results.git"),
+    ("github.com/org/results/", "https://api.github.com", "https://github.com/org/results.git"),
 ])
 def test_clone_url_is_on_the_repository_host_not_the_api_host(uri, api_uri, expected):
     assert git_push.clone_url(uri, api_uri) == expected

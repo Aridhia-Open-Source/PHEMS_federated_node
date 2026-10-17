@@ -45,6 +45,12 @@ def test_skips_when_there_are_no_repositories():
     backend_api.create_pull_requests_batch.assert_not_called()
 
 
+def test_only_polls_repositories_of_enabled_projects():
+    _, backend_api = run([repo(1)], {1: fake_git_api([])})
+
+    backend_api.get_repositories.assert_called_once_with(enabled_only=True)
+
+
 def test_posts_one_batch_per_repository_with_new_prs():
     apis = {1: fake_git_api([5, 6]), 2: fake_git_api([9])}
 

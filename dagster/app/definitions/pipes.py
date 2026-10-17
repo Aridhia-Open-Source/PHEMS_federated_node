@@ -2,9 +2,9 @@ import os
 import logging
 from pathlib import Path
 
+from dagster_k8s import PipesK8sClient
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx
-from dagster_k8s import PipesK8sClient
 from dagster._core.pipes.client import PipesClientCompletedInvocation
 
 from app.config import PipesSecurityContextConfig

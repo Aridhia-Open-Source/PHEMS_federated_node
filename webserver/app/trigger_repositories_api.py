@@ -17,12 +17,13 @@ from http import HTTPStatus
 from flask import Blueprint, request
 from sqlalchemy.exc import IntegrityError
 
+from app.dtos.repository_uri import RepositoryUriRequest
 from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.trigger_repository import PullRequestTriggerDTO, TriggerRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.dtos.task_spec import TaskSpec
-from app.helpers.repository_loop import check_no_loop
+from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
 from app.models.secret import Secret
@@ -48,10 +49,13 @@ def auth_before():
 @bp.route('', methods=['GET'])
 def get_repositories():
     """
-    GET /trigger_repositories/ — list all repositories with their polling state
+    GET /trigger_repositories/ — list all repositories with their polling state,
+    optionally only those of enabled projects (?project_enabled=true)
     """
-    repos = TriggerRepository.query.all()
-    return [TriggerRepositoryDTO.from_model(r).dump() for r in repos], HTTPStatus.OK
+    query = TriggerRepository.query
+    if request.args.get('project_enabled', '').lower() == 'true':
+        query = query.join(Project, TriggerRepository.project_id == Project.id).filter(Project.enabled.is_(True))
+    return [TriggerRepositoryDTO.from_model(r).dump() for r in query.all()], HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['GET'])
@@ -88,7 +92,7 @@ def post_repository():
         if not body.get(field):
             raise InvalidRequest(f"{field} is required")
 
-    uri = TriggerRepository.parse_repo_uri(body['uri'])
+    uri = RepositoryUriRequest.normalised(body['uri'])
     if TriggerRepository.query.filter_by(project_id=body['project_id'], uri=uri).one_or_none():
         raise InvalidRequest(f"Repository {uri} already exists in project {body['project_id']}")
 
@@ -102,7 +106,7 @@ def post_repository():
             provider=body['provider'],
             api_uri=body.get('api_uri') or GitProvider(body['provider']).default_api_uri(uri),
             secret_id=secret.id,
-            watch_dir=body.get('watch_dir', ''),
+            watch_dir=normalise_dir(body.get('watch_dir', '')),
             project_id=body['project_id'],
             base_branch=body.get('base_branch', 'main'),
             initial_cursor=body.get('initial_cursor'),
@@ -133,7 +137,8 @@ def patch_repository(repo_id):
 
     if 'project_id' in body:
         Project.get_by_id(body['project_id'])
-        repo.project_id = body['project_id']
+        if body['project_id'] != repo.project_id:
+            raise InvalidRequest("A repository can't be moved to another project; create it in the new project instead")
 
     if 'base_branch' in body:
         if not body['base_branch']:
@@ -141,9 +146,10 @@ def patch_repository(repo_id):
         repo.base_branch = body['base_branch']
 
     if 'watch_dir' in body:
-        if not body['watch_dir']:
+        watch_dir = normalise_dir(body['watch_dir'])
+        if not watch_dir:
             raise InvalidRequest("watch_dir cannot be empty")
-        repo.watch_dir = body['watch_dir']
+        repo.watch_dir = watch_dir
 
     if 'secret_label' in body:
         if not body['secret_label']:
