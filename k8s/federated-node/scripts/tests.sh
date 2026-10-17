@@ -30,7 +30,7 @@ test_dataset_list(){
 
 test_whitelisted_images_list() {
     printf "[test]\t### Test Fetch Whitelisted Images list ###\n\n"
-    curl "${BACKEND_URL}/whitelisted_images" \
+    curl "${BACKEND_URL}/global/whitelisted_images" \
         --silent \
         --fail-with-body \
         --header "Authorization: Bearer ${TOKEN}" > /dev/null 2>&1
@@ -38,7 +38,7 @@ test_whitelisted_images_list() {
 
 test_create_user() {
     printf "[test]\t### Test Create User ###\n\n"
-    USER_TEMP=$(curl "${BACKEND_URL}/users" \
+    USER_TEMP=$(curl "${BACKEND_URL}/global/users" \
         --silent \
         --fail-with-body \
         --header "Content-Type: application/json" \
@@ -49,7 +49,7 @@ test_create_user() {
         }"| jq -r -e '.tempPassword')
 
     printf "[test]\t\tResetting pass\n"
-    curl --request PUT "${BACKEND_URL}/users/reset-password" \
+    curl --request PUT "${BACKEND_URL}/global/users/reset-password" \
         --silent \
         --fail-with-body \
         --header "Content-Type: application/json" \

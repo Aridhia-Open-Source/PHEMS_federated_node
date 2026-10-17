@@ -994,7 +994,7 @@
         }
       }
     },
-    "/users": {
+    "/global/users": {
       "get": {
         "operationId": "get_all_users",
         "tags": [
@@ -1061,7 +1061,7 @@
         }
       }
     },
-    "/users/reset-password": {
+    "/global/users/reset-password": {
       "put": {
         "operationId": "reset_password",
         "tags": [
@@ -1091,7 +1091,7 @@
         }
       }
     },
-    "/whitelisted_images": {
+    "/global/whitelisted_images": {
       "get": {
         "operationId": "getWhitelistedImages",
         "tags": [
@@ -1161,7 +1161,7 @@
         }
       }
     },
-    "/whitelisted_images/{id}": {
+    "/global/whitelisted_images/{id}": {
       "get": {
         "operationId": "getWhitelistedImageById",
         "parameters": [
@@ -1221,7 +1221,7 @@
         }
       }
     },
-    "/registries": {
+    "/global/registries": {
       "get": {
         "operationId": "getRegistries",
         "tags": [
@@ -1315,7 +1315,7 @@
         }
       }
     },
-    "/registries/{id}": {
+    "/global/registries/{id}": {
       "get": {
         "operationId": "getRegistryById",
         "parameters": [
