@@ -1,17 +1,34 @@
 """
-Switch for the end-to-end tests (fncli/tests/e2e), which need a live dev cluster: `pytest dagster --e2e` (from the repo root, where fncli finds .dev.env)
-runs only them, and a plain `pytest` skips them.
+Switch for the end-to-end tests (fncli/tests/e2e), which need a live dev cluster. Run from the repo
+root, where fncli finds .dev.env, with the option after the paths (`--e2e` takes an optional value):
+
+    pytest dagster --e2e -v            # every e2e test: the happy path, then the failure paths
+    pytest dagster --e2e success -v    # only the happy path
+    pytest dagster --e2e failure -v    # only the failure paths
+
+A plain `pytest` skips them all.
 """
 
 import pytest
 
+E2E_SUITES = ["all", "success", "failure"]
+
 
 def pytest_addoption(parser):
-    parser.addoption("--e2e", action="store_true", default=False, help="Run only the end-to-end tests, against the live dev cluster.")
+    parser.addoption(
+        "--e2e",
+        nargs="?",
+        const="all",
+        default=None,
+        choices=E2E_SUITES,
+        help="Run only the end-to-end tests, against the live dev cluster: all (the default), success or failure.",
+    )
 
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "e2e: end-to-end test against the live dev cluster, run with --e2e")
+    config.addinivalue_line("markers", "e2e_success: the end-to-end happy path, run with --e2e success")
+    config.addinivalue_line("markers", "e2e_failure: the end-to-end failure paths, run with --e2e failure")
     if config.getoption("--e2e"):
         # Each step depends on the one before, so stop at the first failure, and show progress as it happens
         config.option.exitfirst = True
@@ -19,10 +36,14 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    if config.getoption("--e2e"):
-        e2e = [item for item in items if "e2e" in item.keywords]
-        config.hook.pytest_deselected(items=[item for item in items if "e2e" not in item.keywords])
-        items[:] = e2e
+    suite = config.getoption("--e2e")
+    if suite:
+        wanted = "e2e" if suite == "all" else f"e2e_{suite}"
+        selected = [item for item in items if wanted in item.keywords]
+        config.hook.pytest_deselected(items=[item for item in items if wanted not in item.keywords])
+        # The happy path first, then the failure paths (the sort is stable)
+        selected.sort(key=lambda item: "e2e_failure" in item.keywords)
+        items[:] = selected
         return
     skip = pytest.mark.skip(reason="needs a live dev cluster, run with --e2e")
     for item in items:

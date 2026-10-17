@@ -4,12 +4,9 @@ One test per fncli command or state change, run in order on one project: a failu
 hop, and the first failure stops the run.
 """
 
-import os
-
 import pytest
 
 from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
-from fncli.cmds.common import DagsterConfig
 from fncli.cmds.pr import (
     commit_gitea_file_command,
     create_gitea_branch_command,
@@ -19,16 +16,22 @@ from fncli.cmds.pr import (
     new_branch_name,
 )
 from fncli.cmds.sensor import ALL_SENSORS
-from fncli.sensors import DagsterAPI
-from fncli.tests.e2e.conftest import PR_STATES, RESULT_STEPS, TASK_STATUSES, pull_requests, reached, step_id
+from fncli.tests.e2e.conftest import (
+    PR_STATES,
+    RESULT_STEPS,
+    SETUP_IDS,
+    TASK_STATUSES,
+    TEARDOWN_IDS,
+    pull_requests,
+    reached,
+    start_sensor,
+    teardown_step,
+)
 
-pytestmark = pytest.mark.e2e
+pytestmark = [pytest.mark.e2e, pytest.mark.e2e_success]
 
 TASK_TIMEOUT = 600
 STEP_TIMEOUT = 300
-
-SETUP_IDS = [step_id(step) for step in SETUP_STEPS]
-TEARDOWN_IDS = [step_id(step) for step in TEARDOWN_STEPS]
 
 
 @pytest.fixture(scope="module")
@@ -65,8 +68,7 @@ def test_verify_project_after_setup(fncli):
 
 @pytest.mark.parametrize("sensor", ALL_SENSORS)
 def test_start_sensor(sensor):
-    # start-sensor takes a group, not a name, so the API call it makes for each sensor is made here
-    DagsterAPI(DagsterConfig().dagster_url).start_sensor(sensor)
+    start_sensor(sensor)
 
 
 def test_create_gitea_branch(fncli, flow):
@@ -161,6 +163,4 @@ def test_verify_repo(fncli):
 
 @pytest.mark.parametrize("command, options", TEARDOWN_STEPS, ids=TEARDOWN_IDS)
 def test_teardown_final(fncli, command, options):
-    if os.environ.get("E2E_KEEP") == "1":
-        pytest.skip("E2E_KEEP=1 keeps the project")
-    fncli.call(command, **options)
+    teardown_step(fncli, command, options, keep=True)

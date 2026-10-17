@@ -1,7 +1,9 @@
 """
-Fixtures for the end-to-end happy path. Run against a live dev cluster with `.dev.env` present:
+Fixtures and helpers for the end-to-end tests. Run against a live dev cluster with `.dev.env` present:
 
-    pytest dagster/fncli/tests/e2e --e2e -v
+    pytest dagster --e2e -v            # all of them
+    pytest dagster --e2e success -v    # the happy path only
+    pytest dagster --e2e failure -v    # the failure paths only
 
 E2E_KEEP=1 keeps the project afterwards. Nothing here runs at import time, so a normal test run
 collects and skips these tests without a cluster.
@@ -9,6 +11,7 @@ collects and skips these tests without a cluster.
 
 import json
 import logging
+import os
 import time
 
 import click
@@ -16,8 +19,10 @@ import pytest
 from dotenv import find_dotenv, load_dotenv
 
 from fncli.cli import cli
-from fncli.cmds.common import ProjectConfig, build_backend_api
+from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
+from fncli.cmds.common import DagsterConfig, ProjectConfig, build_backend_api
 from fncli.cmds.state import snapshot
+from fncli.sensors import DagsterAPI
 
 logger = logging.getLogger("e2e")
 
@@ -38,8 +43,51 @@ def step_id(step) -> str:
     return f"{command.name}[{','.join(map(str, options.values()))}]" if options else command.name
 
 
+SETUP_IDS = [step_id(step) for step in SETUP_STEPS]
+TEARDOWN_IDS = [step_id(step) for step in TEARDOWN_STEPS]
+
+
 def pull_requests(snapshot: dict) -> list[dict]:
     return [pr for link in snapshot["trigger_links"] for pr in link["pull_requests"]]
+
+
+def counts(snapshot: dict) -> tuple[int, int]:
+    """(pull requests, tasks): what the "nothing happened" checks compare."""
+    return len(pull_requests(snapshot)), len(snapshot["tasks"])
+
+
+def summary(snapshot: dict) -> dict:
+    """The part of a snapshot a failure message shows."""
+    return {
+        "links": [{k: link[k] for k in ("enabled", "revoked", "active", "global_enabled")} for link in snapshot["trigger_links"]],
+        "prs": pull_requests(snapshot),
+        "tasks": snapshot["tasks"],
+        "results": snapshot["results"],
+    }
+
+
+def start_sensor(sensor: str):
+    # start-sensor takes a group, not a name, so the API call it makes for each sensor is made here
+    DagsterAPI(DagsterConfig().dagster_url).start_sensor(sensor)
+
+
+def teardown_step(fncli, command, options, keep: bool = False):
+    """One teardown step; with keep=True it is skipped when E2E_KEEP=1 (the final teardown)."""
+    if keep and os.environ.get("E2E_KEEP") == "1":
+        pytest.skip("E2E_KEEP=1 keeps the project")
+    fncli.call(command, **options)
+
+
+def tick_seconds() -> float:
+    """The shortest interval of a sensor tick, as the sensors are configured."""
+    return float(os.environ.get("DAGSTER_SENSORS_MIN_INTERVAL_SECONDS", 10))
+
+
+def quiet_wait(ticks: int = 3):
+    """The fixed wait of the "nothing happens" checks: a few sensor ticks, long enough for a sensor to have acted."""
+    seconds = ticks * tick_seconds()
+    logger.info(f"Waiting {seconds:.0f}s ({ticks} sensor ticks) to see that nothing happens")
+    time.sleep(seconds)
 
 
 @pytest.fixture(autouse=True)
@@ -76,9 +124,22 @@ class Fncli:
         assert not isinstance(code, int) or code == 0, f"fncli {' '.join(args)} exited {code}"
 
     def call(self, command, **options):
-        """Run one command with its options, the unset ones at their defaults, and return what it returns."""
+        """Run one command with its options, the unset ones at their defaults, and return what it returns. A non-zero exit fails the test."""
         with click.Context(command) as ctx:
-            return ctx.invoke(command, **options)
+            try:
+                return ctx.invoke(command, **options)
+            except click.exceptions.Exit as exit_:
+                if exit_.exit_code:
+                    pytest.fail(f"fncli {command.name} {options} exited {exit_.exit_code}")
+
+    def exit_code(self, command, **options) -> int:
+        """Run one command and return its exit code, for the tests that expect a failure."""
+        with click.Context(command) as ctx:
+            try:
+                ctx.invoke(command, **options)
+            except click.exceptions.Exit as exit_:
+                return exit_.exit_code
+        return 0
 
     def snapshot(self) -> dict:
         return snapshot(self.backend_api, self.config.project_name)
@@ -95,12 +156,12 @@ class Fncli:
         try:
             return wait_for(poll, timeout, what)
         except pytest.fail.Exception as failure:
-            shown = {
-                "prs": pull_requests(last["snapshot"]),
-                "tasks": last["snapshot"]["tasks"],
-                "results": last["snapshot"]["results"],
-            }
-            pytest.fail(f"{failure.msg}\nLast snapshot: {json.dumps(shown, indent=2)}")
+            pytest.fail(f"{failure.msg}\nLast snapshot: {json.dumps(summary(last['snapshot']), indent=2)}")
+
+    def assert_counts(self, expected: tuple[int, int], what: str):
+        """Fail with the snapshot unless the (PRs, tasks) counts are still `expected`."""
+        snap = self.snapshot()
+        assert counts(snap) == expected, f"{what}: counts {counts(snap)} != {expected}\n{json.dumps(summary(snap), indent=2)}"
 
 
 @pytest.fixture(scope="module")
