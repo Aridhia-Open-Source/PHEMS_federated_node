@@ -9,6 +9,7 @@ collects and skips these tests without a cluster.
 
 import os
 import time
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -17,6 +18,9 @@ from dotenv import find_dotenv, load_dotenv
 from fncli.cli import cli
 from fncli.cmds.common import ProjectConfig, build_backend_api
 from fncli.cmds.state import snapshot
+
+# fncli reads .dev.env and its config from the current folder, which is the repo root
+REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def wait_for(predicate, timeout: float, describe: str, interval: float = 10):
@@ -55,6 +59,8 @@ class Fncli:
 
 @pytest.fixture(scope="module")
 def fncli():
+    cwd = os.getcwd()
+    os.chdir(REPO_ROOT)
     fn = Fncli()
     fn.run("teardown-project", "-y")
     fn.run("setup-project")
@@ -62,3 +68,4 @@ def fncli():
     yield fn
     if os.environ.get("E2E_KEEP") != "1":
         fn.run("teardown-project", "-y")
+    os.chdir(cwd)
