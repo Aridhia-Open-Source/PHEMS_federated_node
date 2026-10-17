@@ -140,10 +140,11 @@ def test_delivery_signed_and_schema_valid(client, auth):
     req = responses.calls[0].request
     expected = 'sha256=' + hmac.new(KEY.encode(), req.body, hashlib.sha256).hexdigest()
     assert req.headers[delivery.SIGNATURE_HEADER] == expected
-    assert req.headers[delivery.DELIVERY_HEADER] == str(did)
+    row = db.session.get(WebhookDelivery, did)
+    assert req.headers[delivery.DELIVERY_HEADER] == row.delivery_uuid
     event = json.loads(req.body)
     validate(event)
-    assert event['delivery_id'] == str(did)
+    assert event['delivery_id'] == row.delivery_uuid
     assert event['number'] == 7 and event['gitea_pr_number'] == 1
     assert event['mirror'] == {
         'upstream_uri': 'https://github.com/org/repo1', 'gitea_owner': 'org', 'gitea_repo': 'repo1',
@@ -199,7 +200,7 @@ def test_failed_after_max_attempts(client, auth):
         now += timedelta(days=1)
     row = db.session.get(WebhookDelivery, did)
     assert row.status == 'failed' and row.attempts == delivery.MAX_ATTEMPTS
-    assert row.next_attempt_at is None and 'refused' in row.last_error
+    assert row.next_attempt_at is None and row.last_error == 'ConnectionError'
     assert delivery.process_due_deliveries(db.session, now) == 0
     listed = client.get(f'/webhooks/{wid}/deliveries?status=failed', headers=auth).json
     assert [d['id'] for d in listed] == [did] and listed[0]['status'] == 'failed'
@@ -215,7 +216,7 @@ def test_secret_read_failure_counts_as_failed_attempt(client, auth, monkeypatch)
     monkeypatch.setattr(delivery, 'read_hmac_key', boom)
     assert delivery.process_due_deliveries(db.session) == 1
     row = db.session.get(WebhookDelivery, did)
-    assert row.attempts == 1 and 'secret not found' in row.last_error
+    assert row.attempts == 1 and row.last_error == 'HTTPError'
     assert len(responses.calls) == 0
 
 
