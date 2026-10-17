@@ -85,14 +85,14 @@ Receiver guidance: verify the HMAC over the raw body bytes; dedupe on the delive
 
 Deliveries come from an outbox: at-least-once, 5 attempts with backoff from 30 seconds, doubling. Receivers must be idempotent. Only a 2xx response counts as delivered; redirects are not followed and a 3xx counts as a failure. Each delivery is claimed under a lease, and an error on one delivery (for example a webhook whose secret lacks `token`) does not stop the others.
 
-## Designed sync behaviour
-
-These belong to the sync engine, which is being hardened separately; this is the intended behaviour, not a statement of what every build does:
+## Sync behaviour
 
 - The Gitea base branch is restored to the upstream tip even when a PR fails, and a PR that keeps failing is quarantined (recorded as an error) so it does not block the mirror.
-- Shadow users get a prefix so a GitHub login cannot collide with the Gitea admin or an organisation name.
+- Before opening a PR the engine looks for an existing Gitea PR for head `pr/<n>` and resumes from there, so a retry does not open a duplicate.
+- Shadow users get the prefix `gh-`, so a GitHub login cannot collide with the Gitea admin or an organisation name; an existing non-shadow account of that name is an error.
 - The GitHub token is only sent to github.com, and git credentials are passed through `GIT_CONFIG_COUNT` environment variables rather than command-line arguments.
-- PRs with equal `updated_at` at the cursor are not skipped, and upstream branches that clash with `pr/<n>` are reported rather than overwriting PR refs.
+- The cursor only moves past PRs that are settled (mirrored or history), so PRs with equal `updated_at` are not skipped, and upstream branches that clash with `pr/<n>` are reported rather than overwriting PR refs.
+- After the first push the Gitea default branch is set to the mirror's base branch (Gitea would otherwise pick a `pr/<n>` branch).
 
 ## Deploying the chart
 
@@ -113,7 +113,7 @@ Alembic migrations (`migrations/`) create `mirrors`, `mirror_state`, `mirrored_p
 
 ## Known gaps
 
-- Gitea accepts a second pull request for the same head, so a failure after a Gitea PR was opened but before its row is recorded (a crash, or a Gitea error on push or merge) must not be retried by opening again. Designed behaviour: the sync engine looks for an existing PR for head `pr/<n>` before opening one and resumes from the merge step. If that lookup is missing in your build, a retry leaves duplicate open PRs.
+- Gitea accepts a second pull request for the same head, so a failure after a Gitea PR was opened but before its row is recorded (a crash, or a Gitea error on push or merge) must not be retried by opening again. The sync engine looks for an existing PR for head `pr/<n>` before opening one and resumes from the merge step.
 - A multi-commit fast-forward PR shows only its last commit's files (the base is rewound to `merge^1`, as the spike prescribes).
 - Branches deleted upstream are not deleted on Gitea (the push has no `--prune`, which would drop `pr/*`).
 - The rate-limit reset time is held in memory by the timer loop; a restart costs one extra 403.

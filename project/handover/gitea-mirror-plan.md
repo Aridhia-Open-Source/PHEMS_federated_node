@@ -93,24 +93,25 @@ Stages 2–4 can run in parallel once stage 1 lands. Stage 5 needs 3 and 4; 5b n
 
 ## Review 2026-10-17
 
-Review report: the findings below keep its numbers. Branch `moonshot/gitea-mirror-fixes`. "Sync engine" fixes are in progress on another branch and are merged before push: check `git log`.
+Review report: the findings below keep its numbers. Branch `moonshot/gitea-mirror-fixes`. The sync engine fixes are merged into this branch.
 
 | # | Finding | Status |
 |---|---|---|
 | 1 | Chart passed the Gitea admin password as the API token | FIXED on this branch (chart commit f564c6b7: init job generates the token secret) |
-| 2 | Duplicate Gitea PR after a failure between open and merge (README claim was wrong) | In progress on another branch (sync engine: look up an existing PR for head `pr/<n>` before opening); merged before push: check git log. README now describes the designed behaviour |
-| 3 | GitHub token sent to any https host via `upstream_uri` | PARTLY FIXED: URI must be github.com (29f43db9); token scoping to github.com is in the sync-engine branch |
+| 2 | Duplicate Gitea PR after a failure between open and merge (README claim was wrong) | FIXED (sync.py, gitea.py, github.py; tests test_sync_safety.py, test_sync_robust_gitea.py): looks up an existing PR for head `pr/<n>` before opening |
+| 3 | GitHub token sent to any https host via `upstream_uri` | FIXED (sync.py, gitea.py, github.py; tests test_sync_safety.py, test_sync_robust_gitea.py): URI must be github.com (29f43db9) and the token is scoped to github.com |
 | 4 | One bad webhook (secret without `token`, deleted row) wedges the outbox | FIXED (outbox commit af0cef60: per-delivery isolation) |
 | 5 | `SKIP LOCKED` locks released early, replicas double-deliver | FIXED (af0cef60: leased claiming, `claim_due_deliveries`) |
-| 6 | Base branch left rewound after a failed PR; poison PR blocks the mirror | In progress on another branch (try/finally restore, quarantine); check git log |
-| 7 | Existing Gitea user/org/admin treated as the shadow user | In progress on another branch (shadow-user prefix); check git log |
+| 6 | Base branch left rewound after a failed PR; poison PR blocks the mirror | FIXED (sync.py, gitea.py, github.py; tests test_sync_safety.py, test_sync_robust_gitea.py): try/finally restore, quarantine |
+| 7 | Existing Gitea user/org/admin treated as the shadow user | FIXED (sync.py, gitea.py, github.py; tests test_sync_safety.py, test_sync_robust_gitea.py): `gh-` prefix, non-shadow account is an error |
 | 8 | Webhook URL SSRF, redirects followed | FIXED (29f43db9: URL policy, secret check at registration, no redirects) |
-| 9 | Cursor ties at second resolution can skip a PR | In progress on another branch; check git log |
-| 10 | Branch clashes with `pr/<n>` / `pr` | In progress on another branch; check git log |
-| 11 | Advisory lock connection idle in transaction for a whole sync | OPEN: not addressed; unverified under pgbouncer or `idle_in_transaction_session_timeout` |
+| 9 | Cursor ties at second resolution can skip a PR | FIXED (sync.py, gitea.py, github.py; tests test_sync_safety.py, test_sync_robust_gitea.py) |
+| 10 | Branch clashes with `pr/<n>` / `pr` | FIXED (sync.py, gitea.py, github.py; tests test_sync_safety.py, test_sync_robust_gitea.py) |
+| 11 | Advisory lock connection idle in transaction for a whole sync | OPEN: NOT fixed; unverified under pgbouncer or `idle_in_transaction_session_timeout` |
 | 12 | `/health` ignores a dead sync thread; one session shared across mirrors | FIXED (af0cef60: `/health` reports `sync`, 503 if dead or stale; per-mirror tick isolation) |
-| 13 | Credentials in git argv | In progress on another branch (`GIT_CONFIG_COUNT` env); check git log |
-| 14 | Free-form owner/repo/branch/namespace/key | FIXED (29f43db9: whitelists) |
+| 13 | Credentials in git argv | FIXED (sync.py, gitea.py, github.py; tests test_sync_safety.py, test_sync_robust_gitea.py): `GIT_CONFIG_COUNT` env |
+| 14 | Free-form owner/repo/branch/namespace/key | FIXED (29f43db9: whitelists; sync part: sync.py, gitea.py path segments, tests test_sync_safety.py) |
+| New | Every mirrored repo got default branch `pr/1` (Gitea picks it after the first multi-branch push, asynchronously) | FIXED (gitea.py `set_default_branch`, called from sync.py after the first push; waits until the repo is non-empty; test in test_sync_gitea.py) |
 | 15 | No way to requeue failed deliveries | PARTLY FIXED: `requeue_failed()` helper in the pod (af0cef60); no API route or fncli command, by decision (ADR 0020) |
 | 16 | Auth: non-ASCII header gives 500, empty token authenticates | FIXED (29f43db9) |
 | 17 | Duplicate Role/RoleBinding names | FIXED (f564c6b7) |
@@ -122,7 +123,16 @@ Also changed: webhook deliveries carry a stable `delivery_uuid` (sent as `X-Gite
 
 Chart: install without `helm --wait`. The init job is a post-install hook that creates the token secret and the mirror pod cannot start until it exists. NOT VERIFIED on a real cluster.
 
+### Known gaps
+
+- Finding 11 is not fixed (advisory lock connection idle in transaction).
+- `ensure_user` is not atomic across concurrent runs.
+- Webhook hosts are only checked at registration, ping and patch; DNS rebinding at delivery time is not covered.
+- Rebase merges with rewritten SHAs are untested.
+
 ### Verified in a sandbox
+
+- Integrated branch: 365 tests passed with a real Gitea 28.1.0 (Postgres 16); 336 passed and 29 skipped without Gitea (the unit part). Alembic upgrade, downgrade, upgrade and check: no drift.
 
 - 82 unit tests passed on the original branch (before the fixes).
 - 12 Gitea client tests and an end-to-end script against a real Gitea 28.1.0: three PR shapes, an idempotent second sync, 28 checks.
