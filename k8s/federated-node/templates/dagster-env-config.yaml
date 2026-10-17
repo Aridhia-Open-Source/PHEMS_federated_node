@@ -19,6 +19,7 @@ data:
   DAGSTER_PG_NAME: {{ include "dagsterDbName" . | quote }}
   RESULTS_MAX_ZIP_BYTES: {{ .Values.fnDagster.results.maxZipBytes | int64 | quote }}
   DAGSTER_SENSORS_INITIAL_STATUS: {{ .Values.fnDagster.sensors.initialStatus | quote }}
+  DAGSTER_SENSORS_MIN_INTERVAL_SECONDS: {{ .Values.fnDagster.sensors.minIntervalSeconds | quote }}
   BACKEND_API_URI: {{ include "backendUri" . | quote }}
   {{- /*
   Pod securityContext for pipes task pods. Only emitted when set - an unset

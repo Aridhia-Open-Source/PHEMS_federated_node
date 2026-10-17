@@ -693,6 +693,12 @@
                             "enum": ["STOPPED", "RUNNING"],
                             "default": "STOPPED",
                             "description": "Status every Dagster sensor starts in. Only applies to a sensor Dagster has not seen before"
+                        },
+                        "minIntervalSeconds": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 30,
+                            "description": "Minimum seconds between ticks of every Dagster sensor"
                         }
                     }
                 },

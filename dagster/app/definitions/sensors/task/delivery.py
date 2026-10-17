@@ -4,12 +4,10 @@ import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
 from app.backend import BackendAPI
-from app.config import DEFAULT_SENSOR_STATUS, ResultsDeliveryConfig
+from app.config import DEFAULT_SENSOR_STATUS, MIN_SENSOR_INTERVAL_SECONDS, ResultsDeliveryConfig
 from app.definitions.jobs import k8s_pipes_job
 from app.definitions.sensors.git.base import GitAPIFactory
 from app.delivery.results import ResultsDelivery
-
-MIN_SENSOR_INTERVAL_SECONDS = 10
 
 
 @dg.op(config_schema={"project_id": dg.Field(int), "task_id": dg.Field(int), "run_id": dg.Field(str)}, required_resource_keys={"backend_api", "git_apis"})

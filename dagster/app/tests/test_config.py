@@ -17,7 +17,7 @@ def clean_env(monkeypatch):
         "GH_API_URI", "GH_DELIVERY_REPO", "GH_DELIVERY_BASE_BRANCH",
         "DAGSTER_PIPES_FS_GROUP", "DAGSTER_PIPES_RUN_AS_USER",
         "DAGSTER_PIPES_RUN_AS_GROUP", "DAGSTER_PIPES_SUPPLEMENTAL_GROUPS",
-        "DAGSTER_SENSORS_INITIAL_STATUS",
+        "DAGSTER_SENSORS_INITIAL_STATUS", "DAGSTER_SENSORS_MIN_INTERVAL_SECONDS",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -60,6 +60,14 @@ class TestSensorStatusConfig:
 
         with pytest.raises(ValidationError):
             SensorStatusConfig()
+
+    def test_min_interval_is_30_seconds_by_default(self):
+        assert SensorStatusConfig().min_interval_seconds == 30
+
+    def test_min_interval_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_SENSORS_MIN_INTERVAL_SECONDS", "2")
+
+        assert SensorStatusConfig().min_interval_seconds == 2
 
 
 class TestPipesSecurityContext:
