@@ -1,0 +1,12 @@
+name: dagster_tests
+services:
+  base:
+    image: dagster_fn_base
+    build:
+      context: .
+      dockerfile: Dockerfile
+  app:
+    image: dagster_app_test
+    build:
+      context: .
+      dockerfile: build/test.Dockerfile
