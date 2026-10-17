@@ -8,6 +8,7 @@ templates:
   - templates/gitea-mirror-secrets.yaml
   - templates/gitea-mirror-rbac.yaml
   - templates/gitea-mirror-networkpolicy.yaml
+  - templates/gitea-init-job.yaml
   - templates/db-init-jobs.yaml
   - templates/db-secrets.yaml
 values:
@@ -135,6 +136,14 @@ tests:
             name: GITEA_MIRROR_GITEA_TOKEN
             valueFrom:
               secretKeyRef:
+                name: gitea-mirror-gitea-token
+                key: token
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA_MIRROR_GITEA_TOKEN
+            valueFrom:
+              secretKeyRef:
                 name: gitea-admin
                 key: password
       - contains:
@@ -148,13 +157,78 @@ tests:
             name: GITEA_MIRROR_SYNC_INTERVAL_SECONDS
             value: "300"
       - equal:
-          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          path: spec.template.spec.containers[0].volumeMounts[1].mountPath
           value: /tmp/git-cache
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+      - exists:
+          path: spec.template.spec.containers[0].startupProbe
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: http
       - notExists:
           path: spec.template.spec.containers[0].command
       - equal:
-          path: spec.template.spec.volumes[0].emptyDir.sizeLimit
+          path: spec.template.spec.volumes[1].emptyDir.sizeLimit
           value: 5Gi
+
+  - it: refuses more than one replica
+    set:
+      giteaMirror:
+        enabled: true
+        replicaCount: 2
+    template: templates/gitea-mirror-deployment.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "replicaCount must be 1"
+
+  - it: the init job makes the gitea token secret only when the mirror is enabled
+    template: templates/gitea-init-job.yaml
+    set:
+      gitea:
+        admin:
+          user: gitea_admin
+      giteaMirror:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: gitea-admin-init
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "generate-access-token"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "write:organization,write:repository,write:user,read:user"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '"\$code" = 200'
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TOKEN_SECRET
+            value: gitea-mirror-gitea-token
+
+  - it: the init job has no token step without the mirror
+    template: templates/gitea-init-job.yaml
+    set:
+      gitea:
+        admin:
+          user: gitea_admin
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "generate-access-token"
+      - notExists:
+          path: spec.template.spec.serviceAccountName
 
   - it: service and generated api token secret
     set:
@@ -184,7 +258,7 @@ tests:
     template: templates/gitea-mirror-rbac.yaml
     asserts:
       - hasDocuments:
-          count: 3
+          count: 6
       - equal:
           path: metadata.name
           value: gitea-mirror
@@ -209,6 +283,45 @@ tests:
           path: subjects[0].name
           value: gitea-mirror
         documentIndex: 2
+
+  - it: gives each secretAccess entry its own Role and RoleBinding, even in one namespace
+    set:
+      giteaMirror:
+        enabled: true
+        secretAccess:
+          - names: [github-token]
+          - names: [webhook-hmac]
+    template: templates/gitea-mirror-rbac.yaml
+    asserts:
+      - hasDocuments:
+          count: 8
+      - equal:
+          path: metadata.name
+          value: gitea-mirror-secrets-0
+        documentIndex: 1
+      - equal:
+          path: metadata.name
+          value: gitea-mirror-secrets-0
+        documentIndex: 2
+      - equal:
+          path: metadata.name
+          value: gitea-mirror-secrets-1
+        documentIndex: 3
+      - equal:
+          path: roleRef.name
+          value: gitea-mirror-secrets-1
+        documentIndex: 4
+
+  - it: lets the init job create the token secret and read only that one
+    set:
+      giteaMirror:
+        enabled: true
+    template: templates/gitea-mirror-rbac.yaml
+    asserts:
+      - equal:
+          path: rules[0].resourceNames
+          value: [gitea-mirror-gitea-token]
+        documentIndex: 6
 
   - it: network policy limits ingress to the namespace and egress to what the service needs
     set:
