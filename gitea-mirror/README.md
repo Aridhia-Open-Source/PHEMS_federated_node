@@ -33,7 +33,9 @@ Mirrors (`upstream_uri` is an https URL; fields are `upstream_uri`, `secret_name
 Webhooks (fields `url` (http or https), `secret_namespace`, `secret_key`, `mirror_id` (null for all mirrors), `enabled`):
 
 - `GET /webhooks`, `POST /webhooks`, `GET|PATCH|DELETE /webhooks/<id>`.
-- `POST /webhooks/<id>/test`: sends a signed `ping` now; 502 if it fails.
+- `POST /webhooks/<id>/test`: sends a signed `ping` now (redirects are not followed); 502 `{status: failed, reason: <exception class>}` if it fails.
+
+Input rules (400 otherwise). Mirrors: `upstream_uri` must be `https://github.com/<owner>/<repo>` (no userinfo, port, query or fragment); `gitea_owner`/`gitea_repo` only `[A-Za-z0-9_.-]` (no `..`); `base_branch` a plain branch name (no `:`, `..`, spaces, control characters); `secret_namespace`/`secret_key` Kubernetes names. Webhooks: the secret must exist and have its `token` field at registration. The URL must be http(s) without credentials and its host must resolve. In-cluster receivers (`*.svc.cluster.local`, private ranges) are allowed by default; loopback, link-local (including the 169.254.169.254 metadata address), unspecified and the Kubernetes API server are always refused. Set `GITEA_MIRROR_WEBHOOK_ALLOW_PRIVATE=false` to refuse private ranges too. `GITEA_MIRROR_API_TOKEN` must be set and non-empty or the service will not start.
 - `GET /webhooks/<id>/deliveries[?status=pending|delivered|failed]`: the latest 100, newest first.
 
 ## Sync algorithm
