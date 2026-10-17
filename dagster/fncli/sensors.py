@@ -32,6 +32,19 @@ query SensorStatus({SELECTOR_VARS}) {{
 }}
 """
 
+SENSOR_TICKS = f"""
+query SensorTicks({SELECTOR_VARS}, $limit: Int!) {{
+  sensorOrError(sensorSelector: $selector) {{
+    __typename
+    ... on Sensor {{
+      sensorState {{ ticks(limit: $limit) {{ id timestamp status skipReason error {{ message }} }} }}
+    }}
+    ... on PythonError {{ message }}
+    ... on SensorNotFoundError {{ message }}
+  }}
+}}
+"""
+
 STOP_SENSOR = """
 mutation StopSensor($id: String!) {
   stopSensor(id: $id) {
@@ -82,6 +95,11 @@ class DagsterAPI(HttpClient):
     def get_sensor_state(self, name: str) -> dict:
         """The sensor's id, status and last 3 ticks."""
         return self.graphql_ok(SENSOR_STATUS, self.selector(name), "Sensor")["sensorState"]
+
+    def get_sensor_ticks(self, name: str, limit: int = 20) -> list[dict]:
+        """The sensor's latest ticks, newest first: id, timestamp (epoch seconds), status, skipReason and error."""
+        variables = {**self.selector(name), "limit": limit}
+        return self.graphql_ok(SENSOR_TICKS, variables, "Sensor")["sensorState"]["ticks"]
 
     def start_sensor(self, name: str) -> str:
         """Returns the new status."""

@@ -4,17 +4,19 @@ the happy path: one test per fncli command or expected state, in order, on one p
 the first failure with the last snapshot. The scenarios run in the plan's order and each leaves the
 project as the next expects it: unlocked, links active, tokens restored.
 
-TODO, not covered yet: S8 (a task in flight blocks lock-gated changes: timing dependent), S10 (a
-second project on the same repository) and S13 (sensors restarted mid-flow).
+S8 (a task in flight blocks lock-gated changes) is timing dependent: it skips when the task finishes before it
+can be caught. S14 is the teardown and the setup at the two ends; S15 (known gaps) is not automated.
 
 The "nothing happens" checks wait a few sensor ticks (5 ticks of the 1 s interval the suite sets; E2E_KEEP_INTERVAL=1 leaves the cluster's own).
 """
 
 import os
+import time
 
 import pytest
 
 from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
+from fncli.cmds.common import DagsterConfig
 from fncli.cmds.pr import (
     commit_gitea_file_command,
     create_gitea_branch_command,
@@ -23,30 +25,48 @@ from fncli.cmds.pr import (
     new_branch_name,
 )
 from fncli.cmds.project import project_healthcheck_command
-from fncli.cmds.secret import delete_gitea_token_command, init_git_secret_command, verify_git_secret_command
-from fncli.cmds.sensor import ALL_SENSORS, sensor_status_command, start_sensor_command, stop_sensor_command
-from fncli.cmds.state import global_set_command, link_set_command, project_set_command
+from fncli.cmds.secret import (
+    delete_gitea_token_command,
+    init_git_secret_command,
+    verify_git_secret_command,
+)
+from fncli.cmds.sensor import (
+    ALL_SENSORS,
+    sensor_status_command,
+    start_sensor_command,
+    stop_sensor_command,
+)
+from fncli.cmds.state import (
+    global_set_command,
+    link_set_command,
+    project_set_command,
+    second_project_setup_command,
+    second_project_teardown_command,
+)
+from fncli.sensors import DagsterAPI
 from fncli.tests.e2e.conftest import (
     SETUP_IDS,
-    set_sensor_interval,
     TEARDOWN_IDS,
     counts,
     logger,
     pull_requests,
     quiet_wait,
+    set_sensor_interval,
     start_sensor,
     summary,
     teardown_step,
+    tick_seconds,
 )
 
 pytestmark = [pytest.mark.e2e, pytest.mark.e2e_failure]
 
 SENSOR_INTERVAL = 1  # seconds: the "nothing happens" checks then take QUIET_TICKS of these
 QUIET_TICKS = 5
-TASK_TIMEOUT = 600
+TASK_TIMEOUT = int(os.environ.get("E2E_TASK_TIMEOUT", 600))  # a task that fails to start can sit in a pull back-off
 STEP_TIMEOUT = 300
 # A task that has not finished, and a result that is still being delivered, block lock-gated changes
 UNFINISHED_TASK = ["PENDING", "QUEUED", "RUNNING"]
+SECOND_PROJECT = "QaTwo"
 DELIVERED = ["OPENED", "MERGED"]
 
 
@@ -68,6 +88,27 @@ def fast_sensors(request):
 
     request.addfinalizer(restore)
     yield
+
+
+@pytest.fixture(scope="module", autouse=True)
+def restore_state(fncli):
+    """After the module, pass or fail: put the project and its links back as the setup left them (best effort).
+
+    A run that stops at a failure halfway would otherwise leave the project locked, a link disabled or revoked, or the
+    global repository off. The next run's leftover teardown removes it all anyway; this keeps a KEEP run usable.
+    """
+    yield
+    steps = [
+        (project_set_command, {"locked": "true"}),
+        (global_set_command, {"kind": "trigger", "enabled": "true"}),
+        (link_set_command, {"kind": "trigger", "enabled": "true", "revoked": "false"}),
+        (project_set_command, {"locked": "false"}),
+    ]
+    for command, options in steps:
+        try:
+            fncli.call(command, **options)
+        except (Exception, pytest.fail.Exception) as error:
+            logger.warning(f"restore {command.name} {options}: {error}")
 
 
 @pytest.fixture(scope="module")
@@ -355,6 +396,55 @@ def test_s5b_counts_unchanged(fncli, flow):
     fncli.assert_counts(flow["s5b_before"], "ingest restarted after S6 and S7")
 
 
+# --- S8: a task in flight blocks lock-gated changes (timing dependent: skips if the task is too quick) ---
+
+
+def caught(flow):
+    if not flow.get("s8_caught"):
+        pytest.skip("no task in flight was caught (it finished too quickly)")
+
+
+def test_s8_create_branch(fncli, flow):
+    create_branch(fncli, flow, "s8")
+
+
+def test_s8_commit_file(fncli, flow):
+    commit_file(fncli, flow, "s8", "watched")
+
+
+def test_s8_create_pr(fncli, flow):
+    create_pr(fncli, flow, "s8", "watched")
+
+
+def test_s8_merge_pr(fncli, flow):
+    merge_pr(fncli, flow, "s8")
+
+
+def test_s8_catch_task_in_flight(fncli, flow):
+    try:
+        fncli.wait_for_state(
+            "a task in flight", 120, lambda s: any(t["status"] in UNFINISHED_TASK for t in s["tasks"]), interval=1
+        )
+    except pytest.fail.Exception:
+        pytest.skip("no task in flight was caught (it finished too quickly)")
+    flow["s8_caught"] = True
+
+
+def test_s8_lock_project(fncli, flow):
+    caught(flow)
+    fncli.call(project_set_command, locked="true", expect=200)
+
+
+def test_s8_disable_link_refused_with_task_in_flight(fncli, flow):
+    caught(flow)
+    fncli.call(link_set_command, kind="trigger", enabled="false", expect=409)
+
+
+def test_s8_unlock_project(fncli, flow):
+    caught(flow)
+    fncli.call(project_set_command, locked="false", expect=200)
+
+
 # --- S9: a disabled global repository stops its ingest ------------------------------------------
 
 
@@ -410,6 +500,99 @@ def test_s9_record_gap_pr(fncli, flow):
     logger.info(f"S9 (PRs, tasks) {flow['s9_before']} -> {counts(snapshot)}")
 
 
+# --- S10: a second project on the same repository ---------------------------------------------
+
+
+def test_s10_wait_for_tasks_to_finish(fncli):
+    fncli.wait_for_state("no task in flight", TASK_TIMEOUT, tasks_finished)
+
+
+def test_s10_record_counts(fncli, flow):
+    record_counts(fncli, flow, "s10_before")
+
+
+def test_s10_second_project_setup(fncli):
+    fncli.call(second_project_setup_command, name=SECOND_PROJECT)
+
+
+def test_s10_create_branch(fncli, flow):
+    create_branch(fncli, flow, "s10")
+
+
+def test_s10_commit_file(fncli, flow):
+    commit_file(fncli, flow, "s10", "watched")
+
+
+def test_s10_create_pr(fncli, flow):
+    create_pr(fncli, flow, "s10", "watched")
+
+
+def test_s10_merge_pr(fncli, flow):
+    merge_pr(fncli, flow, "s10")
+
+
+def yielded_with_task(flow, key):
+    def check(snapshot):
+        pr = pr_of(snapshot, flow, key)
+        return pr if pr and pr["state"] == "YIELDED" and pr["task_id"] else None
+
+    return check
+
+
+def test_s10_both_projects_get_a_task(fncli, flow):
+    flow["s10_task_one"] = fncli.wait_for_state("the test project's task", STEP_TIMEOUT, yielded_with_task(flow, "s10"))["task_id"]
+    flow["s10_task_two"] = fncli.wait_for_state(
+        f"{SECOND_PROJECT}'s task", STEP_TIMEOUT, yielded_with_task(flow, "s10"), project=SECOND_PROJECT
+    )["task_id"]
+    assert flow["s10_task_one"] != flow["s10_task_two"], "both projects share one task for the same PR"
+
+
+def test_s10_revoke_second_projects_link(fncli):
+    fncli.call(link_set_command, kind="trigger", revoked="true", project=SECOND_PROJECT, expect=200)
+
+
+def test_s10_wait_for_tasks_to_finish_again(fncli):
+    for project in (None, SECOND_PROJECT):
+        fncli.wait_for_state("no task in flight", TASK_TIMEOUT, tasks_finished, project=project)
+
+
+def test_s10_record_both_counts(fncli, flow):
+    record_counts(fncli, flow, "s10b_before")
+    flow["s10b_two_before"] = counts(fncli.snapshot(SECOND_PROJECT))
+
+
+def test_s10_create_branch_two(fncli, flow):
+    create_branch(fncli, flow, "s10b")
+
+
+def test_s10_commit_file_two(fncli, flow):
+    commit_file(fncli, flow, "s10b", "watched")
+
+
+def test_s10_create_pr_two(fncli, flow):
+    create_pr(fncli, flow, "s10b", "watched")
+
+
+def test_s10_merge_pr_two(fncli, flow):
+    merge_pr(fncli, flow, "s10b")
+
+
+def test_s10_only_the_test_project_gets_the_next_pr(fncli, flow):
+    fncli.wait_for_state("the test project's next PR with a task (+1 each)", STEP_TIMEOUT, grew_by_one(flow, "s10b_before"))
+    quiet_wait(QUIET_TICKS)
+    two = counts(fncli.snapshot(SECOND_PROJECT))
+    assert two == flow["s10b_two_before"], f"{SECOND_PROJECT} got something through its revoked link: {two}"
+
+
+def test_s10_wait_for_tasks_to_finish_before_teardown(fncli):
+    for project in (None, SECOND_PROJECT):
+        fncli.wait_for_state("no task in flight and every result delivered", TASK_TIMEOUT, drained, project=project)
+
+
+def test_s10_second_project_teardown(fncli):
+    fncli.call(second_project_teardown_command, name=SECOND_PROJECT, expect=204)
+
+
 # --- S11: a lost token fails clearly, then recovers -------------------------------------------
 
 
@@ -447,8 +630,11 @@ def test_s11_nothing_ingested_without_token(fncli, flow):
 
 
 def test_s11_sensor_status(fncli):
-    # The ingest sensor should show an auth error, not a crash loop. Recorded in the log, not asserted
+    # The ingest sensor should show an auth error, not a crash loop. Recorded in the log, not asserted. That the other
+    # sensors kept ticking is asserted: the quiet wait above only returns when ingest, evaluate and launcher all ticked.
     fncli.call(sensor_status_command)
+    for tick in DagsterAPI(DagsterConfig().dagster_url).get_sensor_ticks("git_pull_request_ingest_sensor", 5):
+        logger.info(f"S11 ingest tick: {tick['status']} {tick.get('skipReason') or ''} {(tick.get('error') or {}).get('message', '')[:200]}")
 
 
 def test_s11_healthcheck_fails(fncli):
@@ -512,6 +698,55 @@ def test_s12_no_result_and_stays_failed(fncli, flow):
     task = next(t for t in snapshot["tasks"] if t["id"] == flow["s12_task"])
     assert task["status"] == "FAILED", f"the task left FAILED\n{summary(snapshot)}"
     assert not [r for r in snapshot["results"] if r["task_id"] == flow["s12_task"]], f"a failed task has a result\n{summary(snapshot)}"
+
+
+# --- S13: sensors stopped, a PR merged, sensors started again -----------------------------------
+
+
+def test_s13_wait_for_tasks_to_finish(fncli):
+    fncli.wait_for_state("no task in flight", TASK_TIMEOUT, tasks_finished)
+
+
+def test_s13_record_counts(fncli, flow):
+    record_counts(fncli, flow, "s13_before")
+
+
+def test_s13_stop_all_sensors(fncli):
+    fncli.call(stop_sensor_command, sensor="all")
+
+
+def test_s13_create_branch(fncli, flow):
+    create_branch(fncli, flow, "s13")
+
+
+def test_s13_commit_file(fncli, flow):
+    commit_file(fncli, flow, "s13", "watched")
+
+
+def test_s13_create_pr(fncli, flow):
+    create_pr(fncli, flow, "s13", "watched")
+
+
+def test_s13_merge_pr(fncli, flow):
+    merge_pr(fncli, flow, "s13")
+
+
+def test_s13_nothing_happens_while_stopped(fncli, flow):
+    time.sleep(max(10, QUIET_TICKS * tick_seconds()))  # no ticks to count: the sensors are off
+    fncli.assert_counts(flow["s13_before"], "all sensors stopped")
+
+
+@pytest.mark.parametrize("sensor", ALL_SENSORS)  # in start order: the run-status sensors before the launcher
+def test_s13_start_sensor(sensor):
+    start_sensor(sensor)
+
+
+def test_s13_pr_processed_and_no_task_left_pending(fncli, flow):
+    fncli.wait_for_state(
+        "the PR with a task (+1 each), and no task PENDING",
+        TASK_TIMEOUT,
+        lambda s: grew_by_one(flow, "s13_before")(s) and all(t["status"] != "PENDING" for t in s["tasks"]),
+    )
 
 
 # --- Teardown ---------------------------------------------------------------------------------

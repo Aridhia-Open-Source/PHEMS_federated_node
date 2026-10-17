@@ -22,7 +22,12 @@ from fncli.cli import cli
 from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
 from fncli.cmds.common import DagsterConfig, ProjectConfig, build_backend_api
 from fncli.cmds.state import snapshot
-from fncli.k8s import ENV_CONFIGMAP, get_configmap_value, restart_code_server, set_configmap_value
+from fncli.k8s import (
+    ENV_CONFIGMAP,
+    get_configmap_value,
+    restart_code_server,
+    set_configmap_value,
+)
 from fncli.sensors import DagsterAPI
 
 logger = logging.getLogger("e2e")
@@ -103,11 +108,26 @@ def set_sensor_interval(seconds: int) -> str | None:
     return previous
 
 
-def quiet_wait(ticks: int = 3):
-    """The fixed wait of the "nothing happens" checks: a few sensor ticks, long enough for a sensor to have acted."""
-    seconds = ticks * tick_seconds()
-    logger.info(f"Waiting {seconds:.0f}s ({ticks} sensor ticks) to see that nothing happens")
-    time.sleep(seconds)
+QUIET_SENSORS = ["git_pull_request_ingest_sensor", "git_pull_request_evaluate_sensor", "task_launcher_sensor"]
+
+
+def tick_ids(api: DagsterAPI, sensor: str) -> set[str]:
+    return {tick["id"] for tick in api.get_sensor_ticks(sensor)}
+
+
+def quiet_wait(ticks: int = 3, sensors: list[str] = QUIET_SENSORS):
+    """The wait of the "nothing happens" checks: until each sensor has run `ticks` new ticks, so "nothing happened" was
+    seen across ticks that really ran (a stopped or stuck sensor fails here instead of passing the check)."""
+    api = DagsterAPI(DagsterConfig().dagster_url)
+    before = {sensor: tick_ids(api, sensor) for sensor in sensors}
+    logger.info(f"Waiting for {ticks} new ticks of {len(sensors)} sensors to see that nothing happens")
+
+    def ticked():
+        new = {sensor: len(tick_ids(api, sensor) - before[sensor]) for sensor in sensors}
+        return all(count >= ticks for count in new.values()) or None
+
+    # A tick can take several times the minimum interval when the daemon is busy
+    wait_for(ticked, max(60, ticks * tick_seconds() * 15), f"{ticks} new ticks of {sensors}", interval=max(1, tick_seconds()))
 
 
 @pytest.fixture(autouse=True)
@@ -161,20 +181,20 @@ class Fncli:
                 return exit_.exit_code
         return 0
 
-    def snapshot(self) -> dict:
-        return snapshot(self.backend_api, self.config.project_name)
+    def snapshot(self, project: str | None = None) -> dict:
+        """The snapshot of the test project, or of another one by name."""
+        return snapshot(self.backend_api, project or self.config.project_name)
 
-
-    def wait_for_state(self, what: str, timeout: float, check):
+    def wait_for_state(self, what: str, timeout: float, check, project: str | None = None, interval: float = 10):
         """Poll the project snapshot until check(snapshot) is truthy and return that. On timeout the failure carries the last snapshot of PRs, tasks and results."""
         last = {}
 
         def poll():
-            last["snapshot"] = self.snapshot()
+            last["snapshot"] = self.snapshot(project)
             return check(last["snapshot"])
 
         try:
-            return wait_for(poll, timeout, what)
+            return wait_for(poll, timeout, what, interval)
         except pytest.fail.Exception as failure:
             pytest.fail(f"{failure.msg}\nLast snapshot: {json.dumps(summary(last['snapshot']), indent=2)}")
 
