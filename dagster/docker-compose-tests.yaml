@@ -1,0 +1,6 @@
+name: dagster_tests
+services:
+  app:
+    volumes:
+      - ./app:/opt/dagster/home/app
+      - ./pyproject.toml:/opt/dagster/home/pyproject.toml
