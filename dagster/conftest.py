@@ -12,6 +12,10 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "e2e: end-to-end test against the live dev cluster, run with --e2e")
+    if config.getoption("--e2e"):
+        # Each step depends on the one before, so stop at the first failure, and show progress as it happens
+        config.option.exitfirst = True
+        config.option.log_cli_level = "INFO"
 
 
 def pytest_collection_modifyitems(config, items):

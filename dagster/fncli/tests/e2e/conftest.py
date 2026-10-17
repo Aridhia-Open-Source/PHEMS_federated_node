@@ -7,6 +7,7 @@ E2E_KEEP=1 keeps the project afterwards. Nothing here runs at import time, so a 
 collects and skips these tests without a cluster.
 """
 
+import logging
 import os
 import time
 
@@ -17,6 +18,8 @@ from dotenv import find_dotenv, load_dotenv
 from fncli.cli import cli
 from fncli.cmds.common import ProjectConfig, build_backend_api
 from fncli.cmds.state import snapshot
+
+logger = logging.getLogger("e2e")
 
 
 @pytest.fixture(autouse=True)
@@ -30,7 +33,9 @@ def wait_for(predicate, timeout: float, describe: str, interval: float = 10):
     while True:
         result = predicate()
         if result:
+            logger.info(f"Done: {describe}")
             return result
+        logger.info(f"Waiting for {describe}")
         if time.monotonic() >= deadline:
             pytest.fail(f"Timed out after {timeout}s waiting for {describe}")
         time.sleep(interval)
