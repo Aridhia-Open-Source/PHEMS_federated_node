@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from app.git_uri import normalise_repo_uri
+from app.models.git_provider import GitProvider
 from app.models.secret import Secret
 
 
@@ -8,8 +8,9 @@ class ResultsRepository(BaseModel):
     """
     A global git repository task results are delivered to, from backend API.
 
-    - uri: host and path without a scheme, as the backend stores it.
-    - api_uri: the provider's API, whose scheme the clone URL borrows.
+    - uri: the provider's uri and the repo_path, as the backend derives it.
+    - repo_path: where the repository is on the provider's API (owner/name).
+    - provider: the git host it is on.
     - secret: the secret holding the git token, under the key TOKEN.
     - enabled: turned on or off for the whole node.
     """
@@ -17,15 +18,10 @@ class ResultsRepository(BaseModel):
 
     id: int
     uri: str
-    provider: str
-    api_uri: str
+    repo_path: str
+    provider: GitProvider
     secret: Secret
     enabled: bool
-
-    @property
-    def repo_path(self) -> str:
-        """Where the repository is on the provider's API (owner/repo), as TriggerRepository.repo_path."""
-        return "/".join(normalise_repo_uri(self.uri).split("/")[-2:])
 
 
 class ProjectResultsRepository(BaseModel):

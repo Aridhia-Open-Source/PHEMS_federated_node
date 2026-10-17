@@ -13,12 +13,16 @@ from app.definitions.sensors.task.pull_request_sync import (
     sync_results_pull_requests,
     sync_results_pull_requests_job,
 )
-from app.models import Project, ProjectResultsRepository, PullRequestResult, ResultsRepository
+from app.models import GitProvider, Project, ProjectResultsRepository, PullRequestResult, ResultsRepository
 from app.tests.conftest import SAMPLE_SECRET
 
 GLOBAL_REPOSITORY = ResultsRepository(
-    id=2, uri="gitea.fn.svc:4000/fn/results", provider="gitea",
-    api_uri="http://gitea.fn.svc:4000/api/v1", secret=SAMPLE_SECRET, enabled=True,
+    id=2, uri="http://gitea.fn.svc:4000/fn/results", repo_path="fn/results",
+    provider=GitProvider(
+        id=1, name="gitea", type="gitea", uri="http://gitea.fn.svc:4000", api_uri="http://gitea.fn.svc:4000/api/v1",
+        enabled=True,
+    ),
+    secret=SAMPLE_SECRET, enabled=True,
 )
 REPOSITORY = ProjectResultsRepository(
     id=5, project_id=1, results_repository=GLOBAL_REPOSITORY, target_dir="results",
@@ -96,7 +100,7 @@ def test_a_revoked_results_repository_is_still_synced():
 
 
 def test_a_result_is_synced_against_its_own_repository_fetched_once():
-    other_global = GLOBAL_REPOSITORY.model_copy(update={"id": 3, "uri": "gitea.fn.svc:4000/fn/other"})
+    other_global = GLOBAL_REPOSITORY.model_copy(update={"id": 3, "uri": "http://gitea.fn.svc:4000/fn/other"})
     other = REPOSITORY.model_copy(update={"id": 6, "results_repository": other_global})
     old = result(9).model_copy(update={"results_repository_id": 6})
     backend_api = MagicMock()

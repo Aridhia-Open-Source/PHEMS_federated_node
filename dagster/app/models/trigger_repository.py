@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.git_uri import normalise_repo_uri
+from app.models.git_provider import GitProvider
 from app.models.secret import Secret
 from app.models.pull_request_trigger import PullRequestTrigger
 
@@ -14,9 +14,11 @@ class TriggerRepository(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: int
+    # The provider's uri and the repo_path, as the backend derives it.
     uri: str
-    provider: str
-    api_uri: str
+    # Where the repository is on the provider's API (owner/name).
+    repo_path: str
+    provider: GitProvider
     # The secret holding the git token, under the key TOKEN.
     secret: Secret
     # Turned on or off for the whole node. A disabled repository is not polled.
@@ -24,15 +26,6 @@ class TriggerRepository(BaseModel):
     # Where polling the provider resumes: the latest stored merge, or with none stored the
     # earliest cursor of its active links. None if there is neither.
     pr_cursor: str | None = None
-
-    @property
-    def repo_path(self) -> str:
-        """
-        Where the repository is on the provider's API (owner/repo): the last two path
-        segments of the uri. Right for GitHub and Gitea; GitLab nested groups, Bitbucket
-        Server and Azure DevOps need provider-specific handling.
-        """
-        return "/".join(normalise_repo_uri(self.uri).split("/")[-2:])
 
 
 class ProjectTriggerRepository(BaseModel):

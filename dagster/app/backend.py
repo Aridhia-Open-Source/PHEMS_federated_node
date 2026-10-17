@@ -274,10 +274,10 @@ class BackendAPI:
         self.logger.info(f"Deleting dataset {dataset_id}")
         self.session.delete(f"/global/datasets/{dataset_id}")
 
-    def create_repository(self, uri: str, provider: str, api_uri: str, secret_label: str) -> TriggerRepository:
+    def create_repository(self, provider_id: int, repo_path: str, secret_label: str) -> TriggerRepository:
         """Create a global trigger repository"""
-        self.logger.info(f"Creating repository {uri}")
-        data = {"uri": uri, "provider": provider, "api_uri": api_uri, "secret_label": secret_label}
+        self.logger.info(f"Creating repository {repo_path} on provider {provider_id}")
+        data = {"provider_id": provider_id, "repo_path": repo_path, "secret_label": secret_label}
         response = self.session.post("/global/repositories/triggers", json=data)
         return TriggerRepository(**response.json())
 

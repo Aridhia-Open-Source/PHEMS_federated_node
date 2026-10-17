@@ -139,7 +139,10 @@ class ResultsDelivery:
 
         with tempfile.TemporaryDirectory(prefix="phems-results-") as work:
             clone_dir = Path(work) / "repo"
-            git_push.clone(git_push.clone_url(repository.results_repository.uri, repository.results_repository.api_uri), clone_dir, env)
+            git_push.clone(
+                git_push.clone_url(repository.results_repository.provider.uri, repository.results_repository.repo_path),
+                clone_dir, env,
+            )
             base_branch = git_push.current_branch(clone_dir)
             commit_sha = git_push.remote_branch_sha(clone_dir, branch, env)
             if commit_sha:

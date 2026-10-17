@@ -88,11 +88,11 @@ class TestRepositories:
     def test_create_repository_is_global(self, api, session):
         session.post.return_value = make_response(SAMPLE_TRIGGER_REPOSITORY)
 
-        repo = api.create_repository("github.com/org/repo", "github", "https://api.github.com", "creds")
+        repo = api.create_repository(1, "org/repo", "creds")
 
         assert type(repo) is TriggerRepository
         assert session.post.call_args.args == ("/global/repositories/triggers",)
-        assert set(session.post.call_args.kwargs["json"]) == {"uri", "provider", "api_uri", "secret_label"}
+        assert set(session.post.call_args.kwargs["json"]) == {"provider_id", "repo_path", "secret_label"}
 
     def test_assign_repository_puts_under_the_project(self, api, session):
         session.put.return_value = make_response(SAMPLE_REPOSITORY_OBJ)
@@ -298,7 +298,10 @@ class TestResults:
     ASSIGNMENT = {
         "project_id": 1,
         "results_repository": {
-            "id": 2, "uri": "h/o/r", "provider": "gitea", "api_uri": "http://h/api/v1", "secret": SAMPLE_SECRET, "enabled": True,
+            "id": 2, "uri": "http://h/o/r", "repo_path": "o/r", "secret": SAMPLE_SECRET, "enabled": True,
+            "provider": {
+                "id": 1, "name": "gitea", "type": "gitea", "uri": "http://h", "api_uri": "http://h/api/v1", "enabled": True,
+            },
         },
         "target_dir": "results", "owned_by_federated_node": True, "enabled": True, "revoked": False, "active": True,
     }

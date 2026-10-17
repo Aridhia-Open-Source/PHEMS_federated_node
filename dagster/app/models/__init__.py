@@ -1,6 +1,7 @@
 """Wire models for the backend API responses this code location consumes."""
 
 from app.models.dataset import Catalogue, Dataset, Dictionary, ProjectDataset
+from app.models.git_provider import GitProvider
 from app.models.project import Project
 from app.models.pull_request import ChangedFile, NewPullRequest, PullRequest
 from app.models.pull_request_result import PullRequestResult
@@ -21,6 +22,7 @@ __all__ = [
     "ChangedFile",
     "Dataset",
     "Dictionary",
+    "GitProvider",
     "NewPullRequest",
     "Project",
     "ProjectDataset",

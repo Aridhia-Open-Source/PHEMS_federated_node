@@ -40,11 +40,20 @@ SAMPLE_DATASET = {
     "url": "https://db.host/cdm",
 }
 
+SAMPLE_PROVIDER = {
+    "id": 1,
+    "name": "github-github.com",
+    "type": "github",
+    "uri": "https://github.com",
+    "api_uri": "https://api.github.com",
+    "enabled": True,
+}
+
 SAMPLE_TRIGGER_REPOSITORY = {
     "id": 1,
-    "uri": "github.com/org/repo",
-    "provider": "github",
-    "api_uri": "https://api.github.com",
+    "uri": "https://github.com/org/repo",
+    "repo_path": "org/repo",
+    "provider": SAMPLE_PROVIDER,
     "secret": SAMPLE_SECRET,
     "enabled": True,
 }

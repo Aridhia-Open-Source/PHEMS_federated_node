@@ -1,7 +1,7 @@
 import pytest
 
 from app.models import (
-    Dataset, NewPullRequest, ProjectTriggerRepository, PullRequest, PullRequestTrigger, Secret, SecretProviderType,
+    Dataset, GitProvider, NewPullRequest, ProjectTriggerRepository, PullRequest, PullRequestTrigger, Secret, SecretProviderType,
     TriggerRepository,
 )
 from app.models.pull_request import PROVIDER_FILES_CAP
@@ -87,25 +87,9 @@ class TestTriggerRepository:
         repo = TriggerRepository(**SAMPLE_TRIGGER_REPOSITORY)
 
         assert isinstance(repo.secret, Secret)
-        assert repo.repo_path == "org/repo"
-
-    @pytest.mark.parametrize("uri,expected", [
-        ("github.com/org/repo", "org/repo"),
-        ("https://github.com/org/repo", "org/repo"),
-        ("http://gitea.fn.svc:3000/org/repo", "org/repo"),
-        ("gitea.fn.svc:3000/org/repo", "org/repo"),
-    ])
-    def test_repo_path_is_the_last_two_segments(self, uri, expected):
-        assert TriggerRepository(**{**SAMPLE_TRIGGER_REPOSITORY, "uri": uri}).repo_path == expected
-
-    def test_repo_path_of_a_nested_path_keeps_the_last_two_segments(self):
-        repo = TriggerRepository(**{**SAMPLE_TRIGGER_REPOSITORY, "uri": "gitlab.com/group/sub/repo"})
-
-        assert repo.repo_path == "sub/repo"
-
-    @pytest.mark.parametrize("uri", ["github.com/org/repo/", "github.com/org/repo.git"])
-    def test_repo_path_ignores_a_trailing_slash_and_git_suffix(self, uri):
-        assert TriggerRepository(**{**SAMPLE_TRIGGER_REPOSITORY, "uri": uri}).repo_path == "org/repo"
+        assert isinstance(repo.provider, GitProvider)
+        assert (repo.repo_path, repo.uri) == ("org/repo", "https://github.com/org/repo")
+        assert (repo.provider.type, repo.provider.api_uri) == ("github", "https://api.github.com")
 
 
 class TestPullRequest:

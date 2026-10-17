@@ -9,7 +9,10 @@ from app.tests.conftest import SAMPLE_TRIGGER_REPOSITORY
 
 
 def repo(id=1, uri="github.com/org/repo", pr_cursor="2026-01-01T00:00:00Z"):
-    return TriggerRepository(**{**SAMPLE_TRIGGER_REPOSITORY, "id": id, "uri": uri, "pr_cursor": pr_cursor})
+    return TriggerRepository(**{
+        **SAMPLE_TRIGGER_REPOSITORY, "id": id, "uri": uri, "repo_path": "/".join(uri.split("/")[-2:]),
+        "pr_cursor": pr_cursor,
+    })
 
 
 def git_pr(number):

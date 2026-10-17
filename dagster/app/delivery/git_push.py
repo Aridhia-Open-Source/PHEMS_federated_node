@@ -5,9 +5,6 @@ import os
 import subprocess
 import zipfile
 from pathlib import Path
-from urllib.parse import urlparse
-
-from app.git_uri import normalise_repo_uri
 
 COMMITTER_NAME = "phems-bot"
 COMMITTER_EMAIL = "phems-federated-node@users.noreply.github.com"
@@ -15,12 +12,9 @@ COMMITTER_EMAIL = "phems-federated-node@users.noreply.github.com"
 GIT_TIMEOUT_SECONDS = 60
 
 
-def clone_url(uri: str, api_uri: str) -> str:
-    """
-    The URL to clone a repository from. The scheme comes from the provider's API URL, the
-    rest from the normalised uri, so '.git' is added exactly once.
-    """
-    return f"{urlparse(api_uri).scheme}://{normalise_repo_uri(uri)}.git"
+def clone_url(provider_uri: str, repo_path: str) -> str:
+    """The URL to clone a repository from: the provider's uri, the repo_path and '.git'."""
+    return f"{provider_uri}/{repo_path}.git"
 
 
 def auth_env(token: str) -> dict[str, str]:

@@ -33,19 +33,19 @@ class GitAPI(Protocol):
 
 class GitAPIFactory:
     """
-    Builds the api client for a repository from its provider, its API URI and the token in
+    Builds the api client for a repository from its provider's type and API URI and the token in
     the secret it names, so every repository authenticates as itself.
     """
 
     def for_repository(self, repo: TriggerRepository | ResultsRepository) -> GitAPI:
         token = read_secret_value(repo.secret, "TOKEN")
-        match repo.provider:
+        match repo.provider.type:
             case "github":
-                return GithubAPI(GithubClient(token=token, base_uri=repo.api_uri))
+                return GithubAPI(GithubClient(token=token, base_uri=repo.provider.api_uri))
             case "gitea":
-                return GiteaAPI(GiteaClient(token=token, base_uri=repo.api_uri))
-            case provider:
-                raise ValueError(f"Unsupported git provider {provider!r} for repository {repo.uri}")
+                return GiteaAPI(GiteaClient(token=token, base_uri=repo.provider.api_uri))
+            case provider_type:
+                raise ValueError(f"Unsupported git provider {provider_type!r} for repository {repo.uri}")
 
 
 class GitSensor(BaseSensor):

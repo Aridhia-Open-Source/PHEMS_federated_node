@@ -13,7 +13,8 @@ from app.definitions.sensors.task.delivery import deliver_results_job, task_resu
 from app.delivery import git_push
 from app.delivery.results import ResultsDelivery
 from app.models import (
-    ProjectResultsRepository, PullRequestResult, ResultsRepository, Secret, Task, TaskTrigger, TriggerRepositoryRef
+    GitProvider, ProjectResultsRepository, PullRequestResult, ResultsRepository, Secret, Task, TaskTrigger,
+    TriggerRepositoryRef,
 )
 from app.tests.conftest import SAMPLE_SECRET
 
@@ -23,8 +24,12 @@ TASK = Task(
     project_id=1, trigger_id=3, dagster_run_id="stale-run",
 )
 GLOBAL_REPOSITORY = ResultsRepository(
-    id=2, uri="gitea.fn.svc:3000/fn/results", provider="gitea",
-    api_uri="http://gitea.fn.svc:3000/api/v1", secret=SAMPLE_SECRET, enabled=True,
+    id=2, uri="http://gitea.fn.svc:3000/fn/results", repo_path="fn/results",
+    provider=GitProvider(
+        id=1, name="gitea", type="gitea", uri="http://gitea.fn.svc:3000", api_uri="http://gitea.fn.svc:3000/api/v1",
+        enabled=True,
+    ),
+    secret=SAMPLE_SECRET, enabled=True,
 )
 REPOSITORY = ProjectResultsRepository(
     id=5, project_id=1, results_repository=GLOBAL_REPOSITORY, target_dir="/results/",
@@ -337,10 +342,8 @@ def test_the_token_stays_out_of_the_command_line():
     env = git_push.auth_env("secret-token")
 
     assert env["GIT_CONFIG_KEY_0"] == "http.extraHeader"
-    assert git_push.clone_url("gitea.fn.svc:3000/fn/results", "http://gitea.fn.svc:3000/api/v1") == (
-        "http://gitea.fn.svc:3000/fn/results.git"
-    )
-    assert "secret-token" not in git_push.clone_url("h/o/r", "https://api.x/v1")
+    assert git_push.clone_url("http://gitea.fn.svc:3000", "fn/results") == "http://gitea.fn.svc:3000/fn/results.git"
+    assert "secret-token" not in git_push.clone_url("https://h", "o/r")
 
 
 def test_the_sensor_requests_a_delivery_run_for_a_successful_task_run():
