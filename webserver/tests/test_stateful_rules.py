@@ -79,6 +79,7 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         self.app.testing = True
         self.context = self.app.app_context()
         self.context.push()
+        db.drop_all()  # Hypothesis can build a machine it never tears down: start from empty tables
         db.create_all()
         self.tick = 0
         clock = mock.patch("app.helpers.pull_request_fanout.now_ts", lambda: CLOCK_START + timedelta(minutes=self.tick))
@@ -97,7 +98,7 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         assert link.status_code == 201, link.json
 
         # The model, started from what the API reports: only the facts, not the rules, are read back
-        self.locked = project.json["locked"]
+        self.locked = self.call("get", f"/projects/{self.project_id}").json["locked"]
         self.link_enabled = link.json["enabled"]
         self.link_revoked = link.json["revoked"]
         self.global_enabled = self.call("get", f"/global/repositories/triggers/{self.repo_id}").json["enabled"]

@@ -521,6 +521,66 @@ def test_s12_no_result_and_stays_failed(fncli, flow):
     assert not [r for r in snapshot["results"] if r["task_id"] == flow["s12_task"]], f"a failed task has a result\n{summary(snapshot)}"
 
 
+# --- S17: the results link's target_dir changes before the task launches: the task fails ---------
+
+
+def test_s17_wait_for_tasks_to_finish(fncli):
+    fncli.wait_for_state("no task in flight", TASK_TIMEOUT, tasks_finished)
+
+
+def test_s17_stop_launcher(fncli):
+    fncli.call(stop_sensor_command, sensor="launcher")
+
+
+def test_s17_create_branch(fncli, flow):
+    create_branch(fncli, flow, "s17")
+
+
+def test_s17_commit_file(fncli, flow):
+    commit_file(fncli, flow, "s17", "watched")
+
+
+def test_s17_create_pr(fncli, flow):
+    create_pr(fncli, flow, "s17", "watched")
+
+
+def test_s17_merge_pr(fncli, flow):
+    merge_pr(fncli, flow, "s17")
+
+
+def test_s17_task_is_created_and_waits_unlaunched(fncli, flow):
+    flow["s17_task"] = fncli.wait_for_state("S17's task", STEP_TIMEOUT, yielded_with_task(flow, "s17"))["task_id"]
+    fncli.wait_for_state(
+        "S17's task PENDING",
+        STEP_TIMEOUT,
+        lambda s: any(t["id"] == flow["s17_task"] and t["status"] == "PENDING" for t in s["tasks"]),
+    )
+
+
+def test_s17_change_the_target_dir(fncli, flow):
+    flow["s17_original_dir"] = fncli.snapshot()["results_links"][0]["target_dir"]
+    fncli.call(link_set_command, kind="results", target_dir="changed-by-s17/", expect=200)  # no lock needed any more
+
+
+def test_s17_start_launcher(fncli):
+    fncli.call(start_sensor_command, sensor="launcher")
+
+
+def test_s17_task_fails_naming_the_change(fncli, flow):
+    task = fncli.wait_for_state(
+        "S17's task FAILED",
+        TASK_TIMEOUT,
+        lambda s: next((t for t in s["tasks"] if t["id"] == flow["s17_task"] and t["status"] == "FAILED"), None),
+    )
+    cause = task.get("state_cause") or ""
+    assert "configuration changed" in cause and "target_dir" in cause, f"unexpected cause: {cause!r}"
+    assert not [r for r in fncli.snapshot()["results"] if r["task_id"] == flow["s17_task"]], "a stale task has a result"
+
+
+def test_s17_restore_the_target_dir(fncli, flow):
+    fncli.call(link_set_command, kind="results", target_dir=flow["s17_original_dir"], expect=200)
+
+
 # --- S13: sensors stopped, a PR merged, sensors started again -----------------------------------
 
 
