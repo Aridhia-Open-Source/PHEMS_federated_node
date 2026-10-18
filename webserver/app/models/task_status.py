@@ -20,6 +20,25 @@ class TaskStatus(str, Enum):
         return self.value
 
 
+# The moves allowed from each status. Forward only: the run-status sensors can see a run start
+# before it is queued, and a task can finish from any unfinished status. SUCCESS, FAILED and
+# CANCELED are final, only a retry (RETRYABLE) queues the task again.
+TASK_MOVES = {
+    TaskStatus.PENDING.value: {
+        TaskStatus.QUEUED.value, TaskStatus.RUNNING.value, TaskStatus.SUCCESS.value,
+        TaskStatus.FAILED.value, TaskStatus.CANCELED.value,
+    },
+    TaskStatus.QUEUED.value: {
+        TaskStatus.RUNNING.value, TaskStatus.SUCCESS.value, TaskStatus.FAILED.value, TaskStatus.CANCELED.value,
+    },
+    TaskStatus.RUNNING.value: {TaskStatus.SUCCESS.value, TaskStatus.FAILED.value, TaskStatus.CANCELED.value},
+    TaskStatus.SUCCESS.value: set(),
+    TaskStatus.FAILED.value: set(),
+    TaskStatus.CANCELED.value: set(),
+}
+RETRYABLE = {TaskStatus.FAILED.value, TaskStatus.CANCELED.value}
+
+
 class TriggerSource(str, Enum):
     """
     What caused a task to exist. Either the task was submitted through the API or a merged

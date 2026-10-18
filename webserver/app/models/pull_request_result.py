@@ -4,17 +4,10 @@ import sqlalchemy as sa
 from sqlalchemy.orm import validates
 
 from app.helpers.exceptions import InvalidRequest
-from app.models.pull_request_result_state import PullRequestResultState
+from app.helpers.state_rules import forward_only
+from app.models.pull_request_result_step import RESULT_ORDER, PullRequestResultStep
+from app.models.result_state import ResultState
 from app.models.result import Result
-
-# MERGED and CLOSED are terminal and of equal rank.
-STATE_RANK = {
-    PullRequestResultState.UNKNOWN.value: 0,
-    PullRequestResultState.PUSHED.value: 1,
-    PullRequestResultState.OPENED.value: 2,
-    PullRequestResultState.MERGED.value: 3,
-    PullRequestResultState.CLOSED.value: 3,
-}
 
 
 class PullRequestResult(Result):
@@ -31,12 +24,19 @@ class PullRequestResult(Result):
     result_id = sa.Column(
         sa.Integer, sa.ForeignKey('results.id', ondelete='CASCADE'), primary_key=True
     )
-    # The furthest delivery step reached, forward only, see PullRequestResultState.
+    # The furthest delivery step reached, forward only, see PullRequestResultStep.
+    step = sa.Column(
+        sa.String(32),
+        nullable=False,
+        default=PullRequestResultStep.UNKNOWN.value,
+        server_default=PullRequestResultStep.UNKNOWN.value,
+    )
+    # How the delivery is going, see ResultState.
     state = sa.Column(
         sa.String(32),
         nullable=False,
-        default=PullRequestResultState.UNKNOWN.value,
-        server_default=PullRequestResultState.UNKNOWN.value,
+        default=ResultState.IN_PROGRESS.value,
+        server_default=ResultState.IN_PROGRESS.value,
     )
     branch = sa.Column(sa.String(256), nullable=True)
     commit_sha = sa.Column(sa.String(40), nullable=True)
@@ -55,19 +55,17 @@ class PullRequestResult(Result):
                 raise ValueError("merged_at must be a valid ISO 8601 datetime string")
         return value
 
-    def set_state(self, state: str):
+    def set_step(self, step: str):
         """
-        Set the state, which only moves forward and nowhere once MERGED or CLOSED. Setting the
-        current state again is allowed. Stops a late write, e.g. a delivery retry recording
+        Set the step, which only moves forward and nowhere once MERGED, CLOSED, REVOKED or STALE. Setting the
+        current step again is allowed. Stops a late write, e.g. a delivery retry recording
         OPENED, from undoing what the sync sensor found.
         """
-        if state not in STATE_RANK:
-            valid = ', '.join([s.value for s in PullRequestResultState])
-            raise InvalidRequest(f"Invalid state: {state}. Must be one of: {valid}")
-        terminal = STATE_RANK[self.state] == STATE_RANK[PullRequestResultState.MERGED.value]
-        if state != self.state and (terminal or STATE_RANK[state] < STATE_RANK[self.state]):
-            raise InvalidRequest(f"state cannot move from {self.state} to {state}")
-        self.state = state
+        if not isinstance(step, str) or step not in RESULT_ORDER:
+            valid = ', '.join([s.value for s in PullRequestResultStep])
+            raise InvalidRequest(f"Invalid step: {step}. Must be one of: {valid}")
+        forward_only(RESULT_ORDER, self.step, step)
+        self.step = step
 
     def __repr__(self):
         return f'<PullRequestResult (task_id={self.task_id}, pr={self.number})>'

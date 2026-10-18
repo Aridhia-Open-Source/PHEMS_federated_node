@@ -1,4 +1,4 @@
-"""API request model for task trigger payloads."""
+"""API request model for task triggers."""
 import sqlalchemy as sa
 
 from app.models.trigger import Trigger
@@ -6,7 +6,7 @@ from app.models.trigger import Trigger
 
 class ApiRequestTrigger(Trigger):
     """
-    A task requested through POST /tasks. `payload` is the raw request body.
+    A task requested through POST /tasks. `spec_raw` is the raw request body.
     """
     __tablename__ = 'api_request_triggers'
     __mapper_args__ = {'polymorphic_identity': 'API'}
@@ -15,12 +15,11 @@ class ApiRequestTrigger(Trigger):
         sa.Integer, sa.ForeignKey('triggers.id', ondelete='CASCADE'), primary_key=True
     )
     user_id = sa.Column(sa.String(256), nullable=False)
-    payload = sa.Column(sa.JSON, nullable=False, default=dict, server_default='{}')
+    spec_raw = sa.Column(sa.Text, nullable=True)
 
-    def __init__(self, user_id: str, project_id: int, payload: dict | None = None, **kwargs):
+    def __init__(self, user_id: str, project_id: int, **kwargs):
         super().__init__(project_id)
         self.user_id = user_id
-        self.payload = payload or {}
 
     @property
     def requested_by(self) -> str:
