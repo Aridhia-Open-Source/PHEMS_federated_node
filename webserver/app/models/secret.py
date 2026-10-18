@@ -4,13 +4,14 @@ from sqlalchemy.orm import relationship, validates
 from app.helpers.base_model import BaseModel, db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.kubernetes_names import validate_dns_subdomain
+from app.helpers.soft_delete import SoftDeleteMixin
 from app.models import sqla_column
 from app.models.secret_provider_type import SecretProviderType
 
 KEY_PREFIX = "fn-secret-"
 
 
-class Secret(db.Model, BaseModel):
+class Secret(SoftDeleteMixin, db.Model, BaseModel):
     """
     A reference to a secret. The value only ever lives in the secret store that provider
     names; this row records which secrets exist, so one that repositories share cannot be
@@ -22,11 +23,11 @@ class Secret(db.Model, BaseModel):
     __tablename__ = 'secrets'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    label = sa.Column(sa.String(253), nullable=False, unique=True)
+    label = sa.Column(sa.String(253), nullable=False)
     description = sa.Column(sa.String(4096), nullable=True)
     provider = sa.Column(sa.Enum(SecretProviderType), nullable=False)
     # What the secret is called in the store.
-    key = sa.Column(sa.String(253), unique=True, nullable=False)
+    key = sa.Column(sa.String(253), nullable=False)
     # Where the store keeps it, for stores that have such a notion. Set by the backend.
     namespace = sa.Column(sa.String(253), nullable=True)
     # Turned on or off for the whole node, whatever the projects' links say
@@ -34,6 +35,11 @@ class Secret(db.Model, BaseModel):
 
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
+
+    __table_args__ = (
+        sa.Index('uq_secrets_label', 'label', unique=True, postgresql_where=sa.text('deleted_at IS NULL')),
+        sa.Index('uq_secrets_key', 'key', unique=True, postgresql_where=sa.text('deleted_at IS NULL')),
+    )
 
     trigger_repositories = relationship(
         "TriggerRepository", back_populates="secret"

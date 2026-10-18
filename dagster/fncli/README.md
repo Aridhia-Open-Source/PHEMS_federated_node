@@ -152,7 +152,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 | Command | What it does |
 |---|---|
 | `init-backend-dataset` | Creates the global dataset if missing (needs the dataset secret) and assigns it to the project. The first one assigned becomes the project's default |
-| `delete-backend-dataset` | Deletes the global dataset from the backend, and with it every project's assignment of it. Needs each of those projects locked and drained |
+| `delete-backend-dataset` | Soft deletes the global dataset in the backend, and revokes and deletes every project's assignment of it |
 
 **Pull request** (`cmds/pr.py`; the file name, branch and title carry a timestamp, so it can be re-run)
 
@@ -208,8 +208,8 @@ checks the 409 rules. `KIND` is `trigger`, `results`, `dataset` or `secret`; `--
 |---|---|
 | `project-show [--project]` | JSON of the project's links (enabled, revoked, active), their pull requests (state, task), tasks and results. Read-only; stdout is clean JSON, so it pipes into `jq` |
 | `project-set --enabled/--locked true\|false` | Sets the project's flags (`PATCH /projects/<id>`) |
-| `link-set KIND --enabled/--revoked true\|false` | Sets the flags of the project's link to a global resource. `--revoked` is admin only and immediate; other changes need the project locked and drained |
-| `global-set KIND --enabled true\|false` | Turns the global resource behind the link on or off. Every project that links it must be locked and drained (no task in flight, no result still being delivered) |
+| `link-set KIND --enabled/--revoked true\|false` | Sets the flags of the project's link to a global resource. `--revoked` is admin only and immediate; no change needs a lock |
+| `global-set KIND --enabled true\|false` | Turns the global resource behind the link on or off. Needs no lock or drain |
 | `second-project-setup NAME` | Creates a second project linked to the same global resources (secrets, dataset, trigger and results repositories), enabled |
 | `second-project-teardown NAME` | Locks and deletes that project. The global resources stay |
 

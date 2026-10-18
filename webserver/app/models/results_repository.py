@@ -3,11 +3,12 @@ import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
 from app.helpers.base_model import BaseModel, db
+from app.helpers.soft_delete import SoftDeleteMixin
 from app.models import sqla_column
 from app.models.git_repository import GitRepositoryMixin
 
 
-class ResultsRepository(GitRepositoryMixin, db.Model, BaseModel):
+class ResultsRepository(SoftDeleteMixin, GitRepositoryMixin, db.Model, BaseModel):
     __tablename__ = 'results_repositories'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -17,7 +18,10 @@ class ResultsRepository(GitRepositoryMixin, db.Model, BaseModel):
     updated_at = sqla_column.updated_at()
 
     __table_args__ = (
-        sa.UniqueConstraint('provider_id', 'repo_path', name='uq_results_repositories_provider_repo_path'),
+        sa.Index(
+            'uq_results_repositories_provider_repo_path', 'provider_id', 'repo_path',
+            unique=True, postgresql_where=sa.text('deleted_at IS NULL')
+        ),
     )
 
     project_assignments = relationship("ProjectResultsRepository", back_populates="results_repository")

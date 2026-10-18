@@ -6,15 +6,16 @@ import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
 from app.helpers.base_model import BaseModel, db
+from app.helpers.soft_delete import SoftDeleteMixin
 
 
-class ProjectResultsRepository(db.Model, BaseModel):
+class ProjectResultsRepository(SoftDeleteMixin, db.Model, BaseModel):
     __tablename__ = 'project_results_repositories'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     # One results repository per project for now.
     project_id = sa.Column(
-        sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False, unique=True
+        sa.Integer, sa.ForeignKey('projects.id', ondelete='RESTRICT'), nullable=False
     )
     results_repository_id = sa.Column(
         sa.Integer, sa.ForeignKey('results_repositories.id', ondelete='RESTRICT'), nullable=False
@@ -26,6 +27,13 @@ class ProjectResultsRepository(db.Model, BaseModel):
     # The controller withdrew the project's access. Never touches enabled, so a re-grant
     # restores the previous state.
     revoked = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
+
+    __table_args__ = (
+        sa.Index(
+            'uq_project_results_repositories_project', 'project_id',
+            unique=True, postgresql_where=sa.text('deleted_at IS NULL')
+        ),
+    )
 
     project = relationship("Project", back_populates="results_repository_assignments")
     results_repository = relationship("ResultsRepository", back_populates="project_assignments")

@@ -13,9 +13,10 @@ ACTIONS (rules)
   progress_task()             a task moves PENDING -> QUEUED -> RUNNING -> SUCCESS or FAILED (the run-status sensors)
   finished_task_is_final()    a finished task cannot change to another status (409)
   set_locked(v)               lock or unlock the project: always allowed
-  set_link_enabled(v)         turn the link on or off: 200 only if the project is locked and drained, else 409
+  set_link_enabled(v)         turn the link on or off: always 200, no lock or drain needed
+  set_project_enabled(v)      turn the project on or off: always 200; off -> on skips the gap (M7)
   set_link_revoked(v)         revoke or re-grant the link: always 200, takes effect at once
-  set_global_enabled(v)       turn the global repository on or off: 200 only if the project is locked and drained, else 409; off -> on skips the gap (M6)
+  set_global_enabled(v)       turn the global repository on or off: always 200; off -> on skips the gap (M6)
 
 INVARIANTS (checked after every action)
   triggers_match_model        the project's triggers (number -> state) are exactly the model's
@@ -24,16 +25,16 @@ INVARIANTS (checked after every action)
   link_active_matches_model   the link is active iff the global repository, the link are on and the link is not revoked
 
 THE MODEL'S RULES (to review; each one is a decision, not just a description of the code)
-  M1  A stored PR gets a trigger for the link only if it matches (spec file under watch_dir) and the link is active when it is stored.
+  M1  A stored PR gets a trigger for the link only if it matches (spec file under watch_dir), the link is active and the project is enabled when it is stored.
   M2  NO REPLAY: whenever the LINK becomes active again (link enabled, link re-granted), its cursor moves to now, as in M6: every
       PR that exists at that moment is stored but never gets a trigger; PRs merged after it do.
   M3  An inactive link refuses to create a task (409) and the trigger stays UNKNOWN.
-  M4  Changing the link's or the repository's enabled flag needs the project locked and drained (no task PENDING, QUEUED, RUNNING, or SUCCESS without a result).
-      Results are not modelled yet, so a SUCCESS task counts as in flight (it has no result): drained = no task PENDING, QUEUED, RUNNING or SUCCESS.
+  M4  Changing an enabled flag (the link's, the repository's or the project's) needs neither the lock nor a drain: it is always 200.
   M5  Revoking needs neither the lock nor draining.
   M6  A disabled global repository refuses new PRs entirely (the sensor fetches them again once it is back on, the ingest cursor
       being the newest stored PR). Switching it back on moves the link's cursor to now: every PR that exists at that moment is still
       stored when ingested but never gets a trigger (not at ingest, not by a backfill); PRs merged after it do.
+  M7  A disabled project gets no trigger for the PRs stored meanwhile. Switching it back on moves the cursor of its links to now, as in M6.
 """
 
 import json
@@ -54,7 +55,6 @@ from app.models.trigger_repository import TriggerRepository
 from tests.conftest import new_repo
 
 UNFINISHED = {"PENDING", "QUEUED", "RUNNING"}
-IN_FLIGHT = UNFINISHED | {"SUCCESS"}  # a SUCCESS task with no result yet is in flight too (Project.in_flight_task_ids)
 FINAL = {"SUCCESS", "FAILED", "CANCELED"}
 WATCH_DIR = "triggers"
 SPEC_RAW = json.dumps({"spec": {"image": "i:1"}})
@@ -94,16 +94,18 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         secret = Secret(label="stateful-creds", provider=SecretProviderType.K8S)
         secret.add()
         self.repo_id = new_repo(TriggerRepository, "github.com/org/stateful", secret.id).id
-        project = self.call("post", "/projects", {"name": "Stateful"})
+        project = self.call("post", "/projects", {"name": "Stateful", "enabled": True})
         assert project.status_code == 201, project.json
         self.project_id = project.json["id"]
         link = self.call("put", self.link_url, {"watch_dir": WATCH_DIR})
         assert link.status_code == 201, link.json
 
         # The model, started from what the API reports: only the facts, not the rules, are read back
-        self.locked = self.call("get", f"/projects/{self.project_id}").json["locked"]
+        project_json = self.call("get", f"/projects/{self.project_id}").json
+        self.locked = project_json["locked"]
         self.link_enabled = link.json["enabled"]
         self.link_revoked = link.json["revoked"]
+        self.project_enabled = project_json["enabled"]
         self.global_enabled = self.call("get", f"/global/repositories/triggers/{self.repo_id}").json["enabled"]
         self.provider = []          # PRs merged at the git server: {"number", "matching", "merged_at"}
         self.skip_before = 0        # M2, M6: PRs numbered up to this existed when the link last became active again
@@ -129,11 +131,6 @@ class TriggerLinkMachine(RuleBasedStateMachine):
     @property
     def link_active(self) -> bool:
         return self.global_enabled and self.link_enabled and not self.link_revoked
-
-    @property
-    def drained(self) -> bool:
-        # Nothing is delivered in this model, so a SUCCESS task has no result yet and still counts as in flight
-        return not IN_FLIGHT & set(self.tasks.values())
 
     def skip_gap_if_activated(self, was_active: bool):
         """M2: a link that has become active again gives no trigger to the PRs that exist now."""
@@ -161,7 +158,7 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         assert response.json["existing"] == []
         for pull in batch:
             self.stored[pull["number"]] = pull["matching"]
-            if pull["matching"] and self.link_active and pull["number"] > self.skip_before:  # M1, M6
+            if pull["matching"] and self.link_active and self.project_enabled and pull["number"] > self.skip_before:  # M1, M6, M7
                 self.triggers[pull["number"]] = "UNKNOWN"
 
     @precondition(lambda self: not self.global_enabled)
@@ -212,12 +209,19 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         was = self.link_active
         self.tick += 1  # the route reads the clock during the call: the cursor lands after every PR merged so far
         response = self.call("patch", self.link_url, {"enabled": value})
-        if self.locked and self.drained:
-            assert response.status_code == 200, response.json
-            self.link_enabled = value
-            self.skip_gap_if_activated(was)
-        else:
-            assert response.status_code == 409, response.json
+        assert response.status_code == 200, response.json
+        self.link_enabled = value
+        self.skip_gap_if_activated(was)
+
+    @rule(value=st.booleans())
+    def set_project_enabled(self, value):  # M4, and M7 when it is switched back on
+        switched_on = value and not self.project_enabled
+        self.tick += 1
+        response = self.call("patch", f"/projects/{self.project_id}", {"enabled": value})
+        assert response.status_code == 200, response.json
+        self.project_enabled = value
+        if switched_on:
+            self.skip_before = len(self.provider)
 
     @rule(value=st.booleans())
     def set_link_revoked(self, value):  # M5
@@ -233,13 +237,10 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         switched_on = value and not self.global_enabled
         self.tick += 1  # the route reads the clock during the call: the cursor lands after every PR merged so far
         response = self.call("patch", f"/global/repositories/triggers/{self.repo_id}", {"enabled": value})
-        if self.locked and self.drained:
-            assert response.status_code == 200, response.json
-            self.global_enabled = value
-            if switched_on:
-                self.skip_before = len(self.provider)
-        else:
-            assert response.status_code == 409, response.json
+        assert response.status_code == 200, response.json
+        self.global_enabled = value
+        if switched_on:
+            self.skip_before = len(self.provider)
 
     # ----------------------------------------------------------------------------- invariants
 

@@ -12,6 +12,7 @@ from sqlalchemy.orm import relationship, validates
 from app.helpers.base_model import BaseModel, db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.git_uri import normalise_provider_uri, validate_api_uri
+from app.helpers.soft_delete import SoftDeleteMixin
 from app.models import sqla_column
 from app.models.git_provider_type import GitProviderType
 
@@ -87,7 +88,7 @@ def _message_of(response) -> str:
     return str(message or response.reason)[:MAX_MESSAGE_LENGTH]
 
 
-class GitProvider(db.Model, BaseModel):
+class GitProvider(SoftDeleteMixin, db.Model, BaseModel):
     """
     A git host, global: the trigger and results repositories on it refer to it. The uri is
     the host's web address (https://github.com) and the api_uri its API base URL, which the
@@ -96,15 +97,20 @@ class GitProvider(db.Model, BaseModel):
     __tablename__ = 'git_providers'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    name = sa.Column(sa.String(253), nullable=False, unique=True)
+    name = sa.Column(sa.String(253), nullable=False)
     type = sa.Column(sa.String(16), nullable=False)
-    uri = sa.Column(sa.String(4096), nullable=False, unique=True)
+    uri = sa.Column(sa.String(4096), nullable=False)
     api_uri = sa.Column(sa.String(4096), nullable=False)
     # Turned on or off for the whole node: the repositories on a disabled provider are not active
     enabled = sa.Column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
 
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
+
+    __table_args__ = (
+        sa.Index('uq_git_providers_name', 'name', unique=True, postgresql_where=sa.text('deleted_at IS NULL')),
+        sa.Index('uq_git_providers_uri', 'uri', unique=True, postgresql_where=sa.text('deleted_at IS NULL')),
+    )
 
     trigger_repositories = relationship("TriggerRepository", back_populates="provider")
     results_repositories = relationship("ResultsRepository", back_populates="provider")

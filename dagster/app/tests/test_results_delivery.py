@@ -20,7 +20,7 @@ from app.definitions.sensors.task.delivery import (
 from app.delivery import git_push
 from app.delivery.results import ResultsDelivery
 from app.models import (
-    GitProvider, Project, ProjectResultsRepository, PullRequestResult, ResultsRepository, Secret, Task, TaskTrigger,
+    GitProvider, Project, PullRequestResult, ResultsRepository, Secret, Task, TaskTrigger,
     TriggerRepositoryRef,
 )
 from app.tests.conftest import SAMPLE_SECRET
@@ -38,10 +38,13 @@ GLOBAL_REPOSITORY = ResultsRepository(
     ),
     secret=SAMPLE_SECRET, enabled=True,
 )
-REPOSITORY = ProjectResultsRepository(
-    id=5, project_id=1, results_repository=GLOBAL_REPOSITORY, target_dir="/results/",
-    owned_by_federated_node=True, enabled=True, revoked=False, active=True,
-)
+CONFIG = {
+    "current": True, "changes": [], "config_hash": "h",
+    "config_snapshot": {"version": 1, "results": {
+        "repository_id": 2, "repository": "http://gitea.fn.svc:3000/fn/results",
+        "api_uri": "http://gitea.fn.svc:3000/api/v1", "target_dir": "/results/",
+    }, "dataset": None},
+}
 TRIGGER_REPOSITORY = TriggerRepositoryRef(id=2, repo_path="fn/analysis", uri="gitea.fn.svc:3000/fn/analysis")
 PULL_REQUEST = TaskTrigger(
     project_id=1, trigger_repository_id=2, number=12, title="t", raised_by="u", merged_at="2026-01-01T00:00:00Z",
@@ -90,7 +93,8 @@ def result(**fields):
 def backend_api():
     api = MagicMock()
     api.get_task.return_value = TASK
-    api.get_results_repository.return_value = REPOSITORY
+    api.get_task_config.return_value = CONFIG
+    api.get_global_results_repository.return_value = GLOBAL_REPOSITORY
     api.get_task_trigger.return_value = PULL_REQUEST
     api.create_result.return_value = result()
     return api
@@ -213,14 +217,27 @@ def test_a_task_without_a_pull_request_fails_the_delivery(backend_api, remote, a
     assert fields["error"].startswith("HTTPError")
 
 
-def test_a_link_revoked_after_the_result_was_recorded_makes_it_final_and_raises_nothing(backend_api, remote, artifacts):
-    backend_api.get_results_repository.return_value = REPOSITORY.model_copy(update={"revoked": True, "active": False})
+def test_delivery_takes_the_target_dir_from_the_pinned_configuration_and_reads_no_link(
+    backend_api, remote, artifacts, git_apis
+):
+    deliver(backend_api, remote, artifacts, git_apis)
+
+    backend_api.get_task_config.assert_called_once_with(1, 7)
+    backend_api.create_result.assert_called_once_with(1, 7, 2)
+    backend_api.get_global_results_repository.assert_called_once_with(2)
+    assert not backend_api.get_results_repository.called
+    assert not backend_api.get_results_repository_by_id.called
+
+
+@pytest.mark.parametrize("gone", ["get_task", "get_task_config", "create_result", "get_global_results_repository"])
+def test_a_404_is_final_logged_and_never_raised(backend_api, remote, artifacts, gone):
+    response = MagicMock(status_code=404, text="not found")
+    getattr(backend_api, gone).side_effect = requests.HTTPError(response=response)
 
     deliver(backend_api, remote, artifacts)
 
-    assert patches(backend_api) == [
-        {"step": "REVOKED", "state": "FAILED", "attempts": 1, "error": "results repository access revoked"}
-    ]
+    backend_api.patch_result.assert_not_called()
+    assert git("rev-list", "--count", "main", cwd=remote) == "1"
 
 
 @pytest.mark.parametrize("step, error", [
@@ -236,12 +253,15 @@ def test_a_result_the_backend_created_as_final_without_delivery_is_left_alone(ba
     assert git("rev-list", "--count", "main", cwd=remote) == "1"
 
 
-def test_a_link_inactive_for_another_reason_fails_the_delivery_for_a_relaunch(backend_api, remote, artifacts):
-    backend_api.get_results_repository.return_value = REPOSITORY.model_copy(update={"revoked": False, "active": False})
+def test_a_result_just_recorded_as_switched_off_counts_an_attempt_and_waits_for_the_retry_sensor(
+    backend_api, remote, artifacts
+):
+    backend_api.create_result.return_value = result(state="FAILED", error="results link switched off")
 
     deliver(backend_api, remote, artifacts)
 
-    assert patches(backend_api) == [{"state": "FAILED", "attempts": 1, "error": "results link switched off"}]
+    assert patches(backend_api) == [{"attempts": 1}]
+    backend_api.get_global_results_repository.assert_not_called()
 
 
 def test_the_pull_request_is_found_with_one_call(backend_api, remote, artifacts, git_apis):
@@ -424,9 +444,7 @@ def test_any_other_result_error_raises(backend_api, remote, artifacts):
 def test_a_disabled_secret_fails_the_delivery_before_its_token_is_read(backend_api, remote, artifacts):
     disabled = SAMPLE_SECRET | {"enabled": False}
     global_repository = GLOBAL_REPOSITORY.model_copy(update={"secret": Secret(**disabled)})
-    backend_api.get_results_repository.return_value = REPOSITORY.model_copy(
-        update={"results_repository": global_repository}
-    )
+    backend_api.get_global_results_repository.return_value = global_repository
 
     with pytest.raises(PermissionError):
         deliver(backend_api, remote, artifacts)

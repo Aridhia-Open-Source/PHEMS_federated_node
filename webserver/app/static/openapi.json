@@ -224,9 +224,6 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
-          },
           "500": {
             "$ref": "#/components/responses/InternalError"
           },
@@ -234,7 +231,7 @@
             "$ref": "#/components/responses/DatasetPost"
           }
         },
-        "description": "Admin only. Only a change of enabled needs every project the dataset is linked to locked and drained; any other edit applies at once, and the tasks created before are pinned to the old setup and fail instead of running against the new one. project_id is rejected with a 400"
+        "description": "Admin only. No edit needs a lock or a drain; the tasks created before are pinned to the old setup and fail instead of running against the new one. project_id is rejected with a 400"
       },
       "delete": {
         "operationId": "deleteDataset",
@@ -246,6 +243,15 @@
               "type": "integer"
             },
             "required": true
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "true also revokes and deletes every project's link to the resource. Without it a resource with live project links is refused with a 409."
           }
         ],
         "tags": [
@@ -268,14 +274,14 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
-          },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "409": {
+            "description": "Projects are still linked to it and force is not true. details lists them as {id, name}"
           }
         },
-        "description": "Admin only. Every project the dataset is linked to has to be locked and drained. Refused with a 400 while a task spec still references it. The secret is left alone: it has its own lifecycle under /secrets"
+        "description": "Admin only. Soft delete: the dataset is gone from the API. Needs no lock or drain. While projects are linked to it the request is a 409 whose details list them, unless ?force=true, which revokes and deletes every project's link to it. A task in flight gets no data from it. The secret is left alone: it has its own lifecycle under /secrets"
       }
     },
     "/global/datasets/{id}/revoke": {
@@ -949,6 +955,11 @@
                       "type": "string",
                       "nullable": true,
                       "example": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+                    },
+                    "config_snapshot": {
+                      "type": "object",
+                      "nullable": true,
+                      "description": "The configuration the task is pinned to (its results link's repository id, uri, api_uri and target_dir, and its dataset). Delivery takes where to deliver from it, as the link may be deleted by then."
                     }
                   }
                 }
@@ -1581,9 +1592,6 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
-          },
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
@@ -1615,9 +1623,6 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
@@ -1862,19 +1867,16 @@
           },
           "404": {
             "description": "Project not found"
-          },
-          "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
           }
         },
-        "description": "Setting only locked is always allowed. Changing enabled needs the project locked and drained: no task in flight, that is PENDING, QUEUED or RUNNING, SUCCESS with no result yet, or with a result IN_PROGRESS. While locked, evaluation and launch skip the project and API tasks are rejected with 409."
+        "description": "Setting only locked is always allowed. Changing enabled needs neither the lock nor a drain; turning the project back on moves the cursor of its trigger repository links to now, so pull requests merged while it was off get no trigger. A disabled project gets no trigger for new pull requests. While locked, evaluation and launch skip the project and API tasks are rejected with 409."
       },
       "delete": {
         "tags": [
           "Projects"
         ],
         "summary": "Delete a project and everything under it",
-        "description": "Hard delete of the project, its tasks, requests, triggers and pull requests, and its dataset, results repository and trigger repository links. Secrets, datasets and repositories belong to no project and are left alone. Needs the project locked and drained, see PATCH.",
+        "description": "Soft delete: the project is gone from the API (404), and its dataset, secret, results repository and trigger repository links are revoked and deleted. Its tasks and triggers are kept. Needs no lock or drain. Secrets, datasets and repositories belong to no project and are left alone.",
         "parameters": [
           {
             "in": "path",
@@ -1891,9 +1893,6 @@
           },
           "404": {
             "description": "Project not found"
-          },
-          "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
           }
         }
       }
@@ -2997,7 +2996,7 @@
           "Results Repositories"
         ],
         "summary": "Edit a global results repository",
-        "description": "Only a change of enabled needs every project it is linked to locked and drained; any other edit (provider_id, secret_label) applies at once, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Admin only (can_do_admin scope).",
+        "description": "No edit needs a lock or a drain: the edits (enabled, provider_id, secret_label) apply at once, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Admin only (can_do_admin scope).",
         "parameters": [
           {
             "in": "path",
@@ -3037,7 +3036,7 @@
             "description": "Repository or secret not found"
           },
           "409": {
-            "description": "A repository with this provider and repo_path already exists, or a project is not locked or has tasks in flight (their ids are in details)"
+            "description": "A repository with this provider and repo_path already exists"
           },
           "401": {
             "description": "Not authenticated"
@@ -3053,7 +3052,7 @@
           "Results Repositories"
         ],
         "summary": "Delete a global results repository and its links",
-        "description": "Every project it is linked to has to be locked and drained. Admin only (can_do_admin scope).",
+        "description": "Soft delete: the repository is gone from the API. Needs no lock or drain. While projects are linked to it the request is a 409 whose details list them, unless ?force=true, which revokes and deletes every project's link to it. Admin only (can_do_admin scope).",
         "parameters": [
           {
             "in": "path",
@@ -3063,6 +3062,15 @@
               "type": "integer"
             },
             "description": "The global repository id"
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "true also revokes and deletes every project's link to the resource. Without it a resource with live project links is refused with a 409."
           }
         ],
         "responses": {
@@ -3075,14 +3083,14 @@
           "404": {
             "description": "Repository not found"
           },
-          "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
-          },
           "401": {
             "description": "Not authenticated"
           },
           "403": {
             "description": "Not authorised"
+          },
+          "409": {
+            "description": "Projects are still linked to it and force is not true. details lists them as {id, name}"
           }
         }
       }
@@ -3307,7 +3315,7 @@
           "Trigger Repositories"
         ],
         "summary": "Edit a global trigger repository",
-        "description": "Only a change of enabled needs every project it is linked to locked and drained; any other edit (provider_id, secret_label) applies at once, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Switching it back on moves every link's cursor to now: pull requests merged while it was off are stored but get no trigger. Admin only (can_do_admin scope).",
+        "description": "No edit needs a lock or a drain: the edits (enabled, provider_id, secret_label) apply at once, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Switching it back on moves every link's cursor to now: pull requests merged while it was off are stored but get no trigger. Admin only (can_do_admin scope).",
         "parameters": [
           {
             "in": "path",
@@ -3347,7 +3355,7 @@
             "description": "Repository or secret not found"
           },
           "409": {
-            "description": "A repository with this provider and repo_path already exists, or a project is not locked or has tasks in flight (their ids are in details)"
+            "description": "A repository with this provider and repo_path already exists"
           },
           "401": {
             "description": "Not authenticated"
@@ -3363,7 +3371,7 @@
           "Trigger Repositories"
         ],
         "summary": "Delete a global trigger repository and its links",
-        "description": "Every project it is linked to has to be locked and drained. Admin only (can_do_admin scope).",
+        "description": "Soft delete: the repository is gone from the API. Needs no lock or drain. While projects are linked to it the request is a 409 whose details list them, unless ?force=true, which revokes and deletes every project's link to it. A task in flight whose results go to it gets a REVOKED result. Admin only (can_do_admin scope).",
         "parameters": [
           {
             "in": "path",
@@ -3373,6 +3381,15 @@
               "type": "integer"
             },
             "description": "The global repository id"
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "true also revokes and deletes every project's link to the resource. Without it a resource with live project links is refused with a 409."
           }
         ],
         "responses": {
@@ -3385,14 +3402,14 @@
           "404": {
             "description": "Repository not found"
           },
-          "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
-          },
           "401": {
             "description": "Not authenticated"
           },
           "403": {
             "description": "Not authorised"
+          },
+          "409": {
+            "description": "Projects are still linked to it and force is not true. details lists them as {id, name}"
           }
         }
       }
@@ -3694,7 +3711,7 @@
           "Project Links"
         ],
         "summary": "Link a global dataset to the project, or replace its settings",
-        "description": "Links the dataset, and the first one linked becomes the project's default. Needs no lock the first time. When it is linked already the project's settings are replaced (fields left out take their defaults), which needs the project locked and drained only if it turns the link on or off (enabled). revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
+        "description": "Links the dataset, and the first one linked becomes the project's default. Needs no lock the first time. When it is linked already the project's settings are replaced (fields left out take their defaults), which needs no lock. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -3751,9 +3768,6 @@
           "404": {
             "description": "Project or resource not found"
           },
-          "409": {
-            "description": "The link exists and the project is not locked, or has tasks in flight (their ids are in details)"
-          },
           "401": {
             "description": "Not authenticated"
           },
@@ -3768,7 +3782,7 @@
           "Project Links"
         ],
         "summary": "Edit a dataset link",
-        "description": "enabled needs the project locked and drained. revoked is admin only and takes effect at once. Requires the can_admin_dataset scope.",
+        "description": "enabled needs no lock. revoked is admin only and takes effect at once. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -3818,9 +3832,6 @@
           "404": {
             "description": "Project or link not found"
           },
-          "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
-          },
           "401": {
             "description": "Not authenticated"
           }
@@ -3832,7 +3843,7 @@
           "Project Links"
         ],
         "summary": "Remove a dataset link",
-        "description": "Removes the link, not the dataset, once the project is locked and drained. If it was the project's default, the project has none afterwards. Requires the can_admin_dataset scope.",
+        "description": "Removes the link, not the dataset: a soft delete that revokes the link, needing no lock or drain. If it was the project's default, the project has none afterwards. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -3861,9 +3872,6 @@
           },
           "404": {
             "description": "Project or link not found"
-          },
-          "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
           },
           "401": {
             "description": "Not authenticated"
@@ -4021,7 +4029,7 @@
           "Project Links"
         ],
         "summary": "Link a global secret to the project, or replace its settings",
-        "description": "Links the secret, which needs no lock the first time. When it is linked already the project's settings are replaced (fields left out take their defaults), which needs the project locked and drained only if it turns the link on or off (enabled). revoked is not accepted: only PATCH sets it. Only the reference is linked, the values are never returned. Requires the can_admin_dataset scope.",
+        "description": "Links the secret, which needs no lock the first time. When it is linked already the project's settings are replaced (fields left out take their defaults), which needs no lock. revoked is not accepted: only PATCH sets it. Only the reference is linked, the values are never returned. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4078,9 +4086,6 @@
           "404": {
             "description": "Project or resource not found"
           },
-          "409": {
-            "description": "The link exists and the project is not locked, or has tasks in flight (their ids are in details)"
-          },
           "401": {
             "description": "Not authenticated"
           },
@@ -4095,7 +4100,7 @@
           "Project Links"
         ],
         "summary": "Edit a secret link",
-        "description": "enabled needs the project locked and drained. revoked is admin only and takes effect at once. Requires the can_admin_secret scope.",
+        "description": "enabled needs no lock. revoked is admin only and takes effect at once. Requires the can_admin_secret scope.",
         "parameters": [
           {
             "in": "path",
@@ -4145,9 +4150,6 @@
           "404": {
             "description": "Project or link not found"
           },
-          "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
-          },
           "401": {
             "description": "Not authenticated"
           }
@@ -4159,7 +4161,7 @@
           "Project Links"
         ],
         "summary": "Unlink a secret",
-        "description": "Removes the link, not the secret, once the project is locked and drained. If it was the project's default, the project has none afterwards. Requires the can_admin_secret scope.",
+        "description": "Removes the link, not the secret: a soft delete that revokes the link, needing no lock or drain. If it was the project's default, the project has none afterwards. Requires the can_admin_secret scope.",
         "parameters": [
           {
             "in": "path",
@@ -4188,9 +4190,6 @@
           },
           "404": {
             "description": "Project or link not found"
-          },
-          "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
           },
           "401": {
             "description": "Not authenticated"
@@ -4349,7 +4348,7 @@
           "Project Links"
         ],
         "summary": "Link a global results repository to the project, or replace its settings",
-        "description": "A project has one. Linking needs the project locked and drained. When it is linked already the settings are replaced, which needs it only if it turns the link on or off (enabled): a change of target_dir applies at once, and the tasks created before fail instead of delivering to the new place. Fields left out take their defaults. Refused when it would make results land where a trigger watches. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
+        "description": "A project has one. Linking needs the project locked. When it is linked already the settings are replaced, which needs no lock: a change of target_dir applies at once, and the tasks created before fail instead of delivering to the new place. Fields left out take their defaults. Refused when it would make results land where a trigger watches. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4407,7 +4406,7 @@
             "description": "Project or resource not found"
           },
           "409": {
-            "description": "The project already has another results repository, or the project is not locked and drained"
+            "description": "The project already has another results repository, or the project is not locked when the link is first created"
           },
           "401": {
             "description": "Not authenticated"
@@ -4423,7 +4422,7 @@
           "Project Links"
         ],
         "summary": "Edit a results repository link",
-        "description": "Only enabled needs the project locked and drained; target_dir and owned_by_federated_node apply at once, and the tasks created before fail instead of delivering to the new place. revoked is admin only and takes effect at once. A revoked link makes delivery fail with 'results repository access revoked'. Requires the can_admin_dataset scope.",
+        "description": "No edit needs a lock; target_dir and owned_by_federated_node apply at once, and the tasks created before fail instead of delivering to the new place. revoked is admin only and takes effect at once. A revoked link makes delivery fail with 'results repository access revoked'. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4473,9 +4472,6 @@
           "404": {
             "description": "Project or link not found"
           },
-          "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
-          },
           "401": {
             "description": "Not authenticated"
           }
@@ -4487,7 +4483,7 @@
           "Project Links"
         ],
         "summary": "Remove a results repository link",
-        "description": "Removes the link, not the repository, once the project is locked and drained. Refused while a task delivered to it. Requires the can_admin_dataset scope.",
+        "description": "Removes the link, not the repository: a soft delete that revokes the link, needing no lock or drain. A task of the project still in flight gets a REVOKED result. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4516,9 +4512,6 @@
           },
           "404": {
             "description": "Project or link not found"
-          },
-          "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
           },
           "401": {
             "description": "Not authenticated"
@@ -4676,7 +4669,7 @@
           "Project Links"
         ],
         "summary": "Link a global trigger repository to the project, or replace its settings",
-        "description": "A new watcher does not touch work in flight, so the first time needs no lock. The link's cursor starts after the latest pull request stored for the repository, or at the link's creation when there is none. When it is linked already the project's settings are replaced (fields left out take their defaults, the cursor stays), which needs the project locked and drained only if it turns the link on or off (enabled): a change of watch_dir or base_branch applies at once. Refused when it would watch where results land. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
+        "description": "A new watcher does not touch work in flight, so the first time needs no lock. The link's cursor starts after the latest pull request stored for the repository, or at the link's creation when there is none. When it is linked already the project's settings are replaced (fields left out take their defaults, the cursor stays), which needs no lock: a change of watch_dir or base_branch applies at once. Refused when it would watch where results land. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4733,9 +4726,6 @@
           "404": {
             "description": "Project or resource not found"
           },
-          "409": {
-            "description": "The link exists and the project is not locked, or has tasks in flight (their ids are in details)"
-          },
           "401": {
             "description": "Not authenticated"
           },
@@ -4750,7 +4740,7 @@
           "Project Links"
         ],
         "summary": "Edit a trigger repository link",
-        "description": "Only enabled needs the project locked and drained; watch_dir and base_branch apply at once. revoked is admin only and takes effect at once. Enabling or un-revoking moves the link's cursor to now: pull requests merged while it was inactive get no trigger. Requires the can_admin_dataset scope.",
+        "description": "No edit needs a lock; watch_dir and base_branch apply at once. revoked is admin only and takes effect at once. Enabling or un-revoking moves the link's cursor to now: pull requests merged while it was inactive get no trigger. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4800,9 +4790,6 @@
           "404": {
             "description": "Project or link not found"
           },
-          "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
-          },
           "401": {
             "description": "Not authenticated"
           }
@@ -4814,7 +4801,7 @@
           "Project Links"
         ],
         "summary": "Remove a trigger repository link",
-        "description": "Removes the link, not the repository, once the project is locked and drained. Refused while it has pull requests. Requires the can_admin_dataset scope.",
+        "description": "Removes the link, not the repository: a soft delete that revokes the link, needing no lock or drain. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4843,9 +4830,6 @@
           },
           "404": {
             "description": "Project or link not found"
-          },
-          "409": {
-            "description": "The project is not locked, or has tasks in flight (their ids are in details)"
           },
           "401": {
             "description": "Not authenticated"
@@ -5345,7 +5329,7 @@
           "Git Providers"
         ],
         "summary": "Edit a global git provider",
-        "description": "Only a change of enabled needs every project linked to a repository on it locked and drained; any other edit (name, type, uri, api_uri) applies at once, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Switching it back on moves the cursor of every link to its trigger repositories to now: pull requests merged while it was off are stored but get no trigger. Admin only (can_do_admin scope).",
+        "description": "No edit needs a lock or a drain: every edit (enabled, name, type, uri, api_uri) applies at once, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Switching it back on moves the cursor of every link to its trigger repositories to now: pull requests merged while it was off are stored but get no trigger. Admin only (can_do_admin scope).",
         "parameters": [
           {
             "in": "path",
@@ -5385,7 +5369,7 @@
             "description": "Provider not found"
           },
           "409": {
-            "description": "The name or uri is taken, or a project is not locked or has tasks in flight (their ids are in details)"
+            "description": "The name or uri is taken"
           },
           "401": {
             "description": "Not authenticated"
@@ -6960,7 +6944,7 @@
           },
           "locked": {
             "type": "boolean",
-            "description": "While locked, evaluation and launch skip the project and API tasks are rejected. Ingest still stores pull requests for it. Turning the project or one of its links on or off, and deleting anything under it, needs it locked and drained; other configuration changes apply at once",
+            "description": "While locked, evaluation and launch skip the project and API tasks are rejected. Ingest still stores pull requests for it. Nothing else needs the lock except creating the project's results link: turning anything on or off and deleting anything under it apply at once",
             "example": false
           }
         }
@@ -7508,7 +7492,7 @@
             "description": "Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked"
           }
         },
-        "description": "Any of the fields. values rotates the secret, which needs no lock. enabled needs every project the secret is linked to locked and drained"
+        "description": "Any of the fields. values rotates the secret, which needs no lock. enabled needs no lock either"
       },
       "Sensor": {
         "type": "object",
@@ -7673,12 +7657,12 @@
         "properties": {
           "enabled": {
             "type": "boolean",
-            "description": "Needs the project locked and drained",
+            "description": "Needs no lock",
             "example": true
           },
           "revoked": {
             "type": "boolean",
-            "description": "Admin only, takes effect at once, no drain needed",
+            "description": "Admin only, takes effect at once",
             "example": false
           }
         }
@@ -7858,7 +7842,7 @@
       },
       "ProjectResultsRepositoryPatchBody": {
         "type": "object",
-        "description": "Any of the fields. revoked is admin only and needs no drain, enabled needs the project locked and drained, the others apply at once",
+        "description": "Any of the fields. revoked is admin only, none of them needs a lock or a drain",
         "properties": {
           "target_dir": {
             "type": "string",
@@ -7933,7 +7917,7 @@
       },
       "ProjectTriggerRepositoryPatchBody": {
         "type": "object",
-        "description": "Any of the fields. revoked is admin only and needs no drain, enabled needs the project locked and drained, the others apply at once.",
+        "description": "Any of the fields. revoked is admin only, none of them needs a lock or a drain.",
         "properties": {
           "watch_dir": {
             "type": "string",

@@ -279,7 +279,7 @@ def link_set_command(kind, enabled, revoked, target_dir, project, expect):
 @project_option
 @expect_option
 def global_set_command(kind, enabled, project, expect):
-    """Turn the global resource behind the project's link of that KIND on or off (every linking project must be locked and drained)."""
+    """Turn the global resource behind the project's link of that KIND on or off."""
     config = ProjectConfig()
     finish(set_global(build_backend_api(config), project or config.project_name, kind, enabled, expect))
 

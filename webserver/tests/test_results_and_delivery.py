@@ -5,7 +5,9 @@ One test per rule; fixtures come from conftest.
 import pytest
 
 from app.helpers.base_model import db
+from app.models.project import Project
 from app.models.project_results_repository import ProjectResultsRepository
+from app.models.result import Result
 
 RESULTS_GLOBAL = "/global/repositories/results"
 
@@ -32,7 +34,7 @@ def set_locked(project, locked=True):
 
 
 def switch_link(project, enabled):
-    """Flip the project's results link on or off directly: the route needs a drained project."""
+    """Flip the project's results link on or off directly."""
     ProjectResultsRepository.query.filter_by(project_id=project.id).one().enabled = enabled
     db.session.commit()
 
@@ -105,17 +107,15 @@ def test_link_needs_lock_then_relink_replaces_settings(client, admin_headers, pr
     assert len(links(client, admin_headers, project)) == 1
 
 
-def test_relink_target_dir_applies_at_once_but_disabling_needs_drained_project(
+def test_relink_target_dir_and_disabling_need_no_lock_and_no_drain(
     client, admin_headers, project, global_results_repo, linked_results_repo, make_task
 ):
-    set_locked(project)
-    make_task()  # a pending task: the project is not drained
+    make_task()  # a pending task, and the project is unlocked
     url = link_url(project, global_results_repo)
-    assert client.put(url, json={"target_dir": "x", "enabled": False}, headers=admin_headers).status_code == 409
-    assert client.get(url, headers=admin_headers).json["target_dir"] == "results"
     # the task is pinned to the old target_dir instead
-    assert client.put(url, json={"target_dir": "x"}, headers=admin_headers).status_code == 200
-    assert client.get(url, headers=admin_headers).json["target_dir"] == "x"
+    assert client.put(url, json={"target_dir": "x", "enabled": False}, headers=admin_headers).status_code == 200
+    got = client.get(url, headers=admin_headers).json
+    assert got["target_dir"] == "x" and got["enabled"] is False
 
 
 def test_one_results_repo_per_project_but_repo_shared(
@@ -233,55 +233,99 @@ def test_revoked_link_listed_inactive_and_other_project_cannot_touch(
             client.delete(other, headers=admin_headers).status_code] == [404, 404, 404]
 
 
-def test_unlink_needs_lock_then_another_repo_can_be_linked(
+def test_unlink_needs_no_lock_then_another_repo_can_be_linked(
     client, admin_headers, project, global_results_repo, linked_results_repo, make_results_repo
 ):
     url = link_url(project, global_results_repo)
-    assert client.delete(url, headers=admin_headers).status_code == 409  # not locked
-    set_locked(project)
-    assert client.delete(url, headers=admin_headers).status_code == 204
+    assert client.delete(url, headers=admin_headers).status_code == 204  # not locked
     assert client.get(url, headers=admin_headers).status_code == 404
     assert client.delete(url, headers=admin_headers).status_code == 404
     assert links(client, admin_headers, project) == []
 
     other = make_results_repo(uri="github.com/org/replacement")
-    assert client.put(link_url(project, other), json={"target_dir": "r"}, headers=admin_headers).status_code == 201
+    assert put_link(client, admin_headers, project, other, "r").status_code == 201
 
 
-def test_unlink_and_global_delete_refused_while_results_exist(
+def test_unlink_and_global_delete_work_with_results_and_tasks_in_flight(
     client, admin_headers, project, global_results_repo, linked_results_repo, make_task
 ):
-    """Results restrict the link, even once delivered; deleting the task cascades the result and frees the link."""
-    task = make_task()
-    rid = new_result(client, admin_headers, project, task, global_results_repo)
-    assert patch_result(client, admin_headers, project, rid, {"step": "MERGED", "state": "DELIVERED"}).status_code == 200
-    set_locked(project)
-    url = link_url(project, global_results_repo)
-    assert client.delete(url, headers=admin_headers).status_code in (400, 409)
-    assert client.get(url, headers=admin_headers).status_code == 200
-
-    db.session.delete(task)
-    db.session.commit()
-    assert client.get(f"{results_url(project)}/{rid}", headers=admin_headers).status_code == 404
-    assert client.delete(url, headers=admin_headers).status_code == 204
-
-
-def test_global_delete_refused_while_results_exist(
-    client, admin_headers, project, global_results_repo, linked_results_repo, make_task
-):
-    url = f"{RESULTS_GLOBAL}/{global_results_repo.id}"
+    """A delete never needs a drain, delivered results or not: the rows are only marked deleted."""
     rid = new_result(client, admin_headers, project, make_task(), global_results_repo)
-    assert patch_result(client, admin_headers, project, rid, {"state": "DELIVERED"}).status_code == 200
-    set_locked(project)
-    assert client.delete(url, headers=admin_headers).status_code in (400, 409)
-    assert client.get(url, headers=admin_headers).status_code == 200
+    assert patch_result(client, admin_headers, project, rid, {"step": "MERGED", "state": "DELIVERED"}).status_code == 200
+    make_task()  # in flight
+    url = link_url(project, global_results_repo)
+    assert client.delete(url, headers=admin_headers).status_code == 204
+    assert client.get(url, headers=admin_headers).status_code == 404
+    assert get_result(client, admin_headers, project, rid)["step"] == "MERGED"  # its result is still readable
+    assert put_link(client, admin_headers, project, global_results_repo).status_code == 201
+    assert client.delete(f"{RESULTS_GLOBAL}/{global_results_repo.id}?force=true", headers=admin_headers).status_code == 204
 
 
-def test_global_delete_without_results_removes_the_link(
+def test_a_reference_to_a_deleted_link_still_loads_but_lists_and_gets_hide_it(
+    client, admin_headers, project, global_results_repo, linked_results_repo, make_task
+):
+    rid = new_result(client, admin_headers, project, make_task(), global_results_repo)
+    url = link_url(project, global_results_repo)
+    assert client.delete(url, headers=admin_headers).status_code == 204
+    db.session.expire_all()
+    result = db.session.get(Result, rid)
+    assert result.assignment is not None and result.assignment.deleted_at is not None  # (a) many-to-one
+    assert result.assignment.results_repository is not None
+    assert db.session.get(Project, project.id).results_repository_assignments == []  # (b) collection
+    assert client.get(url, headers=admin_headers).status_code == 404  # (c) the API
+    assert links(client, admin_headers, project) == []
+
+
+def test_a_forced_global_delete_deletes_the_links_and_history_still_loads_them(
+    client, admin_headers, project, global_results_repo, linked_results_repo, make_task
+):
+    rid = new_result(client, admin_headers, project, make_task(), global_results_repo)
+    url = f"{RESULTS_GLOBAL}/{global_results_repo.id}"
+    refused = client.delete(url, headers=admin_headers)
+    assert refused.status_code == 409 and refused.json["details"] == [{"id": project.id, "name": project.name}]
+    assert client.delete(f"{url}?force=true", headers=admin_headers).status_code == 204
+    assert client.get(link_url(project, global_results_repo), headers=admin_headers).status_code == 404
+    assert links(client, admin_headers, project) == []
+    db.session.expire_all()
+    link = db.session.get(Result, rid).assignment
+    assert link.deleted_at is not None and link.revoked is True
+    assert link.results_repository.deleted_at is not None  # loaded through the references, never None
+
+
+def test_delivery_of_a_task_in_flight_when_its_link_is_deleted_gives_a_final_revoked_result(
+    client, admin_headers, project, global_results_repo, linked_results_repo, make_task
+):
+    task = make_task(status="SUCCESS")
+    assert client.delete(link_url(project, global_results_repo), headers=admin_headers).status_code == 204
+    response = post_result(client, admin_headers, project, task, global_results_repo)
+    assert response.status_code == 201, response.json
+    assert (response.json["step"], response.json["state"]) == ("REVOKED", "FAILED")
+    again = post_result(client, admin_headers, project, task, global_results_repo)  # idempotent
+    assert again.status_code == 200 and again.json["id"] == response.json["id"]
+    assert get_result(client, admin_headers, project, response.json["id"])["step"] == "REVOKED"
+
+
+def test_delivery_of_a_task_in_flight_when_the_global_repository_is_deleted_gives_a_revoked_result(
+    client, admin_headers, project, global_results_repo, linked_results_repo, make_task
+):
+    task = make_task(status="SUCCESS")
+    assert client.delete(f"{RESULTS_GLOBAL}/{global_results_repo.id}?force=true", headers=admin_headers).status_code == 204
+    assert client.get(f"{RESULTS_GLOBAL}/{global_results_repo.id}", headers=admin_headers).status_code == 404
+    response = post_result(client, admin_headers, project, task, global_results_repo)
+    assert response.status_code == 201 and response.json["step"] == "REVOKED"
+
+
+def test_delivery_for_a_deleted_project_is_a_404(client, admin_headers, project, global_results_repo, linked_results_repo, make_task):
+    task = make_task(status="SUCCESS")
+    assert client.delete(f"/projects/{project.id}", headers=admin_headers).status_code == 204
+    assert post_result(client, admin_headers, project, task, global_results_repo).status_code == 404
+    assert client.get(f"/projects/{project.id}/tasks/{task.id}/config", headers=admin_headers).status_code == 404
+
+
+def test_global_delete_removes_the_link(
     client, admin_headers, project, global_results_repo, linked_results_repo
 ):
-    set_locked(project)
-    assert client.delete(f"{RESULTS_GLOBAL}/{global_results_repo.id}", headers=admin_headers).status_code == 204
+    assert client.delete(f"{RESULTS_GLOBAL}/{global_results_repo.id}?force=true", headers=admin_headers).status_code == 204
     assert links(client, admin_headers, project) == []
 
 

@@ -16,6 +16,11 @@ branch_labels = None
 depends_on = None
 
 
+def _unique_when_live(name: str, table: str, columns: list[str]) -> None:
+    """A unique index a soft-deleted row is free of, so a re-created resource can take its name."""
+    op.create_index(name, table, columns, unique=True, postgresql_where=sa.text('deleted_at IS NULL'))
+
+
 def upgrade() -> None:
     # Create audit table (no dependencies)
     op.create_table(
@@ -43,9 +48,10 @@ def upgrade() -> None:
         sa.Column('default_dataset_id', sa.Integer(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('deleted_at', sa.DateTime(timezone=False), nullable=True),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('name'),
     )
+    _unique_when_live('uq_projects_name', 'projects', ['name'])
 
     # Create secrets table (references to secrets that live in a secret store)
     op.create_table(
@@ -59,10 +65,11 @@ def upgrade() -> None:
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('deleted_at', sa.DateTime(timezone=False), nullable=True),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('label'),
-        sa.UniqueConstraint('key'),
     )
+    _unique_when_live('uq_secrets_label', 'secrets', ['label'])
+    _unique_when_live('uq_secrets_key', 'secrets', ['key'])
 
     # Create datasets table
     op.create_table(
@@ -79,10 +86,11 @@ def upgrade() -> None:
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('deleted_at', sa.DateTime(timezone=False), nullable=True),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('name'),
     )
+    _unique_when_live('uq_datasets_name', 'datasets', ['name'])
 
     # Create project_datasets table (a project's grant of a global dataset)
     op.create_table(
@@ -92,11 +100,12 @@ def upgrade() -> None:
         sa.Column('dataset_id', sa.Integer(), nullable=False),
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('revoked', sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column('deleted_at', sa.DateTime(timezone=False), nullable=True),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('project_id', 'dataset_id', name='uq_project_datasets_project_dataset'),
     )
+    _unique_when_live('uq_project_datasets_project_dataset', 'project_datasets', ['project_id', 'dataset_id'])
 
     # Create project_secrets table (a project's link to a global secret)
     op.create_table(
@@ -106,11 +115,12 @@ def upgrade() -> None:
         sa.Column('secret_id', sa.Integer(), nullable=False),
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('revoked', sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column('deleted_at', sa.DateTime(timezone=False), nullable=True),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('project_id', 'secret_id', name='uq_project_secrets_project_secret'),
     )
+    _unique_when_live('uq_project_secrets_project_secret', 'project_secrets', ['project_id', 'secret_id'])
 
     # Create git_providers table (global: a repository names one and its path on it)
     op.create_table(
@@ -123,10 +133,11 @@ def upgrade() -> None:
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('deleted_at', sa.DateTime(timezone=False), nullable=True),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('name'),
-        sa.UniqueConstraint('uri'),
     )
+    _unique_when_live('uq_git_providers_name', 'git_providers', ['name'])
+    _unique_when_live('uq_git_providers_uri', 'git_providers', ['uri'])
 
     # Create trigger_repositories table (global: a project is assigned to one)
     op.create_table(
@@ -138,10 +149,13 @@ def upgrade() -> None:
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('deleted_at', sa.DateTime(timezone=False), nullable=True),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
         sa.ForeignKeyConstraint(['provider_id'], ['git_providers.id'], name='fk_trigger_repositories_provider_id', ondelete='RESTRICT'),
-        sa.UniqueConstraint('provider_id', 'repo_path', name='uq_trigger_repositories_provider_repo_path'),
+    )
+    _unique_when_live(
+        'uq_trigger_repositories_provider_repo_path', 'trigger_repositories', ['provider_id', 'repo_path']
     )
 
     # Create project_trigger_repositories table (a project's grant of a trigger repository)
@@ -156,12 +170,14 @@ def upgrade() -> None:
         sa.Column('initial_cursor_number', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('revoked', sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column('deleted_at', sa.DateTime(timezone=False), nullable=True),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['trigger_repository_id'], ['trigger_repositories.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint(
-            'project_id', 'trigger_repository_id', name='uq_project_trigger_repositories_project_repo'
-        ),
+    )
+    _unique_when_live(
+        'uq_project_trigger_repositories_project_repo', 'project_trigger_repositories',
+        ['project_id', 'trigger_repository_id']
     )
 
     # Create results_repositories table (global: a project is assigned to one)
@@ -174,10 +190,13 @@ def upgrade() -> None:
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('deleted_at', sa.DateTime(timezone=False), nullable=True),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
         sa.ForeignKeyConstraint(['provider_id'], ['git_providers.id'], name='fk_results_repositories_provider_id', ondelete='RESTRICT'),
-        sa.UniqueConstraint('provider_id', 'repo_path', name='uq_results_repositories_provider_repo_path'),
+    )
+    _unique_when_live(
+        'uq_results_repositories_provider_repo_path', 'results_repositories', ['provider_id', 'repo_path']
     )
 
     # Create project_results_repositories table (a project's grant of a results repository)
@@ -190,11 +209,12 @@ def upgrade() -> None:
         sa.Column('owned_by_federated_node', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('revoked', sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column('deleted_at', sa.DateTime(timezone=False), nullable=True),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['results_repository_id'], ['results_repositories.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('project_id'),
     )
+    _unique_when_live('uq_project_results_repositories_project', 'project_results_repositories', ['project_id'])
 
     # Create dars table (Data Access Requests - separate from the api_request_triggers trigger)
     op.create_table(
@@ -438,14 +458,14 @@ def upgrade() -> None:
         sa.UniqueConstraint('table_name', 'dataset_id', 'field_name'),
     )
 
-    # Add the FK from projects to the project's own assignment, as the model declares it:
-    # the default dataset has to be one the project is assigned
-    op.create_foreign_key('fk_projects_default_dataset', 'projects', 'project_datasets',
-                          ['id', 'default_dataset_id'], ['project_id', 'dataset_id'])
+    # The projects -> datasets foreign key last: projects is created before datasets
+    op.create_foreign_key(
+        'fk_projects_default_dataset', 'projects', 'datasets', ['default_dataset_id'], ['id'], ondelete='RESTRICT'
+    )
 
 
 def downgrade() -> None:
-    # The projects <-> project_datasets cycle first, then the tables in reverse order
+    # The projects <-> datasets foreign key first, then the tables in reverse order
     op.drop_constraint('fk_projects_default_dataset', 'projects', type_='foreignkey')
     op.drop_table('dictionaries')
     op.drop_table('catalogues')

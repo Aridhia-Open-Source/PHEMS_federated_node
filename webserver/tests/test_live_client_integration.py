@@ -388,7 +388,6 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
     api.patch_project(pid, {"locked": True})
     api.patch_project_trigger_repository(pid, tid, {"enabled": False})
     assert [l.trigger_repository.id for l in d.get_project_trigger_repositories(pid, active=True)] == [repo.id]
-    # deleting a linked repository needs the project locked and drained
     d.delete_dataset(ds.id)
     d.delete_repository(repo.id)
     with pytest.raises(requests.HTTPError) as exc:

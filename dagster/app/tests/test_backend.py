@@ -106,7 +106,7 @@ class TestRepositories:
     def test_delete_repository(self, api, session):
         api.delete_repository(3)
 
-        session.delete.assert_called_once_with("/global/repositories/triggers/3")
+        session.delete.assert_called_once_with("/global/repositories/triggers/3", params={"force": "true"})
 
 
 class TestPullRequests:
@@ -314,18 +314,13 @@ class TestResults:
         "target_dir": "results", "owned_by_federated_node": True, "enabled": True, "revoked": False, "active": True,
     }
 
-    def test_the_results_repository_is_the_assignment_of_the_project(self, api, session):
-        session.get.return_value = make_response([self.ASSIGNMENT])
+    def test_a_global_results_repository_is_fetched_by_its_id(self, api, session):
+        session.get.return_value = make_response(self.ASSIGNMENT["results_repository"])
 
-        result = api.get_results_repository(1)
+        result = api.get_global_results_repository(2)
 
-        session.get.assert_called_once_with("/projects/1/repositories/results")
-        assert (result.results_repository.id, result.target_dir) == (2, "results")
-
-    def test_an_inactive_assignment_is_still_returned(self, api, session):
-        session.get.return_value = make_response([{**self.ASSIGNMENT, "revoked": True, "active": False}])
-
-        assert api.get_results_repository(1).active is False
+        session.get.assert_called_once_with("/global/repositories/results/2")
+        assert (result.id, result.repo_path) == (2, "o/r")
 
     def test_the_results_repository_is_fetched_by_project_and_assignment_id(self, api, session):
         session.get.return_value = make_response(self.ASSIGNMENT)

@@ -2,6 +2,11 @@
 import pytest
 
 from app.helpers.base_model import db
+from app.models.project import Project
+from app.models.project_dataset import ProjectDataset
+from app.models.project_results_repository import ProjectResultsRepository
+from app.models.project_secret import ProjectSecret
+from app.models.project_trigger_repository import ProjectTriggerRepository
 
 
 def create(client, admin_headers, **body):
@@ -82,31 +87,12 @@ def test_lock_and_unlock_always_allowed_even_with_tasks(client, admin_headers, p
         assert client.get(f"/projects/{project.id}", headers=admin_headers).json["locked"] is locked
 
 
-def test_enable_and_disable_need_lock(client, admin_headers, lock_project):
-    unlocked_fresh = client.post("/projects", json={"name": "Fresh"}, headers=admin_headers).json["id"]
-    assert patch(client, admin_headers, unlocked_fresh, locked=False).status_code == 200  # new projects start locked
-    assert patch(client, admin_headers, unlocked_fresh, enabled=True).status_code == 409
-    # the drain guard sees the state before the patch, so locking in the same call does not help
-    assert patch(client, admin_headers, unlocked_fresh, enabled=True, locked=True).status_code == 409
-    assert patch(client, admin_headers, lock_project.id, enabled=True).status_code == 200
-    # enabled + unlock together is fine once locked
-    both = patch(client, admin_headers, lock_project.id, enabled=False, locked=False)
-    assert both.status_code == 200 and both.json["enabled"] is False and both.json["locked"] is False
-    assert patch(client, admin_headers, lock_project.id, enabled=False).status_code == 409
-
-
-def test_enable_and_disable_blocked_by_task_in_flight(client, admin_headers, lock_project, make_task):
-    task = make_task()
-    blocked = patch(client, admin_headers, lock_project.id, enabled=True, locked=False)
-    assert blocked.status_code == 409 and blocked.json["details"] == [task.id]
-    refresh(lock_project)
-    assert lock_project.locked is True and lock_project.enabled is False  # failed patch changes nothing
-    task.status = "FAILED"
-    db.session.commit()
-    assert patch(client, admin_headers, lock_project.id, enabled=True).status_code == 200
-    make_task()
-    assert patch(client, admin_headers, lock_project.id, enabled=False).status_code == 409
-    assert refresh(lock_project).enabled is True
+def test_enable_and_disable_need_no_lock_and_ignore_tasks_in_flight(client, admin_headers, project, make_task):
+    make_task()  # pending, and the project is unlocked
+    off = patch(client, admin_headers, project.id, enabled=False)
+    assert off.status_code == 200 and off.json["enabled"] is False
+    on = patch(client, admin_headers, project.id, enabled=True)
+    assert on.status_code == 200 and on.json["enabled"] is True
 
 
 def test_disable_keeps_links_and_the_repository_stays_pollable(
@@ -135,36 +121,24 @@ def test_secret_link_get_list_and_errors(client, admin_headers, project, other_p
     assert client.get(url, headers=admin_headers).status_code == 200
     assert len(client.get(f"/projects/{project.id}/secrets", headers=admin_headers).json) == 1
     assert client.put(f"/projects/{project.id}/secrets/nope", json={}, headers=admin_headers).status_code == 404
-    # unlocked, so a second PUT that turns the link off (a settings replace) is refused
-    assert client.put(url, json={"enabled": False}, headers=admin_headers).status_code == 409
+    assert client.put(url, json={"enabled": False}, headers=admin_headers).status_code == 200
     assert client.get(f"/projects/{other_project.id}/secrets/test-creds", headers=admin_headers).status_code == 404
 
 
-def test_link_changes_are_gated_by_project_lock_and_tasks(client, admin_headers, project, linked_secret, make_task):
+def test_link_changes_need_no_lock_and_ignore_tasks_in_flight(client, admin_headers, project, linked_secret, make_task):
     url = f"/projects/{project.id}/secrets/test-creds"
-    # revoke is never gated, the other changes need the lock
-    assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 409
-    assert client.delete(url, headers=admin_headers).status_code == 409
-    revoked = client.patch(url, json={"revoked": True}, headers=admin_headers)
-    assert revoked.status_code == 200 and revoked.json["active"] is False
-    assert patch(client, admin_headers, project.id, locked=True).status_code == 200
-    task = make_task()
-    in_flight = client.delete(url, headers=admin_headers)  # a task in flight blocks even when locked
-    assert in_flight.status_code == 409 and in_flight.json["details"] == [task.id]
-    task.status = "FAILED"
-    db.session.commit()
-    assert client.put(url, json={"enabled": False}, headers=admin_headers).status_code == 200
-    assert patch(client, admin_headers, project.id, locked=False).status_code == 200
-    assert client.patch(url, json={"enabled": True}, headers=admin_headers).status_code == 409  # unlocking restores gating
-    patch(client, admin_headers, project.id, locked=True)
+    make_task()  # in flight, and the project is unlocked
+    assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 200
+    assert client.put(url, json={"enabled": True}, headers=admin_headers).status_code == 200
     assert client.delete(url, headers=admin_headers).status_code == 204
     assert client.get(url, headers=admin_headers).status_code == 404
+    assert client.get(f"/projects/{project.id}/secrets", headers=admin_headers).json == []
 
 
 def test_first_trigger_link_needs_no_lock(client, admin_headers, project, global_trigger_repo):
     response = client.put(f"/projects/{project.id}/repositories/triggers/{global_trigger_repo.id}",
                           json={"watch_dir": "triggers"}, headers=admin_headers)
-    assert project.enabled is False and response.status_code == 201
+    assert response.status_code == 201
 
 
 # ---------------------------------------------------------------- dataset links and default dataset
@@ -188,8 +162,6 @@ def test_dataset_link_disable_unlink_and_default_dataset(
         client, admin_headers, project, linked_dataset, global_dataset):
     url = f"/projects/{project.id}/datasets/{global_dataset.id}"
     assert client.get(f"/projects/{project.id}", headers=admin_headers).json["default_dataset_id"] == global_dataset.id
-    assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 409  # needs lock
-    patch(client, admin_headers, project.id, locked=True)
     disabled = client.patch(url, json={"enabled": False}, headers=admin_headers)
     assert disabled.status_code == 200 and disabled.json["active"] is False
     assert client.delete(url, headers=admin_headers).status_code == 204
@@ -199,23 +171,24 @@ def test_dataset_link_disable_unlink_and_default_dataset(
 
 # ---------------------------------------------------------------- delete
 
-def test_delete_needs_lock_then_removes_project_and_frees_name(client, admin_headers, project, other_project):
-    assert client.delete(f"/projects/{project.id}", headers=admin_headers).status_code == 409
-    assert client.get(f"/projects/{project.id}", headers=admin_headers).status_code == 200
-    patch(client, admin_headers, project.id, locked=True)
-    deleted = client.delete(f"/projects/{project.id}", headers=admin_headers)
+def test_delete_is_soft_hides_the_project_and_frees_name(client, admin_headers, project, other_project):
+    deleted = client.delete(f"/projects/{project.id}", headers=admin_headers)  # no lock needed
     assert deleted.status_code == 204 and deleted.data == b""
+    assert client.get(f"/projects/{project.id}", headers=admin_headers).status_code == 404
     assert client.delete(f"/projects/{project.id}", headers=admin_headers).status_code == 404
+    assert client.patch(f"/projects/{project.id}", json={"locked": True}, headers=admin_headers).status_code == 404
     assert client.get(f"/projects/{other_project.id}", headers=admin_headers).status_code == 200
     assert client.get("/projects", headers=admin_headers).json["total"] == 1
     assert create(client, admin_headers, name=project.name).status_code == 201
+    assert db.session.query(Project).execution_options(include_deleted=True).count() == 3  # the row is kept
 
 
-def test_delete_blocked_by_task_in_flight(client, admin_headers, lock_project, make_task):
+def test_delete_with_a_task_in_flight_works_and_its_tasks_are_gone_from_the_api(
+        client, admin_headers, project, make_task):
     task = make_task()
-    response = client.delete(f"/projects/{lock_project.id}", headers=admin_headers)
-    assert response.status_code == 409 and response.json["details"] == [task.id]
-    assert client.get(f"/projects/{lock_project.id}", headers=admin_headers).status_code == 200
+    assert client.delete(f"/projects/{project.id}", headers=admin_headers).status_code == 204
+    assert client.get(f"/projects/{project.id}/tasks/{task.id}", headers=admin_headers).status_code == 404
+    assert client.get(f"/projects/{project.id}/tasks", headers=admin_headers).status_code == 404
 
 
 def test_delete_cascades_links_but_keeps_global_resources(
@@ -223,10 +196,12 @@ def test_delete_cascades_links_but_keeps_global_resources(
         linked_trigger_repo, linked_results_repo, global_secret, global_dataset, global_trigger_repo):
     assert client.put(f"/projects/{other_project.id}/secrets/test-creds", json={}, headers=admin_headers).status_code == 201
     assert client.delete("/global/secrets/test-creds", headers=admin_headers).status_code == 409
-    project.locked = True
-    db.session.commit()
     assert client.delete(f"/projects/{project.id}", headers=admin_headers).status_code == 204
     assert client.get(f"/projects/{project.id}/secrets", headers=admin_headers).status_code == 404
+    links = (ProjectSecret, ProjectDataset, ProjectTriggerRepository, ProjectResultsRepository)
+    for model in links:  # soft deleted and revoked, not removed
+        (row,) = db.session.query(model).filter_by(project_id=project.id).execution_options(include_deleted=True).all()
+        assert row.deleted_at is not None and row.revoked is True
     # global resources (incl. the project's default dataset) survive; other projects keep their links
     assert client.get(f"/global/datasets/{global_dataset.id}", headers=admin_headers).status_code == 200
     assert client.get(f"/global/repositories/triggers/{global_trigger_repo.id}", headers=admin_headers).status_code == 200
@@ -235,15 +210,12 @@ def test_delete_cascades_links_but_keeps_global_resources(
     assert client.delete(f"/global/datasets/{global_dataset.id}", headers=admin_headers).status_code == 204
 
 
-def test_delete_removes_tasks_and_project_prs_but_keeps_global_prs(
-        client, admin_headers, lock_project, pr_trigger, global_trigger_repo, make_task, spec_raw):
-    tid = make_task(status="FAILED").id
+def test_delete_hides_the_projects_pr_triggers_but_keeps_global_prs(
+        client, admin_headers, project, pr_trigger, global_trigger_repo, spec_raw):
     yielded = client.post(pr_trigger + "/task", json={"spec_raw": spec_raw}, headers=admin_headers)  # task from a PR
     assert yielded.status_code == 201, yielded.json
-    client.patch(f"/projects/{lock_project.id}/tasks/{yielded.json['id']}", json={"status": "FAILED"}, headers=admin_headers)
-    assert client.delete(f"/projects/{lock_project.id}", headers=admin_headers).status_code == 204
-    assert client.get(f"/projects/{lock_project.id}/tasks/{tid}", headers=admin_headers).status_code == 404
-    assert client.get(f"/projects/{lock_project.id}/tasks/{yielded.json['id']}", headers=admin_headers).status_code == 404
+    assert client.delete(f"/projects/{project.id}", headers=admin_headers).status_code == 204
+    assert client.get(f"/projects/{project.id}/tasks/{yielded.json['id']}", headers=admin_headers).status_code == 404
     assert client.get(pr_trigger, headers=admin_headers).status_code == 404
     glob = client.get(f"/global/repositories/triggers/{global_trigger_repo.id}/pull_requests", headers=admin_headers)
     assert glob.status_code == 200 and glob.json["total"] == 1

@@ -24,7 +24,6 @@ from app.helpers.const import DEFAULT_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.kubernetes_names import validate_secret_key
-from app.helpers.project_lock import require_all_drained
 from app.helpers.revoke import revoke_links
 from app.helpers.wrappers import audit, auth
 from app.models.secret import Secret
@@ -125,7 +124,7 @@ def get_secrets():
     """
     GET /global/secrets — list the secrets. The values are never returned.
     """
-    return [SecretDTO.from_model(s).dump() for s in Secret.query.all()], HTTPStatus.OK
+    return [SecretDTO.from_model(s).dump() for s in Secret.query.order_by(Secret.id)], HTTPStatus.OK
 
 
 @bp.route('/<label>', methods=['GET'])
@@ -187,8 +186,7 @@ def patch_secret(label):
     """
     PATCH /global/secrets/<label> — set keys on the stored secret, e.g. to rotate a token, and/or turn
     it on or off (enabled). Every repository and dataset that references it, in any project, picks
-    the new values up. A rotation is exempt from the project lock, enabled needs every project the
-    secret is linked to locked and drained.
+    the new values up. Neither needs the project lock.
     Body: {"values": {"KEY": "value", ...}, "enabled": true}, any of them.
     """
     secret = _get_secret(label)
@@ -199,7 +197,6 @@ def patch_secret(label):
     if "enabled" in body:
         if not isinstance(body["enabled"], bool):
             raise InvalidRequest("enabled must be a boolean")
-        require_all_drained([a.project for a in secret.project_assignments])
         secret.enabled = body["enabled"]
 
     if "values" in body or "enabled" not in body:
@@ -233,9 +230,9 @@ def revoke_secret(label):
 @auth(scope='can_do_admin')
 def delete_secret(label):
     """
-    DELETE /global/secrets/<label> — delete the reference, its project links and the stored
-    secret, once every project it is linked to is locked and drained. Admin only.
-    Refused with a 409 while a repository or dataset still uses it.
+    DELETE /global/secrets/<label> — soft delete the reference and revoke and delete its project
+    links, and delete the stored secret. Admin only. Refused with a 409 while a repository or
+    dataset still uses it.
     """
     secret = _get_secret(label)
     users = len(secret.trigger_repositories) + len(secret.results_repositories) + len(secret.datasets)
@@ -244,18 +241,12 @@ def delete_secret(label):
             f"Secret {secret.label} is still used by {users} repositories or datasets",
             code=HTTPStatus.CONFLICT
         )
-    assignments = list(secret.project_assignments)
-    require_all_drained([a.project for a in assignments])
 
     # Staged, not committed: if the store delete fails the row has to come back, and a
     # rollback after a commit is a no-op.
-    try:
-        for assignment in assignments:
-            assignment.delete(False)
-        secret.delete(False)
-    except Exception as exc:
-        session.rollback()
-        raise InvalidRequest("Error while deleting the record") from exc
+    for assignment in secret.project_assignments:
+        assignment.soft_delete()
+    secret.soft_delete()
 
     try:
         SecretProvider(secret.provider).delete(secret.key, secret.namespace)

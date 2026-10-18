@@ -64,7 +64,7 @@ def test_build_snapshot_of_a_project_with_nothing(project):
 def test_build_snapshot_holds_identity_fields_only(project, global_results_repo, linked_results_repo, global_dataset):
     snap = build_snapshot(project, global_dataset)
     assert snap["results"] == {
-        "repository": global_results_repo.uri, "api_uri": global_results_repo.provider.api_uri,
+        "repository_id": global_results_repo.id, "repository": global_results_repo.uri, "api_uri": global_results_repo.provider.api_uri,
         "target_dir": "results",
     }
     assert snap["dataset"] == {
@@ -130,7 +130,10 @@ def test_config_is_current_then_stale_after_target_dir_changes(
     task = pinned_task(project, make_task)
     current = client.get(config_url(project, task), headers=admin_headers)
     assert current.status_code == 200
-    assert current.json == {"current": True, "changes": [], "config_hash": task.config_hash}
+    assert current.json == {
+        "current": True, "changes": [], "config_hash": task.config_hash, "config_snapshot": task.config_snapshot
+    }
+    assert current.json["config_snapshot"]["results"]["target_dir"] == "results"
 
     set_target_dir(client, admin_headers, project, global_results_repo, "out")
     stale = client.get(config_url(project, task), headers=admin_headers)
@@ -142,7 +145,7 @@ def test_config_is_current_then_stale_after_target_dir_changes(
 def test_config_of_a_task_without_a_snapshot_is_current(client, admin_headers, project, make_task):
     task = make_task()
     assert client.get(config_url(project, task), headers=admin_headers).json == {
-        "current": True, "changes": [], "config_hash": None}
+        "current": True, "changes": [], "config_hash": None, "config_snapshot": None}
 
 
 def test_config_404_for_a_task_of_another_project(client, admin_headers, project, other_project, make_task):
@@ -182,7 +185,7 @@ def test_post_result_is_stale_when_the_target_dir_changed_after_creation(
     # final: it can not move, and a second post returns it
     patched = client.patch(f"/projects/{project.id}/results/{response.json['id']}", json={"step": "OPENED"},
                            headers=admin_headers)
-    assert patched.status_code == 400
+    assert patched.status_code == 409
     again = post_result(client, admin_headers, project, task, global_results_repo)
     assert again.status_code == 200 and again.json["id"] == response.json["id"]
 
@@ -211,17 +214,18 @@ def test_stale_step_is_a_valid_filter(client, admin_headers, project):
     assert client.get(f"/projects/{project.id}/results?step=STALE", headers=admin_headers).status_code == 200
 
 
-# --------------------------------------------------------------------------- guards: which edits still need the lock
+# --------------------------------------------------------------------------- guards: no edit needs the lock
 
 
-def test_edit_of_target_dir_needs_no_lock_but_enabled_and_delete_do(
+def test_edit_of_target_dir_enabled_and_delete_need_no_lock_and_no_drain(
         client, admin_headers, project, linked_results_repo, global_results_repo, make_task):
     make_task()  # in flight
     url = f"/projects/{project.id}/repositories/results/{global_results_repo.id}"
     assert project.locked is False
     assert client.patch(url, json={"target_dir": "out"}, headers=admin_headers).status_code == 200
     assert client.put(url, json={"target_dir": "again"}, headers=admin_headers).status_code == 200
-    assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 409
-    assert client.put(url, json={"target_dir": "again", "enabled": False}, headers=admin_headers).status_code == 409
-    assert client.delete(url, headers=admin_headers).status_code == 409
+    assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 200
+    assert client.put(url, json={"target_dir": "again", "enabled": False}, headers=admin_headers).status_code == 200
     assert client.get(url, headers=admin_headers).json["target_dir"] == "again"
+    assert client.delete(url, headers=admin_headers).status_code == 204
+    assert client.get(url, headers=admin_headers).status_code == 404
