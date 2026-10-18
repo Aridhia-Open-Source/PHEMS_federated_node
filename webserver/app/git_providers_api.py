@@ -1,7 +1,7 @@
 """
 Git provider endpoints, global: the trigger and results repositories refer to one by id. All
-admin only. Changing anything but the name changes every repository on the provider, so it
-needs every project linked to one of them locked and drained.
+admin only. Turning a provider on or off (enabled) affects every repository on it, so it
+needs every project linked to one of them locked and drained; any other edit applies at once.
 - GET /global/providers
 - GET /global/providers/<id>
 - POST /global/providers
@@ -16,7 +16,8 @@ from flask import Blueprint, request
 from app.dtos.git_provider import GitProviderDTO, GitProviderPatchRequest, GitProviderRequest
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.project_lock import require_all_drained
+from app.helpers.project_lock import require_all_drained_if_enabled
+from app.helpers.pull_request_fanout import skip_gap
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
 
@@ -85,8 +86,9 @@ def post_provider():
 @auth(scope='can_do_admin')
 def patch_provider(provider_id):
     """
-    PATCH /global/providers/<id> — update a provider. Anything but the name
-    needs every project linked to a repository on it locked and drained.
+    PATCH /global/providers/<id> — update a provider. Only a change of enabled
+    needs every project linked to a repository on it locked and drained, any other edit applies at once
+    (the tasks created before are pinned to the old setup and fail instead of running against the new one).
     """
     provider = GitProvider.get_by_id(provider_id)
 
@@ -95,13 +97,13 @@ def patch_provider(provider_id):
         raise InvalidRequest("No fields provided to update")
     req = GitProviderPatchRequest.parse(body)
 
-    if set(body) - {'name'}:
-        links = [
-            *(a for r in provider.trigger_repositories for a in r.project_assignments),
-            *(a for r in provider.results_repositories for a in r.project_assignments),
-        ]
-        require_all_drained([a.project for a in links])
+    links = [
+        *(a for r in provider.trigger_repositories for a in r.project_assignments),
+        *(a for r in provider.results_repositories for a in r.project_assignments),
+    ]
+    require_all_drained_if_enabled(body, [a.project for a in links])
 
+    was_enabled = provider.enabled
     try:
         for field in ('name', 'type', 'enabled'):
             if field in body:
@@ -114,6 +116,10 @@ def patch_provider(provider_id):
     except ValueError as e:
         raise InvalidRequest(str(e))
     _check_unique(provider, provider.id)
+
+    # Switched back on: what was merged while it was off gets no trigger
+    if provider.enabled and not was_enabled:
+        skip_gap([a for r in provider.trigger_repositories for a in r.project_assignments])
 
     session.commit()
     return GitProviderDTO.from_model(provider).dump(), HTTPStatus.OK

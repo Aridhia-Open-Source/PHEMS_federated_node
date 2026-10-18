@@ -8,13 +8,15 @@ from app.models.pull_request_result_step import PullRequestResultStep
 from app.models.result_state import ResultState
 from app.models.result import Result
 
-# MERGED and CLOSED are terminal and of equal rank.
+# MERGED, CLOSED, REVOKED and STALE are terminal and of equal rank.
 STEP_RANK = {
     PullRequestResultStep.UNKNOWN.value: 0,
     PullRequestResultStep.PUSHED.value: 1,
     PullRequestResultStep.OPENED.value: 2,
     PullRequestResultStep.MERGED.value: 3,
     PullRequestResultStep.CLOSED.value: 3,
+    PullRequestResultStep.REVOKED.value: 3,
+    PullRequestResultStep.STALE.value: 3,
 }
 
 
@@ -65,7 +67,7 @@ class PullRequestResult(Result):
 
     def set_step(self, step: str):
         """
-        Set the step, which only moves forward and nowhere once MERGED or CLOSED. Setting the
+        Set the step, which only moves forward and nowhere once MERGED, CLOSED, REVOKED or STALE. Setting the
         current step again is allowed. Stops a late write, e.g. a delivery retry recording
         OPENED, from undoing what the sync sensor found.
         """

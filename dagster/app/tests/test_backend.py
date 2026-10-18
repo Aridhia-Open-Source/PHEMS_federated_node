@@ -152,6 +152,14 @@ class TestPullRequests:
         session.get.assert_called_once_with("/projects/1/tasks/9/trigger")
         assert (trigger.number, trigger.trigger_repository.repo_path) == (SAMPLE_PR["number"], "org/repo")
 
+    def test_get_task_config_reads_whether_the_task_configuration_is_current(self, api, session):
+        body = {"current": False, "changes": ["image changed"], "config_hash": "abc"}
+        session.get.return_value = make_response(body)
+
+        assert api.get_task_config(1, 9) == body
+
+        session.get.assert_called_once_with("/projects/1/tasks/9/config")
+
     def test_batch_creation(self, api, session):
         session.post.return_value = make_response({"created": [1], "existing": [2]})
 

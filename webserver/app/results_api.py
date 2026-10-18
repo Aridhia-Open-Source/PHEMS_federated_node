@@ -12,6 +12,7 @@ from flask import Blueprint, request
 from app.dtos.result import dump_result
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
+from app.helpers.task_config import config_changes
 from app.helpers.wrappers import audit, auth
 from app.models.pull_request_result import PullRequestResult
 from app.models.pull_request_result_step import PullRequestResultStep
@@ -84,7 +85,12 @@ def post_result(project_id: int):
     POST /projects/<project_id>/results endpoint. Creates the delivery of a task's results to a results
     repository, by pull request. The repository is the global one's id, which the
     project has to be linked to, and the task has to be the project's. If it exists already, that one is returned.
-    Otherwise 409 unless the task is SUCCESS, and (?) 409 when the project's link is inactive (revocable by the owner).
+    Otherwise 409 unless the task is SUCCESS. When the project's link is revoked the result is created as final,
+    step REVOKED and state FAILED, and nothing is ever delivered for it. 409 when the link is inactive for another
+    reason (disabled by the project, or the global repository disabled): it is delivered once the link is active.
+    A task whose configuration changed since it was created (see helpers/task_config) is not delivered either: its
+    result is created as final, step STALE and state FAILED, with the changes as its error. A revoked link is
+    checked first.
     """
     body = request.json or {}
     for field in ('task_id', 'results_repository_id'):
@@ -111,8 +117,23 @@ def post_result(project_id: int):
 
     if task.status != TaskStatus.SUCCESS.value:
         raise InvalidRequest(f"Task {task.id} is {task.status}, only a SUCCESS task has results", HTTPStatus.CONFLICT)
-    # (?) Revisitable by the owner: no new delivery while the link is inactive (revoked, disabled by
-    # the project, or the global results repository disabled)
+    if assignment.revoked:
+        result = PullRequestResult(
+            task_id=task.id, results_repository_id=assignment.id,
+            step=PullRequestResultStep.REVOKED.value, state=ResultState.FAILED.value,
+            error="results repository link revoked",
+        )
+        result.add()
+        return dump_result(result), HTTPStatus.CREATED
+    changes = config_changes(task)
+    if changes:
+        result = PullRequestResult(
+            task_id=task.id, results_repository_id=assignment.id,
+            step=PullRequestResultStep.STALE.value, state=ResultState.FAILED.value,
+            error=("task configuration changed since the task was created: " + "; ".join(changes))[:1024],
+        )
+        result.add()
+        return dump_result(result), HTTPStatus.CREATED
     if not assignment.active:
         raise InvalidRequest(
             f"Results repository {body['results_repository_id']} is not active for project {project_id}",

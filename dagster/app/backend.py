@@ -176,6 +176,12 @@ class BackendAPI:
         response = self.session.get(f"/projects/{project_id}/tasks/{task_id}")
         return Task(**response.json())
 
+    def get_task_config(self, project_id: int, task_id: int) -> dict:
+        """Whether the configuration a task was created under is still current: {"current", "changes", "config_hash"}. 404 if the task is not in the project."""
+        self.logger.info(f"Fetching the configuration check of task {task_id}")
+        response = self.session.get(f"/projects/{project_id}/tasks/{task_id}/config")
+        return response.json()
+
     def get_task_trigger(self, project_id: int, task_id: int) -> TaskTrigger:
         """Get the pull request that yielded a task, with its trigger repository. 404 if the task has none."""
         self.logger.info(f"Fetching the trigger of task {task_id}")

@@ -150,7 +150,7 @@ wait_for ".tasks | length >= $((t0+1))" 300; snap S11
 
 ### S12. A failing task stays failed
 ```bash
-TEST_PR_IMAGE=does-not-exist:latest fncli open-pr --kind watched --merge
+fncli open-pr --kind failing --merge                              # a valid spec whose task exits non-zero
 wait_for '.tasks | any(.status=="FAILED")' 600
 fncli project-show | jq '.tasks, .results'; snap S12
 ```

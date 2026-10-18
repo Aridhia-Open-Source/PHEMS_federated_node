@@ -25,3 +25,19 @@ def require_all_drained(projects: list[Project]):
     """
     for project in projects:
         require_drained(project)
+
+
+def require_drained_if_enabled(body: dict, project: Project):
+    """
+    Guards a PATCH or PUT of something under the project: only turning it on or off (an
+    enabled flag in the body) needs the project locked and drained. Every other edit is
+    caught by the configuration snapshot of the tasks, see helpers/task_config.
+    """
+    if "enabled" in body:
+        require_drained(project)
+
+
+def require_all_drained_if_enabled(body: dict, projects: list[Project]):
+    """require_drained_if_enabled for a global resource, for each project that uses it."""
+    if "enabled" in body:
+        require_all_drained(projects)

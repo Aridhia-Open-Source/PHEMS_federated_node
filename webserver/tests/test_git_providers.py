@@ -2,6 +2,7 @@
 Global git providers: /global/providers CRUD and its 409s, and what a disabled provider does to
 the repositories on it.
 """
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
@@ -9,6 +10,7 @@ import requests
 
 from app.helpers.base_model import db
 from app.models.git_provider import GitProvider
+from app.models.project_trigger_repository import ProjectTriggerRepository
 
 PROV = "/global/providers"
 TRIG = "/global/repositories/triggers"
@@ -126,10 +128,12 @@ def test_patch_to_a_taken_name_or_uri_is_409(client, admin_headers, git_provider
     assert client.patch(f"{PROV}/{other.id}", json={"name": other.name, "uri": other.uri}, headers=admin_headers).status_code == 200
 
 
-def test_patch_beyond_name_needs_linked_projects_drained(
+def test_patch_enabled_needs_linked_projects_drained(
         client, admin_headers, project, git_provider, linked_trigger_repo):
     url = f"{PROV}/{git_provider.id}"
     assert client.patch(url, json={"name": "renamed"}, headers=admin_headers).status_code == 200
+    # the other fields apply at once too
+    assert client.patch(url, json={"api_uri": git_provider.api_uri}, headers=admin_headers).status_code == 200
     assert_error(client.patch(url, json={"enabled": False}, headers=admin_headers), 409)
     set_locked(project)
     assert client.patch(url, json={"enabled": False}, headers=admin_headers).json["enabled"] is False
@@ -187,6 +191,40 @@ def test_disabled_provider_makes_its_repositories_inactive(
 
     client.patch(f"{PROV}/{git_provider.id}", json={"enabled": True}, headers=admin_headers)
     assert active(trigger_links) == [True, True] and active(results_links) == [True]
+
+
+def test_switching_a_provider_back_on_skips_the_gap(
+        client, admin_headers, project, git_provider, linked_trigger_repo, global_trigger_repo):
+    """Pull requests merged before the provider was switched back on are stored but get no trigger; later ones do."""
+    T = global_trigger_repo.id
+    # Start the link's cursor far back, so the first pull request is in its scope but for the re-enable
+    assignment = ProjectTriggerRepository.query.filter_by(project_id=project.id, trigger_repository_id=T).one()
+    assignment.initial_cursor = datetime(2000, 1, 1)
+    db.session.commit()
+
+    def pull_request(number, merged_at):
+        return {
+            "number": number, "title": f"PR {number}", "raised_by": "user1",
+            "merged_at": merged_at.strftime("%Y-%m-%dT%H:%M:%SZ"), "merge_commit_sha": f"{number:040x}",
+            "base_branch": "main", "files_truncated": False,
+            "changed_files": [{"path": "triggers/spec.json", "status": "added"}],
+        }
+
+    set_locked(project)
+    for enabled in (False, True):
+        assert client.patch(f"{PROV}/{git_provider.id}", json={"enabled": enabled}, headers=admin_headers).status_code == 200
+
+    r = client.post(f"{TRIG}/{T}/pull_requests", headers=admin_headers, json={"pull_requests": [
+        pull_request(1, datetime.utcnow() - timedelta(hours=1)), pull_request(2, datetime.utcnow() + timedelta(days=1)),
+    ]})
+    assert r.status_code == 201, r.json
+    assert r.json["created"] == [1, 2]
+    stored = client.get(f"{TRIG}/{T}/pull_requests?per_page=50", headers=admin_headers).json
+    assert sorted(i["number"] for i in stored["items"]) == [1, 2]
+    triggers = client.get(
+        f"/projects/{project.id}/repositories/triggers/{T}/pull_requests?per_page=50", headers=admin_headers
+    ).json
+    assert [i["number"] for i in triggers["items"]] == [2]
 
 
 # ---------------------------------------------------------------- healthcheck

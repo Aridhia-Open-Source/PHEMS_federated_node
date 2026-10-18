@@ -22,7 +22,7 @@ def spec_of(content):
 
 
 def test_the_kinds():
-    assert KINDS == ["watched", "unwatched", "invalid"]
+    assert KINDS == ["watched", "unwatched", "invalid", "failing"]
 
 
 def test_watched_file_is_under_the_watch_dir_with_a_valid_spec(config):
@@ -264,3 +264,12 @@ def test_merge_results_pr_merges_in_the_results_repo(monkeypatch):
     result = CliRunner().invoke(pr.merge_results_pr_command, ["--number", "3"])
     assert result.exit_code == 0
     assert merged == [("gitea_admin/results-demo-repo", 3)]
+
+
+def test_a_failing_file_is_a_valid_spec_whose_task_exits_non_zero(config):
+    path, content = file_for(config, "pr-1", "failing")
+
+    spec = json.loads(content)["spec"]
+    assert path.startswith(config.watch_dir)
+    assert spec["env"] == {"PYPIPES_EXIT_CODE": "1"}
+    assert "unknown_field" not in spec

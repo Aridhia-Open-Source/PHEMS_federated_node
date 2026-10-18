@@ -98,12 +98,17 @@ def test_link_needs_lock_then_relink_replaces_settings(client, admin_headers, pr
     assert len(links(client, admin_headers, project)) == 1
 
 
-def test_relink_needs_drained_project(client, admin_headers, project, global_results_repo, linked_results_repo, make_task):
+def test_relink_target_dir_applies_at_once_but_disabling_needs_drained_project(
+    client, admin_headers, project, global_results_repo, linked_results_repo, make_task
+):
     set_locked(project)
     make_task()  # a pending task: the project is not drained
     url = link_url(project, global_results_repo)
-    assert client.put(url, json={"target_dir": "x"}, headers=admin_headers).status_code == 409
+    assert client.put(url, json={"target_dir": "x", "enabled": False}, headers=admin_headers).status_code == 409
     assert client.get(url, headers=admin_headers).json["target_dir"] == "results"
+    # the task is pinned to the old target_dir instead
+    assert client.put(url, json={"target_dir": "x"}, headers=admin_headers).status_code == 200
+    assert client.get(url, headers=admin_headers).json["target_dir"] == "x"
 
 
 def test_one_results_repo_per_project_but_repo_shared(
@@ -313,10 +318,15 @@ def test_post_result_refusals(
                  {**good, "results_repository_id": "1"}):
         assert client.post(results_url(project), json=body, headers=admin_headers).status_code == 400, body
     assert client.post(results_url(project), json=[1], headers=admin_headers).status_code == 400
-    # inactive (revoked) link: 409
+    # revoked link: the result is created as final, REVOKED and FAILED, and nothing is ever delivered for it
     assert client.patch(link_url(project, global_results_repo), json={"revoked": True}, headers=admin_headers).status_code == 200
-    assert post_result(client, admin_headers, project, ok_task, global_results_repo).status_code == 409
-    assert client.get(results_url(project), headers=admin_headers).json == []
+    created = post_result(client, admin_headers, project, ok_task, global_results_repo)
+    assert created.status_code == 201 and created.json["step"] == "REVOKED" and created.json["state"] == "FAILED"
+    assert post_result(client, admin_headers, project, ok_task, global_results_repo).status_code == 200  # same result
+    assert patch_result(client, admin_headers, project, created.json["id"], {"step": "PUSHED"}).status_code == 400
+    # un-revoking the link does not deliver it
+    assert client.patch(link_url(project, global_results_repo), json={"revoked": False}, headers=admin_headers).status_code == 200
+    assert get_result(client, admin_headers, project, created.json["id"])["step"] == "REVOKED"
 
 
 # ---------------------------------------------------------------- PATCH /results/<id>
@@ -329,7 +339,7 @@ def test_step_is_forward_only(client, admin_headers, project, global_results_rep
     rid = fresh()
     for step in ("PUSHED", "OPENED", "OPENED", "MERGED"):  # forward, same step again is allowed
         assert patch_result(client, admin_headers, project, rid, {"step": step}).json["step"] == step
-    for backwards in ("OPENED", "UNKNOWN", "CLOSED"):  # MERGED and CLOSED are terminal siblings
+    for backwards in ("OPENED", "UNKNOWN", "CLOSED", "REVOKED", "STALE"):  # MERGED, CLOSED, REVOKED and STALE are terminal siblings
         assert patch_result(client, admin_headers, project, rid, {"step": backwards}).status_code == 400
     assert get_result(client, admin_headers, project, rid)["step"] == "MERGED"
 

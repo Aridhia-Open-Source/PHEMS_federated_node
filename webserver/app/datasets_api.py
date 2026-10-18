@@ -1,8 +1,8 @@
 """
 datasets-related endpoints. Datasets are global: a project reaches one through its
 link, see projects_api (/projects/<id>/datasets). Creating, editing and deleting are
-admin-only, and editing or deleting needs every project the dataset is linked to locked
-and drained:
+admin-only. Deleting a dataset, or turning it on or off (enabled), needs every project it is
+linked to locked and drained; any other edit applies at once:
 - GET /global/datasets
 - POST /global/datasets
 - GET /global/datasets/id
@@ -19,7 +19,7 @@ from .dtos.base import page_of
 from .dtos.dataset import DatasetDTO, DatasetPatchRequest, DatasetRequest
 from .helpers.base_model import db
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from .helpers.project_lock import require_all_drained
+from .helpers.project_lock import require_all_drained, require_all_drained_if_enabled
 from .helpers.query_validator import validate
 from .helpers.wrappers import audit, auth
 from .models.dataset import Dataset
@@ -154,8 +154,9 @@ def delete_dataset(dataset_id: int):
 @auth(scope='can_do_admin')
 def patch_dataset(dataset_id: int):
     """
-    PATCH /global/datasets/id endpoint. Edits an existing dataset with a given id, once every
-    project it is linked to is locked and drained. Admin only. Returns 200. A disabled secret_label is a 400, unless it is the
+    PATCH /global/datasets/id endpoint. Edits an existing dataset with a given id. Only a change of enabled needs every
+    project it is linked to locked and drained, any other edit applies at once (the tasks created before
+    are pinned to the old setup and fail instead of running against the new one). Admin only. Returns 200. A disabled secret_label is a 400, unless it is the
     one already in use.
     """
     ds = Dataset.get_by_id(dataset_id)
@@ -166,7 +167,7 @@ def patch_dataset(dataset_id: int):
     req = DatasetPatchRequest.parse(body)
     if not req.model_fields_set:
         raise InvalidRequest("No field to update")
-    require_all_drained([a.project for a in ds.project_assignments])
+    require_all_drained_if_enabled(body, [a.project for a in ds.project_assignments])
     body = req.model_dump(exclude_unset=True, exclude={"catalogue", "dictionaries", "secret_label"})
     cata_body = req.catalogue
     dict_body = req.dictionaries or []

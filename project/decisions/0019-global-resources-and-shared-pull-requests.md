@@ -54,7 +54,7 @@ An assignment is **active** when `enabled` and not `revoked`. Revoking sets only
 - **No re-processing.** `pull_requests` is unique on `(trigger_repository_id, number)` and written by upsert, the global cursor only moves forward, and triggers are unique on `(assignment, pull_request)`. Re-sending a PR changes nothing.
 - **Config changes.** When an assignment's `watch_dir` or `base_branch` changes, matching runs forward from its cursor only. Older PRs are not replayed.
 - **Upsert.** The batch ingest endpoint upserts the PRs and fans out, so a second project's tick re-sending PRs already stored changes nothing.
-- **Two cursors.** The global poll cursor is the max `merged_at` of `pull_requests` for the repository. An assignment's cursor (`initial_cursor` with `initial_cursor_number`) is where its fan-out starts. It is set when the link is created, from the repository's latest stored pull request, or from the link's creation time when none is stored, so history is not replayed. No request sets or moves it. The assignment DTO exposes the cursor it has reached (`pr_cursor`); the global repository DTO exposes the global one, which, with nothing stored yet, is the earliest creation of its active links.
+- **Two cursors.** The global poll cursor is the max `merged_at` of `pull_requests` for the repository. An assignment's cursor (`initial_cursor` with `initial_cursor_number`) is where its fan-out starts. It is set when the link is created, from the repository's latest stored pull request, or from the link's creation time when none is stored, so history is not replayed. No request sets it. A link that is enabled or un-revoked backfills what it missed. A global repository or provider that is switched back on moves every link's cursor to now (`initial_cursor` = now, `initial_cursor_number` = 0): the global poll cursor does not move while it is off, so a PR merged in the gap is ingested and stored once it is back on, but gets no trigger because the repository was disabled (e2e S9). The assignment DTO exposes the cursor it has reached (`pr_cursor`); the global repository DTO exposes the global one, which, with nothing stored yet, is the earliest creation of its active links.
 - **Backfill.** Fan-out only runs when a pull request is stored, so it is not enough on its own. When an assignment is created, re-enabled or un-revoked, the backend backfills triggers from `pull_requests` and `pull_request_files` for the PRs it missed, with the same match rule. It is a database-only operation.
 - **Delete semantics.** Today `pull_request_triggers.trigger_repository_id` is `ON DELETE CASCADE` and deletes only the child row, leaving the `triggers` parent and its `tasks.trigger_id` (RESTRICT) as an orphan. For `project_trigger_repositories` use RESTRICT while triggers exist.
 - `pr_count` and the healthcheck count stay per assignment.
@@ -156,7 +156,7 @@ Datasets, secrets, trigger repositories and results repositories are all **resou
 10. Trigger states are `UNKNOWN`, `YIELDED` and `REJECTED`; `REJECTED` is final. Only an `UNKNOWN` trigger can get a task: `POST /projects/<pid>/repositories/triggers/<id>/pull_requests/<n>/task` returns 409 for a `REJECTED` trigger or an inactive link.
 11. `GET /projects/<pid>/repositories/triggers?active=true` returns only active links. The evaluate sensor uses it.
 12. `PATCH /tasks/<id>` returns 409 for a status change out of `SUCCESS`, `FAILED` or `CANCELED` (the same status is allowed; `/retry` still resets to `PENDING`).
-13. `POST /results` returns 409 unless the task is `SUCCESS`; an existing result re-posts with 200. It also returns 409 through an inactive results link (?).
+13. `POST /results` returns 409 unless the task is `SUCCESS`; an existing result re-posts with 200. Through a revoked results link it creates the result as final, step `REVOKED` and state `FAILED`, and nothing is ever delivered for it (un-revoking the link does not deliver it; killing a task already running is post-beta). Through a link inactive for another reason (disabled by the project, or the global repository off) it returns 409 and is delivered once the link is active.
 14. A repository or dataset that references a disabled secret is refused with 400 on create and patch.
 15. Dataset `PATCH` returns 200 (?). `/tasks` clamps `page` and `per_page` below 1 to 1 (?).
 
@@ -169,6 +169,7 @@ Datasets, secrets, trigger repositories and results repositories are all **resou
 - Creating global resources and grants uses the admin role until the authorization rework ([0014](0014-dar-rename-and-detached-auth.md)).
 - Changed paths are fetched once per PR at ingest (paged), and no later per-project provider call is made for unwatched PRs.
 - Heavy overlap with open PRs #548, #547, #543, #534, #531 and #535; light overlap with #526, #533, #529, #530; independent: #528, #532, #544, #545, #546.
+- **Known gap (post-beta): for `enabled` flips and deletes, the lock check and the change are two steps.** `require_drained` checks "locked and nothing in flight" and the change follows, while `post_task` (the evaluate sensor) checks only that the link is active, not that the project is unlocked. A task can be created between the check and the change. Worst case it runs against a setup that has just changed and fails or is not delivered (a revoked results link gives a `REVOKED` result); no data is lost and other projects are unaffected. Fix, small: `post_task` refuses a locked project with 409, and `require_drained` and `post_task` take a row lock on the project (`SELECT ... FOR UPDATE`) so they run one after the other.
 - Supersedes or amends ADRs 0003, 0004, 0001, 0006, 0007, 0009, 0013 and 0015, and `docs/architecture/entities.md`.
 
 ## Implementation order
@@ -196,6 +197,23 @@ Assert exact key sets and types, not just status codes. Stage 0 does two things.
 **Write the target shapes for changing endpoints as tests marked `xfail(strict=True)`:** global `GET /global/repositories/triggers` (`id` is the resource id), `GET /projects/<id>/repositories/triggers` and the results repository and dataset equivalents with the nested global resource and assignment fields, `/global/secrets`, PR ingest on the global repository, and fan-out that skips non-matching links. Each stage removes the marker from the tests it makes pass. A strict `xfail` that unexpectedly passes fails the run, so the flip cannot be forgotten.
 
 Plus a cross-service check: the webserver tests dump these responses to a committed JSON fixture and the Dagster and fncli model tests parse the same fixtures. That catches the `Secret.project_id`/`label` breakage at test time.
+
+## A task is pinned to its configuration (replaces most of lock and drained)
+
+On branch `moonshot/task-config-pinning`; not run.
+
+**Rule.** When a task is created it stores a snapshot (JSON, version 1) of the configuration it was built against, and a sha256 hash of it (`tasks.config_snapshot`, `tasks.config_hash`, migration 005). The snapshot holds the results repository (its uri, the provider's `api_uri` and the link's `target_dir`) and the task's dataset (name, host, port, type, read and write schema). It does not hold credentials or secrets (a rotation must reach running work), the trigger repository (the task is pinned to the pull request's merge sha) or the `enabled` and `revoked` flags (those have their own rules). The snapshot is the audit record of what produced a result.
+
+**Checks.** The webserver rebuilds the snapshot from the current state and compares (`helpers/task_config.py`); only keys present in the stored snapshot are compared, so a field added later, or a task without a snapshot, counts as unchanged.
+- *Before launch:* the Dagster launcher calls `GET /projects/<pid>/tasks/<id>/config` (`{"current", "changes", "config_hash"}`). A task that is not current is not launched: it is set to `FAILED` with the changes as `state_cause`, and the launcher carries on with the next task. An error on one task fails that task and never stops the others.
+- *Before publish:* `POST /results` for a `SUCCESS` task whose configuration changed creates the result as step `STALE`, state `FAILED`, error listing the changes. `STALE` is final and terminal, a sibling of `MERGED`, `CLOSED` and `REVOKED`: nothing is delivered. Order of checks: existing result, task `SUCCESS`, revoked link (`REVOKED`), changed configuration (`STALE`), inactive link (409).
+- There is no stale-task retry for the beta. A stale task fails; the pull request has to be re-run another way.
+
+**Guards.** Locked and drained is now required only to turn something on or off (an `enabled` flag, on a project, link, repository, provider, dataset or secret) and to delete. Every other edit is free: a results link's `target_dir`, a link swap, dataset link edits, a trigger link's `watch_dir` and `base_branch`, a repository's provider, path, `api_uri` and `secret_label`, global dataset fields, provider fields, other project fields. Creating a project's results link still needs the lock, as before. `enabled` keeps the drain because a delivery through a link that is switched off returns 409 and is skipped without a record; a held result state would let that go, and is a later job.
+
+**What it costs.** In-flight work is lost when a material field is edited: the task fails or its result is `STALE`. Part of the saving is only in the guard calls (about 25 across 8 files, now fewer); the tests and the e2e and Hypothesis scenarios for edits under the lock change with it.
+
+**Lock race.** The race recorded under Consequences remains for `enabled` flips and deletes (the check and the change are two steps); for every other edit it no longer matters, because a task created in the gap carries the old snapshot and fails.
 
 ## Alternatives considered
 

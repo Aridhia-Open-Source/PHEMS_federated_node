@@ -143,7 +143,7 @@ erDiagram
     }
     pull_request_results {
         int result_id PK, FK
-        string state "UNKNOWN PUSHED OPENED MERGED CLOSED"
+        string state "UNKNOWN PUSHED OPENED MERGED CLOSED REVOKED"
         string branch
         string commit_sha
         int number
@@ -279,8 +279,10 @@ stateDiagram-v2
     OPENED --> CLOSED : PR closed unmerged (sync sensor)
     PUSHED --> MERGED : delivery found its PR already merged
     PUSHED --> CLOSED : delivery found its PR already closed
+    [*] --> REVOKED : POST /projects/<id>/results through a revoked link
     MERGED --> [*]
     CLOSED --> [*]
+    REVOKED --> [*]
 ```
 
 Forward only: `UNKNOWN < PUSHED < OPENED < MERGED = CLOSED`. A PATCH to the same state is accepted; to an earlier state, or out of `MERGED`/`CLOSED`, is a 400. A failed delivery leaves the state and sets `error` and `attempts`.

@@ -44,6 +44,10 @@ class Task(db.Model, BaseModel):
     exit_code = sa.Column(sa.Integer, nullable=True)
     # Why the task failed without a run, e.g. its dataset was revoked before launch
     state_cause = sa.Column(sa.Text, nullable=True)
+    # The configuration the task is pinned to and its hash, see helpers/task_config. Null on
+    # tasks created before it existed, which are never reported as changed.
+    config_snapshot = sa.Column(sa.JSON, nullable=True)
+    config_hash = sa.Column(sa.String(64), nullable=True)
 
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
@@ -70,6 +74,8 @@ class Task(db.Model, BaseModel):
                  trigger_id:int,
                  spec:dict,
                  params:dict | None = None,
+                 config_snapshot:dict | None = None,
+                 config_hash:str | None = None,
                  ):
         self.name = name
         self.status = TaskStatus.PENDING.value
@@ -79,6 +85,8 @@ class Task(db.Model, BaseModel):
         self.trigger_id = trigger_id
         self.spec = TaskSpec(**spec)
         self.params = params or {}
+        self.config_snapshot = config_snapshot
+        self.config_hash = config_hash
         self.created_at = dt.now()
         self.updated_at = dt.now()
 

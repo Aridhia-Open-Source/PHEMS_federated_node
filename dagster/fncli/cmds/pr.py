@@ -32,8 +32,9 @@ logger = logging.getLogger("pr")
 
 # What the sensor makes of the pull request: a task (watched), no trigger at all (unwatched,
 # the file is outside the watch_dir, so the backend fan-out skips the PR) or reject it (invalid,
-# the spec does not validate).
-KINDS = ["watched", "unwatched", "invalid"]
+# the spec does not validate). A failing PR is a valid spec whose task exits non-zero (the reference image
+# exits with PYPIPES_EXIT_CODE), so its task ends FAILED in seconds.
+KINDS = ["watched", "unwatched", "invalid", "failing"]
 
 POLL_SECONDS = 3
 # Consecutive polls that may fail to connect (Dagster reloading, say) before --watch gives up.
@@ -76,6 +77,8 @@ def file_for(config: PrConfig, branch: str, kind: str) -> tuple[str, str]:
     if kind == "unwatched":
         return f"docs/{branch}.md", f"# {branch}\n\nNot a spec: outside the watch_dir.\n"
     spec = {"name": branch, "image": config.pr_image}
+    if kind == "failing":
+        spec["env"] = {"PYPIPES_EXIT_CODE": "1"}
     if kind == "invalid":
         # The backend's TaskSpecRequest forbids unknown fields
         spec["unknown_field"] = True

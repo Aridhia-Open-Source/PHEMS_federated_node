@@ -140,7 +140,7 @@ def snapshot(api: FncliBackendAPI, name: str) -> dict:
             for link in found["secret"]
         ],
         "tasks": [
-            {k: t.get(k) for k in ("id", "status", "name")}
+            {k: t.get(k) for k in ("id", "status", "name", "state_cause")}
             for t in get(api, f"/projects/{pid}/tasks", per_page=100)["tasks"]
         ],
         "results": [
@@ -162,14 +162,21 @@ def set_project(api: FncliBackendAPI, name: str, enabled: str | None, locked: st
     return report(call(api, "PATCH", f"/projects/{project.id}", json=data), expect)
 
 
-def set_link(api: FncliBackendAPI, name: str, kind: str, enabled: str | None, revoked: str | None, expect: int | None) -> int:
+def set_link(
+    api: FncliBackendAPI, name: str, kind: str, enabled: str | None, revoked: str | None, expect: int | None,
+    target_dir: str | None = None,
+) -> int:
     data = {}
     if enabled is not None:
         data["enabled"] = enabled == "true"
     if revoked is not None:
         data["revoked"] = revoked == "true"
+    if target_dir is not None:
+        if kind != "results":
+            raise click.UsageError("--target-dir is only for the results link")
+        data["target_dir"] = target_dir
     if not data:
-        raise click.UsageError("Give --enabled and/or --revoked")
+        raise click.UsageError("Give --enabled, --revoked and/or --target-dir")
     project = find_project(api, name)
     key = link_key(kind, first_link(api, project.id, kind))
     return report(call(api, "PATCH", link_path(kind, project.id, key), json=data), expect)
@@ -257,12 +264,13 @@ def project_set_command(enabled, locked, project, expect):
 @click.argument("kind", type=click.Choice(KINDS))
 @click.option("--enabled", type=BOOL, default=None)
 @click.option("--revoked", type=BOOL, default=None, help="Admin only. Takes effect immediately.")
+@click.option("--target-dir", default=None, help="The results link's target directory. Tasks created before the change then fail.")
 @project_option
 @expect_option
-def link_set_command(kind, enabled, revoked, project, expect):
-    """Set the enabled and/or revoked flag of the project's link to a global resource of that KIND."""
+def link_set_command(kind, enabled, revoked, target_dir, project, expect):
+    """Set the enabled and/or revoked flag, or the target directory of a results link, of the project's link of that KIND."""
     config = ProjectConfig()
-    finish(set_link(build_backend_api(config), project or config.project_name, kind, enabled, revoked, expect))
+    finish(set_link(build_backend_api(config), project or config.project_name, kind, enabled, revoked, expect, target_dir))
 
 
 @click.command("global-set")

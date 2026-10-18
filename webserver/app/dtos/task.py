@@ -2,6 +2,7 @@ from typing import Self
 
 from app.dtos.base import DTO, WireDatetime
 from app.dtos.task_spec import TaskSpecRequest
+from app.helpers.task_config import build_snapshot, snapshot_hash
 from app.models.trigger import Trigger
 
 
@@ -25,6 +26,7 @@ class TaskDTO(DTO):
     dagster_run_id: str | None
     exit_code: int | None
     state_cause: str | None
+    config_hash: str | None
     started_at: WireDatetime | None
     completed_at: WireDatetime | None
 
@@ -38,6 +40,9 @@ class NewTaskDTO(DTO):
     project_id: int
     trigger_id: int
     params: dict
+    # The configuration it is pinned to
+    config_snapshot: dict
+    config_hash: str
     # The columns of its TaskSpec
     spec: dict
 
@@ -47,6 +52,7 @@ class NewTaskDTO(DTO):
         The one place a Task's columns are derived from a validated spec and its trigger.
         """
         dataset = trigger.project.resolve_dataset(spec.dataset)
+        snapshot = build_snapshot(trigger.project, dataset)
         return cls(
             # A pull request spec has no name of its own
             name=spec.name or trigger.title,
@@ -54,5 +60,7 @@ class NewTaskDTO(DTO):
             project_id=trigger.project_id,
             trigger_id=trigger.id,
             params=spec.params,
+            config_snapshot=snapshot,
+            config_hash=snapshot_hash(snapshot),
             spec={"image": spec.image, "dataset_id": dataset.id if dataset else None, "env": spec.env},
         )

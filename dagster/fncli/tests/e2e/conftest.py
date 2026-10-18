@@ -5,7 +5,8 @@ Fixtures and helpers for the end-to-end tests. Run against a live dev cluster wi
     pytest dagster --e2e success -v    # the happy path only
     pytest dagster --e2e failure -v    # the failure paths only
 
-E2E_KEEP=1 keeps the project afterwards. Nothing here runs at import time, so a normal test run
+The project is cleared at the start of each run and left in place afterwards for inspection; E2E_TEARDOWN=1 also tears it
+down at the end. Nothing here runs at import time, so a normal test run
 collects and skips these tests without a cluster.
 """
 
@@ -22,6 +23,12 @@ from fncli.cli import cli
 from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
 from fncli.cmds.common import DagsterConfig, ProjectConfig, build_backend_api
 from fncli.cmds.state import snapshot
+from fncli.k8s import (
+    ENV_CONFIGMAP,
+    get_configmap_value,
+    restart_code_server,
+    set_configmap_value,
+)
 from fncli.sensors import DagsterAPI
 
 logger = logging.getLogger("e2e")
@@ -71,23 +78,57 @@ def start_sensor(sensor: str):
     DagsterAPI(DagsterConfig().dagster_url).start_sensor(sensor)
 
 
-def teardown_step(fncli, command, options, keep: bool = False):
-    """One teardown step; with keep=True it is skipped when E2E_KEEP=1 (the final teardown)."""
-    if keep and os.environ.get("E2E_KEEP") == "1":
-        pytest.skip("E2E_KEEP=1 keeps the project")
+def teardown_step(fncli, command, options, final: bool = False):
+    """One teardown step; the final teardown only runs with E2E_TEARDOWN=1."""
+    if final and os.environ.get("E2E_TEARDOWN") != "1":
+        pytest.skip("the project is kept for inspection: set E2E_TEARDOWN=1 to tear it down at the end")
     fncli.call(command, **options)
 
 
+INTERVAL_KEY = "DAGSTER_SENSORS_MIN_INTERVAL_SECONDS"
+_tick_seconds = {"value": float(os.environ.get(INTERVAL_KEY, 10))}
+
+
 def tick_seconds() -> float:
-    """The shortest interval of a sensor tick, as the sensors are configured."""
-    return float(os.environ.get("DAGSTER_SENSORS_MIN_INTERVAL_SECONDS", 10))
+    """The shortest interval of a sensor tick, as the sensors are configured (or as a test set it)."""
+    return _tick_seconds["value"]
 
 
-def quiet_wait(ticks: int = 3):
-    """The fixed wait of the "nothing happens" checks: a few sensor ticks, long enough for a sensor to have acted."""
-    seconds = ticks * tick_seconds()
-    logger.info(f"Waiting {seconds:.0f}s ({ticks} sensor ticks) to see that nothing happens")
-    time.sleep(seconds)
+def set_sensor_interval(seconds: int) -> str | None:
+    """Patch the sensor interval in the cluster's Dagster config and restart the code server so it takes effect.
+
+    Returns the previous value, to restore it with the same call. The restart stops the sensors (their initial status is
+    STOPPED unless the chart says otherwise), so start them again afterwards.
+    """
+    namespace = ProjectConfig().namespace
+    previous = get_configmap_value(ENV_CONFIGMAP, namespace, INTERVAL_KEY)
+    logger.info(f"Setting the sensor interval to {seconds}s (was {previous}) and restarting the code server")
+    set_configmap_value(ENV_CONFIGMAP, namespace, INTERVAL_KEY, str(seconds))
+    restart_code_server(namespace)
+    _tick_seconds["value"] = float(seconds)
+    return previous
+
+
+QUIET_SENSORS = ["git_pull_request_ingest_sensor", "git_pull_request_evaluate_sensor", "task_launcher_sensor"]
+
+
+def tick_ids(api: DagsterAPI, sensor: str) -> set[str]:
+    return {tick["id"] for tick in api.get_sensor_ticks(sensor)}
+
+
+def quiet_wait(ticks: int = 3, sensors: list[str] = QUIET_SENSORS):
+    """The wait of the "nothing happens" checks: until each sensor has run `ticks` new ticks, so "nothing happened" was
+    seen across ticks that really ran (a stopped or stuck sensor fails here instead of passing the check)."""
+    api = DagsterAPI(DagsterConfig().dagster_url)
+    before = {sensor: tick_ids(api, sensor) for sensor in sensors}
+    logger.info(f"Waiting for {ticks} new ticks of {len(sensors)} sensors to see that nothing happens")
+
+    def ticked():
+        new = {sensor: len(tick_ids(api, sensor) - before[sensor]) for sensor in sensors}
+        return all(count >= ticks for count in new.values()) or None
+
+    # A tick can take several times the minimum interval when the daemon is busy
+    wait_for(ticked, max(60, ticks * tick_seconds() * 15), f"{ticks} new ticks of {sensors}", interval=max(1, tick_seconds()))
 
 
 @pytest.fixture(autouse=True)
@@ -141,20 +182,20 @@ class Fncli:
                 return exit_.exit_code
         return 0
 
-    def snapshot(self) -> dict:
-        return snapshot(self.backend_api, self.config.project_name)
+    def snapshot(self, project: str | None = None) -> dict:
+        """The snapshot of the test project, or of another one by name."""
+        return snapshot(self.backend_api, project or self.config.project_name)
 
-
-    def wait_for_state(self, what: str, timeout: float, check):
+    def wait_for_state(self, what: str, timeout: float, check, project: str | None = None, interval: float = 10):
         """Poll the project snapshot until check(snapshot) is truthy and return that. On timeout the failure carries the last snapshot of PRs, tasks and results."""
         last = {}
 
         def poll():
-            last["snapshot"] = self.snapshot()
+            last["snapshot"] = self.snapshot(project)
             return check(last["snapshot"])
 
         try:
-            return wait_for(poll, timeout, what)
+            return wait_for(poll, timeout, what, interval)
         except pytest.fail.Exception as failure:
             pytest.fail(f"{failure.msg}\nLast snapshot: {json.dumps(summary(last['snapshot']), indent=2)}")
 
