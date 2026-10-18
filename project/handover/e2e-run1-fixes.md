@@ -1,7 +1,7 @@
 # Fixes for the first live e2e run (2026-10-18)
 
 Branch `moonshot/e2e-run1-fixes`, off `moonshot/shared-resources` at `c55984fb`. Answers the bugs in
-`project/handover/e2e-results-2026-10-18.md` (on `moonshot/e2e-results-2026-10-18`). Unit tests run in the cloud session (Dagster app 350
+`project/handover/e2e-results-2026-10-18.md` (on `moonshot/e2e-results-2026-10-18`). Unit tests run in the cloud session (Dagster app 378
 passed with the run-status change; the new `fncli/tests/test_state.py` passes); **the e2e suites were not run** (no cluster).
 
 | Bug in the e2e report | Fix | Unverified |
