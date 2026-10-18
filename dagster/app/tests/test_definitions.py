@@ -13,7 +13,8 @@ class TestCodeLocation:
         names = {job.name for job in defs.jobs}
 
         assert {"noop_job", "k8s_pipes_job",
-                "evaluate_repository_pull_requests_job", "deliver_results_job"} <= names
+                "evaluate_repository_pull_requests_job", "deliver_results_job",
+                "ingest_pull_requests_job"} <= names
 
     def test_sensors_are_registered(self):
         names = {sensor.name for sensor in defs.sensors}

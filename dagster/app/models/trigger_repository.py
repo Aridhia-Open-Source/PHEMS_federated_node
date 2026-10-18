@@ -24,8 +24,8 @@ class TriggerRepository(BaseModel):
     # Turned on or off for the whole node. A disabled repository is not polled.
     enabled: bool
     # Where polling the provider resumes: the latest stored merge, or with none stored the
-    # earliest cursor of its active links. None if there is neither.
-    pr_cursor: str | None = None
+    # repository's creation.
+    pr_cursor: str
 
 
 class ProjectTriggerRepository(BaseModel):

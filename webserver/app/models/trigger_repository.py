@@ -36,17 +36,12 @@ class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
             .scalar()
         return merged_at.strftime("%Y-%m-%dT%H:%M:%SZ") if merged_at else None
 
-    def get_ingest_cursor(self) -> str | None:
+    def get_ingest_cursor(self) -> str:
         """
         Where polling the provider resumes: the latest stored merge, or, with no pull request
-        stored yet, the earliest creation of the repository's active links of enabled projects, where
-        their cursors start.
-        None when there is neither.
+        stored yet, the repository's creation.
         """
-        return self.get_pull_request_cursor() or min(
-            (a.initial_cursor.strftime("%Y-%m-%dT%H:%M:%SZ") for a in self.project_assignments if a.active and a.project.enabled),
-            default=None
-        )
+        return self.get_pull_request_cursor() or self.created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def __init__(
         self,

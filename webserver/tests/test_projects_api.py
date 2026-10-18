@@ -109,7 +109,7 @@ def test_enable_and_disable_blocked_by_task_in_flight(client, admin_headers, loc
     assert refresh(lock_project).enabled is True
 
 
-def test_disable_keeps_links_but_drops_out_of_active_link_filter(
+def test_disable_keeps_links_and_the_repository_stays_pollable(
         client, admin_headers, enabled_project, linked_trigger_repo, linked_secret, linked_dataset,
         global_trigger_repo):
     pid = enabled_project.id
@@ -120,7 +120,9 @@ def test_disable_keeps_links_but_drops_out_of_active_link_filter(
     assert triggers[0]["trigger_repository"]["id"] == global_trigger_repo.id
     assert len(client.get(f"/projects/{pid}/secrets", headers=admin_headers).json) == 1
     assert len(client.get(f"/projects/{pid}/datasets", headers=admin_headers).json) == 1
-    assert client.get("/global/repositories/triggers?active_link=true", headers=admin_headers).json == []
+    # polling ignores project links: the repository is still polled
+    polled = client.get("/global/repositories/triggers?pollable=true", headers=admin_headers).json
+    assert [r["id"] for r in polled] == [global_trigger_repo.id]
 
 
 # ---------------------------------------------------------------- secret links

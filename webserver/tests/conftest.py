@@ -242,8 +242,8 @@ def lock_project(project) -> Project:
 
 @fixture
 def enabled_project(project) -> Project:
-    """The project enabled. A new Project is disabled, and GET /global/repositories/triggers?active_link=true
-    leaves out the links of disabled projects."""
+    """The project enabled. A new Project is disabled, and the evaluate and launch sensors
+    leave out disabled projects."""
     project.enabled = True
     db.session.commit()
     return project

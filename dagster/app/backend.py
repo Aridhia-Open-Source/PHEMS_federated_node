@@ -44,14 +44,20 @@ class BackendAPI:
                 return projects
             page += 1
 
-    def get_active_trigger_repositories(self) -> list[TriggerRepository]:
+    def get_pollable_trigger_repositories(self) -> list[TriggerRepository]:
         """
-        Get the global trigger repositories that have an active link (enabled and not revoked) of an
-        enabled project. Each carries the cursor to poll from, as pr_cursor.
+        Get the global trigger repositories to poll: enabled, on an enabled provider, with an enabled
+        secret, whatever their project links. Each carries the cursor to poll from, as pr_cursor.
         """
-        self.logger.info("Fetching trigger repositories with an active link")
-        response = self.session.get("/global/repositories/triggers", params={"active_link": "true"})
+        self.logger.info("Fetching the trigger repositories to poll")
+        response = self.session.get("/global/repositories/triggers", params={"pollable": "true"})
         return [TriggerRepository(**repo) for repo in response.json()]
+
+    def get_trigger_repository(self, repository_id: int) -> TriggerRepository:
+        """Get a global trigger repository, with its current pr_cursor"""
+        self.logger.info(f"Fetching trigger repository {repository_id}")
+        response = self.session.get(f"/global/repositories/triggers/{repository_id}")
+        return TriggerRepository(**response.json())
 
     def get_project_trigger_repositories(self, project_id: int, active: bool = False) -> list[ProjectTriggerRepository]:
         """Get a project's links to trigger repositories, inactive ones included unless active is set"""
