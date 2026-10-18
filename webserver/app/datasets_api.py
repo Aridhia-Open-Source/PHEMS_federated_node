@@ -8,6 +8,7 @@ linked to locked and drained; any other edit applies at once:
 - GET /global/datasets/id
 - PATCH /global/datasets/id (200 like every other PATCH (?) assumed by the implementer, owner to confirm)
 - DELETE /global/datasets/id
+- POST /global/datasets/id/revoke
 - GET /global/datasets/id/healthcheck, see healthcheck_api.py
 """
 import logging
@@ -21,6 +22,7 @@ from .helpers.base_model import db
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from .helpers.project_lock import require_all_drained, require_all_drained_if_enabled
 from .helpers.query_validator import validate
+from .helpers.revoke import revoke_links
 from .helpers.wrappers import audit, auth
 from .models.dataset import Dataset
 from .models.extras.catalogue import Catalogue
@@ -123,6 +125,18 @@ def get_dataset(dataset_id: int):
     """
     ds = Dataset.get_by_id(dataset_id)
     return DatasetDTO.from_model(ds).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:dataset_id>/revoke', methods=['POST'])
+@audit
+@auth(scope='can_do_admin')
+def revoke_dataset(dataset_id: int):
+    """
+    POST /global/datasets/id/revoke endpoint. Revokes every project's link to the dataset at
+    once, admin only, needing no lock. Returns the ids of the links. Un-revoking is per link.
+    """
+    ds = Dataset.get_by_id(dataset_id)
+    return revoke_links(ds.project_assignments), HTTPStatus.OK
 
 
 @bp.route('/<int:dataset_id>', methods=['DELETE'])

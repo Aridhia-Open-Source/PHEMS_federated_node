@@ -217,7 +217,7 @@ Built; unit tests run.
 
 ## Switching off, revoking and deleting (owner decisions, 2026-10-18)
 
-Switching off stops new work, and work already in flight finishes once it is back on. Revoking stops all work, for good. Deleting needs the project locked and drained. Nothing here needs a lock except deleting.
+Switching off stops new work, and work already in flight finishes once it is back on. Revoking stops all work, for good. Deleting needs the project locked and drained. Nothing here needs a lock except deleting. An admin can revoke every project's link to a global resource in one call (`POST .../revoke`); un-revoking is per link.
 
 | Switched off | New pull requests | A task not launched yet | A finished task's results |
 |---|---|---|---|

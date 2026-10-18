@@ -8,6 +8,7 @@ drained; any other edit applies at once. A secret_label naming a disabled secret
 - POST /global/repositories/triggers
 - PATCH /global/repositories/triggers/<id>
 - DELETE /global/repositories/triggers/<id>
+- POST /global/repositories/triggers/<id>/revoke
 - GET /global/repositories/triggers/<id>/pull_requests
 - POST /global/repositories/triggers/<id>/pull_requests
 - GET /global/repositories/triggers/<id>/healthcheck, see healthcheck_api.py
@@ -25,7 +26,8 @@ from app.helpers.exceptions import InvalidRequest
 from app.helpers.query_filters import arg_get
 from app.helpers.project_lock import require_all_drained, require_all_drained_if_enabled
 from app.helpers.pull_request_fanout import ingest_pull_requests, skip_gap
-from app.helpers.wrappers import auth
+from app.helpers.revoke import revoke_links
+from app.helpers.wrappers import audit, auth
 from app.models.git_provider import GitProvider
 from app.models.project import Project
 from app.models.project_trigger_repository import ProjectTriggerRepository
@@ -118,6 +120,18 @@ def post_pull_requests_batch(repo_id):
         'created': [pr.number for pr in created],
         'existing': [pr.number for pr in existing],
     }, HTTPStatus.CREATED
+
+
+@bp.route('/<int:repo_id>/revoke', methods=['POST'])
+@audit
+@auth(scope='can_do_admin')
+def revoke_repository(repo_id):
+    """
+    POST /global/repositories/triggers/<id>/revoke — revokes every project's link to the repository
+    at once, admin only, needing no lock. Returns the ids of the links. Un-revoking is per link.
+    """
+    repo = TriggerRepository.get_by_id(repo_id)
+    return revoke_links(repo.project_assignments), HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['DELETE'])

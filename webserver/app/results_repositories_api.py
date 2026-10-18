@@ -8,6 +8,7 @@ drained; any other edit applies at once. A secret_label naming a disabled secret
 - POST /global/repositories/results
 - PATCH /global/repositories/results/<id>
 - DELETE /global/repositories/results/<id>
+- POST /global/repositories/results/<id>/revoke
 - GET /global/repositories/results/<id>/healthcheck, see healthcheck_api.py
 """
 from http import HTTPStatus
@@ -19,7 +20,8 @@ from app.dtos.results_repository import ResultsRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.project_lock import require_all_drained, require_all_drained_if_enabled
-from app.helpers.wrappers import auth
+from app.helpers.revoke import revoke_links
+from app.helpers.wrappers import audit, auth
 from app.models.git_provider import GitProvider
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
@@ -50,6 +52,18 @@ def get_repository(repo_id):
     """
     repo = ResultsRepository.get_by_id(repo_id)
     return ResultsRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:repo_id>/revoke', methods=['POST'])
+@audit
+@auth(scope='can_do_admin')
+def revoke_repository(repo_id):
+    """
+    POST /global/repositories/results/<id>/revoke — revokes every project's link to the repository
+    at once, admin only, needing no lock. Returns the ids of the links. Un-revoking is per link.
+    """
+    repo = ResultsRepository.get_by_id(repo_id)
+    return revoke_links(repo.project_assignments), HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['DELETE'])

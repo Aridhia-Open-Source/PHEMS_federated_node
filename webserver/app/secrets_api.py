@@ -8,6 +8,7 @@ project and is addressed by its label, which is unique. A project is linked to o
 - POST /global/secrets
 - PATCH /global/secrets/<label>
 - DELETE /global/secrets/<label>
+- POST /global/secrets/<label>/revoke
 - GET /global/secrets/<label>/healthcheck, see healthcheck_api.py
 """
 import logging
@@ -24,6 +25,7 @@ from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.kubernetes_names import validate_secret_key
 from app.helpers.project_lock import require_all_drained
+from app.helpers.revoke import revoke_links
 from app.helpers.wrappers import audit, auth
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
@@ -212,6 +214,18 @@ def patch_secret(label):
     session.commit()
 
     return SecretDTO.from_model(secret).dump(), HTTPStatus.OK
+
+
+@bp.route('/<label>/revoke', methods=['POST'])
+@audit
+@auth(scope='can_do_admin')
+def revoke_secret(label):
+    """
+    POST /global/secrets/<label>/revoke — revokes every project's link to the secret at once,
+    admin only, needing no lock. Returns the ids of the links. Un-revoking is per link.
+    """
+    secret = _get_secret(label)
+    return revoke_links(secret.project_assignments), HTTPStatus.OK
 
 
 @bp.route('/<label>', methods=['DELETE'])

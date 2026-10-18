@@ -413,3 +413,36 @@ def test_switching_a_repository_back_on_skips_the_gap(client, admin_headers, pro
     assert sorted(i["number"] for i in stored["items"]) == [1, 2]
     triggers = get(client, admin_headers, f"{link}/pull_requests?per_page=50").json
     assert [i["number"] for i in triggers["items"]] == [2]
+
+
+# --------------------------------------------------------------------------- global revoke
+
+
+@by_kind
+def test_global_revoke_revokes_every_link(ctx, client, admin_headers, post_json_user_header, project, other_project,
+                                          make_task):
+    link_project(client, admin_headers, ctx, project)
+    link_project(client, admin_headers, ctx, other_project)
+    url = f"{ctx.glob}/revoke"
+    assert client.post(url, headers=post_json_user_header).status_code == 403
+    assert get(client, admin_headers, ctx.link(project.id)).json["revoked"] is False
+
+    # no lock needed, even with a task in flight
+    set_locked(project)
+    make_task()
+    r = client.post(url, headers=admin_headers)
+    assert r.status_code == 200 and len(r.json) == 2
+    for p in (project, other_project):
+        link = get(client, admin_headers, ctx.link(p.id)).json
+        assert link["revoked"] is True and link["active"] is False
+
+    # again is a no-op, and un-revoking stays per link
+    assert client.post(url, headers=admin_headers).json == r.json
+    assert patch(client, admin_headers, ctx.link(project.id), {"revoked": False}).json["active"] is True
+    assert get(client, admin_headers, ctx.link(other_project.id)).json["revoked"] is True
+
+
+@by_kind
+def test_global_revoke_unknown_resource_is_404(ctx, client, admin_headers):
+    url = ctx.glob.replace(str(ctx.obj.label if ctx.kind == "secret" else ctx.obj.id), "99999" if ctx.kind != "secret" else "nope")
+    assert client.post(f"{url}/revoke", headers=admin_headers).status_code == 404

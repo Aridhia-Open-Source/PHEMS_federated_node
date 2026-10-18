@@ -278,6 +278,53 @@
         "description": "Admin only. Every project the dataset is linked to has to be locked and drained. Refused with a 400 while a task spec still references it. The secret is left alone: it has its own lifecycle under /secrets"
       }
     },
+    "/global/datasets/{id}/revoke": {
+      "post": {
+        "operationId": "revokeDataset",
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Revoke every project's link to a dataset",
+        "description": "Admin only. Needs no project lock. Revoking a revoked link changes nothing. Un-revoking is per link, with PATCH on the project's link.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The ids of the links, revoked now or earlier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/global/datasets/{id}/healthcheck": {
       "get": {
         "tags": [
@@ -2706,6 +2753,53 @@
         }
       }
     },
+    "/global/secrets/{label}/revoke": {
+      "post": {
+        "operationId": "revokeSecret",
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Revoke every project's link to a secret",
+        "description": "Admin only. Needs no project lock. Revoking a revoked link changes nothing. Un-revoking is per link, with PATCH on the project's link.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "label",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The ids of the links, revoked now or earlier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/global/secrets/{label}/healthcheck": {
       "get": {
         "tags": [
@@ -2956,6 +3050,53 @@
           },
           "403": {
             "description": "Not authorised"
+          }
+        }
+      }
+    },
+    "/global/repositories/results/{id}/revoke": {
+      "post": {
+        "operationId": "revokeResultsRepository",
+        "tags": [
+          "Results Repositories"
+        ],
+        "summary": "Revoke every project's link to a resultsrepository",
+        "description": "Admin only. Needs no project lock. Revoking a revoked link changes nothing. Un-revoking is per link, with PATCH on the project's link.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The ids of the links, revoked now or earlier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
           }
         }
       }
@@ -3219,6 +3360,53 @@
           },
           "403": {
             "description": "Not authorised"
+          }
+        }
+      }
+    },
+    "/global/repositories/triggers/{id}/revoke": {
+      "post": {
+        "operationId": "revokeTriggerRepository",
+        "tags": [
+          "Trigger Repositories"
+        ],
+        "summary": "Revoke every project's link to a triggerrepository",
+        "description": "Admin only. Needs no project lock. Revoking a revoked link changes nothing. Un-revoking is per link, with PATCH on the project's link.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The ids of the links, revoked now or earlier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
           }
         }
       }
