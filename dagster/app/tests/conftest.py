@@ -56,6 +56,7 @@ SAMPLE_TRIGGER_REPOSITORY = {
     "provider": SAMPLE_PROVIDER,
     "secret": SAMPLE_SECRET,
     "enabled": True,
+    "pr_cursor": "2026-01-01T00:00:00Z",
 }
 
 SAMPLE_REPO = {
