@@ -204,14 +204,15 @@ def test_dataset_get_list_and_404(client, admin_headers, global_dataset):
     assert_error(client.get(f"{DS}/999", headers=admin_headers), 404)
 
 
-def test_dataset_linked_needs_lock_to_patch_and_delete(client, admin_headers, linked_dataset, project):
+def test_dataset_linked_needs_lock_to_delete_and_disable_only(client, admin_headers, linked_dataset, project):
     url = f"{DS}/{linked_dataset['dataset']['id']}"
-    assert_error(client.patch(url, json={"host": "new"}, headers=admin_headers), 409)
+    # an edit of the identity fields applies at once: the tasks created before are pinned to the old ones
+    patched = client.patch(url, json={"host": "new"}, headers=admin_headers)
+    assert patched.status_code == 200 and patched.json["host"] == "new"
+    assert_error(client.patch(url, json={"enabled": False}, headers=admin_headers), 409)
     assert_error(client.delete(url, headers=admin_headers), 409)
     project.locked = True
     db.session.commit()
-    patched = client.patch(url, json={"host": "new"}, headers=admin_headers)
-    assert patched.status_code == 200 and patched.json["host"] == "new"
     assert client.delete(url, headers=admin_headers).status_code == 204
 
 

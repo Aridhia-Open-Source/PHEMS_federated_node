@@ -128,10 +128,12 @@ def test_patch_to_a_taken_name_or_uri_is_409(client, admin_headers, git_provider
     assert client.patch(f"{PROV}/{other.id}", json={"name": other.name, "uri": other.uri}, headers=admin_headers).status_code == 200
 
 
-def test_patch_beyond_name_needs_linked_projects_drained(
+def test_patch_enabled_needs_linked_projects_drained(
         client, admin_headers, project, git_provider, linked_trigger_repo):
     url = f"{PROV}/{git_provider.id}"
     assert client.patch(url, json={"name": "renamed"}, headers=admin_headers).status_code == 200
+    # the other fields apply at once too
+    assert client.patch(url, json={"api_uri": git_provider.api_uri}, headers=admin_headers).status_code == 200
     assert_error(client.patch(url, json={"enabled": False}, headers=admin_headers), 409)
     set_locked(project)
     assert client.patch(url, json={"enabled": False}, headers=admin_headers).json["enabled"] is False

@@ -31,7 +31,7 @@ from app.dtos.dataset import ProjectDatasetDTO
 from app.dtos.results_repository import ProjectResultsRepositoryDTO
 from app.dtos.secret import ProjectSecretDTO
 from app.dtos.project import ProjectDTO, ProjectRequest
-from app.helpers.project_lock import require_drained
+from app.helpers.project_lock import require_drained, require_drained_if_enabled
 from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.query_filters import parse_query_params
 from app.helpers.wrappers import audit, auth
@@ -96,8 +96,8 @@ def create_project():
 def patch_project(project_id: int):
     """
     PATCH /projects/<project_id> endpoint. Enables or disables the project, locks or unlocks
-    it. Locking or unlocking is always allowed, any other change only once the project is
-    locked and drained, see require_drained.
+    it. Locking or unlocking is always allowed, turning the project on or off (enabled) only once
+    it is locked and drained, see require_drained.
     """
     project = Project.get_by_id(project_id)
 
@@ -109,8 +109,7 @@ def patch_project(project_id: int):
         if not isinstance(body[field], bool):
             raise InvalidRequest(f"{field} must be a boolean")
 
-    if set(body) - {"locked"}:
-        require_drained(project)
+    require_drained_if_enabled(body, project)
     for field in body:
         setattr(project, field, body[field])
     db.session.commit()
@@ -212,7 +211,7 @@ def put_project_dataset(project_id: int, dataset_id: int):
     """
     PUT /projects/<project_id>/datasets/<dataset_id> endpoint. Links a global dataset to the
     project, 201, and replaces the project's settings if it is linked already, 200, which needs
-    the project locked and drained. The first one linked becomes the project's default.
+    the project locked and drained only if it turns the link on or off (enabled). The first one linked becomes the project's default.
     Body: {"enabled": true}, optional.
     """
     project = Project.get_by_id(project_id)
@@ -228,7 +227,8 @@ def put_project_dataset(project_id: int, dataset_id: int):
         link.add()
         return ProjectDatasetDTO.from_model(link).dump(), HTTPStatus.CREATED
 
-    require_drained(project)
+    if "enabled" in body or enabled != link.enabled:
+        require_drained(project)
     link.enabled = enabled
     db.session.commit()
     return ProjectDatasetDTO.from_model(link).dump(), HTTPStatus.OK
@@ -254,8 +254,7 @@ def patch_project_dataset(project_id: int, dataset_id: int):
     if "revoked" in body and not g.caller_is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a dataset")
 
-    if "enabled" in body:
-        require_drained(link.project)
+    require_drained_if_enabled(body, link.project)
     for field in body:
         setattr(link, field, body[field])
     db.session.commit()
@@ -314,7 +313,7 @@ def put_project_secret(project_id: int, label: str):
     """
     PUT /projects/<project_id>/secrets/<label> endpoint. Links a global secret to the project,
     201, and replaces the project's settings if it is linked already, 200, which needs the
-    project locked and drained.
+    project locked and drained only if it turns the link on or off (enabled).
     Body: {"enabled": true}, optional.
     """
     project = Project.get_by_id(project_id)
@@ -332,7 +331,8 @@ def put_project_secret(project_id: int, label: str):
         link.add()
         return ProjectSecretDTO.from_model(link).dump(), HTTPStatus.CREATED
 
-    require_drained(project)
+    if "enabled" in body or enabled != link.enabled:
+        require_drained(project)
     link.enabled = enabled
     db.session.commit()
     return ProjectSecretDTO.from_model(link).dump(), HTTPStatus.OK
@@ -358,8 +358,7 @@ def patch_project_secret(project_id: int, label: str):
     if "revoked" in body and not g.caller_is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a secret")
 
-    if "enabled" in body:
-        require_drained(link.project)
+    require_drained_if_enabled(body, link.project)
     for field in body:
         setattr(link, field, body[field])
     db.session.commit()
@@ -423,8 +422,9 @@ def put_project_results_repository(project_id: int, repository_id: int):
     """
     PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Links a global
     results repository to the project, which has one, 201, and replaces the project's settings
-    if it is linked already, 200. It changes where the project's in-flight tasks deliver, so the
-    project has to be locked and drained.
+    if it is linked already, 200. Linking needs the project locked and drained. Replacing the settings of
+    the link does only if it turns the link on or off (enabled): a change of target_dir is caught by the
+    configuration snapshot of the tasks created before, which then fail instead of delivering there.
     Body: {"target_dir": "results", "owned_by_federated_node": true, "enabled": true}, the last
     two are optional.
     """
@@ -439,11 +439,12 @@ def put_project_results_repository(project_id: int, repository_id: int):
     if not target_dir:
         raise InvalidRequest("target_dir is required")
 
-    require_drained(project)
     repo = ResultsRepository.get_by_id(repository_id)
     link = ProjectResultsRepository.query.filter_by(project_id=project.id).first()
     if link and link.results_repository_id != repo.id:
         raise InvalidRequest(f"Project {project.id} already has a results repository", HTTPStatus.CONFLICT)
+    if link is None or "enabled" in body or body.get("enabled", True) != link.enabled:
+        require_drained(project)
 
     created = link is None
     if created:
@@ -464,7 +465,8 @@ def put_project_results_repository(project_id: int, repository_id: int):
 def patch_project_results_repository(project_id: int, repository_id: int):
     """
     PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where
-    the project's results go (target_dir, owned_by_federated_node) or turns the link on or
+    the project's results go (target_dir, owned_by_federated_node), at any time (the tasks created
+    before fail instead of delivering to the new place), or turns the link on or
     off (enabled), which needs the project locked and drained, or revokes and re-grants it
     (revoked), which is admin only and takes effect at once.
     """
@@ -479,8 +481,7 @@ def patch_project_results_repository(project_id: int, repository_id: int):
     if "revoked" in body and not g.caller_is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a results repository")
 
-    if set(body) - {"revoked"}:
-        require_drained(link.project)
+    require_drained_if_enabled(body, link.project)
     if "target_dir" in body:
         target_dir = normalise_dir(body["target_dir"] or "")
         if not target_dir:

@@ -133,8 +133,8 @@ def test_secret_link_get_list_and_errors(client, admin_headers, project, other_p
     assert client.get(url, headers=admin_headers).status_code == 200
     assert len(client.get(f"/projects/{project.id}/secrets", headers=admin_headers).json) == 1
     assert client.put(f"/projects/{project.id}/secrets/nope", json={}, headers=admin_headers).status_code == 404
-    # unlocked, so a second PUT (a settings replace) is refused
-    assert client.put(url, json={}, headers=admin_headers).status_code == 409
+    # unlocked, so a second PUT that turns the link off (a settings replace) is refused
+    assert client.put(url, json={"enabled": False}, headers=admin_headers).status_code == 409
     assert client.get(f"/projects/{other_project.id}/secrets/test-creds", headers=admin_headers).status_code == 404
 
 

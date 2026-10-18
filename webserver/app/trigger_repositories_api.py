@@ -1,8 +1,8 @@
 """
 trigger repository endpoints, global: a project is linked to one under
 /projects/<id>/repositories/triggers (see project_trigger_repositories_api.py). Create, edit and delete are admin
-only, and editing or deleting needs every project the repository is linked to locked and
-drained. A secret_label naming a disabled secret is a 400 on POST and PATCH.
+only. Deleting, or turning one on or off (enabled), needs every project the repository is linked to locked and
+drained; any other edit applies at once. A secret_label naming a disabled secret is a 400 on POST and PATCH.
 - GET /global/repositories/triggers
 - GET /global/repositories/triggers/<id>
 - POST /global/repositories/triggers
@@ -23,7 +23,7 @@ from app.dtos.trigger_repository import PullRequestDTO, PullRequestRequest, Trig
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.query_filters import arg_get
-from app.helpers.project_lock import require_all_drained
+from app.helpers.project_lock import require_all_drained, require_all_drained_if_enabled
 from app.helpers.pull_request_fanout import ingest_pull_requests, skip_gap
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
@@ -180,8 +180,9 @@ def post_repository():
 @auth(scope='can_do_admin')
 def patch_repository(repo_id):
     """
-    PATCH /global/repositories/triggers/<id> — update repository. Every project it is linked to has
-    to be locked and drained, except to rotate the credentials only. A disabled secret cannot be
+    PATCH /global/repositories/triggers/<id> — update repository. Only a change of enabled needs every
+    project it is linked to locked and drained, any other edit applies at once (the tasks created
+    before are pinned to the old setup and fail instead of running against the new one). A disabled secret cannot be
     named (400), unless it is the one already in use.
     """
     repo = TriggerRepository.get_by_id(repo_id)
@@ -194,9 +195,7 @@ def patch_repository(repo_id):
         raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
     req = RepositoryPatchRequest.parse(body)
 
-    # Rotating the credentials only is exempt from the lock, the provider is not changed
-    if set(body) != {'secret_label'}:
-        require_all_drained([a.project for a in repo.project_assignments])
+    require_all_drained_if_enabled(body, [a.project for a in repo.project_assignments])
 
     if 'secret_label' in body:
         repo.secret_id = Secret.get_enabled_by_label(req.secret_label, repo.secret_id).id

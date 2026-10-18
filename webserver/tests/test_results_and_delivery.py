@@ -98,12 +98,17 @@ def test_link_needs_lock_then_relink_replaces_settings(client, admin_headers, pr
     assert len(links(client, admin_headers, project)) == 1
 
 
-def test_relink_needs_drained_project(client, admin_headers, project, global_results_repo, linked_results_repo, make_task):
+def test_relink_target_dir_applies_at_once_but_disabling_needs_drained_project(
+    client, admin_headers, project, global_results_repo, linked_results_repo, make_task
+):
     set_locked(project)
     make_task()  # a pending task: the project is not drained
     url = link_url(project, global_results_repo)
-    assert client.put(url, json={"target_dir": "x"}, headers=admin_headers).status_code == 409
+    assert client.put(url, json={"target_dir": "x", "enabled": False}, headers=admin_headers).status_code == 409
     assert client.get(url, headers=admin_headers).json["target_dir"] == "results"
+    # the task is pinned to the old target_dir instead
+    assert client.put(url, json={"target_dir": "x"}, headers=admin_headers).status_code == 200
+    assert client.get(url, headers=admin_headers).json["target_dir"] == "x"
 
 
 def test_one_results_repo_per_project_but_repo_shared(
@@ -334,7 +339,7 @@ def test_step_is_forward_only(client, admin_headers, project, global_results_rep
     rid = fresh()
     for step in ("PUSHED", "OPENED", "OPENED", "MERGED"):  # forward, same step again is allowed
         assert patch_result(client, admin_headers, project, rid, {"step": step}).json["step"] == step
-    for backwards in ("OPENED", "UNKNOWN", "CLOSED", "REVOKED"):  # MERGED, CLOSED and REVOKED are terminal siblings
+    for backwards in ("OPENED", "UNKNOWN", "CLOSED", "REVOKED", "STALE"):  # MERGED, CLOSED, REVOKED and STALE are terminal siblings
         assert patch_result(client, admin_headers, project, rid, {"step": backwards}).status_code == 400
     assert get_result(client, admin_headers, project, rid)["step"] == "MERGED"
 

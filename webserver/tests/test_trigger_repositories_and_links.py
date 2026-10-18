@@ -103,12 +103,13 @@ def test_create_validation_failures_are_400(client, admin_headers, global_secret
     assert client.post(BASE, json=body, headers=admin_headers).status_code == 400
 
 
-def test_patch_and_delete_need_a_drained_lock_except_secret_swap(client, admin_headers, linked_trigger_repo, project):
+def test_only_enabled_and_delete_need_a_drained_lock(client, admin_headers, linked_trigger_repo, project):
     T = linked_trigger_repo["trigger_repository"]["id"]
     assert patch(client, admin_headers, f"{BASE}/{T}", {"enabled": False}).status_code == 409
-    assert patch(client, admin_headers, f"{BASE}/{T}", {"provider_id": linked_trigger_repo["trigger_repository"]["provider"]["id"]}).status_code == 409
-    # swapping the secret is exempt from the lock
+    # every other edit applies at once, the tasks are pinned to the configuration they were created under
+    assert patch(client, admin_headers, f"{BASE}/{T}", {"provider_id": linked_trigger_repo["trigger_repository"]["provider"]["id"]}).status_code == 200
     assert patch(client, admin_headers, f"{BASE}/{T}", {"secret_label": "test-creds"}).status_code == 200
+    assert client.delete(f"{BASE}/{T}", json={}, headers=admin_headers).status_code == 409
 
     set_locked(project)
     disabled = patch(client, admin_headers, f"{BASE}/{T}", {"enabled": False})
@@ -188,9 +189,10 @@ def test_revoke_is_admin_only(client, admin_headers, post_json_user_header, link
     assert revoked.json["revoked"] is True and revoked.json["active"] is False
 
 
-def test_relink_put_can_disable_link_and_needs_lock(client, admin_headers, linked_trigger_repo, project):
+def test_relink_put_changes_settings_at_once_but_disabling_needs_lock(client, admin_headers, linked_trigger_repo, project):
     url = f"/projects/{linked_trigger_repo['project_id']}/repositories/triggers/{linked_trigger_repo['trigger_repository']['id']}"
-    assert client.put(url, json={"watch_dir": "other"}, headers=admin_headers).status_code == 409
+    assert client.put(url, json={"watch_dir": "another"}, headers=admin_headers).status_code == 200
+    assert client.put(url, json={"watch_dir": "other", "enabled": False}, headers=admin_headers).status_code == 409
     set_locked(project)
     r = client.put(url, json={"watch_dir": "other", "enabled": False}, headers=admin_headers)
     assert r.status_code == 200
@@ -219,14 +221,16 @@ def test_link_lifecycle_gates(ctx, client, admin_headers, project, make_task):
     linked = get(client, admin_headers, url).json
     assert linked["active"] is True and linked["enabled"] is True and linked["revoked"] is False
 
-    # unlocked project: every change is refused
-    assert client.put(url, json=ctx.put_body, headers=admin_headers).status_code == 409
+    # unlocked project: a relink that keeps the link on applies, turning it off and unlinking are refused
+    assert client.put(url, json=ctx.put_body, headers=admin_headers).status_code == 200
+    assert client.put(url, json={**ctx.put_body, "enabled": False}, headers=admin_headers).status_code == 409
     assert patch(client, admin_headers, url, {"enabled": False}).status_code == 409
     assert client.delete(url, headers=admin_headers).status_code == 409
 
     # locked with a task in flight: still refused, and the response names the task
     set_locked(project)
-    r = client.put(url, json=ctx.put_body, headers=admin_headers)
+    assert client.put(url, json=ctx.put_body, headers=admin_headers).status_code == 200
+    r = client.put(url, json={**ctx.put_body, "enabled": False}, headers=admin_headers)
     assert r.status_code == 409 and r.json["details"] == [task.id]
     assert patch(client, admin_headers, url, {"enabled": False}).status_code == 409
     assert client.delete(url, headers=admin_headers).status_code == 409
@@ -292,18 +296,16 @@ def test_revoke_and_unrevoke_semantics(ctx, client, admin_headers, project, make
     ("trigger", {"watch_dir": "other"}, "watch_dir", "other"),
     ("results", {"target_dir": "out"}, "target_dir", "out"),
 ])
-def test_link_settings_patch_needs_lock_and_drained_project(kind, body, field, value, client, admin_headers, project,
-                                                            global_trigger_repo, global_results_repo, make_task):
+def test_link_settings_patch_needs_no_lock_and_no_drain(kind, body, field, value, client, admin_headers, project,
+                                                        global_trigger_repo, global_results_repo, make_task):
     c = Ctx(kind, global_trigger_repo if kind == "trigger" else global_results_repo)
     link_project(client, admin_headers, c, project)
     url = c.link(project.id)
-    assert patch(client, admin_headers, url, body).status_code == 409
-    set_locked(project)
-    task = make_task()
-    assert patch(client, admin_headers, url, body).status_code == 409
-    finish(task)
+    # unlocked, and with a task in flight: the tasks are pinned to the old setting instead
+    make_task()
     r = patch(client, admin_headers, url, body)
     assert r.status_code == 200 and r.json[field] == value
+    assert patch(client, admin_headers, url, {**body, "enabled": False}).status_code == 409
 
 
 def test_dataset_link_has_no_settings(client, admin_headers, project, global_dataset):
