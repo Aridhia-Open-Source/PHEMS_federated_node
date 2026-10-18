@@ -15,18 +15,18 @@ class TestPatchTask:
 
     def test_update_all_fields(self, client, post_json_admin_header, task, project):
         response = self.patch(client, post_json_admin_header, project, task.id, {
-            "status": "FAILED", "dagster_run_id": "run-1", "exit_code": 2,
+            "status": "FAILED", "executor_run_id": "run-1", "exit_code": 2,
             "started_at": "2026-01-01T10:00:00Z", "completed_at": "2026-01-01T10:30:00",
         })
         assert response.status_code == 200
         assert response.json["status"] == "FAILED"
-        assert response.json["dagster_run_id"] == "run-1"
+        assert response.json["executor_run_id"] == "run-1"
         assert response.json["exit_code"] == 2
         assert response.json["started_at"] == "2026-01-01 10:00:00"
         assert response.json["completed_at"] == "2026-01-01 10:30:00"
         task = Task.query.get(task.id)
         assert task.status == "FAILED"
-        assert task.dagster_run_id == "run-1"
+        assert task.executor_run_id == "run-1"
         assert task.exit_code == 2
         assert task.started_at.isoformat() == "2026-01-01T10:00:00"
         assert task.completed_at.isoformat() == "2026-01-01T10:30:00"
@@ -36,7 +36,7 @@ class TestPatchTask:
         assert response.status_code == 200
         task = Task.query.get(task.id)
         assert task.status == "RUNNING"
-        assert task.dagster_run_id is None
+        assert task.executor_run_id is None
 
     def test_update_state_cause(self, client, post_json_admin_header, task, project):
         response = self.patch(client, post_json_admin_header, project, task.id, {"status": "FAILED", "state_cause": "why"})
@@ -50,7 +50,7 @@ class TestPatchTask:
         {"status": "scheduled"},
         {"status": "running"},
         {"name": "other"},
-        {"dagster_run_id": 1},
+        {"executor_run_id": 1},
         {"exit_code": "1"},
         {"exit_code": True},
         {"started_at": "not-a-date"},

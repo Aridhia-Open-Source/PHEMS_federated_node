@@ -71,6 +71,19 @@ def set_locked(project, locked=True):
 # --------------------------------------------------------------------------- ingest
 
 
+def test_a_trigger_lists_its_spec_files(client, admin_headers, project, global_trigger_repo):
+    """Only added .json files under the link's watch_dir, the rule that decides the fan-out."""
+    T = global_trigger_repo.id
+    link(client, admin_headers, project.id, T)
+    files = added("triggers/a.json", "triggers/sub/b.json", "triggers/c.txt", "other/d.json", "triggers-old/e.json")
+    files.append({"path": "triggers/f.json", "status": "modified"})
+    post_prs(client, admin_headers, T, pr(1, changed_files=files))
+
+    t = client.get(trig_url(project.id, T, 1), headers=admin_headers).json
+
+    assert t["spec_files"] == ["triggers/a.json", "triggers/sub/b.json"]
+
+
 def test_ingest_fans_out_and_is_idempotent(client, admin_headers, project, global_trigger_repo):
     """Disabled project still gets triggers (fan-out follows link flags); re-ingest never changes facts or state."""
     T = global_trigger_repo.id
@@ -475,10 +488,10 @@ def test_task_status_lifecycle_fields_and_get(client, admin_headers, project, ti
     assert {"id", "name", "status", "spec", "project_id"} <= set(one.json)
     for status in ("QUEUED", "RUNNING"):
         assert patch_task(client, admin_headers, project, tid, {"status": status}).json["status"] == status
-    r = patch_task(client, admin_headers, project, tid, {"status": "FAILED", "dagster_run_id": "run-1", "exit_code": 137,
+    r = patch_task(client, admin_headers, project, tid, {"status": "FAILED", "executor_run_id": "run-1", "exit_code": 137,
                                                 "state_cause": "oom"})
     assert r.status_code == 200
-    assert (r.json["status"], r.json["dagster_run_id"], r.json["exit_code"], r.json["state_cause"]) \
+    assert (r.json["status"], r.json["executor_run_id"], r.json["exit_code"], r.json["state_cause"]) \
         == ("FAILED", "run-1", 137, "oom")
     assert client.get(f"/projects/{project.id}/tasks/999999", headers=admin_headers).status_code == 404
     assert patch_task(client, admin_headers, project, 999, {"status": "RUNNING"}).status_code == 404
@@ -498,7 +511,7 @@ def test_finished_tasks_cannot_change_status(client, admin_headers, project, tid
     {"status": "bogus"}, {"status": None},             # not a TaskStatus
     {"status": "RUNNING", "bogus": 1},                 # unknown field applies nothing
     {"name": "x"},                                     # immutable
-    {"dagster_run_id": 42},                            # wrong type
+    {"executor_run_id": 42},                            # wrong type
     {},
 ])
 def test_bad_task_patches_are_400_and_change_nothing(client, admin_headers, project, tid, body):
@@ -508,10 +521,10 @@ def test_bad_task_patches_are_400_and_change_nothing(client, admin_headers, proj
 
 def test_retry_resets_a_failed_task_only(client, admin_headers, project, tid):
     assert client.post(f"/projects/{project.id}/tasks/{tid}/retry", json={}, headers=admin_headers).status_code == 400  # not failed yet
-    patch_task(client, admin_headers, project, tid, {"status": "FAILED", "dagster_run_id": "r", "exit_code": 1})
+    patch_task(client, admin_headers, project, tid, {"status": "FAILED", "executor_run_id": "r", "exit_code": 1})
     retry = client.post(f"/projects/{project.id}/tasks/{tid}/retry", json={}, headers=admin_headers)
     assert retry.status_code == 200 and retry.json["status"] == "PENDING"
-    assert retry.json["dagster_run_id"] is None and retry.json["exit_code"] is None
+    assert retry.json["executor_run_id"] is None and retry.json["exit_code"] is None
 
 
 def test_task_results_list_the_delivery(client, admin_headers, project, linked_results_repo, global_results_repo,

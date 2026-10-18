@@ -329,7 +329,7 @@ def upgrade() -> None:
         sa.Column('status', sa.String(length=256), nullable=True),
         sa.Column('attempt', sa.Integer(), nullable=False, server_default='1'),
         sa.Column('requested_by', sa.String(length=256), nullable=False),
-        sa.Column('dagster_run_id', sa.String(length=64), nullable=True),
+        sa.Column('executor_run_id', sa.String(length=64), nullable=True),
         sa.Column('started_at', sa.DateTime(), nullable=True),
         sa.Column('completed_at', sa.DateTime(), nullable=True),
         sa.Column('exit_code', sa.Integer(), nullable=True),
@@ -343,7 +343,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['trigger_id'], ['triggers.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('dagster_run_id'),
+        sa.UniqueConstraint('executor_run_id'),
         sa.UniqueConstraint('trigger_id'),
     )
     op.create_index('ix_tasks_project_id', 'tasks', ['project_id'])

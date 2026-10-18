@@ -40,7 +40,7 @@ class Task(db.Model, BaseModel):
     # The run's attempt number. A retry is the same task with the next attempt.
     attempt = sa.Column(sa.Integer, nullable=False, default=1, server_default='1')
     requested_by = sa.Column(sa.String(256), nullable=False)
-    dagster_run_id = sa.Column(sa.String(64), nullable=True, unique=True)
+    executor_run_id = sa.Column(sa.String(64), nullable=True, unique=True)
     exit_code = sa.Column(sa.Integer, nullable=True)
     # Why the task failed without a run, e.g. its dataset was revoked before launch
     state_cause = sa.Column(sa.Text, nullable=True)
