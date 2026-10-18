@@ -110,7 +110,7 @@ Dagster's `Secret` model needs only `key`, `namespace` and `provider`. Its repos
 
 - `check_no_loop(project_id, uri)` (`helpers/repository_loop.py:378-398`) joins trigger and results repositories by `(project_id, uri)` and must move to the assignment tables, where `watch_dir` and `target_dir` live. Cross-project loops (one project's results repository being another's trigger repository) become possible because `uri` is global, and are forbidden: the check runs across projects.
 - `DAR.__init__` derives `project_id` from `dataset.project_id` (`models/extras/dar.py:67`). It is disconnected code but will break silently; pass the project in.
-- Editing or deleting a global dataset, repository or secret affects every assigned project. It requires every assigned project to be locked and drained (today `require_drained(project)` guards one project). Secret rotation stays exempt.
+- Editing a global dataset, repository or secret affects every assigned project; the tasks it affects fail or are `STALE` (see "A task is pinned to its configuration"). Deleting one requires every assigned project to be locked and drained. Secret rotation stays exempt.
 - Creating global resources and grants requires the admin role for now; revisit with the authorization rework ([0014](0014-dar-rename-and-detached-auth.md)).
 - `whitelisted_images` does not follow this pattern for now.
 
@@ -140,12 +140,12 @@ Datasets, secrets, trigger repositories and results repositories are all **resou
 - **Ingest is only the global batch.** There is no single-PR project route. The ingest filter is `GET /global/repositories/triggers?active_link=true`.
 
 - **Filter in the webserver.** Clients (Dagster, fncli) don't fetch lists and filter them in Python. Every filter they need is a query option on the list endpoint, e.g. `?active_link=true`.
-- **Parked:** lock, drain and enabled guards on editing, deleting or unlinking resources (for example `DELETE /global/secrets/:label`) stay as built and are not revisited for now. Worst case a project keeps failing or is missing a secret.
+- **Superseded (2026-10-18):** the lock, drain and enabled guards were revisited; see "Switching off, revoking and deleting".
 
 ### 12. Decisions settled
 
 1. Revoke takes effect immediately; in-flight deliveries fail with a recorded error (section 2).
-2. Editing or deleting a global dataset, repository or secret requires every assigned project locked and drained; secret rotation stays exempt (section 9).
+2. Deleting a global dataset, repository or secret requires every assigned project locked and drained. Editing one needs neither: tasks are pinned to their configuration. Secret rotation stays exempt (section 9).
 3. Cross-project loops are forbidden (section 9).
 4. `GET /projects/<id>/results_repositories` returns inactive assignments with their flags (section 5).
 5. Global datasets have no `project_id` (section 6).
@@ -156,7 +156,7 @@ Datasets, secrets, trigger repositories and results repositories are all **resou
 10. Trigger states are `UNKNOWN`, `YIELDED` and `REJECTED`; `REJECTED` is final. Only an `UNKNOWN` trigger can get a task: `POST /projects/<pid>/repositories/triggers/<id>/pull_requests/<n>/task` returns 409 for a `REJECTED` trigger or an inactive link.
 11. `GET /projects/<pid>/repositories/triggers?active=true` returns only active links. The evaluate sensor uses it.
 12. `PATCH /tasks/<id>` returns 409 for a status change out of `SUCCESS`, `FAILED` or `CANCELED` (the same status is allowed; `/retry` still resets to `PENDING`).
-13. `POST /results` returns 409 unless the task is `SUCCESS`; an existing result re-posts with 200. Through a revoked results link it creates the result as final, step `REVOKED` and state `FAILED`, and nothing is ever delivered for it (un-revoking the link does not deliver it; killing a task already running is post-beta). Through a link inactive for another reason (disabled by the project, or the global repository off) it returns 409 and is delivered once the link is active.
+13. `POST /results` returns 409 unless the task is `SUCCESS`; an existing result re-posts with 200. Through a revoked results link it creates the result as final, step `REVOKED` and state `FAILED`, and nothing is ever delivered for it (un-revoking the link does not deliver it; killing a task already running is post-beta). Through a link inactive for another reason (disabled by the project, or the global repository or provider off) it creates the result at step `HELD` (201), and it is delivered once the link is active again; see "Switching off, revoking and deleting".
 14. A repository or dataset that references a disabled secret is refused with 400 on create and patch.
 15. Dataset `PATCH` returns 200 (?). `/tasks` clamps `page` and `per_page` below 1 to 1 (?).
 
@@ -169,7 +169,7 @@ Datasets, secrets, trigger repositories and results repositories are all **resou
 - Creating global resources and grants uses the admin role until the authorization rework ([0014](0014-dar-rename-and-detached-auth.md)).
 - Changed paths are fetched once per PR at ingest (paged), and no later per-project provider call is made for unwatched PRs.
 - Heavy overlap with open PRs #548, #547, #543, #534, #531 and #535; light overlap with #526, #533, #529, #530; independent: #528, #532, #544, #545, #546.
-- **Known gap (post-beta): for `enabled` flips and deletes, the lock check and the change are two steps.** `require_drained` checks "locked and nothing in flight" and the change follows, while `post_task` (the evaluate sensor) checks only that the link is active, not that the project is unlocked. A task can be created between the check and the change. Worst case it runs against a setup that has just changed and fails or is not delivered (a revoked results link gives a `REVOKED` result); no data is lost and other projects are unaffected. Fix, small: `post_task` refuses a locked project with 409, and `require_drained` and `post_task` take a row lock on the project (`SELECT ... FOR UPDATE`) so they run one after the other.
+- **Known gap (post-beta): for deletes, the lock check and the change are two steps.** `require_drained` checks "locked and nothing in flight" and the change follows, while `post_task` (the evaluate sensor) checks only that the link is active, not that the project is unlocked. A task can be created between the check and the change. Worst case it runs against a setup that has just changed and fails or is not delivered (a revoked results link gives a `REVOKED` result); no data is lost and other projects are unaffected. Fix, small: `post_task` refuses a locked project with 409, and `require_drained` and `post_task` take a row lock on the project (`SELECT ... FOR UPDATE`) so they run one after the other.
 - Supersedes or amends ADRs 0003, 0004, 0001, 0006, 0007, 0009, 0013 and 0015, and `docs/architecture/entities.md`.
 
 ## Implementation order
@@ -200,7 +200,7 @@ Plus a cross-service check: the webserver tests dump these responses to a commit
 
 ## A task is pinned to its configuration (replaces most of lock and drained)
 
-On branch `moonshot/task-config-pinning`; not run.
+Built; unit tests run.
 
 **Rule.** When a task is created it stores a snapshot (JSON, version 1) of the configuration it was built against, and a sha256 hash of it (`tasks.config_snapshot`, `tasks.config_hash`, in the baseline migration). The snapshot holds the results repository (its uri, the provider's `api_uri` and the link's `target_dir`) and the task's dataset (name, host, port, type, read and write schema). It does not hold credentials or secrets (a rotation must reach running work), the trigger repository (the task is pinned to the pull request's merge sha) or the `enabled` and `revoked` flags (those have their own rules). The snapshot is the audit record of what produced a result.
 
@@ -209,11 +209,30 @@ On branch `moonshot/task-config-pinning`; not run.
 - *Before publish:* `POST /results` for a `SUCCESS` task whose configuration changed creates the result as step `STALE`, state `FAILED`, error listing the changes. `STALE` is final and terminal, a sibling of `MERGED`, `CLOSED` and `REVOKED`: nothing is delivered. Order of checks: existing result, task `SUCCESS`, revoked link (`REVOKED`), changed configuration (`STALE`), inactive link (409).
 - There is no stale-task retry for the beta. A stale task fails; the pull request has to be re-run another way.
 
-**Guards.** Locked and drained is now required only to turn something on or off (an `enabled` flag, on a project, link, repository, provider, dataset or secret) and to delete. Every other edit is free: a results link's `target_dir`, a link swap, dataset link edits, a trigger link's `watch_dir` and `base_branch`, a repository's provider, path, `api_uri` and `secret_label`, global dataset fields, provider fields, other project fields. Creating a project's results link still needs the lock, as before. `enabled` keeps the drain because a delivery through a link that is switched off returns 409 and is skipped without a record; a held result state would let that go, and is a later job.
+**Guards.** Locked and drained is now required only to delete (see "Switching off, revoking and deleting", which also removed it from `enabled` flips). Every other edit is free: a results link's `target_dir`, a link swap, dataset link edits, a trigger link's `watch_dir` and `base_branch`, a repository's provider, path, `api_uri` and `secret_label`, global dataset fields, provider fields, other project fields. Creating a project's results link still needs the lock, as before. `enabled` flips need no drain any more: a delivery through a link that is switched off is `HELD` and delivered later.
 
 **What it costs.** In-flight work is lost when a material field is edited: the task fails or its result is `STALE`. Part of the saving is only in the guard calls (about 25 across 8 files, now fewer); the tests and the e2e and Hypothesis scenarios for edits under the lock change with it.
 
 **Lock race.** The race recorded under Consequences remains for `enabled` flips and deletes (the check and the change are two steps); for every other edit it no longer matters, because a task created in the gap carries the old snapshot and fails.
+
+## Switching off, revoking and deleting (owner decisions, 2026-10-18)
+
+Switching off stops new work, and work already in flight finishes once it is back on. Revoking stops all work, for good. Deleting needs the project locked and drained. Nothing here needs a lock except deleting.
+
+| Switched off | New pull requests | A task not launched yet | A finished task's results |
+|---|---|---|---|
+| Trigger link, trigger repository or its provider | Stored, no trigger: the link's cursor moves to now when it is on again (`skip_gap`) | Launches | Delivered |
+| Project | Stored, no trigger (fan-out skips a disabled project; `skip_gap` when it is on again) | Waits: the launcher skips a disabled project | Delivered |
+| Results link, results repository or its provider | n/a | Launches | Result at step `HELD`; delivered once the link is active again (the `STALE` check runs again first) |
+| Dataset link or global dataset | n/a | `FAILED` at launch, naming the dataset | n/a |
+| Secret | not covered: credentials are outside the task's configuration hash, and a rotation must reach running work | | |
+| **Revoked** (any link) | Trigger link: no trigger, and its triggers get no task (409) | Dataset link: `FAILED` at launch | Results link: result `REVOKED`, final, never delivered |
+| **Deleted** | Needs the project locked and drained (a `HELD` result counts as in flight) | | |
+
+- `HELD` is not final: `POST /results` for a `HELD` result re-runs the checks (revoked, `STALE`, inactive) and moves it on, to `UNKNOWN` once the link is active.
+- A Dagster sweep sensor lists `HELD` results whose link is active again and launches their delivery, which reads the task run's artifacts. Artifact clean-up must wait for delivery, not for the task's end.
+- `REJECTED` is final for a trigger (decision 10): no request moves it back.
+- An optional backfill of the gap may be added later.
 
 ## Alternatives considered
 
