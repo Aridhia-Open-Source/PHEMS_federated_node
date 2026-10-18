@@ -6,7 +6,7 @@ import requests
 
 import dagster as dg
 
-from app.definitions.sensors.git.pr_evaluate import IN_FLIGHT
+from app.definitions.sensors.base import IN_FLIGHT
 from app.definitions.sensors.task import JOBS, SENSORS
 from app.definitions.sensors.task.pull_request_sync import (
     results_pull_request_sync_sensor,
@@ -201,7 +201,7 @@ def test_the_sensor_requests_a_sync_when_results_are_pushed_or_opened(step):
     request, context = run_sensor([result(step=step)])
 
     assert isinstance(request, dg.RunRequest)
-    assert re.fullmatch(r"sync-results-prs/\d{12}", request.run_key)
+    assert re.fullmatch(r"sync-results-prs/\d+", request.run_key)
     filters = context.instance.get_runs.call_args.kwargs["filters"]
     assert filters.job_name == "sync_results_pull_requests_job"
     assert filters.statuses == IN_FLIGHT

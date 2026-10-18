@@ -60,6 +60,7 @@ from fncli.tests.e2e.conftest import (
 
 pytestmark = [pytest.mark.e2e, pytest.mark.e2e_failure]
 
+RETRY_INTERVAL = 5  # seconds: a failed run is retried at most this often
 SENSOR_INTERVAL = 1  # seconds: the "nothing happens" checks then take QUIET_TICKS of these
 QUIET_TICKS = 5
 TASK_TIMEOUT = int(os.environ.get("E2E_TASK_TIMEOUT", 600))  # a task that fails to start can sit in a pull back-off
@@ -80,11 +81,11 @@ def fast_sensors(request):
     if os.environ.get("E2E_KEEP_INTERVAL") == "1":
         yield
         return
-    previous = set_sensor_interval(SENSOR_INTERVAL)
+    previous, previous_retry = set_sensor_interval(SENSOR_INTERVAL, RETRY_INTERVAL)
 
     def restore():
         if previous is not None:
-            set_sensor_interval(int(previous))
+            set_sensor_interval(int(previous), int(previous_retry))
 
     request.addfinalizer(restore)
     yield

@@ -237,6 +237,13 @@ class BackendAPI:
         response = self.session.get(f"/projects/{project_id}/results", params={"step": steps})
         return [PullRequestResult(**result) for result in response.json()]
 
+    def get_results_by_state(self, project_id: int, state: str, active_link: bool = False) -> list[PullRequestResult]:
+        """Get the project's results in a state, only those whose link to the results repository is active if active_link"""
+        self.logger.info(f"Fetching {state} results of project {project_id}")
+        params = {"state": state, "active_link": "true"} if active_link else {"state": state}
+        response = self.session.get(f"/projects/{project_id}/results", params=params)
+        return [PullRequestResult(**result) for result in response.json()]
+
     def create_dataset(
         self,
         name: str,

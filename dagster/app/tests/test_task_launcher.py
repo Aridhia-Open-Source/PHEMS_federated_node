@@ -184,7 +184,7 @@ def test_the_stale_cause_is_cut_to_the_column_length():
     assert len(backend_api.patch_task.call_args.args[2]["state_cause"]) == 1024
 
 
-def test_an_error_for_one_task_fails_it_and_does_not_stop_the_others():
+def test_an_error_for_one_task_leaves_it_pending_and_does_not_stop_the_others():
     backend_api = make_backend([project()], {1: [task(id=9), task(id=10)]})
     backend_api.get_task_config.side_effect = lambda project_id, task_id: (
         (_ for _ in ()).throw(RuntimeError("backend down"))
@@ -194,14 +194,18 @@ def test_an_error_for_one_task_fails_it_and_does_not_stop_the_others():
     result = run(backend_api)
 
     assert [r.run_key for r in result] == ["task/10/1"]
-    backend_api.patch_task.assert_called_once_with(1, 9, {"status": "FAILED", "state_cause": "RuntimeError: backend down"})
+    backend_api.patch_task.assert_not_called()
 
 
-def test_a_failing_patch_after_an_error_is_logged_and_the_others_are_still_launched():
-    backend_api = make_backend([project()], {1: [task(id=9), task(id=10)]})
-    backend_api.get_project_dataset.side_effect = [RuntimeError("boom"), assignment()]
-    backend_api.patch_task.side_effect = RuntimeError("patch failed")
+def test_a_task_with_an_error_is_launched_by_a_later_tick_with_the_same_run_key():
+    backend_api = make_backend([project()], {1: [task()]})
+    backend_api.get_task_config.side_effect = [
+        RuntimeError("backend down"), {"current": True, "changes": [], "config_hash": None}
+    ]
 
-    result = run(backend_api)
+    first = run(backend_api)
+    second = run(backend_api)
 
-    assert [r.run_key for r in result] == ["task/10/1"]
+    assert len(first) == 1 and isinstance(first[0], SkipReason)
+    assert [r.run_key for r in second] == ["task/9/1"]
+    backend_api.patch_task.assert_not_called()

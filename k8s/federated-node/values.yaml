@@ -269,6 +269,11 @@ fnDagster:
     initialStatus: STOPPED
     # Minimum seconds between ticks of every Dagster sensor. Dev values use 2.
     minIntervalSeconds: 30
+    # Seconds a failed sensor run waits before its next try, when nothing it acts on changed.
+    retryIntervalSeconds: 60
+    # Failed delivery runs of one result after which the retry sensor gives up. It then stays
+    # FAILED until relaunched by hand.
+    deliveryMaxAttempts: 5
   webserver:
     # In-cluster URL the Federated Node API uses to reach the Dagster webserver's GraphQL
     # API. Leave empty to derive it from the release name and namespace

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import dagster as dg
 import pytest
 
-from app.definitions.sensors.git.pr_evaluate import IN_FLIGHT
+from app.definitions.sensors.base import IN_FLIGHT
 from app.definitions.sensors.git.pr_ingest import PullRequestIngestSensor
 from app.models import TriggerRepository
 from app.tests.conftest import SAMPLE_TRIGGER_REPOSITORY
@@ -49,7 +49,7 @@ def test_skips_when_there_are_no_repositories():
     results, _ = run([], {})
 
     assert len(results) == 1 and isinstance(results[0], dg.SkipReason)
-    assert "No pollable" in results[0].skip_message
+    assert "No new pull requests" in results[0].skip_message
 
 
 def test_only_polls_active_repositories_of_enabled_projects():
@@ -84,10 +84,17 @@ def test_the_run_is_tagged_as_an_ingest_and_not_a_task():
     assert results[0].tags == {"trigger": "ingest", "repo_id": "1"}
 
 
-def test_the_run_key_is_the_cursor_and_the_minute():
+def test_the_run_key_is_the_cursor_and_the_retry_slot():
     results, _ = run([repo(1, pr_cursor="2026-03-03T03:03:03Z")], {1: fake_git_api([7, 12, 9])})
 
-    assert re.fullmatch(r"ingest/1/2026-03-03T03:03:03Z/\d{12}", results[0].run_key)
+    assert re.fullmatch(r"ingest/1/2026-03-03T03:03:03Z/\d+", results[0].run_key)
+
+
+def test_a_new_cursor_gives_a_new_run_key():
+    old, _ = run([repo(1, pr_cursor="2026-03-03T03:03:03Z")], {1: fake_git_api([7])})
+    new, _ = run([repo(1, pr_cursor="2026-04-04T04:04:04Z")], {1: fake_git_api([7])})
+
+    assert old[0].run_key != new[0].run_key
 
 
 def test_a_repository_with_an_ingest_run_in_flight_is_skipped_without_checking_the_provider():
@@ -100,11 +107,14 @@ def test_a_repository_with_an_ingest_run_in_flight_is_skipped_without_checking_t
 
 
 def test_the_in_flight_check_filters_on_the_ingest_tags_and_statuses():
+    repository = repo(7)
     context = MagicMock()
     context.instance.get_runs.return_value = []
-    sensor = PullRequestIngestSensor(context=context, backend_api=MagicMock(), git_apis=MagicMock())
+    backend_api = MagicMock()
+    backend_api.get_pollable_trigger_repositories.return_value = [repository]
+    sensor = PullRequestIngestSensor(context=context, backend_api=backend_api, git_apis=MagicMock())
 
-    sensor._ingest_in_flight(repo(7))  # pylint: disable=protected-access
+    list(sensor())
 
     filters = context.instance.get_runs.call_args.kwargs["filters"]
     assert filters.job_name == "ingest_pull_requests_job"

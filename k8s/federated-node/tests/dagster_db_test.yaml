@@ -154,6 +154,42 @@ tests:
           path: data.DAGSTER_SENSORS_MIN_INTERVAL_SECONDS
           value: "2"
 
+  - it: passes the sensor retry interval to the code server, 60 by default
+    template: dagster-env-config.yaml
+    asserts:
+      - equal:
+          path: data.DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS
+          value: "60"
+
+  - it: passes a configured sensor retry interval to the code server
+    template: dagster-env-config.yaml
+    set:
+      fnDagster:
+        sensors:
+          retryIntervalSeconds: 5
+    asserts:
+      - equal:
+          path: data.DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS
+          value: "5"
+
+  - it: passes the delivery max attempts to the code server, 5 by default
+    template: dagster-env-config.yaml
+    asserts:
+      - equal:
+          path: data.DAGSTER_DELIVERY_MAX_ATTEMPTS
+          value: "5"
+
+  - it: passes a configured delivery max attempts to the code server
+    template: dagster-env-config.yaml
+    set:
+      fnDagster:
+        sensors:
+          deliveryMaxAttempts: 2
+    asserts:
+      - equal:
+          path: data.DAGSTER_DELIVERY_MAX_ATTEMPTS
+          value: "2"
+
   - it: rejects an initial sensor status other than STOPPED or RUNNING
     template: dagster-env-config.yaml
     set:

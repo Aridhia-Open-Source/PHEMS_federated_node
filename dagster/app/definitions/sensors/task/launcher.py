@@ -22,6 +22,10 @@ class TaskLauncherSensor(BaseSensor):
         The launcher patches nothing: the run-status sensors move the task on once Dagster
         has the run, and the run key (task id and attempt) de-duplicates the re-yield until
         then. A retry bumps the attempt, so it gets a new run key.
+
+        Only the rules fail a task (see _launch). An error while checking one, e.g. the config GET
+        failing, is logged and the task stays PENDING for the next tick: no run was created, so its
+        run key is unused. One bad task must not stop the others from launching.
         """
         launched = 0
         for project in self.backend_api.get_projects(enabled=True):
@@ -29,9 +33,7 @@ class TaskLauncherSensor(BaseSensor):
                 try:
                     run_request = self._launch(project, task)
                 except Exception as e:
-                    # One bad task must not stop the others from launching
-                    self.log.exception(f"Task {task.id} not launched: {e!r}")
-                    self._fail(project, task, f"{type(e).__name__}: {e}")
+                    self.log.exception(f"Task {task.id} not launched, retried on the next tick: {e!r}")
                     continue
                 if run_request is None:
                     continue
@@ -41,20 +43,11 @@ class TaskLauncherSensor(BaseSensor):
         if not launched:
             yield dg.SkipReason("No pending tasks found.")
 
-    def _fail(self, project: Project, task: Task, cause: str) -> None:
-        """Mark the task FAILED with the cause, best effort: a failing PATCH is logged and swallowed."""
-        try:
-            self.backend_api.patch_task(
-                project.id, task.id, {"status": TaskStatus.FAILED.value, "state_cause": cause[:MAX_CAUSE_LENGTH]}
-            )
-        except Exception as e:
-            self.log.exception(f"Task {task.id} could not be marked FAILED: {e!r}")
-
     def _launch(self, project: Project, task: Task) -> dg.RunRequest | None:
         """
-        The run for the task, or None when its dataset is not active in the project or its secret is
-        disabled: the task is failed with the cause recorded, and a manual retry launches it once the dataset is
-        active again.
+        The run for the task, or None when a rule fails it, with the cause recorded: its configuration
+        changed since it was created, its dataset is not active in the project, or the dataset's secret
+        is disabled. A manual retry launches it once the cause is gone. Any other error is raised.
         """
         config = self.backend_api.get_task_config(project.id, task.id)
         if not config["current"]:

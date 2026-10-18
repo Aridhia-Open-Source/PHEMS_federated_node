@@ -1,8 +1,9 @@
 """
 Delivery of one task's results to its project's results repository.
 
-task_results_delivery_sensor launches a delivery once per task attempt, so a failed delivery
-is not retried by itself: it is re-launched by hand, and resumes from where it stopped.
+task_results_delivery_sensor launches a delivery once per task attempt. A failed delivery is
+relaunched by results_delivery_retry_sensor up to DAGSTER_DELIVERY_MAX_ATTEMPTS attempts, then by
+hand, and resumes from where it stopped.
 results_pull_request_sync_sensor only heals a pull request opened but not recorded.
 """
 
@@ -27,6 +28,7 @@ METADATA_NAME = "metadata.json"
 SPEC_NAME = "spec.json"
 MAX_ERROR_LENGTH = 1000
 REVOKED_ERROR = "results repository access revoked"
+SWITCHED_OFF_ERROR = "results link switched off"
 # Past these the pull request is opened, so there is nothing left to deliver.
 PAST_PUSHED = {PullRequestResultStep.OPENED, PullRequestResultStep.MERGED, PullRequestResultStep.CLOSED}
 # REVOKED and STALE are final too, but nothing was delivered.
@@ -61,7 +63,7 @@ class ResultsDelivery:
         was created) is left alone, with a warning.
         A revoked assignment gives a result at the final step REVOKED, nothing is delivered and nothing is raised.
         A results repository assignment that is not active for another reason fails the result with an error and
-        raises nothing: it is delivered by a manual relaunch once the assignment is active again.
+        raises nothing: its error is "results link switched off", and the retry sensor delivers it once the assignment is active again.
         Any failure is recorded on the result as an error with one more attempt, its step
         left where it was and its state FAILED, and raised, so the Dagster run fails visibly.
         """
@@ -95,11 +97,11 @@ class ResultsDelivery:
             })
             return
         if not repository.active:
-            self.log.warning(f"Results of task {task.id} not delivered: {REVOKED_ERROR}")
+            self.log.warning(f"Results of task {task.id} not delivered: {SWITCHED_OFF_ERROR}")
             self.backend_api.patch_result(task.project_id, result.id, {
                 "state": ResultState.FAILED.value,
                 "attempts": result.attempts + 1,
-                "error": REVOKED_ERROR,
+                "error": SWITCHED_OFF_ERROR,
             })
             return
         if result.state == ResultState.FAILED:

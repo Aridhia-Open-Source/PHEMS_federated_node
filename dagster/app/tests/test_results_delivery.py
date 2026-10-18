@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import zipfile
 from unittest.mock import MagicMock, patch
@@ -9,11 +10,17 @@ import requests
 
 from app.config import ResultsDeliveryConfig
 from app.definitions.sensors.task import JOBS, SENSORS
-from app.definitions.sensors.task.delivery import deliver_results_job, task_results_delivery_sensor
+from app.definitions.sensors.task import delivery as delivery_sensors
+from app.definitions.sensors.task.delivery import (
+    ResultsDeliveryRetrySensor,
+    deliver_results_job,
+    results_delivery_retry_sensor,
+    task_results_delivery_sensor,
+)
 from app.delivery import git_push
 from app.delivery.results import ResultsDelivery
 from app.models import (
-    GitProvider, ProjectResultsRepository, PullRequestResult, ResultsRepository, Secret, Task, TaskTrigger,
+    GitProvider, Project, ProjectResultsRepository, PullRequestResult, ResultsRepository, Secret, Task, TaskTrigger,
     TriggerRepositoryRef,
 )
 from app.tests.conftest import SAMPLE_SECRET
@@ -234,7 +241,7 @@ def test_a_link_inactive_for_another_reason_fails_the_delivery_for_a_relaunch(ba
 
     deliver(backend_api, remote, artifacts)
 
-    assert patches(backend_api) == [{"state": "FAILED", "attempts": 1, "error": "results repository access revoked"}]
+    assert patches(backend_api) == [{"state": "FAILED", "attempts": 1, "error": "results link switched off"}]
 
 
 def test_the_pull_request_is_found_with_one_call(backend_api, remote, artifacts, git_apis):
@@ -426,3 +433,62 @@ def test_a_disabled_secret_fails_the_delivery_before_its_token_is_read(backend_a
 
     (fields,) = patches(backend_api)
     assert fields["state"] == "FAILED" and fields["error"].startswith("PermissionError")
+
+
+def retry_sensor(results, tasks=None, in_flight=False):
+    backend_api = MagicMock()
+    backend_api.get_projects.return_value = [Project(id=1, name="p")]
+    backend_api.get_results_by_state.return_value = results
+    backend_api.get_task.side_effect = lambda project_id, task_id: MagicMock(executor_run_id=f"run-{task_id}")
+    context = MagicMock()
+    context.instance.get_runs.return_value = [MagicMock()] if in_flight else []
+    return list(ResultsDeliveryRetrySensor(context=context, backend_api=backend_api)()), backend_api, context
+
+
+def test_the_retry_sensor_relaunches_a_failed_delivery_with_its_task_run():
+    requests_, backend_api, context = retry_sensor([result(state="FAILED", step="PUSHED", attempts=2)])
+
+    (request,) = requests_
+    assert re.fullmatch(r"deliver-retry/9/\d+", request.run_key)
+    assert request.tags == {"trigger": "delivery", "delivery_task_id": "7"}
+    assert request.run_config == {"ops": {"deliver_results": {"config": {
+        "project_id": 1, "task_id": 7, "run_id": "run-7"
+    }}}}
+    backend_api.get_results_by_state.assert_called_once_with(1, "FAILED", active_link=True)
+    backend_api.get_task.assert_called_once_with(1, 7)
+    assert context.instance.get_runs.call_args.kwargs["filters"].job_name == "deliver_results_job"
+
+
+@pytest.mark.parametrize("step", ["OPENED", "MERGED", "CLOSED", "REVOKED", "STALE"])
+def test_the_retry_sensor_ignores_final_steps(step):
+    (skip,), _, _ = retry_sensor([result(state="FAILED", step=step)])
+
+    assert isinstance(skip, dg.SkipReason)
+
+
+def test_the_retry_sensor_gives_up_at_the_max_attempts(monkeypatch):
+    monkeypatch.setattr(delivery_sensors, "DELIVERY_MAX_ATTEMPTS", 3)
+
+    (request,), _, _ = retry_sensor([result(state="FAILED", attempts=2)])
+    (skip,), _, _ = retry_sensor([result(state="FAILED", attempts=3)])
+
+    assert isinstance(request, dg.RunRequest) and isinstance(skip, dg.SkipReason)
+
+
+def test_the_retry_sensor_skips_a_delivery_in_flight():
+    (skip,), backend_api, _ = retry_sensor([result(state="FAILED")], in_flight=True)
+
+    assert isinstance(skip, dg.SkipReason)
+    backend_api.get_task.assert_not_called()
+
+
+def test_the_retry_run_key_does_not_change_with_the_attempts():
+    first, _, _ = retry_sensor([result(state="FAILED", attempts=1)])
+    second, _, _ = retry_sensor([result(state="FAILED", attempts=2)])
+
+    assert first[0].run_key == second[0].run_key
+
+
+def test_the_retry_sensor_is_registered_stopped_by_default():
+    assert results_delivery_retry_sensor.default_status == dg.DefaultSensorStatus.STOPPED
+    assert results_delivery_retry_sensor in SENSORS
