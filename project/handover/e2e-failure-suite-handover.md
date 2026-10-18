@@ -75,3 +75,7 @@ repositories do not collide. Next: an outage step, then retries.
 
 Terse answers, lead with the answer. Do not run anything unasked; never run tests in the cloud session unless told. Auth, audit and
 normal-user permissions are out of scope. Never `make teardown` the owner's dev cluster.
+
+## Task configuration pinning (branch `moonshot/task-config-pinning`, off this branch)
+
+A task stores a snapshot and hash of its results repository and dataset configuration at creation and fails (launch) or is published as `STALE` (delivery) if they change; locked and drained is now needed only for `enabled` flips and deletes. See ADR 0019, "A task is pinned to its configuration". Written by two sub agents, **nothing run**: migration `005_task_config_snapshot`, `webserver/app/helpers/task_config.py`, `GET /projects/<pid>/tasks/<id>/config`, the `STALE` step, the launcher gate (also isolates errors per task), many updated webserver tests. Check first on the laptop: the new migration, `tests/test_task_config.py`, the existing tests whose 409 expectations on edits changed, and that `normalise_dir('out')` is `'out'` (assumed by a test). Not updated: the Hypothesis rule set and the e2e failure suite do not exercise results or datasets, so they are unaffected; `fncli verify` would show a `STALE` result as a failed delivery.
