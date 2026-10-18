@@ -234,7 +234,7 @@
             "$ref": "#/components/responses/DatasetPost"
           }
         },
-        "description": "Admin only. Every project the dataset is linked to has to be locked and drained. project_id is rejected with a 400"
+        "description": "Admin only. Only a change of enabled needs every project the dataset is linked to locked and drained; any other edit applies at once, and the tasks created before are pinned to the old setup and fail instead of running against the new one. project_id is rejected with a 400"
       },
       "delete": {
         "operationId": "deleteDataset",
@@ -827,6 +827,79 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TaskTriggerObject"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/tasks/{task_id}/config": {
+      "get": {
+        "operationId": "get_task_config",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Whether the configuration a task was created under still holds",
+        "description": "A task is pinned to its results repository and target_dir and to its dataset as they were when it was created. current is false when any of them changed since, and changes lists what differs; such a task must not launch or publish. A task without a stored snapshot is current. 404 if the task is not in the project.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "task_id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "current": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "results.target_dir: 'results/' -> 'out/'"
+                      ]
+                    },
+                    "config_hash": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+                    }
+                  }
                 }
               }
             }
@@ -1743,7 +1816,7 @@
             "description": "The project is not locked, or has tasks in flight (their ids are in details)"
           }
         },
-        "description": "Setting only locked is always allowed. Any other change needs the project locked and drained: no task in flight, that is PENDING, QUEUED or RUNNING, SUCCESS with no result yet, or with a result IN_PROGRESS. While locked, evaluation and launch skip the project and API tasks are rejected with 409."
+        "description": "Setting only locked is always allowed. Changing enabled needs the project locked and drained: no task in flight, that is PENDING, QUEUED or RUNNING, SUCCESS with no result yet, or with a result IN_PROGRESS. While locked, evaluation and launch skip the project and API tasks are rejected with 409."
       },
       "delete": {
         "tags": [
@@ -2115,7 +2188,7 @@
         "tags": [
           "Tasks"
         ],
-        "summary": "Record the progress of a task's delivery. A pull request result's step only moves forward: UNKNOWN, PUSHED, OPENED, then MERGED, CLOSED or REVOKED, all terminal. A backward move is a 400",
+        "summary": "Record the progress of a task's delivery. A pull request result's step only moves forward: UNKNOWN, PUSHED, OPENED, then MERGED, CLOSED, REVOKED or STALE, all terminal. A backward move is a 400",
         "requestBody": {
           "required": true,
           "content": {
@@ -2185,7 +2258,8 @@
                   "OPENED",
                   "MERGED",
                   "CLOSED",
-                  "REVOKED"
+                  "REVOKED",
+                  "STALE"
                 ]
               }
             }
@@ -2221,7 +2295,7 @@
         "tags": [
           "Tasks"
         ],
-        "summary": "Create the delivery of a task's results to a results repository. If it exists already, it is returned",
+        "summary": "Create the delivery of a task's results to a results repository. If it exists already, it is returned. If the task's configuration changed since it was created, the new result is final: step STALE, state FAILED, nothing is delivered",
         "requestBody": {
           "required": true,
           "content": {
@@ -2234,7 +2308,7 @@
         },
         "responses": {
           "201": {
-            "description": "The new result",
+            "description": "The new result (step REVOKED or STALE, state FAILED, when the link was revoked or the task's configuration changed)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2796,7 +2870,7 @@
           "Results Repositories"
         ],
         "summary": "Edit a global results repository",
-        "description": "Every project it is linked to has to be locked and drained, except when only secret_label is sent (rotating the credentials). Admin only (can_do_admin scope).",
+        "description": "Only a change of enabled needs every project it is linked to locked and drained; any other edit (provider_id, secret_label) applies at once, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Admin only (can_do_admin scope).",
         "parameters": [
           {
             "in": "path",
@@ -3059,7 +3133,7 @@
           "Trigger Repositories"
         ],
         "summary": "Edit a global trigger repository",
-        "description": "Every project it is linked to has to be locked and drained, except when only secret_label is sent (rotating the credentials). Switching it back on moves every link's cursor to now: pull requests merged while it was off are stored but get no trigger. Admin only (can_do_admin scope).",
+        "description": "Only a change of enabled needs every project it is linked to locked and drained; any other edit (provider_id, secret_label) applies at once, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Switching it back on moves every link's cursor to now: pull requests merged while it was off are stored but get no trigger. Admin only (can_do_admin scope).",
         "parameters": [
           {
             "in": "path",
@@ -3399,7 +3473,7 @@
           "Project Links"
         ],
         "summary": "Link a global dataset to the project, or replace its settings",
-        "description": "Links the dataset, and the first one linked becomes the project's default. Needs no lock the first time. When it is linked already the project's settings are replaced (fields left out take their defaults), which needs the project locked and drained. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
+        "description": "Links the dataset, and the first one linked becomes the project's default. Needs no lock the first time. When it is linked already the project's settings are replaced (fields left out take their defaults), which needs the project locked and drained only if it turns the link on or off (enabled). revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -3726,7 +3800,7 @@
           "Project Links"
         ],
         "summary": "Link a global secret to the project, or replace its settings",
-        "description": "Links the secret, which needs no lock the first time. When it is linked already the project's settings are replaced (fields left out take their defaults), which needs the project locked and drained. revoked is not accepted: only PATCH sets it. Only the reference is linked, the values are never returned. Requires the can_admin_dataset scope.",
+        "description": "Links the secret, which needs no lock the first time. When it is linked already the project's settings are replaced (fields left out take their defaults), which needs the project locked and drained only if it turns the link on or off (enabled). revoked is not accepted: only PATCH sets it. Only the reference is linked, the values are never returned. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4054,7 +4128,7 @@
           "Project Links"
         ],
         "summary": "Link a global results repository to the project, or replace its settings",
-        "description": "A project has one. It changes where the project's tasks deliver, so the project has to be locked and drained. Fields left out take their defaults. Refused when it would make results land where a trigger watches. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
+        "description": "A project has one. Linking needs the project locked and drained. When it is linked already the settings are replaced, which needs it only if it turns the link on or off (enabled): a change of target_dir applies at once, and the tasks created before fail instead of delivering to the new place. Fields left out take their defaults. Refused when it would make results land where a trigger watches. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4128,7 +4202,7 @@
           "Project Links"
         ],
         "summary": "Edit a results repository link",
-        "description": "target_dir, owned_by_federated_node and enabled need the project locked and drained. revoked is admin only and takes effect at once. A revoked link makes delivery fail with 'results repository access revoked'. Requires the can_admin_dataset scope.",
+        "description": "Only enabled needs the project locked and drained; target_dir and owned_by_federated_node apply at once, and the tasks created before fail instead of delivering to the new place. revoked is admin only and takes effect at once. A revoked link makes delivery fail with 'results repository access revoked'. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4381,7 +4455,7 @@
           "Project Links"
         ],
         "summary": "Link a global trigger repository to the project, or replace its settings",
-        "description": "A new watcher does not touch work in flight, so the first time needs no lock. The link's cursor starts after the latest pull request stored for the repository, or at the link's creation when there is none. For an active link, the stored pull requests after it are backfilled into triggers. When it is linked already the project's settings are replaced (fields left out take their defaults, the cursor stays), which needs the project locked and drained. Refused when it would watch where results land. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
+        "description": "A new watcher does not touch work in flight, so the first time needs no lock. The link's cursor starts after the latest pull request stored for the repository, or at the link's creation when there is none. For an active link, the stored pull requests after it are backfilled into triggers. When it is linked already the project's settings are replaced (fields left out take their defaults, the cursor stays), which needs the project locked and drained only if it turns the link on or off (enabled): a change of watch_dir or base_branch applies at once. Refused when it would watch where results land. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4455,7 +4529,7 @@
           "Project Links"
         ],
         "summary": "Edit a trigger repository link",
-        "description": "watch_dir, base_branch and enabled need the project locked and drained. revoked is admin only and takes effect at once. Enabling or un-revoking backfills triggers; a watch_dir or base_branch change does not. Requires the can_admin_dataset scope.",
+        "description": "Only enabled needs the project locked and drained; watch_dir and base_branch apply at once. revoked is admin only and takes effect at once. Enabling or un-revoking backfills triggers; a watch_dir or base_branch change does not. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -5047,7 +5121,7 @@
           "Git Providers"
         ],
         "summary": "Edit a global git provider",
-        "description": "Every project linked to a repository on it has to be locked and drained, except when only name is sent. Switching it back on moves the cursor of every link to its trigger repositories to now: pull requests merged while it was off are stored but get no trigger. Admin only (can_do_admin scope).",
+        "description": "Only a change of enabled needs every project linked to a repository on it locked and drained; any other edit (name, type, uri, api_uri) applies at once, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Switching it back on moves the cursor of every link to its trigger repositories to now: pull requests merged while it was off are stored but get no trigger. Admin only (can_do_admin scope).",
         "parameters": [
           {
             "in": "path",
@@ -6417,6 +6491,12 @@
             "type": "string",
             "nullable": true,
             "example": "2026-01-01 10:30:00"
+          },
+          "config_hash": {
+            "type": "string",
+            "nullable": true,
+            "description": "sha256 of the configuration snapshot the task was created under, see GET .../config",
+            "example": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
           }
         }
       },
@@ -6656,7 +6736,7 @@
           },
           "locked": {
             "type": "boolean",
-            "description": "While locked, evaluation and launch skip the project and API tasks are rejected. Ingest still stores pull requests for it. Its configuration changes only once locked and drained",
+            "description": "While locked, evaluation and launch skip the project and API tasks are rejected. Ingest still stores pull requests for it. Turning the project or one of its links on or off, and deleting anything under it, needs it locked and drained; other configuration changes apply at once",
             "example": false
           }
         }
@@ -6962,7 +7042,8 @@
               "OPENED",
               "MERGED",
               "CLOSED",
-              "REVOKED"
+              "REVOKED",
+              "STALE"
             ],
             "example": "UNKNOWN",
             "description": "Type PR only. The furthest delivery step reached, forward only"
@@ -7034,7 +7115,8 @@
               "OPENED",
               "MERGED",
               "CLOSED",
-              "REVOKED"
+              "REVOKED",
+              "STALE"
             ],
             "example": "PUSHED"
           },
@@ -7552,7 +7634,7 @@
       },
       "ProjectResultsRepositoryPatchBody": {
         "type": "object",
-        "description": "Any of the fields. revoked is admin only and needs no drain, the others need the project locked and drained",
+        "description": "Any of the fields. revoked is admin only and needs no drain, enabled needs the project locked and drained, the others apply at once",
         "properties": {
           "target_dir": {
             "type": "string",
@@ -7627,7 +7709,7 @@
       },
       "ProjectTriggerRepositoryPatchBody": {
         "type": "object",
-        "description": "Any of the fields. revoked is admin only and needs no drain, the others need the project locked and drained.",
+        "description": "Any of the fields. revoked is admin only and needs no drain, enabled needs the project locked and drained, the others apply at once.",
         "properties": {
           "watch_dir": {
             "type": "string",

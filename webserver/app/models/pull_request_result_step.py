@@ -6,7 +6,7 @@ from enum import Enum
 class PullRequestResultStep(str, Enum):
     """
     The furthest step the delivery of a task's results by pull request has reached. It only
-    moves forward: UNKNOWN < PUSHED < OPENED < MERGED, CLOSED or REVOKED, the last three
+    moves forward: UNKNOWN < PUSHED < OPENED < MERGED, CLOSED, REVOKED or STALE, the last four
     terminal and of equal rank.
 
     - UNKNOWN: the result is recorded, nothing is delivered yet.
@@ -16,6 +16,7 @@ class PullRequestResultStep(str, Enum):
     - CLOSED: the pull request is closed without merging, as the sync sensor finds on the provider.
     - REVOKED: the project's link to the results repository was revoked, so the results are never delivered. Final:
       un-revoking the link does not deliver them.
+    - STALE: the task's configuration changed after it was created, so nothing is delivered. Final.
     """
 
     UNKNOWN = "UNKNOWN"
@@ -24,6 +25,7 @@ class PullRequestResultStep(str, Enum):
     MERGED = "MERGED"
     CLOSED = "CLOSED"
     REVOKED = "REVOKED"
+    STALE = "STALE"
 
     def __str__(self):
         return self.value

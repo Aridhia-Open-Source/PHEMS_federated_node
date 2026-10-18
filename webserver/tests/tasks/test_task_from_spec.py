@@ -131,6 +131,16 @@ class TestPostTasks:
         assert json.loads(api_request.spec_raw) == task_body
         assert response.json.keys().isdisjoint({"spec_raw", "payload"})
 
+    def test_task_is_pinned_to_its_configuration(
+            self, client, cr_client, registry_client, post_json_admin_header, task_body, project, dataset
+        ):
+        response = self.post(client, post_json_admin_header, project, task_body)
+        assert response.status_code == 201, response.json
+        task = Task.query.one()
+        assert task.config_snapshot["version"] == 1 and task.config_snapshot["results"] is None
+        assert task.config_snapshot["dataset"]["name"] == dataset.name
+        assert task.config_hash and len(task.config_hash) == 64
+
     def test_response_of_the_task_has_its_spec_and_not_the_raw_body(
             self, client, cr_client, registry_client, post_json_admin_header, task_body, project, dataset
         ):

@@ -12,6 +12,7 @@ tasks-related endpoints, under the project that owns the tasks. A task of anothe
 - POST /projects/<project_id>/tasks/<task_id>/results/block
 - GET /projects/<project_id>/tasks/<task_id>/logs
 - GET /projects/<project_id>/tasks/<task_id>/trigger (the pull request that yielded the task, 404 if none)
+- GET /projects/<project_id>/tasks/<task_id>/config (whether the configuration the task was created under still holds)
 """
 from datetime import datetime as dt
 from http import HTTPStatus
@@ -26,6 +27,7 @@ from app.helpers.exceptions import (
 )
 from app.helpers.keycloak import Keycloak
 from app.helpers.query_filters import arg_get
+from app.helpers.task_config import config_changes
 from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.wrappers import audit, auth
 from app.dtos.task import NewTaskDTO, TaskDTO
@@ -307,6 +309,21 @@ def get_task_trigger(project_id, task_id):
     if not isinstance(task.trigger, PullRequestTrigger):
         raise DBRecordNotFoundError(f"Task with id {task_id} has no pull request trigger")
     return TaskTriggerDTO.from_model(task.trigger).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:task_id>/config', methods=['GET'])
+@audit
+@auth(scope='can_exec_task')
+def get_task_config(project_id, task_id):
+    """
+    GET /projects/<project_id>/tasks/id/config endpoint. Whether the configuration the task was created
+    under (its results repository and target_dir, its dataset) is still the current one. If not, the task
+    must not launch or publish, and changes lists what differs. A task without a stored snapshot is current.
+    """
+    task = get_project_task(project_id, task_id)
+    does_user_own_task(task)
+    changes = config_changes(task)
+    return {"current": not changes, "changes": changes, "config_hash": task.config_hash}, HTTPStatus.OK
 
 
 @bp.route('/<int:task_id>/results', methods=['GET'])
