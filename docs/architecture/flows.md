@@ -73,7 +73,7 @@ sequenceDiagram
     Dev->>CLI: open-pr --merge
     CLI->>Git: branch, commit spec file, PR, merge
 
-    loop every 10 s while sensors run
+    loop every sensor interval (30 s by default, 2 s in dev) while sensors run
         DG->>BE: list the pollable trigger repositories
         DG->>K8s: read each repository's token
         DG->>Git: list closed pulls since the repository cursor, once per repository
@@ -155,7 +155,7 @@ The run pod (not the daemon) delivers results because it mounts the artifacts vo
 
 ## Sensor and job inventory
 
-All sensors have `default_status=STOPPED` and a 10 s minimum interval.
+All sensors have `default_status=STOPPED` and one minimum interval (`fnDagster.sensors.minIntervalSeconds`: 30 s by default, 2 s in the dev values), see [0027](../../project/decisions/0027-dagster-pipeline-ops-sensors-and-retries.md).
 
 | Name | Kind | Watches / reads | Launches or writes | Defined in |
 |---|---|---|---|---|
