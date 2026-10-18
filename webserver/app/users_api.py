@@ -1,8 +1,8 @@
 """
 user-related endpoints:
-- GET /users
-- POST /users
-- PUT /users/reset-password
+- GET /global/users
+- POST /global/users
+- PUT /global/users/reset-password
 """
 from http import HTTPStatus
 
@@ -13,7 +13,7 @@ from app.helpers.exceptions import InvalidRequest
 from app.helpers.keycloak import KEYCLOAK_ADMIN, KEYCLOAK_SERVICE_USER, Keycloak
 from app.helpers.wrappers import audit, auth
 
-bp = Blueprint('users', __name__, url_prefix='/users')
+bp = Blueprint('users', __name__, url_prefix='/global/users')
 
 
 @bp.route('/', methods=['POST'])
@@ -22,7 +22,7 @@ bp = Blueprint('users', __name__, url_prefix='/users')
 @auth(scope='can_do_admin')
 def create_user():
     """
-    POST /users endpoint. Creates a KC user, and sets a temp
+    POST /global/users endpoint. Creates a KC user, and sets a temp
         password for them.
     """
     if not request.is_json:
@@ -46,14 +46,14 @@ def create_user():
         "username": user_info["username"],
         "tempPassword": user_info["password"],
         "info": "The user should change the temp password at " \
-            f"https://{PUBLIC_URL}/users/reset-password"
+            f"https://{PUBLIC_URL}/global/users/reset-password"
     }, HTTPStatus.CREATED
 
 
 @bp.route('reset-password', methods=['PUT'])
 def reset_password():
     """
-    POST /users/reset-password endpoint. Interface to keycloak
+    POST /global/users/reset-password endpoint. Interface to keycloak
         API, so we can change the credentials and make sure
         there are no pending action to undertake
     """
@@ -73,7 +73,7 @@ def reset_password():
 @auth(scope='can_do_admin')
 def get_users_list():
     """
-    GET /users/ endpoint. This is a simplified version
+    GET /global/users/ endpoint. This is a simplified version
     of what keycloak returns as a user list.
     """
     kc = Keycloak()

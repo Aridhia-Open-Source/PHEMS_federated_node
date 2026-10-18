@@ -1,15 +1,17 @@
 """
 Secret endpoints. The values only ever go to the secret store; the database keeps a
-reference so that repositories can share a secret. A secret belongs to a project and is
-addressed by its label within it:
-- GET /projects/<project_id>/secrets
-- GET /projects/<project_id>/secrets/<label>
-- POST /projects/<project_id>/secrets
-- PATCH /projects/<project_id>/secrets/<label>
-- DELETE /projects/<project_id>/secrets/<label>
+reference so that repositories and datasets can share a secret. A secret belongs to no
+project and is addressed by its label, which is unique. A project is linked to one under
+/projects/<id>/secrets (see projects_api.py). Creating and deleting are admin-only:
+- GET /global/secrets
+- GET /global/secrets/<label>
+- POST /global/secrets
+- PATCH /global/secrets/<label>
+- DELETE /global/secrets/<label>
+- POST /global/secrets/<label>/revoke
+- GET /global/secrets/<label>/healthcheck, see healthcheck_api.py
 """
 import logging
-import re
 from datetime import datetime as dt
 from http import HTTPStatus
 
@@ -21,17 +23,17 @@ from app.helpers.base_model import db
 from app.helpers.const import DEFAULT_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
+from app.helpers.kubernetes_names import validate_secret_key
+from app.helpers.revoke import revoke_links
 from app.helpers.wrappers import audit, auth
-from app.models.project import Project
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 
 logger = logging.getLogger('secrets_api')
-bp = Blueprint('secrets', __name__, url_prefix='/projects/<int:project_id>/secrets')
+bp = Blueprint('secrets', __name__, url_prefix='/global/secrets')
 session = db.session
 
 SECRET_LABELS = {"type": "k8s_secret"}
-SECRET_KEY = re.compile(r'[-._a-zA-Z0-9]+')
 
 
 @bp.before_request
@@ -40,13 +42,13 @@ def auth_before():
     """Ensure the user is authenticated."""
 
 
+
 def _get_values(body: dict) -> dict[str, str]:
     values = body.get('values')
     if not isinstance(values, dict) or not values:
         raise InvalidRequest("values is required and must be a non-empty object")
     for key, value in values.items():
-        if not SECRET_KEY.fullmatch(key):
-            raise InvalidRequest(f"Invalid key {key!r}: use letters, digits, '-', '_' or '.'")
+        validate_secret_key(key, f"Key {key!r}")
         if not isinstance(value, str) or not value:
             raise InvalidRequest(f"The value for {key} must be a non-empty string")
     # create_secret encodes the values in place, so it gets a copy
@@ -67,6 +69,16 @@ class K8sSecretProvider:
             labels=SECRET_LABELS,
             overwrite=True,
         )
+
+    def keys(self, key: str, namespace: str) -> list[str] | None:
+        """The names of the keys the secret holds, or None if it is not in the store."""
+        try:
+            secret = KubernetesClient().read_namespaced_secret(key, namespace)
+        except ApiException as apie:
+            if apie.status != 404:
+                raise
+            return None
+        return list(secret.data or {})
 
     def delete(self, key: str, namespace: str):
         try:
@@ -92,70 +104,70 @@ class SecretProvider:
     def set(self, key: str, namespace: str, values: dict[str, str]):
         self.provider.set(key, namespace, values)
 
+    def keys(self, key: str, namespace: str) -> list[str] | None:
+        return self.provider.keys(key, namespace)
+
     def delete(self, key: str, namespace: str):
         self.provider.delete(key, namespace)
 
 
-def _get_secret(project_id: int, label: str) -> Secret:
-    Project.get_by_id(project_id)
-    secret = Secret.query.filter(Secret.project_id == project_id, Secret.label == label).one_or_none()
+def _get_secret(label: str) -> Secret:
+    secret = Secret.query.filter(Secret.label == label).one_or_none()
     if not secret:
-        raise DBRecordNotFoundError(f"Secret {label} does not exist in project {project_id}")
+        raise DBRecordNotFoundError(f"Secret {label} does not exist")
     return secret
 
 
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
-def get_secrets(project_id):
+def get_secrets():
     """
-    GET /projects/<project_id>/secrets — list the project's secrets.
-    The values are never returned.
+    GET /global/secrets — list the secrets. The values are never returned.
     """
-    Project.get_by_id(project_id)
-    secrets = Secret.query.filter(Secret.project_id == project_id).all()
-    return [SecretDTO.from_model(s).dump() for s in secrets], HTTPStatus.OK
+    return [SecretDTO.from_model(s).dump() for s in Secret.query.order_by(Secret.id)], HTTPStatus.OK
 
 
 @bp.route('/<label>', methods=['GET'])
-def get_secret(project_id, label):
+def get_secret(label):
     """
-    GET /projects/<project_id>/secrets/<label> — get a single secret.
-    The values are never returned.
+    GET /global/secrets/<label> — get a single secret. The values are never returned.
     """
-    return SecretDTO.from_model(_get_secret(project_id, label)).dump(), HTTPStatus.OK
+    return SecretDTO.from_model(_get_secret(label)).dump(), HTTPStatus.OK
 
 
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
 @audit
-def post_secret(project_id):
+@auth(scope='can_do_admin')
+def post_secret():
     """
-    POST /projects/<project_id>/secrets — create the secret in its store and the reference
-    to it. The label is the project-local name; the secret is stored under the generated
-    key "<project_id>-<label>", which is fixed from then on.
-    Body: {"label": "...", "description": "...", "provider": "K8S", "values": {"KEY": "value", ...}}
-    The description is optional.
+    POST /global/secrets — create the secret in its store and the reference to it. The label is
+    unique across the node; the secret is stored under the generated key
+    "fn-secret-<label>", which is fixed from then on. Admin only.
+    Body: {"label": "...", "description": "...", "provider": "K8S", "values": {"KEY": "value", ...}, "enabled": true}
+    The description and enabled are optional.
     """
     body = request.json or {}
-    if not body.get('label'):
-        raise InvalidRequest("label is required")
+    if not isinstance(body.get('enabled', True), bool):
+        raise InvalidRequest("enabled must be a boolean")
+    if not body.get('label') or not isinstance(body['label'], str):
+        raise InvalidRequest("label is required and must be a string")
     try:
         provider = SecretProviderType(body.get('provider'))
     except ValueError:
         raise InvalidRequest(f"provider must be one of {[t.value for t in SecretProviderType]}")
     values = _get_values(body)
 
-    Project.get_by_id(project_id)
-    if Secret.query.filter(Secret.project_id == project_id, Secret.label == body['label']).one_or_none():
+    if Secret.query.filter(Secret.label == body['label']).one_or_none():
         raise InvalidRequest(f"Secret {body['label']} already exists", code=HTTPStatus.CONFLICT)
 
     try:
         secret = Secret(
-            project_id=project_id,
             label=body['label'],
             provider=provider,
             description=body.get('description'),
             namespace=SecretProvider(provider).namespace,
+            enabled=body.get('enabled', True),
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
@@ -170,35 +182,59 @@ def post_secret(project_id):
 
 @bp.route('/<label>', methods=['PATCH'])
 @audit
-def patch_secret(project_id, label):
+def patch_secret(label):
     """
-    PATCH /projects/<project_id>/secrets/<label> — set keys on the stored secret, e.g. to
-    rotate a token. Every repository that references it picks the new values up.
-    Body: {"values": {"KEY": "value", ...}}
+    PATCH /global/secrets/<label> — set keys on the stored secret, e.g. to rotate a token, and/or turn
+    it on or off (enabled). Every repository and dataset that references it, in any project, picks
+    the new values up. Neither needs the project lock.
+    Body: {"values": {"KEY": "value", ...}, "enabled": true}, any of them.
     """
-    secret = _get_secret(project_id, label)
-    values = _get_values(request.json or {})
+    secret = _get_secret(label)
+    body = request.json or {}
+    unknown = set(body) - {"values", "enabled"}
+    if unknown and ("values" in body or "enabled" in body):
+        raise InvalidRequest(f"Unknown fields: {', '.join(sorted(unknown))}")
+    if "enabled" in body:
+        if not isinstance(body["enabled"], bool):
+            raise InvalidRequest("enabled must be a boolean")
+        secret.enabled = body["enabled"]
 
-    # Written to the provider's current namespace, which the row then records. If that has
-    # changed since the secret was created, only these values move: the old copy and any
-    # keys not in this request are left behind, so a namespace move means re-creating it.
-    store = SecretProvider(secret.provider)
-    store.set(secret.key, store.namespace, values)
-    secret.namespace = store.namespace
+    if "values" in body or "enabled" not in body:
+        values = _get_values(body)
+        # Written to the provider's current namespace, which the row then records. If that has
+        # changed since the secret was created, only these values move: the old copy and any
+        # keys not in this request are left behind, so a namespace move means re-creating it.
+        store = SecretProvider(secret.provider)
+        store.set(secret.key, store.namespace, values)
+        secret.namespace = store.namespace
     secret.updated_at = dt.now()
     session.commit()
 
     return SecretDTO.from_model(secret).dump(), HTTPStatus.OK
 
 
+@bp.route('/<label>/revoke', methods=['POST'])
+@audit
+@auth(scope='can_do_admin')
+def revoke_secret(label):
+    """
+    POST /global/secrets/<label>/revoke — revokes every project's link to the secret at once,
+    admin only, needing no lock. Returns the ids of the links. Un-revoking is per link.
+    """
+    secret = _get_secret(label)
+    return revoke_links(secret.project_assignments), HTTPStatus.OK
+
+
 @bp.route('/<label>', methods=['DELETE'])
 @audit
-def delete_secret(project_id, label):
+@auth(scope='can_do_admin')
+def delete_secret(label):
     """
-    DELETE /projects/<project_id>/secrets/<label> — delete the reference and the stored
-    secret. Refused while a repository or dataset still uses it.
+    DELETE /global/secrets/<label> — soft delete the reference and revoke and delete its project
+    links, and delete the stored secret. Admin only. Refused with a 409 while a repository or
+    dataset still uses it.
     """
-    secret = _get_secret(project_id, label)
+    secret = _get_secret(label)
     users = len(secret.trigger_repositories) + len(secret.results_repositories) + len(secret.datasets)
     if users:
         raise InvalidRequest(
@@ -208,11 +244,9 @@ def delete_secret(project_id, label):
 
     # Staged, not committed: if the store delete fails the row has to come back, and a
     # rollback after a commit is a no-op.
-    try:
-        secret.delete(False)
-    except Exception as exc:
-        session.rollback()
-        raise InvalidRequest("Error while deleting the record") from exc
+    for assignment in secret.project_assignments:
+        assignment.soft_delete()
+    secret.soft_delete()
 
     try:
         SecretProvider(secret.provider).delete(secret.key, secret.namespace)

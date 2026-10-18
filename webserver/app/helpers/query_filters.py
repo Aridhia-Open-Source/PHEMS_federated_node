@@ -1,4 +1,6 @@
 import re
+from flask import request
+
 from app.helpers.base_model import Base
 from app.helpers.exceptions import InvalidRequest
 
@@ -11,6 +13,18 @@ FILTERS = [
     'lte',
     'gte',
 ]
+
+
+def arg_get(name: str, default=None, type=str):  # pylint: disable=redefined-builtin  # mirrors request.args.get
+    """A query parameter converted with type; 400 if it doesn't convert, where request.args.get
+    silently falls back to the default."""
+    value = request.args.get(name)
+    if value is None:
+        return default
+    try:
+        return type(value)
+    except ValueError as ve:
+        raise InvalidRequest(f"{name} should be a valid {type.__name__}") from ve
 
 
 def parse_query_params(model: Base, query_params: dict): # type: ignore
@@ -64,5 +78,5 @@ def parse_query_params(model: Base, query_params: dict): # type: ignore
             # We are in the = case
             current_query = current_query.filter(getattr(model, field) == qp_v)
 
-    return current_query.paginate(page=page, per_page=per_page)
+    return current_query.paginate(page=page, per_page=per_page, error_out=False)
 

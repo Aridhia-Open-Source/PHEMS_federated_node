@@ -29,22 +29,31 @@ export PUBLIC_URL=localhost:5000
 is_ci=$1
 pytest_args="${2:-.}"
 
-echo "Starting docker compose"
+# Each run gets its own compose project (containers, network, volumes) so parallel runs
+# don't collide.
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-fn-test-$(uuidgen | cut -c1-8)}"
+container="${COMPOSE_PROJECT_NAME}-app"
+
+cleanup() {
+    echo "Cleaning up compose resources"
+    docker rm -f "$container" > /dev/null 2>&1 || true
+    docker compose -f docker-compose-tests-ci.yaml -f docker-compose-tests.yaml down --volumes
+}
+trap cleanup EXIT
+
+echo "Starting docker compose (project $COMPOSE_PROJECT_NAME)"
 if [[ "$is_ci" != "ci" ]]; then
-    docker compose -f docker-compose-tests-ci.yaml -f docker-compose-tests.yaml run --build --name flask-app-test --entrypoint pytest app -x -v $pytest_args
-    docker cp flask-app-test:/app/artifacts/coverage.xml ../artifacts/ 2>/dev/null || true
-    docker rm flask-app-test
+    docker compose -f docker-compose-tests-ci.yaml -f docker-compose-tests.yaml run --build --name "$container" --entrypoint pytest app -x -v $pytest_args
+    exit_code=$?
+    docker cp "$container":/app/artifacts/coverage.xml ../artifacts/ 2>/dev/null || true
+    exit $exit_code
 else
-    docker rm -f flask-app-test > /dev/null 2>&1 || true
-    docker compose -f docker-compose-tests-ci.yaml run --build --quiet-pull --name flask-app-test --entrypoint pytest app -v $pytest_args
+    docker compose -f docker-compose-tests-ci.yaml run --build --quiet-pull --name "$container" --entrypoint pytest app -v $pytest_args
     exit_code=$?
     if [[ $exit_code -gt 0 ]]; then
         echo "Something went wrong. Here are some logs"
         docker compose -f docker-compose-tests-ci.yaml logs app
     fi
-    docker cp flask-app-test:/app/artifacts/coverage.xml ../artifacts/ 2>/dev/null || true
-    echo "Cleaning up compose resources"
-    docker rm flask-app-test
-    docker compose -f docker-compose-tests-ci.yaml down --volumes
+    docker cp "$container":/app/artifacts/coverage.xml ../artifacts/ 2>/dev/null || true
     exit $exit_code
 fi

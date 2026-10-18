@@ -1,41 +1,37 @@
 """
-trigger repository endpoints (used by dagster for polling state):
-- GET /trigger_repositories
-- GET /trigger_repositories/<id>
-- POST /trigger_repositories
-- PATCH /trigger_repositories/<id>
-- DELETE /trigger_repositories/<id>
-- POST /trigger_repositories/pull_requests
-- POST /trigger_repositories/<repo_id>/pull_requests/batch
-- GET /trigger_repositories/<repo_id>/pull_requests
-- GET /trigger_repositories/<repo_id>/pull_requests/<number>
-- PATCH /trigger_repositories/<repo_id>/pull_requests/<number>
-- POST /trigger_repositories/<repo_id>/pull_requests/<number>/task
+trigger repository endpoints, global: a project is linked to one under
+/projects/<id>/repositories/triggers (see project_trigger_repositories_api.py). Create, edit and delete are admin
+only. Deleting one is a soft delete, refused with a 409 naming the projects it is linked to unless ?force=true; no edit needs a lock. A secret_label naming a disabled secret is a 400 on POST and PATCH.
+- GET /global/repositories/triggers
+- GET /global/repositories/triggers/<id>
+- POST /global/repositories/triggers
+- PATCH /global/repositories/triggers/<id>
+- DELETE /global/repositories/triggers/<id>
+- POST /global/repositories/triggers/<id>/revoke
+- GET /global/repositories/triggers/<id>/pull_requests
+- POST /global/repositories/triggers/<id>/pull_requests
+- GET /global/repositories/triggers/<id>/healthcheck, see healthcheck_api.py
 """
 from http import HTTPStatus
 
 from flask import Blueprint, request
-from sqlalchemy.exc import IntegrityError
 
-from app.dtos.repository_uri import RepositoryUriRequest
-from app.dtos.task import NewTaskDTO, TaskDTO
-from app.dtos.trigger_repository import PullRequestTriggerDTO, TriggerRepositoryDTO
+from app.dtos.base import page_of
+from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
+from app.dtos.trigger_repository import PullRequestDTO, PullRequestRequest, TriggerRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
-from app.dtos.task_spec import TaskSpec
-from app.helpers.repository_loop import check_no_loop, normalise_dir
-from app.helpers.wrappers import auth
+from app.helpers.query_filters import arg_get
+from app.helpers.pull_request_fanout import ingest_pull_requests, skip_gap
+from app.helpers.revoke import revoke_links
+from app.helpers.soft_delete import delete_global
+from app.helpers.wrappers import audit, auth
 from app.models.git_provider import GitProvider
-from app.models.secret import Secret
-from app.models.project import Project
-from app.models.pull_request_trigger import PullRequestTrigger
-from app.models.task import Task
+from app.models.pull_request import PullRequest
 from app.models.trigger_repository import TriggerRepository
-from app.models.trigger_state import TriggerState
+from app.models.secret import Secret
 
-# TODO: the pull_requests routes below are called by Dagster only. No user or admin is
-# expected to touch them, so they should be restricted to internal callers.
-bp = Blueprint('trigger_repositories', __name__, url_prefix='/trigger_repositories')
+bp = Blueprint('trigger_repositories', __name__, url_prefix='/global/repositories/triggers')
 session = db.session
 
 
@@ -49,340 +45,170 @@ def auth_before():
 @bp.route('', methods=['GET'])
 def get_repositories():
     """
-    GET /trigger_repositories/ — list all repositories with their polling state,
-    optionally only those of enabled projects (?project_enabled=true)
+    GET /global/repositories/triggers/ — list the repositories. With ?pollable=true only the enabled
+    repositories on an enabled provider with an enabled secret, whatever their project links: that is
+    what Dagster polls.
     """
     query = TriggerRepository.query
-    if request.args.get('project_enabled', '').lower() == 'true':
-        query = query.join(Project, TriggerRepository.project_id == Project.id).filter(Project.enabled.is_(True))
-    return [TriggerRepositoryDTO.from_model(r).dump() for r in query.all()], HTTPStatus.OK
+    if request.args.get('pollable', '').lower() == 'true':
+        query = query.filter(
+            TriggerRepository.enabled.is_(True),
+            TriggerRepository.provider.has(GitProvider.enabled.is_(True)),
+            TriggerRepository.secret.has(Secret.enabled.is_(True)),
+        )
+    return [TriggerRepositoryDTO.from_model(r).dump() for r in query.order_by(TriggerRepository.id)], HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['GET'])
 def get_repository(repo_id):
     """
-    GET /trigger_repositories/<id> — get a single repository
+    GET /global/repositories/triggers/<id> — get a single repository
     """
     repo = TriggerRepository.get_by_id(repo_id)
     return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK
 
 
-@bp.route('/<int:repo_id>', methods=['DELETE'])
-def delete_repository(repo_id):
+@bp.route('/<int:repo_id>/pull_requests', methods=['GET'])
+def get_pull_requests(repo_id):
     """
-    DELETE /trigger_repositories/<id> — delete a single repository
+    GET /global/repositories/triggers/<id>/pull_requests — the provider's facts of the pull requests
+    stored for the repository, most recent merge first.
+    Query params: page (default 1), per_page (default 20), both clamped to at least 1.
+    Responds with page, per_page, total, pages and items.
+    """
+    TriggerRepository.get_by_id(repo_id)
+    page = max(arg_get('page', 1, type=int), 1)
+    per_page = max(arg_get('per_page', 20, type=int), 1)
+    paginated = PullRequest.query.filter_by(trigger_repository_id=repo_id)\
+        .order_by(PullRequest.merged_at.desc(), PullRequest.number.desc())\
+        .paginate(page=page, per_page=per_page, error_out=False)
+    return page_of(paginated, PullRequestDTO), HTTPStatus.OK
+
+
+# TODO: called by Dagster only, like the per-project pull request routes
+@bp.route('/<int:repo_id>/pull_requests', methods=['POST'])
+def post_pull_requests_batch(repo_id):
+    """
+    POST /global/repositories/triggers/<id>/pull_requests — store up to 100 pull requests of the
+    repository and create their triggers for every active assignment. Idempotent: a number
+    already stored is left as it is. Refused for a disabled repository, which stores nothing.
+    Responds with the numbers stored and those already there.
+    Body: {"pull_requests": [pull requests, see PullRequestRequest]}
     """
     repo = TriggerRepository.get_by_id(repo_id)
-    repo.delete()
+    if not repo.active:
+        raise InvalidRequest(f"Trigger repository {repo.uri} is disabled")
+    body = (request.json or {}).get('pull_requests')
+    if not isinstance(body, list):
+        raise InvalidRequest("pull_requests must be a list of pull requests")
+    # Claude (issue 1): the cap is fine; the Dagster ingest sensor must chunk its posts.
+    # One invalid PR (PullRequestRequest.parse) also refuses the whole batch.
+    if len(body) > 100:
+        raise InvalidRequest("Maximum 100 pull requests per batch")
+
+    created, existing = ingest_pull_requests(repo.id, [PullRequestRequest.parse(pr) for pr in body])
+    session.commit()
+    return {
+        'created': [pr.number for pr in created],
+        'existing': [pr.number for pr in existing],
+    }, HTTPStatus.CREATED
+
+
+@bp.route('/<int:repo_id>/revoke', methods=['POST'])
+@audit
+@auth(scope='can_do_admin')
+def revoke_repository(repo_id):
+    """
+    POST /global/repositories/triggers/<id>/revoke — revokes every project's link to the repository
+    at once, admin only, needing no lock. Returns the ids of the links. Un-revoking is per link.
+    """
+    repo = TriggerRepository.get_by_id(repo_id)
+    return revoke_links(repo.project_assignments), HTTPStatus.OK
+
+
+@bp.route('/<int:repo_id>', methods=['DELETE'])
+@auth(scope='can_do_admin')
+def delete_repository(repo_id):
+    """
+    DELETE /global/repositories/triggers/<id> — soft delete the repository. A 409 names the projects it is linked to, unless ?force=true, which also revokes and deletes their links.
+    """
+    repo = TriggerRepository.get_by_id(repo_id)
+    delete_global(repo, repo.project_assignments)
     return '', HTTPStatus.NO_CONTENT
 
 
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
+@auth(scope='can_do_admin')
 def post_repository():
     """
-    POST /trigger_repositories/ — create a new repository
+    POST /global/repositories/triggers/ — create a new repository, linked to no project yet.
     """
     body = request.json or {}
-    if not body.get('uri'):
-        raise InvalidRequest("uri is required")
-    if not body.get('project_id'):
-        raise InvalidRequest("project_id is required")
-    for field in ('provider', 'secret_label'):
-        if not body.get(field):
-            raise InvalidRequest(f"{field} is required")
+    if "project_id" in body or "watch_dir" in body or "base_branch" in body:
+        raise InvalidRequest(
+            "project_id, watch_dir and base_branch are not accepted, trigger "
+            "repositories are global. Link one with PUT /projects/<id>/repositories/triggers/<repository id>"
+        )
+    req = RepositoryRequest.parse(body)
 
-    uri = RepositoryUriRequest.normalised(body['uri'])
-    if TriggerRepository.query.filter_by(project_id=body['project_id'], uri=uri).one_or_none():
-        raise InvalidRequest(f"Repository {uri} already exists in project {body['project_id']}")
-
-    # Validate project and secret exist
-    Project.get_by_id(body['project_id'])
-    secret = Secret.get_in_project(body['project_id'], body['secret_label'])
+    provider = GitProvider.get_by_request_id(req.provider_id)
+    secret = Secret.get_enabled_by_label(req.secret_label)
 
     try:
         repo = TriggerRepository(
-            uri=uri,
-            provider=body['provider'],
-            api_uri=body.get('api_uri') or GitProvider(body['provider']).default_api_uri(uri),
+            provider_id=provider.id,
+            repo_path=req.repo_path,
             secret_id=secret.id,
-            watch_dir=normalise_dir(body.get('watch_dir', '')),
-            project_id=body['project_id'],
-            base_branch=body.get('base_branch', 'main'),
-            initial_cursor=body.get('initial_cursor'),
+            enabled=req.enabled,
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
-    repo.add(commit=False)
-    try:
-        check_no_loop(repo.project_id, repo.uri)
-    except InvalidRequest:
-        session.rollback()
-        raise
-    session.commit()
+    if TriggerRepository.query.filter_by(provider_id=provider.id, repo_path=repo.repo_path).first():
+        raise InvalidRequest(
+            f"Trigger repository {provider.uri}/{repo.repo_path} already exists", code=HTTPStatus.CONFLICT
+        )
+    repo.add()
 
     return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.CREATED
 
 
 @bp.route('/<int:repo_id>', methods=['PATCH'])
+@auth(scope='can_do_admin')
 def patch_repository(repo_id):
     """
-    PATCH /trigger_repositories/<id> — update repository
+    PATCH /global/repositories/triggers/<id> — update repository. No edit needs a lock (the tasks created
+    before are pinned to the old setup and fail instead of running against the new one). A disabled secret cannot be
+    named (400), unless it is the one already in use.
     """
     repo = TriggerRepository.get_by_id(repo_id)
 
     body = request.json or {}
     if not body:
         raise InvalidRequest("No fields provided to update")
-
-    if 'project_id' in body:
-        Project.get_by_id(body['project_id'])
-        if body['project_id'] != repo.project_id:
-            raise InvalidRequest("A repository can't be moved to another project; create it in the new project instead")
-
-    if 'base_branch' in body:
-        if not body['base_branch']:
-            raise InvalidRequest("base_branch cannot be empty")
-        repo.base_branch = body['base_branch']
-
-    if 'watch_dir' in body:
-        watch_dir = normalise_dir(body['watch_dir'])
-        if not watch_dir:
-            raise InvalidRequest("watch_dir cannot be empty")
-        repo.watch_dir = watch_dir
+    unknown = set(body) - {'provider_id', 'secret_label', 'enabled'}
+    if unknown:
+        raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
+    req = RepositoryPatchRequest.parse(body)
 
     if 'secret_label' in body:
-        if not body['secret_label']:
-            raise InvalidRequest("secret_label cannot be empty")
-        repo.secret_id = Secret.get_in_project(repo.project_id, body['secret_label']).id
+        repo.secret_id = Secret.get_enabled_by_label(req.secret_label, repo.secret_id).id
 
-    for field in ('provider', 'api_uri'):
-        if field in body:
-            if not body[field]:
-                raise InvalidRequest(f"{field} cannot be empty")
-            try:
-                setattr(repo, field, body[field])
-            except ValueError as e:
-                raise InvalidRequest(str(e))
+    if 'enabled' in body:
+        # Switched back on: what was merged while it was off gets no trigger
+        if req.enabled and not repo.enabled:
+            skip_gap(repo.project_assignments)
+        repo.enabled = req.enabled
 
-    if 'initial_cursor' in body:
-        try:
-            repo.initial_cursor = body['initial_cursor']
-        except ValueError as e:
-            raise InvalidRequest(str(e))
+    if 'provider_id' in body:
+        provider = GitProvider.get_by_request_id(req.provider_id)
+        if TriggerRepository.query.filter(
+            TriggerRepository.provider_id == provider.id, TriggerRepository.repo_path == repo.repo_path, TriggerRepository.id != repo.id
+        ).first():
+            raise InvalidRequest(
+                f"Trigger repository {provider.uri}/{repo.repo_path} already exists", code=HTTPStatus.CONFLICT
+            )
+        repo.provider_id = provider.id
 
-    session.flush()
-    try:
-        check_no_loop(repo.project_id, repo.uri)
-    except InvalidRequest:
-        session.rollback()
-        raise
     session.commit()
     return TriggerRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK
-
-
-# TODO: internal, called by Dagster only. Restrict to internal callers.
-@bp.route('/pull_requests', methods=['POST'])
-def post_pull_request():
-    """
-    POST /trigger_repositories/pull_requests — create a new pull request
-    """
-    body = request.json or {}
-    required = ['trigger_repository_id', 'number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha', 'payload']
-    missing = [f for f in required if f not in body]
-    if missing:
-        raise InvalidRequest(f"Missing required fields: {', '.join(missing)}")
-
-    # Create PR
-    repo = TriggerRepository.get_by_id(body['trigger_repository_id'])
-    pr = PullRequestTrigger(
-        project_id=repo.project_id,
-        trigger_repository_id=body['trigger_repository_id'],
-        number=body['number'],
-        title=body['title'],
-        raised_by=body['raised_by'],
-        merged_at=body['merged_at'],
-        merge_commit_sha=body['merge_commit_sha'],
-        payload=body.get('payload', {}),
-    )
-    pr.add()
-
-    return PullRequestTriggerDTO.from_model(pr).dump(), HTTPStatus.CREATED
-
-
-# TODO: internal, called by Dagster only. Restrict to internal callers.
-@bp.route('/<int:repo_id>/pull_requests/batch', methods=['POST'])
-def post_pull_requests_batch(repo_id):
-    """
-    POST /trigger_repositories/<repo_id>/pull_requests/batch — create multiple pull requests for a repo
-    Body: list of PR objects (up to 100)
-    """
-    repo = TriggerRepository.get_by_id(repo_id)  # Verify repo exists
-
-    body = request.json or []
-
-    if not isinstance(body, list):
-        raise InvalidRequest("Body must be a list of pull requests")
-
-    if len(body) > 100:
-        raise InvalidRequest("Maximum 100 pull requests per batch")
-
-    if not body:
-        return [], HTTPStatus.CREATED
-
-    created_prs = []
-    for pr_data in body:
-        try:
-            # Validate required fields
-            required = ['number', 'title', 'raised_by', 'merged_at', 'merge_commit_sha', 'payload']
-            missing = [f for f in required if f not in pr_data]
-            if missing:
-                raise InvalidRequest(f"Missing required fields in PR: {', '.join(missing)}")
-
-            # Create PR (repository_id always from URL)
-            pr = PullRequestTrigger(
-                project_id=repo.project_id,
-                trigger_repository_id=repo_id,
-                number=pr_data['number'],
-                title=pr_data['title'],
-                raised_by=pr_data['raised_by'],
-                merged_at=pr_data['merged_at'],
-                merge_commit_sha=pr_data['merge_commit_sha'],
-                payload=pr_data.get('payload', {}),
-            )
-            pr.add(commit=False)  # Don't commit yet, batch commit at end
-            created_prs.append(pr)
-        except Exception as e:
-            session.rollback()
-            raise InvalidRequest(f"Error creating PR #{pr_data.get('number', '?')}: {str(e)}")
-
-    # Batch commit all PRs
-    session.commit()
-
-    return [PullRequestTriggerDTO.from_model(pr).dump() for pr in created_prs], HTTPStatus.CREATED
-
-
-# TODO: internal, called by Dagster only. Restrict to internal callers.
-@bp.route('/<int:repo_id>/pull_requests', methods=['GET'])
-def get_pull_requests(repo_id):
-    """
-    GET /trigger_repositories/<repo_id>/pull_requests — list PRs for a repository with pagination.
-    Query params:
-        - page: page number (default 1)
-        - per_page: items per page (default 20)
-        - state: filter by state (optional), one of: UNKNOWN, IGNORED, REJECTED, YIELDED
-    Sorted by merged_at DESC (most recent first).
-    """
-    TriggerRepository.get_by_id(repo_id)
-
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
-    state = request.args.get('state', None)
-
-    query = PullRequestTrigger.query.filter(PullRequestTrigger.trigger_repository_id == repo_id)
-
-    if state is not None:
-        if state not in [s.value for s in TriggerState]:
-            valid = ', '.join([s.value for s in TriggerState])
-            raise InvalidRequest(f"Invalid state: {state}. Must be one of: {valid}")
-        query = query.filter(PullRequestTrigger.state == state)
-
-    query = query.order_by(PullRequestTrigger.merged_at.desc())
-    paginated = query.paginate(page=page, per_page=per_page, error_out=False)
-
-    return {
-        'items': [PullRequestTriggerDTO.from_model(pr).dump() for pr in paginated.items],
-        'page': page,
-        'per_page': per_page,
-        'total': paginated.total,
-    }, HTTPStatus.OK
-
-
-# TODO: internal, called by Dagster only. Restrict to internal callers.
-@bp.route('/<int:repo_id>/pull_requests/<int:number>', methods=['GET'])
-def get_pull_request(repo_id, number):
-    """
-    GET /trigger_repositories/<repo_id>/pull_requests/<number> — get a single PR
-    """
-    TriggerRepository.get_by_id(repo_id)
-    pr = PullRequestTrigger.query.filter(
-        PullRequestTrigger.trigger_repository_id == repo_id,
-        PullRequestTrigger.number == number
-    ).one_or_none()
-
-    if not pr:
-        raise InvalidRequest(f"PR #{number} not found in repository {repo_id}", code=HTTPStatus.NOT_FOUND)
-
-    return PullRequestTriggerDTO.from_model(pr).dump(), HTTPStatus.OK
-
-
-# TODO: internal, called by Dagster only. Restrict to internal callers.
-@bp.route('/<int:repo_id>/pull_requests/<int:number>', methods=['PATCH'])
-def patch_pull_request(repo_id, number):
-    """
-    PATCH /trigger_repositories/<repo_id>/pull_requests/<number> — update PR state, state_cause and payload
-    """
-    TriggerRepository.get_by_id(repo_id)
-    pr = PullRequestTrigger.query.filter(
-        PullRequestTrigger.trigger_repository_id == repo_id,
-        PullRequestTrigger.number == number
-    ).one_or_none()
-
-    if not pr:
-        raise InvalidRequest(f"PR #{number} not found in repository {repo_id}", code=HTTPStatus.NOT_FOUND)
-
-    body = request.json or {}
-
-    if 'state' in body or 'state_cause' in body:
-        pr.set_state(body.get('state', pr.state), body.get('state_cause'))
-
-    if 'payload' in body:
-        pr.payload = body['payload']
-
-    session.commit()
-    return PullRequestTriggerDTO.from_model(pr).dump(), HTTPStatus.OK
-
-
-# TODO: internal, called by Dagster only. Restrict to internal callers.
-@bp.route('/<int:repo_id>/pull_requests/<int:number>/task', methods=['POST'])
-def post_task(repo_id, number):
-    """
-    POST /trigger_repositories/<repo_id>/pull_requests/<number>/task — validate the pull
-    request's spec and, in one transaction, mark it YIELDED and create its task. The project
-    comes from the repository.
-    Body: {"payload": {...}}, the pull request's flat task spec.
-    Idempotent: if the pull request already has a task it is returned with a 200.
-    """
-    TriggerRepository.get_by_id(repo_id)
-    pr = PullRequestTrigger.query.filter(
-        PullRequestTrigger.trigger_repository_id == repo_id,
-        PullRequestTrigger.number == number
-    ).one_or_none()
-
-    if not pr:
-        raise InvalidRequest(f"PR #{number} not found in repository {repo_id}", code=HTTPStatus.NOT_FOUND)
-
-    if pr.task:
-        return TaskDTO.from_model(pr.task).dump(), HTTPStatus.OK
-
-    body = request.json or {}
-    payload = body.get('payload')
-    if not isinstance(payload, dict):
-        raise InvalidRequest("payload is required and must be an object")
-
-    spec = TaskSpec.from_pr_spec(payload)
-    # A bad dataset override fails now, before anything is written
-    new_task = NewTaskDTO.from_spec(spec, pr)
-
-    pr.set_state(TriggerState.YIELDED.value, None)
-    pr.payload = payload
-    task = Task(**new_task.model_dump())
-    try:
-        task.add(commit=False)
-        session.commit()
-    except IntegrityError:
-        # Another call created the task between the check above and this insert
-        session.rollback()
-        task = Task.query.filter(Task.trigger_id == pr.id).one()
-        return TaskDTO.from_model(task).dump(), HTTPStatus.OK
-    return TaskDTO.from_model(task).dump(), HTTPStatus.CREATED

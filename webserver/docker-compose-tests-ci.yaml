@@ -14,7 +14,6 @@ services:
       timeout: 5s
       retries: 10
   app:
-    container_name: flask_app_test
     image: federated_node_app_test
     build:
       context: .

@@ -4,10 +4,10 @@
 # WhitelistedImageDTO from git history (commit fd5cf66a) before re-attaching.
 """
 whitelisted image endpoints:
-- GET /whitelisted_images
-- POST /whitelisted_images
-- GET /whitelisted_images/<id>
-- DELETE /whitelisted_images/<id>
+- GET /global/whitelisted_images
+- POST /global/whitelisted_images
+- GET /global/whitelisted_images/<id>
+- DELETE /global/whitelisted_images/<id>
 """
 import logging
 from http import HTTPStatus
@@ -24,7 +24,7 @@ from .models.extras.registry import Registry
 from .models.extras.whitelisted_image import WhitelistedImage
 
 
-bp = Blueprint('whitelisted_images', __name__, url_prefix='/whitelisted_images')
+bp = Blueprint('whitelisted_images', __name__, url_prefix='/global/whitelisted_images')
 
 logger = logging.getLogger('whitelisted_images_api')
 logger.setLevel(logging.INFO)
@@ -75,7 +75,7 @@ def check_validation_enabled():
 @auth(scope='can_admin_dataset')
 def get_all_whitelisted_images():
     """
-    GET /whitelisted_images endpoint.
+    GET /global/whitelisted_images endpoint.
         Returns the list of whitelisted images for the caller's project
     """
     args = request.args.copy()
@@ -91,7 +91,7 @@ def get_all_whitelisted_images():
 @auth(scope='can_admin_dataset')
 def add_image():
     """
-    POST /whitelisted_images endpoint.
+    POST /global/whitelisted_images endpoint.
     """
     body = request.json.copy()
     project_id = caller_project_id()
@@ -127,7 +127,7 @@ def add_image():
 @auth(scope='can_admin_dataset')
 def get_image_by_id(image_id: int):
     """
-    GET /whitelisted_images/<image_id>
+    GET /global/whitelisted_images/<image_id>
     """
     image = owned_image(image_id)
 
@@ -139,7 +139,7 @@ def get_image_by_id(image_id: int):
 @auth(scope='can_admin_dataset')
 def delete_image(image_id: int):
     """
-    DELETE /whitelisted_images/<image_id>
+    DELETE /global/whitelisted_images/<image_id>
     """
     image = owned_image(image_id)
     image.delete()

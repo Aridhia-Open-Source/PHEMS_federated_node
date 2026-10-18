@@ -7,13 +7,12 @@ from sqlalchemy.exc import IntegrityError
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError
 from app.helpers.keycloak import Keycloak
 from app.models.extras.audit import Audit
-from app.models.dataset import Dataset
 
 logger = logging.getLogger('wrappers')
 logger.setLevel(logging.INFO)
 
 
-def auth(scope: str, check_dataset=True):
+def auth(scope: str):
     def auth_wrapper(func):
         @wraps(func)
         def _auth(*args, **kwargs):
@@ -33,27 +32,11 @@ def auth(scope: str, check_dataset=True):
             g.caller_is_admin = kc_client.is_user_admin(token)
             g.caller_project_id = None
 
-            ds_id = kwargs.get("dataset_id")
-            ds_name = kwargs.get("dataset_name", "")
-
-            # Some endpoints take a JSON list rather than an object. There is no
-            # top-level dataset to scope to in that case, so leave ds_id/
-            # ds_name as they came from the URL rather than flattening.
-            if request.is_json and request.data and isinstance(request.json, dict):
-                flat_json = flatten_dict(request.json)
-                ds_id = flat_json.get("dataset_id")
-                ds_name = flat_json.get("dataset_name", "")
-
             # TODO(DAR): DAR checking is disconnected for now. A non-admin caller used to
             # have an active DAR looked up from the project-name header, and its dataset,
             # g.caller_project_id and per-DAR Keycloak client (token exchange) were used.
-            # Now every caller takes the plain path below. Revisit with the authorization
-            # rework.
-            if check_dataset:
-                if ds_id or ds_name:
-                    ds = Dataset.get_dataset_by_name_or_id(name=ds_name, id=ds_id)
-                    resource = f"{ds.id}-{ds.name}"
-
+            # Dataset-level authorisation is out of scope here: every caller takes the plain
+            # path below. Revisit with the authorization rework.
             if kc_client.is_token_valid(token, scope, resource, token_type):
                 return func(*args, **kwargs)
             else:
