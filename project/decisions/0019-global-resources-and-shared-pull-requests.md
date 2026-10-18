@@ -234,6 +234,8 @@ Switching off stops new work, and work already in flight finishes once it is bac
 - `REJECTED` is final for a trigger (decision 10): no request moves it back.
 - The allowed moves live in tables in `webserver/app/models`: `TRIGGER_MOVES` in `trigger_state.py`, `TASK_MOVES` and `RETRYABLE` in `task_status.py`, `RESULT_ORDER` in `pull_request_result_step.py`. The API returns 409 for any other move.
 - An optional backfill of the gap may be added later.
+- **Locked versus off (project).** Locked pauses evaluation and launch but keeps the backlog: triggers are still created and run after unlocking. Off drops the gap: pull requests merged meanwhile get no trigger. The lock is kept for that pause and for project setup; drain is no longer tied to it.
+- **Who owns what.** The webserver owns the business record, the rules, audit and compliance; Dagster holds operational history (runs, and later materialisations as a read-only mirror). The dependency is one way: Dagster calls the webserver's API, and the webserver does not know Dagster (target; its `/dagster/sensors` routes stay for now as an operational convenience). The pipeline stays event-driven: sensors react to the webserver's state, so waiting (off, locked, a failed delivery) costs nothing.
 
 ## Alternatives considered
 
