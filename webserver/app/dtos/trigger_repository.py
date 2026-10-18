@@ -19,7 +19,7 @@ class TriggerRepositoryDTO(DTO):
     secret: SecretDTO
     enabled: bool
     # Where polling the provider resumes, see TriggerRepository.get_ingest_cursor
-    pr_cursor: str | None
+    pr_cursor: str
 
     @classmethod
     def from_model(cls, obj: TriggerRepository):

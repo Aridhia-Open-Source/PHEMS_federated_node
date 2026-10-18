@@ -333,8 +333,8 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
     pid, tid, rid, did = w["project"].id, w["trigger"].id, w["results"].id, w["dataset"].id
 
     assert [p.id for p in d.get_projects()] == [pid]
-    assert [r.id for r in d.get_active_trigger_repositories()] == [tid]
-    active = d.get_active_trigger_repositories()[0]
+    assert [r.id for r in d.get_pollable_trigger_repositories()] == [tid]
+    active = d.get_pollable_trigger_repositories()[0]
     assert active.pr_cursor is not None
     assert [link.trigger_repository.id for link in d.get_project_trigger_repositories(pid)] == [tid]
     assert d.get_project_trigger_repository(pid, tid).active

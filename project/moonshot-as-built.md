@@ -364,7 +364,7 @@ All sensors are created with `default_status=DEFAULT_SENSOR_STATUS`, read once a
 **Actual behaviour:** `git_pull_request_ingest_sensor` (every 10 s min) asks the webserver for global trigger repositories with `?active_link=true`, then polls each once with that repository's own secret and the `pr_cursor` the webserver gives it. There is no per-project or per-branch polling; each PR carries its `base_branch` and the webserver matches it per link.
 **Evidence:**
 - `dagster/app/definitions/sensors/git/pr_ingest.py:19-40`, `:42-61`.
-- `dagster/app/backend.py:47-54` `get_active_trigger_repositories` (`GET /global/repositories/triggers?active_link=true`).
+- `dagster/app/backend.py:47-54` `get_pollable_trigger_repositories` (`GET /global/repositories/triggers?active_link=true`).
 - `trigger_repositories_api.py:46-61` the filter (repo enabled; any link enabled, not revoked, project enabled).
 - `dagster/app/definitions/sensors/git/base.py:40-48` client per repo from its own secret; providers `github`, `gitea`.
 - `dagster/app/github.py:34-62` polls closed PRs by `updated` desc, stops at `updated_at <= cursor`; `gitea.py:32-60` filters by `merged_at > cursor`.

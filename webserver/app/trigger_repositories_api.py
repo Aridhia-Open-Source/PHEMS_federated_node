@@ -14,7 +14,6 @@ drained; any other edit applies at once. A secret_label naming a disabled secret
 """
 from http import HTTPStatus
 
-import sqlalchemy as sa
 from flask import Blueprint, request
 
 from app.dtos.base import page_of
@@ -27,8 +26,6 @@ from app.helpers.project_lock import require_all_drained, require_all_drained_if
 from app.helpers.pull_request_fanout import ingest_pull_requests, skip_gap
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
-from app.models.project import Project
-from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request import PullRequest
 from app.models.trigger_repository import TriggerRepository
 from app.models.secret import Secret
@@ -47,20 +44,16 @@ def auth_before():
 @bp.route('', methods=['GET'])
 def get_repositories():
     """
-    GET /global/repositories/triggers/ — list the repositories. With ?active_link=true only those with an
-    active link (enabled and not revoked) of an enabled project, and only enabled repositories on an
-    enabled provider, which is what Dagster polls.
+    GET /global/repositories/triggers/ — list the repositories. With ?pollable=true only the enabled
+    repositories on an enabled provider with an enabled secret, whatever their project links: that is
+    what Dagster polls.
     """
     query = TriggerRepository.query
-    if request.args.get('active_link', '').lower() == 'true':
+    if request.args.get('pollable', '').lower() == 'true':
         query = query.filter(
             TriggerRepository.enabled.is_(True),
             TriggerRepository.provider.has(GitProvider.enabled.is_(True)),
-            TriggerRepository.project_assignments.any(sa.and_(
-                ProjectTriggerRepository.enabled.is_(True),
-                ProjectTriggerRepository.revoked.is_(False),
-                ProjectTriggerRepository.project.has(Project.enabled.is_(True)),
-            )),
+            TriggerRepository.secret.has(Secret.enabled.is_(True)),
         )
     return [TriggerRepositoryDTO.from_model(r).dump() for r in query.order_by(TriggerRepository.id)], HTTPStatus.OK
 

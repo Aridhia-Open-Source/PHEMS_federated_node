@@ -173,14 +173,14 @@ def test_disabled_provider_makes_its_repositories_inactive(
         x["trigger_repository"]["id"] for x in client.get(f"{url}?active=true", headers=admin_headers).json
     ]
     assert active(trigger_links) == [True, True] and active(results_links) == [True]
-    assert [r["id"] for r in client.get(f"{TRIG}?active_link=true", headers=admin_headers).json] == [T, elsewhere.id]
+    assert [r["id"] for r in client.get(f"{TRIG}?pollable=true", headers=admin_headers).json] == [T, elsewhere.id]
 
     disabled = client.patch(f"{PROV}/{git_provider.id}", json={"enabled": False}, headers=admin_headers)
     assert disabled.status_code == 200, disabled.json
 
     assert active(trigger_links) == [False, True] and active(results_links) == [False]
     assert active_ids(trigger_links) == [elsewhere.id]
-    assert [r["id"] for r in client.get(f"{TRIG}?active_link=true", headers=admin_headers).json] == [elsewhere.id]
+    assert [r["id"] for r in client.get(f"{TRIG}?pollable=true", headers=admin_headers).json] == [elsewhere.id]
     # the repositories themselves are still enabled, and say which provider is not
     repo = client.get(f"{TRIG}/{T}", headers=admin_headers).json
     assert repo["enabled"] is True and repo["provider"]["enabled"] is False

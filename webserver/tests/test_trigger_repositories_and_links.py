@@ -118,27 +118,28 @@ def test_only_enabled_and_delete_need_a_drained_lock(client, admin_headers, link
     assert get(client, admin_headers, f"{BASE}/{T}").status_code == 404
 
 
-def test_active_link_filter_follows_every_flag(client, admin_headers, project, global_trigger_repo,
-                                               make_trigger_repo):
-    """Listed only with: enabled project + enabled link + not revoked + enabled global repo."""
+def test_pollable_filter_follows_the_repository_provider_and_secret_only(
+        client, admin_headers, project, global_trigger_repo, make_trigger_repo):
+    """Listed with: enabled repo + enabled provider + enabled secret. Project links do not matter."""
     T = global_trigger_repo.id
+    ids = lambda q="": [r["id"] for r in get(client, admin_headers, f"{BASE}{q}").json]  # noqa: E731
     unlinked = make_trigger_repo(uri="github.com/org/unlinked")
+
+    assert ids("?pollable=true") == [T, unlinked.id]  # no link and a disabled project are fine
     link = f"/projects/{project.id}/repositories/triggers/{T}"
     assert client.put(link, json={"watch_dir": "t"}, headers=admin_headers).status_code == 201
-    ids = lambda q="": [r["id"] for r in get(client, admin_headers, f"{BASE}{q}").json]  # noqa: E731
-
-    assert ids() == [T, unlinked.id]
-    assert ids("?active_link=true") == []  # the project is still disabled
-    assert patch(client, admin_headers, f"/projects/{project.id}", {"locked": True}).status_code == 200
-    assert patch(client, admin_headers, f"/projects/{project.id}", {"enabled": True}).status_code == 200
-    assert ids("?active_link=true") == [T]
-    for off, on in (({"revoked": True}, {"revoked": False}), ({"enabled": False}, {"enabled": True})):
-        patch(client, admin_headers, link, off)
-        assert ids("?active_link=true") == []
-        patch(client, admin_headers, link, on)
-        assert ids("?active_link=true") == [T]
-    assert patch(client, admin_headers, f"{BASE}/{T}", {"enabled": False}).status_code == 200
-    assert ids("?active_link=true") == []
+    assert patch(client, admin_headers, link, {"revoked": True}).status_code == 200
+    assert ids("?pollable=true") == [T, unlinked.id]  # a revoked link does not stop the poll
+    global_trigger_repo.enabled = False
+    db.session.commit()
+    assert ids("?pollable=true") == [unlinked.id]
+    unlinked.provider.enabled = False
+    db.session.commit()
+    assert ids("?pollable=true") == []
+    unlinked.provider.enabled = True
+    unlinked.secret.enabled = False
+    db.session.commit()
+    assert ids("?pollable=true") == []
 
 
 # --------------------------------------------------------------------------- trigger links

@@ -3032,11 +3032,11 @@
         "parameters": [
           {
             "in": "query",
-            "name": "active_link",
+            "name": "pollable",
             "schema": {
               "type": "boolean"
             },
-            "description": "Only the enabled repositories with an active link (enabled and not revoked) of an enabled project: what Dagster polls. Each carries, as pr_cursor, where polling resumes"
+            "description": "Only the enabled repositories on an enabled provider with an enabled secret, whatever their project links: what Dagster polls. Each carries, as pr_cursor, where polling resumes"
           }
         ]
       },
@@ -7542,7 +7542,7 @@
           "pr_cursor": {
             "type": "string",
             "nullable": true,
-            "description": "Where polling the provider resumes: merged_at of the latest pull request stored for the repository or, with none stored, the earliest cursor of its active links of enabled projects. Null when there is neither",
+            "description": "Where polling the provider resumes: merged_at of the latest pull request stored for the repository or, with none stored, the repository's creation",
             "example": "2026-01-01T00:00:00"
           }
         }

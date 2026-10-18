@@ -173,23 +173,29 @@ def test_global_repo_lists_are_ordered_arrays(client, admin_headers, make_trigge
     assert ids(get(client, admin_headers, "/global/repositories/results").json) == [r.id for r in results]
 
 
-def test_trigger_repos_active_link_filter(client, admin_headers, project, other_project, linked_trigger_repo,
-                                          global_trigger_repo, make_trigger_repo):
+def test_trigger_repos_pollable_filter(client, admin_headers, global_trigger_repo, make_trigger_repo):
     url = "/global/repositories/triggers"
-    unlinked = make_trigger_repo(uri="github.com/org/unlinked")
-    # the project is disabled, so its link is not active; false/absent return everything
-    assert get(client, admin_headers, url + "?active_link=true").json == []
-    assert ids(get(client, admin_headers, url + "?active_link=false").json) == [global_trigger_repo.id, unlinked.id]
-    project.enabled = other_project.enabled = True
+    unlinked = make_trigger_repo(uri="github.com/org/unlinked")  # no project link needed
+    assert ids(get(client, admin_headers, url + "?pollable=false").json) == [global_trigger_repo.id, unlinked.id]
+    for value in ("true", "TRUE", "True"):  # case-insensitive
+        assert ids(get(client, admin_headers, f"{url}?pollable={value}").json) == [global_trigger_repo.id, unlinked.id]
+    unlinked.enabled = False
     db.session.commit()
-    link = client.put(f"/projects/{other_project.id}/repositories/triggers/{global_trigger_repo.id}",
-                      json={"watch_dir": "x"}, headers=admin_headers)
-    assert link.status_code == 201
-    for value in ("true", "TRUE", "True"):  # case-insensitive, and listed once despite two projects
-        assert ids(get(client, admin_headers, f"{url}?active_link={value}").json) == [global_trigger_repo.id]
-    global_trigger_repo.enabled = False  # a disabled repo is never active
+    assert ids(get(client, admin_headers, url + "?pollable=true").json) == [global_trigger_repo.id]
+    global_trigger_repo.secret.enabled = False
     db.session.commit()
-    assert get(client, admin_headers, url + "?active_link=true").json == []
+    assert get(client, admin_headers, url + "?pollable=true").json == []
+    assert len(get(client, admin_headers, url).json) == 2
+
+
+def test_trigger_repo_cursor_is_the_latest_merge_or_the_creation(client, admin_headers, global_trigger_repo):
+    url = f"/global/repositories/triggers/{global_trigger_repo.id}"
+    created = global_trigger_repo.created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+    assert get(client, admin_headers, url).json["pr_cursor"] == created
+    pr = {"number": 1, "title": "t", "raised_by": "dev", "merged_at": "2031-01-02T03:04:05Z",
+          "merge_commit_sha": "abc", "base_branch": "main", "files_truncated": False, "changed_files": []}
+    assert client.post(f"{url}/pull_requests", json={"pull_requests": [pr]}, headers=admin_headers).status_code == 201
+    assert get(client, admin_headers, url).json["pr_cursor"] == "2031-01-02T03:04:05Z"
 
 
 def test_project_trigger_link_list_is_ordered_and_404_for_unknown_project(

@@ -31,8 +31,8 @@ def test_full_flow(client, admin_headers, k8s_client, project, make_pr_batch, sp
     body = call("patch", f"/projects/{pid}", 200, json={"enabled": True, "locked": False})
     assert body["enabled"] is True and body["locked"] is False, body
 
-    # 11. Active trigger repositories
-    assert [i["id"] for i in call("get", "/global/repositories/triggers?active_link=true", 200)] == [T]
+    # 11. Pollable trigger repositories
+    assert [i["id"] for i in call("get", "/global/repositories/triggers?pollable=true", 200)] == [T]
 
     # 12. Ingest pull requests: 1 and 2 match, 3 targets another branch (no trigger)
     batch = make_pr_batch(1, 2)
