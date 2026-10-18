@@ -40,7 +40,7 @@ Written by the cloud session. Nothing here has been run on a cluster. Where the 
 - `FNCLI_ADMIN_USER`: the first Keycloak user's backend login name (probably its email). Not checked.
 - How a duplicate `merge_commit_sha` under a new PR number surfaces to the caller (ADR 0023 says not checked), and whether the Dagster sensors handle a 409 on an already finished task (ADR 0026).
 - Whether a test cross-checks the Dagster enums against the webserver's (ADR 0026 says it found none).
-- Disk and CI: `build.yml` does not trigger for PRs into `split/*`; use `workflow_dispatch` or retarget when the route into `dagster-develop` is chosen. The route itself is undecided.
+- CI: `build.yml` does not trigger for PRs into `split/*`; use `workflow_dispatch` or retarget when the route into `dagster-develop` is chosen. The route itself is undecided.
 
 ## Docs still stale
 
