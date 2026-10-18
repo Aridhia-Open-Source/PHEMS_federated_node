@@ -19,8 +19,8 @@ set). Review that branch separately (see `session-handover-2026-10-17.md`).
 1. **Intent (30 minutes).** `project/decisions/0019-global-resources-and-shared-pull-requests.md` (decisions 1 to 15, the cursor paragraph and the
    Consequences gaps), `project/decisions/0018-global-resources-and-gitea-mirror.md`, then the status block at the top of
    `project/moonshot-as-built.md`.
-2. **Schema.** `webserver/migrations/versions/001_baseline.py` (edited in place, ADR 0013), `002_git_providers.py`, `003_pr_merge_sha_unique.py`,
-   `004_project_locked_default.py`. Check: constraints (unique `(provider_id, repo_path)`, unique PR per repo by number and by merge sha),
+2. **Schema.** `webserver/migrations/versions/001_baseline.py` (edited in place, ADR 0013; the only migration).
+   Check: constraints (unique `(provider_id, repo_path)`, unique PR per repo by number and by merge sha),
    `ondelete` behaviour, the `locked` default, that each migration downgrades.
 3. **Models.** `webserver/app/models/`: `git_provider.py`, `git_repository.py`, `trigger_repository.py`, `results_repository.py`,
    `project_trigger_repository.py`, `project_results_repository.py`, `pull_request.py`, `pull_request_trigger.py`, `project.py`. Check: what

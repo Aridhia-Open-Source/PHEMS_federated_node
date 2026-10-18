@@ -12,8 +12,8 @@
 >   - `/global/users`, `/global/registries`, `/global/whitelisted_images`
 >   - results under `/projects/:pid/results`
 > - **Integrity and locking:**
->   - PRs unique by `(repo, merge_commit_sha)` as well as number (migration 003)
->   - new projects start **locked** (migration 004); fncli `setup-project` unlocks at the end, and teardown locks before deleting
+>   - PRs unique by `(repo, merge_commit_sha)` as well as number (baseline migration)
+>   - new projects start **locked** (baseline migration); fncli `setup-project` unlocks at the end, and teardown locks before deleting
 > - **Sensors:** one interval for all sensors, `fnDagster.sensors.minIntervalSeconds` (30s default, 2s in dev; PR #554, merged).
 > - **Tooling:**
 >   - fncli moved into `dagster/fncli` and shares `app.*`; install with `pipx install --force --editable './dagster[cli]'`
@@ -21,7 +21,7 @@
 >   - e2e: `pytest dagster --e2e [success|failure] -v` from the repo root. The suites are granular (each fncli command and state change is its own test). The failure suite has never been run.
 > - **Not built yet:** auth (planned in `project/auth-mvp-plan.md`).
 > - **gitea-mirror is parked for the beta.** Post-beta it becomes a stateless mirror service with number-matched PR replay, which the node sees as a `gitea` GitProvider.
-> - **To do:** a full refresh of this document, and a narrow bug review (migrations 002-004, lock/drain rules, sensors). See `.claude/handover.md`.
+> - **To do:** a full refresh of this document, and a narrow bug review (the baseline migration, lock/drain rules, sensors). See `.claude/handover.md`.
 
 
 - Describes commits: `moonshot/shared-resources` at **95d61117** (local, ahead of origin by 3 fncli commits; worktree `fn-worktrees/moonshot/shared-resources`) and `origin/moonshot/gitea-mirror` at **3b551cb7**.

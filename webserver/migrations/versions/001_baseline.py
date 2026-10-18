@@ -39,7 +39,7 @@ def upgrade() -> None:
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('description', sa.String(length=4096), nullable=True),
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.Column('locked', sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column('locked', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('default_dataset_id', sa.Integer(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
@@ -112,20 +112,36 @@ def upgrade() -> None:
         sa.UniqueConstraint('project_id', 'secret_id', name='uq_project_secrets_project_secret'),
     )
 
+    # Create git_providers table (global: a repository names one and its path on it)
+    op.create_table(
+        'git_providers',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('name', sa.String(length=253), nullable=False),
+        sa.Column('type', sa.String(length=16), nullable=False),
+        sa.Column('uri', sa.String(length=4096), nullable=False),
+        sa.Column('api_uri', sa.String(length=4096), nullable=False),
+        sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('name'),
+        sa.UniqueConstraint('uri'),
+    )
+
     # Create trigger_repositories table (global: a project is assigned to one)
     op.create_table(
         'trigger_repositories',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('uri', sa.String(length=4096), nullable=False),
-        sa.Column('provider', sa.String(length=16), nullable=False),
-        sa.Column('api_uri', sa.String(length=4096), nullable=False),
+        sa.Column('provider_id', sa.Integer(), nullable=False),
+        sa.Column('repo_path', sa.String(length=512), nullable=False),
         sa.Column('secret_id', sa.Integer(), nullable=False),
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('uri', name='uq_trigger_repositories_uri'),
+        sa.ForeignKeyConstraint(['provider_id'], ['git_providers.id'], name='fk_trigger_repositories_provider_id', ondelete='RESTRICT'),
+        sa.UniqueConstraint('provider_id', 'repo_path', name='uq_trigger_repositories_provider_repo_path'),
     )
 
     # Create project_trigger_repositories table (a project's grant of a trigger repository)
@@ -152,16 +168,16 @@ def upgrade() -> None:
     op.create_table(
         'results_repositories',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('uri', sa.String(length=4096), nullable=False),
-        sa.Column('provider', sa.String(length=16), nullable=False),
-        sa.Column('api_uri', sa.String(length=4096), nullable=False),
+        sa.Column('provider_id', sa.Integer(), nullable=False),
+        sa.Column('repo_path', sa.String(length=512), nullable=False),
         sa.Column('secret_id', sa.Integer(), nullable=False),
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('uri', name='uq_results_repositories_uri'),
+        sa.ForeignKeyConstraint(['provider_id'], ['git_providers.id'], name='fk_results_repositories_provider_id', ondelete='RESTRICT'),
+        sa.UniqueConstraint('provider_id', 'repo_path', name='uq_results_repositories_provider_repo_path'),
     )
 
     # Create project_results_repositories table (a project's grant of a results repository)
@@ -249,6 +265,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['trigger_repository_id'], ['trigger_repositories.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('trigger_repository_id', 'number', name='uq_pull_requests_repo_number'),
+        sa.UniqueConstraint('trigger_repository_id', 'merge_commit_sha', name='uq_pull_requests_repo_merge_commit_sha'),
     )
     op.create_index(
         'ix_pull_requests_repo_merged_at_number', 'pull_requests', ['trigger_repository_id', 'merged_at', 'number']
@@ -318,6 +335,8 @@ def upgrade() -> None:
         sa.Column('exit_code', sa.Integer(), nullable=True),
         sa.Column('state_cause', sa.Text(), nullable=True),
         sa.Column('params', sa.JSON(), nullable=False, server_default='{}'),
+        sa.Column('config_snapshot', sa.JSON(), nullable=True),
+        sa.Column('config_hash', sa.String(length=64), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['task_spec_id'], ['task_specs.id'], ondelete='RESTRICT'),
@@ -449,6 +468,7 @@ def downgrade() -> None:
     op.drop_table('results_repositories')
     op.drop_table('project_trigger_repositories')
     op.drop_table('trigger_repositories')
+    op.drop_table('git_providers')
     op.drop_table('project_datasets')
     op.drop_table('datasets')
     op.drop_table('project_secrets')
