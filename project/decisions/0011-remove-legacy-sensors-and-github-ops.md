@@ -13,7 +13,7 @@ Remove the legacy provider-specific sensors in the same change as the model, and
 ## Consequences
 
 - Commenting the outcome on the trigger PR (a `REJECTED` cause, a results link) is not implemented.
-- Leftovers not yet cleaned: `GH_RESULTS_DIR`, `GH_DELIVERY_REPO`, `github-token` secret requirement in the chart, and `SensorConfig`/`GithubConfig` env classes.
+- Leftovers not yet cleaned: `GH_RESULTS_DIR`, `GH_DELIVERY_REPO`.
 
 ## Alternatives considered
 

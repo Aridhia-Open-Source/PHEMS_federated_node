@@ -1,6 +1,6 @@
 # Entities and state machines
 
-The final backend schema (`webserver/migrations/versions/001_baseline.py`), the two inheritance trees, and the three state machines. Decisions: [0001](../../project/decisions/0001-polymorphic-triggers.md), [0003](../../project/decisions/0003-project-scoped-git-repositories.md), [0008](../../project/decisions/0008-polymorphic-result-and-forward-only-state.md), [0009](../../project/decisions/0009-sync-reconciler-and-operational-rules.md), [0017](../../project/decisions/0017-task-status-written-by-run-status-sensors.md).
+The final backend schema (`webserver/migrations/versions/001_baseline.py`), the two inheritance trees, and the three state machines. Decisions: [0001](../../project/decisions/0001-polymorphic-triggers.md), [0008](../../project/decisions/0008-polymorphic-result-and-forward-only-state.md), [0009](../../project/decisions/0009-sync-reconciler-and-operational-rules.md), [0017](../../project/decisions/0017-task-status-written-by-run-status-sensors.md), [0019](../../project/decisions/0019-global-resources-and-shared-pull-requests.md).
 
 Not drawn: `audit`, `registries`, `whitelisted_images`, `catalogues`, `dictionaries`, `dars` (disconnected, [0014](../../project/decisions/0014-dar-rename-and-detached-auth.md)) and `results_backends` (present in the baseline, unused by the pipeline).
 
@@ -12,95 +12,138 @@ erDiagram
         int id PK
         string name UK
         bool enabled
-        int default_dataset_id FK
+        int default_dataset_id FK "composite with project_id"
     }
     secrets {
         int id PK
-        int project_id FK
-        string label "unique per project"
+        string label UK
         enum provider "K8S"
         string key UK "name in the store"
         string namespace
     }
     datasets {
         int id PK
-        int project_id FK
-        int secret_id FK
         string name UK
+        int secret_id FK
         string host
         string type
     }
-    trigger_repositories {
+    project_secrets {
         int id PK
         int project_id FK
         int secret_id FK
-        string uri "unique per project"
+        bool enabled
+        bool revoked
+    }
+    project_datasets {
+        int id PK
+        int project_id FK
+        int dataset_id FK
+        bool enabled
+        bool revoked
+    }
+    trigger_repositories {
+        int id PK
+        string uri UK
+        int secret_id FK
         string provider
         string api_uri
+    }
+    pull_requests {
+        int id PK
+        int trigger_repository_id FK
+        int number
+        string title
+        string raised_by
+        string base_branch
+        datetime merged_at
+        string merge_commit_sha
+        bool files_truncated "unique with trigger_repository_id and number"
+    }
+    pull_request_files {
+        int id PK
+        int pull_request_id FK
+        string path
+        string status "added, modified, ..."
+    }
+    project_trigger_repositories {
+        int id PK
+        int project_id FK
+        int trigger_repository_id FK
         string watch_dir
         string base_branch
         datetime initial_cursor
+        int initial_cursor_number
+        bool enabled
+        bool revoked
+    }
+    pull_request_triggers {
+        int trigger_id PK, FK
+        int project_trigger_repository_id FK
+        int pull_request_id FK "unique with the assignment"
+        text spec_raw
     }
     results_repositories {
         int id PK
-        int project_id FK "unique, one per project"
+        string uri UK
         int secret_id FK
-        string uri
         string provider
         string api_uri
+    }
+    project_results_repositories {
+        int id PK
+        int project_id FK UK
+        int results_repository_id FK
         string target_dir
         bool owned_by_federated_node
+        bool enabled
+        bool revoked
     }
     triggers {
         int id PK
         string type "PR or API"
         int project_id FK
-        string state "UNKNOWN YIELDED IGNORED REJECTED"
-        string state_cause "set only for IGNORED and REJECTED"
-    }
-    pull_request_triggers {
-        int trigger_id PK, FK
-        int trigger_repository_id FK
-        int number "unique with repository"
-        string title
-        string raised_by
-        string merge_commit_sha
-        datetime merged_at
-        json payload
+        string state "UNKNOWN YIELDED REJECTED"
+        string state_cause
     }
     api_request_triggers {
         int trigger_id PK, FK
         string user_id
-        json payload
+        text spec_raw
     }
     tasks {
         int id PK
         int project_id FK
         int trigger_id FK, UK "one task per trigger"
-        int dataset_id FK
+        int task_spec_id FK
         string name
-        string docker_image
         string status
         int attempt
         string requested_by
-        string dagster_run_id UK
+        string executor_run_id UK
         datetime started_at
         datetime completed_at
         int exit_code
-        json spec
+        string state_cause "why the launcher failed it"
         json params
+    }
+    task_specs {
+        int id PK
+        string image
+        int dataset_id FK "optional"
+        json env
     }
     results {
         int id PK
         string type "PR"
         int task_id FK
-        int results_repository_id FK
+        int results_repository_id FK "the project_results_repositories row, the API shows the global repository id"
         int attempts
         string error
     }
     pull_request_results {
         int result_id PK, FK
-        string state "UNKNOWN PUSHED OPENED MERGED CLOSED"
+        string state "UNKNOWN PUSHED OPENED MERGED CLOSED REVOKED"
         string branch
         string commit_sha
         int number
@@ -109,26 +152,34 @@ erDiagram
         string merge_commit_sha
     }
 
-    projects ||--o{ secrets : owns
-    projects ||--o{ datasets : owns
-    projects ||--o{ trigger_repositories : owns
-    projects ||--o| results_repositories : "has one"
+    projects ||--o{ project_datasets : "assigns"
+    projects ||--o{ project_secrets : "assigns"
+    secrets ||--o{ project_secrets : "is assigned via"
+    projects ||--o{ project_trigger_repositories : "assigns"
+    projects ||--o| project_results_repositories : "assigns one"
     projects ||--o{ triggers : "scopes"
     projects ||--o{ tasks : "scopes"
     secrets ||--o{ datasets : "credentials of"
     secrets ||--o{ trigger_repositories : "token of"
     secrets ||--o{ results_repositories : "token of"
-    trigger_repositories ||--o{ pull_request_triggers : "watched PRs"
+    datasets ||--o{ project_datasets : "is assigned via"
+    trigger_repositories ||--o{ pull_requests : "has PRs"
+    trigger_repositories ||--o{ project_trigger_repositories : "assigned to projects"
+    project_trigger_repositories ||--o{ pull_request_triggers : "yields triggers from"
+    pull_requests ||--o{ pull_request_files : "changed"
+    pull_requests ||--o{ pull_request_triggers : "fanned out as"
+    results_repositories ||--o{ project_results_repositories : "assigned to projects"
+    project_results_repositories ||--o{ results : "receives"
     triggers ||--o| pull_request_triggers : "is a"
     triggers ||--o| api_request_triggers : "is a"
     triggers ||--o| tasks : "yields"
-    datasets |o--o{ tasks : "runs on"
+    task_specs ||--o{ tasks : "specifies"
+    datasets |o--o{ task_specs : "runs on"
     tasks ||--o{ results : "delivered as"
-    results_repositories ||--o{ results : "receives"
     results ||--o| pull_request_results : "is a"
 ```
 
-Composite foreign keys `(project_id, secret_id)` on `datasets`, `trigger_repositories` and `results_repositories` tie each to a secret of its own project. A `results` row is unique per `(task_id, results_repository_id)`. `projects.default_dataset_id` closes a cycle with `datasets` and is added last in the migration.
+Composite foreign key `(project_id, default_dataset_id)` on `projects` references `project_datasets`. Global resources (`secrets`, `trigger_repositories`, `results_repositories`, `datasets`) have no `project_id`. Pull requests are stored once per global repository (`UNIQUE(trigger_repository_id, number)`), with their changed files in `pull_request_files` and `files_truncated` set when the provider's list was cut. A `pull_request_triggers` row is unique per `(assignment, pull request)` and keeps the evaluation state; the pull request's number, title, author, merge time and commit are read through `pull_request`. A `project_trigger_repositories` row has `UNIQUE(project_id, trigger_repository_id)`, so the API addresses it by the global repository id. A `project_secrets` row links a project to a secret (`UNIQUE(project_id, secret_id)`, `enabled`, `revoked`) and never holds values. `pr_cursor` is not a column: it is the latest `merged_at` of the repository's pull requests, or of the assignment's triggers, from `initial_cursor` (set when the link is created) when it has none. An assignment is active when `enabled` and not `revoked`. A `results` row is unique per `(task_id, results_repository_id)` where `results_repository_id` is the `project_results_repositories` id.
 
 ## Inheritance trees
 
@@ -145,17 +196,18 @@ classDiagram
         +task_id()
     }
     class PullRequestTrigger {
-        +int trigger_repository_id
-        +int number
-        +string title
-        +string raised_by
-        +string merge_commit_sha
-        +datetime merged_at
-        +dict payload
+        +int project_trigger_repository_id
+        +int pull_request_id
+        +string spec_raw
+        +number()
+        +title()
+        +raised_by()
+        +merged_at()
+        +merge_commit_sha()
     }
     class ApiRequestTrigger {
         +string user_id
-        +dict payload
+        +string spec_raw
     }
     Trigger <|-- PullRequestTrigger : type PR
     Trigger <|-- ApiRequestTrigger : type API
@@ -187,16 +239,14 @@ classDiagram
 
 ```mermaid
 stateDiagram-v2
-    [*] --> UNKNOWN : ingest sensor records a merged PR
+    [*] --> UNKNOWN : a stored PR is fanned out to an active assignment
     UNKNOWN --> YIELDED : valid spec, task created in the same transaction
-    UNKNOWN --> IGNORED : no new .json under watch_dir (state_cause)
     UNKNOWN --> REJECTED : several files, invalid spec, or backend 400 (state_cause)
     YIELDED --> [*]
-    IGNORED --> [*]
     REJECTED --> [*]
 ```
 
-`state_cause` is required for `IGNORED` and `REJECTED` and forbidden otherwise (check constraint and `set_state`). An `ApiRequestTrigger` is validated inside `POST /tasks`: it is recorded `REJECTED` (with the cause) when invalid, else `YIELDED` with its task, and is never `UNKNOWN` for long.
+`state_cause` is required for `REJECTED`, which is final, and forbidden otherwise (check constraint and `set_state`). An `ApiRequestTrigger` is validated inside `POST /projects/{project_id}/tasks`: it is recorded `REJECTED` (with the cause) when invalid, else `YIELDED` with its task, and is never `UNKNOWN` for long.
 
 ## Task status
 
@@ -210,8 +260,8 @@ stateDiagram-v2
     RUNNING --> FAILED : run failed
     QUEUED --> CANCELED : run canceled
     RUNNING --> CANCELED : run canceled
-    FAILED --> PENDING : POST /tasks/id/retry, attempt + 1
-    CANCELED --> PENDING : POST /tasks/id/retry, attempt + 1
+    FAILED --> PENDING : POST /projects/{project_id}/tasks/id/retry, attempt + 1
+    CANCELED --> PENDING : POST /projects/{project_id}/tasks/id/retry, attempt + 1
     SUCCESS --> [*]
 ```
 
@@ -221,7 +271,7 @@ Only the run-status sensors write the status; the backend does not enforce the o
 
 ```mermaid
 stateDiagram-v2
-    [*] --> UNKNOWN : POST /results (idempotent)
+    [*] --> UNKNOWN : POST /projects/<id>/results (idempotent)
     UNKNOWN --> PUSHED : branch pushed (delivery job)
     PUSHED --> OPENED : results PR opened (delivery job)
     PUSHED --> OPENED : PR found by branch (sync sensor)
@@ -229,8 +279,10 @@ stateDiagram-v2
     OPENED --> CLOSED : PR closed unmerged (sync sensor)
     PUSHED --> MERGED : delivery found its PR already merged
     PUSHED --> CLOSED : delivery found its PR already closed
+    [*] --> REVOKED : POST /projects/<id>/results through a revoked link
     MERGED --> [*]
     CLOSED --> [*]
+    REVOKED --> [*]
 ```
 
 Forward only: `UNKNOWN < PUSHED < OPENED < MERGED = CLOSED`. A PATCH to the same state is accepted; to an earlier state, or out of `MERGED`/`CLOSED`, is a 400. A failed delivery leaves the state and sets `error` and `attempts`.

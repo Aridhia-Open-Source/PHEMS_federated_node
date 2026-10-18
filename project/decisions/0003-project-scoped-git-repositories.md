@@ -1,6 +1,6 @@
 # 0003. Project-scoped trigger and results repositories
 
-- Status: Accepted
+- Status: Superseded by [0019](0019-global-resources-and-shared-pull-requests.md)
 
 ## Context
 

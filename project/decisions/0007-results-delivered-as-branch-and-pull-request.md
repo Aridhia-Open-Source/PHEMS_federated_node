@@ -1,6 +1,6 @@
 # 0007. Results delivered as a pushed branch plus a results pull request
 
-- Status: Accepted (size cap and layout are tuneable)
+- Status: Accepted (size cap and layout are tuneable). Amended: delivery uses the project's results repository assignment (0019, stage 3).
 
 ## Context
 
@@ -12,7 +12,7 @@ Results of a run (files in the artifacts volume) must reach the project's result
 
 1. Clone the results repository (shallow) with the repository's own token.
 2. The branch is `<target_dir>/<trigger repo name>/<pr number>/<task id>-<merge sha[:7]>`. If it already exists on the remote it is an earlier attempt and is not pushed again.
-3. Zip the run's artifacts (`<artifact mount>/<dagster_run_id>`) as `results.zip`; fail if over `RESULTS_MAX_ZIP_BYTES` (default 10 MiB).
+3. Zip the run's artifacts (`<artifact mount>/<executor_run_id>`) as `results.zip`; fail if over `RESULTS_MAX_ZIP_BYTES` (default 10 MiB).
 4. Write, next to it under `<target_dir>/<repo>/<pr>/<task id>/`: `spec.json` (the task spec) and `metadata.json` (branch, merge commit sha, task id, run id, trigger repository uri, PR number, delivery time, zip size). Commit and push the branch.
 5. Record `PUSHED` with `branch` and `commit_sha`, then open a pull request from the branch into the repository's default branch (or find the one already opened for it) and record `OPENED` with `number` and `url`.
 

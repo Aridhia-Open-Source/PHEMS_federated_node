@@ -1,6 +1,6 @@
 # 0013. Baseline migration edited in place while the schema is not live
 
-- Status: Provisional (until a deployment holds data worth keeping)
+- Status: Provisional (until a deployment holds data worth keeping). Applied: stages 1-6 of 0019 edited 001_baseline.py in place.
 
 ## Context
 

@@ -1,6 +1,6 @@
 # 0001. Polymorphic Trigger with PullRequestTrigger and ApiRequestTrigger
 
-- Status: Accepted
+- Status: Accepted. Amended: the ingest stores a pull request once per repository and the backend fans out an UNKNOWN or IGNORED trigger per active assignment (0019, stage 5).
 
 ## Context
 
