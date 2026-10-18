@@ -191,7 +191,7 @@ class ResultsDelivery:
                 "branch": branch,
                 "merge_commit_sha": pull_request.merge_commit_sha,
                 "task_id": task.id,
-                "dagster_run_id": run_id,
+                "executor_run_id": run_id,
                 "trigger_repository_uri": trigger_repository.uri,
                 "number": pull_request.number,
                 "delivered_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

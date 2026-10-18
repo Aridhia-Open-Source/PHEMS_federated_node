@@ -86,6 +86,7 @@ SAMPLE_PR = {
     "merged_at": "2026-06-26T10:00:00Z",
     "merge_commit_sha": "abc123def456",
     "state": "UNKNOWN",
+    "spec_files": [],
 }
 
 SAMPLE_INVALID_PR = {
@@ -97,6 +98,7 @@ SAMPLE_INVALID_PR = {
     "merged_at": "2026-06-27T10:00:00Z",
     "merge_commit_sha": "xyz789abc123",
     "state": "UNKNOWN",
+    "spec_files": [],
 }
 
 SAMPLE_IN_PROGRESS_PR = {
@@ -108,6 +110,7 @@ SAMPLE_IN_PROGRESS_PR = {
     "merged_at": "2026-06-28T10:00:00Z",
     "merge_commit_sha": "pqr456xyz789",
     "state": "UNKNOWN",
+    "spec_files": [],
 }
 
 

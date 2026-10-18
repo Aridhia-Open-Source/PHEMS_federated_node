@@ -94,6 +94,8 @@ class PullRequestTriggerDTO(DTO):
     state: str
     state_cause: str | None
     task_id: int | None
+    # Paths of the new spec files under the link's watch_dir; the evaluate step reads from these
+    spec_files: list[str]
 
 
 class TaskTriggerDTO(PullRequestTriggerDTO):

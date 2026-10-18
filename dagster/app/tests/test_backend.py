@@ -238,7 +238,7 @@ class TestDatasets:
 SAMPLE_PROJECT = {"id": 1, "name": "proj", "enabled": True, "default_dataset_id": 1}
 SAMPLE_TASK = {
     "id": 9, "name": "t", "spec": {"image": "a/b:1", "dataset_id": 1, "env": {}}, "attempt": 1, "trigger_id": 4, "status": "PENDING", "requested_by": "u",
-    "project_id": 1, "dagster_run_id": None, "exit_code": None,
+    "project_id": 1, "executor_run_id": None, "exit_code": None,
     "started_at": None, "completed_at": None,
 }
 
@@ -290,11 +290,11 @@ class TestTasks:
         assert session.get.call_args_list[1].kwargs["params"]["page"] == 2
 
     def test_patch_task_reads_the_run_fields(self, api, session):
-        session.patch.return_value = make_response({**SAMPLE_TASK, "dagster_run_id": "r1", "exit_code": 0})
+        session.patch.return_value = make_response({**SAMPLE_TASK, "executor_run_id": "r1", "exit_code": 0})
 
         task = api.patch_task(1, 9, {"status": "QUEUED"})
 
-        assert (task.dagster_run_id, task.exit_code) == ("r1", 0)
+        assert (task.executor_run_id, task.exit_code) == ("r1", 0)
         assert session.patch.call_args.args == ("/projects/1/tasks/9",)
         assert session.patch.call_args.kwargs["json"] == {"status": "QUEUED"}
 

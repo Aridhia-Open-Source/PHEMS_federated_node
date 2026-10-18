@@ -358,9 +358,9 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
     assert created2 is False and task2.id == task.id
     assert [t.id for t in d.get_tasks("PENDING", pid)] == [task.id]
     assert d.get_tasks("RUNNING", pid) == []
-    running = d.patch_task(pid, task.id, {"status": "RUNNING", "dagster_run_id": "run-1"})
-    assert running.status == "RUNNING" and running.dagster_run_id == "run-1"
-    assert d.get_task(pid, task.id).dagster_run_id == "run-1"
+    running = d.patch_task(pid, task.id, {"status": "RUNNING", "executor_run_id": "run-1"})
+    assert running.status == "RUNNING" and running.executor_run_id == "run-1"
+    assert d.get_task(pid, task.id).executor_run_id == "run-1"
     trigger = d.get_task_trigger(pid, task.id)
     assert (trigger.number, trigger.trigger_repository.id) == (1, tid)
     assert d.patch_task(pid, task.id, {"status": "SUCCESS"}).status == "SUCCESS"

@@ -149,7 +149,7 @@ def patch_task(project_id, task_id):
     if not body:
         raise InvalidRequest("No fields provided to update")
 
-    unknown = set(body) - {"status", "dagster_run_id", "exit_code", "state_cause", "started_at", "completed_at"}
+    unknown = set(body) - {"status", "executor_run_id", "exit_code", "state_cause", "started_at", "completed_at"}
     if unknown:
         raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
 
@@ -163,10 +163,10 @@ def patch_task(project_id, task_id):
             )
         task.status = body['status']
 
-    if 'dagster_run_id' in body:
-        if not isinstance(body['dagster_run_id'], str):
-            raise InvalidRequest("dagster_run_id must be a string")
-        task.dagster_run_id = body['dagster_run_id']
+    if 'executor_run_id' in body:
+        if not isinstance(body['executor_run_id'], str):
+            raise InvalidRequest("executor_run_id must be a string")
+        task.executor_run_id = body['executor_run_id']
 
     if 'state_cause' in body:
         if not isinstance(body['state_cause'], str):
@@ -203,7 +203,7 @@ def retry_task(project_id, task_id):
 
     task.status = TaskStatus.PENDING.value
     task.attempt += 1
-    task.dagster_run_id = None
+    task.executor_run_id = None
     task.started_at = None
     task.completed_at = None
     task.exit_code = None

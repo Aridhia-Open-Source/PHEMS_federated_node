@@ -44,7 +44,7 @@ def pr_of(state="YIELDED"):
 
 def task_of(**fields):
     task = dict(
-        id=9, status="SUCCESS", attempt=1, dagster_run_id="abc",
+        id=9, status="SUCCESS", attempt=1, executor_run_id="abc",
         started_at="2026-01-01T10:00:00Z", completed_at="2026-01-01T10:01:00Z",
     )
     return SimpleNamespace(**(task | fields))
@@ -113,7 +113,7 @@ def test_a_task_without_a_run_fails():
 
 @pytest.mark.parametrize("task_fields, run_fields, failed", [
     ({"status": "RUNNING"}, {}, "Task status matches the run"),
-    ({"dagster_run_id": "other"}, {}, "Task holds the run's id"),
+    ({"executor_run_id": "other"}, {}, "Task holds the run's id"),
     ({"attempt": 2}, {}, "Task attempt matches the run's attempt tag"),
     ({"started_at": None}, {}, "Task has started_at"),
     ({"completed_at": None}, {}, "Task has completed_at"),

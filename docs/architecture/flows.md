@@ -82,7 +82,7 @@ sequenceDiagram
         BE->>BE: store once, fan out a trigger per active assignment
     end
     DG->>BE: list each enabled project's links, then the UNKNOWN pull requests of each
-    DG->>Git: PR files, spec file at the merge commit
+    DG->>Git: spec file named by the trigger's spec_files, at the merge commit
     DG->>BE: POST pull request task (YIELDED) or PATCH REJECTED
     DG->>BE: list PENDING tasks of enabled projects
     DG->>BE: get the project's dataset assignment, must be active

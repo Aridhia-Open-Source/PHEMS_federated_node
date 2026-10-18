@@ -21,7 +21,7 @@ from app.tests.conftest import SAMPLE_SECRET
 RUN_ID = "run-1"
 TASK = Task(
     id=7, name="t", spec={"image": "img", "dataset_id": None, "env": {}}, attempt=1, requested_by="u",
-    project_id=1, trigger_id=3, dagster_run_id="stale-run",
+    project_id=1, trigger_id=3, executor_run_id="stale-run",
 )
 GLOBAL_REPOSITORY = ResultsRepository(
     id=2, uri="http://gitea.fn.svc:3000/fn/results", repo_path="fn/results",
@@ -38,7 +38,7 @@ REPOSITORY = ProjectResultsRepository(
 TRIGGER_REPOSITORY = TriggerRepositoryRef(id=2, repo_path="fn/analysis", uri="gitea.fn.svc:3000/fn/analysis")
 PULL_REQUEST = TaskTrigger(
     project_id=1, trigger_repository_id=2, number=12, title="t", raised_by="u", merged_at="2026-01-01T00:00:00Z",
-    merge_commit_sha="abc", state="YIELDED", task_id=7, trigger_repository=TRIGGER_REPOSITORY,
+    merge_commit_sha="abc", state="YIELDED", task_id=7, spec_files=["spec.json"], trigger_repository=TRIGGER_REPOSITORY,
 )
 LAYOUT = "results/analysis/12/7"
 BRANCH = "results/analysis/12/7-abc"
@@ -150,7 +150,7 @@ def test_success_pushes_a_branch_with_the_layout_and_records_pushed_then_opened(
     assert metadata["branch"] == BRANCH
     assert metadata["merge_commit_sha"] == "abc"
     assert metadata["task_id"] == 7
-    assert metadata["dagster_run_id"] == RUN_ID
+    assert metadata["executor_run_id"] == RUN_ID
     assert metadata["trigger_repository_uri"] == TRIGGER_REPOSITORY.uri
     assert metadata["number"] == 12
     assert metadata["zip_size_bytes"] == (out / "results.zip").stat().st_size

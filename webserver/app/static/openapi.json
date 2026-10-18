@@ -6660,7 +6660,7 @@
             "type": "integer",
             "example": 1
           },
-          "dagster_run_id": {
+          "executor_run_id": {
             "type": "string",
             "nullable": true,
             "example": "8c6f2a52-5d1c-4e0b-9d57-3f0e8a1c2b44"
@@ -7162,7 +7162,7 @@
               "CANCELLED"
             ]
           },
-          "dagster_run_id": {
+          "executor_run_id": {
             "type": "string",
             "example": "8c6f2a52-5d1c-4e0b-9d57-3f0e8a1c2b44"
           },
@@ -8120,6 +8120,16 @@
             "type": "integer",
             "nullable": true,
             "example": null
+          },
+          "spec_files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Paths of the files the pull request adds, ending in .json, under the link's watch_dir. The evaluate step reads the spec from the only one",
+            "example": [
+              "specs/a.json"
+            ]
           }
         }
       },

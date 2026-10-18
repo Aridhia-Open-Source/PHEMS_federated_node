@@ -212,9 +212,9 @@ def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, links: Links
         f"task {task.status}, run {run['status']} (expected {expected})",
     )
     report.record(
-        task.dagster_run_id == run["runId"],
+        task.executor_run_id == run["runId"],
         "Task holds the run's id",
-        f"task {task.dagster_run_id}, run {run['runId']}",
+        f"task {task.executor_run_id}, run {run['runId']}",
     )
     report.record(
         str(task.attempt) == tags.get("attempt"),

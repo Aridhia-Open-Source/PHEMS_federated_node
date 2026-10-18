@@ -92,7 +92,7 @@ class FakeBackend:
 
     def get_task(self, project_id, task_id):
         return SimpleNamespace(
-            id=task_id, status=self.task_status, attempt=1, dagster_run_id="abc",
+            id=task_id, status=self.task_status, attempt=1, executor_run_id="abc",
             started_at="2026-01-01T10:00:00Z", completed_at="2026-01-01T10:01:00Z",
         )
 

@@ -13,10 +13,10 @@ the repository gets a trigger for each one it should evaluate (ADR 0019).
 Triggers are created through `create_triggers`, so a pair (assignment, pull request) gets one
 trigger; the unique constraint settles a race.
 
-Matching is decided here from stored data alone, with the rule the Dagster evaluate step
-applies to the files of a pull request (`PullRequestParser._filter_watched_files`): a file
-the pull request adds, ending in `.json`, under the assignment's `watch_dir`. A pull request
-that does not match gets no trigger for that assignment; the cause is logged at info level.
+Matching is decided here from stored data alone, with the rule of `spec_files`: a file the
+pull request adds, ending in `.json`, under the assignment's `watch_dir`. The trigger exposes
+those paths as `spec_files` and Dagster's evaluate step trusts them. A pull request that does
+not match gets no trigger for that assignment; the cause is logged at info level.
 """
 import logging
 from datetime import datetime
@@ -28,6 +28,7 @@ from sqlalchemy.orm import selectinload
 
 from app.dtos.trigger_repository import PullRequestRequest
 from app.helpers.base_model import db
+from app.helpers.spec_files import spec_files
 from app.models.git_provider import GitProvider
 from app.models.project_trigger_repository import ProjectTriggerRepository, now_ts
 from app.models.pull_request import PullRequest, PullRequestFile
@@ -39,15 +40,6 @@ logger.setLevel(logging.INFO)
 session = db.session
 
 
-def is_under_dir(filename: str, directory: str) -> bool:
-    """
-    Whether the file's directory is the given directory or inside it, matching whole path
-    segments. An empty directory is the whole repository.
-    """
-    wanted = [s for s in directory.split("/") if s not in ("", ".")]
-    return filename.split("/")[:-1][:len(wanted)] == wanted
-
-
 def unmatched_cause(assignment: ProjectTriggerRepository, pull_request: PullRequest) -> str | None:
     """
     Why the pull request is not for the assignment, or None when it is. A pull request whose
@@ -57,9 +49,8 @@ def unmatched_cause(assignment: ProjectTriggerRepository, pull_request: PullRequ
         return f"Pull request was merged into {pull_request.base_branch}, not {assignment.base_branch}"
     if pull_request.files_truncated:
         return None
-    for file in pull_request.files:
-        if is_under_dir(file.path, assignment.watch_dir) and file.path.endswith('.json') and file.status == "added":
-            return None
+    if spec_files(pull_request, assignment.watch_dir):
+        return None
     return f"No new spec file under {assignment.watch_dir}"
 
 

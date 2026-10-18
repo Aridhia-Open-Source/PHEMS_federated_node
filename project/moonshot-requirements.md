@@ -462,7 +462,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 **Happy path:** `POST .../retry` on a FAILED or CANCELED task sets it PENDING, adds one to `attempt` and clears run fields.
 
 **Validation cases:**
-1. Retry a FAILED task → 200, `status: PENDING`, `attempt` up by 1, `dagster_run_id` null. **[business]**
+1. Retry a FAILED task → 200, `status: PENDING`, `attempt` up by 1, `executor_run_id` null. **[business]**
 2. Retry a RUNNING task → 400. **[technical]**
 3. Retry a SUCCESS task → 400. **[technical]**
 

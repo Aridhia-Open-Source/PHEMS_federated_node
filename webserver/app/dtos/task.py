@@ -23,7 +23,7 @@ class TaskDTO(DTO):
     requested_by: str
     project_id: int
     trigger_id: int
-    dagster_run_id: str | None
+    executor_run_id: str | None
     exit_code: int | None
     state_cause: str | None
     config_hash: str | None

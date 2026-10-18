@@ -3,6 +3,7 @@ from datetime import datetime as dt
 import sqlalchemy as sa
 from sqlalchemy import orm
 
+from app.helpers.spec_files import spec_files
 from app.models.trigger import Trigger
 
 
@@ -71,6 +72,11 @@ class PullRequestTrigger(Trigger):
     @property
     def merged_at(self) -> dt:
         return self.pull_request.merged_at
+
+    @property
+    def spec_files(self) -> list[str]:
+        """The paths of the spec files the pull request carries under the link's watch_dir."""
+        return spec_files(self.pull_request, self.project_trigger_repository.watch_dir)
 
     @property
     def requested_by(self) -> str:

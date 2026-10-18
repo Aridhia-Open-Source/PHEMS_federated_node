@@ -194,9 +194,9 @@
 **Actual behaviour:** After storing new PRs, the webserver creates a `pull_request_triggers` row (state UNKNOWN) for each active link of that repository where the PR matches: same `base_branch` as the link, and either `files_truncated` is true or the PR added a `.json` file under the link's `watch_dir`. Non-matching PRs get no trigger; the cause is logged at info level. Creation uses a savepoint, so a race on the unique constraint skips only that trigger. Fan-out does not check the project's `enabled` or `locked`.
 **Evidence:**
 - `helpers/pull_request_fanout.py:112-118` `active_assignments` (link enabled, not revoked, repository enabled); no project filter.
-- `:48-60` `unmatched_cause`: base branch mismatch; `files_truncated` returns "matches"; else needs a file with `is_under_dir`, suffix `.json`, status `"added"`.
+- `unmatched_cause`: base branch mismatch; `files_truncated` returns "matches"; else needs a non-empty `spec_files` (`helpers/spec_files.py`: a file with `is_under_dir`, suffix `.json`, status `"added"`). The same helper fills `spec_files` on the PR trigger DTO, and Dagster's evaluate step trusts it instead of re-fetching the files.
 - `:121-160` `create_triggers` (savepoint at `:155`); `:163-166` `fan_out`.
-- `:39-45` `is_under_dir`: whole path segments; empty `watch_dir` means the whole repo.
+- `helpers/spec_files.py` `is_under_dir`: whole path segments; empty `watch_dir` means the whole repo.
 **Tests:** `test_pull_requests_and_tasks.py::test_ingest_fans_out_and_is_idempotent`, `test_file_matching_against_watch_dir`, `test_truncated_file_list_matches_but_base_branch_still_applies`, `test_base_branch_default_override_and_case`, `test_disabled_link_gets_no_trigger_until_enabled`.
 
 ### SR-PR-04 Trigger states: UNKNOWN, YIELDED, REJECTED. No IGNORED.
@@ -268,14 +268,14 @@
 **Tests:** `test_pull_requests_and_tasks.py::test_task_trigger_is_the_pull_request_with_its_repository`, `test_task_trigger_of_a_task_made_by_hand_is_a_404`; dagster `test_backend.py::test_get_task_trigger_reads_the_pull_request_and_its_repository`.
 
 ### SR-TASK-04 A finished task cannot change status
-**Actual behaviour:** `PATCH /projects/<pid>/tasks/<id>` refuses (409) a status change when the current status is SUCCESS, FAILED or CANCELED and the new status differs. Setting the same status again is allowed. Other fields (`dagster_run_id`, `exit_code`, `state_cause`, `started_at`, `completed_at`) can still be patched. Unknown fields and invalid status values are 400. Scope is `can_admin_dataset`.
+**Actual behaviour:** `PATCH /projects/<pid>/tasks/<id>` refuses (409) a status change when the current status is SUCCESS, FAILED or CANCELED and the new status differs. Setting the same status again is allowed. Other fields (`executor_run_id`, `exit_code`, `state_cause`, `started_at`, `completed_at`) can still be patched. Unknown fields and invalid status values are 400. Scope is `can_admin_dataset`.
 **Evidence:**
 - `tasks_api.py:49` `FINAL_STATUSES`; `:135-187` patch; `:158-161` the 409; `:150-152` allowed fields.
 - Dagster: run-status sensor treats the 409 as skip (`dagster/app/definitions/sensors/task/run_status.py:58-63`).
 **Tests:** `test_pull_requests_and_tasks.py::test_finished_tasks_cannot_change_status`, `test_bad_task_patches_are_400_and_change_nothing`; `tasks/test_patch_task.py`; dagster `test_task_run_status_sensor.py::test_a_409_from_a_finished_task_is_skipped`.
 
 ### SR-TASK-05 Retry resets a failed or canceled task
-**Actual behaviour:** `POST .../tasks/<id>/retry` works only for FAILED or CANCELED (else 400). It sets status PENDING, adds 1 to `attempt`, and clears `dagster_run_id`, `started_at`, `completed_at`, `exit_code`, `state_cause`. Returns 200. The launcher's run key includes the attempt, so a retry gets a new run.
+**Actual behaviour:** `POST .../tasks/<id>/retry` works only for FAILED or CANCELED (else 400). It sets status PENDING, adds 1 to `attempt`, and clears `executor_run_id`, `started_at`, `completed_at`, `exit_code`, `state_cause`. Returns 200. The launcher's run key includes the attempt, so a retry gets a new run.
 **Evidence:**
 - `tasks_api.py:190-211`.
 - `dagster/.../launcher.py:58` run key `task/{task.id}/{task.attempt}`.
@@ -430,7 +430,7 @@ All sensors are created with `default_status=DEFAULT_SENSOR_STATUS`, read once a
 **Tests:** dagster `test_task_launcher.py` (`test_launches_a_pending_task`, `test_only_enabled_projects_are_acted_on`, `test_a_task_whose_dataset_is_not_active_is_not_launched`, `test_other_tasks_are_launched_when_one_dataset_is_not_active`, `test_every_pending_task_of_every_page_is_launched`, `test_the_launcher_patches_nothing_and_re_yields_the_same_run_key`); `test_run_config.py`.
 
 ### SR-SENS-09 Only run-status sensors write task status
-**Actual behaviour:** Five run-status sensors (QUEUED, STARTED, SUCCESS, FAILURE, CANCELED) monitor `k8s_pipes_job` and PATCH the task: status map QUEUED to QUEUED, STARTED to RUNNING, SUCCESS to SUCCESS, FAILURE to FAILED, CANCELED to CANCELED; they record `dagster_run_id`, `started_at` on start, `completed_at` on terminal runs. They act only on runs tagged `trigger=task`. Delivery runs are tagged `trigger=delivery`, so they never touch a task. One exception: the launcher PATCHes FAILED (with `state_cause`) when a dataset is not usable (see SR-SENS-08). The webserver also changes status on retry (PENDING).
+**Actual behaviour:** Five run-status sensors (QUEUED, STARTED, SUCCESS, FAILURE, CANCELED) monitor `k8s_pipes_job` and PATCH the task: status map QUEUED to QUEUED, STARTED to RUNNING, SUCCESS to SUCCESS, FAILURE to FAILED, CANCELED to CANCELED; they record `executor_run_id`, `started_at` on start, `completed_at` on terminal runs. They act only on runs tagged `trigger=task`. Delivery runs are tagged `trigger=delivery`, so they never touch a task. One exception: the launcher PATCHes FAILED (with `state_cause`) when a dataset is not usable (see SR-SENS-08). The webserver also changes status on retry (PENDING).
 **Evidence:**
 - `.../task/__init__.py:39-108` sensors; `:41-42` tag check.
 - `run_status.py:17-25` map; `:31-64`.
@@ -917,7 +917,7 @@ Behaviour in the code that no requirement ID covers.
 **Webserver**
 - API task trigger kind: `ApiRequestTrigger` with `user_id` and raw body (`models/api_request_trigger.py`). Triggers are polymorphic (`type` PR or API) with a table-level check on `state_cause` (`models/trigger.py`).
 - `TaskSpec` rows: image, `dataset_id`, `env` (`models/task_spec.py`); env key regex, reserved keys and size cap (`dtos/task_spec.py:29-39`, constants in `helpers/const.py`).
-- Task PATCH fields include `dagster_run_id` (unique), `exit_code`, `state_cause`, `started_at`, `completed_at`.
+- Task PATCH fields include `executor_run_id` (unique), `exit_code`, `state_cause`, `started_at`, `completed_at`.
 - `GET /projects/<pid>/tasks` (not in `.../results`) returns `{tasks,total,page,per_page,pages}` with `?status=`.
 - `GET /projects/<pid>/results?step=A&step=B` (repeatable).
 - `results.attempts` and `results.error` fields; PR result fields branch, commit_sha, number, url, merged_at, merge_commit_sha.

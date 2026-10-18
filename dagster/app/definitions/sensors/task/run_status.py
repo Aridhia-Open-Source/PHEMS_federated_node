@@ -44,7 +44,7 @@ class TaskRunStatusSensor(BaseSensor):
         project_id = int(run.tags["project_id"])
 
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        fields = {"status": task_status.value, "dagster_run_id": run.run_id}
+        fields = {"status": task_status.value, "executor_run_id": run.run_id}
         if run.status == dg.DagsterRunStatus.STARTED:
             fields["started_at"] = now
         elif task_status in self.TERMINAL_STATUSES:

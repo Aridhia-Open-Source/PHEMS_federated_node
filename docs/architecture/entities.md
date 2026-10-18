@@ -120,7 +120,7 @@ erDiagram
         string status
         int attempt
         string requested_by
-        string dagster_run_id UK
+        string executor_run_id UK
         datetime started_at
         datetime completed_at
         int exit_code

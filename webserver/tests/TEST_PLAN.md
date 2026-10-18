@@ -135,7 +135,7 @@ Fixtures: `client, admin_headers, project, global_trigger_repo, pr_trigger, inge
 | `test_bad_spec_rejects_pr` | `pr_trigger` | POST `P + "/task"` `{"spec_raw": "{}"}`; GET `P` | 400; PR `state == "REJECTED"`, `"spec"` in `state_cause` |
 | `test_missing_spec_raw` | `pr_trigger` | POST `P + "/task"` `{}` | 400 |
 | `test_tasks_routes` | `pr_trigger`; create task (201) -> `tid` | GET `/projects/<pid>/tasks`; GET `/projects/<pid>/tasks/<tid>`; GET `/projects/<pid>/tasks/999` | 200 with `total == 1`, `tasks[0]["id"] == tid`; 200; 404 |
-| `test_patch_task` | as above | PATCH `/projects/<pid>/tasks/<tid>` `{"status": "RUNNING", "dagster_run_id": "run-1"}`; PATCH `/projects/<pid>/tasks/<tid>` `{"bogus": 1}`; GET `/projects/<pid>/tasks/<tid>/results` | 200 `status == "RUNNING"`, `dagster_run_id == "run-1"`; 400; 200 `[]` |
+| `test_patch_task` | as above | PATCH `/projects/<pid>/tasks/<tid>` `{"status": "RUNNING", "executor_run_id": "run-1"}`; PATCH `/projects/<pid>/tasks/<tid>` `{"bogus": 1}`; GET `/projects/<pid>/tasks/<tid>/results` | 200 `status == "RUNNING"`, `executor_run_id == "run-1"`; 400; 200 `[]` |
 
 ## 5. `tests/test_datasets.py` (10 tests)
 
