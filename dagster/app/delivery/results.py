@@ -29,8 +29,8 @@ MAX_ERROR_LENGTH = 1000
 REVOKED_ERROR = "results repository access revoked"
 # Past these the pull request is opened, so there is nothing left to deliver.
 PAST_PUSHED = {PullRequestResultStep.OPENED, PullRequestResultStep.MERGED, PullRequestResultStep.CLOSED}
-# REVOKED is final too, but nothing was delivered.
-FINAL = PAST_PUSHED | {PullRequestResultStep.REVOKED}
+# REVOKED and STALE are final too, but nothing was delivered.
+FINAL = PAST_PUSHED | {PullRequestResultStep.REVOKED, PullRequestResultStep.STALE}
 
 
 class ResultsDelivery:
@@ -57,6 +57,8 @@ class ResultsDelivery:
         is looked up before one is opened.
         No result is created when the backend refuses it with a 409 (the task is not SUCCESS, or the
         results repository assignment is disabled): that is skipped.
+        A result the backend created at the final step STALE (the task's configuration changed since the task
+        was created) is left alone, with a warning.
         A revoked assignment gives a result at the final step REVOKED, nothing is delivered and nothing is raised.
         A results repository assignment that is not active for another reason fails the result with an error and
         raises nothing: it is delivered by a manual relaunch once the assignment is active again.
@@ -75,6 +77,9 @@ class ResultsDelivery:
             return
         if result.step == PullRequestResultStep.REVOKED:
             self.log.warning(f"Results of task {task.id} not delivered: {REVOKED_ERROR}")
+            return
+        if result.step == PullRequestResultStep.STALE:
+            self.log.warning(f"Results of task {task.id} not delivered: {result.error}")
             return
         if result.step in PAST_PUSHED:
             self.log.info(f"Results of task {task.id} are already delivered, {result.step.value}")

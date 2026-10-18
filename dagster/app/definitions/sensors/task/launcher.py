@@ -5,6 +5,8 @@ from app.definitions.run_config import build_run_config
 from app.definitions.sensors.base import BaseSensor
 from app.models import Project, Task, TaskStatus
 
+MAX_CAUSE_LENGTH = 1024
+
 
 class TaskLauncherSensor(BaseSensor):
     """Launches a run for each PENDING task of an enabled project."""
@@ -24,7 +26,13 @@ class TaskLauncherSensor(BaseSensor):
         launched = 0
         for project in self.backend_api.get_projects(enabled=True):
             for task in self.backend_api.get_tasks(status=TaskStatus.PENDING.value, project_id=project.id):
-                run_request = self._launch(project, task)
+                try:
+                    run_request = self._launch(project, task)
+                except Exception as e:
+                    # One bad task must not stop the others from launching
+                    self.log.exception(f"Task {task.id} not launched: {e!r}")
+                    self._fail(project, task, f"{type(e).__name__}: {e}")
+                    continue
                 if run_request is None:
                     continue
                 yield run_request
@@ -33,12 +41,30 @@ class TaskLauncherSensor(BaseSensor):
         if not launched:
             yield dg.SkipReason("No pending tasks found.")
 
+    def _fail(self, project: Project, task: Task, cause: str) -> None:
+        """Mark the task FAILED with the cause, best effort: a failing PATCH is logged and swallowed."""
+        try:
+            self.backend_api.patch_task(
+                project.id, task.id, {"status": TaskStatus.FAILED.value, "state_cause": cause[:MAX_CAUSE_LENGTH]}
+            )
+        except Exception as e:
+            self.log.exception(f"Task {task.id} could not be marked FAILED: {e!r}")
+
     def _launch(self, project: Project, task: Task) -> dg.RunRequest | None:
         """
         The run for the task, or None when its dataset is not active in the project or its secret is
         disabled: the task is failed with the cause recorded, and a manual retry launches it once the dataset is
         active again.
         """
+        config = self.backend_api.get_task_config(project.id, task.id)
+        if not config["current"]:
+            cause = "task configuration changed since the task was created: " + "; ".join(config["changes"])
+            self.log.warning(f"Task {task.id} not launched: {cause}")
+            self.backend_api.patch_task(
+                project.id, task.id,
+                {"status": TaskStatus.FAILED.value, "state_cause": cause[:MAX_CAUSE_LENGTH]},
+            )
+            return None
         dataset = None
         if task.spec.dataset_id:
             assignment = self.backend_api.get_project_dataset(project.id, task.spec.dataset_id)

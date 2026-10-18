@@ -216,8 +216,12 @@ def test_a_link_revoked_after_the_result_was_recorded_makes_it_final_and_raises_
     ]
 
 
-def test_a_result_the_backend_created_as_revoked_is_left_alone(backend_api, remote, artifacts):
-    backend_api.create_result.return_value = result(step="REVOKED", state="FAILED", error="results repository link revoked")
+@pytest.mark.parametrize("step, error", [
+    ("REVOKED", "results repository link revoked"),
+    ("STALE", "task configuration changed since the task was created: image changed"),
+])
+def test_a_result_the_backend_created_as_final_without_delivery_is_left_alone(backend_api, remote, artifacts, step, error):
+    backend_api.create_result.return_value = result(step=step, state="FAILED", error=error)
 
     deliver(backend_api, remote, artifacts)
 
