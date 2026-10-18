@@ -323,12 +323,15 @@ def test_patch_state_legal_transitions_and_cause(client, admin_headers, pr_trigg
     for body, state, cause in [
         ({"state": "REJECTED", "state_cause": "bad spec"}, "REJECTED", "bad spec"),
         ({"state_cause": "new"}, "REJECTED", "new"),   # cause alone updates a REJECTED trigger
-        ({"state": "UNKNOWN"}, "UNKNOWN", None),
-        ({"state": "YIELDED"}, "YIELDED", None),
     ]:
         r = client.patch(pr_trigger, json=body, headers=admin_headers)
         assert r.status_code == 200, (body, r.json)
         assert r.json["state"] == state and r.json["state_cause"] == cause
+
+
+def test_patch_state_unknown_to_yielded_is_final(client, admin_headers, pr_trigger):
+    assert client.patch(pr_trigger, json={"state": "YIELDED"}, headers=admin_headers).json["state"] == "YIELDED"
+    assert client.patch(pr_trigger, json={"state": "UNKNOWN"}, headers=admin_headers).status_code == 409
 
 
 @pytest.mark.parametrize("body", [
@@ -592,3 +595,9 @@ def test_task_trigger_is_the_pull_request_with_its_repository(client, admin_head
 def test_task_trigger_of_a_task_made_by_hand_is_a_404(client, admin_headers, project, make_task):
     task = make_task()
     assert client.get(f"/projects/{project.id}/tasks/{task.id}/trigger", headers=admin_headers).status_code == 404
+
+
+def test_rejected_trigger_cannot_go_back_to_unknown(client, admin_headers, pr_trigger):
+    client.patch(pr_trigger, json={"state": "REJECTED", "state_cause": "bad"}, headers=admin_headers)
+    assert client.patch(pr_trigger, json={"state": "UNKNOWN"}, headers=admin_headers).status_code == 409
+    assert pr_state(client, admin_headers, pr_trigger)["state"] == "REJECTED"

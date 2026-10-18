@@ -53,8 +53,9 @@ def not_found(*args):
     raise requests.HTTPError("404 Not Found", response=response)
 
 
-def sync(results, prs_by_number=None, prs_by_branch=None, repository=REPOSITORY):
+def sync(results, prs_by_number=None, prs_by_branch=None, repository=REPOSITORY, patch_effect=None):
     backend_api = MagicMock()
+    backend_api.patch_result.side_effect = patch_effect
     backend_api.get_projects.return_value = [Project(id=1, name="p")]
     backend_api.get_results_by_step.return_value = results
     backend_api.get_results_repository_by_id.return_value = repository
@@ -140,6 +141,22 @@ def test_a_deleted_pull_request_is_skipped_and_the_others_still_synced():
     )
 
     assert list(patched(backend_api)) == [10]
+
+
+def http_error(status):
+    response = requests.Response()
+    response.status_code = status
+    return requests.HTTPError(str(status), response=response)
+
+
+def test_a_409_on_a_result_is_skipped_and_the_others_still_synced():
+    backend_api, _, _ = sync(
+        [result(9, number=3), result(10, number=4)],
+        {3: lambda: git_pr("closed", number=3), 4: lambda: git_pr("closed", number=4)},
+        patch_effect=[http_error(409), None],
+    )
+
+    assert list(patched(backend_api)) == [9, 10]
 
 
 def test_a_provider_error_other_than_404_fails_the_sync():

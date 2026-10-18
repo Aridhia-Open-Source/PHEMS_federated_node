@@ -38,6 +38,7 @@ def sync_results_pull_requests(context: OpExecCtx):
       step if there is one, with the state DELIVERED. None is left alone.
     - OPENED: record the step of the pull request when it changed, MERGED or CLOSED.
       One deleted on the provider (404) is logged and skipped, not guessed CLOSED.
+    A 409 from the backend (the result moved on already) is logged and skipped.
     """
     backend_api = cast(BackendAPI, context.resources.backend_api)
     git_apis = cast(GitAPIFactory, context.resources.git_apis)
@@ -69,13 +70,19 @@ def sync_results_pull_requests(context: OpExecCtx):
         if not found and step == result.step:
             continue
         context.log.info(f"Results pull request {pr['html_url']} is {step.value}")
-        backend_api.patch_result(result.project_id, result.id, {
-            **found,
-            "step": step.value,
-            "merged_at": pr["merged_at"],
-            # GitHub fills merge_commit_sha on an unmerged PR with its test merge
-            "merge_commit_sha": pr["merge_commit_sha"] if step == PullRequestResultStep.MERGED else None,
-        })
+        try:
+            backend_api.patch_result(result.project_id, result.id, {
+                **found,
+                "step": step.value,
+                "merged_at": pr["merged_at"],
+                # GitHub fills merge_commit_sha on an unmerged PR with its test merge
+                "merge_commit_sha": pr["merge_commit_sha"] if step == PullRequestResultStep.MERGED else None,
+            })
+        except requests.HTTPError as e:
+            if e.response.status_code != HTTPStatus.CONFLICT:
+                raise
+            # The result moved on already and keeps its step
+            context.log.warning(f"Result {result.id} not moved to {step.value}: {e.response.text}")
 
 
 @dg.job

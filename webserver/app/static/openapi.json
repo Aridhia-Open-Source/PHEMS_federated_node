@@ -469,8 +469,12 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "409": {
+            "description": "The status move is not allowed"
           }
-        }
+        },
+        "description": "A status move not in TASK_MOVES (webserver/app/models/task_status.py) is refused with 409: only forward, and nothing out of SUCCESS, FAILED or CANCELED. The same status again is allowed."
       }
     },
     "/projects/{project_id}/tasks": {
@@ -2235,7 +2239,7 @@
         "tags": [
           "Tasks"
         ],
-        "summary": "Record the progress of a task's delivery. A pull request result's step only moves forward: UNKNOWN, PUSHED, OPENED, then MERGED, CLOSED, REVOKED or STALE, all terminal. A backward move is a 400",
+        "summary": "Record the progress of a task's delivery. A pull request result's step only moves forward: UNKNOWN, PUSHED, OPENED, then MERGED, CLOSED, REVOKED or STALE, all terminal. A move to the same or a lower rank is a 409, see RESULT_ORDER in webserver/app/models/pull_request_result_step.py",
         "requestBody": {
           "required": true,
           "content": {
@@ -2271,6 +2275,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "409": {
+            "description": "The step move is not allowed"
           }
         }
       }
@@ -5017,7 +5024,7 @@
           "Pull Requests"
         ],
         "summary": "Set a pull request's state",
-        "description": "Called by Dagster. Requires the can_admin_dataset scope.",
+        "description": "Called by Dagster. Requires the can_admin_dataset scope. A state move not in TRIGGER_MOVES (webserver/app/models/trigger_state.py) is refused with 409: REJECTED and YIELDED are final.",
         "parameters": [
           {
             "in": "path",
@@ -5075,6 +5082,9 @@
           },
           "403": {
             "description": "Not authorised"
+          },
+          "409": {
+            "description": "The state move is not allowed"
           }
         }
       }

@@ -49,6 +49,7 @@ from app import create_app
 from app.helpers.base_model import db
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
+from app.models.task_status import TASK_MOVES
 from app.models.trigger_repository import TriggerRepository
 from tests.conftest import new_repo
 
@@ -183,9 +184,10 @@ class TriggerLinkMachine(RuleBasedStateMachine):
             assert response.status_code == 409, response.json
 
     @precondition(lambda self: UNFINISHED & set(self.tasks.values()))
-    @rule(data=st.data(), status=st.sampled_from(["QUEUED", "RUNNING", "SUCCESS", "FAILED"]))
-    def progress_task(self, data, status):
+    @rule(data=st.data())
+    def progress_task(self, data):
         task_id = data.draw(st.sampled_from(sorted(t for t, s in self.tasks.items() if s in UNFINISHED)))
+        status = data.draw(st.sampled_from(sorted(TASK_MOVES[self.tasks[task_id]])))  # forward only
         response = self.call("patch", f"/projects/{self.project_id}/tasks/{task_id}", {"status": status})
         assert response.status_code == 200, response.json
         self.tasks[task_id] = status

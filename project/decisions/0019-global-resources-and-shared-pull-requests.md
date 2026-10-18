@@ -232,6 +232,7 @@ Switching off stops new work, and work already in flight finishes once it is bac
 - `HELD` is not final: `POST /results` for a `HELD` result re-runs the checks (revoked, `STALE`, inactive) and moves it on, to `UNKNOWN` once the link is active.
 - A Dagster sweep sensor lists `HELD` results whose link is active again and launches their delivery, which reads the task run's artifacts. Artifact clean-up must wait for delivery, not for the task's end.
 - `REJECTED` is final for a trigger (decision 10): no request moves it back.
+- The allowed moves live in tables in `webserver/app/models`: `TRIGGER_MOVES` in `trigger_state.py`, `TASK_MOVES` and `RETRYABLE` in `task_status.py`, `RESULT_ORDER` in `pull_request_result_step.py`. The API returns 409 for any other move.
 - An optional backfill of the gap may be added later.
 
 ## Alternatives considered
