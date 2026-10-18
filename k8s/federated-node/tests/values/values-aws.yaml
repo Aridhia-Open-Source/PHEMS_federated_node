@@ -1,0 +1,33 @@
+pullPolicy: Always
+
+create_db_deployment: true
+keycloak:
+  replicas: 1
+db:
+  host: db.federatednode.svc
+  port: 5432
+  secret:
+    key: password
+    name: local-db
+
+storage:
+  aws:
+    fileSystemId: fs-12345aef
+    accessPointId: fsap-12345aef
+
+on_eks: true
+on_aks: false
+
+certs:
+  aws: awscert-config
+
+smoketests: false
+
+host: phems-federatednode.net
+
+cert-manager:
+  enabled: true
+
+traefik:
+  enabled: false
+

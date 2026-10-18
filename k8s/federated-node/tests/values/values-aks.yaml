@@ -1,0 +1,31 @@
+cert-manager:
+  enabled: true
+keycloak:
+  replicas: 1
+certs:
+  azure:
+    configmap: azurecert-config
+    secretName: test-azure
+db:
+  host: postgres.postgres.database.azure.com
+  secret:
+    key: value
+    name: local-db
+host: test.aridhiatest.net
+traefik:
+  enabled: true
+integrations:
+  domains:
+  - '*.test.aridhia.io'
+global:
+  namespaces:
+    keycloak: identities
+    tasks: analytics
+on_aks: true
+pullPolicy: Always
+storage:
+  azure:
+    secretName: test-azure
+    shareName: files
+tls:
+  secretName: tls

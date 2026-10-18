@@ -1,0 +1,218 @@
+suite: Dagster database and code server
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-local.yaml
+set:
+  dagster:
+    enabled: true
+    postgresql:
+      postgresqlHost: db.default.svc   # values-local's db.host
+  fnDagster:
+    createDB: true
+tests:
+  - it: derives Dagster's database from the dagster block, not a second copy of it
+    template: dagster-env-config.yaml
+    asserts:
+      - equal:
+          path: data.DAGSTER_PG_HOST
+          value: db.default.svc
+      - equal:
+          path: data.DAGSTER_PG_USER
+          value: dagster_admin
+      - equal:
+          path: data.DAGSTER_PG_NAME
+          value: dagster
+
+  - it: refuses a dagster host that disagrees with db.host
+    template: requirements-check.yaml
+    set:
+      dagster:
+        postgresql:
+          postgresqlHost: somewhere.else
+    asserts:
+      - failedTemplate:
+          errorPattern: 'postgresqlHost is "somewhere.else" but db.host is "db.default.svc"'
+
+  - it: refuses a dagster port that disagrees with db.port
+    template: requirements-check.yaml
+    set:
+      dagster:
+        postgresql:
+          service:
+            port: 6432
+    asserts:
+      - failedTemplate:
+          errorPattern: "must equal db.port"
+
+  - it: refuses TLS for the backend but not for Dagster
+    template: requirements-check.yaml
+    set:
+      db:
+        enforceSSL: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "sslmode"
+
+  - it: says so when a values file still carries the removed fnDagster.db
+    template: requirements-check.yaml
+    set:
+      fnDagster:
+        db:
+          name: dagster
+    asserts:
+      - failedTemplate:
+          errorPattern: "fnDagster.db has been removed"
+
+  - it: owns the code server, so its image tag follows appVersion
+    template: dagster-code-server.yaml
+    chart:
+      appVersion: 9.9.9
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/aridhia-open-source/dagster_fn:9.9.9
+        documentSelector:
+          path: kind
+          value: Deployment
+      # Run pods take their image from here, so the run launcher sets no job_image.
+      - equal:
+          path: spec.template.spec.containers[0].env[0].name
+          value: DAGSTER_CURRENT_IMAGE
+        documentSelector:
+          path: kind
+          value: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].env[0].value
+          value: ghcr.io/aridhia-open-source/dagster_fn:9.9.9
+        documentSelector:
+          path: kind
+          value: Deployment
+
+  # Guards against a pg_isready loop being pasted back into the values file: the
+  # subchart's own check-db-ready is the only init container needed.
+  - it: leaves waiting for Postgres to the subchart's own init container
+    template: charts/dagster/templates/deployment-daemon.yaml
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.initContainers
+          count: 1
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: check-db-ready
+
+  - it: points the webserver and daemon at the code server it created
+    template: dagster-code-server.yaml
+    asserts:
+      - matchRegex:
+          path: data["workspace.yaml"]
+          pattern: "host: dagster-fn"
+        documentSelector:
+          path: kind
+          value: ConfigMap
+      - equal:
+          path: metadata.name
+          value: dagster-workspace
+        documentSelector:
+          path: kind
+          value: ConfigMap
+
+  - it: passes the initial sensor status to the code server, STOPPED by default
+    template: dagster-env-config.yaml
+    asserts:
+      - equal:
+          path: data.DAGSTER_SENSORS_INITIAL_STATUS
+          value: STOPPED
+
+  - it: passes a configured initial sensor status to the code server
+    template: dagster-env-config.yaml
+    set:
+      fnDagster:
+        sensors:
+          initialStatus: RUNNING
+    asserts:
+      - equal:
+          path: data.DAGSTER_SENSORS_INITIAL_STATUS
+          value: RUNNING
+
+  - it: passes the sensor minimum interval to the code server, 30 by default
+    template: dagster-env-config.yaml
+    asserts:
+      - equal:
+          path: data.DAGSTER_SENSORS_MIN_INTERVAL_SECONDS
+          value: "30"
+
+  - it: passes a configured sensor minimum interval to the code server
+    template: dagster-env-config.yaml
+    set:
+      fnDagster:
+        sensors:
+          minIntervalSeconds: 2
+    asserts:
+      - equal:
+          path: data.DAGSTER_SENSORS_MIN_INTERVAL_SECONDS
+          value: "2"
+
+  - it: passes the sensor retry interval to the code server, 60 by default
+    template: dagster-env-config.yaml
+    asserts:
+      - equal:
+          path: data.DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS
+          value: "60"
+
+  - it: passes a configured sensor retry interval to the code server
+    template: dagster-env-config.yaml
+    set:
+      fnDagster:
+        sensors:
+          retryIntervalSeconds: 5
+    asserts:
+      - equal:
+          path: data.DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS
+          value: "5"
+
+  - it: passes the delivery max attempts to the code server, 5 by default
+    template: dagster-env-config.yaml
+    asserts:
+      - equal:
+          path: data.DAGSTER_DELIVERY_MAX_ATTEMPTS
+          value: "5"
+
+  - it: passes a configured delivery max attempts to the code server
+    template: dagster-env-config.yaml
+    set:
+      fnDagster:
+        sensors:
+          deliveryMaxAttempts: 2
+    asserts:
+      - equal:
+          path: data.DAGSTER_DELIVERY_MAX_ATTEMPTS
+          value: "2"
+
+  - it: rejects an initial sensor status other than STOPPED or RUNNING
+    template: dagster-env-config.yaml
+    set:
+      fnDagster:
+        sensors:
+          initialStatus: PAUSED
+    asserts:
+      - failedTemplate: {}
+
+  - it: derives the Dagster webserver address from the release name and namespace
+    template: backend-configmap.yaml
+    asserts:
+      - equal:
+          path: data.DAGSTER_WEBSERVER_URI
+          value: http://federatednode-dagster-webserver.federatednode.svc:80
+
+  - it: prefers an explicit fnDagster.webserver.uri over the derived Dagster webserver address
+    template: backend-configmap.yaml
+    set:
+      fnDagster:
+        webserver:
+          uri: http://custom-dagster-webserver.ns.svc:80
+    asserts:
+      - equal:
+          path: data.DAGSTER_WEBSERVER_URI
+          value: http://custom-dagster-webserver.ns.svc:80

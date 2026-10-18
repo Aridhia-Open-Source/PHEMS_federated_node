@@ -1,0 +1,54 @@
+pullPolicy: Always
+
+keycloak:
+  replicas: 1
+backend:
+  replicas: 1
+
+federatedNode:
+  port: 5000
+autoscaling:
+  enabled: false
+db:
+  host: db.federatednode.svc
+  port: 5432
+  secret:
+    key: password
+    name: local-db
+local_development: false
+create_db_deployment: false
+storage:
+  capacity: 10Gi
+  aws:
+    fileSystemId: fs-12345aef
+    accessPointId: fsap-12345aef
+tls:
+  secretName: tls
+on_eks: true
+on_aks: false
+token:
+  life: 2592000
+certs:
+  aws: awscert-config
+  rotationPolicy: Never
+
+smoketests: false
+
+host: phems-federatednode.net
+
+global:
+  namespaces:
+    keycloak: keycloak
+    tasks: tasks
+
+cert-manager:
+  enabled: true
+  namespace: fn-certmanager
+  installCRDs: true
+
+traefik:
+  enabled: false
+
+integrations:
+  domains:
+   - 'self'

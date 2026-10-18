@@ -1,0 +1,110 @@
+suite: Storage testing for AWS
+release:
+  namespace: federatednode
+  revision: 2
+  name: federatednode
+  upgrade: true
+kubernetesProvider:
+  scheme:
+    v1/Secret:
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+    v1/ConfigMap:
+      gvr:
+        version: v1
+        resource: configmaps
+      namespaced: true
+    "apiextensions.k8s.io/v1/CustomResourceDefinition":
+      gvr:
+        group: "apiextensions.k8s.io"
+        version: "v1"
+        resource: "customresourcedefinitions"
+      namespaced: false
+  objects:
+    - apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: httproutes.gateway.networking.k8s.io
+    - apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: middlewares.traefik.io
+    ## An upgrade of a real deployment always has kc-secrets already present. The chart now
+    ## fails loudly if it is missing on an upgrade, because that means `lookup` is unavailable
+    ## and credentials would be silently regenerated on every sync.
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: kc-secrets
+        namespace: federatednode
+      data:
+        KEYCLOAK_SECRET: dGVzdA==
+        KEYCLOAK_ADMIN_PASSWORD: dGVzdA==
+        KC_BOOTSTRAP_ADMIN_PASSWORD: dGVzdA==
+        KEYCLOAK_SERVICE_PASSWORD: dGVzdA==
+        CREDENTIAL_GENERATION: MQ==
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: awscert-config
+        namespace: federatednode
+      type: Opaque
+      data:
+        EMAIL_CERT: dGVzdA==
+        REGION: dGVzdA==
+        ACCOUNT_ID: dGVzdA==
+        ROLE_NAME: dGVzdA==
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: local-db
+        namespace: federatednode
+      type: Opaque
+      data:
+        password: dGVzdA==
+tests:
+  - it: upgrade AWS storage
+    template: dagster-artifacts-pv.yaml
+    values:
+      - values/values-aws.yaml
+    set:
+      dagster:
+        enabled: true
+        postgresql:
+          postgresqlHost: db.federatednode.svc
+      storage:
+        aws:
+          fileSystemId: fs-newstring
+          accessPointId: fs-shortnewstring
+    asserts:
+      - equal:
+          path: parameters.fileSystemId
+          value: fs-newstring::fs-shortnewstring
+        documentIndex: 0
+  - it: upgrade AWS certificate issuer
+    template: certificates/issuer.yaml
+    kubernetesProvider:
+      objects:
+        - apiVersion: v1
+          kind: Secret
+          metadata:
+            name: new-certificate-config
+            namespace: federatednode
+          data:
+            EMAIL_CERT: bmV3QGNlcnQuY29t
+            REGION: dGVzdA==
+            ACCOUNT_ID: dGVzdA==
+            ROLE_NAME: dGVzdA==
+    values:
+      - values/values-aws.yaml
+    set:
+      certs:
+        aws: new-certificate-config
+    asserts:
+      - equal:
+          path: spec.acme.email
+          value: new@cert.com
+      - exists:
+          path: spec.acme.solvers[0].dns01.route53
