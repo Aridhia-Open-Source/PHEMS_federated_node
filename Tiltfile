@@ -87,6 +87,8 @@ docker_build_with_restart(
     'dagster.yaml',
     'workspace.yaml',
   ],
+  # Test edits and pytest runs don't rebuild or restart the code server
+  ignore=['app/tests', '**/.pytest_cache', '**/__pycache__'],
   live_update=[
     fall_back_on([
       'dagster/requirements.txt',
@@ -107,7 +109,11 @@ local_resource(
     img='{}/dagster-fn:tilt-run'.format(DOCKER_REGISTRY),
   ),
   deps=['dagster'],
-  ignore=['dagster/**/__pycache__', 'dagster/**/*.pyc'],
+  ignore=[
+    'dagster/**/__pycache__', 'dagster/**/*.pyc', 'dagster/**/.pytest_cache',
+    # Tests, fncli and local venvs aren't in the run image's code path
+    'dagster/app/tests', 'dagster/fncli', 'dagster/conftest.py', 'dagster/.venv',
+  ],
   labels=['dev'],
 )
 

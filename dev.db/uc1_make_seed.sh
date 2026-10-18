@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # UC1 Seed Script (master orchestrator)
-# Drops, creates schema, seeds synthetic data, and registers in backend API
+# Drops, creates schema, seeds synthetic data, and registers it in the backend with fncli
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 set -a
@@ -27,7 +27,7 @@ echo -e "${BLUE}=== UC1 OMOP Database Seed ===${NC}"
 echo ""
 
 # Validate tools
-for tool in psql "$PYTHON"; do
+for tool in psql fncli "$PYTHON"; do
   if ! command -v $tool &> /dev/null; then
     echo -e "${RED}ERROR: $tool not found${NC}" >&2
     exit 1
@@ -54,20 +54,18 @@ else
 fi
 echo ""
 
-# Step 3: Register dataset & repository in backend API
-echo -e "${BLUE}[3/3] Registering dataset and repository in backend...${NC}"
-cd "$SCRIPT_DIR"
-"$PYTHON" backend_seed.py
-
-if [ $? -eq 0 ]; then
-  echo -e "${GREEN}✓ Backend registration complete${NC}"
-else
-  echo -e "${RED}ERROR: Failed to register in backend${NC}"
-  exit 1
-fi
+# Step 3: Register the project, secrets, dataset and repositories with fncli
+echo -e "${BLUE}[3/3] Registering project, dataset and repositories in backend...${NC}"
+# fncli finds .dev.env from the current directory, so run from the repo root. It reads the
+# DATASET_* and CLUSTER_DATASET_HOST values exported from dev.db/.env above. The backend
+# dataset is named after the database. setup-project is idempotent: it reuses the global
+# secrets, dataset and repositories if they exist, and assigns them to the project named by
+# TEST_PROJECT_NAME.
+cd "$SCRIPT_DIR/.."
+DEFAULT_PROJECT_DATASET="$DATASET_NAME" fncli setup-project
 echo ""
 
 echo -e "${GREEN}✓ UC1 OMOP database fully seeded!${NC}"
 echo ""
-echo -e "${BLUE}To verify, run: $PYTHON uc1_read.py${NC}"
+echo -e "${BLUE}To verify the data, run: cd dev.db \&\& $PYTHON uc1_read.py${NC}"
 echo ""

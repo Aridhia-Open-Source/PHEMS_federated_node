@@ -1,6 +1,6 @@
 # Example values for LOCAL DEVELOPMENT on kind.
 #
-#   cp .dev.env.example .dev.env                 # then fill in GH_TOKEN etc.
+#   cp .dev.env.example .dev.env                 # then fill it in
 #   cp dev.example.values.yml dev.values.yaml    # dev.values.yaml is gitignored
 #   ./scripts/cluster.sh up && make deploy
 #
@@ -18,9 +18,7 @@ create_db_deployment: true   # run Postgres in the cluster instead of a managed 
 # taskReview: true           # tasks need approval before they run
 # smoketests: true           # `helm test` creates and deletes real db/keycloak rows
 
-host: &host phems-federatednode.net
-global:
-  host: *host
+host: phems-federatednode.net
 
 # The one Postgres server. The *-db-init hooks create the databases, roles and
 # passwords. The .svc name embeds the namespace - keep it in step with NAMESPACE.
@@ -85,9 +83,9 @@ fnDagster:
   image: localhost:5001/dagster-fn
   tag: *devTag
   createDB: true               # run the dagster-db-init job
-  gh:
-    delivery_repo: https://github.com/Aridhia-Open-Source/phems-sandbox
-    resultsDir: "mgmt/results"
+  sensors:
+    minIntervalSeconds: 2
+    retryIntervalSeconds: 10
   # Pipes pods can write results as any uid without help. Only pin identity if you
   # need to; fsGroup does nothing except on storage.local.
   # artifacts:
