@@ -17,7 +17,7 @@ Pointer note. Read `project/moonshot-as-built.md` (status at the top) first for 
 
 ## Decisions made in the session
 
-- A PR merged while a link is switched off or revoked: a link that is enabled or un-revoked backfills it (self-healing at link level). A global repository or provider switched back on skips the gap instead (no trigger, no `IGNORED` state). Open: whether links should work the same way as the global repo (no backfill).
+- A PR merged while a link is switched off or revoked: ~~a link that is enabled or un-revoked backfills it~~ **superseded 2026-10-18: links work like the global repo, the PR is stored but gets no trigger (`skip_gap`).** A global repository or provider switched back on skips the gap (no trigger, no `IGNORED` state).
 - A results link revoked mid-task: the task finishes, nothing is delivered, the result is `REVOKED` and final. Killing a running task is post-beta. Decision 5 is confirmed.
 - The lock and drained rules stay. Their e2e scenarios (S7, S8, S9, S16) were dropped in favour of unit tests.
 - **Known gap, accepted, post-beta:** the lock check and the change are two steps; `post_task` does not check the project is unlocked, so a task can slip in between. Worst case it fails or is not delivered. Fix: 409 for a locked project in `post_task`, plus a `SELECT ... FOR UPDATE` on the project in `require_drained` and `post_task`. See ADR 0019, Consequences.

@@ -25,8 +25,8 @@ INVARIANTS (checked after every action)
 
 THE MODEL'S RULES (to review; each one is a decision, not just a description of the code)
   M1  A stored PR gets a trigger for the link only if it matches (spec file under watch_dir) and the link is active when it is stored.
-  M2  SELF-HEALING: whenever the LINK becomes active (link enabled, link re-granted), every stored matching PR that has no trigger
-      gets one (backfill), except the ones M6 skips. A link made active by the GLOBAL repository being enabled does not backfill.
+  M2  NO REPLAY: whenever the LINK becomes active again (link enabled, link re-granted), its cursor moves to now, as in M6: every
+      PR that exists at that moment is stored but never gets a trigger; PRs merged after it do.
   M3  An inactive link refuses to create a task (409) and the trigger stays UNKNOWN.
   M4  Changing the link's or the repository's enabled flag needs the project locked and drained (no task PENDING, QUEUED, RUNNING, or SUCCESS without a result).
       Results are not modelled yet, so a SUCCESS task counts as in flight (it has no result): drained = no task PENDING, QUEUED, RUNNING or SUCCESS.
@@ -57,7 +57,7 @@ IN_FLIGHT = UNFINISHED | {"SUCCESS"}  # a SUCCESS task with no result yet is in 
 FINAL = {"SUCCESS", "FAILED", "CANCELED"}
 WATCH_DIR = "triggers"
 SPEC_RAW = json.dumps({"spec": {"image": "i:1"}})
-# Fake clock: the route moves the link's cursor to "now" when the repository is switched back on, so PR merge times and that
+# Fake clock: the route moves the link's cursor to "now" when the link or the repository becomes active again, so PR merge times and that
 # "now" come from one machine-controlled clock (one minute per tick, after the link's real creation time so every PR is in scope
 # of the creation cursor). The route's clock is patched in __init__.
 CLOCK_START = datetime.utcnow().replace(microsecond=0) + timedelta(days=1)
@@ -105,7 +105,7 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         self.link_revoked = link.json["revoked"]
         self.global_enabled = self.call("get", f"/global/repositories/triggers/{self.repo_id}").json["enabled"]
         self.provider = []          # PRs merged at the git server: {"number", "matching", "merged_at"}
-        self.skip_before = 0        # M6: PRs numbered up to this existed when the repository was last switched back on
+        self.skip_before = 0        # M2, M6: PRs numbered up to this existed when the link last became active again
         self.stored = {}            # number -> matching, what the repository has stored
         self.triggers = {}          # number -> state, the project's triggers
         self.tasks = {}             # task id -> status
@@ -134,12 +134,10 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         # Nothing is delivered in this model, so a SUCCESS task has no result yet and still counts as in flight
         return not IN_FLIGHT & set(self.tasks.values())
 
-    def backfill_if_activated(self, was_active: bool):
-        """M2: a link that has become active backfills the triggers of every stored matching PR it is missing, M6 aside."""
+    def skip_gap_if_activated(self, was_active: bool):
+        """M2: a link that has become active again gives no trigger to the PRs that exist now."""
         if self.link_active and not was_active:
-            for number, matching in self.stored.items():
-                if matching and number > self.skip_before and number not in self.triggers:
-                    self.triggers[number] = "UNKNOWN"
+            self.skip_before = len(self.provider)
 
     # ----------------------------------------------------------------------------- the git server and the sensors
 
@@ -210,21 +208,23 @@ class TriggerLinkMachine(RuleBasedStateMachine):
     @rule(value=st.booleans())
     def set_link_enabled(self, value):  # M4
         was = self.link_active
+        self.tick += 1  # the route reads the clock during the call: the cursor lands after every PR merged so far
         response = self.call("patch", self.link_url, {"enabled": value})
         if self.locked and self.drained:
             assert response.status_code == 200, response.json
             self.link_enabled = value
-            self.backfill_if_activated(was)
+            self.skip_gap_if_activated(was)
         else:
             assert response.status_code == 409, response.json
 
     @rule(value=st.booleans())
     def set_link_revoked(self, value):  # M5
         was = self.link_active
+        self.tick += 1
         response = self.call("patch", self.link_url, {"revoked": value})
         assert response.status_code == 200, response.json
         self.link_revoked = value
-        self.backfill_if_activated(was)
+        self.skip_gap_if_activated(was)
 
     @rule(value=st.booleans())
     def set_global_enabled(self, value):  # M4, and M6 when it is switched back on

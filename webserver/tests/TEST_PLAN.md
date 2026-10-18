@@ -113,7 +113,7 @@ Fixtures: `client, admin_headers, post_json_user_header, project, other_project,
 | `test_relink_locked_returns_200` | `linked_trigger_repo`, `lock_project` | PUT `U` `{"watch_dir": "other"}` | 200, `watch_dir == "other"` |
 | `test_other_project_cannot_see_link` | `linked_trigger_repo`, `other_project` | GET `/projects/<other_project.id>/repositories/triggers/<T>` | 404 |
 | `test_revoke_admin_only` | `linked_trigger_repo` | PATCH `U` `{"revoked": true}` with `post_json_user_header`; then with `admin_headers` | 403; then 200 with `revoked is True`, `active is False` |
-| `test_unrevoke_backfills` | `linked_trigger_repo`; PATCH `U` `{"revoked": true}`; `ingest_prs(T, 1)` | PATCH `U` `{"revoked": false}` | 200, `active is True`, `pr_count == 1` |
+| `test_unrevoke_skips_the_gap` | `linked_trigger_repo`; PATCH `U` `{"revoked": true}`; `ingest_prs(T, 1)` | PATCH `U` `{"revoked": false}` | 200, `active is True`, `pr_count == 0`; the PR stays stored |
 | `test_disable_needs_lock_and_no_tasks_in_flight` | `linked_trigger_repo`, `lock_project` | PATCH `U` `{"enabled": false}` -> expect 200 `enabled is False`; then `make_task()`; PATCH `U` `{"enabled": true}` | 200; then 409 with `details == [task.id]` |
 | `test_unlink` | `linked_trigger_repo`, `lock_project` | DELETE `U`; GET `U` | 204; 404 |
 

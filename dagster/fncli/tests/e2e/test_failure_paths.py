@@ -257,7 +257,7 @@ def test_s5_counts_unchanged(fncli, flow):
     fncli.assert_counts(flow["s5_before"], "ingest restarted")
 
 
-# --- S6: a revoked link ingests nothing, then backfills -----------------------------------------
+# --- S6: a PR merged while the link is revoked never gets a trigger -------------------------------
 
 
 def test_s6_record_counts(fncli, flow):
@@ -296,8 +296,10 @@ def test_s6_unrevoke_link(fncli):
     fncli.call(link_set_command, kind="trigger", revoked="false", expect=200)
 
 
-def test_s6_missed_pr_backfilled(fncli, flow):
-    fncli.wait_for_state("the missed PR with a trigger and a task (+1 each)", STEP_TIMEOUT, grew_by_one(flow, "s6_before"))
+def test_s6_missed_pr_not_replayed(fncli, flow):
+    """Un-revoking moves the link's cursor to now: the PR merged while revoked is stored but gets no trigger."""
+    quiet_wait(QUIET_TICKS)
+    fncli.assert_counts(flow["s6_before"], "PR merged while the link was revoked, after un-revoking")
 
 
 # --- S5 again, as the plan asks, after S6 -------------------------------------------------
@@ -317,7 +319,7 @@ def test_s5b_start_ingest(fncli):
 
 def test_s5b_counts_unchanged(fncli, flow):
     quiet_wait(QUIET_TICKS)
-    fncli.assert_counts(flow["s5b_before"], "ingest restarted after S6 and S7")
+    fncli.assert_counts(flow["s5b_before"], "ingest restarted after S6")
 
 
 # --- S10: a second project on the same repository ---------------------------------------------

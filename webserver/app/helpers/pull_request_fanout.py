@@ -5,13 +5,13 @@ the repository gets a trigger for each one it should evaluate (ADR 0019).
 - `store_pull_request` upserts the provider's facts. The unique constraint decides, so two
   concurrent posts of one pull request store it once.
 - `fan_out` creates the triggers of newly stored pull requests for the active assignments.
-- `backfill` creates the triggers an assignment missed: when it is created, enabled or
-  un-revoked.
-- `skip_gap` moves the assignments' cursor to now when their repository or provider is switched
-  back on, so what was merged while it was off is stored but gets no trigger.
+- `skip_gap` moves the assignments' cursor to now when they become active again (a link enabled
+  or un-revoked; its project, repository or provider switched back on),
+  so what was merged while they were inactive is stored but gets no trigger. A backfill option
+  may come later.
 
-Both create triggers through `create_triggers`, so a pair (assignment, pull request) gets one
-trigger however it is reached; the unique constraint settles a race.
+Triggers are created through `create_triggers`, so a pair (assignment, pull request) gets one
+trigger; the unique constraint settles a race.
 
 Matching is decided here from stored data alone, with the rule the Dagster evaluate step
 applies to the files of a pull request (`PullRequestParser._filter_watched_files`): a file
@@ -171,18 +171,12 @@ def fan_out(pull_requests: list[PullRequest], assignments: list[ProjectTriggerRe
     return sum(create_triggers(assignment, ids) for assignment in assignments)
 
 
-def backfill(assignment: ProjectTriggerRepository) -> int:
-    """
-    Creates the triggers the assignment missed: for a new, re-enabled or un-revoked assignment. Only for an active assignment.
-    """
-    return create_triggers(assignment)
-
-
 def skip_gap(assignments: list[ProjectTriggerRepository]) -> None:
     """
-    Moves the cursor of the assignments to now (a naive UTC time like the column), for a global
-    repository or provider switched back on: the pull requests merged while it was off are still
-    stored by the sensor's catch-up, but sort before the cursor and get no trigger. Leaves the commit to the caller.
+    Moves the cursor of the assignments to now (a naive UTC time like the column), for a link
+    enabled or un-revoked, or its project, global repository or provider switched back on: the pull requests
+    merged while it was inactive are still stored by the sensor's catch-up, but sort before the
+    cursor and get no trigger. Leaves the commit to the caller.
     """
     now = now_ts().replace(tzinfo=None)
     for assignment in assignments:

@@ -22,7 +22,7 @@ from app.dtos.trigger_repository import ProjectTriggerRepositoryDTO, PullRequest
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
 from app.helpers.project_lock import require_drained, require_drained_if_enabled
-from app.helpers.pull_request_fanout import backfill
+from app.helpers.pull_request_fanout import skip_gap
 from app.helpers.query_filters import arg_get
 from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.wrappers import audit, auth
@@ -109,13 +109,12 @@ def put_project_trigger_repository(project_id: int, repo_id: int):
         assignment.watch_dir = watch_dir
         assignment.base_branch = body.get("base_branch", "main")
         assignment.enabled = body.get("enabled", True)
+        # What was merged while it was off is not replayed
+        if assignment.active and not was_active:
+            skip_gap([assignment])
         session.flush()
         _check_loop(assignment)
         session.commit()
-        # An assignment that is active now has to catch up on what it missed: after it was enabled
-        if assignment.active and not was_active:
-            backfill(assignment)
-            session.commit()
         return ProjectTriggerRepositoryDTO.from_model(assignment).dump(), HTTPStatus.OK
 
     assignment = ProjectTriggerRepository(
@@ -132,11 +131,7 @@ def put_project_trigger_repository(project_id: int, repo_id: int):
         assignment.initial_cursor_number = latest.number
     assignment.add(commit=False)
     _check_loop(assignment)
-    # Committed first, so the cursor is read back as stored
     session.commit()
-    if assignment.active:
-        backfill(assignment)
-        session.commit()
     return ProjectTriggerRepositoryDTO.from_model(assignment).dump(), HTTPStatus.CREATED
 
 
@@ -189,14 +184,12 @@ def patch_project_trigger_repository(project_id: int, repo_id: int):
         if field in body:
             setattr(assignment, field, body[field])
 
+    # What was merged while it was disabled or revoked is not replayed
+    if assignment.active and not was_active:
+        skip_gap([assignment])
     session.flush()
     _check_loop(assignment)
     session.commit()
-    # An assignment that is active now has to catch up on what it missed: after it was
-    # enabled or un-revoked
-    if assignment.active and not was_active:
-        backfill(assignment)
-        session.commit()
     return ProjectTriggerRepositoryDTO.from_model(assignment).dump(), HTTPStatus.OK
 
 

@@ -40,14 +40,14 @@ Secrets, datasets, trigger repositories and results repositories belong to no pr
 - A task runs only on an active dataset assignment. The launcher fails a PENDING task whose dataset assignment is inactive, with the cause in the task's `state_cause`; a manual retry (which clears it) launches it once the dataset is active again. Delivery to a revoked or disabled results assignment records "results repository access revoked", FAILED, and does not raise.
 - `revoked` is admin only and takes effect at once. Changing an assignment's `enabled`, or editing or deleting a global resource, needs every project it touches locked and drained.
 
-## Ingest, fan-out and backfill
+## Ingest and fan-out
 
 A merged pull request is stored once per global trigger repository, whatever the number of projects watching it.
 
 1. The ingest sensor polls each repository of `GET /global/repositories/triggers?active_link=true` once with its own secret, from the repository's `pr_cursor` (the latest stored `merged_at`; a repository with nothing stored starts at the earliest creation among its active links, which the backend works out). It reads each pull request's base branch and changed files.
 2. It posts them in batches of up to 100 to `POST /global/repositories/triggers/<id>/pull_requests`. The backend stores each pull request and its files (a repeated number keeps its first facts) and answers `{created, existing}`.
 3. Fan-out creates a trigger for every active assignment of the repository, from the stored data. The pull request must be after the assignment's cursor. A pull request that does not add a `.json` file under `watch_dir`, or whose base branch differs, is skipped for that assignment (logged) and gets no trigger; every other one is UNKNOWN. Only an UNKNOWN trigger can get a task (`POST .../pull_requests/<n>/task` returns 409 for a REJECTED trigger or an inactive link). A unique constraint on `(assignment, pull request)` settles races.
-4. Backfill does the same for the already stored pull requests when an assignment is created, enabled or un-revoked. Only an active assignment is backfilled. A change of `watch_dir` or `base_branch` is forward only.
+4. There is no backfill. When an assignment is enabled or un-revoked, or its project, repository or provider is switched back on, its cursor moves to now: pull requests merged while it was inactive are stored but get no trigger. A change of `watch_dir` or `base_branch` is forward only.
 5. Ingest does not skip a locked project, as one poll serves every project. Evaluation and launch are what the lock pauses.
 
 ## Sequence across fncli, backend, Dagster and the git host

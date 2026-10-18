@@ -80,15 +80,15 @@ c0=$(count); fncli stop-sensor --sensor ingest; fncli start-sensor --sensor inge
 ```
 **Pass:** equal. (Run it again after S6 and S7.)
 
-### S6. Revoked link: nothing new, then a backfill
+### S6. Revoked link: nothing new, and no replay after un-revoking
 ```bash
 c0=$(count); t0=$(tasks); fncli link-set trigger --revoked true --expect 200
 fncli project-show | jq '.trigger_links[0].active'               # false
 fncli open-pr --kind watched --merge; sleep 60; echo "revoked: $c0 -> $(count)"
 fncli link-set trigger --revoked false --expect 200
-wait_for ".tasks | length >= $((t0+1))" 180; echo "unrevoked: $c0 -> $(count)"; snap S6
+sleep 60; echo "unrevoked: $c0 -> $(count)"; snap S6
 ```
-**Pass:** while revoked the counts are unchanged (no trigger, no task); after un-revoking the missed PR gets its trigger and a task (counts +1 each).
+**Pass:** while revoked the counts are unchanged (no trigger, no task); after un-revoking they stay unchanged: the missed PR is stored but gets no trigger (the link's cursor moves to now).
 
 ### S7. Disabled link needs the lock, then behaves like revoked
 ```bash

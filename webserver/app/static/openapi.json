@@ -4455,7 +4455,7 @@
           "Project Links"
         ],
         "summary": "Link a global trigger repository to the project, or replace its settings",
-        "description": "A new watcher does not touch work in flight, so the first time needs no lock. The link's cursor starts after the latest pull request stored for the repository, or at the link's creation when there is none. For an active link, the stored pull requests after it are backfilled into triggers. When it is linked already the project's settings are replaced (fields left out take their defaults, the cursor stays), which needs the project locked and drained only if it turns the link on or off (enabled): a change of watch_dir or base_branch applies at once. Refused when it would watch where results land. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
+        "description": "A new watcher does not touch work in flight, so the first time needs no lock. The link's cursor starts after the latest pull request stored for the repository, or at the link's creation when there is none. When it is linked already the project's settings are replaced (fields left out take their defaults, the cursor stays), which needs the project locked and drained only if it turns the link on or off (enabled): a change of watch_dir or base_branch applies at once. Refused when it would watch where results land. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4529,7 +4529,7 @@
           "Project Links"
         ],
         "summary": "Edit a trigger repository link",
-        "description": "Only enabled needs the project locked and drained; watch_dir and base_branch apply at once. revoked is admin only and takes effect at once. Enabling or un-revoking backfills triggers; a watch_dir or base_branch change does not. Requires the can_admin_dataset scope.",
+        "description": "Only enabled needs the project locked and drained; watch_dir and base_branch apply at once. revoked is admin only and takes effect at once. Enabling or un-revoking moves the link's cursor to now: pull requests merged while it was inactive get no trigger. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",

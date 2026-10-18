@@ -3,6 +3,7 @@ Pull request ingest, fan-out to project links, the per-link trigger state, creat
 (post_task rules) and the task status routes (ADR 0019 sections 3 and 11).
 """
 import json
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -149,7 +150,7 @@ def test_disabled_and_unknown_repository_refuse_ingest(client, admin_headers, gl
     db.session.commit()
     r = post_prs(client, admin_headers, T, pr(1))
     assert r.status_code == 400 and "disabled" in r.json["error"]
-    assert global_total(client, admin_headers, T) == 0  # nothing stored, so nothing to backfill later
+    assert global_total(client, admin_headers, T) == 0
     assert post_prs(client, admin_headers, 9999, pr(1)).status_code == 404
 
 
@@ -187,32 +188,35 @@ def test_cursor_with_nothing_stored_is_link_creation_time(client, admin_headers,
     assert states(client, admin_headers, project.id, T) == {}
 
 
-def test_unrevoke_backfills_what_was_missed(client, admin_headers, project, global_trigger_repo):
+def merged_hours_from_now(hours: int) -> str:
+    return (datetime.utcnow() + timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def test_unrevoke_skips_the_gap(client, admin_headers, project, global_trigger_repo):
+    """A PR merged while the link was revoked is stored but gets no trigger; one merged after the re-grant does."""
     T = global_trigger_repo.id
-    post_prs(client, admin_headers, T, pr(1, merged_at="2029-01-01T00:00:00Z"))  # older than the link: never backfilled
     link(client, admin_headers, project.id, T)
     url = link_url(project.id, T)
     assert client.patch(url, json={"revoked": True}, headers=admin_headers).status_code == 200
-    post_prs(client, admin_headers, T, pr(2), pr(3, changed_files=added("elsewhere/a.json")))
+    post_prs(client, admin_headers, T, pr(2, merged_at=merged_hours_from_now(-1)))
     assert states(client, admin_headers, project.id, T) == {}
 
     restored = client.patch(url, json={"revoked": False}, headers=admin_headers)
-    assert restored.status_code == 200 and restored.json["active"] is True and restored.json["pr_count"] == 1
-    assert states(client, admin_headers, project.id, T) == {2: "UNKNOWN"}
-    # revoking and unrevoking again never duplicates triggers
-    client.patch(url, json={"revoked": True}, headers=admin_headers)
-    assert client.patch(url, json={"revoked": False}, headers=admin_headers).json["pr_count"] == 1
+    assert restored.status_code == 200 and restored.json["active"] is True and restored.json["pr_count"] == 0
+    post_prs(client, admin_headers, T, pr(3, merged_at=merged_hours_from_now(-1)), pr(4, merged_at=merged_hours_from_now(1)))
+    assert global_total(client, admin_headers, T) == 3
+    assert states(client, admin_headers, project.id, T) == {4: "UNKNOWN"}
 
 
-def test_disabled_link_gets_no_trigger_until_enabled(client, admin_headers, project, global_trigger_repo):
+def test_enabling_a_link_skips_the_gap(client, admin_headers, project, global_trigger_repo):
     T = global_trigger_repo.id
     set_locked(project)
     link(client, admin_headers, project.id, T, enabled=False)
-    post_prs(client, admin_headers, T, pr(1))
+    post_prs(client, admin_headers, T, pr(1, merged_at=merged_hours_from_now(-1)))
     assert states(client, admin_headers, project.id, T) == {}
     r = client.put(link_url(project.id, T), json={"watch_dir": "triggers"}, headers=admin_headers)
-    assert r.status_code == 200  # enabling by relink backfills
-    assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN"}
+    assert r.status_code == 200 and r.json["active"] is True
+    assert states(client, admin_headers, project.id, T) == {}
 
 
 # --------------------------------------------------------------------------- matching: no trigger unless it matches
