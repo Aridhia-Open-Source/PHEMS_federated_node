@@ -12,6 +12,7 @@ class PullRequestResultStep(str, Enum):
     MERGED: the pull request is merged into the results repository's default branch.
     CLOSED: the pull request is closed without merging.
     REVOKED: the project's link to the results repository was revoked: never delivered, final.
+    STALE: the task's configuration changed since the task was created: never delivered, final.
     """
 
     UNKNOWN = "UNKNOWN"
@@ -20,6 +21,7 @@ class PullRequestResultStep(str, Enum):
     MERGED = "MERGED"
     CLOSED = "CLOSED"
     REVOKED = "REVOKED"
+    STALE = "STALE"
 
     @classmethod
     def from_git(cls, pr: dict) -> "PullRequestResultStep":

@@ -34,6 +34,7 @@ def make_backend(projects, tasks_by_project):
     backend_api.get_projects.side_effect = lambda enabled: [p for p in projects if p.enabled == enabled]
     backend_api.get_tasks.side_effect = lambda status, project_id: tasks_by_project[project_id]
     backend_api.get_project_dataset.return_value = assignment()
+    backend_api.get_task_config.return_value = {"current": True, "changes": [], "config_hash": None}
     return backend_api
 
 
@@ -146,3 +147,61 @@ def test_the_launcher_patches_nothing_and_re_yields_the_same_run_key():
 
     assert [r.run_key for r in first] == [r.run_key for r in second] == ["task/9/1"]
     backend_api.patch_task.assert_not_called()
+
+
+def test_a_task_is_checked_against_its_configuration_before_launch():
+    backend_api = make_backend([project()], {1: [task()]})
+
+    result = run(backend_api)
+
+    assert [r.run_key for r in result] == ["task/9/1"]
+    backend_api.get_task_config.assert_called_once_with(1, 9)
+    backend_api.patch_task.assert_not_called()
+
+
+def test_a_task_whose_configuration_changed_is_failed_and_the_next_is_launched():
+    backend_api = make_backend([project()], {1: [task(id=9), task(id=10)]})
+    backend_api.get_task_config.side_effect = lambda project_id, task_id: (
+        {"current": False, "changes": ["image changed", "env changed"], "config_hash": "h"}
+        if task_id == 9 else {"current": True, "changes": [], "config_hash": None}
+    )
+
+    result = run(backend_api)
+
+    assert [r.run_key for r in result] == ["task/10/1"]
+    backend_api.patch_task.assert_called_once_with(1, 9, {
+        "status": "FAILED",
+        "state_cause": "task configuration changed since the task was created: image changed; env changed",
+    })
+
+
+def test_the_stale_cause_is_cut_to_the_column_length():
+    backend_api = make_backend([project()], {1: [task()]})
+    backend_api.get_task_config.return_value = {"current": False, "changes": ["x" * 2000], "config_hash": None}
+
+    run(backend_api)
+
+    assert len(backend_api.patch_task.call_args.args[2]["state_cause"]) == 1024
+
+
+def test_an_error_for_one_task_fails_it_and_does_not_stop_the_others():
+    backend_api = make_backend([project()], {1: [task(id=9), task(id=10)]})
+    backend_api.get_task_config.side_effect = lambda project_id, task_id: (
+        (_ for _ in ()).throw(RuntimeError("backend down"))
+        if task_id == 9 else {"current": True, "changes": [], "config_hash": None}
+    )
+
+    result = run(backend_api)
+
+    assert [r.run_key for r in result] == ["task/10/1"]
+    backend_api.patch_task.assert_called_once_with(1, 9, {"status": "FAILED", "state_cause": "RuntimeError: backend down"})
+
+
+def test_a_failing_patch_after_an_error_is_logged_and_the_others_are_still_launched():
+    backend_api = make_backend([project()], {1: [task(id=9), task(id=10)]})
+    backend_api.get_project_dataset.side_effect = [RuntimeError("boom"), assignment()]
+    backend_api.patch_task.side_effect = RuntimeError("patch failed")
+
+    result = run(backend_api)
+
+    assert [r.run_key for r in result] == ["task/10/1"]
