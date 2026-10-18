@@ -72,7 +72,8 @@ def does_user_own_task(task: Task):
 
 
 def get_project_task(project_id: int, task_id: int) -> Task:
-    """The task, which is a 404 if it belongs to another project."""
+    """The task, which is a 404 if it belongs to another project or the project is deleted."""
+    Project.get_by_id(project_id)
     task = Task.get_by_id(task_id)
     if task.project_id != project_id:
         raise DBRecordNotFoundError(f"Task with id {task_id} does not exist in project {project_id}")
@@ -123,6 +124,7 @@ def get_task_id(project_id, task_id):
     """
     GET /projects/<project_id>/tasks/id endpoint. Gets a single task with status
     """
+    Project.get_by_id(project_id)
     task = Task.query.get(task_id)
     if not task or task.project_id != project_id:
         return {"error": "Task not found"}, HTTPStatus.NOT_FOUND
@@ -314,11 +316,15 @@ def get_task_config(project_id, task_id):
     GET /projects/<project_id>/tasks/id/config endpoint. Whether the configuration the task was created
     under (its results repository and target_dir, its dataset) is still the current one. If not, the task
     must not launch or publish, and changes lists what differs. A task without a stored snapshot is current.
+    config_snapshot is the pinned configuration itself: delivery takes its target_dir from it, as the link may be deleted by then.
     """
     task = get_project_task(project_id, task_id)
     does_user_own_task(task)
     changes = config_changes(task)
-    return {"current": not changes, "changes": changes, "config_hash": task.config_hash}, HTTPStatus.OK
+    return {
+        "current": not changes, "changes": changes, "config_hash": task.config_hash,
+        "config_snapshot": task.config_snapshot,
+    }, HTTPStatus.OK
 
 
 @bp.route('/<int:task_id>/results', methods=['GET'])

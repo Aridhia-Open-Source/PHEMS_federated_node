@@ -204,16 +204,26 @@ def test_dataset_get_list_and_404(client, admin_headers, global_dataset):
     assert_error(client.get(f"{DS}/999", headers=admin_headers), 404)
 
 
-def test_dataset_linked_needs_lock_to_delete_and_disable_only(client, admin_headers, linked_dataset, project):
+def test_dataset_linked_needs_no_lock_to_delete_or_disable(client, admin_headers, linked_dataset, project):
     url = f"{DS}/{linked_dataset['dataset']['id']}"
     # an edit of the identity fields applies at once: the tasks created before are pinned to the old ones
     patched = client.patch(url, json={"host": "new"}, headers=admin_headers)
     assert patched.status_code == 200 and patched.json["host"] == "new"
-    assert_error(client.patch(url, json={"enabled": False}, headers=admin_headers), 409)
-    assert_error(client.delete(url, headers=admin_headers), 409)
-    project.locked = True
-    db.session.commit()
-    assert client.delete(url, headers=admin_headers).status_code == 204
+    assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 200
+    assert client.delete(url, headers=admin_headers).status_code == 409  # linked: needs force
+    assert client.delete(url + "?force=true", headers=admin_headers).status_code == 204  # the project is unlocked
+    assert_error(client.get(url, headers=admin_headers), 404)
+    assert client.get(f"/projects/{project.id}/datasets", headers=admin_headers).json == []
+    assert client.get(f"/projects/{project.id}", headers=admin_headers).json["default_dataset_id"] is None
+
+
+def test_a_deleted_dataset_name_can_be_created_again(client, admin_headers, global_secret):
+    created = client.post(DS, json=ds_body(), headers=admin_headers)
+    assert created.status_code == 201
+    assert client.delete(f"{DS}/{created.json['id']}", headers=admin_headers).status_code == 204
+    assert client.get(DS, headers=admin_headers).json["items"] == []
+    again = client.post(DS, json=ds_body(), headers=admin_headers)
+    assert again.status_code == 201 and again.json["id"] != created.json["id"]
 
 
 @pytest.mark.parametrize("body", [
@@ -322,9 +332,18 @@ def test_secret_delete_once_unused_and_repointing_frees_it(
     assert_error(client.get(f"{SEC}/test-creds", headers=admin_headers), 404)
 
 
-def test_linked_secret_enabled_flag_needs_lock_but_rotation_does_not(client, admin_headers, k8s_client, linked_secret):
+def test_linked_secret_enabled_flag_and_rotation_need_no_lock(client, admin_headers, k8s_client, linked_secret):
     assert client.patch(f"{SEC}/test-creds", json={"values": {"TOKEN": "n"}}, headers=admin_headers).status_code == 200
-    assert_error(client.patch(f"{SEC}/test-creds", json={"enabled": False}, headers=admin_headers), 409)
+    assert client.patch(f"{SEC}/test-creds", json={"enabled": False}, headers=admin_headers).status_code == 200
+
+
+def test_a_deleted_secret_is_gone_its_stored_value_deleted_and_its_label_free(
+        client, admin_headers, k8s_client, linked_secret, project):
+    assert client.delete(f"{SEC}/test-creds", headers=admin_headers).status_code == 204
+    assert k8s_client["delete_namespaced_secret_mock"].called
+    assert_error(client.get(f"{SEC}/test-creds", headers=admin_headers), 404)
+    assert client.get(f"/projects/{project.id}/secrets", headers=admin_headers).json == []
+    assert client.post(SEC, json=secret_body(label="test-creds"), headers=admin_headers).status_code == 201
 
 
 # ---------------------------------------------------------------- delete, ids and HTTP edges
@@ -336,13 +355,14 @@ def test_unused_resources_delete_204_then_404(client, admin_headers, global_data
         assert_error(client.get(f"{base}/{rid}", headers=admin_headers), 404)
 
 
-def test_linked_repo_needs_lock_to_delete_or_disable(client, admin_headers, linked_trigger_repo, global_trigger_repo,
-                                                     make_trigger_repo):
+def test_linked_repo_needs_no_lock_to_delete_or_disable_and_its_path_is_free_again(
+        client, admin_headers, linked_trigger_repo, global_trigger_repo, git_provider):
     url = f"{TRIG}/{global_trigger_repo.id}"
-    assert_error(client.delete(url, headers=admin_headers), 409)
-    assert_error(client.patch(url, json={"enabled": False}, headers=admin_headers), 409)
-    unlinked = make_trigger_repo(uri="github.com/org/unlinked")
-    assert client.patch(f"{TRIG}/{unlinked.id}", json={"enabled": False}, headers=admin_headers).status_code == 200
+    assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 200
+    assert client.delete(url + "?force=true", headers=admin_headers).status_code == 204
+    assert_error(client.get(url, headers=admin_headers), 404)
+    body = {"provider_id": git_provider.id, "repo_path": global_trigger_repo.repo_path, "secret_label": "test-creds"}
+    assert client.post(TRIG, json=body, headers=admin_headers).status_code == 201
 
 
 @pytest.mark.parametrize("bad_id", ["abc", "1.5", "0", "999999", str(2**63)])  # non-integer, unknown, out of range

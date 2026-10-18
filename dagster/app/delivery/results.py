@@ -19,7 +19,7 @@ from app.backend import BackendAPI
 from app.config import ResultsDeliveryConfig
 from app.delivery import git_push
 from app.models import (
-    ProjectResultsRepository, PullRequestResultStep, ResultState, Task, TaskTrigger, TriggerRepositoryRef,
+    PullRequestResultStep, ResultsRepository, ResultState, Task, TaskTrigger, TriggerRepositoryRef,
 )
 from app.secrets import read_secret_value
 
@@ -57,25 +57,26 @@ class ResultsDelivery:
         past PUSHED is left alone, and one in UNKNOWN or PUSHED resumes, a FAILED one back to
         IN_PROGRESS: a branch already on the remote is not pushed again, and its pull request
         is looked up before one is opened.
-        No result is created when the backend refuses it with a 409 (the task is not SUCCESS, or the
-        results repository assignment is disabled): that is skipped.
+        Where to deliver (the results repository's id and the target_dir) comes from the task's pinned
+        configuration, not from the project's results link, which may be deleted by now. The backend's
+        POST /results is the only gate: no result is created when it refuses with a 409 (the task is not
+        SUCCESS) and a 404 (the project, task or results repository is gone) is final: both are logged and
+        skipped, never raised, so nothing retries them.
         A result the backend created at the final step STALE (the task's configuration changed since the task
         was created) is left alone, with a warning.
-        A revoked assignment gives a result at the final step REVOKED, nothing is delivered and nothing is raised.
-        A results repository assignment that is not active for another reason fails the result with an error and
-        raises nothing: its error is "results link switched off", and the retry sensor delivers it once the assignment is active again.
+        A revoked or deleted link gives a result at the final step REVOKED, nothing is delivered and nothing is raised.
+        A link that is not active for another reason fails the result with an error and
+        raises nothing: its error is "results link switched off", and the retry sensor delivers it once the link is active again.
         Any failure is recorded on the result as an error with one more attempt, its step
         left where it was and its state FAILED, and raised, so the Dagster run fails visibly.
         """
-        task = self.backend_api.get_task(project_id, task_id)
-        repository = self.backend_api.get_results_repository(task.project_id)
         try:
-            result = self.backend_api.create_result(task.project_id, task.id, repository.results_repository.id)
+            task = self.backend_api.get_task(project_id, task_id)
+            # Where to deliver is what the task was created under: its link may be deleted by now
+            results = self.backend_api.get_task_config(task.project_id, task.id)["config_snapshot"]["results"]
+            result = self.backend_api.create_result(task.project_id, task.id, results["repository_id"])
         except requests.HTTPError as e:
-            if e.response.status_code != HTTPStatus.CONFLICT:
-                raise
-            # The task is not SUCCESS, or the project's link to the results repository is inactive
-            self.log.warning(f"Results of task {task.id} not delivered: {e.response.text}")
+            self._stop_if_refused(task_id, e)
             return
         if result.step == PullRequestResultStep.REVOKED:
             self.log.warning(f"Results of task {task.id} not delivered: {REVOKED_ERROR}")
@@ -86,23 +87,16 @@ class ResultsDelivery:
         if result.step in PAST_PUSHED:
             self.log.info(f"Results of task {task.id} are already delivered, {result.step.value}")
             return
-        if repository.revoked:
-            # Revoked after the result was recorded: final, the results are never delivered
-            self.log.warning(f"Results of task {task.id} not delivered: {REVOKED_ERROR}")
-            self.backend_api.patch_result(task.project_id, result.id, {
-                "step": PullRequestResultStep.REVOKED.value,
-                "state": ResultState.FAILED.value,
-                "attempts": result.attempts + 1,
-                "error": REVOKED_ERROR,
-            })
-            return
-        if not repository.active:
+        if result.state == ResultState.FAILED and result.error == SWITCHED_OFF_ERROR and result.attempts == 0:
+            # Just recorded by the backend, which found the link switched off. The retry sensor
+            # delivers it once the link is active again, with its attempts at 1 by then.
             self.log.warning(f"Results of task {task.id} not delivered: {SWITCHED_OFF_ERROR}")
-            self.backend_api.patch_result(task.project_id, result.id, {
-                "state": ResultState.FAILED.value,
-                "attempts": result.attempts + 1,
-                "error": SWITCHED_OFF_ERROR,
-            })
+            self.backend_api.patch_result(task.project_id, result.id, {"attempts": result.attempts + 1})
+            return
+        try:
+            repository = self.backend_api.get_global_results_repository(results["repository_id"])
+        except requests.HTTPError as e:
+            self._stop_if_refused(task_id, e)
             return
         if result.state == ResultState.FAILED:
             self.backend_api.patch_result(task.project_id, result.id, {"state": ResultState.IN_PROGRESS.value})
@@ -111,7 +105,7 @@ class ResultsDelivery:
         try:
             pull_request = self._find_pull_request(task)
             title = f"{pull_request.trigger_repository.repo_path} PR{pull_request.number} - task {task.id} - results"
-            branch, commit_sha, base_branch = self._push(task, run_id, repository, pull_request.trigger_repository, pull_request, title)
+            branch, commit_sha, base_branch = self._push(task, run_id, repository, results["target_dir"], pull_request.trigger_repository, pull_request, title)
             pushed = {"branch": branch, "commit_sha": commit_sha}
             self.backend_api.patch_result(task.project_id, result.id, {"step": PullRequestResultStep.PUSHED.value, **pushed})
             results_pr = self._open_pull_request(repository, branch, base_branch, title, pull_request)
@@ -138,11 +132,21 @@ class ResultsDelivery:
             raise
         self.log.info(f"Delivered results of task {task.id} in {results_pr['html_url']}")
 
+    def _stop_if_refused(self, task_id: int, error: requests.HTTPError) -> None:
+        """
+        Logs a 404 (the project, task or repository is gone: the result is final, nothing to retry) or a 409
+        (the task is not SUCCESS) and lets the caller stop. Any other error is raised.
+        """
+        if error.response.status_code not in (HTTPStatus.NOT_FOUND, HTTPStatus.CONFLICT):
+            raise error
+        self.log.warning(f"Results of task {task_id} not delivered: {error.response.text}")
+
     def _push(
         self,
         task: Task,
         run_id: str,
-        repository: ProjectResultsRepository,
+        repository: ResultsRepository,
+        target_dir: str,
         trigger_repository: TriggerRepositoryRef,
         pull_request: TaskTrigger,
         message: str,
@@ -153,9 +157,9 @@ class ResultsDelivery:
         so a branch already on the remote is from an earlier attempt and is not pushed again.
         """
         # TODO(auth): the token read and the Keycloak system user are being reworked
-        env = git_push.auth_env(read_secret_value(repository.results_repository.secret, "TOKEN"))
+        env = git_push.auth_env(read_secret_value(repository.secret, "TOKEN"))
 
-        layout = Path(repository.target_dir.strip("/")) / self._name(trigger_repository) / str(
+        layout = Path(target_dir.strip("/")) / self._name(trigger_repository) / str(
             pull_request.number
         ) / str(task.id)
         branch = f"{layout.as_posix()}-{pull_request.merge_commit_sha[:7]}"
@@ -163,7 +167,7 @@ class ResultsDelivery:
         with tempfile.TemporaryDirectory(prefix="phems-results-") as work:
             clone_dir = Path(work) / "repo"
             git_push.clone(
-                git_push.clone_url(repository.results_repository.provider.uri, repository.results_repository.repo_path),
+                git_push.clone_url(repository.provider.uri, repository.repo_path),
                 clone_dir, env,
             )
             base_branch = git_push.current_branch(clone_dir)
@@ -203,12 +207,11 @@ class ResultsDelivery:
             return branch, git_push.commit_and_push(clone_dir, message, env), base_branch
 
     def _open_pull_request(
-        self, repository: ProjectResultsRepository, branch: str, base_branch: str, title: str, pull_request: TaskTrigger
+        self, repository: ResultsRepository, branch: str, base_branch: str, title: str, pull_request: TaskTrigger
     ) -> dict:
         """Open the pull request of the branch, or return the one an earlier attempt opened."""
-        results_repository = repository.results_repository
-        git_api = self.git_apis.for_repository(results_repository)
-        existing = git_api.find_pull_request_by_branch(results_repository.repo_path, branch, base_branch)
+        git_api = self.git_apis.for_repository(repository)
+        existing = git_api.find_pull_request_by_branch(repository.repo_path, branch, base_branch)
         if existing:
             self.log.info(f"Branch {branch} already has pull request #{existing['number']}")
             return existing
@@ -216,7 +219,7 @@ class ResultsDelivery:
             f"Results of the task run for pull request #{pull_request.number}, "
             f"merged at {pull_request.merge_commit_sha}."
         )
-        return git_api.create_pull_request(results_repository.repo_path, branch, base_branch, title, body)
+        return git_api.create_pull_request(repository.repo_path, branch, base_branch, title, body)
 
     def _find_pull_request(self, task: Task) -> TaskTrigger:
         """The pull request that yielded the task, with its trigger repository. A task without one is a 404."""

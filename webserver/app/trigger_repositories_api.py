@@ -1,8 +1,7 @@
 """
 trigger repository endpoints, global: a project is linked to one under
 /projects/<id>/repositories/triggers (see project_trigger_repositories_api.py). Create, edit and delete are admin
-only. Deleting, or turning one on or off (enabled), needs every project the repository is linked to locked and
-drained; any other edit applies at once. A secret_label naming a disabled secret is a 400 on POST and PATCH.
+only. Deleting one is a soft delete, refused with a 409 naming the projects it is linked to unless ?force=true; no edit needs a lock. A secret_label naming a disabled secret is a 400 on POST and PATCH.
 - GET /global/repositories/triggers
 - GET /global/repositories/triggers/<id>
 - POST /global/repositories/triggers
@@ -23,9 +22,9 @@ from app.dtos.trigger_repository import PullRequestDTO, PullRequestRequest, Trig
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.query_filters import arg_get
-from app.helpers.project_lock import require_all_drained, require_all_drained_if_enabled
 from app.helpers.pull_request_fanout import ingest_pull_requests, skip_gap
 from app.helpers.revoke import revoke_links
+from app.helpers.soft_delete import delete_global
 from app.helpers.wrappers import audit, auth
 from app.models.git_provider import GitProvider
 from app.models.pull_request import PullRequest
@@ -131,19 +130,10 @@ def revoke_repository(repo_id):
 @auth(scope='can_do_admin')
 def delete_repository(repo_id):
     """
-    DELETE /global/repositories/triggers/<id> — delete the repository and its links, once every
-    project it is linked to is locked and drained. Refused while a pull request of it has been ingested.
+    DELETE /global/repositories/triggers/<id> — soft delete the repository. A 409 names the projects it is linked to, unless ?force=true, which also revokes and deletes their links.
     """
     repo = TriggerRepository.get_by_id(repo_id)
-    assignments = list(repo.project_assignments)
-    require_all_drained([a.project for a in assignments])
-    try:
-        for assignment in assignments:
-            assignment.delete(False)
-        repo.delete()
-    except Exception as exc:
-        session.rollback()
-        raise InvalidRequest("Error while deleting the record") from exc
+    delete_global(repo, repo.project_assignments)
     return '', HTTPStatus.NO_CONTENT
 
 
@@ -187,8 +177,7 @@ def post_repository():
 @auth(scope='can_do_admin')
 def patch_repository(repo_id):
     """
-    PATCH /global/repositories/triggers/<id> — update repository. Only a change of enabled needs every
-    project it is linked to locked and drained, any other edit applies at once (the tasks created
+    PATCH /global/repositories/triggers/<id> — update repository. No edit needs a lock (the tasks created
     before are pinned to the old setup and fail instead of running against the new one). A disabled secret cannot be
     named (400), unless it is the one already in use.
     """
@@ -201,8 +190,6 @@ def patch_repository(repo_id):
     if unknown:
         raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
     req = RepositoryPatchRequest.parse(body)
-
-    require_all_drained_if_enabled(body, [a.project for a in repo.project_assignments])
 
     if 'secret_label' in body:
         repo.secret_id = Secret.get_enabled_by_label(req.secret_label, repo.secret_id).id

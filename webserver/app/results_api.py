@@ -97,7 +97,7 @@ def post_result(project_id: int):
     """
     POST /projects/<project_id>/results endpoint. Creates the delivery of a task's results to a results
     repository, by pull request. The repository is the global one's id, which the
-    project has to be linked to, and the task has to be the project's. If it exists already, that one is returned.
+    project has to be linked to (a deleted link counts, as a revoked one), and the task has to be the project's. If it exists already, that one is returned.
     Otherwise 409 unless the task is SUCCESS. When the project's link is revoked the result is created as final,
     step REVOKED and state FAILED, and nothing is ever delivered for it. When the link is inactive for another
     reason (disabled by the project, or the global repository disabled) the result is created at step UNKNOWN and
@@ -116,10 +116,11 @@ def post_result(project_id: int):
     if task.project_id != project_id:
         raise DBRecordNotFoundError(f"Task {task.id} does not exist in project {project_id}")
     does_user_own_task(task)
-    # The delivery is tracked against the project's own link to the repository
+    # The delivery is tracked against the project's own link to the repository. A deleted link is
+    # read too: it is revoked, so its delivery gets the final REVOKED result here, the only gate.
     assignment = ProjectResultsRepository.query.filter_by(
         project_id=project_id, results_repository_id=body['results_repository_id']
-    ).one_or_none()
+    ).execution_options(include_deleted=True).order_by(ProjectResultsRepository.id.desc()).first()
     if assignment is None:
         raise InvalidRequest(
             f"Results repository {body['results_repository_id']} is not linked to project {project_id}"

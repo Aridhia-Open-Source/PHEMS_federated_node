@@ -3,7 +3,8 @@ from http import HTTPStatus
 
 from app.utils import BackendSession
 from app.models import (
-    ProjectTriggerRepository, TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository, Task,
+    ProjectTriggerRepository, TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository,
+    ResultsRepository, Task,
     TaskTrigger, PullRequestResult, Dataset, ProjectDataset
 )
 
@@ -183,7 +184,7 @@ class BackendAPI:
         return Task(**response.json())
 
     def get_task_config(self, project_id: int, task_id: int) -> dict:
-        """Whether the configuration a task was created under is still current: {"current", "changes", "config_hash"}. 404 if the task is not in the project."""
+        """The configuration a task is pinned to and whether it is still current: {"current", "changes", "config_hash", "config_snapshot"}. 404 if the task is not in the project."""
         self.logger.info(f"Fetching the configuration check of task {task_id}")
         response = self.session.get(f"/projects/{project_id}/tasks/{task_id}/config")
         return response.json()
@@ -194,15 +195,11 @@ class BackendAPI:
         response = self.session.get(f"/projects/{project_id}/tasks/{task_id}/trigger")
         return TaskTrigger(**response.json())
 
-    def get_results_repository(self, project_id: int) -> ProjectResultsRepository:
-        """Get the project's link to a results repository, active or not. A project has exactly one."""
-        self.logger.info(f"Fetching the results repository of project {project_id}")
-        response = self.session.get(f"/projects/{project_id}/repositories/results")
-        # No results link means something has gone very wrong: this raises and the delivery run fails.
-        # Not handled for the MVP; the fix is to refuse unlinking the results repository while tasks
-        # are in flight.
-        (assignment,) = response.json()
-        return ProjectResultsRepository(**assignment)
+    def get_global_results_repository(self, repository_id: int) -> ResultsRepository:
+        """Get a global results repository. 404 once it is deleted."""
+        self.logger.info(f"Fetching global results repository {repository_id}")
+        response = self.session.get(f"/global/repositories/results/{repository_id}")
+        return ResultsRepository(**response.json())
 
     def get_results_repository_by_id(self, project_id: int, repository_id: int) -> ProjectResultsRepository:
         """Get a project's link to a results repository, by the repository's id"""
@@ -289,9 +286,9 @@ class BackendAPI:
         return ProjectDataset(**response.json())
 
     def delete_dataset(self, dataset_id: int) -> None:
-        """Delete a dataset"""
+        """Delete a dataset, and with it (force) every project's link to it"""
         self.logger.info(f"Deleting dataset {dataset_id}")
-        self.session.delete(f"/global/datasets/{dataset_id}")
+        self.session.delete(f"/global/datasets/{dataset_id}", params={"force": "true"})
 
     def create_repository(self, provider_id: int, repo_path: str, secret_label: str) -> TriggerRepository:
         """Create a global trigger repository"""
@@ -314,5 +311,5 @@ class BackendAPI:
         return ProjectTriggerRepository(**response.json())
 
     def delete_repository(self, repo_id: int) -> None:
-        """Delete a repository"""
-        self.session.delete(f"/global/repositories/triggers/{repo_id}")
+        """Delete a repository, and with it (force) every project's link to it"""
+        self.session.delete(f"/global/repositories/triggers/{repo_id}", params={"force": "true"})

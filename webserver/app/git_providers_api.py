@@ -1,7 +1,6 @@
 """
 Git provider endpoints, global: the trigger and results repositories refer to one by id. All
-admin only. Turning a provider on or off (enabled) affects every repository on it, so it
-needs every project linked to one of them locked and drained; any other edit applies at once.
+admin only. No edit needs a lock. Deleting is a soft delete.
 - GET /global/providers
 - GET /global/providers/<id>
 - POST /global/providers
@@ -16,7 +15,6 @@ from flask import Blueprint, request
 from app.dtos.git_provider import GitProviderDTO, GitProviderPatchRequest, GitProviderRequest
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.project_lock import require_all_drained_if_enabled
 from app.helpers.pull_request_fanout import skip_gap
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
@@ -86,8 +84,7 @@ def post_provider():
 @auth(scope='can_do_admin')
 def patch_provider(provider_id):
     """
-    PATCH /global/providers/<id> — update a provider. Only a change of enabled
-    needs every project linked to a repository on it locked and drained, any other edit applies at once
+    PATCH /global/providers/<id> — update a provider. No edit needs a lock
     (the tasks created before are pinned to the old setup and fail instead of running against the new one).
     """
     provider = GitProvider.get_by_id(provider_id)
@@ -96,12 +93,6 @@ def patch_provider(provider_id):
     if not body:
         raise InvalidRequest("No fields provided to update")
     req = GitProviderPatchRequest.parse(body)
-
-    links = [
-        *(a for r in provider.trigger_repositories for a in r.project_assignments),
-        *(a for r in provider.results_repositories for a in r.project_assignments),
-    ]
-    require_all_drained_if_enabled(body, [a.project for a in links])
 
     was_enabled = provider.enabled
     try:
@@ -138,5 +129,6 @@ def delete_provider(provider_id):
         raise InvalidRequest(
             f"Git provider {provider.name} is still used by {users} repositories", code=HTTPStatus.CONFLICT
         )
-    provider.delete()
+    provider.soft_delete()
+    session.commit()
     return '', HTTPStatus.NO_CONTENT

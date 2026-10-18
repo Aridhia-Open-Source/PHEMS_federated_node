@@ -6,9 +6,10 @@ import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
 from app.helpers.base_model import BaseModel, db
+from app.helpers.soft_delete import SoftDeleteMixin
 
 
-class ProjectSecret(db.Model, BaseModel):
+class ProjectSecret(SoftDeleteMixin, db.Model, BaseModel):
     __tablename__ = 'project_secrets'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -21,7 +22,10 @@ class ProjectSecret(db.Model, BaseModel):
     revoked = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
 
     __table_args__ = (
-        sa.UniqueConstraint('project_id', 'secret_id', name='uq_project_secrets_project_secret'),
+        sa.Index(
+            'uq_project_secrets_project_secret', 'project_id', 'secret_id',
+            unique=True, postgresql_where=sa.text('deleted_at IS NULL')
+        ),
     )
 
     project = relationship("Project", back_populates="secret_assignments")

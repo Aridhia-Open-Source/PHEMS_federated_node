@@ -21,7 +21,6 @@ from app.dtos.task_spec import TaskSpecRequest
 from app.dtos.trigger_repository import ProjectTriggerRepositoryDTO, PullRequestTriggerDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
-from app.helpers.project_lock import require_drained, require_drained_if_enabled
 from app.helpers.pull_request_fanout import skip_gap
 from app.helpers.query_filters import arg_get
 from app.helpers.repository_loop import check_no_loop, normalise_dir
@@ -82,7 +81,7 @@ def put_project_trigger_repository(project_id: int, repo_id: int):
     """
     PUT /projects/<project_id>/repositories/triggers/<repo_id> — links a global trigger
     repository to the project, 201, or replaces the project's settings if it is linked already,
-    200, which needs the project locked and drained only if it turns the link on or off (enabled): a change of
+    200: a change of
     watch_dir or base_branch applies at once. A new watcher does not touch work in
     flight, so linking needs no lock. Fields left out take their defaults. The cursor is set when
     the link is created, after the latest pull request stored, and stays where it is.
@@ -103,8 +102,6 @@ def put_project_trigger_repository(project_id: int, repo_id: int):
     assignment = ProjectTriggerRepository.query.filter_by(project_id=project.id, trigger_repository_id=repo.id).one_or_none()
 
     if assignment is not None:
-        if "enabled" in body or body.get("enabled", True) != assignment.enabled:
-            require_drained(project)
         was_active = assignment.active
         assignment.watch_dir = watch_dir
         assignment.base_branch = body.get("base_branch", "main")
@@ -152,7 +149,7 @@ def patch_project_trigger_repository(project_id: int, repo_id: int):
     """
     PATCH /projects/<project_id>/repositories/triggers/<repo_id> — changes what the
     project watches (watch_dir, base_branch), at any time, or turns the link on or off
-    (enabled), which needs the project locked and drained, or revokes and re-grants it
+    (enabled), or revokes and re-grants it
     (revoked), which is admin only and takes effect at once.
     """
     assignment = _assignment(project_id, repo_id)
@@ -165,8 +162,6 @@ def patch_project_trigger_repository(project_id: int, repo_id: int):
             raise InvalidRequest(f"{field} must be a boolean")
     if "revoked" in body and not g.caller_is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a trigger repository")
-
-    require_drained_if_enabled(body, assignment.project)
 
     was_active = assignment.active
     if "base_branch" in body:
@@ -199,16 +194,11 @@ def patch_project_trigger_repository(project_id: int, repo_id: int):
 def delete_project_trigger_repository(project_id: int, repo_id: int):
     """
     DELETE /projects/<project_id>/repositories/triggers/<repo_id> — unlinks the
-    repository, not the repository itself, once the project is locked and drained. Refused while it
-    has pull requests.
+    repository, not the repository itself: a soft delete that also revokes the link.
     """
     assignment = _assignment(project_id, repo_id)
-    require_drained(assignment.project)
-    try:
-        assignment.delete()
-    except Exception as exc:
-        session.rollback()
-        raise InvalidRequest("Error while deleting the record") from exc
+    assignment.soft_delete()
+    session.commit()
     return '', HTTPStatus.NO_CONTENT
 
 

@@ -17,6 +17,7 @@ from app.helpers.base_model import BaseModel, db
 from app.helpers.const import DEFAULT_NAMESPACE, PUBLIC_URL, build_sql_uri
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.keycloak import Keycloak
+from app.helpers.soft_delete import SoftDeleteMixin
 from app.helpers.kubernetes import KubernetesClient
 from app.models import sqla_column
 from app.models.git_provider import ConnectionCheck, ConnectionStatus
@@ -29,7 +30,7 @@ CONNECTION_TIMEOUT = 5
 MAX_MESSAGE_LENGTH = 200
 
 
-class Dataset(db.Model, BaseModel):
+class Dataset(SoftDeleteMixin, db.Model, BaseModel):
     __tablename__ = 'datasets'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -38,7 +39,7 @@ class Dataset(db.Model, BaseModel):
         sa.Integer, sa.ForeignKey('secrets.id', ondelete='RESTRICT'), nullable=False
     )
 
-    name = sa.Column(sa.String(256), unique=True, nullable=False)
+    name = sa.Column(sa.String(256), nullable=False)
     host = sa.Column(sa.String(256), nullable=False)
     port = sa.Column(sa.Integer, nullable=False)
     read_schema = sa.Column(sa.String(256), nullable=True)
@@ -50,6 +51,10 @@ class Dataset(db.Model, BaseModel):
 
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
+
+    __table_args__ = (
+        sa.Index('uq_datasets_name', 'name', unique=True, postgresql_where=sa.text('deleted_at IS NULL')),
+    )
 
     # The keys the dataset's secret holds
     SECRET_KEYS = ("USERNAME", "PASSWORD")

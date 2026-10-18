@@ -31,7 +31,8 @@ from app.dtos.dataset import ProjectDatasetDTO
 from app.dtos.results_repository import ProjectResultsRepositoryDTO
 from app.dtos.secret import ProjectSecretDTO
 from app.dtos.project import ProjectDTO, ProjectRequest
-from app.helpers.project_lock import require_drained, require_drained_if_enabled
+from app.helpers.project_lock import require_locked
+from app.helpers.pull_request_fanout import skip_gap
 from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.query_filters import parse_query_params
 from app.helpers.wrappers import audit, auth
@@ -42,8 +43,6 @@ from app.models.project_results_repository import ProjectResultsRepository
 from app.models.project_secret import ProjectSecret
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
-from app.models.task import Task
-from app.models.trigger import Trigger
 
 
 bp = Blueprint('projects', __name__, url_prefix='/projects')
@@ -96,8 +95,8 @@ def create_project():
 def patch_project(project_id: int):
     """
     PATCH /projects/<project_id> endpoint. Enables or disables the project, locks or unlocks
-    it. Locking or unlocking is always allowed, turning the project on or off (enabled) only once
-    it is locked and drained, see require_drained.
+    it. Neither needs a lock. Turning the project on again skips the gap: what was merged while it
+    was off gets no trigger.
     """
     project = Project.get_by_id(project_id)
 
@@ -109,7 +108,8 @@ def patch_project(project_id: int):
         if not isinstance(body[field], bool):
             raise InvalidRequest(f"{field} must be a boolean")
 
-    require_drained_if_enabled(body, project)
+    if body.get("enabled") and not project.enabled:
+        skip_gap(project.trigger_repository_assignments)
     for field in body:
         setattr(project, field, body[field])
     db.session.commit()
@@ -121,42 +121,18 @@ def patch_project(project_id: int):
 @auth(scope='can_admin_dataset')
 def delete_project(project_id: int):
     """
-    DELETE /projects/<project_id> endpoint. Deletes the project and everything under it:
-    tasks, triggers, and dataset, secret, results repository and trigger repository links. Secrets,
-    datasets and results repositories belong to no project: they, and their stored values,
-    are left alone.
+    DELETE /projects/<project_id> endpoint. Soft deletes the project and revokes and deletes
+    every link under it: datasets, secrets, results repository and trigger repositories. Its tasks
+    and triggers stay. Secrets, datasets and results repositories belong to no project: they, and
+    their stored values, are left alone.
     """
-    # Hard delete for now, a soft delete option can come later. Keycloak entries of the
-    # datasets are left behind, as with DELETE /global/datasets.
     project = Project.get_by_id(project_id)
-    require_drained(project)
-
-    # Dependency order: most of these foreign keys to the project are RESTRICT. The
-    # triggers left after the repositories' pull requests (the API ones) go with the
-    # project, through the database's ON DELETE CASCADE.
-    try:
-        for task in Task.query.filter_by(project_id=project.id):
-            task.delete(False)
-        # Only the project's grants go, the datasets themselves are global. Each takes the
-        # project's default with it if it was the default.
-        for assignment in list(project.dataset_assignments):
-            assignment.delete(False)
-        # The pull requests and their triggers, which RESTRICT the assignments. The tasks they
-        # yielded are gone by now.
-        for trigger in Trigger.query.filter_by(project_id=project.id):
-            trigger.delete(False)
-        for assignment in list(project.trigger_repository_assignments):
-            assignment.delete(False)
-        for assignment in list(project.secret_assignments):
-            assignment.delete(False)
-        # Likewise the project's grant of a results repository, not the repository
-        for assignment in list(project.results_repository_assignments):
-            assignment.delete(False)
-        project.delete(False)
-    except Exception as exc:
-        db.session.rollback()
-        raise InvalidRequest("Error while deleting the record") from exc
-
+    for link in (
+        *project.dataset_assignments, *project.secret_assignments,
+        *project.trigger_repository_assignments, *project.results_repository_assignments,
+    ):
+        link.soft_delete()
+    project.soft_delete()
     db.session.commit()
     return '', HTTPStatus.NO_CONTENT
 
@@ -210,8 +186,7 @@ def get_project_dataset(project_id: int, dataset_id: int):
 def put_project_dataset(project_id: int, dataset_id: int):
     """
     PUT /projects/<project_id>/datasets/<dataset_id> endpoint. Links a global dataset to the
-    project, 201, and replaces the project's settings if it is linked already, 200, which needs
-    the project locked and drained only if it turns the link on or off (enabled). The first one linked becomes the project's default.
+    project, 201, and replaces the project's settings if it is linked already, 200. The first one linked becomes the project's default.
     Body: {"enabled": true}, optional.
     """
     project = Project.get_by_id(project_id)
@@ -227,8 +202,6 @@ def put_project_dataset(project_id: int, dataset_id: int):
         link.add()
         return ProjectDatasetDTO.from_model(link).dump(), HTTPStatus.CREATED
 
-    if "enabled" in body or enabled != link.enabled:
-        require_drained(project)
     link.enabled = enabled
     db.session.commit()
     return ProjectDatasetDTO.from_model(link).dump(), HTTPStatus.OK
@@ -240,8 +213,7 @@ def put_project_dataset(project_id: int, dataset_id: int):
 def patch_project_dataset(project_id: int, dataset_id: int):
     """
     PATCH /projects/<project_id>/datasets/<dataset_id> endpoint. Turns the link on or
-    off (enabled), which needs the project locked and drained, or revokes and re-grants it
-    (revoked), which is admin only and takes effect at once.
+    off (enabled), or revokes and re-grants it (revoked), which is admin only and takes effect at once.
     """
     link = _dataset_link(project_id, dataset_id)
     body = request.json or {}
@@ -254,7 +226,6 @@ def patch_project_dataset(project_id: int, dataset_id: int):
     if "revoked" in body and not g.caller_is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a dataset")
 
-    require_drained_if_enabled(body, link.project)
     for field in body:
         setattr(link, field, body[field])
     db.session.commit()
@@ -267,12 +238,12 @@ def patch_project_dataset(project_id: int, dataset_id: int):
 def delete_project_dataset(project_id: int, dataset_id: int):
     """
     DELETE /projects/<project_id>/datasets/<dataset_id> endpoint. Unlinks the dataset, not the
-    dataset itself, once the project is locked and drained. If it was the project's default,
+    dataset itself: a soft delete that also revokes the link. If it was the project's default,
     the project has none afterwards.
     """
     link = _dataset_link(project_id, dataset_id)
-    require_drained(link.project)
-    link.delete()
+    link.soft_delete()
+    db.session.commit()
     return '', HTTPStatus.NO_CONTENT
 
 
@@ -312,8 +283,7 @@ def get_project_secret(project_id: int, label: str):
 def put_project_secret(project_id: int, label: str):
     """
     PUT /projects/<project_id>/secrets/<label> endpoint. Links a global secret to the project,
-    201, and replaces the project's settings if it is linked already, 200, which needs the
-    project locked and drained only if it turns the link on or off (enabled).
+    201, and replaces the project's settings if it is linked already, 200.
     Body: {"enabled": true}, optional.
     """
     project = Project.get_by_id(project_id)
@@ -331,8 +301,6 @@ def put_project_secret(project_id: int, label: str):
         link.add()
         return ProjectSecretDTO.from_model(link).dump(), HTTPStatus.CREATED
 
-    if "enabled" in body or enabled != link.enabled:
-        require_drained(project)
     link.enabled = enabled
     db.session.commit()
     return ProjectSecretDTO.from_model(link).dump(), HTTPStatus.OK
@@ -344,8 +312,7 @@ def put_project_secret(project_id: int, label: str):
 def patch_project_secret(project_id: int, label: str):
     """
     PATCH /projects/<project_id>/secrets/<label> endpoint. Turns the link on or off (enabled),
-    which needs the project locked and drained, or revokes and re-grants it (revoked), which
-    is admin only and takes effect at once.
+    or revokes and re-grants it (revoked), which is admin only and takes effect at once.
     """
     link = _secret_link(project_id, label)
     body = request.json or {}
@@ -358,7 +325,6 @@ def patch_project_secret(project_id: int, label: str):
     if "revoked" in body and not g.caller_is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a secret")
 
-    require_drained_if_enabled(body, link.project)
     for field in body:
         setattr(link, field, body[field])
     db.session.commit()
@@ -371,11 +337,11 @@ def patch_project_secret(project_id: int, label: str):
 def delete_project_secret(project_id: int, label: str):
     """
     DELETE /projects/<project_id>/secrets/<label> endpoint. Unlinks the secret, not the secret
-    itself, once the project is locked and drained.
+    itself: a soft delete that also revokes the link.
     """
     link = _secret_link(project_id, label)
-    require_drained(link.project)
-    link.delete()
+    link.soft_delete()
+    db.session.commit()
     return '', HTTPStatus.NO_CONTENT
 
 
@@ -422,8 +388,8 @@ def put_project_results_repository(project_id: int, repository_id: int):
     """
     PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Links a global
     results repository to the project, which has one, 201, and replaces the project's settings
-    if it is linked already, 200. Linking needs the project locked and drained. Replacing the settings of
-    the link does only if it turns the link on or off (enabled): a change of target_dir is caught by the
+    if it is linked already, 200. Linking needs the project locked. Changing the settings of
+    the link needs no lock: a change of target_dir is caught by the
     configuration snapshot of the tasks created before, which then fail instead of delivering there.
     Body: {"target_dir": "results", "owned_by_federated_node": true, "enabled": true}, the last
     two are optional.
@@ -443,8 +409,8 @@ def put_project_results_repository(project_id: int, repository_id: int):
     link = ProjectResultsRepository.query.filter_by(project_id=project.id).first()
     if link and link.results_repository_id != repo.id:
         raise InvalidRequest(f"Project {project.id} already has a results repository", HTTPStatus.CONFLICT)
-    if link is None or "enabled" in body or body.get("enabled", True) != link.enabled:
-        require_drained(project)
+    if link is None:
+        require_locked(project)
 
     created = link is None
     if created:
@@ -467,7 +433,7 @@ def patch_project_results_repository(project_id: int, repository_id: int):
     PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where
     the project's results go (target_dir, owned_by_federated_node), at any time (the tasks created
     before fail instead of delivering to the new place), or turns the link on or
-    off (enabled), which needs the project locked and drained, or revokes and re-grants it
+    off (enabled), or revokes and re-grants it
     (revoked), which is admin only and takes effect at once.
     """
     link = _results_link(project_id, repository_id)
@@ -481,7 +447,6 @@ def patch_project_results_repository(project_id: int, repository_id: int):
     if "revoked" in body and not g.caller_is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a results repository")
 
-    require_drained_if_enabled(body, link.project)
     if "target_dir" in body:
         target_dir = normalise_dir(body["target_dir"] or "")
         if not target_dir:
@@ -501,14 +466,10 @@ def patch_project_results_repository(project_id: int, repository_id: int):
 def delete_project_results_repository(project_id: int, repository_id: int):
     """
     DELETE /projects/<project_id>/repositories/results/<repository_id> endpoint. Unlinks the
-    repository, not the repository itself, once the project is locked and drained. Refused
-    while a task delivered to it.
+    repository, not the repository itself: a soft delete that also revokes the link. A task of the
+    project still in flight gets a REVOKED result.
     """
     link = _results_link(project_id, repository_id)
-    require_drained(link.project)
-    try:
-        link.delete()
-    except Exception as exc:
-        db.session.rollback()
-        raise InvalidRequest("Error while deleting the record") from exc
+    link.soft_delete()
+    db.session.commit()
     return '', HTTPStatus.NO_CONTENT

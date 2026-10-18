@@ -1,8 +1,8 @@
 """
 datasets-related endpoints. Datasets are global: a project reaches one through its
 link, see projects_api (/projects/<id>/datasets). Creating, editing and deleting are
-admin-only. Deleting a dataset, or turning it on or off (enabled), needs every project it is
-linked to locked and drained; any other edit applies at once:
+admin-only. Deleting a dataset is a soft delete, refused with a 409 naming the projects it is linked to unless
+?force=true; no edit needs a lock:
 - GET /global/datasets
 - POST /global/datasets
 - GET /global/datasets/id
@@ -20,9 +20,9 @@ from .dtos.base import page_of
 from .dtos.dataset import DatasetDTO, DatasetPatchRequest, DatasetRequest
 from .helpers.base_model import db
 from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from .helpers.project_lock import require_all_drained, require_all_drained_if_enabled
 from .helpers.query_validator import validate
 from .helpers.revoke import revoke_links
+from .helpers.soft_delete import delete_global
 from .helpers.wrappers import audit, auth
 from .models.dataset import Dataset
 from .models.extras.catalogue import Catalogue
@@ -144,22 +144,12 @@ def revoke_dataset(dataset_id: int):
 @auth(scope='can_do_admin')
 def delete_dataset(dataset_id: int):
     """
-    DELETE /global/datasets/id endpoint. Deletes the dataset and its links, once every
-        project it is linked to is locked and drained. Refused while a task ran on it. Its
-        k8s secret is left alone: it has its own lifecycle (/global/secrets) and other datasets
-        may share it. Admin only.
+    DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is linked to,
+        unless ?force=true, which also revokes and deletes their links. Its k8s secret is left alone: it has its own lifecycle (/global/secrets) and
+        other datasets may share it. Admin only.
     """
-    logger.error(f"deleting ({dataset_id})")
     ds = Dataset.get_by_id(dataset_id)
-    assignments = list(ds.project_assignments)
-    require_all_drained([a.project for a in assignments])
-    try:
-        for assignment in assignments:
-            assignment.delete(False)
-        ds.delete()
-    except Exception as exc:
-        session.rollback()
-        raise InvalidRequest("Error while deleting the record") from exc
+    delete_global(ds, ds.project_assignments)
     return {}, 204
 
 
@@ -168,8 +158,7 @@ def delete_dataset(dataset_id: int):
 @auth(scope='can_do_admin')
 def patch_dataset(dataset_id: int):
     """
-    PATCH /global/datasets/id endpoint. Edits an existing dataset with a given id. Only a change of enabled needs every
-    project it is linked to locked and drained, any other edit applies at once (the tasks created before
+    PATCH /global/datasets/id endpoint. Edits an existing dataset with a given id. No edit needs a lock (the tasks created before
     are pinned to the old setup and fail instead of running against the new one). Admin only. Returns 200. A disabled secret_label is a 400, unless it is the
     one already in use.
     """
@@ -181,7 +170,6 @@ def patch_dataset(dataset_id: int):
     req = DatasetPatchRequest.parse(body)
     if not req.model_fields_set:
         raise InvalidRequest("No field to update")
-    require_all_drained_if_enabled(body, [a.project for a in ds.project_assignments])
     body = req.model_dump(exclude_unset=True, exclude={"catalogue", "dictionaries", "secret_label"})
     cata_body = req.catalogue
     dict_body = req.dictionaries or []

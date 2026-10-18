@@ -39,7 +39,7 @@ Secrets, datasets, trigger repositories and results repositories belong to no pr
 
 - There is no cross-project list. The ingest sensor reads `GET /global/repositories/triggers?pollable=true`, the enabled repositories on an enabled provider with an enabled secret (project links do not matter), each carrying the `pr_cursor` to poll from. The evaluate sensor loops over enabled, unlocked projects and reads `GET /projects/<id>/repositories/triggers` for each.
 - A task runs only on an active dataset assignment. The launcher fails a PENDING task whose dataset assignment is inactive (an error while checking a task leaves it PENDING for the next tick), with the cause in the task's `state_cause`; a manual retry (which clears it) launches it once the dataset is active again. Delivery to a revoked or disabled results assignment records "results repository access revoked", FAILED, and does not raise.
-- `revoked` is admin only and takes effect at once. Changing an assignment's `enabled`, or editing or deleting a global resource, needs every project it touches locked and drained.
+- `revoked` is admin only and takes effect at once. Nothing here needs a lock or a drain, except creating a project's results link, which needs the project locked. `DELETE` is a soft delete (`deleted_at`): the row is gone from the API (404, not listed) and the links under it are revoked and deleted, so a task in flight gets a `REVOKED` result when it delivers. A dataset or repository with live project links is a 409 listing the projects unless `?force=true`. A deleted name is free to create again.
 
 ## Ingest and fan-out
 

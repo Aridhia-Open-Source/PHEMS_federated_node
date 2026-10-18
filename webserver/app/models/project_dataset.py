@@ -5,10 +5,11 @@ import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
 from app.helpers.base_model import BaseModel, db
+from app.helpers.soft_delete import SoftDeleteMixin
 from app.models import Models
 
 
-class ProjectDataset(db.Model, BaseModel):
+class ProjectDataset(SoftDeleteMixin, db.Model, BaseModel):
     __tablename__ = 'project_datasets'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -21,7 +22,10 @@ class ProjectDataset(db.Model, BaseModel):
     revoked = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
 
     __table_args__ = (
-        sa.UniqueConstraint('project_id', 'dataset_id', name='uq_project_datasets_project_dataset'),
+        sa.Index(
+            'uq_project_datasets_project_dataset', 'project_id', 'dataset_id',
+            unique=True, postgresql_where=sa.text('deleted_at IS NULL')
+        ),
     )
 
     project = relationship("Project", back_populates="dataset_assignments", foreign_keys=[project_id])
@@ -49,13 +53,11 @@ class ProjectDataset(db.Model, BaseModel):
             db.session.commit()
         return self
 
-    def delete(self, commit=True):
-        # The project's default points at this row, so it goes first
-        project = Models.Project.get_by_id(self.project_id)
-        if project.default_dataset_id == self.dataset_id:
-            project.default_dataset_id = None
-            db.session.flush()
-        super().delete(commit)
+    def soft_delete(self):
+        # The project's default is not a dataset it no longer has
+        if self.project.default_dataset_id == self.dataset_id:
+            self.project.default_dataset_id = None
+        super().soft_delete()
 
     def __repr__(self):
         return f'<ProjectDataset {self.project_id}:{self.dataset_id}>'

@@ -262,6 +262,6 @@ class FncliBackendAPI(BackendAPI):
         return ProjectResultsRepository(**response.json())
 
     def delete_results_repository(self, repo_id: int) -> None:
-        """Delete a global results repository, and with it every project's link to it"""
+        """Delete a global results repository, and with it (force) every project's link to it"""
         self.logger.info(f"Deleting results repository {repo_id}")
-        self.session.delete(f"/global/repositories/results/{repo_id}")
+        self.session.delete(f"/global/repositories/results/{repo_id}", params={"force": "true"})

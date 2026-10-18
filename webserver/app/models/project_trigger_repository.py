@@ -11,6 +11,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.helpers.base_model import BaseModel, db
+from app.helpers.soft_delete import SoftDeleteMixin
 from app.models import Models
 
 
@@ -18,7 +19,7 @@ def now_ts():
     return dt.now(tz=tz.utc)
 
 
-class ProjectTriggerRepository(db.Model, BaseModel):
+class ProjectTriggerRepository(SoftDeleteMixin, db.Model, BaseModel):
     __tablename__ = 'project_trigger_repositories'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -45,8 +46,9 @@ class ProjectTriggerRepository(db.Model, BaseModel):
     revoked = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
 
     __table_args__ = (
-        sa.UniqueConstraint(
-            'project_id', 'trigger_repository_id', name='uq_project_trigger_repositories_project_repo'
+        sa.Index(
+            'uq_project_trigger_repositories_project_repo', 'project_id', 'trigger_repository_id',
+            unique=True, postgresql_where=sa.text('deleted_at IS NULL')
         ),
     )
 
@@ -60,6 +62,11 @@ class ProjectTriggerRepository(db.Model, BaseModel):
     @property
     def active(self) -> bool:
         return self.trigger_repository.active and self.enabled and not self.revoked
+
+    @property
+    def accepts_triggers(self) -> bool:
+        """Whether a new pull request gets a trigger for this link: it is active and its project is enabled."""
+        return self.active and self.project.enabled
 
     @property
     def dataset(self):

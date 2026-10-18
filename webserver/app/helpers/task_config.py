@@ -24,6 +24,7 @@ def build_snapshot(project, dataset) -> dict:
     if link is not None:
         repository = link.results_repository
         results = {
+            "repository_id": repository.id,
             "repository": repository.uri,
             "api_uri": repository.provider.api_uri,
             "target_dir": link.target_dir,

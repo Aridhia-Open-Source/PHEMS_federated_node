@@ -10,6 +10,9 @@ from datetime import datetime, timedelta
 import pytest
 
 from app.helpers.base_model import db
+from app.models.project_dataset import ProjectDataset
+from app.models.project_results_repository import ProjectResultsRepository
+from app.models.project_secret import ProjectSecret
 from app.models.project_trigger_repository import ProjectTriggerRepository
 
 BASE = "/global/repositories/triggers"
@@ -66,6 +69,11 @@ def link_project(client, admin_headers, c, project):
     set_locked(project, was_locked)
 
 
+def _link_model(c):
+    return {"secret": ProjectSecret, "dataset": ProjectDataset, "trigger": ProjectTriggerRepository,
+            "results": ProjectResultsRepository}[c.kind]
+
+
 def patch(client, admin_headers, url, body):
     return client.patch(url, json=body, headers=admin_headers)
 
@@ -103,18 +111,15 @@ def test_create_validation_failures_are_400(client, admin_headers, global_secret
     assert client.post(BASE, json=body, headers=admin_headers).status_code == 400
 
 
-def test_only_enabled_and_delete_need_a_drained_lock(client, admin_headers, linked_trigger_repo, project):
+def test_edit_enabled_and_delete_need_no_lock(client, admin_headers, linked_trigger_repo, project, make_task):
     T = linked_trigger_repo["trigger_repository"]["id"]
-    assert patch(client, admin_headers, f"{BASE}/{T}", {"enabled": False}).status_code == 409
-    # every other edit applies at once, the tasks are pinned to the configuration they were created under
-    assert patch(client, admin_headers, f"{BASE}/{T}", {"provider_id": linked_trigger_repo["trigger_repository"]["provider"]["id"]}).status_code == 200
-    assert patch(client, admin_headers, f"{BASE}/{T}", {"secret_label": "test-creds"}).status_code == 200
-    assert client.delete(f"{BASE}/{T}", json={}, headers=admin_headers).status_code == 409
-
-    set_locked(project)
+    make_task()  # in flight, and the project is unlocked
     disabled = patch(client, admin_headers, f"{BASE}/{T}", {"enabled": False})
     assert disabled.status_code == 200 and disabled.json["enabled"] is False
-    assert client.delete(f"{BASE}/{T}", json={}, headers=admin_headers).status_code == 204
+    assert patch(client, admin_headers, f"{BASE}/{T}", {"provider_id": linked_trigger_repo["trigger_repository"]["provider"]["id"]}).status_code == 200
+    assert patch(client, admin_headers, f"{BASE}/{T}", {"secret_label": "test-creds"}).status_code == 200
+    assert client.delete(f"{BASE}/{T}", json={}, headers=admin_headers).status_code == 409  # linked: needs force
+    assert client.delete(f"{BASE}/{T}?force=true", json={}, headers=admin_headers).status_code == 204
     assert get(client, admin_headers, f"{BASE}/{T}").status_code == 404
 
 
@@ -190,11 +195,9 @@ def test_revoke_is_admin_only(client, admin_headers, post_json_user_header, link
     assert revoked.json["revoked"] is True and revoked.json["active"] is False
 
 
-def test_relink_put_changes_settings_at_once_but_disabling_needs_lock(client, admin_headers, linked_trigger_repo, project):
+def test_relink_put_changes_settings_and_disables_with_no_lock(client, admin_headers, linked_trigger_repo, project):
     url = f"/projects/{linked_trigger_repo['project_id']}/repositories/triggers/{linked_trigger_repo['trigger_repository']['id']}"
     assert client.put(url, json={"watch_dir": "another"}, headers=admin_headers).status_code == 200
-    assert client.put(url, json={"watch_dir": "other", "enabled": False}, headers=admin_headers).status_code == 409
-    set_locked(project)
     r = client.put(url, json={"watch_dir": "other", "enabled": False}, headers=admin_headers)
     assert r.status_code == 200
     assert r.json["watch_dir"] == "other" and r.json["enabled"] is False and r.json["active"] is False
@@ -204,70 +207,46 @@ def test_relink_put_changes_settings_at_once_but_disabling_needs_lock(client, ad
 
 
 @by_kind
-def test_link_lifecycle_gates(ctx, client, admin_headers, project, make_task):
-    """First link, relink, PATCH enabled and DELETE: each is gated by the lock and by tasks in flight."""
+def test_link_lifecycle_needs_no_drain(ctx, client, admin_headers, project, make_task):
+    """Only creating the results link needs the lock; relink, PATCH enabled and DELETE need neither it nor a drain."""
     url = ctx.link(project.id)
-    # first link: only the results repository needs a drained, locked project
     if ctx.kind == "results":
         assert client.put(url, json=ctx.put_body, headers=admin_headers).status_code == 409
-        set_locked(project)
-        task = make_task()
-        assert client.put(url, json=ctx.put_body, headers=admin_headers).status_code == 409
-        finish(task)
-        set_locked(project, False)
-    else:
-        task = make_task()  # a task in flight does not block a new watcher / grant
+    task = make_task()  # in flight for the rest of the test, and the project is unlocked
     link_project(client, admin_headers, ctx, project)
-    finish(task, "PENDING")
     linked = get(client, admin_headers, url).json
     assert linked["active"] is True and linked["enabled"] is True and linked["revoked"] is False
 
-    # unlocked project: a relink that keeps the link on applies, turning it off and unlinking are refused
-    assert client.put(url, json=ctx.put_body, headers=admin_headers).status_code == 200
-    assert client.put(url, json={**ctx.put_body, "enabled": False}, headers=admin_headers).status_code == 409
-    assert patch(client, admin_headers, url, {"enabled": False}).status_code == 409
-    assert client.delete(url, headers=admin_headers).status_code == 409
-
-    # locked with a task in flight: still refused, and the response names the task
-    set_locked(project)
     assert client.put(url, json=ctx.put_body, headers=admin_headers).status_code == 200
     r = client.put(url, json={**ctx.put_body, "enabled": False}, headers=admin_headers)
-    assert r.status_code == 409 and r.json["details"] == [task.id]
-    assert patch(client, admin_headers, url, {"enabled": False}).status_code == 409
-    assert client.delete(url, headers=admin_headers).status_code == 409
-    assert get(client, admin_headers, url).status_code == 200
-
-    # drained: relink (200), disable/enable and unlink succeed; the global resource survives an unlink
-    finish(task)
-    assert client.put(url, json=ctx.put_body, headers=admin_headers).status_code == 200
-    off = patch(client, admin_headers, url, {"enabled": False})
-    assert off.status_code == 200 and off.json["enabled"] is False and off.json["active"] is False
+    assert r.status_code == 200 and r.json["active"] is False
     assert patch(client, admin_headers, url, {"enabled": True}).json["active"] is True
+    assert patch(client, admin_headers, url, {"enabled": False}).json["active"] is False
     assert client.delete(url, headers=admin_headers).status_code == 204
+    assert task.status == "PENDING"
     assert get(client, admin_headers, url).status_code == 404
-    assert get(client, admin_headers, ctx.glob).status_code == 200
+    assert get(client, admin_headers, f"/projects/{project.id}/{ctx.list_tail}").json == []
+    assert get(client, admin_headers, ctx.glob).status_code == 200  # the global resource survives an unlink
 
 
-@pytest.mark.parametrize("status, expected", [
-    ("SUCCESS", 409),  # succeeded with no result delivered yet still needs the link (ADR section 9)
-    ("CANCELED", 204),
-])
-def test_dataset_unlink_by_task_status(client, admin_headers, project, global_dataset, make_task, status, expected):
-    url = f"/projects/{project.id}/datasets/{global_dataset.id}"
-    assert client.put(url, json={}, headers=admin_headers).status_code == 201
-    set_locked(project)
-    make_task(status=status)
-    assert client.delete(url, headers=admin_headers).status_code == expected
+@by_kind
+def test_unlinking_revokes_the_link_and_it_can_be_linked_again(ctx, client, admin_headers, project):
+    link_project(client, admin_headers, ctx, project)
+    url = ctx.link(project.id)
+    assert client.delete(url, headers=admin_headers).status_code == 204
+    (row,) = db.session.query(_link_model(ctx)).execution_options(include_deleted=True).filter_by(
+        project_id=project.id
+    ).all()
+    assert row.deleted_at is not None and row.revoked is True
+    link_project(client, admin_headers, ctx, project)  # a new, live link of the same pair
+    assert get(client, admin_headers, url).json["revoked"] is False
+    assert len(get(client, admin_headers, f"/projects/{project.id}/{ctx.list_tail}").json) == 1
 
 
 @by_kind
 def test_revoke_and_unrevoke_semantics(ctx, client, admin_headers, project, make_task):
     link_project(client, admin_headers, ctx, project)
     url = ctx.link(project.id)
-
-    # revoke together with enabled is still gated by the lock, and applies nothing
-    assert patch(client, admin_headers, url, {"revoked": True, "enabled": False}).status_code == 409
-    assert get(client, admin_headers, url).json["revoked"] is False
 
     # revoke needs no lock; the row stays visible and listed, but inactive
     r = patch(client, admin_headers, url, {"revoked": True})
@@ -306,7 +285,7 @@ def test_link_settings_patch_needs_no_lock_and_no_drain(kind, body, field, value
     make_task()
     r = patch(client, admin_headers, url, body)
     assert r.status_code == 200 and r.json[field] == value
-    assert patch(client, admin_headers, url, {**body, "enabled": False}).status_code == 409
+    assert patch(client, admin_headers, url, {**body, "enabled": False}).status_code == 200
 
 
 def test_dataset_link_has_no_settings(client, admin_headers, project, global_dataset):
@@ -318,24 +297,13 @@ def test_dataset_link_has_no_settings(client, admin_headers, project, global_dat
 
 
 @by_kind
-def test_global_patch_and_delete_need_every_linked_project_drained(ctx, client, admin_headers, project,
-                                                                   other_project, make_task):
-    """Only projects that link the resource gate it; a globally disabled resource makes links inactive."""
+def test_global_patch_and_delete_need_no_lock_and_no_drain(ctx, client, admin_headers, project, other_project,
+                                                           make_task):
+    """A globally disabled resource makes links inactive; deleting it revokes and deletes every link."""
     gdisable = lambda on: patch(client, admin_headers, ctx.glob, {"enabled": on})  # noqa: E731
     link_project(client, admin_headers, ctx, project)
-    set_locked(project)
-    unrelated = make_task(project=other_project)  # in flight, but other_project has no link
-    assert gdisable(False).status_code in (200, 202)
-    assert gdisable(True).status_code in (200, 202)
-    finish(unrelated)
-
-    link_project(client, admin_headers, ctx, other_project)  # other_project stays unlocked
-    assert gdisable(False).status_code == 409
-    assert get(client, admin_headers, ctx.glob).json["enabled"] is True
-    set_locked(other_project)
-    task = make_task(project=other_project)
-    assert gdisable(False).status_code == 409
-    finish(task)
+    link_project(client, admin_headers, ctx, other_project)
+    make_task(project=other_project)  # in flight, and both projects are unlocked
     r = gdisable(False)
     assert r.status_code in (200, 202) and r.json["enabled"] is False
     for p in (project, other_project):
@@ -344,27 +312,50 @@ def test_global_patch_and_delete_need_every_linked_project_drained(ctx, client, 
     assert gdisable(True).status_code in (200, 202)
     assert get(client, admin_headers, ctx.link(project.id)).json["active"] is True
 
-    finish(task, "RUNNING")
-    assert client.delete(ctx.glob, headers=admin_headers).status_code == 409
-    finish(task, "SUCCESS")  # succeeded with no result yet still counts as in flight
-    assert client.delete(ctx.glob, headers=admin_headers).status_code == 409
-    finish(task, "FAILED")
-    assert client.delete(ctx.glob, headers=admin_headers).status_code == 204
+    if ctx.kind != "secret":  # a secret still goes with its links, the others need force while projects are linked
+        refused = client.delete(ctx.glob, headers=admin_headers)
+        assert refused.status_code == 409
+        assert sorted(p["id"] for p in refused.json["details"]) == [project.id, other_project.id]
+        assert {p["name"] for p in refused.json["details"]} == {project.name, other_project.name}
+        assert get(client, admin_headers, ctx.glob).status_code == 200
+    assert client.delete(f"{ctx.glob}?force=true", headers=admin_headers).status_code == 204
+    assert get(client, admin_headers, ctx.glob).status_code == 404
     for p in (project, other_project):
         assert get(client, admin_headers, ctx.link(p.id)).status_code == 404
+        assert get(client, admin_headers, f"/projects/{p.id}/{ctx.list_tail}").json == []
+    links = db.session.query(_link_model(ctx)).execution_options(include_deleted=True).all()
+    assert len(links) == 2 and all(link.deleted_at is not None and link.revoked for link in links)
+
+
+def test_global_delete_without_links_needs_no_force(client, admin_headers, global_dataset, project):
+    c = Ctx("dataset", global_dataset)
+    link_project(client, admin_headers, c, project)
+    assert client.delete(c.link(project.id), headers=admin_headers).status_code == 204  # unlinked: no live link left
+    assert client.delete(c.glob, headers=admin_headers).status_code == 204
 
 
 def test_global_delete_without_links_needs_no_lock(client, admin_headers, global_dataset):
     assert client.delete(f"/global/datasets/{global_dataset.id}", headers=admin_headers).status_code == 204
 
 
-def test_secret_rotation_is_exempt_from_the_lock(client, admin_headers, k8s_client, project, other_project,
-                                                 global_secret):
+def test_secret_rotation_and_enabled_need_no_lock(client, admin_headers, k8s_client, project, other_project,
+                                                  global_secret):
     c = Ctx("secret", global_secret)
     link_project(client, admin_headers, c, project)
     link_project(client, admin_headers, c, other_project)  # both unlocked
     assert patch(client, admin_headers, c.glob, {"values": {"TOKEN": "t2"}}).status_code == 200
-    assert patch(client, admin_headers, c.glob, {"enabled": False}).status_code == 409  # turning it off is not
+    assert patch(client, admin_headers, c.glob, {"enabled": False}).status_code == 200
+
+
+@by_kind
+def test_a_deleted_global_resource_is_gone_and_its_name_is_free_again(ctx, client, admin_headers, k8s_client):
+    assert client.delete(ctx.glob, headers=admin_headers).status_code == 204
+    assert get(client, admin_headers, ctx.glob).status_code == 404
+    listing = get(client, admin_headers, ctx.glob.rsplit("/", 1)[0]).json
+    assert (listing["items"] if isinstance(listing, dict) else listing) == []
+    assert client.delete(ctx.glob, headers=admin_headers).status_code == 404
+    assert type(ctx.obj).query.execution_options(include_deleted=True).count() == 1  # kept for audit
+    assert type(ctx.obj).query.count() == 0
 
 
 def test_two_projects_link_one_repo_independently(client, admin_headers, project, other_project, global_trigger_repo):
@@ -373,7 +364,6 @@ def test_two_projects_link_one_repo_independently(client, admin_headers, project
     link_project(client, admin_headers, c, project)
     link_project(client, admin_headers, c, other_project)
     assert patch(client, admin_headers, c.link(project.id), {"revoked": True}).status_code == 200
-    set_locked(other_project)
     assert patch(client, admin_headers, c.link(other_project.id), {"enabled": False}).status_code == 200
     assert get(client, admin_headers, c.link(project.id)).json["enabled"] is True
     other = get(client, admin_headers, c.link(other_project.id)).json
@@ -398,7 +388,6 @@ def test_switching_a_repository_back_on_skips_the_gap(client, admin_headers, pro
             "changed_files": [{"path": "triggers/spec.json", "status": "added"}],
         }
 
-    set_locked(project)
     assert patch(client, admin_headers, f"{BASE}/{T}", {"enabled": False}).status_code == 200
     assert patch(client, admin_headers, f"{BASE}/{T}", {"enabled": True}).status_code == 200
 

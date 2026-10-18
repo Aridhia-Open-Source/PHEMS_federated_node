@@ -4,7 +4,8 @@ the repository gets a trigger for each one it should evaluate (ADR 0019).
 
 - `store_pull_request` upserts the provider's facts. The unique constraint decides, so two
   concurrent posts of one pull request store it once.
-- `fan_out` creates the triggers of newly stored pull requests for the active assignments.
+- `fan_out` creates the triggers of newly stored pull requests for the assignments that accept triggers
+  (active, and their project enabled).
 - `skip_gap` moves the assignments' cursor to now when they become active again (a link enabled
   or un-revoked; its project, repository or provider switched back on),
   so what was merged while they were inactive is stored but gets no trigger. A backfill option
@@ -29,11 +30,9 @@ from sqlalchemy.orm import selectinload
 from app.dtos.trigger_repository import PullRequestRequest
 from app.helpers.base_model import db
 from app.helpers.spec_files import spec_files
-from app.models.git_provider import GitProvider
 from app.models.project_trigger_repository import ProjectTriggerRepository, now_ts
 from app.models.pull_request import PullRequest, PullRequestFile
 from app.models.pull_request_trigger import PullRequestTrigger
-from app.models.trigger_repository import TriggerRepository
 
 logger = logging.getLogger('pull_request_fanout')
 logger.setLevel(logging.INFO)
@@ -104,14 +103,11 @@ def ingest_pull_requests(
 
 
 def active_assignments(trigger_repository_id: int) -> list[ProjectTriggerRepository]:
-    return ProjectTriggerRepository.query.filter(
-        ProjectTriggerRepository.trigger_repository_id == trigger_repository_id,
-        ProjectTriggerRepository.enabled.is_(True),
-        ProjectTriggerRepository.revoked.is_(False),
-        ProjectTriggerRepository.trigger_repository.has(sa.and_(
-            TriggerRepository.enabled.is_(True), TriggerRepository.provider.has(GitProvider.enabled.is_(True))
-        )),
-    ).order_by(ProjectTriggerRepository.id).all()
+    """The repository's links that accept a trigger now, see `ProjectTriggerRepository.accepts_triggers`."""
+    assignments = ProjectTriggerRepository.query.filter_by(
+        trigger_repository_id=trigger_repository_id
+    ).order_by(ProjectTriggerRepository.id)
+    return [a for a in assignments if a.accepts_triggers]
 
 
 def create_triggers(assignment: ProjectTriggerRepository, pull_request_ids: list[int] | None = None) -> int:

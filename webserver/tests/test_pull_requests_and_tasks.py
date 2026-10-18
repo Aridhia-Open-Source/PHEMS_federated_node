@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from app.helpers.base_model import db
+from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.task import Task
 
 MERGED = "2030-01-01T10:00:00Z"
@@ -85,9 +86,8 @@ def test_a_trigger_lists_its_spec_files(client, admin_headers, project, global_t
 
 
 def test_ingest_fans_out_and_is_idempotent(client, admin_headers, project, global_trigger_repo):
-    """Disabled project still gets triggers (fan-out follows link flags); re-ingest never changes facts or state."""
+    """Re-ingest never changes facts or state."""
     T = global_trigger_repo.id
-    assert project.enabled is False
     link(client, admin_headers, project.id, T)
 
     assert post_prs(client, admin_headers, T).json == {"created": [], "existing": []}  # empty batch is fine
@@ -230,6 +230,34 @@ def test_enabling_a_link_skips_the_gap(client, admin_headers, project, global_tr
     r = client.put(link_url(project.id, T), json={"watch_dir": "triggers"}, headers=admin_headers)
     assert r.status_code == 200 and r.json["active"] is True
     assert states(client, admin_headers, project.id, T) == {}
+
+
+def test_a_disabled_project_gets_no_trigger_and_enabling_it_skips_the_gap(
+        client, admin_headers, project, global_trigger_repo):
+    T = global_trigger_repo.id
+    link(client, admin_headers, project.id, T)
+    # the cursor far back, so only the project being off keeps PR 1 from a trigger
+    ProjectTriggerRepository.query.filter_by(project_id=project.id).one().initial_cursor = datetime(2000, 1, 1)
+    db.session.commit()
+    assert client.patch(f"/projects/{project.id}", json={"enabled": False}, headers=admin_headers).status_code == 200
+    post_prs(client, admin_headers, T, pr(1, merged_at=merged_hours_from_now(-1)))
+    assert states(client, admin_headers, project.id, T) == {}  # stored, but a disabled project gets no trigger
+    assert global_total(client, admin_headers, T) == 1
+
+    assert client.patch(f"/projects/{project.id}", json={"enabled": True}, headers=admin_headers).status_code == 200
+    assert states(client, admin_headers, project.id, T) == {}  # the gap is not replayed
+    post_prs(client, admin_headers, T, pr(2, merged_at=merged_hours_from_now(-1)), pr(3, merged_at=merged_hours_from_now(1)))
+    assert states(client, admin_headers, project.id, T) == {3: "UNKNOWN"}
+
+
+def test_a_deleted_project_gets_no_trigger(client, admin_headers, project, other_project, global_trigger_repo):
+    T = global_trigger_repo.id
+    link(client, admin_headers, project.id, T)
+    link(client, admin_headers, other_project.id, T)
+    assert client.delete(f"/projects/{project.id}", headers=admin_headers).status_code == 204
+    post_prs(client, admin_headers, T, pr(1, merged_at=merged_hours_from_now(1)))
+    assert states(client, admin_headers, other_project.id, T) == {1: "UNKNOWN"}
+    assert ProjectTriggerRepository.query.filter_by(trigger_repository_id=T).count() == 1
 
 
 # --------------------------------------------------------------------------- matching: no trigger unless it matches

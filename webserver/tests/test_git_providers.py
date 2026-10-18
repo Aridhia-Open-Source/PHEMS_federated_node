@@ -128,22 +128,21 @@ def test_patch_to_a_taken_name_or_uri_is_409(client, admin_headers, git_provider
     assert client.patch(f"{PROV}/{other.id}", json={"name": other.name, "uri": other.uri}, headers=admin_headers).status_code == 200
 
 
-def test_patch_enabled_needs_linked_projects_drained(
-        client, admin_headers, project, git_provider, linked_trigger_repo):
+def test_patch_enabled_needs_no_lock_and_no_drain(client, admin_headers, project, git_provider, linked_trigger_repo):
     url = f"{PROV}/{git_provider.id}"
     assert client.patch(url, json={"name": "renamed"}, headers=admin_headers).status_code == 200
-    # the other fields apply at once too
     assert client.patch(url, json={"api_uri": git_provider.api_uri}, headers=admin_headers).status_code == 200
-    assert_error(client.patch(url, json={"enabled": False}, headers=admin_headers), 409)
-    set_locked(project)
-    assert client.patch(url, json={"enabled": False}, headers=admin_headers).json["enabled"] is False
+    assert client.patch(url, json={"enabled": False}, headers=admin_headers).json["enabled"] is False  # unlocked
 
 
 # ---------------------------------------------------------------- delete
 
-def test_delete_204_then_404(client, admin_headers, git_provider):
+def test_delete_204_then_404_and_the_name_and_uri_are_free_again(client, admin_headers, git_provider):
     assert client.delete(f"{PROV}/{git_provider.id}", headers=admin_headers).status_code == 204
     assert_error(client.get(f"{PROV}/{git_provider.id}", headers=admin_headers), 404)
+    assert client.get(PROV, headers=admin_headers).json == []
+    body = {"name": git_provider.name, "type": git_provider.type, "uri": git_provider.uri, "api_uri": git_provider.api_uri}
+    assert client.post(PROV, json=body, headers=admin_headers).status_code == 201
 
 
 @pytest.mark.parametrize("make", ["global_trigger_repo", "global_results_repo"])

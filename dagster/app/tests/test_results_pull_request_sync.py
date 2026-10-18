@@ -117,8 +117,22 @@ def test_a_result_is_synced_against_its_own_repository_fetched_once():
     sync_results_pull_requests(context)
 
     assert [c.args for c in backend_api.get_results_repository_by_id.call_args_list] == [(1, 6), (1, 5)]
-    backend_api.get_results_repository.assert_not_called()
     assert [c.args[0] for c in git_apis.for_repository.call_args_list] == [other_global, GLOBAL_REPOSITORY, GLOBAL_REPOSITORY]
+
+
+def test_a_result_whose_link_is_deleted_is_skipped():
+    backend_api = MagicMock()
+    backend_api.get_projects.return_value = [Project(id=1, name="p")]
+    backend_api.get_results_by_step.return_value = [result(9), result(10, number=4)]
+    backend_api.get_results_repository_by_id.side_effect = not_found
+    git_apis = MagicMock()
+    context = dg.build_op_context(resources={"backend_api": backend_api, "git_apis": git_apis})
+
+    sync_results_pull_requests(context)
+
+    backend_api.get_results_repository_by_id.assert_called_once_with(1, 5)
+    git_apis.for_repository.assert_not_called()
+    backend_api.patch_result.assert_not_called()
 
 
 def test_a_closed_pull_request_is_recorded_without_a_merge_commit():

@@ -4,11 +4,12 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.helpers.base_model import BaseModel, db
+from app.helpers.soft_delete import SoftDeleteMixin
 from app.models import Models, sqla_column
 from app.models.git_repository import GitRepositoryMixin
 
 
-class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
+class TriggerRepository(SoftDeleteMixin, GitRepositoryMixin, db.Model, BaseModel):
     __tablename__ = 'trigger_repositories'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -20,7 +21,10 @@ class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
     updated_at = sqla_column.updated_at()
 
     __table_args__ = (
-        sa.UniqueConstraint('provider_id', 'repo_path', name='uq_trigger_repositories_provider_repo_path'),
+        sa.Index(
+            'uq_trigger_repositories_provider_repo_path', 'provider_id', 'repo_path',
+            unique=True, postgresql_where=sa.text('deleted_at IS NULL')
+        ),
     )
 
     project_assignments = relationship("ProjectTriggerRepository", back_populates="trigger_repository")
