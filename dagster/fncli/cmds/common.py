@@ -9,11 +9,12 @@ from urllib.parse import urlparse
 import click
 from pydantic import Field
 
-from fncli.dagster.backend import BackendAPI
-from fncli.dagster.config import EnvConfig
-from fncli.dagster.gitea import GiteaAdminAPI, GiteaAdminClient
-from fncli.dagster.k8s import get_k8s_secret
-from fncli.dagster.utils import BackendAdapter, BackendSession
+from fncli.backend import FncliBackendAPI
+from app.config import EnvConfig
+from app.git_uri import normalise_repo_uri
+from fncli.gitea import GiteaAdminAPI, GiteaAdminClient
+from fncli.k8s import get_k8s_secret
+from app.utils import BackendAdapter, BackendSession
 
 IN_CLUSTER_SUFFIX = "fn.svc"
 
@@ -70,6 +71,11 @@ class RepoConfig(GiteaConfig, ProjectConfig):
     def secret_label(self) -> str:
         return self.backend_secret_label or f"{self.repo}-creds"
 
+    @property
+    def provider_uri(self) -> str:
+        """The backend's git provider for the repo's host: the scheme the sensor reaches it by, and the host."""
+        return f"{urlparse(self.gitea_api_uri).scheme}://{normalise_repo_uri(self.repo_uri).split('/')[0]}"
+
 
 class TriggerRepoConfig(RepoConfig):
     repo: str = Field(default="", alias="TEST_TRIGGER_REPO")
@@ -91,10 +97,18 @@ class ResultsRepoConfig(RepoConfig):
 
 class DatasetConfig(ProjectConfig):
     dataset_name: str = Field(default="", alias="DEFAULT_PROJECT_DATASET")
+    # The defaults are the dummy stand-in dataset. `make uc1-seed` sets these from dev.db/.env.
+    dataset_host: str = Field(default="db-datasets.fn.svc", alias="CLUSTER_DATASET_HOST")
+    dataset_port: int = Field(default=5432, alias="DATASET_PORT")
+    dataset_type: str = Field(default="postgres", alias="DATASET_TYPE")
+    dataset_read_schema: str = Field(default="cdm", alias="DATASET_SCHEMA")
+    dataset_write_schema: str = Field(default="results", alias="DATASET_SCHEMA_WRITE")
+    dataset_username: str = Field(default="dummy", alias="DATASET_USERNAME")
+    dataset_password: str = Field(default="dummy", alias="DATASET_PASSWORD")
 
     @property
     def secret_label(self) -> str:
-        return f"{self.project_name}-dataset-creds"
+        return f"{self.dataset_name}-dataset-creds"
 
 
 ENTITY_CONFIGS = {"trigger": TriggerRepoConfig, "results": ResultsRepoConfig}
@@ -120,7 +134,7 @@ def build_gitea_api(config: GiteaConfig) -> GiteaAdminAPI:
     return GiteaAdminAPI(client, config.gitea_admin_user)
 
 
-def build_backend_api(config: BackendConfig) -> BackendAPI:
+def build_backend_api(config: BackendConfig) -> FncliBackendAPI:
     """Logs in as the dagster system user, the identity the sensors use."""
     adapter = BackendAdapter(
         base_url=config.backend_url,
@@ -135,4 +149,4 @@ def build_backend_api(config: BackendConfig) -> BackendAPI:
             key="DAGSTER_KC_PASSWORD",
         ),
     )
-    return BackendAPI(BackendSession(adapter))
+    return FncliBackendAPI(BackendSession(adapter))

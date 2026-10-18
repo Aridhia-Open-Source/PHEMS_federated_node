@@ -9,7 +9,7 @@ Run from the repo root.
 - `make helm_deps`
 - `make deploy`
 - `tilt up --stream` (in a second terminal; wait until it's green)
-- `pipx install --force --editable scripts/fncli`
+- `pipx install --force --editable './dagster[cli]'`
 
 ## Test the trigger → task → run flow
 
@@ -24,25 +24,50 @@ fncli calls three things. Each line below says which:
 
 fncli logs in first with `POST /login` on the backend, then makes its backend calls.
 
+### Quick happy-path check
+
+A PR in the Gitea trigger repo, through a task, to a merged results PR in the Gitea results repo:
+
+```bash
+fncli setup-project && fncli verify-project
+fncli start-sensor --sensor all
+fncli open-pr --kind watched --merge --watch --timeout 300
+
+# Every minute or so:
+fncli project-show | jq '{prs: .trigger_links[0].pull_requests | map({number,state,task_id}), tasks: .tasks | map({id,status}), results: .results | map({number,step,state})}'
+```
+
+Wait for, in order: the PR `YIELDED` with a `task_id`, the task `SUCCESS`, then a result with `step` `OPENED`. Then:
+
+```bash
+fncli merge-results-pr --number "$(fncli project-show | jq '.results[0].number')"
+# About a minute later the result's step is MERGED
+fncli verify-project && fncli verify-repo
+```
+
+The same flow is automated from the repo root with `pytest dagster --e2e success -v` (the failure paths: `--e2e failure`, both: `--e2e`; put it after the path; the project is cleared at the start of each run and kept afterwards; `E2E_TEARDOWN=1` also tears it down at the end).
+
+If something sticks: `fncli sensor-status`, and the backend and Dagster pod logs.
+
 ### 1. Set up the dev project
 
 - `fncli setup-project`
   - Backend: `GET /projects`, then `POST /projects` if the test project is missing.
   - Gitea: creates the trigger repo and the results repo if they don't exist.
   - Gitea: issues a token for each repo (`POST /users/{user}/tokens`).
-  - Backend: stores each token as a project secret (`POST /projects/{id}/secrets`, or `PATCH /projects/{id}/secrets/{label}` if it exists).
-  - Backend: stores dummy dataset credentials as a project secret (same call).
+  - Backend: stores each token as a secret (`POST /global/secrets`, or `PATCH /global/secrets/{label}` if it exists).
+  - Backend: stores dummy dataset credentials as a secret (same call).
   - K8s: reads the secret back to check it holds the new token.
-  - Backend: registers the trigger repo (`POST /trigger_repositories`).
-  - Backend: registers the results repo (`POST /results_repositories`).
-  - Backend: registers the dataset (`POST /datasets`).
+  - Backend: registers the Gitea host as a git provider (`POST /global/providers`) if it is missing, then the trigger repo (`POST /global/repositories/triggers`, with the provider's id and the repo's `owner/name` path) if it is missing, then assigns it to the project (`PUT /projects/{id}/repositories/triggers/{repository_id}`).
+  - Backend: registers the results repo (`POST /global/repositories/results`, on the same provider) if it is missing, then assigns it to the project (`PUT /projects/{id}/repositories/results/{repository_id}`).
+  - Backend: registers the dataset (`POST /global/datasets`) if it is missing, then assigns it to the project (`PUT /projects/{id}/datasets/{dataset_id}`), which makes it the project's default if it is the first.
   - Gitea: checks each token is accepted.
   - Backend: `GET /projects/{id}/healthcheck`.
 
 Optional, to set up one side only:
 
 - `fncli setup-backend`: backend calls only (project, placeholder secrets, trigger repo, results repo, dataset). No Gitea, so the secrets hold placeholders.
-- `fncli setup-gitea`: Gitea calls only (repos and tokens), plus `PATCH /projects/{id}/secrets/{label}` on the backend to store the tokens. Takes `--project`.
+- `fncli setup-gitea`: Gitea calls only (repos and tokens), plus `PATCH /global/secrets/{label}` on the backend to store the tokens. Takes `--project`.
 
 ### 2. Start the sensors
 
@@ -51,7 +76,7 @@ Optional, to set up one side only:
   - Dagster: starts the other sensors (ingest, evaluate, launcher).
   - Dagster: does nothing for a sensor that is already running.
 
-Optional: `--sensor ingest|evaluate|launcher|status|delivery` starts just one (`status` is the run-status sensors, `delivery` is `task_results_delivery_sensor` and `results_pull_request_sync_sensor`, which records the results PR of a pushed result and keeps each results PR's state (OPENED, MERGED, CLOSED) up to date).
+Optional: `--sensor ingest|evaluate|launcher|status|delivery` starts just one (`status` is the run-status sensors, `delivery` is `task_results_delivery_sensor`, `results_delivery_retry_sensor` and `results_pull_request_sync_sensor`, which records the results PR of a pushed result and keeps each results PR's state (OPENED, MERGED, CLOSED) up to date).
 
 ### 3. Open pull requests in the trigger repo
 
@@ -62,7 +87,7 @@ Each command opens a PR and merges it, using the Gitea API only. fncli makes no 
   - Expect a Task and a run.
 - `fncli open-pr --kind unwatched --merge`
   - Gitea: the same, with a file outside the watched paths.
-  - Expect it to be ignored.
+  - Expect no trigger for it: the PR is not listed for the link (`--watch` times out, as it waits for the PR to show up).
 - `fncli open-pr --kind invalid --merge`
   - Gitea: the same, with a file that fails validation.
   - Expect it to be rejected.
@@ -70,10 +95,10 @@ Each command opens a PR and merges it, using the Gitea API only. fncli makes no 
 Add `--watch` to follow the merged PR in real time (and `--timeout <seconds>`, default 300). It prints a timestamped line each time something changes (including a link to the Dagster run once it starts), and exits 1 on REJECTED, a FAILURE or CANCELED run, or a timeout. On a timeout it also lists the sensors that are not running at the stage it is stuck at. A dropped connection (Dagster reloading, say) is retried; it gives up after 10 failed polls in a row.
 
 - `fncli open-pr --kind watched --merge --watch`, or `fncli merge-gitea-pr --number <n> --watch`
-  - Backend: `GET /trigger_repositories/{repo_id}/pull_requests`, until the PR shows up ("waiting for ingest") and shows its state (UNKNOWN, then YIELDED, IGNORED or REJECTED, with its state_cause).
-  - Backend: `GET /tasks/{task_id}` for a YIELDED PR, showing the task's status.
+  - Backend: `GET /projects/{project_id}/repositories/triggers/{repository_id}/pull_requests`, until the PR shows up ("waiting for ingest") and shows its state (UNKNOWN, then YIELDED or REJECTED, with its state_cause).
+  - Backend: `GET /projects/{project_id}/tasks/{task_id}` for a YIELDED PR, showing the task's status.
   - Dagster: GraphQL `runsOrError` filtered by the task_id tag, showing the run's id and status until SUCCESS, FAILURE or CANCELED.
-  - Exits 0 on IGNORED or SUCCESS.
+  - Exits 0 on SUCCESS.
 
 Optional, the same thing in separate steps (`--kind` as above):
 
@@ -98,7 +123,7 @@ Optional, a read-only report on the project:
   - Prints one line per check (`ok`, `FAIL` or `SKIP`) and a summary. Exits 1 if any check fails.
   - Backend: `POST /login`, `GET /projects`.
   - Backend: `GET /projects/{id}/healthcheck`, which reaches each trigger repo and the results repo with its stored token. Each repo gets a line with its status and latency.
-  - Backend: `GET /datasets`, `GET /datasets/{id}` and `GET /projects/{id}/secrets`, for the dataset the healthcheck leaves out.
+  - Backend: `GET /projects/{id}/datasets`, `GET /global/datasets/{id}` and `GET /global/secrets/{label}`, for the dataset the healthcheck leaves out.
   - Creates and changes nothing.
 
 Optional, check that every merged PR of the trigger repo ran in Dagster and the backend agrees:
@@ -106,24 +131,24 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
 - `fncli verify-repo`
   - Prints a block per PR, one line per check (`ok` or `FAIL`), and a summary. Exits 1 if any check fails.
   - `link` lines give the trigger PR in Gitea, the Dagster run and the results PR, as URLs that open from the host. They are not checks.
-  - Backend: `GET /trigger_repositories/{id}/pull_requests`, for every PR.
-  - A PR the sensor ignored or rejected has no task, so it passes with a note.
+  - Backend: `GET /projects/{project_id}/repositories/triggers/{repository_id}/pull_requests`, for every PR of the project's link to the repository.
+  - A PR the sensor rejected has no task, so it passes with a note.
   - A PR still `UNKNOWN` fails: the evaluate sensor hasn't run on it.
-  - For a `YIELDED` PR, Backend: `GET /tasks/{id}`, for the task's status, run id, attempt and times.
+  - For a `YIELDED` PR, Backend: `GET /projects/{project_id}/tasks/{id}`, for the task's status, run id, attempt and times.
   - For a `YIELDED` PR, Dagster: finds the run tagged with the task's id, and checks it is a `k8s_pipes_job`.
   - Checks the task's status, run id and attempt match the run, and that `started_at` and `completed_at` are set when they should be.
   - Checks the run succeeded.
-  - For a succeeded run, Backend: `GET /tasks/{id}/results`, and checks the task has exactly one results delivery, its results PR was opened (state `OPENED`, `MERGED` or `CLOSED`; a failed delivery shows its error), it has a `commit_sha`, and it has a results PR (number and url; its state is shown).
+  - For a succeeded run, Backend: `GET /projects/{project_id}/tasks/{id}/results`, and checks the task has exactly one results delivery, its results PR was opened (state `OPENED`, `MERGED` or `CLOSED`; a failed delivery shows its error), it has a `commit_sha`, and it has a results PR (number and url; its state is shown).
   - Does not check the files in the results repo: it only reads the backend and Dagster.
 - `fncli verify-repo --tail 10`
   - The same, for only the last 10 PRs by number.
-- `merge-gitea-pr --watch` and `open-pr --merge --watch` print the same per-PR checks when the run ends. After a succeeded run they first wait up to 60s for the delivery to open its results PR (state `OPENED` or later) or fail (an error is recorded), printing a `Delivery:` line each time its state changes (Backend: `GET /tasks/{id}/results`). If it does not finish, they name the delivery sensor if it is not running, and the delivery check fails.
+- `merge-gitea-pr --watch` and `open-pr --merge --watch` print the same per-PR checks when the run ends. After a succeeded run they first wait up to 60s for the delivery to open its results PR (state `OPENED` or later) or fail (an error is recorded), printing a `Delivery:` line each time its state changes (Backend: `GET /projects/{project_id}/tasks/{id}/results`). If it does not finish, they name the delivery sensor if it is not running, and the delivery check fails.
 
 ### 5. Tear down
 
 - `fncli teardown-project -y`
-  - Backend: `DELETE /projects/{id}`, which also removes the tasks, datasets, repos and secrets under it.
-  - Backend: the per-record deletes that follow (`DELETE /datasets/{id}`, `DELETE /trigger_repositories/{id}`, `DELETE /results_repositories/{id}`, `DELETE /projects/{id}/secrets/{label}`) find the record already gone and skip it.
+  - Backend: `DELETE /projects/{id}`, which also removes the tasks, triggers and the dataset, results repository and trigger repository assignments under it. Datasets, results repositories and secrets are global and stay.
+  - Backend: the per-record deletes that follow (`DELETE /global/datasets/{id}`, `DELETE /global/repositories/triggers/{id}`, `DELETE /global/repositories/results/{id}`, `DELETE /global/providers/{id}` (only when no repository is left on it), `DELETE /global/secrets/{label}`) delete what is left (a record already gone is skipped). `DELETE /global/datasets/{id}` and `DELETE /global/repositories/results/{id}` soft delete the record and revoke and delete any remaining assignments, with no lock or drain needed.
   - Gitea: deletes the tokens (`DELETE users/{user}/tokens/{name}`).
   - Gitea: deletes both repos (`DELETE repos/{user}/{name}`).
   - Does not prompt, because of `-y`.
@@ -136,8 +161,8 @@ Optional, to tear down one side only:
 ## What to expect
 
 - `setup-project`: the healthcheck is `ok`.
-- Ingest tick: "Saved N new pull requests to database".
+- Ingest tick: "Saved N new pull requests to database", one poll per trigger repository however many projects are assigned to it.
 - Watched PR: `YIELDED` with a Task, then the run succeeds.
-- Unwatched PR: `IGNORED`.
+- Unwatched PR: no trigger (the PR list for the link has only the watched and the invalid PR).
 - Invalid PR: `REJECTED`, with the validation error.
 - `teardown-project -y`: nothing is left behind.

@@ -1,5 +1,5 @@
 """
-Commands for the webserver Project. Deleting what is already gone is logged, not an error.
+Commands for the webserver Project. Its datasets and repositories are global, the project only holds assignments of them. Deleting what is already gone is logged, not an error.
 """
 
 import json
@@ -8,13 +8,13 @@ import logging
 import click
 
 from fncli.cmds.common import ProjectConfig, build_backend_api
-from fncli.dagster.backend import BackendAPI
-from fncli.dagster.models import Project
+from fncli.backend import FncliBackendAPI
+from app.models import Project
 
 logger = logging.getLogger("project")
 
 
-def init_backend_project(config: ProjectConfig, backend_api: BackendAPI) -> Project:
+def init_backend_project(config: ProjectConfig, backend_api: FncliBackendAPI) -> Project:
     """The simulation needs sensors to act on this project, so make sure it is enabled."""
     project = backend_api.get_or_create_project(
         name=config.project_name,
@@ -27,7 +27,7 @@ def init_backend_project(config: ProjectConfig, backend_api: BackendAPI) -> Proj
     return project
 
 
-def find_project(config: ProjectConfig, backend_api: BackendAPI) -> Project | None:
+def find_project(config: ProjectConfig, backend_api: FncliBackendAPI) -> Project | None:
     """For the delete steps: a project that is already gone is not an error."""
     project = backend_api.find_project(config.project_name)
     if project is None:
@@ -44,7 +44,7 @@ def init_backend_project_command():
 
 @click.command("delete-backend-project")
 def delete_backend_project_command():
-    """Delete the project from the backend, with everything still under it."""
+    """Delete the project from the backend, with its assignments. Global datasets, repositories and secrets stay."""
     config = ProjectConfig()
     backend_api = build_backend_api(config)
     project = find_project(config, backend_api)
@@ -54,7 +54,7 @@ def delete_backend_project_command():
     logger.info(f"Deleted backend project {project.name} ({project.id})")
 
 
-def get_project_healthcheck(config: ProjectConfig, backend_api: BackendAPI) -> dict:
+def get_project_healthcheck(config: ProjectConfig, backend_api: FncliBackendAPI) -> dict:
     project = backend_api.find_project(config.project_name)
     if project is None:
         raise click.ClickException(

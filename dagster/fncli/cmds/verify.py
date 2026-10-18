@@ -17,11 +17,14 @@ from fncli.cmds.common import (
     to_host_url,
 )
 from fncli.cmds.project import find_project
-from fncli.dagster.models import TriggerState
-from fncli.dagster.sensors import DagsterAPI
+from app.models import TriggerState
+from fncli.sensors import DagsterAPI
 
 # The task status the run-status sensors give each Dagster run status.
+# NOT_STARTED and STARTING come before the run is picked up, so the task is still QUEUED.
 RUN_TO_TASK_STATUS = {
+    "NOT_STARTED": "QUEUED",
+    "STARTING": "QUEUED",
     "QUEUED": "QUEUED",
     "STARTED": "RUNNING",
     "SUCCESS": "SUCCESS",
@@ -29,7 +32,7 @@ RUN_TO_TASK_STATUS = {
     "CANCELED": "CANCELED",
 }
 TASK_JOB = "k8s_pipes_job"
-# The delivery states past PUSHED: its results PR is opened.
+# The delivery steps past PUSHED: its results PR is opened.
 PAST_PUSHED = ["OPENED", "MERGED", "CLOSED"]
 
 
@@ -140,33 +143,34 @@ def verify_project(report: Report, config: ProjectConfig, dataset_config: Datase
         else:
             record_repo_health(report, "Results", health["results_repository"])
 
-    dataset = report.check(
-        f"Dataset exists: GET /datasets ({dataset_config.dataset_name})",
+    assignment = report.check(
+        f"Dataset assigned: GET /projects/{project.id}/datasets ({dataset_config.dataset_name})",
         lambda: require(
-            backend_api.find_dataset(dataset_config.dataset_name, project.id),
+            backend_api.find_project_dataset(dataset_config.dataset_name, project.id),
             dataset_config.dataset_name,
         ),
-        lambda d: f"id {d.id}",
+        lambda a: f"id {a.dataset.id}, active {a.active}",
     )
-    if dataset is not None:
+    if assignment is not None:
+        dataset = assignment.dataset
         report.check(
-            f"Dataset fetch: GET /datasets/{dataset.id}", lambda: backend_api.get_dataset(dataset.id)
+            f"Dataset fetch: GET /global/datasets/{dataset.id}", lambda: backend_api.get_dataset(dataset.id)
         )
         report.check(
-            f"Dataset secret exists: GET /projects/{project.id}/secrets",
-            lambda: backend_api.get_secret(project.id, dataset.secret.label),
+            f"Dataset secret exists: GET /global/secrets/{dataset.secret.label}",
+            lambda: backend_api.get_secret(dataset.secret.label),
             lambda s: f"{s['key']} in {s['namespace']}",
         )
 
 
 def verify_task(
-    report: Report, backend_api, dagster_api: DagsterAPI, links: Links, repo_id: int, number: int
+    report: Report, backend_api, dagster_api: DagsterAPI, links: Links, project_id: int, repo_id: int, number: int
 ):
     """Compare a merged PR's task in the backend with its run in Dagster."""
     pr = report.check(
-        f"PR #{number} is in the backend: GET /trigger_repositories/{repo_id}/pull_requests",
+        f"PR #{number} is in the backend: GET /projects/{project_id}/repositories/triggers/{repo_id}/pull_requests",
         lambda: require(
-            next((p for p in backend_api.get_pull_requests(repo_id) if p.number == number), None),
+            next((p for p in backend_api.get_pull_requests(project_id, repo_id) if p.number == number), None),
             f"PR #{number}",
         ),
         lambda p: p.state.value,
@@ -185,8 +189,8 @@ def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, links: Links
         return
 
     task = report.check(
-        f"Task {pr.task_id} is in the backend: GET /tasks/{pr.task_id}",
-        lambda: backend_api.get_task(pr.task_id),
+        f"Task {pr.task_id} is in the backend: GET /projects/{pr.project_id}/tasks/{pr.task_id}",
+        lambda: backend_api.get_task(pr.project_id, pr.task_id),
         lambda t: f"{t.status}, attempt {t.attempt}",
     )
     run = report.check(
@@ -208,9 +212,9 @@ def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, links: Links
         f"task {task.status}, run {run['status']} (expected {expected})",
     )
     report.record(
-        task.dagster_run_id == run["runId"],
+        task.executor_run_id == run["runId"],
         "Task holds the run's id",
-        f"task {task.dagster_run_id}, run {run['runId']}",
+        f"task {task.executor_run_id}, run {run['runId']}",
     )
     report.record(
         str(task.attempt) == tags.get("attempt"),
@@ -223,45 +227,45 @@ def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, links: Links
         report.record(task.completed_at is not None, "Task has completed_at", str(task.completed_at))
     report.record(run["status"] == "SUCCESS", "Run succeeded", run["status"])
     if run["status"] == "SUCCESS":
-        verify_delivery(report, backend_api, pr.task_id)
+        verify_delivery(report, backend_api, pr.project_id, pr.task_id)
 
 
-def verify_delivery(report: Report, backend_api, task_id: int):
+def verify_delivery(report: Report, backend_api, project_id: int, task_id: int):
     """
     A succeeded task's results are delivered: one result, past PUSHED (OPENED, MERGED or
     CLOSED), with a commit and a results PR.
     """
     results = report.check(
-        f"Task {task_id} has one results delivery: GET /tasks/{task_id}/results",
-        lambda: exactly_one(backend_api.get_task_results(task_id)),
-        lambda r: f"{r.state}, attempts {r.attempts}",
+        f"Task {task_id} has one results delivery: GET /projects/{project_id}/tasks/{task_id}/results",
+        lambda: exactly_one(backend_api.get_task_results(project_id, task_id)),
+        lambda r: f"{r.step}, {r.state}, attempts {r.attempts}",
     )
     if results is None:
         return
     report.record(
-        results.state in PAST_PUSHED,
+        results.step in PAST_PUSHED,
         "Results PR was opened",
-        f"{results.state}" + (f": {results.error}" if results.error else ""),
+        f"{results.step}, {results.state}" + (f": {results.error}" if results.error else ""),
     )
     report.record(results.commit_sha is not None, "Delivery has a commit_sha", str(results.commit_sha))
     report.record(
         results.number is not None and results.url is not None,
         "Delivery has a results PR",
-        f"#{results.number}, {results.state}",
+        f"#{results.number}, {results.step}",
     )
     if results.url is not None:
         report.link("Results PR", to_host_url(results.url))
 
 
 def verify_repo(
-    backend_api, dagster_api: DagsterAPI, links: Links, repo_id: int, tail: int | None
+    backend_api, dagster_api: DagsterAPI, links: Links, project_id: int, repo_id: int, tail: int | None
 ) -> int:
     """
     Print a report per PR of the trigger repo, the last `tail` by number if given, and a
-    summary. Returns how many checks failed. A PR the sensor ignored or rejected has no task
+    summary. Returns how many checks failed. A PR the sensor rejected has no task
     to check, which is the right outcome for it. One still UNKNOWN has not been evaluated.
     """
-    prs = sorted(backend_api.get_pull_requests(repo_id), key=lambda pr: pr.number)
+    prs = sorted(backend_api.get_pull_requests(project_id, repo_id), key=lambda pr: pr.number)
     if tail:
         prs = prs[-tail:]
     if not prs:
@@ -271,7 +275,7 @@ def verify_repo(
     for pr in prs:
         report = Report()
         report.link("Trigger PR", links.trigger_pr(pr.number))
-        if pr.state in (TriggerState.IGNORED, TriggerState.REJECTED):
+        if pr.state == TriggerState.REJECTED:
             report.record(True, f"PR was {pr.state.value}, so no task is expected", pr.state_cause or "")
         elif pr.state == TriggerState.UNKNOWN:
             report.record(False, "PR was evaluated", "still UNKNOWN, the evaluate sensor has not run on it")
@@ -294,7 +298,7 @@ def verify_repo_command(tail):
     repo = backend_api.find_repository(config.repo_uri, project.id)
     dagster_url = DagsterConfig().dagster_url
     links = Links(config.gitea_url, dagster_url, repo.repo_path)
-    if verify_repo(backend_api, DagsterAPI(dagster_url), links, repo.id, tail):
+    if verify_repo(backend_api, DagsterAPI(dagster_url), links, project.id, repo.trigger_repository.id, tail):
         raise click.exceptions.Exit(1)
 
 

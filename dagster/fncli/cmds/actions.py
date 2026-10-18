@@ -25,6 +25,7 @@ from fncli.cmds.project import (
     project_healthcheck_command,
 )
 from fncli.cmds.repository import (
+    delete_backend_provider_command,
     delete_backend_results_repo_command,
     delete_backend_trigger_repo_command,
     delete_gitea_repo_command,
@@ -32,6 +33,7 @@ from fncli.cmds.repository import (
     init_backend_trigger_repo_command,
     init_gitea_repo_command,
 )
+from fncli.cmds.state import project_set_command
 from fncli.cmds.secret import (
     delete_gitea_token_command,
     delete_secret_command,
@@ -57,6 +59,8 @@ SETUP_STEPS = [
     (init_backend_dataset_command, {}),
     (verify_git_secret_command, {"entity": "trigger"}),
     (verify_git_secret_command, {"entity": "results"}),
+    # New projects start locked so their links can be set up; unlock once they are
+    (project_set_command, {"locked": "false"}),
     (project_healthcheck_command, {}),
 ]
 
@@ -70,14 +74,15 @@ def setup_project_command(ctx):
         ctx.invoke(step, **options)
 
 
-# Each step with the options it runs with. delete_backend_project_command deletes all project
-# contents (tasks, datasets, repos, secrets) in the right order, so it runs first. Per-record
-# deletes after it log 'already gone' and skip. Gitea token/repo deletes come last.
+# Each step with the options it runs with. delete_backend_project_command deletes the project
+# with its tasks and assignments only, so it runs first. The global dataset, repos and secrets
+# are then deleted, users before the secrets and the provider they use. Gitea token/repo deletes come last.
 TEARDOWN_STEPS = [
     (delete_backend_project_command, {}),
     (delete_backend_dataset_command, {}),
     (delete_backend_results_repo_command, {}),
     (delete_backend_trigger_repo_command, {}),
+    (delete_backend_provider_command, {}),
     (delete_secret_command, {"entity": "trigger"}),
     (delete_secret_command, {"entity": "results"}),
     (delete_secret_command, {"entity": "dataset"}),
@@ -119,6 +124,7 @@ BACKEND_TEARDOWN_STEPS = [
     (delete_backend_dataset_command, {}),
     (delete_backend_results_repo_command, {}),
     (delete_backend_trigger_repo_command, {}),
+    (delete_backend_provider_command, {}),
     (delete_secret_command, {"entity": "trigger"}),
     (delete_secret_command, {"entity": "results"}),
     (delete_secret_command, {"entity": "dataset"}),

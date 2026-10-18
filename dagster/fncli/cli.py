@@ -10,7 +10,7 @@ import sys
 import click
 from dotenv import find_dotenv, load_dotenv
 
-from fncli.cmds import actions, dataset, hello_world, pr, project, repository, secret, sensor, verify
+from fncli.cmds import actions, dataset, hello_world, pr, project, repository, secret, sensor, simulate, state, verify
 
 
 @click.group()
@@ -25,6 +25,6 @@ def cli():
     )
 
 
-for module in (hello_world, actions, project, repository, secret, dataset, pr, sensor, verify):
+for module in (hello_world, actions, project, repository, secret, dataset, pr, sensor, state, simulate, verify):
     for command in module.COMMANDS:
         cli.add_command(command)

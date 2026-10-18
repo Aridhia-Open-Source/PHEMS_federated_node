@@ -6,6 +6,7 @@ that ties the steps together: the file and the PR title are derived from it.
 
 import json
 import logging
+import secrets
 import time
 from datetime import datetime, timezone
 
@@ -24,14 +25,16 @@ from fncli.cmds.project import find_project
 from fncli.cmds.repository import init_gitea_repo
 from fncli.cmds.sensor import SENSORS
 from fncli.cmds.verify import PAST_PUSHED, RUN_TO_TASK_STATUS, Links, Report, verify_task
-from fncli.dagster.models import TriggerState
-from fncli.dagster.sensors import DagsterAPI
+from app.models import TriggerState
+from fncli.sensors import DagsterAPI
 
 logger = logging.getLogger("pr")
 
-# What the sensor makes of the pull request: a task (watched), ignore it (unwatched, the
-# file is outside the watch_dir) or reject it (invalid, the spec does not validate).
-KINDS = ["watched", "unwatched", "invalid"]
+# What the sensor makes of the pull request: a task (watched), no trigger at all (unwatched,
+# the file is outside the watch_dir, so the backend fan-out skips the PR) or reject it (invalid,
+# the spec does not validate). A failing PR is a valid spec whose task exits non-zero (the reference image
+# exits with PYPIPES_EXIT_CODE), so its task ends FAILED in seconds.
+KINDS = ["watched", "unwatched", "invalid", "failing"]
 
 POLL_SECONDS = 3
 # Consecutive polls that may fail to connect (Dagster reloading, say) before --watch gives up.
@@ -65,8 +68,8 @@ branch_option = click.option(
 
 
 def new_branch_name() -> str:
-    """Unique per run, so every command can be re-run."""
-    return f"pr-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+    """Unique per run, so every command can be re-run, even twice in one second."""
+    return f"pr-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{secrets.token_hex(3)}"
 
 
 def file_for(config: PrConfig, branch: str, kind: str) -> tuple[str, str]:
@@ -74,8 +77,10 @@ def file_for(config: PrConfig, branch: str, kind: str) -> tuple[str, str]:
     if kind == "unwatched":
         return f"docs/{branch}.md", f"# {branch}\n\nNot a spec: outside the watch_dir.\n"
     spec = {"name": branch, "image": config.pr_image}
+    if kind == "failing":
+        spec["env"] = {"PYPIPES_EXIT_CODE": "1"}
     if kind == "invalid":
-        # PullRequestSpec forbids unknown fields
+        # The backend's TaskSpecRequest forbids unknown fields
         spec["unknown_field"] = True
     return f"{config.watch_dir}{branch}.json", json.dumps({"spec": spec}, indent=2) + "\n"
 
@@ -133,22 +138,23 @@ def stuck_sensors(dagster_api: DagsterAPI, stage: str) -> list[str]:
     ]
 
 
-def wait_for_delivery(backend_api, dagster_api: DagsterAPI, task_id: int):
+def wait_for_delivery(backend_api, dagster_api: DagsterAPI, project_id: int, task_id: int):
     """
-    Print each change of the task's delivery state until its results PR is opened or the
-    delivery fails (it records an error and leaves the state), or the wait ends.
+    Print each change of the task's delivery step until its results PR is opened or the
+    delivery fails (its state is FAILED, with an error, and its step is left), or the wait ends.
     """
     deadline = time.monotonic() + DELIVERY_SECONDS
     last = ""
     while time.monotonic() < deadline:
-        results = backend_api.get_task_results(task_id)
+        results = backend_api.get_task_results(project_id, task_id)
+        step = results[0].step if results else None
         state = results[0].state if results else None
         error = results[0].error if results else None
-        seen = f"{state}: {error}" if error else state
+        seen = f"{step}: {error}" if error else step
         if seen != last:
             last = seen
             logger.info(f"Delivery: {seen or 'waiting for the delivery sensor'}")
-        if state in PAST_PUSHED or error:
+        if step in PAST_PUSHED or state == "FAILED":
             return
         time.sleep(POLL_SECONDS)
     logger.info(f"Delivery not finished after {DELIVERY_SECONDS}s, last seen: {last or None}")
@@ -177,7 +183,7 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
         run = None
         try:
             pr = next(
-                (p for p in backend_api.get_pull_requests(repo.id) if p.number == number), None
+                (p for p in backend_api.get_pull_requests(project.id, repo.trigger_repository.id) if p.number == number), None
             )
             if pr is None:
                 lines["pr"] = "PR: waiting for ingest"
@@ -187,7 +193,7 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
                 stage = "evaluate"
             if pr and pr.state == TriggerState.YIELDED:
                 stage = "launcher"
-                task = backend_api.get_task(pr.task_id)
+                task = backend_api.get_task(project.id, pr.task_id)
                 lines["task"] = f"Task {task.id}: {task.status}"
                 run = dagster_api.get_task_run(task.id)
                 if run:
@@ -209,21 +215,19 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
             if seen.get(key) != line:
                 seen[key] = line
                 logger.info(line)
-        if pr and pr.state == TriggerState.IGNORED:
-            return
         if pr and pr.state == TriggerState.REJECTED:
             raise click.exceptions.Exit(1)
         if run and run["status"] in RUN_DONE:
             settle_deadline = time.monotonic() + SETTLE_SECONDS
             while (
-                backend_api.get_task(task.id).status != RUN_TO_TASK_STATUS[run["status"]]
+                backend_api.get_task(project.id, task.id).status != RUN_TO_TASK_STATUS[run["status"]]
                 and time.monotonic() < settle_deadline
             ):
                 time.sleep(POLL_SECONDS)
             if run["status"] == "SUCCESS":
-                wait_for_delivery(backend_api, dagster_api, task.id)
+                wait_for_delivery(backend_api, dagster_api, project.id, task.id)
             report = Report()
-            verify_task(report, backend_api, dagster_api, links, repo.id, number)
+            verify_task(report, backend_api, dagster_api, links, project.id, repo.trigger_repository.id, number)
             report.echo()
             raise click.exceptions.Exit(int(report.failed > 0))
         time.sleep(POLL_SECONDS)
