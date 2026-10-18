@@ -198,6 +198,20 @@ Assert exact key sets and types, not just status codes. Stage 0 does two things.
 
 Plus a cross-service check: the webserver tests dump these responses to a committed JSON fixture and the Dagster and fncli model tests parse the same fixtures. That catches the `Secret.project_id`/`label` breakage at test time.
 
+## Proposed, post-beta: pin a task to its configuration instead of draining
+
+Not decided for the beta, which keeps lock and drained. Recorded so the idea is not lost.
+
+**Idea.** When a task is created it stores a readable snapshot (JSON) of the configuration it was built against, plus a hash of it. The snapshot is also the audit record of what produced a result. Before the task launches, and again before it publishes (in `POST /results`), the webserver rebuilds the snapshot from the current state and compares. If it differs, the task fails, with a cause that lists the changed fields ("`target_dir` changed from `results/` to `out/`"). Nothing is run or published against a changed setup. This is the git philosophy applied to tasks: the task is pinned to what it was built against, as a commit is pinned to its tree.
+
+**Material fields (to be confirmed).** The results repository (its provider and path, and the link's `target_dir`) and the dataset (its host, port, type and schemas, and the link). Not pinned: credentials and secrets (a rotation must reach running work), the trigger repository (the task is already pinned to the pull request's merge sha) and the `enabled` and `revoked` flags (those have their own rules, including the `REVOKED` result). A global resource's edit counts only for the identity fields above.
+
+**What it replaces.** The "locked and drained" requirement on link and project edits: about 25 guard calls in 8 files and their 409 tests. Edits are allowed at any time, and a task caught in flight fails visibly instead of making the edit wait. It also closes the lock race: a task created between a check and a change has the old snapshot and fails at launch. Deleting something a task references still needs protection, and the `locked` flag can stay as a plain pause.
+
+**Decisions so far.** A task whose snapshot does not match fails, with no stale-task retry for the beta. Both the stored values and a hash are kept: the values for the audit record and the failure message, the hash for a quick equality check. The snapshot is versioned, so a field added later does not fail every in-flight task: a field missing from an older snapshot counts as unchanged.
+
+**Cost.** Roughly 150 to 250 lines of application code (the builder of the material fields, a column and migration, setting it where tasks are created, one "is this task current" function and the two gates), and tests for each material field and each gate. In-flight work is lost on an edit that changes a material field; that is the price of being able to edit at once.
+
 ## Alternatives considered
 
 - **Keep everything project-scoped** (today): isolated, but repeated registration, polling, credentials and stored pull requests.
