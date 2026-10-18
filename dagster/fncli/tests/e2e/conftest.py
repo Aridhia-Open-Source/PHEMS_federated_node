@@ -86,6 +86,7 @@ def teardown_step(fncli, command, options, final: bool = False):
 
 
 INTERVAL_KEY = "DAGSTER_SENSORS_MIN_INTERVAL_SECONDS"
+RETRY_INTERVAL_KEY = "DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS"
 _tick_seconds = {"value": float(os.environ.get(INTERVAL_KEY, 10))}
 
 
@@ -94,19 +95,21 @@ def tick_seconds() -> float:
     return _tick_seconds["value"]
 
 
-def set_sensor_interval(seconds: int) -> str | None:
-    """Patch the sensor interval in the cluster's Dagster config and restart the code server so it takes effect.
+def set_sensor_interval(seconds: int, retry_seconds: int) -> tuple[str | None, str | None]:
+    """Patch the sensor interval and the retry interval in the cluster's Dagster config and restart the code server so they take effect.
 
-    Returns the previous value, to restore it with the same call. The restart stops the sensors (their initial status is
+    Returns the previous values, to restore them with the same call. The restart stops the sensors (their initial status is
     STOPPED unless the chart says otherwise), so start them again afterwards.
     """
     namespace = ProjectConfig().namespace
     previous = get_configmap_value(ENV_CONFIGMAP, namespace, INTERVAL_KEY)
     logger.info(f"Setting the sensor interval to {seconds}s (was {previous}) and restarting the code server")
+    previous_retry = get_configmap_value(ENV_CONFIGMAP, namespace, RETRY_INTERVAL_KEY)
     set_configmap_value(ENV_CONFIGMAP, namespace, INTERVAL_KEY, str(seconds))
+    set_configmap_value(ENV_CONFIGMAP, namespace, RETRY_INTERVAL_KEY, str(retry_seconds))
     restart_code_server(namespace)
     _tick_seconds["value"] = float(seconds)
-    return previous
+    return previous, previous_retry
 
 
 QUIET_SENSORS = ["git_pull_request_ingest_sensor", "git_pull_request_evaluate_sensor", "task_launcher_sensor"]

@@ -18,6 +18,7 @@ def clean_env(monkeypatch):
         "DAGSTER_PIPES_FS_GROUP", "DAGSTER_PIPES_RUN_AS_USER",
         "DAGSTER_PIPES_RUN_AS_GROUP", "DAGSTER_PIPES_SUPPLEMENTAL_GROUPS",
         "DAGSTER_SENSORS_INITIAL_STATUS", "DAGSTER_SENSORS_MIN_INTERVAL_SECONDS",
+        "DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS", "DAGSTER_DELIVERY_MAX_ATTEMPTS",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -68,6 +69,20 @@ class TestSensorStatusConfig:
         monkeypatch.setenv("DAGSTER_SENSORS_MIN_INTERVAL_SECONDS", "2")
 
         assert SensorStatusConfig().min_interval_seconds == 2
+
+    def test_retry_interval_is_60_seconds_by_default(self):
+        assert SensorStatusConfig().retry_interval_seconds == 60
+
+    def test_delivery_max_attempts_is_5_by_default_and_from_the_environment(self, monkeypatch):
+        assert SensorStatusConfig().delivery_max_attempts == 5
+        monkeypatch.setenv("DAGSTER_DELIVERY_MAX_ATTEMPTS", "2")
+
+        assert SensorStatusConfig().delivery_max_attempts == 2
+
+    def test_retry_interval_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS", "5")
+
+        assert SensorStatusConfig().retry_interval_seconds == 5
 
 
 class TestPipesSecurityContext:

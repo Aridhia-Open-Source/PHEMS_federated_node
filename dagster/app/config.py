@@ -29,11 +29,15 @@ class SensorStatusConfig(EnvConfig):
         default=dg.DefaultSensorStatus.STOPPED, alias="DAGSTER_SENSORS_INITIAL_STATUS"
     )
     min_interval_seconds: int = Field(default=30, alias="DAGSTER_SENSORS_MIN_INTERVAL_SECONDS")
+    retry_interval_seconds: int = Field(default=60, alias="DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS")
+    delivery_max_attempts: int = Field(default=5, alias="DAGSTER_DELIVERY_MAX_ATTEMPTS")
 
 
 # Read once, at import: every sensor's default_status and minimum_interval_seconds.
 DEFAULT_SENSOR_STATUS = SensorStatusConfig().initial_status
 MIN_SENSOR_INTERVAL_SECONDS = SensorStatusConfig().min_interval_seconds
+SENSOR_RETRY_INTERVAL_SECONDS = SensorStatusConfig().retry_interval_seconds
+DELIVERY_MAX_ATTEMPTS = SensorStatusConfig().delivery_max_attempts
 
 
 class ResultsDeliveryConfig(EnvConfig):

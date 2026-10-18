@@ -12,7 +12,7 @@ PROVIDER = {
 }
 TRIGGER_REPOSITORY = {
     "id": 1, "uri": "http://gitea.fn.svc/gitea_admin/trigger", "repo_path": "gitea_admin/trigger", "provider": PROVIDER,
-    "secret": SECRET, "enabled": True,
+    "secret": SECRET, "enabled": True, "pr_cursor": "2026-01-01T00:00:00Z",
 }
 TRIGGER_ASSIGNMENT = {
     "id": 5, "project_id": 7, "trigger_repository": TRIGGER_REPOSITORY, "watch_dir": "specs/", "base_branch": "main",

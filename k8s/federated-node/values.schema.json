@@ -693,6 +693,18 @@
                             "minimum": 1,
                             "default": 30,
                             "description": "Minimum seconds between ticks of every Dagster sensor"
+                        },
+                        "retryIntervalSeconds": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 60,
+                            "description": "Seconds a failed sensor run waits before its next try, when nothing it acts on changed"
+                        },
+                        "deliveryMaxAttempts": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 5,
+                            "description": "Failed delivery attempts of one result after which the retry sensor gives up"
                         }
                     }
                 },

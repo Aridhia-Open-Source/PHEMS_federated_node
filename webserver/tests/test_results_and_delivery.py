@@ -5,6 +5,7 @@ One test per rule; fixtures come from conftest.
 import pytest
 
 from app.helpers.base_model import db
+from app.models.project_results_repository import ProjectResultsRepository
 
 RESULTS_GLOBAL = "/global/repositories/results"
 
@@ -27,6 +28,12 @@ def links(client, admin_headers, project):
 
 def set_locked(project, locked=True):
     project.locked = locked
+    db.session.commit()
+
+
+def switch_link(project, enabled):
+    """Flip the project's results link on or off directly: the route needs a drained project."""
+    ProjectResultsRepository.query.filter_by(project_id=project.id).one().enabled = enabled
     db.session.commit()
 
 
@@ -441,3 +448,62 @@ def test_task_results_route(client, admin_headers, project, global_results_repo,
     response = client.get(f"/projects/{project.id}/tasks/{task.id}/results", headers=admin_headers)
     assert [r["id"] for r in response.json] == [rid]
     assert response.json[0]["results_repository_id"] == global_results_repo.id
+
+
+def test_list_filter_by_state(client, admin_headers, project, global_results_repo, linked_results_repo, make_task):
+    ids = {}
+    for state, step in (("IN_PROGRESS", "UNKNOWN"), ("FAILED", "PUSHED"), ("FAILED", "OPENED"), ("DELIVERED", "OPENED")):
+        ids[(state, step)] = new_result(client, admin_headers, project, make_task(), global_results_repo)
+        if step != "UNKNOWN":
+            body = {"step": step, "state": state}
+            assert patch_result(client, admin_headers, project, ids[(state, step)], body).status_code == 200
+    url = results_url(project)
+
+    def listed(query):
+        response = client.get(f"{url}{query}", headers=admin_headers)
+        assert response.status_code == 200
+        return [r["id"] for r in response.json]
+
+    assert listed("?state=FAILED") == [ids[("FAILED", "PUSHED")], ids[("FAILED", "OPENED")]]
+    assert listed("?state=FAILED&step=PUSHED") == [ids[("FAILED", "PUSHED")]]
+    assert listed("?state=DELIVERED") == [ids[("DELIVERED", "OPENED")]]
+    for query in ("?state=NOPE", "?state=failed"):
+        assert client.get(f"{url}{query}", headers=admin_headers).status_code == 400, query
+
+
+
+def test_list_filter_by_active_link(client, admin_headers, project, global_results_repo, linked_results_repo, make_task):
+    rid = new_result(client, admin_headers, project, make_task(), global_results_repo)
+    assert patch_result(client, admin_headers, project, rid, {"step": "PUSHED", "state": "FAILED"}).status_code == 200
+    url = f"{results_url(project)}?state=FAILED&active_link=true"
+    link = link_url(project, global_results_repo)
+
+    assert [r["id"] for r in client.get(url, headers=admin_headers).json] == [rid]
+    for switch_off, switch_on in (
+        (lambda: client.patch(link, json={"revoked": True}, headers=admin_headers),
+         lambda: client.patch(link, json={"revoked": False}, headers=admin_headers)),
+        (lambda: switch_link(project, False), lambda: switch_link(project, True)),
+    ):
+        switch_off()
+        assert client.get(url, headers=admin_headers).json == []
+        # without the filter the result is still listed
+        assert [r["id"] for r in client.get(f"{results_url(project)}?state=FAILED", headers=admin_headers).json] == [rid]
+        switch_on()
+    assert [r["id"] for r in client.get(url, headers=admin_headers).json] == [rid]
+
+
+def test_post_result_through_a_switched_off_link_is_failed_and_waits(
+    client, admin_headers, project, global_results_repo, linked_results_repo, make_task
+):
+    task = make_task()
+    assert client.patch(f"/projects/{project.id}/tasks/{task.id}", json={"status": "SUCCESS"}, headers=admin_headers).status_code == 200
+    switch_link(project, False)
+
+    created = post_result(client, admin_headers, project, task, global_results_repo)
+
+    assert created.status_code == 201
+    assert (created.json["step"], created.json["state"], created.json["error"]) == (
+        "UNKNOWN", "FAILED", "results link switched off"
+    )
+    assert post_result(client, admin_headers, project, task, global_results_repo).json["id"] == created.json["id"]
+    assert client.get(f"{results_url(project)}?state=FAILED&active_link=true", headers=admin_headers).json == []

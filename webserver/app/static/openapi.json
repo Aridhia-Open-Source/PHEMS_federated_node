@@ -2290,6 +2290,32 @@
           },
           {
             "in": "query",
+            "name": "state",
+            "description": "Only the pull request results in this state, e.g. ?state=FAILED",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "IN_PROGRESS",
+                "DELIVERED",
+                "FAILED"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "active_link",
+            "description": "true keeps only the results whose link to the results repository is active (enabled, not revoked, on an enabled repository and provider)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            }
+          },
+          {
+            "in": "query",
             "name": "step",
             "description": "Only the pull request results at these steps, repeated for several: ?step=PUSHED&step=OPENED",
             "required": false,
@@ -2342,7 +2368,7 @@
         "tags": [
           "Tasks"
         ],
-        "summary": "Create the delivery of a task's results to a results repository. If it exists already, it is returned. If the task's configuration changed since it was created, the new result is final: step STALE, state FAILED, nothing is delivered",
+        "summary": "Create the delivery of a task's results to a results repository. If it exists already, it is returned. If the task's configuration changed since it was created, the new result is final: step STALE, state FAILED, nothing is delivered. If the link is switched off (disabled, or its repository or provider is), the new result is step UNKNOWN, state FAILED, error \"results link switched off\", and the delivery retry sensor delivers it once the link is active",
         "requestBody": {
           "required": true,
           "content": {
@@ -2355,7 +2381,7 @@
         },
         "responses": {
           "201": {
-            "description": "The new result (step REVOKED or STALE, state FAILED, when the link was revoked or the task's configuration changed)",
+            "description": "The new result (state FAILED, step REVOKED, STALE or UNKNOWN, when the link was revoked, the task's configuration changed or the link is switched off)",
             "content": {
               "application/json": {
                 "schema": {

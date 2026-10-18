@@ -4,7 +4,7 @@ import pytest
 
 from app.backend import BackendAPI
 from app.models import (
-    Dataset, ProjectDataset, ProjectTriggerRepository, PullRequestResultStep, PullRequestTrigger, TriggerRepository,
+    Dataset, ProjectDataset, ProjectTriggerRepository, PullRequestResultStep, PullRequestTrigger, ResultState, TriggerRepository,
 )
 from app.tests.conftest import SAMPLE_SECRET, SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_TRIGGER_REPOSITORY, make_response
 
@@ -358,3 +358,18 @@ class TestResults:
 
         assert result.step == PullRequestResultStep.OPENED
         session.get.assert_called_once_with("/projects/1/results", params={"step": ["PUSHED", "OPENED"]})
+
+    def test_list_by_state(self, api, session):
+        session.get.return_value = make_response([{**self.RESULT, "state": "FAILED"}])
+
+        (result,) = api.get_results_by_state(1, "FAILED")
+
+        assert result.state == ResultState.FAILED
+        session.get.assert_called_once_with("/projects/1/results", params={"state": "FAILED"})
+
+    def test_list_by_state_with_an_active_link(self, api, session):
+        session.get.return_value = make_response([])
+
+        api.get_results_by_state(1, "FAILED", active_link=True)
+
+        session.get.assert_called_once_with("/projects/1/results", params={"state": "FAILED", "active_link": "true"})

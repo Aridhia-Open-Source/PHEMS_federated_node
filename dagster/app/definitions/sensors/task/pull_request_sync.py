@@ -3,7 +3,6 @@ Reconciles the results pull requests with the git provider. It heals one failure
 pull request opened, or merged or closed, that its result does not record. A failed delivery
 is not retried here, see app.delivery.results.
 """
-from datetime import datetime, timezone
 from http import HTTPStatus
 from typing import cast
 
@@ -13,8 +12,8 @@ from dagster import OpExecutionContext as OpExecCtx, SensorEvaluationContext
 
 from app.backend import BackendAPI
 from app.config import DEFAULT_SENSOR_STATUS, MIN_SENSOR_INTERVAL_SECONDS
+from app.definitions.sensors.base import run_in_flight, run_key
 from app.definitions.sensors.git.base import GitAPIFactory
-from app.definitions.sensors.git.pr_evaluate import IN_FLIGHT
 from app.models import PullRequestResult, PullRequestResultStep, ResultState
 
 # PUSHED may have a pull request its result missed, OPENED may be merged or closed since.
@@ -93,16 +92,11 @@ def sync_results_pull_requests_job():
 def results_pull_request_sync_sensor(context: SensorEvaluationContext):
     """
     Launch sync_results_pull_requests_job when there are PUSHED or OPENED results, unless a
-    run of it is in flight. The run key includes the minute, as the evaluate sensor's.
+    run of it is in flight. The run key has no state, only the retry interval's slot, see run_key.
     """
     backend_api = cast(BackendAPI, context.resources.backend_api)
     if not get_synced_results(backend_api):
         return dg.SkipReason("No pushed or opened results.")
-    in_flight = context.instance.get_runs(
-        filters=dg.RunsFilter(job_name=sync_results_pull_requests_job.name, statuses=IN_FLIGHT),
-        limit=1,
-    )
-    if in_flight:
+    if run_in_flight(context, sync_results_pull_requests_job, {}):
         return dg.SkipReason("A sync of the results pull requests is in flight.")
-    minute = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
-    return dg.RunRequest(run_key=f"sync-results-prs/{minute}")
+    return dg.RunRequest(run_key=run_key("sync-results-prs"))

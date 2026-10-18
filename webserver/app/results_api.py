@@ -51,18 +51,31 @@ def get_results(project_id: int):
     Query params:
         - step: only the pull request results at this step, repeated for several,
           e.g. ?step=PUSHED&step=OPENED (optional)
+        - state: only the pull request results in this state, e.g. ?state=FAILED (optional)
+        - active_link: ?active_link=true keeps only the results whose link to the results repository is active
+          (enabled, not revoked, on an enabled global repository and provider) (optional)
     """
     Project.get_by_id(project_id)
-    query = Result.query
+    # step and state are columns of the pull request results
+    query = PullRequestResult.query if 'step' in request.args or 'state' in request.args else Result.query
     steps = request.args.getlist('step')
     if steps:
         valid = [s.value for s in PullRequestResultStep]
         for step in steps:
             if step not in valid:
                 raise InvalidRequest(f"Invalid step: {step}. Must be one of: {', '.join(valid)}")
-        query = PullRequestResult.query.filter(PullRequestResult.step.in_(steps))
+        query = query.filter(PullRequestResult.step.in_(steps))
+    state = request.args.get('state')
+    if state:
+        valid = [s.value for s in ResultState]
+        if state not in valid:
+            raise InvalidRequest(f"Invalid state: {state}. Must be one of: {', '.join(valid)}")
+        query = query.filter(PullRequestResult.state == state)
     query = query.join(Task, Result.task_id == Task.id).filter(Task.project_id == project_id)
-    return [dump_result(r) for r in query.order_by(Result.id).all()], HTTPStatus.OK
+    results = query.order_by(Result.id).all()
+    if request.args.get('active_link') == 'true':
+        results = [r for r in results if r.assignment.active]
+    return [dump_result(r) for r in results], HTTPStatus.OK
 
 
 @bp.route('/<int:project_id>/results/<int:result_id>', methods=['GET'])
@@ -86,11 +99,12 @@ def post_result(project_id: int):
     repository, by pull request. The repository is the global one's id, which the
     project has to be linked to, and the task has to be the project's. If it exists already, that one is returned.
     Otherwise 409 unless the task is SUCCESS. When the project's link is revoked the result is created as final,
-    step REVOKED and state FAILED, and nothing is ever delivered for it. 409 when the link is inactive for another
-    reason (disabled by the project, or the global repository disabled): it is delivered once the link is active.
-    A task whose configuration changed since it was created (see helpers/task_config) is not delivered either: its
-    result is created as final, step STALE and state FAILED, with the changes as its error. A revoked link is
-    checked first.
+    step REVOKED and state FAILED, and nothing is ever delivered for it. When the link is inactive for another
+    reason (disabled by the project, or the global repository disabled) the result is created at step UNKNOWN and
+    state FAILED, with the error "results link switched off": the delivery retry sensor delivers it once the link
+    is active. A task whose configuration changed since it was created (see helpers/task_config) is not delivered:
+    its result is created as final, step STALE and state FAILED, with the changes as its error. The checks run in
+    that order: revoked, STALE, switched off.
     """
     body = request.json or {}
     for field in ('task_id', 'results_repository_id'):
@@ -135,10 +149,13 @@ def post_result(project_id: int):
         result.add()
         return dump_result(result), HTTPStatus.CREATED
     if not assignment.active:
-        raise InvalidRequest(
-            f"Results repository {body['results_repository_id']} is not active for project {project_id}",
-            HTTPStatus.CONFLICT
+        result = PullRequestResult(
+            task_id=task.id, results_repository_id=assignment.id,
+            step=PullRequestResultStep.UNKNOWN.value, state=ResultState.FAILED.value,
+            error="results link switched off",
         )
+        result.add()
+        return dump_result(result), HTTPStatus.CREATED
 
     result = PullRequestResult(task_id=task.id, results_repository_id=assignment.id)
     result.add()

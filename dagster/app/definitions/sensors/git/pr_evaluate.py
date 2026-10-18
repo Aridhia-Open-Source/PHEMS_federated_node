@@ -1,7 +1,6 @@
-from datetime import datetime, timezone
-
 import dagster as dg
 
+from app.definitions.sensors.base import LaunchingSensor, run_key
 from app.definitions.sensors.git.base import GitSensor
 from app.definitions.sensors.git.evaluate_job import (
     evaluate_repository_pull_requests_job,
@@ -9,50 +8,48 @@ from app.definitions.sensors.git.evaluate_job import (
 )
 from app.models import ProjectTriggerRepository, TriggerState
 
-IN_FLIGHT = [dg.DagsterRunStatus.NOT_STARTED, dg.DagsterRunStatus.QUEUED, dg.DagsterRunStatus.STARTING,
-             dg.DagsterRunStatus.STARTED]
 
+class PullRequestEvaluateSensor(LaunchingSensor, GitSensor):
+    """
+    Launches one evaluation run per trigger repository of an enabled, unlocked project that has
+    UNKNOWN PRs, reading each project's links.
 
-class PullRequestEvaluateSensor(GitSensor):
-    """Launches one evaluation run per trigger repository of an enabled, unlocked project that has UNKNOWN PRs, reading each project's links."""
+    The run key names the link and its newest UNKNOWN PR number, see run_key: a newly ingested
+    PR launches at once, and a failed batch is retried once per retry interval. A repository
+    with a run still queued or started is skipped.
+    """
 
-    def __call__(self):
-        """
-        Execute the sensor. Yields a RunRequest per repository to evaluate, or a SkipReason.
+    job = evaluate_repository_pull_requests_job
+    failure_label = "Evaluation"
+    skip_message = "No repositories with unknown pull requests to evaluate."
 
-        The run key includes the minute: a failed batch is retried by a later tick, but a
-        tick evaluated twice in the same minute does not double the run. A repository with
-        a run still queued or started is skipped.
-        """
-        launched = 0
+    def __init__(self, *args, **kwds):
+        super().__init__(*args, **kwds)
+        self.newest_unknown: dict[tuple[int, int], int] = {}
+
+    def items(self):
         for project in self.backend_api.get_projects(enabled=True, locked=False):
-            for repo in self.backend_api.get_project_trigger_repositories(project.id, active=True):
-                if self._run_in_flight(repo):
-                    self.log.info(f"Evaluation of repo {repo.trigger_repository.id} of project {repo.project_id} is already in flight")
-                    continue
-                if not self.backend_api.get_pull_requests(repo.project_id, repo.trigger_repository.id, state=TriggerState.UNKNOWN.value):
-                    continue
-                yield self._run_request(repo)
-                launched += 1
+            yield from self.backend_api.get_project_trigger_repositories(project.id, active=True)
 
-        if not launched:
-            yield dg.SkipReason("No repositories with unknown pull requests to evaluate.")
+    def describe(self, item: ProjectTriggerRepository) -> str:
+        return f"Evaluation of repo {item.trigger_repository.id} of project {item.project_id}"
 
-    def _run_in_flight(self, repo: ProjectTriggerRepository) -> bool:
-        runs = self.context.instance.get_runs(
-            filters=dg.RunsFilter(
-                job_name=evaluate_repository_pull_requests_job.name,
-                tags={"project_id": str(repo.project_id), "repo_id": str(repo.trigger_repository.id)},
-                statuses=IN_FLIGHT,
-            ),
-            limit=1,
+    def tags(self, item: ProjectTriggerRepository) -> dict[str, str]:
+        return {"repo_id": str(item.trigger_repository.id), "project_id": str(item.project_id)}
+
+    def ready(self, item: ProjectTriggerRepository) -> bool:
+        """Whether the link has UNKNOWN PRs, noting the newest one's number for the run key."""
+        unknown = self.backend_api.get_pull_requests(
+            item.project_id, item.trigger_repository.id, state=TriggerState.UNKNOWN.value
         )
-        return bool(runs)
+        if unknown:
+            self.newest_unknown[(item.project_id, item.trigger_repository.id)] = max(pr.number for pr in unknown)
+        return bool(unknown)
 
-    def _run_request(self, repo: ProjectTriggerRepository) -> dg.RunRequest:
-        minute = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
+    def run_request(self, item: ProjectTriggerRepository) -> dg.RunRequest:
+        newest = self.newest_unknown[(item.project_id, item.trigger_repository.id)]
         return dg.RunRequest(
-            run_key=f"evaluate/{repo.project_id}/{repo.trigger_repository.id}/{minute}",
-            tags={"repo_id": str(repo.trigger_repository.id), "project_id": str(repo.project_id)},
-            run_config={"ops": {load_unknown_pull_requests.name: {"config": {"project_id": repo.project_id, "repo_id": repo.trigger_repository.id}}}},
+            run_key=run_key("evaluate", f"{item.project_id}/{item.trigger_repository.id}", newest),
+            tags=self.tags(item),
+            run_config={"ops": {load_unknown_pull_requests.name: {"config": {"project_id": item.project_id, "repo_id": item.trigger_repository.id}}}},
         )
