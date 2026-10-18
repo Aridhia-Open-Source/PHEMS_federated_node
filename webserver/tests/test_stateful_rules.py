@@ -28,8 +28,8 @@ THE MODEL'S RULES (to review; each one is a decision, not just a description of 
   M2  SELF-HEALING: whenever the LINK becomes active (link enabled, link re-granted), every stored matching PR that has no trigger
       gets one (backfill), except the ones M6 skips. A link made active by the GLOBAL repository being enabled does not backfill.
   M3  An inactive link refuses to create a task (409) and the trigger stays UNKNOWN.
-  M4  Changing the link's or the repository's enabled flag needs the project locked and drained (no task PENDING/QUEUED/RUNNING).
-      Results are not modelled yet, so drained = no unfinished task.
+  M4  Changing the link's or the repository's enabled flag needs the project locked and drained (no task PENDING, QUEUED, RUNNING, or SUCCESS without a result).
+      Results are not modelled yet, so a SUCCESS task counts as in flight (it has no result): drained = no task PENDING, QUEUED, RUNNING or SUCCESS.
   M5  Revoking needs neither the lock nor draining.
   M6  A disabled global repository refuses new PRs entirely (the sensor fetches them again once it is back on, the ingest cursor
       being the newest stored PR). Switching it back on moves the link's cursor to now: every PR that exists at that moment is still
@@ -37,6 +37,7 @@ THE MODEL'S RULES (to review; each one is a decision, not just a description of 
 """
 
 import json
+import os
 from datetime import datetime, timedelta
 from unittest import mock
 
@@ -52,6 +53,7 @@ from app.models.trigger_repository import TriggerRepository
 from tests.conftest import new_repo
 
 UNFINISHED = {"PENDING", "QUEUED", "RUNNING"}
+IN_FLIGHT = UNFINISHED | {"SUCCESS"}  # a SUCCESS task with no result yet is in flight too (Project.in_flight_task_ids)
 FINAL = {"SUCCESS", "FAILED", "CANCELED"}
 WATCH_DIR = "triggers"
 SPEC_RAW = json.dumps({"spec": {"image": "i:1"}})
@@ -129,7 +131,8 @@ class TriggerLinkMachine(RuleBasedStateMachine):
 
     @property
     def drained(self) -> bool:
-        return not UNFINISHED & set(self.tasks.values())
+        # Nothing is delivered in this model, so a SUCCESS task has no result yet and still counts as in flight
+        return not IN_FLIGHT & set(self.tasks.values())
 
     def backfill_if_activated(self, was_active: bool):
         """M2: a link that has become active backfills the triggers of every stored matching PR it is missing, M6 aside."""
@@ -261,8 +264,11 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         assert self.call("get", self.link_url).json["active"] == self.link_active
 
 
+# The default is a quick smoke run (about 45 s). STATEFUL_DEEP=1 runs the deep search (about 7 minutes), the size that
+# catches the deliberately broken apps listed in the handover; run it before relying on this file.
+DEEP = os.environ.get("STATEFUL_DEEP") == "1"
 TriggerLinkMachine.TestCase.settings = settings(
-    max_examples=50, stateful_step_count=25, deadline=None,
+    max_examples=300 if DEEP else 50, stateful_step_count=40 if DEEP else 25, deadline=None,
     suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
 )
 TestTriggerLinkRules = TriggerLinkMachine.TestCase
