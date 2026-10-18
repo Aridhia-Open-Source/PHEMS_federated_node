@@ -265,7 +265,7 @@ stateDiagram-v2
     SUCCESS --> [*]
 ```
 
-Only the run-status sensors write the status; the backend does not enforce the order. Delivery never changes it ([0017](../../project/decisions/0017-task-status-written-by-run-status-sensors.md)).
+The run-status sensors write the status (and the launcher sets `FAILED` where no run will exist); the backend refuses a move its table does not allow with a 409 ([0026](../../project/decisions/0026-state-transition-tables.md)). Delivery never changes it ([0017](../../project/decisions/0017-task-status-written-by-run-status-sensors.md)).
 
 ## PullRequestResult state
 
@@ -280,9 +280,11 @@ stateDiagram-v2
     PUSHED --> MERGED : delivery found its PR already merged
     PUSHED --> CLOSED : delivery found its PR already closed
     [*] --> REVOKED : POST /projects/<id>/results through a revoked link
+    [*] --> STALE : POST /projects/<id>/results for a task whose configuration changed
     MERGED --> [*]
     CLOSED --> [*]
     REVOKED --> [*]
+    STALE --> [*]
 ```
 
-Forward only: `UNKNOWN < PUSHED < OPENED < MERGED = CLOSED`. A PATCH to the same state is accepted; to an earlier state, or out of `MERGED`/`CLOSED`, is a 400. A failed delivery leaves the state and sets `error` and `attempts`.
+Forward only: `UNKNOWN < PUSHED < OPENED < MERGED = CLOSED = REVOKED = STALE`. A PATCH to the same step is accepted; to an earlier step, or out of a terminal step, is a 409 ([0026](../../project/decisions/0026-state-transition-tables.md)). `REVOKED` and `STALE` are created directly by `POST /results` and nothing is delivered for them ([0024](../../project/decisions/0024-task-configuration-pinning.md), [0025](../../project/decisions/0025-switching-off-revoking-and-soft-delete.md)). How the delivery is going is a separate column, `state` (`IN_PROGRESS`, `DELIVERED`, `FAILED`); a failed delivery leaves the step and sets `state` `FAILED`, `error` and `attempts`, and the retry sensor relaunches it while the link is active and the step is not terminal.
