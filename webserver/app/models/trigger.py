@@ -4,8 +4,9 @@ from sqlalchemy.orm import relationship
 from app.helpers.base_model import BaseModel, db
 from app.helpers.const import SPEC_RAW_MAX_BYTES
 from app.helpers.exceptions import InvalidRequest
+from app.helpers.state_rules import transition
 from app.models import sqla_column
-from app.models.trigger_state import TriggerState
+from app.models.trigger_state import TRIGGER_MOVES, TriggerState
 
 
 class Trigger(db.Model, BaseModel):
@@ -71,7 +72,7 @@ class Trigger(db.Model, BaseModel):
     def set_state(self, state: str, state_cause: str | None):
         """
         Set the state with its state_cause, which is required for REJECTED and
-        not allowed otherwise.
+        not allowed otherwise. A move not in TRIGGER_MOVES is a 409.
         """
         if state not in [s.value for s in TriggerState]:
             valid = ', '.join([s.value for s in TriggerState])
@@ -81,5 +82,6 @@ class Trigger(db.Model, BaseModel):
             raise InvalidRequest(f"state_cause is required when state is {state}")
         if not needs_reason and state_cause is not None:
             raise InvalidRequest(f"state_cause is not allowed when state is {state}")
+        transition(TRIGGER_MOVES, self.state, state)
         self.state = state
         self.state_cause = state_cause

@@ -79,3 +79,10 @@ class TestTriggerSetState:
         api.set_state(state, cause)
         api.add()
         assert Trigger.query.filter_by(id=api.id).one().state_cause == cause
+
+
+    def test_rejected_is_final(self, api):
+        api.set_state("REJECTED", "bad spec")
+        with pytest.raises(InvalidRequest) as error:
+            api.set_state("UNKNOWN", None)
+        assert error.value.code == 409

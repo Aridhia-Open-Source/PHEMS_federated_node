@@ -29,3 +29,16 @@ class PullRequestResultStep(str, Enum):
 
     def __str__(self):
         return self.value
+
+
+# A step only moves to a higher rank (ADR 0008). MERGED, CLOSED, REVOKED and STALE are terminal and of
+# equal rank, so none moves to another.
+RESULT_ORDER = {
+    PullRequestResultStep.UNKNOWN.value: 0,
+    PullRequestResultStep.PUSHED.value: 1,
+    PullRequestResultStep.OPENED.value: 2,
+    PullRequestResultStep.MERGED.value: 3,
+    PullRequestResultStep.CLOSED.value: 3,
+    PullRequestResultStep.REVOKED.value: 3,
+    PullRequestResultStep.STALE.value: 3,
+}

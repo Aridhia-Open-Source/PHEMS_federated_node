@@ -26,6 +26,7 @@ from app.helpers.exceptions import (
     UnauthorizedError
 )
 from app.helpers.keycloak import Keycloak
+from app.helpers.state_rules import transition
 from app.helpers.query_filters import arg_get
 from app.helpers.task_config import config_changes
 from app.dtos.task_spec import TaskSpecRequest
@@ -37,7 +38,7 @@ from app.models.api_request_trigger import ApiRequestTrigger
 from app.models.project import Project
 from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.task import Task
-from app.models.task_status import TaskStatus
+from app.models.task_status import RETRYABLE, TASK_MOVES, TaskStatus
 from app.models.trigger_state import TriggerState
 
 bp = Blueprint('tasks', __name__, url_prefix='/projects/<int:project_id>/tasks')
@@ -46,9 +47,6 @@ bp = Blueprint('tasks', __name__, url_prefix='/projects/<int:project_id>/tasks')
 VALIDATION_ERRORS = (
     InvalidRequest, InvalidDBEntry, DBRecordNotFoundError, TaskImageException, UnauthorizedError
 )
-
-# A task in one of these statuses has finished; PATCH cannot change it to another status
-FINAL_STATUSES = (TaskStatus.SUCCESS.value, TaskStatus.FAILED.value, TaskStatus.CANCELED.value)
 
 
 def does_user_own_task(task: Task):
@@ -140,7 +138,7 @@ def get_task_id(project_id, task_id):
 def patch_task(project_id, task_id):
     """
     PATCH /projects/<project_id>/tasks/id endpoint. Records the progress of a task's run.
-    A SUCCESS, FAILED or CANCELED task cannot change to a different status (409); setting the same
+    A move not in TASK_MOVES is a 409, e.g. out of SUCCESS, FAILED or CANCELED; setting the same
     status again is allowed. Only POST /projects/<project_id>/tasks/id/retry moves it back to PENDING.
     """
     task = get_project_task(project_id, task_id)
@@ -157,10 +155,7 @@ def patch_task(project_id, task_id):
         if body['status'] not in [s.value for s in TaskStatus]:
             valid = ', '.join([s.value for s in TaskStatus])
             raise InvalidRequest(f"Invalid status: {body['status']}. Must be one of: {valid}")
-        if task.status in FINAL_STATUSES and body['status'] != task.status:
-            raise InvalidRequest(
-                f"Task {task.id} is {task.status} and cannot change to {body['status']}", HTTPStatus.CONFLICT
-            )
+        transition(TASK_MOVES, task.status, body['status'])
         task.status = body['status']
 
     if 'executor_run_id' in body:
@@ -198,7 +193,7 @@ def retry_task(project_id, task_id):
     """
     task = get_project_task(project_id, task_id)
 
-    if task.status not in (TaskStatus.FAILED.value, TaskStatus.CANCELED.value):
+    if task.status not in RETRYABLE:
         raise InvalidRequest(f"Only a {TaskStatus.FAILED} or {TaskStatus.CANCELED} task can be retried")
 
     task.status = TaskStatus.PENDING.value
