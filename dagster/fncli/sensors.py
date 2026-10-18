@@ -37,7 +37,7 @@ query SensorTicks({SELECTOR_VARS}, $limit: Int!) {{
   sensorOrError(sensorSelector: $selector) {{
     __typename
     ... on Sensor {{
-      sensorState {{ ticks(limit: $limit) {{ id timestamp status skipReason error {{ message }} }} }}
+      sensorState {{ ticks(limit: $limit) {{ id timestamp status skipReason error {{ message stack causes {{ message stack }} }} }} }}
     }}
     ... on PythonError {{ message }}
     ... on SensorNotFoundError {{ message }}

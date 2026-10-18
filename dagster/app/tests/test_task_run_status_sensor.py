@@ -16,6 +16,7 @@ from app.definitions.sensors.task.run_status import TaskRunStatusSensor
 from app.tests.conftest import make_dagster_run, make_success_event
 
 TAGS = {"trigger": "task", "task_id": "9", "attempt": "1", "project_id": "3"}
+START_TIME = 1699999990.0
 END_TIME = 1700000000.0
 
 
@@ -23,6 +24,7 @@ def sensor_for(status, tags=TAGS, backend_api=None):
     # A queued run cannot be built without a code origin, so the run is a stand-in
     run = MagicMock(status=status, run_id="test-run-id", tags=tags)
     context = MagicMock(dagster_run=run)
+    context.instance.get_run_record_by_id.return_value.start_time = START_TIME
     context.instance.get_run_record_by_id.return_value.end_time = END_TIME
     return TaskRunStatusSensor(context=context, backend_api=backend_api or MagicMock())
 
@@ -42,10 +44,24 @@ def test_the_run_status_maps_to_the_task_status(status, task_status, time_field)
     (project_id, task_id, fields), _ = backend_api.patch_task.call_args
     assert (project_id, task_id) == (3, 9)
     assert fields["status"] == task_status
-    assert set(fields) - {"status", "executor_run_id"} == ({time_field} if time_field else set())
+    # A terminal status records both times: the start comes from the run, as the STARTED event may have been missed
+    times = {"completed_at", "started_at"} if time_field == "completed_at" else ({time_field} if time_field else set())
+    assert set(fields) - {"status", "executor_run_id"} == times
     assert fields["executor_run_id"] == "test-run-id"
     if time_field == "completed_at":
         assert fields["completed_at"] == "2023-11-14T22:13:20Z"
+        assert fields["started_at"] == "2023-11-14T22:13:10Z"
+
+
+def test_a_run_with_no_start_time_records_only_when_it_ended():
+    backend_api = MagicMock()
+    sensor = sensor_for(dg.DagsterRunStatus.SUCCESS, backend_api=backend_api)
+    sensor.context.instance.get_run_record_by_id.return_value.start_time = None
+
+    sensor()
+
+    (_, _, fields), _ = backend_api.patch_task.call_args
+    assert "started_at" not in fields and fields["completed_at"] == "2023-11-14T22:13:20Z"
 
 
 def test_the_map_covers_exactly_the_statuses_the_sensors_monitor():
@@ -82,7 +98,7 @@ def context_for(run, instance):
 
 def test_registered_sensor_patches_for_task_runs(backend_api, dagster_instance, monkeypatch):
     monkeypatch.setattr(
-        dagster_instance, "get_run_record_by_id", lambda run_id: MagicMock(end_time=END_TIME)
+        dagster_instance, "get_run_record_by_id", lambda run_id: MagicMock(start_time=START_TIME, end_time=END_TIME)
     )
     run = make_dagster_run(tags=TAGS).with_status(dg.DagsterRunStatus.SUCCESS)
 

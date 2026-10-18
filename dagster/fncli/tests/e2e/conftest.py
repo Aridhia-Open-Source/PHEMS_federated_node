@@ -21,7 +21,7 @@ from dotenv import find_dotenv, load_dotenv
 
 from fncli.cli import cli
 from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
-from fncli.cmds.common import DagsterConfig, ProjectConfig, build_backend_api
+from fncli.cmds.common import DagsterConfig, GiteaConfig, ProjectConfig, build_backend_api
 from fncli.cmds.state import snapshot
 from fncli.k8s import (
     ENV_CONFIGMAP,
@@ -101,7 +101,8 @@ def set_sensor_interval(seconds: int, retry_seconds: int) -> tuple[str | None, s
     Returns the previous values, to restore them with the same call. The restart stops the sensors (their initial status is
     STOPPED unless the chart says otherwise), so start them again afterwards.
     """
-    namespace = ProjectConfig().namespace
+    load_dotenv(find_dotenv(".dev.env", usecwd=True))  # the autouse fast_sensors fixture runs before the fncli fixture loads it
+    namespace = GiteaConfig().namespace
     previous = get_configmap_value(ENV_CONFIGMAP, namespace, INTERVAL_KEY)
     logger.info(f"Setting the sensor interval to {seconds}s (was {previous}) and restarting the code server")
     previous_retry = get_configmap_value(ENV_CONFIGMAP, namespace, RETRY_INTERVAL_KEY)
