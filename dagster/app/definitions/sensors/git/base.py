@@ -8,7 +8,7 @@ from app.definitions.sensors.base import BaseSensor
 from app.gitea import GiteaAPI, GiteaClient
 from app.github import GithubAPI, GithubClient
 from app.models import ResultsRepository, TriggerRepository
-from app.secrets import SecretProvider
+from app.secrets import read_secret_value
 
 
 class GitAPI(Protocol):
@@ -16,7 +16,7 @@ class GitAPI(Protocol):
 
     def get_pull_request(self, repo_path: str, pr_number: int) -> dict: ...
 
-    def get_new_merged_pulls(self, repo_path: str, base_branch: str, merged_after: str) -> list[dict]: ...
+    def get_new_merged_pulls(self, repo_path: str, merged_after: str) -> list[dict]: ...
 
     def get_pull_request_files(self, repo_path: str, pr_number: int) -> list[dict]: ...
 
@@ -33,19 +33,19 @@ class GitAPI(Protocol):
 
 class GitAPIFactory:
     """
-    Builds the api client for a repository from its provider, its API URI and the token in
+    Builds the api client for a repository from its provider's type and API URI and the token in
     the secret it names, so every repository authenticates as itself.
     """
 
     def for_repository(self, repo: TriggerRepository | ResultsRepository) -> GitAPI:
-        token = SecretProvider(repo.secret.provider).get(repo.secret.key, repo.secret.namespace, "TOKEN")
-        match repo.provider:
+        token = read_secret_value(repo.secret, "TOKEN")
+        match repo.provider.type:
             case "github":
-                return GithubAPI(GithubClient(token=token, base_uri=repo.api_uri))
+                return GithubAPI(GithubClient(token=token, base_uri=repo.provider.api_uri))
             case "gitea":
-                return GiteaAPI(GiteaClient(token=token, base_uri=repo.api_uri))
-            case provider:
-                raise ValueError(f"Unsupported git provider {provider!r} for repository {repo.uri}")
+                return GiteaAPI(GiteaClient(token=token, base_uri=repo.provider.api_uri))
+            case provider_type:
+                raise ValueError(f"Unsupported git provider {provider_type!r} for repository {repo.uri}")
 
 
 class GitSensor(BaseSensor):
