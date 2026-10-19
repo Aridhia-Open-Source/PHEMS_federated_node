@@ -82,7 +82,7 @@ def test_projects_default_shape_and_walk(client, admin_headers):
     created = make_projects(5)
     first = get(client, admin_headers, "/projects").json
     assert (first["page"], first["per_page"], first["total"], first["pages"]) == (1, 25, 5, 1)
-    assert {"id", "name", "enabled", "locked", "default_dataset_id"} <= set(first["items"][0])
+    assert {"id", "name", "enabled", "default_dataset_id"} <= set(first["items"][0])
     seen = []
     for page in (1, 2, 3):
         response = get(client, admin_headers, f"/projects?per_page=2&page={page}").json
@@ -93,23 +93,20 @@ def test_projects_default_shape_and_walk(client, admin_headers):
 
 
 def test_projects_filters(client, admin_headers):
-    make_projects(2, prefix="off", locked=False)
-    enabled = make_projects(2, prefix="on", enabled=True, locked=False)
-    both = make_projects(1, prefix="both", enabled=True, locked=True)
-    locked_only = make_projects(1, prefix="lock", locked=True)
+    make_projects(3, prefix="off")
+    enabled = make_projects(3, prefix="on", enabled=True)
 
     def listed(query):
         response = get(client, admin_headers, f"/projects?{query}")
         assert response.status_code == 200, response.json
         return sorted(ids(response.json["items"]))
 
-    assert listed("enabled=true") == sorted(ids_of(enabled + both))
+    assert listed("enabled=true") == sorted(ids_of(enabled))
     assert len(listed("enabled=false")) == 3
     assert listed(f"id__lte={enabled[0].id}") == [p.id for p in Project.query.order_by(Project.id) if p.id <= enabled[0].id]
-    assert listed("locked=true") == sorted(ids_of(both + locked_only))
-    assert listed("enabled=true&locked=true") == ids_of(both)  # filters are ANDed
+    assert listed(f"enabled=true&id__gt={enabled[0].id}") == ids_of(enabled[1:])  # filters are ANDed
     assert listed(f"name={enabled[0].name}") == [enabled[0].id]
-    assert listed(f"id__gt={both[0].id}") == [locked_only[0].id]
+    assert listed(f"id__gt={enabled[1].id}") == [enabled[2].id]
     assert listed(f"name__ne={enabled[0].name}") != listed("")
     assert listed("name=nothing-like-this") == []
     page = get(client, admin_headers, "/projects?enabled=true&per_page=2&page=2").json

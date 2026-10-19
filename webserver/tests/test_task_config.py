@@ -122,7 +122,7 @@ def config_url(project, task):
 def set_target_dir(client, admin_headers, project, repo, target_dir):
     url = f"/projects/{project.id}/repositories/results/{repo.id}"
     response = client.patch(url, json={"target_dir": target_dir}, headers=admin_headers)
-    assert response.status_code == 200, response.json  # no lock and no drain needed
+    assert response.status_code == 200, response.json
 
 
 def test_config_is_current_then_stale_after_target_dir_changes(
@@ -214,14 +214,14 @@ def test_stale_step_is_a_valid_filter(client, admin_headers, project):
     assert client.get(f"/projects/{project.id}/results?step=STALE", headers=admin_headers).status_code == 200
 
 
-# --------------------------------------------------------------------------- guards: no edit needs the lock
+# --------------------------------------------------------------------------- guards: edits are not refused
 
 
-def test_edit_of_target_dir_enabled_and_delete_need_no_lock_and_no_drain(
+def test_edit_of_target_dir_enabled_and_delete_of_an_enabled_project_with_a_task_in_flight(
         client, admin_headers, project, linked_results_repo, global_results_repo, make_task):
     make_task()  # in flight
     url = f"/projects/{project.id}/repositories/results/{global_results_repo.id}"
-    assert project.locked is False
+    assert project.enabled is True
     assert client.patch(url, json={"target_dir": "out"}, headers=admin_headers).status_code == 200
     assert client.put(url, json={"target_dir": "again"}, headers=admin_headers).status_code == 200
     assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 200

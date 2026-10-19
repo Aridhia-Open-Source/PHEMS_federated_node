@@ -44,7 +44,6 @@ def upgrade() -> None:
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('description', sa.String(length=4096), nullable=True),
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.Column('locked', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('default_dataset_id', sa.Integer(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),

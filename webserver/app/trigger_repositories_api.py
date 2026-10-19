@@ -1,7 +1,7 @@
 """
 trigger repository endpoints, global: a project is linked to one under
 /projects/<id>/repositories/triggers (see project_trigger_repositories_api.py). Create, edit and delete are admin
-only. Deleting one is a soft delete, refused with a 409 naming the projects it is linked to unless ?force=true; no edit needs a lock. A secret_label naming a disabled secret is a 400 on POST and PATCH.
+only. Deleting one is a soft delete, refused with a 409 naming the projects it is linked to unless ?force=true. A secret_label naming a disabled secret is a 400 on POST and PATCH.
 - GET /global/repositories/triggers
 - GET /global/repositories/triggers/<id>
 - POST /global/repositories/triggers
@@ -120,7 +120,7 @@ def post_pull_requests_batch(repo_id):
 def revoke_repository(repo_id):
     """
     POST /global/repositories/triggers/<id>/revoke — revokes every project's link to the repository
-    at once, admin only, needing no lock. Returns the ids of the links. Un-revoking is per link.
+    at once, admin only. Returns the ids of the links. Un-revoking is per link.
     """
     repo = TriggerRepository.get_by_id(repo_id)
     return revoke_links(repo.project_assignments), HTTPStatus.OK
@@ -177,8 +177,8 @@ def post_repository():
 @auth(scope='can_do_admin')
 def patch_repository(repo_id):
     """
-    PATCH /global/repositories/triggers/<id> — update repository. No edit needs a lock (the tasks created
-    before are pinned to the old setup and fail instead of running against the new one). A disabled secret cannot be
+    PATCH /global/repositories/triggers/<id> — update repository. The tasks created
+    before are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be
     named (400), unless it is the one already in use.
     """
     repo = TriggerRepository.get_by_id(repo_id)

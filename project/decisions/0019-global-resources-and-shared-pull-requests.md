@@ -71,7 +71,7 @@ Pull requests:
 Dagster sensors use these directly:
 
 - **Ingest** loops over global trigger repositories with an active link and polls each once, with the repository's own secret.
-- **Evaluate and launch** loop over enabled, unlocked projects, their active links and triggers.
+- **Evaluate and launch** loop over enabled projects, their active links and triggers.
 - **Delivery** uses the task's results link.
 - The evaluate job tag carries the project id and the global repository id.
 
@@ -97,7 +97,7 @@ Dagster's `Secret` model needs only `key`, `namespace` and `provider`. Its repos
 - Secrets are global and addressed by `label`, which is unique across the node, because every repository and dataset POST/PATCH and fncli address secrets by `secret_label`. `Secret.get_by_label` resolves it.
 - `Secret.key` is `"fn-secret-<label>"`, fixed at creation, still a valid DNS subdomain (#543 validates it).
 - There are no composite FKs on `project_id`. Delete checks the global resources' usage only.
-- Rotating a secret affects every project using it, by design, and stays exempt from the project lock.
+- Rotating a secret affects every project using it, by design.
 - `delete_project` deletes the project's links only. It does not delete secrets, datasets or repositories, and does not call `SecretProvider.delete`.
 
 ### 8. Results
@@ -110,13 +110,13 @@ Dagster's `Secret` model needs only `key`, `namespace` and `provider`. Its repos
 
 - `check_no_loop(project_id, uri)` (`helpers/repository_loop.py:378-398`) joins trigger and results repositories by `(project_id, uri)` and must move to the assignment tables, where `watch_dir` and `target_dir` live. Cross-project loops (one project's results repository being another's trigger repository) become possible because `uri` is global, and are forbidden: the check runs across projects.
 - `DAR.__init__` derives `project_id` from `dataset.project_id` (`models/extras/dar.py:67`). It is disconnected code but will break silently; pass the project in.
-- Editing a global dataset, repository or secret affects every assigned project; the tasks it affects fail or are `STALE` (see "A task is pinned to its configuration"). Deleting one is a soft delete that needs no lock or drain; a dataset or repository with live project links is refused with a 409 listing the projects unless `?force=true`, which revokes and deletes every link. Secret rotation is free too.
+- Editing a global dataset, repository or secret affects every assigned project; the tasks it affects fail or are `STALE` (see "A task is pinned to its configuration"). Deleting one is a soft delete; a dataset or repository with live project links is refused with a 409 listing the projects unless `?force=true`, which revokes and deletes every link. Secret rotation is free too.
 - Creating global resources and grants requires the admin role for now; revisit with the authorization rework ([0014](0014-dar-rename-and-detached-auth.md)).
 - `whitelisted_images` does not follow this pattern for now.
 
 ### 10. Migration
 
-Fold 002 (`webserver/migrations/versions/002_result_step_state_project_lock.py`, #548) and this change into the baseline, per ADR [0013](0013-baseline-migration-edited-in-place.md): the line is unreleased. If existing data needs carrying, the split is: each current table becomes its global part (de-duplicated by `uri` or `name`) and an assignment row.
+Fold 002 (the result step and state migration, #548) and this change into the baseline, per ADR [0013](0013-baseline-migration-edited-in-place.md): the line is unreleased. If existing data needs carrying, the split is: each current table becomes its global part (de-duplicated by `uri` or `name`) and an assignment row.
 
 ### 11. Resource URL layout
 
@@ -131,7 +131,7 @@ Datasets, secrets, trigger repositories and results repositories are all **resou
 - **Projects never create resources.** `POST` exists only under `/global`. A resource only one project uses is a global resource linked to that one project.
 - **Secrets follow the same rule.** A project can be linked to a secret (`project_secrets`, with `enabled` and `revoked`). The API returns references only, never values.
 - **Results are project-scoped.** A result belongs to a task, so it lives under `/projects/:pid/results` and `/projects/:pid/results/:id` (`GET` lists or reads, `POST` creates the delivery, `PATCH` records its progress); a result whose task is in another project is a 404. An admin endpoint across projects may come later.
-- **No cross-project lists.** `GET /project_trigger_repositories` goes. Ingest reads `GET /global/repositories/triggers` filtered to repositories with an active link of an enabled project; `PullRequestEvaluateSensor` loops over enabled, unlocked projects and reads each project's links (one extra list call per project per tick). `TaskLauncherSensor` already loops over projects and reads no trigger links.
+- **No cross-project lists.** `GET /project_trigger_repositories` goes. Ingest reads `GET /global/repositories/triggers` filtered to repositories with an active link of an enabled project; `PullRequestEvaluateSensor` loops over enabled projects and reads each project's links (one extra list call per project per tick). `TaskLauncherSensor` already loops over projects and reads no trigger links.
 - **`PUT` replaces.** Fields left out of a `PUT` body take their defaults; use `PATCH` to change one setting.
 - **Sub-resources nest under their parent, in its scope.** A pull request's facts are under the global repository (`/global/repositories/triggers/:id/pull_requests`, including the batch ingest); a project's trigger for it is under the project's link (`/projects/:pid/repositories/triggers/:id/pull_requests/:number`).
 - **`PUT` takes the project's own settings only.** `revoked` is the controller's, so only `PATCH` sets it (admin only) and a `PUT` leaves it alone. A trigger link is unique on `(project_id, trigger_repository_id)`, so a project watches one directory per repository.
@@ -140,12 +140,12 @@ Datasets, secrets, trigger repositories and results repositories are all **resou
 - **Ingest is only the global batch.** There is no single-PR project route. The ingest filter is `GET /global/repositories/triggers?pollable=true`, which ignores project links: a repository is polled while it, its provider and its secret are enabled.
 
 - **Filter in the webserver.** Clients (Dagster, fncli) don't fetch lists and filter them in Python. Every filter they need is a query option on the list endpoint, e.g. `?pollable=true`.
-- **Superseded (2026-10-18):** the lock, drain and enabled guards were revisited; see "Switching off, revoking and deleting".
+- **Superseded (2026-10-18):** the drain and enabled guards were revisited, and the project lock was dropped in favour of enabling with an optional backfill; see "Switching off, revoking and deleting".
 
 ### 12. Decisions settled
 
 1. Revoke takes effect immediately; in-flight deliveries fail with a recorded error (section 2).
-2. Deleting a global dataset, repository or secret is a soft delete with no lock or drain ("Switching off, revoking and deleting"); a dataset or repository with live links needs `?force=true` (409 otherwise), which revokes and deletes every link. Editing one needs neither: tasks are pinned to their configuration. Secret rotation is free too (section 9).
+2. Deleting a global dataset, repository or secret is a soft delete with no drain ("Switching off, revoking and deleting"); a dataset or repository with live links needs `?force=true` (409 otherwise), which revokes and deletes every link. Editing one needs neither: tasks are pinned to their configuration. Secret rotation is free too (section 9).
 3. Cross-project loops are forbidden (section 9).
 4. `GET /projects/<id>/results_repositories` returns inactive assignments with their flags (section 5).
 5. Global datasets have no `project_id` (section 6).
@@ -170,7 +170,7 @@ Datasets, secrets, trigger repositories and results repositories are all **resou
 - Changed paths are fetched once per PR at ingest (paged), and no later per-project provider call is made for unwatched PRs.
 - Heavy overlap with open PRs #548, #547, #543, #534, #531 and #535; light overlap with #526, #533, #529, #530; independent: #528, #532, #544, #545, #546.
 - **Accepted:** a results link revoked while a delivery is pushing does not stop that push; the result may still be delivered once. Killing work in flight is post-beta.
-- **Known gap (post-beta): creating a results link and the lock are two steps.** Only creating a project's results link still needs the project locked, and `post_task` (the evaluate sensor) checks only that the link is active, not that the project is unlocked. A task can be created between the lock check and the change. Worst case it runs against a setup that has just changed and fails or is not delivered; no data is lost and other projects are unaffected. Fix, small: `post_task` refuses a locked project with 409, and the lock check and `post_task` take a row lock on the project (`SELECT ... FOR UPDATE`).
+- **Known gap (post-beta): creating a results link and disabling the project are two steps.** Only linking a project's results repository needs the project disabled, and `post_task` (the evaluate sensor's route for a pull request) checks only that the link is active, not that the project is enabled. A task can be created between the check and the link. Worst case it runs against a setup that has just changed and fails or is not delivered; no data is lost and other projects are unaffected. Fix, small: `post_task` refuses a disabled project with 409, and the check and `post_task` take a row lock on the project (`SELECT ... FOR UPDATE`).
 - Supersedes or amends ADRs 0003, 0004, 0001, 0006, 0007, 0009, 0013 and 0015, and `docs/architecture/entities.md`.
 
 ## Implementation order
@@ -193,13 +193,13 @@ Stages 1–4 are mostly mechanical. The decisions in section 12 are settled.
 
 Assert exact key sets and types, not just status codes. Stage 0 does two things.
 
-**Pin what does not change shape:** the PR endpoints keyed by `(repo_id, number)` (list paged with `state` filter, get, patch state, `/task` 201 then 200 idempotent and 400 on a bad spec with `REJECTED` recorded); the `/results` round trip including the `step` filter; `GET /global/datasets/<id>`; `GET /projects` item keys including `default_dataset_id`, `locked`, `enabled`; the task DTO `spec.dataset_id`; the healthcheck body shape; task creation through the API and the PR path both rejecting a dataset of another project and falling back to the default dataset. Batch ingest: 201, and pin that a duplicate number returns 400 today so the upsert change is deliberate.
+**Pin what does not change shape:** the PR endpoints keyed by `(repo_id, number)` (list paged with `state` filter, get, patch state, `/task` 201 then 200 idempotent and 400 on a bad spec with `REJECTED` recorded); the `/results` round trip including the `step` filter; `GET /global/datasets/<id>`; `GET /projects` item keys including `default_dataset_id`, `enabled`; the task DTO `spec.dataset_id`; the healthcheck body shape; task creation through the API and the PR path both rejecting a dataset of another project and falling back to the default dataset. Batch ingest: 201, and pin that a duplicate number returns 400 today so the upsert change is deliberate.
 
 **Write the target shapes for changing endpoints as tests marked `xfail(strict=True)`:** global `GET /global/repositories/triggers` (`id` is the resource id), `GET /projects/<id>/repositories/triggers` and the results repository and dataset equivalents with the nested global resource and assignment fields, `/global/secrets`, PR ingest on the global repository, and fan-out that skips non-matching links. Each stage removes the marker from the tests it makes pass. A strict `xfail` that unexpectedly passes fails the run, so the flip cannot be forgotten.
 
 Plus a cross-service check: the webserver tests dump these responses to a committed JSON fixture and the Dagster and fncli model tests parse the same fixtures. That catches the `Secret.project_id`/`label` breakage at test time.
 
-## A task is pinned to its configuration (replaces most of lock and drained)
+## A task is pinned to its configuration (replaces the old drain rules)
 
 Built; unit tests run.
 
@@ -210,15 +210,15 @@ Built; unit tests run.
 - *Before publish:* `POST /results` for a `SUCCESS` task whose configuration changed creates the result as step `STALE`, state `FAILED`, error listing the changes. `STALE` is final and terminal, a sibling of `MERGED`, `CLOSED` and `REVOKED`: nothing is delivered. Order of checks: existing result, task `SUCCESS`, revoked link (`REVOKED`), changed configuration (`STALE`), inactive link (`FAILED`, "results link switched off", 201).
 - There is no stale-task retry for the beta. A stale task fails; the pull request has to be re-run another way.
 
-**Guards.** There is no drained state any more (see "Switching off, revoking and deleting"): neither an `enabled` flip nor a delete needs one. Every edit is free: a results link's `target_dir`, a link swap, dataset link edits, a trigger link's `watch_dir` and `base_branch`, a repository's provider, path, `api_uri` and `secret_label`, global dataset fields, provider fields, other project fields. Creating a project's results link still needs the lock, as before. `enabled` flips need no drain any more: a delivery through a link that is switched off is a result FAILED (link switched off), retried by the delivery retry sensor once the link is active again.
+**Guards.** There is no drained state any more (see "Switching off, revoking and deleting"): neither an `enabled` flip nor a delete needs one. Every edit is free: a results link's `target_dir`, a link swap, dataset link edits, a trigger link's `watch_dir` and `base_branch`, a repository's provider, path, `api_uri` and `secret_label`, global dataset fields, provider fields, other project fields. Linking a project's results repository needs the project disabled. `enabled` flips need no drain any more: a delivery through a link that is switched off is a result FAILED (link switched off), retried by the delivery retry sensor once the link is active again.
 
-**What it costs.** In-flight work is lost when a material field is edited: the task fails or its result is `STALE`. Part of the saving is only in the guard calls (about 25 across 8 files, now fewer); the tests and the e2e and Hypothesis scenarios for edits under the lock change with it.
+**What it costs.** In-flight work is lost when a material field is edited: the task fails or its result is `STALE`. Part of the saving is only in the guard calls (about 25 across 8 files, now fewer); the tests and the e2e and Hypothesis scenarios for edits with work in flight change with it.
 
-**Lock race.** The race recorded under Consequences concerns only the lock (creating the results link); for every edit, flip and delete it does not matter, because a task created in the gap carries the old snapshot and fails, or its delivery gets a `REVOKED` result.
+**Disabled-project race.** The race recorded under Consequences concerns only creating the results link; for every edit, flip and delete it does not matter, because a task created in the gap carries the old snapshot and fails, or its delivery gets a `REVOKED` result.
 
 ## Switching off, revoking and deleting (owner decisions, 2026-10-18)
 
-Switching off stops new work, and work already in flight finishes once it is back on. Revoking stops all work, for good. Deleting is a soft delete that revokes everything under it, and needs no drain. Nothing here needs a lock except creating a project's results link. An admin can revoke every project's link to a global resource in one call (`POST .../revoke`); un-revoking is per link.
+Switching off stops new work, and work already in flight finishes once it is back on. Revoking stops all work, for good. Deleting is a soft delete that revokes everything under it, and needs no drain. The one rule left is that a project's results repository can be linked only while the project is disabled. An admin can revoke every project's link to a global resource in one call (`POST .../revoke`); un-revoking is per link.
 
 | Switched off | New pull requests | A task not launched yet | A finished task's results |
 |---|---|---|---|
@@ -234,11 +234,11 @@ Switching off stops new work, and work already in flight finishes once it is bac
 - `REJECTED` is final for a trigger (decision 10): no request moves it back.
 - **Delete is a soft delete.** `deleted_at` (nullable) is on projects, the four link tables (`project_trigger_repositories`, `project_results_repositories`, `project_datasets`, `project_secrets`) and the global resources (trigger and results repositories, datasets, secrets, git providers). One `do_orm_execute` listener hides deleted rows from every ORM query (`helpers/soft_delete.py`), unless the query sets `include_deleted`; for the API a deleted row is gone (404, not listed), no admin back door. Unique names, labels, link pairs and `(provider, repo_path)` are partial unique indexes `WHERE deleted_at IS NULL`, so a deleted name is free again. Deleting a link revokes it; deleting a dataset or repository with live project links is a 409 listing the projects unless `?force=true`, which revokes and deletes every link; deleting a project revokes and deletes all its links; a secret goes with its links, and a provider is refused while a repository is on it. Many-to-one references (`task.project`, `result.assignment`) still load a deleted row, so history never meets None; collections and queries hide it. A deleted secret still deletes its stored value from the secret store.
 - **Delivery of a deleted link.** `POST /projects/<pid>/results` is the only gate: it reads the link with `include_deleted`, and a revoked link, deleted ones included, gives the existing final `REVOKED` result. Delivery takes `target_dir` (and the repository id) from the task's pinned configuration (`GET .../tasks/<id>/config` returns `config_snapshot`), and the repository, provider and secret from `GET /global/repositories/results/<id>`. A 404 (project, task or repository) is final: logged, no retry.
-- **Fan-out skips a disabled project** (`ProjectTriggerRepository.accepts_triggers`: active and its project enabled); turning a project back on skips the gap.
+- **Fan-out skips a disabled project** (`ProjectTriggerRepository.accepts_triggers`: active and its project enabled); turning a project back on skips the gap, or with `{"enabled": true, "backfill": true}` creates the triggers of the pull requests stored while it was off (the cursor stays, and `create_triggers` makes repeating it safe). `backfill` is only valid when enabling a disabled project (400 otherwise) and is not stored.
 - The allowed moves live in tables in `webserver/app/models`: `TRIGGER_MOVES` in `trigger_state.py`, `TASK_MOVES` and `RETRYABLE` in `task_status.py`, `RESULT_ORDER` in `pull_request_result_step.py`. The API returns 409 for any other move.
-- An optional backfill of the gap may be added later.
-- **Locked versus off (project).** Locked pauses evaluation and launch but keeps the backlog: triggers are still created and run after unlocking. Off drops the gap: pull requests merged meanwhile get no trigger. The lock is kept for that pause and for project setup; drain is no longer tied to it.
-- **Who owns what.** The webserver owns the business record, the rules, audit and compliance; Dagster holds operational history (runs, and later materialisations as a read-only mirror). The dependency is one way: Dagster calls the webserver's API, and the webserver does not know Dagster (target; its `/dagster/sensors` routes stay for now as an operational convenience). The pipeline stays event-driven: sensors react to the webserver's state, so waiting (off, locked, a failed delivery) costs nothing.
+- A backfill for the other switches (a link, a repository, a provider) may be added later.
+- **One flag for a project: enabled (2026-10-19).** There is no separate lock. A disabled project gets no new triggers, API tasks are rejected (409) and its PENDING tasks wait: the launcher reads enabled projects only. Turning it on skips the gap by default; with `backfill: true` it creates the triggers it missed instead. A new project is disabled, so its results repository is linked before it is enabled.
+- **Who owns what.** The webserver owns the business record, the rules, audit and compliance; Dagster holds operational history (runs, and later materialisations as a read-only mirror). The dependency is one way: Dagster calls the webserver's API, and the webserver does not know Dagster (target; its `/dagster/sensors` routes stay for now as an operational convenience). The pipeline stays event-driven: sensors react to the webserver's state, so waiting (off, a failed delivery) costs nothing.
 
 ## Alternatives considered
 

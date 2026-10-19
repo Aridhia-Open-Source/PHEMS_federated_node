@@ -260,9 +260,9 @@ class TestProjects:
     def test_filters_are_sent_as_query_options(self, api, session):
         session.get.return_value = page([], 0)
 
-        api.get_projects(enabled=True, locked=False)
+        api.get_projects(enabled=True)
 
-        assert session.get.call_args.kwargs["params"] == {"enabled": "true", "locked": "false", "page": 1, "per_page": 100}
+        assert session.get.call_args.kwargs["params"] == {"enabled": "true", "page": 1, "per_page": 100}
 
     def test_no_projects(self, api, session):
         session.get.return_value = page([], 0)

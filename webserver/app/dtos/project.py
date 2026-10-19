@@ -9,7 +9,6 @@ class ProjectDTO(DTO):
     name: str
     description: str | None
     enabled: bool
-    locked: bool
     default_dataset_id: int | None
     created_at: WireDatetime
     updated_at: WireDatetime
@@ -51,7 +50,7 @@ class ProjectHealthDTO(DTO):
 
 
 class ProjectRequest(BaseModel):
-    """A project as created. Fields it does not name, e.g. locked, are ignored."""
+    """A project as created. Fields it does not name are ignored."""
     model_config = ConfigDict(strict=True)
 
     name: str = Field(min_length=1, max_length=256)

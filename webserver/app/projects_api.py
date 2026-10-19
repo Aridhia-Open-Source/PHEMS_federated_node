@@ -31,8 +31,8 @@ from app.dtos.dataset import ProjectDatasetDTO
 from app.dtos.results_repository import ProjectResultsRepositoryDTO
 from app.dtos.secret import ProjectSecretDTO
 from app.dtos.project import ProjectDTO, ProjectRequest
-from app.helpers.project_lock import require_locked
-from app.helpers.pull_request_fanout import skip_gap
+from app.helpers.project_state import require_disabled
+from app.helpers.pull_request_fanout import backfill, skip_gap
 from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.query_filters import parse_query_params
 from app.helpers.wrappers import audit, auth
@@ -94,24 +94,31 @@ def create_project():
 @auth(scope='can_admin_dataset')
 def patch_project(project_id: int):
     """
-    PATCH /projects/<project_id> endpoint. Enables or disables the project, locks or unlocks
-    it. Neither needs a lock. Turning the project on again skips the gap: what was merged while it
-    was off gets no trigger.
+    PATCH /projects/<project_id> endpoint. Enables or disables the project. Turning the project
+    on again skips the gap: what was merged while it was off gets no trigger. With
+    `"backfill": true` it creates those triggers instead. `backfill` is only for enabling a
+    disabled project (`"enabled": true`), otherwise a 400, and is not stored.
     """
     project = Project.get_by_id(project_id)
 
     body = request.json or {}
-    fields = {"enabled", "locked"}
+    fields = {"enabled", "backfill"}
     if not body or not set(body) <= fields:
         raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
     for field in body:
         if not isinstance(body[field], bool):
             raise InvalidRequest(f"{field} must be a boolean")
+    if "backfill" in body and (body.get("enabled") is not True or project.enabled):
+        raise InvalidRequest("backfill is only valid with enabled: true on a disabled project")
 
     if body.get("enabled") and not project.enabled:
-        skip_gap(project.trigger_repository_assignments)
-    for field in body:
-        setattr(project, field, body[field])
+        project.enabled = True
+        if body.get("backfill"):
+            backfill(project.trigger_repository_assignments)
+        else:
+            skip_gap(project.trigger_repository_assignments)
+    elif "enabled" in body:
+        project.enabled = body["enabled"]
     db.session.commit()
     return ProjectDTO.from_model(project).dump(), HTTPStatus.OK
 
@@ -388,9 +395,9 @@ def put_project_results_repository(project_id: int, repository_id: int):
     """
     PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Links a global
     results repository to the project, which has one, 201, and replaces the project's settings
-    if it is linked already, 200. Linking needs the project locked. Changing the settings of
-    the link needs no lock: a change of target_dir is caught by the
-    configuration snapshot of the tasks created before, which then fail instead of delivering there.
+    if it is linked already, 200. Linking needs the project disabled. A change of target_dir
+    is caught by the configuration snapshot of the tasks created before, which then fail
+    instead of delivering there.
     Body: {"target_dir": "results", "owned_by_federated_node": true, "enabled": true}, the last
     two are optional.
     """
@@ -410,7 +417,7 @@ def put_project_results_repository(project_id: int, repository_id: int):
     if link and link.results_repository_id != repo.id:
         raise InvalidRequest(f"Project {project.id} already has a results repository", HTTPStatus.CONFLICT)
     if link is None:
-        require_locked(project)
+        require_disabled(project)
 
     created = link is None
     if created:

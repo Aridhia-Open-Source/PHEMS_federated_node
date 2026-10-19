@@ -148,7 +148,7 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
 
 - `fncli teardown-project -y`
   - Backend: `DELETE /projects/{id}`, which also removes the tasks, triggers and the dataset, results repository and trigger repository assignments under it. Datasets, results repositories and secrets are global and stay.
-  - Backend: the per-record deletes that follow (`DELETE /global/datasets/{id}`, `DELETE /global/repositories/triggers/{id}`, `DELETE /global/repositories/results/{id}`, `DELETE /global/providers/{id}` (only when no repository is left on it), `DELETE /global/secrets/{label}`) delete what is left (a record already gone is skipped). `DELETE /global/datasets/{id}` and `DELETE /global/repositories/results/{id}` soft delete the record and revoke and delete any remaining assignments, with no lock or drain needed.
+  - Backend: the per-record deletes that follow (`DELETE /global/datasets/{id}`, `DELETE /global/repositories/triggers/{id}`, `DELETE /global/repositories/results/{id}`, `DELETE /global/providers/{id}` (only when no repository is left on it), `DELETE /global/secrets/{label}`) delete what is left (a record already gone is skipped). `DELETE /global/datasets/{id}` and `DELETE /global/repositories/results/{id}` soft delete the record and revoke and delete any remaining assignments.
   - Gitea: deletes the tokens (`DELETE users/{user}/tokens/{name}`).
   - Gitea: deletes both repos (`DELETE repos/{user}/{name}`).
   - Does not prompt, because of `-y`.

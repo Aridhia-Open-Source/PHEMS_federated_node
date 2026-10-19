@@ -11,9 +11,9 @@
 >   - `service-info` deleted
 >   - `/global/users`, `/global/registries`, `/global/whitelisted_images`
 >   - results under `/projects/:pid/results`
-> - **Integrity and locking:**
+> - **Integrity and project state:**
 >   - PRs unique by `(repo, merge_commit_sha)` as well as number (migration 003)
->   - new projects start **locked** (migration 004); fncli `setup-project` unlocks at the end, and teardown locks before deleting
+>   - new projects start **disabled** (baseline migration); fncli `setup-project` enables them at the end. There is no project lock (dropped 2026-10-19): a project is enabled or disabled, a results repository is linked while it is disabled, and enabling may ask for a backfill
 > - **Sensors:** one interval for all sensors, `fnDagster.sensors.minIntervalSeconds` (30s default, 2s in dev; PR #554, merged).
 > - **Tooling:**
 >   - fncli moved into `dagster/fncli` and shares `app.*`; install with `pipx install --force --editable './dagster[cli]'`
@@ -21,7 +21,7 @@
 >   - e2e: `pytest dagster --e2e [success|failure] -v` from the repo root. The suites are granular (each fncli command and state change is its own test). The failure suite has never been run.
 > - **Not built yet:** auth (planned in `project/auth-mvp-plan.md`).
 > - **gitea-mirror is parked for the beta.** Post-beta it becomes a stateless mirror service with number-matched PR replay, which the node sees as a `gitea` GitProvider.
-> - **To do:** a full refresh of this document, and a narrow bug review (migrations 002-004, lock/drain rules, sensors). See `.claude/handover.md`.
+> - **To do:** a full refresh of this document, and a narrow bug review (migrations 002-004, drain rules, sensors). See `.claude/handover.md`.
 
 
 - Written: 2026-10-17. Owner: codepint.
@@ -65,7 +65,7 @@ Precedence when sources disagree:
 
 **What is built (gitea-mirror).** A separate service. It copies merged GitHub PRs into the node's own Gitea, so the node reads locally and never needs GitHub tokens in the evaluation path. It can also send signed webhooks when a PR is mirrored. It is built and unit-tested, but **not verified on a real cluster or against the real GitHub API**. The node-side receiver for its webhooks is **not built**.
 
-**What is parked.** Narrowing Dagster's secret permissions. Restarting Dagster after credential rotation (dropped). Legacy models. The sensor redesign. Flask to FastAPI. Authorization rework. Lock and drain guards on editing shared resources. Full list in section 4.
+**What is parked.** Narrowing Dagster's secret permissions. Restarting Dagster after credential rotation (dropped). Legacy models. The sensor redesign. Flask to FastAPI. Authorization rework. Guards on editing shared resources (replaced by pinning a task to its configuration, ADR 0019). Full list in section 4.
 
 **Known open risks (section 5 has the list).** Four trigger-loss and ingest bugs found in review are still unfixed in code. The owner needs to say which of them block the MVP.
 
@@ -181,7 +181,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 1. `POST /global/secrets {label, provider: "K8S", values}` → 201, `key == "fn-secret-<label>"`, no `values` in the response. **[business]**
 2. `POST` the same label twice → second is 409. **[technical]**
 3. `POST` without `values`, or with an unknown provider → 400. **[technical]**
-4. `PATCH /global/secrets/<label>` with new `values` (rotation) on a secret linked to a project that is not locked → 200 (rotation is exempt from the lock). **[business]**
+4. `PATCH /global/secrets/<label>` with new `values` (rotation) on a secret linked to a project → 200 (rotation is free). **[business]**
 5. `DELETE /global/secrets/<label>` while a repository or dataset uses it → 409. **[technical]**
 
 **Source:** ADR 0019 §7.
@@ -191,7 +191,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 **Happy path:** A global resource can be switched off for the whole node. A repository or dataset cannot reference a disabled secret.
 
 **Validation cases:**
-1. `PATCH /global/repositories/triggers/:id {"enabled": false}` (project locked and drained) → 200, `enabled: false`. Its links report `active: false`. **[business]**
+1. `PATCH /global/repositories/triggers/:id {"enabled": false}` → 200, `enabled: false`. Its links report `active: false`. **[business]**
 2. Create or patch a repository or dataset with `secret_label` of a disabled secret → 400. **[business]**
 3. `PATCH` a repository keeping its current (disabled) secret → not refused. **[technical]**
 4. `POST` batch ingest to a disabled trigger repository → 400, nothing stored. **[business]**
@@ -205,7 +205,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 **Validation cases:**
 1. `POST /global/datasets {name, host, port, secret_label}` → 201, `name` stored lowercase, `url` ends in `/global/datasets/<id>`. **[business]**
 2. `GET /global/datasets/<id>` → 200. `GET /global/datasets/999` → 404. **[technical]**
-3. `PATCH /global/datasets/<id>` (project locked and drained) → 200. **[technical]**
+3. `PATCH /global/datasets/<id>` → 200. **[technical]**
 4. A duplicate dataset name → 409 (not 500). **[technical]**
 
 **Source:** ADR 0019 §6, §12 items 5 and 15.
@@ -475,14 +475,14 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 **Happy path:** `POST /projects/:pid/tasks` records the request, validates the spec and dataset, and creates a PENDING task. A rejected request is kept as REJECTED and creates no task. `POST /tasks/validate` checks without creating.
 
 **Validation cases:**
-1. Valid body on an unlocked project → 201 with `id`, `api_request_id`, `status: PENDING`. **[business]**
-2. Same body on a locked project → 409. **[business]**
+1. Valid body on an enabled project → 201 with `id`, `api_request_id`, `status: PENDING`. **[business]**
+2. Same body on a disabled project → 409. **[business]**
 3. Invalid spec → 400 and no task row. **[business]**
 4. `POST .../tasks/validate` with a valid body → 200, no task created. **[technical]**
 
 **Source:** ADR 0001, ADR 0002 (background); behaviour confirmed in code. ADR 0019 §6 for the dataset rule.
 
-> **Assumption (Q9):** I found no ADR statement on locked-project 409 for task creation. It is built, and the tests handover treats lock as part of the model. Confirm.
+> **Decided (Q9, 2026-10-19):** task creation on a disabled project is a 409. The project lock is gone; this is the only place a disabled project is refused.
 
 ---
 
@@ -572,7 +572,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 **Source:** decision 2026-10-17.
 
-> **Uncertain (Q12):** Code already refuses `DELETE /projects/:pid/repositories/results/:id` unless the project is locked and has no tasks in flight. So the intended fix may already hold for DELETE. Revoke keeps the row, so the unpack does not fail. Is the comment now outdated, or does the owner want a stricter rule?
+> **Uncertain (Q12):** Code now allows `DELETE /projects/:pid/repositories/results/:id` in any project state (a soft delete; a task in flight gets a `REVOKED` result). Revoke keeps the row, so the unpack does not fail. Is the comment now outdated, or does the owner want a stricter rule?
 
 ---
 
@@ -615,13 +615,13 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 ### SR-SENS-04 Evaluate reads each project's active links; filtering is in the webserver
 
-**Happy path:** Evaluate loops over enabled, unlocked projects, reads each one's active links and UNKNOWN triggers, and starts one evaluation run per repository. A run in flight for a repository is skipped.
+**Happy path:** Evaluate loops over enabled projects, reads each one's active links and UNKNOWN triggers, and starts one evaluation run per repository. A run in flight for a repository is skipped.
 
 **Validation cases:**
-1. The sensor calls `GET /projects?enabled=true&locked=false`. **[technical]**
+1. The sensor calls `GET /projects?enabled=true`. **[technical]**
 2. The sensor calls `GET /projects/:pid/repositories/triggers?active=true`. **[technical]**
 3. The sensor calls `GET .../pull_requests?state=UNKNOWN` and does not filter in Python. **[technical]**
-4. A locked project is not evaluated. **[business]**
+4. A disabled project is not evaluated. **[business]**
 
 **Source:** ADR 0019 §11, §12 item 11; decision 2026-10-17.
 
@@ -672,9 +672,9 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 1. A PENDING task of an enabled project → one run request tagged `trigger=task`, `task_id`, `project_id`. **[business]**
 2. A PENDING task of a disabled project → not launched. **[business]**
 3. A PENDING task whose dataset link is inactive → task patched to FAILED with a cause, no run. **[business]**
-4. The launcher does not pause on a locked project (it drains PENDING tasks). **[technical]**
+4. The launcher reads enabled projects only: a disabled project's PENDING tasks wait. **[technical]**
 
-**Source:** ADR 0017; ADR 0019 §11; the lock exception comes from the s7-ingest branch note.
+**Source:** ADR 0017; ADR 0019 §11.
 
 ### SR-SENS-09 Only run-status sensors write task status
 
@@ -692,9 +692,9 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 **Happy path:** Every filter a sensor needs is a query option on the webserver list route.
 
 **Validation cases:**
-1. The sensors use these webserver options: `?active_link=true`, `?active=true`, `?enabled=true&locked=false`, `?state=`, `?status=` and `?step=`. **[technical]**
+1. The sensors use these webserver options: `?active_link=true`, `?active=true`, `?enabled=true`, `?state=`, `?status=` and `?step=`. **[technical]**
 2. No sensor or delivery code loads a list and then filters it with a Python `if` on a field the webserver could filter (review each of `launcher.py`, `pr_evaluate.py`, `delivery/results.py`, `pull_request_sync.py`). **[technical]**
-3. The webserver supports each option (`GET /projects?enabled=true&locked=false` returns only those projects). **[technical]**
+3. The webserver supports each option (`GET /projects?enabled=true` returns only those projects). **[technical]**
 
 **Source:** decision 2026-10-17; ADR 0019 §11 ("Filter in the webserver").
 
@@ -1101,7 +1101,7 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 | Sensor redesign (per-PR job, delivery as an op, mirror webhook replacing ingest polling) | Parked. Decision 2026-10-17; `dagster-sensors-plan.md`. |
 | Flask to FastAPI | Parked after the MVP. |
 | Auth rework and normal-user permissions | Later full rewrite. Only the super user and the Dagster system user matter now (tests handover). |
-| Lock, drain and enabled guards on editing, deleting or unlinking resources | ADR 0019 §11 "Parked": stays as built, not revisited. This includes the rule that editing a global resource needs every assigned project locked and drained (§9). Worst case a project keeps failing or lacks a secret. |
+| Drain and enabled guards on editing, deleting or unlinking resources | Replaced by pinning a task to its configuration and by soft delete (ADR 0019). Worst case a project keeps failing or lacks a secret. |
 | Handling a project with no results link | Not for the MVP. Comment only (SR-RES-07). |
 | Mirror webhook receiver on the node, `mirror_uri` and `mirror_secret_id` on trigger repositories | Later, node-side (ADR 0020). |
 | Mirror: history backfill, open PRs, comments, reviews, branch deletion, other git hosts | Out of the mirror's scope (ADR 0020, README known gaps). |
@@ -1136,10 +1136,10 @@ These are not requirements. The review found them and I checked the code: they a
 6. **Q6** (SR-PR-04): Is "no trigger at fan-out, REJECTED at evaluate when no watched file" the right reading of "REJECTED instead of IGNORED"?
 7. **Q7** (SR-TASK-01): `cancel`, `logs`, `results/approve` and `results/block` return 501. Is "routes exist, not implemented" the MVP intent?
 8. **Q8** (SR-TASK-05): Retry on a SUCCESS task returns 400. Intended?
-9. **Q9** (SR-TASK-06): Task creation on a locked project returns 409. Intended?
+9. **Q9** (SR-TASK-06): Task creation on a disabled project returns 409. Decided 2026-10-19.
 10. **Q10** (SR-RES-02): POST `/results` through an inactive link returns 409 (marked "(?)").
 11. **Q11** (SR-RES-06): A SUCCESS task with no result row and a revoked results link is silently skipped. ADR says "fails with a recorded error", and re-activating the link may not re-trigger delivery. Which behaviour?
-12. **Q12** (SR-RES-07): The results link already can't be deleted unless the project is locked and drained. Is the "block unlinking while in flight" comment already satisfied?
+12. **Q12** (SR-RES-07): The results link can be deleted in any project state (a soft delete). Is the "block unlinking while in flight" comment still wanted?
 13. **Q13** (SR-SENS-03): The ingest tick raises after the loop if any repository failed. Acceptable?
 14. **Q14** (SR-SENS-07): Should a revoked project secret link also be refused at use, or only a disabled secret?
 15. **Q15** (SR-SENS-10): `pull_request_sync` loops over all projects, including disabled ones. Intended?

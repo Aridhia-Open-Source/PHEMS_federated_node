@@ -153,7 +153,7 @@ def setup():
         for repo in spec["triggers"]:
             init_backend_trigger_repo(trigger_config(repo), backend_api, project, default_branch[repo])
         init_backend_results_repo(results_config(spec["results"]), backend_api, project)
-        backend_api.patch_project(project.id, {"enabled": True, "locked": False})  # new projects start locked
+        backend_api.patch_project(project.id, {"enabled": True})  # new projects start disabled
         logger.info(f"Project {name} ready")
 
 

@@ -21,15 +21,15 @@ set). Review that branch separately (see `session-handover-2026-10-17.md`).
    `project/moonshot-as-built.md`.
 2. **Schema.** `webserver/migrations/versions/001_baseline.py` (edited in place, ADR 0013; the only migration).
    Check: constraints (unique `(provider_id, repo_path)`, unique PR per repo by number and by merge sha),
-   `ondelete` behaviour, the `locked` default, that each migration downgrades.
+   `ondelete` behaviour, the `enabled` default (a new project is disabled), that each migration downgrades.
 3. **Models.** `webserver/app/models/`: `git_provider.py`, `git_repository.py`, `trigger_repository.py`, `results_repository.py`,
    `project_trigger_repository.py`, `project_results_repository.py`, `pull_request.py`, `pull_request_trigger.py`, `project.py`. Check: what
    `active` means for each link (the global resource, the provider, the link's `enabled` and `revoked`).
 4. **The core rules (spend the time here).**
    - `webserver/app/helpers/pull_request_fanout.py` (+176): how a stored PR becomes a trigger. Check the cursor rule, `unmatched_cause`,
-     `backfill`, and that two writers cannot create a duplicate trigger.
-   - `webserver/app/helpers/project_lock.py`: `require_drained` and `require_all_drained` (the lock and drained rule), and where each
-     route calls them.
+     `backfill` (used when a project is enabled with `backfill: true`), and that two writers cannot create a duplicate trigger.
+   - `webserver/app/helpers/project_state.py`: `require_disabled` (a results repository is linked only to a disabled project), and where
+     the route calls it.
    - `webserver/app/trigger_repositories_api.py` (+139 / -309), `project_trigger_repositories_api.py` (+351), `projects_api.py` (+402 / -101):
      ingest, link create, enable and revoke, `post_task` guards (`?active=true`, 409 on an inactive link), delete and PATCH rules.
    - `webserver/app/results_api.py` and `tasks_api.py`: a finished task cannot change status; `POST /results` needs a `SUCCESS` task and an
@@ -46,13 +46,13 @@ set). Review that branch separately (see `session-handover-2026-10-17.md`).
 
 ## Questions to ask while reading
 - Can a project ever see another project's data, tasks or PRs through a shared resource?
-- Every write route: does it call the lock and drained check, and is the order "check, then change" safe?
+- The results link route: does it call the disabled check, and is the order "check, then change" safe?
 - Every place that decides "active": does it include the provider's `enabled` and the global resource's `enabled`?
 - Any path that returns 500 on bad input instead of 400 or 409?
 - Anything that reads a token or secret without checking it is enabled and the link is not revoked?
 
 ## Known gaps (already recorded, do not re-raise as new)
-- The lock check and the change are two steps; `post_task` does not check the project is unlocked (ADR 0019, Consequences). Accepted, post-beta.
+- The disabled check and the results link are two steps; `post_task` does not check the project is enabled (ADR 0019, Consequences). Accepted, post-beta.
 - A revoked secret link is still used when a token is read (Dagster); revoked or disabled secrets are enforced only at create and patch.
 - Delivery with no results link is not handled (comment in Dagster).
 - The ingest versus link-create race, and `get_or_assign_*` in fncli returning an existing link with different settings.

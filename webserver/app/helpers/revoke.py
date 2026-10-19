@@ -6,7 +6,7 @@ from app.helpers.exceptions import UnauthorizedError
 
 def revoke_links(links) -> list[int]:
     """
-    Admin only. Revokes every one of the links of a global resource at once, needing no project lock like
+    Admin only. Revokes every one of the links of a global resource at once, like
     revoking a single link. Revoking a revoked link changes nothing. Returns the link ids.
     """
     if not g.caller_is_admin:

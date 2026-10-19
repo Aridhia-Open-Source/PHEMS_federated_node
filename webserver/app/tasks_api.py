@@ -238,8 +238,8 @@ def post_tasks(project_id):
     user_id = kc_client.get_user_by_email(dec_token["email"])["id"]
 
     project = Project.get_by_id(project_id)
-    if project.locked:
-        raise InvalidRequest(f"Project '{project.name}' is locked", HTTPStatus.CONFLICT)
+    if not project.enabled:
+        raise InvalidRequest(f"Project '{project.name}' is disabled", HTTPStatus.CONFLICT)
 
     # The request is recorded before it is evaluated. A rejected one is kept, with
     # the reason and the raw body: no task is created from it, so nothing can launch.

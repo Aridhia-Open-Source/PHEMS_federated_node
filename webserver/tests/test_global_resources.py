@@ -204,14 +204,14 @@ def test_dataset_get_list_and_404(client, admin_headers, global_dataset):
     assert_error(client.get(f"{DS}/999", headers=admin_headers), 404)
 
 
-def test_dataset_linked_needs_no_lock_to_delete_or_disable(client, admin_headers, linked_dataset, project):
+def test_linked_dataset_can_be_edited_disabled_and_force_deleted(client, admin_headers, linked_dataset, project):
     url = f"{DS}/{linked_dataset['dataset']['id']}"
     # an edit of the identity fields applies at once: the tasks created before are pinned to the old ones
     patched = client.patch(url, json={"host": "new"}, headers=admin_headers)
     assert patched.status_code == 200 and patched.json["host"] == "new"
     assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 200
     assert client.delete(url, headers=admin_headers).status_code == 409  # linked: needs force
-    assert client.delete(url + "?force=true", headers=admin_headers).status_code == 204  # the project is unlocked
+    assert client.delete(url + "?force=true", headers=admin_headers).status_code == 204
     assert_error(client.get(url, headers=admin_headers), 404)
     assert client.get(f"/projects/{project.id}/datasets", headers=admin_headers).json == []
     assert client.get(f"/projects/{project.id}", headers=admin_headers).json["default_dataset_id"] is None

@@ -14,7 +14,7 @@ Status codes were checked by running or reading the code on 2026-10-16.
 
 - Run: `cd webserver && source /tmp/fn_env.sh && timeout 300 .venv/bin/pytest tests/<your file> -q -p no:cacheprovider --no-cov -W ignore`
   (Postgres container `fn-routes-test-db`; `docker start fn-routes-test-db` if it is down).
-- Request only `client`, `admin_headers` and the fixtures named in that test's setup column. The file-level "Fixtures:" list is a menu, not a parameter list (an extra `lock_project` turns an expected 409 into 200).
+- Request only `client`, `admin_headers` and the fixtures named in that test's setup column. The file-level "Fixtures:" list is a menu, not a parameter list (an extra `disabled_project` turns an expected 200 into 409 for a results link, or the reverse).
 - Plain functions `def test_...(fixtures):`, no classes. Copy the style of `tests/test_smoke.py`.
 - Requests: `client.get(url, headers=admin_headers)`, `client.put(url, json={...}, headers=admin_headers)`.
   Always pass `json=` (use `json={}` for an empty body) and `headers=admin_headers`.
@@ -30,9 +30,9 @@ Status codes were checked by running or reading the code on 2026-10-16.
 | `client` | Flask test client, fresh DB per test |
 | `admin_headers` | admin bearer + JSON content type |
 | `post_json_user_header` | NON-admin bearer + JSON. Only use it for the "revoked by non-admin -> 403" tests |
-| `project`, `other_project` | two projects. Both are **disabled** and **unlocked** |
-| `lock_project` | `project`, locked (needed for any "replace"/disable/delete on a link) |
-| `enabled_project` | `project`, enabled (needed for `?active_link=true` to list its links) |
+| `project`, `other_project` | two projects. Both are **enabled** |
+| `disabled_project` | `project`, disabled (needed to link a results repository) |
+| `enabled_project` | `project`, enabled (already the case; kept for older tests) |
 | `global_secret` | Secret label `"test-creds"` (same object as `secret`). Every global_* resource below uses it |
 | `make_global_secret(label=...)` | another secret. ALWAYS pass a label; the default `"test-creds"` already exists |
 | `global_dataset` / `make_global_dataset(name=...)` | Dataset, unlinked. Names are stored lower-case (`"GlobalDs"` -> `"globalds"`) |
@@ -40,7 +40,7 @@ Status codes were checked by running or reading the code on 2026-10-16.
 | `global_results_repo` / `make_results_repo(uri=...)` | ResultsRepository `github.com/org/results-global`, unlinked |
 | `linked_secret`, `linked_dataset` | the link JSON after `PUT /projects/<pid>/secrets/test-creds` / `PUT /projects/<pid>/datasets/<D>` (201) |
 | `linked_trigger_repo` | link JSON after `PUT /projects/<pid>/repositories/triggers/<T>` with `{"watch_dir": "triggers"}` (201) |
-| `linked_results_repo` | link JSON after `PUT /projects/<pid>/repositories/results/<R>` with `{"target_dir": "results"}`; project left unlocked |
+| `linked_results_repo` | link JSON after `PUT /projects/<pid>/repositories/results/<R>` with `{"target_dir": "results"}`; the fixture disables the project for the PUT and enables it again |
 | `make_pr_batch(*numbers, **fields)` | body `{"pull_requests": [...]}`; defaults: merged 2030-01-01, base_branch `main`, adds `triggers/spec.json`. `fields` override every PR, e.g. `base_branch="dev"`, `changed_files=[{"path": "other/x.json", "status": "added"}]` |
 | `ingest_prs(repo_id, *numbers, **fields)` | POSTs `make_pr_batch(...)` to `/global/repositories/triggers/<repo_id>/pull_requests`, asserts 201, returns `{"created": [...], "existing": [...]}` |
 | `pr_trigger` | links T to `project`, ingests PR #1; returns the URL `/projects/<pid>/repositories/triggers/<T>/pull_requests/1`. Its state is `UNKNOWN` |
@@ -52,20 +52,20 @@ Status codes were checked by running or reading the code on 2026-10-16.
 ## Traps (read before writing)
 
 1. **Link first, then ingest.** A new link's cursor is its creation time (or the latest stored PR). PRs ingested *before* the link are never given a trigger. `make_pr_batch` merges in 2030 so PRs ingested after linking are in scope.
-2. **Lock rules.** Linking (first PUT, 201) needs no lock. A second PUT (200), a PATCH with anything other than only `revoked`, and DELETE of a link need `lock_project`; without it they return **409**. The results-repository PUT needs the lock even for the first link.
-3. **In-flight tasks.** A task with status `PENDING`/`QUEUED`/`RUNNING` (e.g. any `make_task()` or a task made by `/task`) makes lock-gated calls return **409** even when locked.
+2. **Disabled-project rule.** Linking a results repository (even the first one) needs the project disabled, otherwise **409**. Every other link change (first PUT, relink, PATCH, DELETE) is allowed in any state.
+3. **In-flight tasks.** A task with status `PENDING`/`QUEUED`/`RUNNING` (e.g. any `make_task()` or a task made by `/task`) blocks nothing: tasks are pinned to the configuration they were created with.
 4. **403 only for `revoked`.** The test Keycloak mock lets the non-admin token through every scope, so the ONLY 403 test is a non-admin PATCH with `{"revoked": ...}` using `post_json_user_header`. Do not write other 403 tests.
 5. **"Cross-project" means 404.** Asking `other_project` for a link that only `project` has returns 404.
 6. **`?active_link=true` needs an enabled project.** Use `enabled_project`, otherwise the list is empty.
 7. Fixtures are lazy: a test only gets a link if it requests `linked_*` (or `pr_trigger`) as a parameter.
-8. Never request `lock_project` together with `linked_results_repo`: that fixture unlocks the project when it finishes. Lock in the test body instead (`project.locked = True`, `db.session.commit()`) after the link exists.
+8. Never request `disabled_project` together with `linked_results_repo`: that fixture enables the project when it finishes. Disable it in the test body instead (`project.enabled = False`, `db.session.commit()`) after the link exists.
 9. Several global resources reuse `test-creds`, so `DELETE /global/secrets/test-creds` is 409 whenever any `global_*` repo/dataset fixture is requested.
 
 ---
 
 ## 1. `tests/test_global_trigger_repositories.py` (10 tests)
 
-Fixtures: `client, admin_headers, global_secret, global_trigger_repo, make_trigger_repo, project, enabled_project, linked_trigger_repo, lock_project`.
+Fixtures: `client, admin_headers, global_secret, global_trigger_repo, make_trigger_repo, project, enabled_project, linked_trigger_repo`.
 Base URL `/global/repositories/triggers`.
 
 | test | setup | request | assert |
@@ -78,12 +78,12 @@ Base URL `/global/repositories/triggers`.
 | `test_get_one_and_404` | `global_trigger_repo` | GET `base/<T>`, then GET `base/999` | 200 with `id == T`; then 404 |
 | `test_list_active_link_filter` | `enabled_project`, `linked_trigger_repo`, plus `make_trigger_repo(uri="github.com/org/unlinked")` | GET `base`, then GET `base?active_link=true` | first: ids == `[T, unlinked.id]`; second: ids == `[T]` |
 | `test_active_link_excludes_revoked_link` | `enabled_project`, `linked_trigger_repo` | PATCH `/projects/<pid>/repositories/triggers/<T>` `{"revoked": true}` (200), then GET `base?active_link=true` | `[]` |
-| `test_patch_needs_lock_unless_secret_only` | `linked_trigger_repo` (project unlocked) | PATCH `base/<T>` `{"enabled": false}`; then PATCH `base/<T>` `{"secret_label": "test-creds"}` | 409; then 200 |
-| `test_disable_and_delete_when_locked` | `linked_trigger_repo`, `lock_project` | PATCH `base/<T>` `{"enabled": false}`; then DELETE `base/<T>`; then GET `base/<T>` | 200 with `enabled is False`; 204; 404 |
+| `test_patch_enabled_and_secret_label` | `linked_trigger_repo` | PATCH `base/<T>` `{"enabled": false}`; then PATCH `base/<T>` `{"secret_label": "test-creds"}` | 200; then 200 |
+| `test_delete_needs_force_when_linked` | `linked_trigger_repo` | DELETE `base/<T>`; then DELETE `base/<T>?force=true`; then GET `base/<T>` | 409; 204; 404 |
 
 ## 2. `tests/test_pull_request_ingest.py` (10 tests)
 
-Fixtures: `client, admin_headers, project, other_project, global_trigger_repo, linked_trigger_repo, make_pr_batch, ingest_prs, lock_project`.
+Fixtures: `client, admin_headers, project, other_project, global_trigger_repo, linked_trigger_repo, make_pr_batch, ingest_prs`.
 Ingest URL `I = /global/repositories/triggers/<T>/pull_requests`; project PR list `L = /projects/<pid>/repositories/triggers/<T>/pull_requests`.
 
 | test | setup | request | assert |
@@ -101,7 +101,7 @@ Ingest URL `I = /global/repositories/triggers/<T>/pull_requests`; project PR lis
 
 ## 3. `tests/test_project_trigger_links.py` (10 tests)
 
-Fixtures: `client, admin_headers, post_json_user_header, project, other_project, lock_project, global_trigger_repo, linked_trigger_repo, ingest_prs, make_task`.
+Fixtures: `client, admin_headers, post_json_user_header, project, other_project, global_trigger_repo, linked_trigger_repo, ingest_prs, make_task`.
 `U = /projects/<pid>/repositories/triggers/<T>`.
 
 | test | setup | request | assert |
@@ -109,13 +109,12 @@ Fixtures: `client, admin_headers, post_json_user_header, project, other_project,
 | `test_link_returns_201_and_lists` | `global_trigger_repo` | PUT `U` `{"watch_dir": "triggers", "base_branch": "release"}`; GET `/projects/<pid>/repositories/triggers` | 201, `watch_dir == "triggers"`, `base_branch == "release"`, `active is True`, `trigger_repository["id"] == T`; list has 1 item |
 | `test_link_bad_body` | `global_trigger_repo` | PUT `U` `{}`; PUT `U` `{"watch_dir": "x", "bogus": 1}` | 400, 400 |
 | `test_link_unknown_repo_or_project` | `project` | PUT `/projects/<pid>/repositories/triggers/999` `{"watch_dir": "x"}`; PUT `/projects/999/repositories/triggers/<T>` same body (needs `global_trigger_repo`) | 404, 404 |
-| `test_relink_needs_lock` | `linked_trigger_repo` | PUT `U` `{"watch_dir": "other"}` | 409 |
-| `test_relink_locked_returns_200` | `linked_trigger_repo`, `lock_project` | PUT `U` `{"watch_dir": "other"}` | 200, `watch_dir == "other"` |
+| `test_relink_returns_200` | `linked_trigger_repo` | PUT `U` `{"watch_dir": "other"}` | 200, `watch_dir == "other"` |
 | `test_other_project_cannot_see_link` | `linked_trigger_repo`, `other_project` | GET `/projects/<other_project.id>/repositories/triggers/<T>` | 404 |
 | `test_revoke_admin_only` | `linked_trigger_repo` | PATCH `U` `{"revoked": true}` with `post_json_user_header`; then with `admin_headers` | 403; then 200 with `revoked is True`, `active is False` |
 | `test_unrevoke_skips_the_gap` | `linked_trigger_repo`; PATCH `U` `{"revoked": true}`; `ingest_prs(T, 1)` | PATCH `U` `{"revoked": false}` | 200, `active is True`, `pr_count == 0`; the PR stays stored |
-| `test_disable_needs_lock_and_no_tasks_in_flight` | `linked_trigger_repo`, `lock_project` | PATCH `U` `{"enabled": false}` -> expect 200 `enabled is False`; then `make_task()`; PATCH `U` `{"enabled": true}` | 200; then 409 with `details == [task.id]` |
-| `test_unlink` | `linked_trigger_repo`, `lock_project` | DELETE `U`; GET `U` | 204; 404 |
+| `test_disable_and_enable_with_a_task_in_flight` | `linked_trigger_repo` | PATCH `U` `{"enabled": false}`; then `make_task()`; PATCH `U` `{"enabled": true}` | 200 `enabled is False`; then 200 `enabled is True` |
+| `test_unlink` | `linked_trigger_repo` | DELETE `U`; GET `U` | 204; 404 |
 
 ## 4. `tests/test_project_pull_requests_and_tasks.py` (12 tests)
 
@@ -139,7 +138,7 @@ Fixtures: `client, admin_headers, project, global_trigger_repo, pr_trigger, inge
 
 ## 5. `tests/test_datasets.py` (10 tests)
 
-Fixtures: `client, admin_headers, project, other_project, lock_project, global_secret, global_dataset, linked_dataset, post_json_user_header`.
+Fixtures: `client, admin_headers, project, other_project, global_secret, global_dataset, linked_dataset, post_json_user_header`.
 `G = /global/datasets`; `U = /projects/<pid>/datasets/<D>`.
 
 | test | setup | request | assert |
@@ -148,12 +147,11 @@ Fixtures: `client, admin_headers, project, other_project, lock_project, global_s
 | `test_create_refuses_credentials_and_project` | `global_secret` | POST valid body plus `"username": "u"`; POST valid body plus `"project_id": 1` | 400; 400 |
 | `test_create_needs_secret_label` | | POST `{"name": "X", "host": "db", "port": 5432}` | 400 |
 | `test_list_and_get` | `global_dataset` | GET `G`; GET `G/<D>`; GET `G/999` | 200, `total == 1`, `items[0]["id"] == D`; 200 `name == "globalds"`; 404 |
-| `test_patch_needs_lock` | `linked_dataset` | PATCH `G/<D>` `{"host": "new"}` | 409 |
-| `test_patch_and_delete_when_locked` | `linked_dataset`, `lock_project` | PATCH `G/<D>` `{"host": "new"}`; DELETE `G/<D>` | **202** (not 200), `host == "new"`; 204 |
+| `test_patch_and_delete` | `linked_dataset` | PATCH `G/<D>` `{"host": "new"}`; DELETE `G/<D>?force=true` | 200, `host == "new"`; 204 |
 | `test_link_and_list` | `global_dataset` | PUT `U` `{}`; GET `/projects/<pid>/datasets`; GET `U` | 201 `active is True`, `dataset["id"] == D`; list length 1; 200 |
 | `test_link_errors` | `global_dataset`, `other_project` | PUT `/projects/<pid>/datasets/999` `{}`; PUT `U` `{"bogus": 1}`; GET `/projects/<other_project.id>/datasets/<D>` | 404; 400; 404 |
 | `test_revoke_admin_only` | `linked_dataset` | PATCH `U` `{"revoked": true}` with `post_json_user_header`; then with `admin_headers` | 403; 200 `active is False` |
-| `test_disable_link_needs_lock_and_unlink` | `linked_dataset` | PATCH `U` `{"enabled": false}` (unlocked) -> 409; then set `project.locked = True`, commit; PATCH again -> 200 `active is False`; DELETE `U` -> 204 | as listed |
+| `test_disable_link_and_unlink` | `linked_dataset` | PATCH `U` `{"enabled": false}` -> 200 `active is False`; DELETE `U` -> 204 | as listed |
 
 ## 6. `tests/test_secrets.py` (10 tests)
 
@@ -171,28 +169,28 @@ Body helper: `NEW = {"label": "new-creds", "provider": "K8S", "values": {"TOKEN"
 | `test_delete_in_use_conflicts` | `global_trigger_repo` (uses test-creds) | DELETE `G/test-creds` | 409 |
 | `test_delete` | `k8s_client`; POST `NEW` | DELETE `G/new-creds`; GET `G/new-creds` | 204, `k8s_client["delete_namespaced_secret_mock"].called`; 404 |
 | `test_link_and_get` | `global_secret` | PUT `/projects/<pid>/secrets/test-creds` `{}`; GET same; GET `/projects/<pid>/secrets` | 201 `active is True`, `secret["label"] == "test-creds"`; 200; list length 1 |
-| `test_link_errors` | `linked_secret`, `other_project` | PUT `/projects/<pid>/secrets/nope` `{}`; PUT `/projects/<pid>/secrets/test-creds` `{}` again (unlocked); GET `/projects/<other_project.id>/secrets/test-creds` | 404; 409; 404 |
-| `test_revoke_and_unlink` | `linked_secret` | PATCH `U` `{"revoked": true}` with `post_json_user_header` -> 403; with `admin_headers` -> 200 `active is False`; DELETE `U` (unlocked) -> 409; set `project.locked = True`, commit; DELETE `U` -> 204 | as listed |
+| `test_link_errors` | `linked_secret`, `other_project` | PUT `/projects/<pid>/secrets/nope` `{}`; PUT `/projects/<pid>/secrets/test-creds` `{}` again; GET `/projects/<other_project.id>/secrets/test-creds` | 404; 200; 404 |
+| `test_revoke_and_unlink` | `linked_secret` | PATCH `U` `{"revoked": true}` with `post_json_user_header` -> 403; with `admin_headers` -> 200 `active is False`; DELETE `U` -> 204 | as listed |
 
 ## 7. `tests/test_results.py` (11 tests)
 
-Fixtures: `client, admin_headers, project, other_project, lock_project, global_secret, global_results_repo, make_results_repo, linked_results_repo, make_task, global_trigger_repo`.
+Fixtures: `client, admin_headers, project, other_project, disabled_project, global_secret, global_results_repo, make_results_repo, linked_results_repo, make_task, global_trigger_repo`.
 `G = /global/repositories/results`; `U = /projects/<pid>/repositories/results/<R>`; `RES = /projects/<pid>/results`.
-**Trap:** the results-repository PUT needs the project locked even for the first link (409 otherwise). `linked_results_repo` handles that and unlocks after. Call `make_task()` AFTER the link exists (a PENDING task blocks lock-gated calls).
+**Trap:** the results-repository PUT needs the project disabled even for the first link (409 otherwise). `linked_results_repo` handles that and enables the project again after.
 
 | test | setup | request | assert |
 |---|---|---|---|
 | `test_create_global` | `global_secret` | POST `G` `{"uri": "github.com/org/r2", "provider": "github", "secret_label": "test-creds"}`; same again; POST with extra `"target_dir": "x"` and uri `github.com/org/r3` | 201 `uri == "github.com/org/r2"`; 409; 400 |
 | `test_get_global_and_404` | `global_results_repo` | GET `G/<R>`; GET `G/999` | 200; 404 |
-| `test_link_needs_lock` | `project`, `global_results_repo` | PUT `U` `{"target_dir": "results"}` | 409 |
-| `test_link_locked` | `lock_project`, `global_results_repo` | PUT `U` `{"target_dir": "results"}`; PUT `U` `{"target_dir": "out"}`; GET `/projects/<pid>/repositories/results` | 201; 200 `target_dir == "out"`; list length 1 |
-| `test_second_results_repo_conflicts` | `lock_project`; PUT `U` (201); `other = make_results_repo(uri="github.com/org/other")` | PUT `/projects/<pid>/repositories/results/<other.id>` `{"target_dir": "r"}` | 409 |
-| `test_link_into_watched_dir_refused` | `lock_project`; PUT `/projects/<pid>/repositories/triggers/<T>` `{"watch_dir": "triggers"}` (201); `loop = make_results_repo(uri="github.com/org/triggers")` | PUT `/projects/<pid>/repositories/results/<loop.id>` `{"target_dir": "triggers/out"}` | 400, `"overlap"` in `error` |
+| `test_link_needs_a_disabled_project` | `project`, `global_results_repo` | PUT `U` `{"target_dir": "results"}` | 409, `error` says the project must be disabled |
+| `test_link_disabled_project` | `disabled_project`, `global_results_repo` | PUT `U` `{"target_dir": "results"}`; PUT `U` `{"target_dir": "out"}`; GET `/projects/<pid>/repositories/results` | 201; 200 `target_dir == "out"`; list length 1 |
+| `test_second_results_repo_conflicts` | `disabled_project`; PUT `U` (201); `other = make_results_repo(uri="github.com/org/other")` | PUT `/projects/<pid>/repositories/results/<other.id>` `{"target_dir": "r"}` | 409 |
+| `test_link_into_watched_dir_refused` | `disabled_project`; PUT `/projects/<pid>/repositories/triggers/<T>` `{"watch_dir": "triggers"}` (201); `loop = make_results_repo(uri="github.com/org/triggers")` | PUT `/projects/<pid>/repositories/results/<loop.id>` `{"target_dir": "triggers/out"}` | 400, `"overlap"` in `error` |
 | `test_post_result` | `linked_results_repo`; `task = make_task()` | POST `RES` `{"task_id": task.id, "results_repository_id": R}`; same again | 201 `step == "UNKNOWN"`, `state == "IN_PROGRESS"`, `results_repository_id == R`, `type == "PR"`; 200 same `id` |
 | `test_post_result_errors` | `linked_results_repo`; `task = make_task()` | (a) `results_repository_id: 999`; (b) `task_id: 999`; (c) `task_id: "x"`; (d) same valid body to `/projects/<other_project.id>/results` | (a) **400** (unlinked repo is 400, not 404); (b) 404; (c) 400; (d) 404 |
 | `test_patch_result` | post a result -> `rid` | PATCH `RES/<rid>` `{"step": "OPENED", "number": 5, "url": "https://x/pull/5"}`; PATCH `{"step": "PUSHED"}`; PATCH `{"bogus": 1}` | 200 `step == "OPENED"`, `number == 5`; 400 (step only moves forward); 400 |
 | `test_results_by_step_and_cross_project` | post + PATCH to `OPENED` -> `rid` | GET `RES?step=OPENED`; GET `RES?step=PUSHED`; GET `RES?step=NOPE`; PATCH `/projects/<other_project.id>/results/<rid>` `{"step": "MERGED"}` | len 1; len 0; 400; 404 |
-| `test_revoke_and_unlink_results_repo` | `linked_results_repo` | PATCH `U` `{"revoked": true}` (admin) -> 200 `active is False`; set `project.locked = True`, commit; DELETE `U` -> 204 | as listed |
+| `test_revoke_and_unlink_results_repo` | `linked_results_repo` | PATCH `U` `{"revoked": true}` (admin) -> 200 `active is False`; DELETE `U` -> 204 | as listed |
 
 ## 8. `tests/test_healthchecks.py` (9 tests)
 
@@ -217,7 +215,7 @@ A failed check is still **200**; the failure is in the body.
 
 ## 9. `tests/test_e2e_flow.py` (1 test)
 
-Fixtures: `client, admin_headers, k8s_client, project, make_pr_batch, spec_raw`. Do NOT use the global_*/linked_* fixtures; everything goes through the API. Assert every step's status code (`assert r.status_code == X, r.json`).
+Fixtures: `client, admin_headers, k8s_client, disabled_project, make_pr_batch, spec_raw`. Do NOT use the global_*/linked_* fixtures; everything goes through the API. Assert every step's status code (`assert r.status_code == X, r.json`).
 
 `test_full_flow`, steps in this exact order:
 
@@ -228,9 +226,9 @@ Fixtures: `client, admin_headers, k8s_client, project, make_pr_batch, spec_raw`.
 5. PUT `/projects/<pid>/secrets/e2e-creds` `{}` -> 201.
 6. PUT `/projects/<pid>/datasets/<D>` `{}` -> 201.
 7. PUT `/projects/<pid>/repositories/triggers/<T>` `{"watch_dir": "triggers"}` -> 201.
-8. PATCH `/projects/<pid>` `{"locked": true}` -> 200.
+8. (nothing: the project is already disabled, as a new one is)
 9. PUT `/projects/<pid>/repositories/results/<R>` `{"target_dir": "results"}` -> 201.
-10. PATCH `/projects/<pid>` `{"enabled": true, "locked": false}` -> 200, `enabled is True`, `locked is False`.
+10. PATCH `/projects/<pid>` `{"enabled": true}` -> 200, `enabled is True`.
 11. GET `/global/repositories/triggers?active_link=true` -> 200, ids == `[T]`.
 12. `batch = make_pr_batch(1, 2)`; `batch["pull_requests"] += make_pr_batch(3, base_branch="dev")["pull_requests"]`; POST `/global/repositories/triggers/<T>/pull_requests` batch -> 201, `created == [1, 2, 3]`.
 13. GET `/projects/<pid>/repositories/triggers/<T>/pull_requests` -> `total == 3`; states by number: `{1: "UNKNOWN", 2: "UNKNOWN", 3: "IGNORED"}`.

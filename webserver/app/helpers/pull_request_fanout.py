@@ -8,8 +8,9 @@ the repository gets a trigger for each one it should evaluate (ADR 0019).
   (active, and their project enabled).
 - `skip_gap` moves the assignments' cursor to now when they become active again (a link enabled
   or un-revoked; its project, repository or provider switched back on),
-  so what was merged while they were inactive is stored but gets no trigger. A backfill option
-  may come later.
+  so what was merged while they were inactive is stored but gets no trigger.
+- `backfill` is the other choice when a project is enabled: the cursor stays and the triggers
+  the project missed while it was disabled are created.
 
 Triggers are created through `create_triggers`, so a pair (assignment, pull request) gets one
 trigger; the unique constraint settles a race.
@@ -156,6 +157,15 @@ def fan_out(pull_requests: list[PullRequest], assignments: list[ProjectTriggerRe
     """Creates the triggers of newly stored pull requests for the given active assignments."""
     ids = [pr.id for pr in pull_requests]
     return sum(create_triggers(assignment, ids) for assignment in assignments)
+
+
+def backfill(assignments: list[ProjectTriggerRepository]) -> int:
+    """
+    Creates the triggers the assignments missed while their project was disabled, for the
+    ones that accept triggers now, and returns how many. The cursor is not moved, so what
+    was merged before it stays without a trigger. Leaves the commit to the caller.
+    """
+    return sum(create_triggers(assignment) for assignment in assignments if assignment.accepts_triggers)
 
 
 def skip_gap(assignments: list[ProjectTriggerRepository]) -> None:

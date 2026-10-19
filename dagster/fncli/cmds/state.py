@@ -1,6 +1,6 @@
 """
 Commands for the end-to-end QA plan (project/handover/e2e-qa-plan.md): look at the test project's state, and change the
-state the webserver's rules act on (project enabled and locked, a link's enabled and revoked, a global resource's enabled),
+state the webserver's rules act on (project enabled, a link's enabled and revoked, a global resource's enabled),
 plus a second project on the same global resources. Every write prints the HTTP status and body; `--expect STATUS` asserts
 the status, which is how the plan checks the 409 rules. Without it a status of 400 or more is a failure.
 """
@@ -150,14 +150,14 @@ def snapshot(api: FncliBackendAPI, name: str) -> dict:
     }
 
 
-def set_project(api: FncliBackendAPI, name: str, enabled: str | None, locked: str | None, expect: int | None) -> int:
+def set_project(api: FncliBackendAPI, name: str, enabled: str | None, backfill: bool, expect: int | None) -> int:
     data = {}
     if enabled is not None:
         data["enabled"] = enabled == "true"
-    if locked is not None:
-        data["locked"] = locked == "true"
+    if backfill:
+        data["backfill"] = True
     if not data:
-        raise click.UsageError("Give --enabled and/or --locked")
+        raise click.UsageError("Give --enabled and/or --backfill")
     project = find_project(api, name)
     return report(call(api, "PATCH", f"/projects/{project.id}", json=data), expect)
 
@@ -194,7 +194,7 @@ def set_global(api: FncliBackendAPI, name: str, kind: str, enabled: str, expect:
 
 
 def setup_second_project(api: FncliBackendAPI, config: ProjectConfig, name: str) -> int:
-    """A second project linked to the SAME global resources, in the order the webserver's lock rules need."""
+    """A second project linked to the SAME global resources: created disabled, linked, then enabled."""
     first = find_project(api, config.project_name)
     found = project_links(api, first.id)
     created = call(api, "POST", "/projects", json={"name": name})
@@ -208,12 +208,11 @@ def setup_second_project(api: FncliBackendAPI, config: ProjectConfig, name: str)
          {"watch_dir": link["watch_dir"], "base_branch": link["base_branch"]})
         for link in found["trigger"]
     ]
-    steps.append(("PATCH", f"/projects/{pid}", {"locked": True}))  # the results link needs the lock
     steps += [
         ("PUT", link_path("results", pid, link["results_repository"]["id"]), {"target_dir": link["target_dir"]})
         for link in found["results"]
     ]
-    steps.append(("PATCH", f"/projects/{pid}", {"enabled": True, "locked": False}))
+    steps.append(("PATCH", f"/projects/{pid}", {"enabled": True}))
     for method, path, data in steps:
         response = call(api, method, path, json=data)
         click.echo(f"{method} {path} -> {response.status_code}")
@@ -227,7 +226,6 @@ def setup_second_project(api: FncliBackendAPI, config: ProjectConfig, name: str)
 
 def teardown_second_project(api: FncliBackendAPI, name: str, expect: int | None) -> int:
     project = find_project(api, name)
-    call(api, "PATCH", f"/projects/{project.id}", json={"locked": True})
     return report(call(api, "DELETE", f"/projects/{project.id}"), expect)
 
 
@@ -255,13 +253,16 @@ def project_show_command(project):
 
 @click.command("project-set")
 @click.option("--enabled", type=BOOL, default=None)
-@click.option("--locked", type=BOOL, default=None)
+@click.option(
+    "--backfill", is_flag=True, default=False,
+    help="With --enabled true on a disabled project: create the triggers of the pull requests stored while it was off, instead of skipping them.",
+)
 @project_option
 @expect_option
-def project_set_command(enabled, locked, project, expect):
-    """Set the project's enabled and/or locked flag."""
+def project_set_command(enabled, backfill, project, expect):
+    """Enable or disable the project. Enabling skips what was merged while it was off, unless --backfill."""
     config = ProjectConfig()
-    finish(set_project(build_backend_api(config), project or config.project_name, enabled, locked, expect))
+    finish(set_project(build_backend_api(config), project or config.project_name, enabled, backfill, expect))
 
 
 @click.command("link-set")
@@ -303,7 +304,7 @@ def second_project_setup_command(name):
 @click.argument("name")
 @expect_option
 def second_project_teardown_command(name, expect):
-    """Lock and delete a project. The global resources it linked stay."""
+    """Delete a project. The global resources it linked stay."""
     config = ProjectConfig()
     finish(teardown_second_project(build_backend_api(config), name, expect))
 

@@ -12,9 +12,9 @@ ACTIONS (rules)
   evaluate_one()              what the evaluate sensor does: create the task of an UNKNOWN trigger (201 if the link is active, else 409)
   progress_task()             a task moves PENDING -> QUEUED -> RUNNING -> SUCCESS or FAILED (the run-status sensors)
   finished_task_is_final()    a finished task cannot change to another status (409)
-  set_locked(v)               lock or unlock the project: always allowed
-  set_link_enabled(v)         turn the link on or off: always 200, no lock or drain needed
-  set_project_enabled(v)      turn the project on or off: always 200; off -> on skips the gap (M7)
+  set_link_enabled(v)         turn the link on or off: always 200, no drain needed
+  set_project_enabled(v, b)   turn the project on or off: always 200; off -> on skips the gap (M7), or with backfill creates the missed triggers (M8)
+  refused_backfill(v)         backfill with anything but "enabled": true on a disabled project is refused (400, M8)
   set_link_revoked(v)         revoke or re-grant the link: always 200, takes effect at once
   set_global_enabled(v)       turn the global repository on or off: always 200; off -> on skips the gap (M6)
 
@@ -29,12 +29,14 @@ THE MODEL'S RULES (to review; each one is a decision, not just a description of 
   M2  NO REPLAY: whenever the LINK becomes active again (link enabled, link re-granted), its cursor moves to now, as in M6: every
       PR that exists at that moment is stored but never gets a trigger; PRs merged after it do.
   M3  An inactive link refuses to create a task (409) and the trigger stays UNKNOWN.
-  M4  Changing an enabled flag (the link's, the repository's or the project's) needs neither the lock nor a drain: it is always 200.
-  M5  Revoking needs neither the lock nor draining.
+  M4  Changing an enabled flag (the link's, the repository's or the project's) needs no drain: it is always 200.
+  M5  Revoking needs no draining.
   M6  A disabled global repository refuses new PRs entirely (the sensor fetches them again once it is back on, the ingest cursor
       being the newest stored PR). Switching it back on moves the link's cursor to now: every PR that exists at that moment is still
       stored when ingested but never gets a trigger (not at ingest, not by a backfill); PRs merged after it do.
   M7  A disabled project gets no trigger for the PRs stored meanwhile. Switching it back on moves the cursor of its links to now, as in M6.
+  M8  Switching a disabled project on with "backfill": true leaves the cursor where it is and gives its active links a trigger for every
+      stored PR that matches, is after the cursor and has none yet. "backfill" with anything else is a 400 and changes nothing.
 """
 
 import json
@@ -102,7 +104,6 @@ class TriggerLinkMachine(RuleBasedStateMachine):
 
         # The model, started from what the API reports: only the facts, not the rules, are read back
         project_json = self.call("get", f"/projects/{self.project_id}").json
-        self.locked = project_json["locked"]
         self.link_enabled = link.json["enabled"]
         self.link_revoked = link.json["revoked"]
         self.project_enabled = project_json["enabled"]
@@ -197,12 +198,7 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         # The same status again is allowed, a different one is refused
         assert response.status_code == (200 if status == self.tasks[task_id] else 409), response.json
 
-    # ----------------------------------------------------------------------------- the lock and the flags
-
-    @rule(value=st.booleans())
-    def set_locked(self, value):
-        assert self.call("patch", f"/projects/{self.project_id}", {"locked": value}).status_code == 200
-        self.locked = value
+    # ----------------------------------------------------------------------------- the flags
 
     @rule(value=st.booleans())
     def set_link_enabled(self, value):  # M4
@@ -213,15 +209,30 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         self.link_enabled = value
         self.skip_gap_if_activated(was)
 
-    @rule(value=st.booleans())
-    def set_project_enabled(self, value):  # M4, and M7 when it is switched back on
+    @rule(value=st.booleans(), backfill=st.sampled_from([None, False, True]))
+    def set_project_enabled(self, value, backfill):  # M4, and M7 or M8 when it is switched back on
         switched_on = value and not self.project_enabled
+        body = {"enabled": value}
+        if switched_on and backfill is not None:
+            body["backfill"] = backfill
         self.tick += 1
-        response = self.call("patch", f"/projects/{self.project_id}", {"enabled": value})
+        response = self.call("patch", f"/projects/{self.project_id}", body)
         assert response.status_code == 200, response.json
         self.project_enabled = value
-        if switched_on:
+        if switched_on and backfill:  # M8
+            if self.link_active:
+                for number, matching in self.stored.items():
+                    if matching and number > self.skip_before and number not in self.triggers:
+                        self.triggers[number] = "UNKNOWN"
+        elif switched_on:
             self.skip_before = len(self.provider)
+
+    @rule(enabled=st.sampled_from([None, False, True]))
+    def refused_backfill(self, enabled):  # M8
+        if enabled and not self.project_enabled:
+            return  # that is set_project_enabled
+        body = {"backfill": True} if enabled is None else {"enabled": enabled, "backfill": True}
+        assert self.call("patch", f"/projects/{self.project_id}", body).status_code == 400
 
     @rule(value=st.booleans())
     def set_link_revoked(self, value):  # M5

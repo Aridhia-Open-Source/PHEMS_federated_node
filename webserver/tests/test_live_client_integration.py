@@ -133,9 +133,8 @@ def world(api, raw):
     results = api.create_results_repository(provider.id, "org/live-results", "live-creds")
     link_ds = api.get_or_assign_dataset(project.id, dataset)
     link_trigger = api.get_or_assign_repository(project.id, trigger, "triggers", "main")
-    api.patch_project(project.id, {"locked": True})
     link_results = api.get_or_assign_results_repository(project.id, results, "results")
-    project = api.patch_project(project.id, {"enabled": True, "locked": False})
+    project = api.patch_project(project.id, {"enabled": True})
     return dict(
         secret=secret, project=project, dataset=dataset, provider=provider, trigger=trigger, results=results,
         link_ds=link_ds, link_trigger=link_trigger, link_results=link_results,
@@ -251,10 +250,6 @@ def test_fncli_project_trigger_links_and_prs(api, raw, world):
     assert patched.state == fn_models.TriggerState.REJECTED and patched.state_cause == "bad"
     assert [p.number for p in api.get_pull_requests(pid, tid, state="REJECTED")] == [1]
 
-    with pytest.raises(requests.HTTPError) as exc:  # disabling a link needs the project locked
-        api.patch_project_trigger_repository(pid, tid, {"enabled": False})
-    assert exc.value.response.status_code == 409
-    api.patch_project(pid, {"locked": True})
     link = api.patch_project_trigger_repository(pid, tid, {"enabled": False})
     assert link.enabled is False and link.active is False
     assert api.get_project_trigger_repository(pid, tid).pr_count == 101
@@ -305,7 +300,6 @@ def test_fncli_errors(api, world):
 def test_fncli_deletes(api, world):
     w = world
     pid = w["project"].id
-    api.patch_project(pid, {"locked": True})
     api.delete_dataset(w["dataset"].id)
     api.delete_repository(w["trigger"].id)
     with pytest.raises(requests.HTTPError) as exc:
@@ -385,7 +379,6 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
     repo = d.create_repository(world["provider"].id, "org/dag-triggers", "live-creds")
     link = d.assign_repository(pid, repo.id, "dag", "main")
     assert link.watch_dir == "dag" and link.trigger_repository.id == repo.id
-    api.patch_project(pid, {"locked": True})
     api.patch_project_trigger_repository(pid, tid, {"enabled": False})
     assert [l.trigger_repository.id for l in d.get_project_trigger_repositories(pid, active=True)] == [repo.id]
     d.delete_dataset(ds.id)
@@ -441,8 +434,8 @@ def test_fncli_state_commands_against_the_real_routes(api, raw, world):
     task = raw.ok("POST", f"/projects/{pid}/repositories/triggers/{tid}/pull_requests/1/task", 201,
                   json={"spec_raw": SPEC_RAW})
     raw.ok("PATCH", f"/projects/{pid}/tasks/{task['id']}", 200, json={"status": "SUCCESS"})
-    result = raw.ok("POST", f"/projects/{pid}/results", 201,
-                    json={"task_id": task["id"], "results_repository_id": w["results"].id})
+    raw.ok("POST", f"/projects/{pid}/results", 201,
+           json={"task_id": task["id"], "results_repository_id": w["results"].id})
 
     snap = state.snapshot(api, name)
     assert snap["project"]["id"] == pid
@@ -450,25 +443,23 @@ def test_fncli_state_commands_against_the_real_routes(api, raw, world):
     assert [t["status"] for t in snap["tasks"]] == ["SUCCESS"] and snap["results"][0]["step"] == "UNKNOWN"
     assert snap["results_links"][0]["target_dir"] == "results" and snap["secret_links"][0]["secret"] == "live-creds"
 
-    # revoke and un-revoke a link: immediate, no lock needed
+    # revoke and un-revoke a link: immediate
     assert state.set_link(api, name, "trigger", None, "true", 200) == 0
     assert state.snapshot(api, name)["trigger_links"][0]["active"] is False
     assert state.set_link(api, name, "trigger", None, "false", 200) == 0
     assert state.snapshot(api, name)["trigger_links"][0]["active"] is True
 
-    # a global resource cannot be disabled while a linking project is unlocked (409) ...
-    assert state.set_global(api, name, "trigger", "false", 409) == 0
-    # ... nor while its delivery is still in progress, even if the project is locked (409, "tasks in flight") ...
-    assert state.set_project(api, name, None, "true", 200) == 0
-    assert state.set_global(api, name, "trigger", "false", 409) == 0
-    # ... but can once the delivery is done
-    raw.ok("PATCH", f"/projects/{pid}/results/{result['id']}", 200,
-           json={"step": "OPENED", "state": "DELIVERED", "number": 1, "url": "https://x/pull/1"})
+    # a global resource can be disabled and enabled at once
     assert state.set_global(api, name, "trigger", "false", 200) == 0
     assert state.snapshot(api, name)["trigger_links"][0]["global_enabled"] is False
     assert state.set_global(api, name, "trigger", "true", 200) == 0
-    assert state.set_project(api, name, None, "false", 200) == 0
-    assert state.set_project(api, name, None, "false", 500) == 1  # --expect is checked, a mismatch is a failure
+
+    # the project: off and on, and --backfill only when switching a disabled project on
+    assert state.set_project(api, name, "false", False, 200) == 0
+    assert state.set_project(api, name, None, True, 400) == 0  # --backfill without --enabled true
+    assert state.set_project(api, name, "true", True, 200) == 0
+    assert state.set_project(api, name, "true", True, 400) == 0  # already enabled
+    assert state.set_project(api, name, "true", False, 500) == 1  # --expect is checked, a mismatch is a failure
 
     # a second project on the SAME global resources, then removed again (the global resources stay)
     assert state.setup_second_project(api, config, "QaTwo") == 0

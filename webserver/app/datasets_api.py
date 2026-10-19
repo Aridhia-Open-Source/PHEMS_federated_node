@@ -2,7 +2,7 @@
 datasets-related endpoints. Datasets are global: a project reaches one through its
 link, see projects_api (/projects/<id>/datasets). Creating, editing and deleting are
 admin-only. Deleting a dataset is a soft delete, refused with a 409 naming the projects it is linked to unless
-?force=true; no edit needs a lock:
+?force=true:
 - GET /global/datasets
 - POST /global/datasets
 - GET /global/datasets/id
@@ -133,7 +133,7 @@ def get_dataset(dataset_id: int):
 def revoke_dataset(dataset_id: int):
     """
     POST /global/datasets/id/revoke endpoint. Revokes every project's link to the dataset at
-    once, admin only, needing no lock. Returns the ids of the links. Un-revoking is per link.
+    once, admin only. Returns the ids of the links. Un-revoking is per link.
     """
     ds = Dataset.get_by_id(dataset_id)
     return revoke_links(ds.project_assignments), HTTPStatus.OK
@@ -158,8 +158,8 @@ def delete_dataset(dataset_id: int):
 @auth(scope='can_do_admin')
 def patch_dataset(dataset_id: int):
     """
-    PATCH /global/datasets/id endpoint. Edits an existing dataset with a given id. No edit needs a lock (the tasks created before
-    are pinned to the old setup and fail instead of running against the new one). Admin only. Returns 200. A disabled secret_label is a 400, unless it is the
+    PATCH /global/datasets/id endpoint. Edits an existing dataset with a given id. The tasks created before
+    are pinned to the old setup and fail instead of running against the new one. Admin only. Returns 200. A disabled secret_label is a 400, unless it is the
     one already in use.
     """
     ds = Dataset.get_by_id(dataset_id)

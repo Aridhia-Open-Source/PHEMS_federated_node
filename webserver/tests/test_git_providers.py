@@ -28,11 +28,6 @@ def assert_error(response, status):
     assert isinstance(response.json.get("error"), str) and response.json["error"]
 
 
-def set_locked(project, locked=True):
-    project.locked = locked
-    db.session.commit()
-
-
 def fake_response(status_code, body=None, reason="Reason"):
     response = MagicMock(status_code=status_code, ok=status_code < 400, reason=reason)
     response.json.return_value = body
@@ -128,11 +123,11 @@ def test_patch_to_a_taken_name_or_uri_is_409(client, admin_headers, git_provider
     assert client.patch(f"{PROV}/{other.id}", json={"name": other.name, "uri": other.uri}, headers=admin_headers).status_code == 200
 
 
-def test_patch_enabled_needs_no_lock_and_no_drain(client, admin_headers, project, git_provider, linked_trigger_repo):
+def test_patch_enabled_applies_at_once(client, admin_headers, project, git_provider, linked_trigger_repo):
     url = f"{PROV}/{git_provider.id}"
     assert client.patch(url, json={"name": "renamed"}, headers=admin_headers).status_code == 200
     assert client.patch(url, json={"api_uri": git_provider.api_uri}, headers=admin_headers).status_code == 200
-    assert client.patch(url, json={"enabled": False}, headers=admin_headers).json["enabled"] is False  # unlocked
+    assert client.patch(url, json={"enabled": False}, headers=admin_headers).json["enabled"] is False
 
 
 # ---------------------------------------------------------------- delete
@@ -160,7 +155,6 @@ def test_disabled_provider_makes_its_repositories_inactive(
         client, admin_headers, project, git_provider, linked_trigger_repo, linked_results_repo, global_trigger_repo,
         make_provider, make_trigger_repo):
     project.enabled = True
-    set_locked(project)
     T = global_trigger_repo.id
     elsewhere = make_trigger_repo(uri="git.example.com/org/elsewhere")  # a repository on another provider
     elsewhere_link = f"/projects/{project.id}/repositories/triggers/{elsewhere.id}"
@@ -209,7 +203,6 @@ def test_switching_a_provider_back_on_skips_the_gap(
             "changed_files": [{"path": "triggers/spec.json", "status": "added"}],
         }
 
-    set_locked(project)
     for enabled in (False, True):
         assert client.patch(f"{PROV}/{git_provider.id}", json={"enabled": enabled}, headers=admin_headers).status_code == 200
 

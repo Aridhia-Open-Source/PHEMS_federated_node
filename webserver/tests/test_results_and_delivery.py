@@ -28,8 +28,8 @@ def links(client, admin_headers, project):
     return client.get(f"/projects/{project.id}/repositories/results", headers=admin_headers).json
 
 
-def set_locked(project, locked=True):
-    project.locked = locked
+def set_enabled(project, enabled=True):
+    project.enabled = enabled
     db.session.commit()
 
 
@@ -40,10 +40,10 @@ def switch_link(project, enabled):
 
 
 def put_link(client, admin_headers, project, repo, target_dir="results"):
-    """Link a results repository (PUT needs the project locked); returns the response, project left unlocked."""
-    set_locked(project, True)
+    """Link a results repository (PUT needs the project disabled); returns the response, project left enabled."""
+    set_enabled(project, False)
     response = client.put(link_url(project, repo), json={"target_dir": target_dir}, headers=admin_headers)
-    set_locked(project, False)
+    set_enabled(project, True)
     return response
 
 
@@ -91,12 +91,20 @@ def test_global_results_repo_create_get(client, admin_headers, global_secret, gl
 # ---------------------------------------------------------------- link rules
 
 
-def test_link_needs_lock_then_relink_replaces_settings(client, admin_headers, project, global_results_repo):
-    url = link_url(project, global_results_repo)
-    assert client.put(url, json={"target_dir": "results"}, headers=admin_headers).status_code == 409  # not locked
+def test_linking_a_results_repository_to_an_enabled_project_is_409(client, admin_headers, project, global_results_repo):
+    response = client.put(link_url(project, global_results_repo), json={"target_dir": "results"}, headers=admin_headers)
+    assert response.status_code == 409
+    assert response.json["error"] == f"Project {project.id} must be disabled to link a results repository"
     assert links(client, admin_headers, project) == []
 
-    set_locked(project)
+
+def test_link_needs_a_disabled_project_then_relink_replaces_settings(
+        client, admin_headers, project, global_results_repo):
+    url = link_url(project, global_results_repo)
+    assert client.put(url, json={"target_dir": "results"}, headers=admin_headers).status_code == 409  # enabled
+    assert links(client, admin_headers, project) == []
+
+    set_enabled(project, False)
     response = client.put(url, json={"target_dir": "a", "owned_by_federated_node": False}, headers=admin_headers)
     assert response.status_code == 201 and response.json["project_id"] == project.id
 
@@ -107,10 +115,10 @@ def test_link_needs_lock_then_relink_replaces_settings(client, admin_headers, pr
     assert len(links(client, admin_headers, project)) == 1
 
 
-def test_relink_target_dir_and_disabling_need_no_lock_and_no_drain(
+def test_relink_target_dir_and_disabling_work_on_an_enabled_project_with_a_task_in_flight(
     client, admin_headers, project, global_results_repo, linked_results_repo, make_task
 ):
-    make_task()  # a pending task, and the project is unlocked
+    make_task()  # a pending task
     url = link_url(project, global_results_repo)
     # the task is pinned to the old target_dir instead
     assert client.put(url, json={"target_dir": "x", "enabled": False}, headers=admin_headers).status_code == 200
@@ -129,8 +137,8 @@ def test_one_results_repo_per_project_but_repo_shared(
     assert put_link(client, admin_headers, other_project, global_results_repo, "o").status_code == 201
 
 
-def test_link_target_dir_validation(client, admin_headers, lock_project, global_results_repo):
-    url = link_url(lock_project, global_results_repo)
+def test_link_target_dir_validation(client, admin_headers, disabled_project, global_results_repo):
+    url = link_url(disabled_project, global_results_repo)
     bad_bodies = [
         {}, {"target_dir": ""}, {"target_dir": None},  # empty
         {"target_dir": "/"}, {"target_dir": "./."},  # normalises to empty
@@ -141,16 +149,16 @@ def test_link_target_dir_validation(client, admin_headers, lock_project, global_
     ]
     for body in bad_bodies:
         assert client.put(url, json=body, headers=admin_headers).status_code == 400, body
-    assert links(client, admin_headers, lock_project) == []
+    assert links(client, admin_headers, disabled_project) == []
 
-    assert client.put(f"/projects/{lock_project.id}/repositories/results/999", json={"target_dir": "r"},
+    assert client.put(f"/projects/{disabled_project.id}/repositories/results/999", json={"target_dir": "r"},
                       headers=admin_headers).status_code == 404
     assert client.put(f"/projects/999/repositories/results/{global_results_repo.id}", json={"target_dir": "r"},
                       headers=admin_headers).status_code == 404
 
 
-def test_link_target_dir_normalised_and_never_absolute(client, admin_headers, lock_project, global_results_repo):
-    url = link_url(lock_project, global_results_repo)
+def test_link_target_dir_normalised_and_never_absolute(client, admin_headers, disabled_project, global_results_repo):
+    url = link_url(disabled_project, global_results_repo)
     response = client.put(url, json={"target_dir": "/etc/out/"}, headers=admin_headers)
     assert response.status_code == 201 and response.json["target_dir"] == "etc/out"
     response = client.put(url, json={"target_dir": "./a//b/./c/"}, headers=admin_headers)
@@ -160,7 +168,6 @@ def test_link_target_dir_normalised_and_never_absolute(client, admin_headers, lo
 
 def test_patch_link_settings(client, admin_headers, project, global_results_repo, linked_results_repo):
     url = link_url(project, global_results_repo)
-    set_locked(project)
     response = client.patch(url, json={"target_dir": "/new//dir/"}, headers=admin_headers)
     assert response.status_code == 200 and response.json["target_dir"] == "new/dir"
     for body in ({"target_dir": "../up"}, {"target_dir": ""}, {"bogus": 1}, {}, {"enabled": "no"}):
@@ -172,27 +179,27 @@ def test_patch_link_settings(client, admin_headers, project, global_results_repo
 
 
 def test_results_dir_inside_watched_dir_refused(
-    client, admin_headers, lock_project, make_trigger_repo, make_results_repo
+    client, admin_headers, disabled_project, make_trigger_repo, make_results_repo
 ):
     """A results target_dir that overlaps a watched dir of the same git repository would loop."""
     trigger = make_trigger_repo(uri="github.com/org/shared")
     results = make_results_repo(uri="github.com/org/shared")
-    assert client.put(trigger_url(lock_project, trigger), json={"watch_dir": "/triggers/in/"},
+    assert client.put(trigger_url(disabled_project, trigger), json={"watch_dir": "/triggers/in/"},
                       headers=admin_headers).status_code == 201
 
     for target in ("triggers/in/out", "triggers/in", "triggers", "./triggers//in/x"):  # inside, equal, parent, unnormalised
-        response = client.put(link_url(lock_project, results), json={"target_dir": target}, headers=admin_headers)
+        response = client.put(link_url(disabled_project, results), json={"target_dir": target}, headers=admin_headers)
         assert response.status_code == 400, target
         assert "overlap" in response.json["error"]
-    assert links(client, admin_headers, lock_project) == []
+    assert links(client, admin_headers, disabled_project) == []
 
-    response = client.put(link_url(lock_project, results), json={"target_dir": "triggers/out"}, headers=admin_headers)
+    response = client.put(link_url(disabled_project, results), json={"target_dir": "triggers/out"}, headers=admin_headers)
     assert response.status_code == 201  # a sibling dir is fine
 
     # PATCHing the target_dir into the watched dir is refused and rolled back
-    assert client.patch(link_url(lock_project, results), json={"target_dir": "triggers/in/x"},
+    assert client.patch(link_url(disabled_project, results), json={"target_dir": "triggers/in/x"},
                         headers=admin_headers).status_code == 400
-    assert client.get(link_url(lock_project, results), headers=admin_headers).json["target_dir"] == "triggers/out"
+    assert client.get(link_url(disabled_project, results), headers=admin_headers).json["target_dir"] == "triggers/out"
 
 
 def test_watch_dir_over_results_dir_refused_and_other_repo_or_project(
@@ -203,7 +210,6 @@ def test_watch_dir_over_results_dir_refused_and_other_repo_or_project(
     elsewhere = make_trigger_repo(uri="github.com/org/elsewhere")
     assert put_link(client, admin_headers, project, results, "out/data").status_code == 201
 
-    set_locked(project)
     for watch in ("out", "out/data", "out/data/sub"):
         assert client.put(trigger_url(project, trigger), json={"watch_dir": watch},
                           headers=admin_headers).status_code == 400, watch
@@ -233,11 +239,11 @@ def test_revoked_link_listed_inactive_and_other_project_cannot_touch(
             client.delete(other, headers=admin_headers).status_code] == [404, 404, 404]
 
 
-def test_unlink_needs_no_lock_then_another_repo_can_be_linked(
+def test_unlink_then_another_repo_can_be_linked(
     client, admin_headers, project, global_results_repo, linked_results_repo, make_results_repo
 ):
     url = link_url(project, global_results_repo)
-    assert client.delete(url, headers=admin_headers).status_code == 204  # not locked
+    assert client.delete(url, headers=admin_headers).status_code == 204
     assert client.get(url, headers=admin_headers).status_code == 404
     assert client.delete(url, headers=admin_headers).status_code == 404
     assert links(client, admin_headers, project) == []

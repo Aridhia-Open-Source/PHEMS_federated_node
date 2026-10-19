@@ -15,14 +15,14 @@ logger = logging.getLogger("project")
 
 
 def init_backend_project(config: ProjectConfig, backend_api: FncliBackendAPI) -> Project:
-    """The simulation needs sensors to act on this project, so make sure it is enabled."""
+    """
+    Find or create the project, disabled when new: a results repository can only be linked to a
+    disabled project. Enable it once its links are set up (project-set --enabled true).
+    """
     project = backend_api.get_or_create_project(
         name=config.project_name,
         description="Trigger-repository simulation",
-        enabled=True,
     )
-    if not project.enabled:
-        project = backend_api.patch_project(project.id, {"enabled": True})
     logger.info(f"Backend project: {project.name} (id {project.id}, enabled {project.enabled})")
     return project
 
@@ -37,7 +37,7 @@ def find_project(config: ProjectConfig, backend_api: FncliBackendAPI) -> Project
 
 @click.command("init-backend-project")
 def init_backend_project_command():
-    """Find or create the test project in the backend, and enable it."""
+    """Find or create the test project in the backend, disabled when new."""
     config = ProjectConfig()
     init_backend_project(config, build_backend_api(config))
 

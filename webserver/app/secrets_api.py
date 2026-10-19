@@ -186,7 +186,7 @@ def patch_secret(label):
     """
     PATCH /global/secrets/<label> — set keys on the stored secret, e.g. to rotate a token, and/or turn
     it on or off (enabled). Every repository and dataset that references it, in any project, picks
-    the new values up. Neither needs the project lock.
+    the new values up.
     Body: {"values": {"KEY": "value", ...}, "enabled": true}, any of them.
     """
     secret = _get_secret(label)
@@ -219,7 +219,7 @@ def patch_secret(label):
 def revoke_secret(label):
     """
     POST /global/secrets/<label>/revoke — revokes every project's link to the secret at once,
-    admin only, needing no lock. Returns the ids of the links. Un-revoking is per link.
+    admin only. Returns the ids of the links. Un-revoking is per link.
     """
     secret = _get_secret(label)
     return revoke_links(secret.project_assignments), HTTPStatus.OK

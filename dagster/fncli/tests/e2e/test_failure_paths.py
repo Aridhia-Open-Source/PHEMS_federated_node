@@ -4,9 +4,8 @@ the happy path: one test per fncli command or expected state, in order, on one p
 the first failure with the last snapshot. The scenarios run in the plan's order and each leaves the
 project as the next expects it: links active, tokens restored.
 
-Not here: S7, S8, S9 and S16 (the lock and drained rules, a disabled global repository, the results link revoked
-mid-task). They depend on the lock and on catching a task in flight, and are covered by the webserver and Dagster
-unit tests. S14 is the teardown and the setup at the two ends; S15 (known gaps) is not automated.
+Not here: S7, S8, S9 and S16 (the old project rules, a disabled global repository, the results link revoked
+mid-task). They depend on catching a task in flight, and are covered by the webserver and Dagster unit tests. S14 is the teardown and the setup at the two ends; S15 (known gaps) is not automated.
 
 The "nothing happens" checks wait a few sensor ticks (5 ticks of the 1 s interval the suite sets; E2E_KEEP_INTERVAL=1 leaves the cluster's own). The project is cleared at the start of the run, and kept
 afterwards unless E2E_TEARDOWN=1.
@@ -65,7 +64,7 @@ SENSOR_INTERVAL = 1  # seconds: the "nothing happens" checks then take QUIET_TIC
 QUIET_TICKS = 5
 TASK_TIMEOUT = int(os.environ.get("E2E_TASK_TIMEOUT", 600))  # a task that fails to start can sit in a pull back-off
 STEP_TIMEOUT = 300
-# A task that has not finished, and a result that is still being delivered, block lock-gated changes
+# A task that has not finished, and a result that is still being delivered, are work in flight
 UNFINISHED_TASK = ["PENDING", "QUEUED", "RUNNING"]
 SECOND_PROJECT = "QaTwo"
 DELIVERED = ["OPENED", "MERGED"]
@@ -567,7 +566,7 @@ def test_s17_task_is_created_and_waits_unlaunched(fncli, flow):
 
 def test_s17_change_the_target_dir(fncli, flow):
     flow["s17_original_dir"] = fncli.snapshot()["results_links"][0]["target_dir"]
-    fncli.call(link_set_command, kind="results", target_dir="changed-by-s17/", expect=200)  # no lock needed any more
+    fncli.call(link_set_command, kind="results", target_dir="changed-by-s17/", expect=200)
 
 
 def test_s17_start_launcher(fncli):

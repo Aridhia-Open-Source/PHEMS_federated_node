@@ -64,8 +64,8 @@ def global_total(client, headers, repo_id) -> int:
     return client.get(f"/global/repositories/triggers/{repo_id}/pull_requests", headers=headers).json["total"]
 
 
-def set_locked(project, locked=True):
-    project.locked = locked
+def set_enabled(project, enabled=True):
+    project.enabled = enabled
     db.session.commit()
 
 
@@ -187,7 +187,6 @@ def test_cursor_rule_link_first_then_ingest(client, admin_headers, project, glob
     assert states(client, admin_headers, project.id, T) == {6: "UNKNOWN", 8: "UNKNOWN"}
 
     # a relink PUT neither replays nor moves the cursor
-    set_locked(project)
     before = client.get(link_url(project.id, T), headers=admin_headers).json
     again = link(client, admin_headers, project.id, T)
     assert again.status_code == 200
@@ -223,7 +222,6 @@ def test_unrevoke_skips_the_gap(client, admin_headers, project, global_trigger_r
 
 def test_enabling_a_link_skips_the_gap(client, admin_headers, project, global_trigger_repo):
     T = global_trigger_repo.id
-    set_locked(project)
     link(client, admin_headers, project.id, T, enabled=False)
     post_prs(client, admin_headers, T, pr(1, merged_at=merged_hours_from_now(-1)))
     assert states(client, admin_headers, project.id, T) == {}
@@ -248,6 +246,66 @@ def test_a_disabled_project_gets_no_trigger_and_enabling_it_skips_the_gap(
     assert states(client, admin_headers, project.id, T) == {}  # the gap is not replayed
     post_prs(client, admin_headers, T, pr(2, merged_at=merged_hours_from_now(-1)), pr(3, merged_at=merged_hours_from_now(1)))
     assert states(client, admin_headers, project.id, T) == {3: "UNKNOWN"}
+
+
+def disabled_project_with_a_stored_pull_request(client, admin_headers, project, T):
+    """The project linked to T, then disabled, then PR 1 stored while it is off: it has no trigger."""
+    link(client, admin_headers, project.id, T)
+    assert client.patch(f"/projects/{project.id}", json={"enabled": False}, headers=admin_headers).status_code == 200
+    post_prs(client, admin_headers, T, pr(1, merged_at=merged_hours_from_now(1)))
+    assert states(client, admin_headers, project.id, T) == {}
+    assert global_total(client, admin_headers, T) == 1
+
+
+def test_enabling_with_backfill_creates_the_triggers_stored_while_it_was_off(
+        client, admin_headers, project, global_trigger_repo):
+    T = global_trigger_repo.id
+    disabled_project_with_a_stored_pull_request(client, admin_headers, project, T)
+    post_prs(client, admin_headers, T, pr(2, merged_at=merged_hours_from_now(2)))
+
+    on = client.patch(f"/projects/{project.id}", json={"enabled": True, "backfill": True}, headers=admin_headers)
+
+    assert on.status_code == 200 and on.json["enabled"] is True and "backfill" not in on.json
+    assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN", 2: "UNKNOWN"}
+    # the cursor did not move: a PR merged after enabling is still in scope
+    post_prs(client, admin_headers, T, pr(3, merged_at=merged_hours_from_now(3)))
+    assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN", 2: "UNKNOWN", 3: "UNKNOWN"}
+
+
+def test_enabling_with_backfill_false_or_without_it_skips_the_gap(client, admin_headers, project, global_trigger_repo):
+    T = global_trigger_repo.id
+    disabled_project_with_a_stored_pull_request(client, admin_headers, project, T)
+
+    on = client.patch(f"/projects/{project.id}", json={"enabled": True, "backfill": False}, headers=admin_headers)
+
+    assert on.status_code == 200 and on.json["enabled"] is True
+    assert states(client, admin_headers, project.id, T) == {}
+
+
+def test_enabling_with_backfill_twice_creates_no_duplicates(client, admin_headers, project, global_trigger_repo):
+    T = global_trigger_repo.id
+    disabled_project_with_a_stored_pull_request(client, admin_headers, project, T)
+    patch_project = lambda **body: client.patch(f"/projects/{project.id}", json=body, headers=admin_headers)
+
+    assert patch_project(enabled=True, backfill=True).status_code == 200
+    assert patch_project(enabled=False).status_code == 200
+    assert patch_project(enabled=True, backfill=True).status_code == 200  # a second time, the trigger exists
+
+    assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN"}
+    link_row = ProjectTriggerRepository.query.filter_by(project_id=project.id).one()
+    assert len(link_row.pull_request_triggers) == 1
+
+
+def test_backfill_leaves_a_link_that_is_off_without_triggers(client, admin_headers, project, global_trigger_repo):
+    T = global_trigger_repo.id
+    link(client, admin_headers, project.id, T, enabled=False)
+    client.patch(f"/projects/{project.id}", json={"enabled": False}, headers=admin_headers)
+    post_prs(client, admin_headers, T, pr(1, merged_at=merged_hours_from_now(1)))
+
+    assert client.patch(f"/projects/{project.id}", json={"enabled": True, "backfill": True},
+                        headers=admin_headers).status_code == 200
+
+    assert states(client, admin_headers, project.id, T) == {}
 
 
 def test_a_deleted_project_gets_no_trigger(client, admin_headers, project, other_project, global_trigger_repo):
@@ -486,19 +544,18 @@ def test_only_unknown_triggers_of_an_active_link_get_a_task(client, admin_header
     elif setup == "revoked":
         client.patch(url, json={"revoked": True}, headers=admin_headers)
     else:
-        set_locked(project)
         client.patch(url, json={"enabled": False}, headers=admin_headers)
     assert post_task(client, admin_headers, pr_trigger, spec_raw).status_code == 409
     assert pr_state(client, admin_headers, pr_trigger)["task_id"] is None
 
 
-def test_post_task_404s_and_locked_project(client, admin_headers, project, other_project, global_trigger_repo,
+def test_post_task_404s_and_disabled_project(client, admin_headers, project, other_project, global_trigger_repo,
                                            pr_trigger, spec_raw):
     base = link_url(project.id, global_trigger_repo.id)
     assert post_task(client, admin_headers, f"{base}/pull_requests/99", spec_raw).status_code == 404
     other = f"{link_url(other_project.id, global_trigger_repo.id)}/pull_requests/1"
     assert post_task(client, admin_headers, other, spec_raw).status_code == 404
-    set_locked(project)  # a locked project can still get tasks from its PRs (current behaviour)
+    set_enabled(project, False)  # a disabled project can still get tasks from its PRs (current behaviour)
     assert post_task(client, admin_headers, pr_trigger, spec_raw).status_code == 201
 
 

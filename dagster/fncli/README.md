@@ -87,11 +87,11 @@ fncli teardown-gitea -y [--project NAME]
 fncli teardown-backend -y
 ```
 
-- `setup-project`: builds the dev project. Side effects: creates two Gitea repos (trigger and results), a Gitea token for each (`fn-sensor`, `fn-results`), the K8s secrets holding them and the dataset's credentials (via the backend; dummies unless the `DATASET_*` env vars are set, see below), and the backend records: the project, the global git provider (the Gitea host), trigger repository, results repository and dataset, and the project's assignment of each.
+- `setup-project`: builds the dev project. Side effects: creates two Gitea repos (trigger and results), a Gitea token for each (`fn-sensor`, `fn-results`), the K8s secrets holding them and the dataset's credentials (via the backend; dummies unless the `DATASET_*` env vars are set, see below), and the backend records: the project, the global git provider (the Gitea host), trigger repository, results repository and dataset, and the project's assignment of each. The project is created disabled and enabled at the end, once its links are set up.
 - `open-pr`: opens a PR in the trigger repo for the sensor to find. Side effects: a new branch, one new file and a PR in Gitea; with `--merge` the PR is merged, which is what the sensor picks up.
 - `teardown-project -y`: deletes the lot, side effects included: the backend project and its assignments, then the global dataset, repositories, git provider (unless another project's repositories are still on it) and secrets (backend and K8s), the Gitea tokens and both Gitea repos with all their PRs. `-y` skips the prompt.
 
-- `setup-backend`: the backend only, no Gitea call. Side effects: the backend project, the three global secrets (K8s, holding placeholders: git secrets `{"TOKEN": "unset"}`, the dataset's credentials), the global git provider, trigger repository, results repository and dataset, and the project's assignment of each (the trigger one watching `main`).
+- `setup-backend`: the backend only, no Gitea call. Side effects: the backend project, the three global secrets (K8s, holding placeholders: git secrets `{"TOKEN": "unset"}`, the dataset's credentials), the global git provider, trigger repository, results repository and dataset, and the project's assignment of each (the trigger one watching `main`). The project stays disabled: enable it with `project-set --enabled true` once `setup-gitea` has run.
 - `setup-gitea`: the Gitea side of an existing backend project, which is the reference (not the `TEST_*_REPO` env vars). Side effects: creates the Gitea repos its trigger and results repository records name, issues a Gitea token for each (`fn-sensor`, `fn-results`), writes it into that record's existing secret and checks Gitea accepts it.
 - `teardown-gitea -y`: deletes the Gitea tokens and repos (with all their PRs) named by the project's backend records. The backend is left alone.
 - `teardown-backend -y`: deletes the project (with its assignments), then the global dataset, repositories and secrets (backend and K8s). Gitea is left alone.
@@ -107,7 +107,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 
 | Command | What it does |
 |---|---|
-| `setup-project` | Runs, in order: `init-backend-project`, `init-gitea-repo` (trigger, results), `init-git-secret` (trigger, results), `init-dataset-secret`, `init-backend-trigger-repo`, `init-backend-results-repo`, `init-backend-dataset`, `verify-git-secret` (trigger, results), `project-healthcheck` |
+| `setup-project` | Runs, in order: `init-backend-project`, `init-gitea-repo` (trigger, results), `init-git-secret` (trigger, results), `init-dataset-secret`, `init-backend-trigger-repo`, `init-backend-results-repo`, `init-backend-dataset`, `verify-git-secret` (trigger, results), `project-set --enabled true`, `project-healthcheck` |
 | `open-pr [--kind] [--merge]` | Runs `create-gitea-branch`, `commit-gitea-file`, `create-gitea-pr`, and with `--merge` `merge-gitea-pr` |
 | `setup-backend` | Backend only, no Gitea: `init-backend-project`, `init-backend-secret` (trigger, results, dataset), `init-backend-trigger-repo --base-branch main`, `init-backend-results-repo`, `init-backend-dataset` |
 | `teardown-backend [-y]` | Backend only: `delete-backend-project`, then `delete-backend-dataset`, `delete-backend-results-repo`, `delete-backend-trigger-repo`, `delete-secret` (trigger, results, dataset) |
@@ -121,7 +121,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 
 | Command | What it does |
 |---|---|
-| `init-backend-project` | Finds or creates the test project in the backend, and enables it |
+| `init-backend-project` | Finds or creates the test project in the backend. A new project is disabled (a results repository can only be linked to a disabled project); enable it with `project-set --enabled true` |
 | `delete-backend-project` | Deletes the project with its tasks, triggers and assignments (`DELETE /projects/<id>`). The global secrets, datasets and repositories stay |
 | `project-healthcheck` | Prints the backend's healthcheck for the test project as JSON (can the repos be reached with their tokens?). Exits 1 unless the status is `ok` |
 
@@ -207,11 +207,11 @@ checks the 409 rules. `KIND` is `trigger`, `results`, `dataset` or `secret`; `--
 | Command | What it does |
 |---|---|
 | `project-show [--project]` | JSON of the project's links (enabled, revoked, active), their pull requests (state, task), tasks and results. Read-only; stdout is clean JSON, so it pipes into `jq` |
-| `project-set --enabled/--locked true\|false` | Sets the project's flags (`PATCH /projects/<id>`) |
-| `link-set KIND --enabled/--revoked true\|false` | Sets the flags of the project's link to a global resource. `--revoked` is admin only and immediate; no change needs a lock |
-| `global-set KIND --enabled true\|false` | Turns the global resource behind the link on or off. Needs no lock or drain |
+| `project-set [--enabled true\|false] [--backfill]` | Enables or disables the project (`PATCH /projects/<id>`). A new project is disabled; enabling it skips the pull requests stored while it was off, unless `--backfill` (with `--enabled true`, on a disabled project) creates their triggers |
+| `link-set KIND --enabled/--revoked true\|false` | Sets the flags of the project's link to a global resource. `--revoked` is admin only and immediate |
+| `global-set KIND --enabled true\|false` | Turns the global resource behind the link on or off |
 | `second-project-setup NAME` | Creates a second project linked to the same global resources (secrets, dataset, trigger and results repositories), enabled |
-| `second-project-teardown NAME` | Locks and deletes that project. The global resources stay |
+| `second-project-teardown NAME` | Deletes that project. The global resources stay |
 
 ## UC1 seed
 
