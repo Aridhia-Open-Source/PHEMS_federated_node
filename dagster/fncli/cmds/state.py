@@ -180,9 +180,7 @@ def set_link(
     project = find_project(api, name)
     key = link_key(kind, first_link(api, project.id, kind))
     # Revoking is admin only: the system user the rest of fncli logs in as is refused with a 403
-    writer = admin_api if "revoked" in data and admin_api is not None else api
-    if "revoked" in data and admin_api is None:
-        click.echo("FNCLI_ADMIN_USER and FNCLI_ADMIN_PASSWORD are not set: revoking as the system user, which the backend refuses")
+    writer = admin_api if "revoked" in data else api
     return report(call(writer, "PATCH", link_path(kind, project.id, key), json=data), expect)
 
 
@@ -267,7 +265,7 @@ def project_set_command(enabled, locked, project, expect):
 @click.command("link-set")
 @click.argument("kind", type=click.Choice(KINDS))
 @click.option("--enabled", type=BOOL, default=None)
-@click.option("--revoked", type=BOOL, default=None, help="Admin only (set FNCLI_ADMIN_USER and FNCLI_ADMIN_PASSWORD). Takes effect immediately.")
+@click.option("--revoked", type=BOOL, default=None, help="Admin only (logs in as the first Keycloak user). Takes effect immediately.")
 @click.option("--target-dir", default=None, help="The results link's target directory. Tasks created before the change then fail.")
 @project_option
 @expect_option

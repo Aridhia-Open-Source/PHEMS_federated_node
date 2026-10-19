@@ -87,6 +87,7 @@ echo "=== Creating externally-supplied secrets =================================
 # pre-install hooks and reused on every upgrade.
 kubectl create secret generic keycloak-first-user \
   --from-literal=PASSWORD="$KEYCLOAK_FIRST_USER_PASSWORD" \
+  --from-literal=EMAIL="$KEYCLOAK_FIRST_USER_EMAIL" \
   --dry-run=client -o yaml -n "$NAMESPACE" | kubectl apply -f - -n "$NAMESPACE"
 
 # An external Postgres has an admin password the chart cannot generate.
@@ -108,6 +109,7 @@ echo
 helm install "$RELEASE_NAME" . \
   -f "$VALUES_FILE" \
   --timeout 10m \
+  --set "firstUserSecret.email=$KEYCLOAK_FIRST_USER_EMAIL" \
   --namespace "$NAMESPACE" \
   --debug
 
