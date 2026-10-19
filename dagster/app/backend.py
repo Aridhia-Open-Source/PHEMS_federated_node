@@ -184,7 +184,7 @@ class BackendAPI:
         return Task(**response.json())
 
     def get_task_config(self, project_id: int, task_id: int) -> dict:
-        """The configuration a task is pinned to and whether it is still current, and what it uses that is revoked or deleted: {"current", "changes", "config_hash", "config_snapshot", "revoked"}. 404 if the task is not in the project."""
+        """The backend's decision for a task and the facts behind it: {"outcome": "launch"|"fail", "cause", "current", "changes", "config_hash", "config_snapshot", "revoked"}. 404 if the task is not in the project."""
         self.logger.info(f"Fetching the configuration check of task {task_id}")
         response = self.session.get(f"/projects/{project_id}/tasks/{task_id}/config")
         return response.json()

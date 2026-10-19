@@ -12,6 +12,7 @@ deleted (see revoked_resources) does not launch and its results are never delive
 """
 import hashlib
 import json
+from dataclasses import dataclass, field
 
 from app.models.project_dataset import ProjectDataset
 from app.models.project_results_repository import ProjectResultsRepository
@@ -146,3 +147,45 @@ def revoked_resources(task, results_repository_id: int | None = None) -> list[st
     if link is not None:
         add_repository("results repository", link, link.results_repository)
     return revoked
+
+
+@dataclass
+class LaunchDecision:
+    """
+    What to do with a PENDING task: outcome "launch" or "fail" (a cause comes with "fail"). revoked and
+    changes are the facts the rules read, kept so a caller can show them.
+    """
+    outcome: str
+    cause: str | None = None
+    revoked: list[str] = field(default_factory=list)
+    changes: list[str] = field(default_factory=list)
+
+
+def decide_launch(task) -> LaunchDecision:
+    """
+    The one place the rules for launching a task live. Read-only, so a caller can ask every tick. The first
+    rule that applies decides, in this order, and its cause is what the task records:
+    1. something the task uses is revoked or deleted: "revoked: <names joined by '; '>" (see revoked_resources);
+    2. its pinned configuration changed: "task configuration changed since the task was created: <changes joined by '; '>";
+    3. its dataset's project link is not active (link or global dataset switched off, revoked or deleted):
+       "Dataset <name> is not active in project <project>";
+    4. its dataset's secret is disabled: "The secret of dataset <name> is disabled".
+    Otherwise it is "launch". A task without a dataset skips rules 3 and 4. The cause is not truncated: its column
+    length is the writer's concern.
+    """
+    revoked = revoked_resources(task)
+    changes = config_changes(task)
+    if revoked:
+        return LaunchDecision("fail", "revoked: " + "; ".join(revoked), revoked, changes)
+    if changes:
+        cause = "task configuration changed since the task was created: " + "; ".join(changes)
+        return LaunchDecision("fail", cause, revoked, changes)
+    dataset = task.spec.dataset if task.spec.dataset_id else None
+    if dataset is not None:
+        link = ProjectDataset.query.filter_by(project_id=task.project_id, dataset_id=dataset.id).first()
+        if link is None or not link.active:
+            cause = f"Dataset {dataset.name} is not active in project {task.project.name}"
+            return LaunchDecision("fail", cause, revoked, changes)
+        if not dataset.secret.enabled:
+            return LaunchDecision("fail", f"The secret of dataset {dataset.name} is disabled", revoked, changes)
+    return LaunchDecision("launch", None, revoked, changes)

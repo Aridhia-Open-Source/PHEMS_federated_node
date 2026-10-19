@@ -11,6 +11,14 @@ DATASET = Dataset(
 )
 
 
+LAUNCH = {"outcome": "launch", "cause": None, "current": True, "changes": [], "config_hash": None, "revoked": []}
+
+
+def failing(cause, **fields):
+    """The backend's answer for a task it decided to fail."""
+    return {**LAUNCH, "outcome": "fail", "cause": cause, **fields}
+
+
 def assignment(active=True, dataset=DATASET):
     return ProjectDataset(
         id=3, project_id=1, dataset=dataset, enabled=active, revoked=False, active=active
@@ -34,7 +42,7 @@ def make_backend(projects, tasks_by_project):
     backend_api.get_projects.side_effect = lambda enabled: [p for p in projects if p.enabled == enabled]
     backend_api.get_tasks.side_effect = lambda status, project_id: tasks_by_project[project_id]
     backend_api.get_project_dataset.return_value = assignment()
-    backend_api.get_task_config.return_value = {"current": True, "changes": [], "config_hash": None, "revoked": []}
+    backend_api.get_task_config.return_value = LAUNCH
     return backend_api
 
 
@@ -78,9 +86,9 @@ def test_a_task_without_a_dataset_is_launched_without_fetching_one():
     backend_api.get_project_dataset.assert_not_called()
 
 
-def test_a_task_whose_dataset_is_not_active_is_not_launched():
+def test_a_task_the_backend_fails_is_failed_with_its_cause_and_not_launched():
     backend_api = make_backend([project()], {1: [task()]})
-    backend_api.get_project_dataset.return_value = assignment(active=False)
+    backend_api.get_task_config.return_value = failing("Dataset cdm is not active in project proj1")
 
     result = run(backend_api)
 
@@ -88,29 +96,53 @@ def test_a_task_whose_dataset_is_not_active_is_not_launched():
     backend_api.patch_task.assert_called_once_with(
         1, 9, {"status": "FAILED", "state_cause": "Dataset cdm is not active in project proj1"}
     )
+    # the dataset is only fetched to build a run config
+    backend_api.get_project_dataset.assert_not_called()
 
 
-def test_a_task_whose_dataset_secret_is_disabled_is_failed_with_the_cause():
-    backend_api = make_backend([project()], {1: [task()]})
-    secret = DATASET.secret.model_copy(update={"enabled": False})
-    backend_api.get_project_dataset.return_value = assignment(dataset=DATASET.model_copy(update={"secret": secret}))
+def test_the_launcher_does_what_the_outcome_says_whatever_the_other_fields_hold():
+    backend_api = make_backend([project()], {1: [task(id=9), task(id=10)]})
+    backend_api.get_task_config.side_effect = lambda project_id, task_id: (
+        failing("because", current=True, revoked=[]) if task_id == 9
+        else {**LAUNCH, "current": False, "changes": ["x"], "revoked": ["dataset cdm"]}
+    )
 
     result = run(backend_api)
 
-    assert len(result) == 1 and isinstance(result[0], SkipReason)
-    backend_api.patch_task.assert_called_once_with(
-        1, 9, {"status": "FAILED", "state_cause": "The secret of dataset cdm is disabled"}
-    )
+    assert [r.run_key for r in result] == ["task/10/1"]
+    backend_api.patch_task.assert_called_once_with(1, 9, {"status": "FAILED", "state_cause": "because"})
 
 
-def test_other_tasks_are_launched_when_one_dataset_is_not_active():
+def test_other_tasks_are_launched_when_one_is_failed():
     backend_api = make_backend([project()], {1: [task(id=9, dataset_id=7), task(id=10, dataset_id=None)]})
-    backend_api.get_project_dataset.return_value = assignment(active=False)
+    backend_api.get_task_config.side_effect = lambda project_id, task_id: (
+        failing("The secret of dataset cdm is disabled") if task_id == 9 else LAUNCH
+    )
 
     result = run(backend_api)
 
     assert [r.run_key for r in result] == ["task/10/1"]
     backend_api.patch_task.assert_called_once()
+
+
+def test_a_cause_is_cut_to_the_column_length():
+    backend_api = make_backend([project()], {1: [task()]})
+    backend_api.get_task_config.return_value = failing("revoked: dataset " + "x" * 2000)
+
+    run(backend_api)
+
+    assert len(backend_api.patch_task.call_args.args[2]["state_cause"]) == 1024
+
+
+def test_a_failed_outcome_without_a_cause_still_fails_the_task():
+    backend_api = make_backend([project()], {1: [task()]})
+    backend_api.get_task_config.return_value = failing(None)
+
+    result = run(backend_api)
+
+    assert [r for r in result if isinstance(r, RunRequest)] == []
+    backend_api.patch_task.assert_called_once()
+    assert backend_api.patch_task.call_args.args[2]["status"] == "FAILED"
 
 
 def test_the_run_key_includes_the_attempt():
@@ -159,76 +191,11 @@ def test_a_task_is_checked_against_its_configuration_before_launch():
     backend_api.patch_task.assert_not_called()
 
 
-def test_a_task_whose_configuration_changed_is_failed_and_the_next_is_launched():
-    backend_api = make_backend([project()], {1: [task(id=9), task(id=10)]})
-    backend_api.get_task_config.side_effect = lambda project_id, task_id: (
-        {"current": False, "changes": ["image changed", "env changed"], "config_hash": "h", "revoked": []}
-        if task_id == 9 else {"current": True, "changes": [], "config_hash": None, "revoked": []}
-    )
-
-    result = run(backend_api)
-
-    assert [r.run_key for r in result] == ["task/10/1"]
-    backend_api.patch_task.assert_called_once_with(1, 9, {
-        "status": "FAILED",
-        "state_cause": "task configuration changed since the task was created: image changed; env changed",
-    })
-
-
-def test_a_task_with_a_revoked_resource_is_failed_and_not_launched():
-    backend_api = make_backend([project()], {1: [task(id=9), task(id=10)]})
-    backend_api.get_task_config.side_effect = lambda project_id, task_id: {
-        "current": True, "changes": [], "config_hash": None,
-        "revoked": ["dataset ds", "results repository org/results"] if task_id == 9 else [],
-    }
-
-    result = run(backend_api)
-
-    assert [r.run_key for r in result] == ["task/10/1"]
-    backend_api.patch_task.assert_called_once_with(1, 9, {
-        "status": "FAILED", "state_cause": "revoked: dataset ds; results repository org/results",
-    })
-    # the dataset link is not read for it: the task failed before
-    backend_api.get_project_dataset.assert_called_once()
-
-
-def test_revoked_is_the_cause_of_a_task_that_is_also_stale():
-    backend_api = make_backend([project()], {1: [task()]})
-    backend_api.get_task_config.return_value = {
-        "current": False, "changes": ["image changed"], "config_hash": "h", "revoked": ["trigger repository org/repo"],
-    }
-
-    assert [r for r in run(backend_api) if isinstance(r, RunRequest)] == []
-    backend_api.patch_task.assert_called_once_with(1, 9, {
-        "status": "FAILED", "state_cause": "revoked: trigger repository org/repo",
-    })
-
-
-def test_the_revoked_cause_is_cut_to_the_column_length():
-    backend_api = make_backend([project()], {1: [task()]})
-    backend_api.get_task_config.return_value = {
-        "current": True, "changes": [], "config_hash": None, "revoked": ["dataset " + "x" * 2000],
-    }
-
-    run(backend_api)
-
-    assert len(backend_api.patch_task.call_args.args[2]["state_cause"]) == 1024
-
-
-def test_the_stale_cause_is_cut_to_the_column_length():
-    backend_api = make_backend([project()], {1: [task()]})
-    backend_api.get_task_config.return_value = {"current": False, "changes": ["x" * 2000], "config_hash": None, "revoked": []}
-
-    run(backend_api)
-
-    assert len(backend_api.patch_task.call_args.args[2]["state_cause"]) == 1024
-
-
 def test_an_error_for_one_task_leaves_it_pending_and_does_not_stop_the_others():
     backend_api = make_backend([project()], {1: [task(id=9), task(id=10)]})
     backend_api.get_task_config.side_effect = lambda project_id, task_id: (
         (_ for _ in ()).throw(RuntimeError("backend down"))
-        if task_id == 9 else {"current": True, "changes": [], "config_hash": None, "revoked": []}
+        if task_id == 9 else LAUNCH
     )
 
     result = run(backend_api)
@@ -240,7 +207,7 @@ def test_an_error_for_one_task_leaves_it_pending_and_does_not_stop_the_others():
 def test_a_task_with_an_error_is_launched_by_a_later_tick_with_the_same_run_key():
     backend_api = make_backend([project()], {1: [task()]})
     backend_api.get_task_config.side_effect = [
-        RuntimeError("backend down"), {"current": True, "changes": [], "config_hash": None, "revoked": []}
+        RuntimeError("backend down"), LAUNCH
     ]
 
     first = run(backend_api)
@@ -251,13 +218,12 @@ def test_a_task_with_an_error_is_launched_by_a_later_tick_with_the_same_run_key(
     backend_api.patch_task.assert_not_called()
 
 
-def config_with(**fields):
-    return {"current": True, "changes": [], "config_hash": None, "revoked": [], **fields}
-
-
 def test_a_revoked_and_disabled_project_keeps_its_task_pending_until_it_is_enabled_then_fails_it():
     pending = task()
-    revoked_config = config_with(revoked=["project proj1", "results repository org/results"])
+    revoked_config = failing(
+        "revoked: project proj1; results repository org/results",
+        revoked=["project proj1", "results repository org/results"],
+    )
     backend_api = make_backend([project(enabled=False)], {1: [pending]})
     backend_api.get_task_config.return_value = revoked_config
 
@@ -284,7 +250,7 @@ def test_a_revoked_and_disabled_project_keeps_its_task_pending_until_it_is_enabl
 
 def test_a_task_with_a_revoked_dataset_is_failed_naming_the_dataset_with_the_revoked_prefix():
     backend_api = make_backend([project()], {1: [task()]})
-    backend_api.get_task_config.return_value = config_with(revoked=["dataset cdm"])
+    backend_api.get_task_config.return_value = failing("revoked: dataset cdm", revoked=["dataset cdm"])
 
     result = run(backend_api)
 
@@ -293,56 +259,3 @@ def test_a_task_with_a_revoked_dataset_is_failed_naming_the_dataset_with_the_rev
     backend_api.get_project_dataset.assert_not_called()
 
 
-def test_a_task_whose_global_dataset_is_switched_off_is_failed_naming_the_dataset():
-    backend_api = make_backend([project()], {1: [task()]})
-    # The link is not active when the global dataset is disabled
-    backend_api.get_project_dataset.return_value = assignment(
-        active=False, dataset=DATASET.model_copy(update={"enabled": False})
-    )
-
-    run(backend_api)
-
-    cause = backend_api.patch_task.call_args.args[2]["state_cause"]
-    assert cause == "Dataset cdm is not active in project proj1"
-    assert not cause.startswith("revoked:")
-
-
-def test_a_stale_task_is_failed_as_stale_before_its_dataset_link_is_read():
-    backend_api = make_backend([project()], {1: [task()]})
-    backend_api.get_task_config.return_value = config_with(current=False, changes=["image changed"])
-    backend_api.get_project_dataset.return_value = assignment(active=False)
-
-    run(backend_api)
-
-    backend_api.patch_task.assert_called_once_with(1, 9, {
-        "status": "FAILED", "state_cause": "task configuration changed since the task was created: image changed",
-    })
-    backend_api.get_project_dataset.assert_not_called()
-
-
-def test_an_inactive_dataset_link_is_the_cause_before_a_disabled_dataset_secret():
-    backend_api = make_backend([project()], {1: [task()]})
-    secret = DATASET.secret.model_copy(update={"enabled": False})
-    backend_api.get_project_dataset.return_value = assignment(
-        active=False, dataset=DATASET.model_copy(update={"secret": secret})
-    )
-
-    run(backend_api)
-
-    backend_api.patch_task.assert_called_once_with(
-        1, 9, {"status": "FAILED", "state_cause": "Dataset cdm is not active in project proj1"}
-    )
-
-
-def test_a_task_failed_by_a_rule_is_patched_once_and_never_launched():
-    backend_api = make_backend([project()], {1: [task()]})
-    backend_api.get_task_config.return_value = config_with(
-        revoked=["dataset cdm"], current=False, changes=["image changed"]
-    )
-    backend_api.get_project_dataset.return_value = assignment(active=False)
-
-    result = run(backend_api)
-
-    assert not any(isinstance(r, RunRequest) for r in result)
-    backend_api.patch_task.assert_called_once()
-    backend_api.get_project_dataset.assert_not_called()

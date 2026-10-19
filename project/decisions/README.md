@@ -35,3 +35,4 @@ Open items and working notes: [../../HANDOVER.md](../../HANDOVER.md). The mirror
 | [0018](0018-fncli-dev-ops-tool.md) | fncli as a dev/ops tool | Idempotent step commands for setting up and exercising the Tilt cluster. |
 | [0019](0019-gitea-port-4000-and-localhost-forward.md) | Gitea on port 4000 in-cluster, localhost forward, fncli host translation | One stored URL works for pods and host tooling. |
 | [0020](0020-tilt-dev-loop.md) | Tilt dev loop, with the tilt-run image for run pods | Live update for the code servers and a rebuilt run image for run pods. |
+| [0021](0021-webserver-owns-the-record-and-the-rules.md) | Responsibility: the webserver owns the record and the rules; Dagster carries out decisions | Dagster asks and acts; decisions come back as typed outcomes; the launcher follows it. |

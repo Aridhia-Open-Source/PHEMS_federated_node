@@ -4,7 +4,7 @@ Sensor `task_launcher_sensor` (`TaskLauncherSensor`) and the job it launches, `k
 
 ## 1. Purpose
 
-Launches a run of `k8s_pipes_job` for each PENDING task of an enabled project, whether a merged pull request or the API created it. Before it launches, it fails any task that must not run, with the cause on the task.
+Launches a run of `k8s_pipes_job` for each PENDING task of an enabled project, whether a merged pull request or the API created it. Before it launches, it asks the webserver what to do with each task. The webserver owns the rules ([0021](../../../project/decisions/0021-webserver-owns-the-record-and-the-rules.md)); the launcher fails a task with the cause the webserver gives, or launches it.
 
 ## 2. When it runs
 
@@ -18,10 +18,10 @@ Launches a run of `k8s_pipes_job` for each PENDING task of an enabled project, w
 |---|---|
 | `GET /projects` | `enabled=true`, all pages of 100. A revoked project is still listed. |
 | `GET /projects/{id}/tasks` | `status=PENDING`, all pages of 100. |
-| `GET /projects/{id}/tasks/{task}/config` | Whether the task's pinned configuration is still current (`current`, `changes`), and what it uses that is revoked or deleted (`revoked`). |
-| `GET /projects/{id}/datasets/{dataset}` | Only when the task names a dataset. The ProjectDataset, active or not, with its Dataset and secret. |
+| `GET /projects/{id}/tasks/{task}/config` | The decision: `outcome` (`launch` or `fail`) and `cause`, with the facts behind it (`current`, `changes`, `revoked`). |
+| `GET /projects/{id}/datasets/{dataset}` | Only when the outcome is `launch` and the task names a dataset. Its Dataset is read only to build the run config. |
 
-It considers enabled projects and their PENDING tasks. Through the config check it covers everything a task uses: the project, the TriggerRepository (the link, the GlobalResource, its GitProvider), the Dataset (the ProjectDataset and the GlobalResource) and the ResultsRepository (the same three levels). It does not call the git provider.
+It considers enabled projects and their PENDING tasks. Through the webserver's decision it covers everything a task uses: the project, the TriggerRepository (the link, the GlobalResource, its GitProvider), the Dataset (the ProjectDataset and the GlobalResource) and the ResultsRepository (the same three levels). It does not call the git provider.
 
 ## 4. Flow chart
 
@@ -31,26 +31,17 @@ flowchart TD
     B --> C["For each project: GET PENDING tasks"]
     C --> D{"Next task?"}
     D -->|"none left"| Z{"Anything launched?"}
-    D -->|yes| E["GET the task's config check"]
+    D -->|yes| E["GET the task's config decision"]
     E -->|error| ERR["Log it. The task stays PENDING for the next tick."]
     ERR --> D
-    E --> F{"Anything revoked?"}
-    F -->|yes| FAIL1["PATCH task FAILED, state_cause: revoked: names"]
-    F -->|no| G{"Configuration still current?"}
-    G -->|no| FAIL2["PATCH task FAILED, state_cause: task configuration changed since the task was created"]
-    G -->|yes| H{"Task has a dataset?"}
+    E --> F{"outcome"}
+    F -->|fail| FAIL["PATCH task FAILED, state_cause: the cause"]
+    F -->|launch| H{"Task has a dataset?"}
     H -->|no| L
-    H -->|yes| I["GET the ProjectDataset"]
+    H -->|yes| I["GET the ProjectDataset, for the run config"]
     I -->|error| ERR
-    I --> J{"Link and Dataset active?"}
-    J -->|no| FAIL3["PATCH task FAILED, state_cause: Dataset is not active in project"]
-    J -->|yes| K{"Dataset secret enabled?"}
-    K -->|no| FAIL4["PATCH task FAILED, state_cause: The secret of dataset is disabled"]
-    K -->|yes| L["Yield RunRequest task/task_id/attempt with the run config"]
-    FAIL1 --> D
-    FAIL2 --> D
-    FAIL3 --> D
-    FAIL4 --> D
+    I --> L["Yield RunRequest task/task_id/attempt with the run config"]
+    FAIL --> D
     L --> D
     Z -->|yes| Y([Done])
     Z -->|no| X["SkipReason: No pending tasks found"]
@@ -74,13 +65,13 @@ The job: `k8s_pipes_job` has one op, `k8s_pipes_op`. It starts the task pod from
 ## 6. Retries and failure handling
 
 - The rules are final for that attempt. A failed task stays FAILED until a manual retry (`POST .../retry`), which sets it PENDING, adds one to `attempt` and clears `state_cause`. It then gets a new run key and launches once the cause is gone.
-- An error while checking a task (the config or dataset call fails, the patch fails) is logged. The task stays PENDING and is checked on the next tick. No run was created, so its run key is unused. One bad task does not stop the others.
+- An error while handling a task (the config or dataset call fails, the patch fails) is logged. The task stays PENDING and is checked on the next tick. No run was created, so its run key is unused. One bad task does not stop the others.
 - There is no retry slot and no in-flight check: one run per task attempt, de-duplicated by the run key. A run that fails is not relaunched; the task becomes FAILED through the status mirror.
 - A failure while listing projects or tasks fails the tick.
 
 ## 7. How `enabled` and `revoked` change what it does
 
-The rules run in this order. The first that applies fails the task.
+The webserver's rules run in this order ([0021](../../../project/decisions/0021-webserver-owns-the-record-and-the-rules.md)); `decide_launch` in `webserver/app/helpers/task_config.py` holds them. The first that applies fails the task.
 
 | State | Effect |
 |---|---|

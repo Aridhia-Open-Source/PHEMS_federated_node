@@ -29,7 +29,7 @@ from app.helpers.keycloak import Keycloak
 from app.helpers.project_state import require_accepts_tasks
 from app.helpers.state_rules import transition
 from app.helpers.query_filters import arg_get
-from app.helpers.task_config import config_changes, revoked_resources
+from app.helpers.task_config import decide_launch
 from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.wrappers import audit, auth
 from app.dtos.task import NewTaskDTO, TaskDTO
@@ -319,13 +319,16 @@ def get_task_config(project_id, task_id):
     config_snapshot is the pinned configuration itself: delivery takes its target_dir from it, as the link may be deleted by then.
     revoked names what the task uses that is revoked or deleted (its project, trigger, dataset or results repository): such a
     task must not launch either, and its results are never delivered.
+    outcome is the decision for a PENDING task, "launch" or "fail", and cause says why when it fails: see
+    helpers/task_config.decide_launch for the rules and their order. Read-only, safe to call every tick.
     """
     task = get_project_task(project_id, task_id)
     does_user_own_task(task)
-    changes = config_changes(task)
+    decision = decide_launch(task)
     return {
-        "current": not changes, "changes": changes, "config_hash": task.config_hash,
-        "config_snapshot": task.config_snapshot, "revoked": revoked_resources(task),
+        "outcome": decision.outcome, "cause": decision.cause,
+        "current": not decision.changes, "changes": decision.changes, "config_hash": task.config_hash,
+        "config_snapshot": task.config_snapshot, "revoked": decision.revoked,
     }, HTTPStatus.OK
 
 

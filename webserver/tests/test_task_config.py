@@ -131,7 +131,7 @@ def test_config_is_current_then_stale_after_target_dir_changes(
     current = client.get(config_url(project, task), headers=admin_headers)
     assert current.status_code == 200
     assert current.json == {
-        "current": True, "changes": [], "config_hash": task.config_hash, "config_snapshot": task.config_snapshot,
+        "outcome": "launch", "cause": None, "current": True, "changes": [], "config_hash": task.config_hash, "config_snapshot": task.config_snapshot,
         "revoked": [],
     }
     assert current.json["config_snapshot"]["results"]["target_dir"] == "results"
@@ -141,12 +141,16 @@ def test_config_is_current_then_stale_after_target_dir_changes(
     assert stale.status_code == 200
     assert stale.json["current"] is False and stale.json["config_hash"] == task.config_hash
     assert stale.json["changes"] == ["results.target_dir: 'results' -> 'out'"]
+    assert stale.json["outcome"] == "fail"
+    assert stale.json["cause"] == (
+        "task configuration changed since the task was created: results.target_dir: 'results' -> 'out'")
 
 
 def test_config_of_a_task_without_a_snapshot_is_current(client, admin_headers, project, make_task):
     task = make_task()
     assert client.get(config_url(project, task), headers=admin_headers).json == {
-        "current": True, "changes": [], "config_hash": None, "config_snapshot": None, "revoked": []}
+        "outcome": "launch", "cause": None, "current": True, "changes": [], "config_hash": None,
+        "config_snapshot": None, "revoked": []}
 
 
 def test_config_404_for_a_task_of_another_project(client, admin_headers, project, other_project, make_task):
@@ -362,3 +366,95 @@ def test_edit_of_target_dir_enabled_and_delete_of_an_enabled_project_with_a_task
     assert client.get(url, headers=admin_headers).json["target_dir"] == "again"
     assert client.delete(url, headers=admin_headers).status_code == 204
     assert client.get(url, headers=admin_headers).status_code == 404
+
+
+# --------------------------------------------------------------------------- the launch decision
+
+
+def decision_of(client, admin_headers, project, task) -> tuple[str, str | None]:
+    response = client.get(config_url(project, task), headers=admin_headers)
+    assert response.status_code == 200, response.json
+    return response.json["outcome"], response.json["cause"]
+
+
+def patch(client, admin_headers, url, **body):
+    assert client.patch(url, json=body, headers=admin_headers).status_code == 200
+
+
+def test_everything_clear_is_launch_with_no_cause(client, admin_headers, project, full_task):
+    assert decision_of(client, admin_headers, project, full_task) == ("launch", None)
+
+
+def test_a_task_without_a_dataset_is_launch(client, admin_headers, project, make_task):
+    assert decision_of(client, admin_headers, project, make_task()) == ("launch", None)
+
+
+def test_a_revoked_resource_fails_with_the_revoked_cause(client, admin_headers, project, full_task, links):
+    url, name = links["dataset"]
+    patch(client, admin_headers, url, revoked=True)
+    assert decision_of(client, admin_headers, project, full_task) == ("fail", f"revoked: {name}")
+
+
+def test_every_revoked_name_is_in_the_cause(client, admin_headers, project, full_task, links):
+    for url, _ in links.values():
+        patch(client, admin_headers, url, revoked=True)
+    names = [name for _, name in links.values()]
+    assert decision_of(client, admin_headers, project, full_task) == ("fail", "revoked: " + "; ".join(names))
+
+
+def test_revoked_wins_over_changed(client, admin_headers, project, linked_results_repo, global_results_repo, make_task):
+    task = pinned_task(project, make_task)
+    set_target_dir(client, admin_headers, project, global_results_repo, "out")
+    assert decision_of(client, admin_headers, project, task)[1].startswith("task configuration changed")
+    patch(client, admin_headers, f"/projects/{project.id}", revoked=True)
+    assert decision_of(client, admin_headers, project, task) == ("fail", f"revoked: project {project.name} (revoked)")
+
+
+def test_changed_wins_over_the_dataset_link_not_active(
+        client, admin_headers, project, full_task, links, global_results_repo):
+    set_target_dir(client, admin_headers, project, global_results_repo, "out")
+    patch(client, admin_headers, links["dataset"][0], enabled=False)
+    outcome, cause = decision_of(client, admin_headers, project, full_task)
+    assert outcome == "fail"
+    assert cause == "task configuration changed since the task was created: results.target_dir: 'results' -> 'out'"
+
+
+def test_a_dataset_link_switched_off_fails_naming_the_dataset_and_project(
+        client, admin_headers, project, full_task, links, global_dataset):
+    patch(client, admin_headers, links["dataset"][0], enabled=False)
+    assert decision_of(client, admin_headers, project, full_task) == (
+        "fail", f"Dataset {global_dataset.name} is not active in project {project.name}")
+
+
+def test_a_switched_off_global_dataset_fails_as_not_active_not_revoked(
+        client, admin_headers, project, full_task, global_dataset):
+    patch(client, admin_headers, f"/global/datasets/{global_dataset.id}", enabled=False)
+    outcome, cause = decision_of(client, admin_headers, project, full_task)
+    assert outcome == "fail"
+    assert cause == f"Dataset {global_dataset.name} is not active in project {project.name}"
+
+
+def test_a_disabled_dataset_secret_fails_naming_the_dataset(
+        client, admin_headers, project, full_task, global_dataset):
+    global_dataset.secret.enabled = False
+    db.session.commit()
+    assert decision_of(client, admin_headers, project, full_task) == (
+        "fail", f"The secret of dataset {global_dataset.name} is disabled")
+
+
+def test_the_dataset_link_not_active_wins_over_a_disabled_secret(
+        client, admin_headers, project, full_task, links, global_dataset):
+    global_dataset.secret.enabled = False
+    db.session.commit()
+    patch(client, admin_headers, links["dataset"][0], enabled=False)
+    assert decision_of(client, admin_headers, project, full_task) == (
+        "fail", f"Dataset {global_dataset.name} is not active in project {project.name}")
+
+
+def test_asking_for_the_decision_changes_nothing(client, admin_headers, project, full_task):
+    before = (full_task.status, full_task.state_cause, full_task.attempt)
+    for _ in range(2):
+        decision_of(client, admin_headers, project, full_task)
+    db.session.expire_all()
+    task = reload_task(full_task.id)
+    assert (task.status, task.state_cause, task.attempt) == before

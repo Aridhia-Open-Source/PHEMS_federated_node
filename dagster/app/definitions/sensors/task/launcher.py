@@ -3,13 +3,13 @@ import dagster as dg
 from app.backend import BackendAPI
 from app.definitions.run_config import build_run_config
 from app.definitions.sensors.base import BaseSensor
-from app.models import Project, Task, TaskStatus
+from app.models import Project, Task, TaskConfig, TaskStatus
 
 MAX_CAUSE_LENGTH = 1024
 
 
 class TaskLauncherSensor(BaseSensor):
-    """Launches a run for each PENDING task of an enabled project."""
+    """Launches a run for each PENDING task of an enabled project, as the backend decides."""
 
     def __init__(self, context, backend_api: BackendAPI):
         super().__init__(context)
@@ -23,7 +23,7 @@ class TaskLauncherSensor(BaseSensor):
         has the run, and the run key (task id and attempt) de-duplicates the re-yield until
         then. A retry bumps the attempt, so it gets a new run key.
 
-        Only the rules fail a task (see _launch). An error while checking one, e.g. the config GET
+        Only the backend's decision fails a task (see _launch). An error while asking for it, e.g. the config GET
         failing, is logged and the task stays PENDING for the next tick: no run was created, so its
         run key is unused. One bad task must not stop the others from launching.
         """
@@ -53,33 +53,18 @@ class TaskLauncherSensor(BaseSensor):
 
     def _launch(self, project: Project, task: Task) -> dg.RunRequest | None:
         """
-        The run for the task, or None when a rule fails it, with the cause recorded: something it uses (its
-        project, trigger, dataset or results repository) is revoked or deleted, its configuration changed since it was
-        created, its dataset is not active in the project, or the dataset's secret is disabled. A manual retry
-        launches it once the cause is gone. Any other error is raised.
+        Asks the backend what to do with the task and does it: on "fail" it records the cause and returns None,
+        on "launch" it returns the run. The rules are the backend's (see its decide_launch); none are checked here.
+        A manual retry launches a failed task once the cause is gone. Any error is raised.
         """
-        config = self.backend_api.get_task_config(project.id, task.id)
-        if config["revoked"]:
-            self._fail(project, task, "revoked: " + "; ".join(config["revoked"]))
+        decision = TaskConfig.model_validate(self.backend_api.get_task_config(project.id, task.id))
+        if decision.outcome == "fail":
+            self._fail(project, task, decision.cause or "failed by the backend")
             return None
-        if not config["current"]:
-            self._fail(
-                project, task,
-                "task configuration changed since the task was created: " + "; ".join(config["changes"]),
-            )
-            return None
+        # The run config needs the dataset's connection details, not a decision about it
         dataset = None
         if task.spec.dataset_id:
-            assignment = self.backend_api.get_project_dataset(project.id, task.spec.dataset_id)
-            cause = None
-            if not assignment.active:
-                cause = f"Dataset {assignment.dataset.name} is not active in project {project.name}"
-            elif not assignment.dataset.secret.enabled:
-                cause = f"The secret of dataset {assignment.dataset.name} is disabled"
-            if cause:
-                self._fail(project, task, cause)
-                return None
-            dataset = assignment.dataset
+            dataset = self.backend_api.get_project_dataset(project.id, task.spec.dataset_id).dataset
         return dg.RunRequest(
             run_key=f"task/{task.id}/{task.attempt}",
             tags={

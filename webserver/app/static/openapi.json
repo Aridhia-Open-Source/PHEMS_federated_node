@@ -910,7 +910,7 @@
           "Tasks"
         ],
         "summary": "Whether the configuration a task was created under still holds",
-        "description": "A task is pinned to its results repository and target_dir and to its dataset as they were when it was created. current is false when any of them changed since, and changes lists what differs; such a task must not launch or publish. A task without a stored snapshot is current. 404 if the task is not in the project.",
+        "description": "A task is pinned to its results repository and target_dir and to its dataset as they were when it was created. current is false when any of them changed since, and changes lists what differs; such a task must not launch or publish. A task without a stored snapshot is current. outcome is the webserver's decision for a PENDING task: launch, or fail with cause. The first rule that applies decides, in this order: something it uses is revoked or deleted, its configuration changed, its dataset link is not active, its dataset's secret is disabled. Read-only, so it can be asked every tick. 404 if the task is not in the project.",
         "parameters": [
           {
             "in": "path",
@@ -938,6 +938,30 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "launch",
+                        "fail"
+                      ],
+                      "example": "fail"
+                    },
+                    "cause": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Why the task fails; null when the outcome is launch.",
+                      "example": "The secret of dataset cdm is disabled"
+                    },
+                    "revoked": {
+                      "type": "array",
+                      "description": "What the task uses that is revoked or deleted.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "dataset cdm"
+                      ]
+                    },
                     "current": {
                       "type": "boolean",
                       "example": false
