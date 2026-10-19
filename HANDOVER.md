@@ -43,7 +43,6 @@ python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 - The `keycloak-realm-init` pod can crash-loop after deploy on realm migration 2 (a 400, "client profile contains the executor which does not have valid provider"); the e2e suites still run.
 - A task that goes STARTED to SUCCESS between two sensor ticks gets `started_at` from the run record's `start_time`; whether Dagster fills it for such a run is unconfirmed.
 - The S11 e2e check reads the tick error's `stack` and `causes`; that the Dagster GraphQL `PythonError` carries "Ingest failed" there is unconfirmed.
-- The disabled check and the results link are two steps, and `post_task` does not check that the project is enabled ([0008](project/decisions/0008-enabled-revoked-and-soft-delete.md)).
 - The ingest versus link-create race, and `get_or_assign_*` in fncli returning an existing link with different settings.
 - Authentication, audit and normal-user permissions are out of scope until the authorization rework ([0017](project/decisions/0017-authorization-detached-from-dar-and-keycloak.md)); only the super user and the Dagster system user matter.
 - Isolation (NetworkPolicy, RBAC, per-task secrets) and the beta issues #536, #537, #538, #539 and #500 are tracked on GitHub.

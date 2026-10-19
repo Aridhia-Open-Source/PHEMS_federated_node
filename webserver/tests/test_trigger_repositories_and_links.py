@@ -1,5 +1,5 @@
 """
-Global trigger repositories and the project link rules (ADR 0019 sections 2, 9 and 11): create/patch/delete
+Global trigger repositories and the project link rules (ADR 0006): create/patch/delete
 rules, the link lifecycle gates (disabled project, in-flight tasks, enabled, revoked) per link kind, and the active filters.
 
 One lifecycle test per link kind (secret, dataset, trigger, results) is driven through the Ctx helper; rules

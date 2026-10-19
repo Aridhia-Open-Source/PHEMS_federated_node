@@ -86,13 +86,13 @@ flowchart TD
     V -- yes --> K["Task PENDING"]
 ```
 
-Only enabled projects are evaluated, and task creation from a trigger is a 409 while its ProjectTriggerRepository is inactive or the project is revoked, so an UNKNOWN trigger waits. Switching a ProjectTriggerRepository, TriggerRepository, GitProvider or project back on (or un-revoking it) skips the gap: pull requests merged while it was off are stored but get no trigger. Enabling a disabled project with `"backfill": true` creates them instead (`backfill` is a 400 in any other case). A project has no lock: it is enabled or not. The mechanics (the cursor pair, which switches call `skip_gap`, what `backfill` creates) are in [0011](../../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md).
+Only enabled projects are evaluated, and task creation from a trigger is a 409 while its ProjectTriggerRepository is inactive or the project is disabled or revoked, as it is for the API, so an UNKNOWN trigger waits. Switching a ProjectTriggerRepository, TriggerRepository, GitProvider or project back on (or un-revoking it) skips the gap: pull requests merged while it was off are stored but get no trigger. Enabling a disabled project with `"backfill": true` creates them instead (`backfill` is a 400 in any other case). A project has no lock: it is enabled or not. The mechanics (the cursor pair, which switches call `skip_gap`, what `backfill` creates) are in [0011](../../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md).
 
 ## What each state does
 
 | State | New pull requests | Waiting tasks | Running tasks | Finished tasks' results | Undo |
 |---|---|---|---|---|---|
-| Project disabled | Stored, no trigger | Wait. New API tasks: 409 | Finish | Delivered | Enable (optional `backfill`) |
+| Project disabled | Stored, no trigger | Wait. New tasks, from the API or a trigger: 409 | Finish | Delivered | Enable (optional `backfill`) |
 | Project revoked | Stored, no trigger | Fail at launch (they wait first if the project is also disabled). New tasks, from the API or a trigger: 409 | Finish | `REVOKED` | Un-revoke (gap skipped), retry failed tasks |
 | TriggerRepository or GitProvider disabled | Not polled, batch refused. Stored on catch-up, no trigger | Launch | Finish | Delivered | Enable (gap skipped) |
 | TriggerRepository or GitProvider revoked | As disabled | Fail at launch | Finish | `REVOKED` | Un-revoke (gap skipped), retry failed tasks |

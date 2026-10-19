@@ -1,6 +1,6 @@
 """
 Pull request ingest, fan-out to project links, the per-link trigger state, creating a task from a PR
-(post_task rules) and the task status routes (ADR 0019 sections 3 and 11).
+(post_task rules) and the task status routes (ADRs 0008 and 0011).
 """
 import json
 from datetime import datetime, timedelta
@@ -587,7 +587,25 @@ def test_post_task_404s_and_disabled_project(client, admin_headers, project, oth
     assert post_task(client, admin_headers, f"{base}/pull_requests/99", spec_raw).status_code == 404
     other = f"{link_url(other_project.id, global_trigger_repo.id)}/pull_requests/1"
     assert post_task(client, admin_headers, other, spec_raw).status_code == 404
-    set_enabled(project, False)  # a disabled project can still get tasks from its PRs (current behaviour)
+
+
+def test_a_disabled_project_gets_no_task_from_a_pr_until_enabled(client, admin_headers, project, pr_trigger, spec_raw):
+    set_enabled(project, False)
+    assert post_task(client, admin_headers, pr_trigger, spec_raw).status_code == 409
+    row = pr_state(client, admin_headers, pr_trigger)
+    assert row["state"] == "UNKNOWN" and row["task_id"] is None
+    set_enabled(project, True)
+    assert post_task(client, admin_headers, pr_trigger, spec_raw).status_code == 201
+
+
+def test_a_revoked_project_gets_no_task_from_a_pr_until_regranted(client, admin_headers, project, pr_trigger, spec_raw):
+    project.revoked = True
+    db.session.commit()
+    assert post_task(client, admin_headers, pr_trigger, spec_raw).status_code == 409
+    row = pr_state(client, admin_headers, pr_trigger)
+    assert row["state"] == "UNKNOWN" and row["task_id"] is None
+    project.revoked = False
+    db.session.commit()
     assert post_task(client, admin_headers, pr_trigger, spec_raw).status_code == 201
 
 

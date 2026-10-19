@@ -23,7 +23,7 @@ class TriggerState(str, Enum):
         return self.value
 
 
-# The moves allowed from each state (ADR 0019 decision 10). REJECTED and YIELDED are final.
+# The moves allowed from each state (ADR 0005). REJECTED and YIELDED are final.
 TRIGGER_MOVES = {
     TriggerState.UNKNOWN.value: {TriggerState.YIELDED.value, TriggerState.REJECTED.value},
     TriggerState.YIELDED.value: set(),

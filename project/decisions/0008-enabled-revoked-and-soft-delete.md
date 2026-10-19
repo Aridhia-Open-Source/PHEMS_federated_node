@@ -22,15 +22,15 @@ Switching off stops new work and work in flight finishes once it is back on. Rev
 | Switched off | New pull requests | A task not launched yet | A finished task's results |
 |---|---|---|---|
 | Trigger link, trigger repository or its provider | Stored, no trigger; the link's cursor moves to now when it is on again ([0011](0011-pull-requests-stored-once-fan-out-and-cursors.md)) | Launches | Delivered |
-| Project | Stored, no trigger | Waits: the launcher skips a disabled project | Delivered |
+| Project | Stored, no trigger; no task from a pull request or the API (409) | Waits: the launcher skips a disabled project | Delivered |
 | Results link, results repository or its provider | n/a | Launches | Result `FAILED` ("results link switched off"), retried by the delivery retry sensor once the link is active again |
 | Dataset link or global dataset | n/a | `FAILED` at launch, naming the dataset | n/a |
-| **Revoked** (any link) | Trigger link: no trigger, and its triggers get no task (409) | Dataset link: `FAILED` at launch | Results link: result `REVOKED`, final, never delivered |
+| **Revoked** (any link) | Trigger link: no trigger, and its triggers get no task (409). Project: no trigger, and no task from a pull request or the API (409) | Dataset link: `FAILED` at launch | Results link: result `REVOKED`, final, never delivered |
 
 - A secret's credentials are outside the task's pinned configuration; disabling a secret disables what uses it ([0007](0007-secrets-and-secret-providers.md)).
 - A `FAILED` result for a switched-off link is not final. `results_delivery_retry_sensor` lists `FAILED` results whose link is active (`GET /projects/<pid>/results?state=FAILED&active_link=true`) and launches their delivery, which reads the task run's artifacts. Artifact clean-up must wait for delivery, not for the task's end.
 - `REJECTED` is final for a trigger: no request moves it back ([0005](0005-state-transition-tables.md)).
-- A project has one flag, `enabled`, and no lock. A new project is disabled, so its results repository is linked before it is enabled. A disabled project gets no new triggers, API tasks are rejected (409) and its `PENDING` tasks wait. Enabling it skips the gap by default; `"backfill": true` creates the missed triggers instead.
+- A project has one flag, `enabled`, and no lock. A new project is disabled, so its results repository is linked before it is enabled. A disabled or revoked project gets no new triggers, and a task is refused (409) whether it comes from a pull request or from the API; one shared check (`require_accepts_tasks`) applies both. A trigger that exists when its project is disabled stays `UNKNOWN` and gets its task once the project is enabled and not revoked. A disabled project's `PENDING` tasks wait. Enabling it skips the gap by default; `"backfill": true` creates the missed triggers instead.
 - A delivery already past the results check, and a running task, are not stopped by a revoke.
 
 ### Soft delete
@@ -52,7 +52,6 @@ The webserver owns the business record, the rules, audit and compliance; Dagster
 - Work in flight is not killed: a revoke or a delete stops launching and delivering, and a push that has begun may still complete once. A leaked git token must also be revoked at the git host.
 - A project that is both revoked and disabled keeps its waiting tasks waiting, because the launcher reads enabled projects only; they fail once it is enabled.
 - A result recorded before a revoke keeps its step until `POST /projects/<pid>/results` is called for it again, which each delivery attempt does first.
-- Creating a project's results link and disabling the project are two steps, and `post_task` checks that the link is active, not that the project is enabled, so a task can be created in the gap. At worst it runs against a setup that has just changed and fails or is not delivered; nothing is lost and other projects are unaffected.
 - A backfill exists only when a project is enabled, not for a link, repository or provider being switched back on.
 
 ## Alternatives considered
@@ -64,7 +63,7 @@ The webserver owns the business record, the rules, audit and compliance; Dagster
 
 ## Open questions
 
-- `post_task` refusing a disabled project (409) and the check and `post_task` taking a row lock on the project would close the gap above.
+- The check that a project accepts tasks and the task insert take no row lock on the project, so a task can be created just as the project is disabled. At worst it runs against a setup that has just changed and fails or is not delivered; nothing is lost and other projects are unaffected. A row lock would close it.
 - `ProjectSecret` has the flags but nothing reads them.
 - A delivery that stays `FAILED` after the maximum attempts raises no alert ([0015](0015-run-keys-retries-and-results-pr-sync.md)).
 - A link's `active` ignores its secret; only the `pollable` filter uses the secret's flags.

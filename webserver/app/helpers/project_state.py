@@ -12,7 +12,9 @@ def require_disabled(project: Project):
         )
 
 
-def require_not_revoked(project: Project):
-    """Guards creating a task: a revoked project accepts no new task, a 409."""
+def require_accepts_tasks(project: Project):
+    """Guards creating a task, from a pull request or through the API: a disabled or revoked project accepts none, a 409."""
+    if not project.enabled:
+        raise InvalidRequest(f"Project '{project.name}' is disabled", HTTPStatus.CONFLICT)
     if project.revoked:
         raise InvalidRequest(f"Project {project.id} is revoked", HTTPStatus.CONFLICT)

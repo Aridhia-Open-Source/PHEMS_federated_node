@@ -33,7 +33,7 @@ A **git provider** is a global entity of its own: the web `uri` (`https://github
 
 ### Active
 
-An `enabled` flag is a person's switch, `revoked` is the controller withdrawing access, and a link is **active** only when its global resource (and, for a repository, its provider) is enabled and not revoked and the link itself is enabled and not revoked. A link accepts triggers only if its project is also enabled and not revoked. The rules for each flag, soft delete and what each state does to work in flight are in [0008](0008-enabled-revoked-and-soft-delete.md).
+An `enabled` flag is a person's switch, `revoked` is the controller withdrawing access, and a link is **active** only when its global resource (and, for a repository, its provider) is enabled and not revoked and the link itself is enabled and not revoked. A link accepts triggers only if its project is also enabled and not revoked, and a disabled or revoked project accepts no task, from a pull request or the API (409). The rules for each flag, soft delete and what each state does to work in flight are in [0008](0008-enabled-revoked-and-soft-delete.md).
 
 ### URL layout
 
@@ -46,7 +46,7 @@ Datasets, secrets, trigger repositories and results repositories are all resourc
 
 - **One id.** Project paths use the global resource's id (a secret's label), never the link row's id; a project's view of a resource is addressed by `(project_id, resource id)`.
 - **Projects never create resources.** `POST` exists only under `/global`. A resource only one project uses is a global resource linked to that one project.
-- **`PUT` replaces** the project's own settings; fields left out take their defaults, and `PATCH` changes one. `revoked` is the controller's: only `PATCH` sets it (admin only) and a `PUT` leaves it alone.
+- **`PUT` replaces** the project's own settings; fields left out take their defaults, and `PATCH` changes one. `revoked` is the controller's: revoking and un-revoking are admin-only and only through `PATCH`; a `PUT` with `revoked` in the body is a 400.
 - **Project routes return inactive links too**, with `enabled`, `revoked` and a computed `active`. Hiding them would break work in flight in Dagster (delivery and the results sync resolve a result's repository by id, including through an inactive link). The ingest, evaluate and launcher sensors filter on active links.
 - **Sub-resources nest under their parent, in its scope.** A pull request's facts are under the global repository (`/global/repositories/triggers/<id>/pull_requests`, including the batch ingest); a project's trigger for it is under the project's link (`/projects/<pid>/repositories/triggers/<id>/pull_requests/<number>`).
 - **Results are project-scoped:** `/projects/<pid>/results` ([0004](0004-polymorphic-result-and-forward-only-state.md)).

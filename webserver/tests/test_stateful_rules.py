@@ -1,7 +1,7 @@
 """
 Random sequences of actions against the webserver, checked against a small model of the rules (Hypothesis stateful testing).
-The rules are those in docs/architecture/revoke-and-enabled.md (enabled and revoked) and ADR 0019
-(project/decisions/0019-global-resources-and-shared-pull-requests.md: the cursor, fan-out and backfill).
+The rules are those in docs/architecture/revoke-and-enabled.md (enabled and revoked) and ADRs 0008 and 0011
+(project/decisions/0008-enabled-revoked-and-soft-delete.md, 0011-pull-requests-stored-once-fan-out-and-cursors.md: the cursor, fan-out and backfill).
 It needs `hypothesis` (pinned in requirements-dev.txt) and the usual test database.
 
 One project, linked to one global trigger repository. Hypothesis builds random sequences of the actions below and, after
@@ -12,7 +12,7 @@ ACTIONS (rules)
   ingest()                    what the ingest sensor does: post the PRs merged after the newest stored one, 100 at most
   ingest_when_inactive()      the same call to a global repository that is disabled or revoked is refused (400) and stores nothing
   evaluate_one()              what the evaluate sensor does: create the task of an UNKNOWN trigger (201 if the link is active and the
-                              project is not revoked, else 409)
+                              project is enabled and not revoked, else 409 and nothing changes)
   progress_task()             a task moves PENDING -> QUEUED -> RUNNING -> SUCCESS or FAILED (the run-status sensors)
   finished_task_is_final()    a finished task cannot change to another status (409)
   set_link_enabled(v)         turn the link on or off: always 200, no drain needed
@@ -189,7 +189,7 @@ class TriggerLinkMachine(RuleBasedStateMachine):
     def evaluate_one(self, data):
         number = data.draw(st.sampled_from(sorted(n for n, s in self.triggers.items() if s == "UNKNOWN")))
         response = self.call("post", f"{self.link_url}/pull_requests/{number}/task", {"spec_raw": SPEC_RAW})
-        if self.link_active and not self.project_revoked:
+        if self.link_active and self.project_accepts:
             assert response.status_code == 201, response.json
             self.triggers[number] = "YIELDED"
             self.tasks[response.json["id"]] = "PENDING"

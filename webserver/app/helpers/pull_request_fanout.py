@@ -1,6 +1,6 @@
 """
 Pull requests are stored once per global trigger repository and every project that watches
-the repository gets a trigger for each one it should evaluate (ADR 0019).
+the repository gets a trigger for each one it should evaluate (ADR 0011).
 
 - `store_pull_request` upserts the provider's facts. The unique constraint decides, so two
   concurrent posts of one pull request store it once.

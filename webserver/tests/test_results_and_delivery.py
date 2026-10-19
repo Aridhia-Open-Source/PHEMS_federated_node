@@ -1,5 +1,5 @@
 """
-Results repositories (link rules, target_dir) and PR results (creation, step/state, filters), ADR 0019 sections 8 and 11.
+Results repositories (link rules, target_dir) and PR results (creation, step/state, filters), ADRs 0006 and 0013.
 One test per rule; fixtures come from conftest.
 """
 import pytest

@@ -65,7 +65,7 @@ flowchart TD
     H --> J["POST .../pull_requests/n/task with spec_raw"]
     J -->|"200 or 201"| K(["Backend: pull request YIELDED, task PENDING"])
     J -->|400| L["Backend stored REJECTED with the cause. Log it."]
-    J -->|409| M["Skip, log it: no longer UNKNOWN, link inactive or project revoked"]
+    J -->|409| M["Skip, log it: no longer UNKNOWN, link inactive, project disabled or revoked"]
     J -->|"other error"| N["Raise: the op retries"]
 ```
 
@@ -96,6 +96,7 @@ The job runs up to 3 pull requests at once, to stay under the git provider's rat
 | State | Effect |
 |---|---|
 | Project disabled | Not listed: its links are not looked at. Its UNKNOWN pull requests wait until it is enabled. |
+| Project disabled after its triggers were created | Not listed, so nothing is launched; its UNKNOWN pull requests stay UNKNOWN and are evaluated once the project is enabled and not revoked. A run already started gets a 409 for a valid pull request, and skips. |
 | Project revoked (still enabled) | Still listed and still launched. A pull request without exactly one spec file is still marked REJECTED. A valid one gets a 409 from the backend (the project is revoked): it stays UNKNOWN and is relaunched every retry interval until the project is restored. The backend also creates no new triggers for it. |
 | ProjectTriggerRepository disabled or revoked | Not in the `active=true` list: skipped. A run already started gets a 409 for it, and skips. |
 | TriggerRepository or GitProvider disabled or revoked | Same: the link is not active. |

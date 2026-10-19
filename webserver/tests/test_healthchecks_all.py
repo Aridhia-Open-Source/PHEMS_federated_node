@@ -1,4 +1,4 @@
-"""Healthcheck routes (ADR 0019 section 11). A failed check is reported in the body with a 200, never a 500."""
+"""Healthcheck routes. A failed check is reported in the body with a 200, never a 500."""
 from functools import partial
 from unittest.mock import MagicMock
 

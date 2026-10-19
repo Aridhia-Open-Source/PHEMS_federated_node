@@ -1,5 +1,5 @@
 """
-Global resources (ADR 0019 section 11): /global/datasets, /global/secrets and the trigger/results
+Global resources (ADR 0006): /global/datasets, /global/secrets and the trigger/results
 repositories. One table-driven test per resource kind and failure class, not per value.
 """
 import pytest

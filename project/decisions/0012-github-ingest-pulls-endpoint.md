@@ -6,7 +6,7 @@ The ingest needs the pull requests merged after a cursor. GitHub offers the sear
 
 ## Decision
 
-`GithubAPI.get_new_merged_pulls` lists closed pull requests into the base branch (`GET repos/{repo}/pulls?state=closed&base=...&sort=updated&direction=desc`), page by page, and keeps those with `merged_at` after the cursor. It stops at the first pull request whose `updated_at` is not after the cursor, since `updated_at` is never before `merged_at`. The cursor is the repository's global poll cursor ([0011](0011-pull-requests-stored-once-fan-out-and-cursors.md)). The ingest runs once per pollable global trigger repository ([0014](0014-dagster-pipeline-ops-sensors-and-retries.md)); it fetches each pull request's files and posts the batch to the backend, which stores it and fans it out.
+`GithubAPI.get_new_merged_pulls` lists closed pull requests into the base branch (`GET repos/{repo}/pulls` with `state=closed`, `sort=updated`, `direction=desc`, `per_page` and `page`, and no `base` parameter), page by page, and keeps those with `merged_at` after the cursor. Matching the base branch is done in the webserver fan-out, per link ([0011](0011-pull-requests-stored-once-fan-out-and-cursors.md)). It stops at the first pull request whose `updated_at` is not after the cursor, since `updated_at` is never before `merged_at`. The cursor is the repository's global poll cursor ([0011](0011-pull-requests-stored-once-fan-out-and-cursors.md)). The ingest runs once per pollable global trigger repository ([0014](0014-dagster-pipeline-ops-sensors-and-retries.md)); it fetches each pull request's files and posts the batch to the backend, which stores it and fans it out.
 
 ## Consequences
 
