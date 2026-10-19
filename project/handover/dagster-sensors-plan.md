@@ -32,7 +32,7 @@ Minimum interval 10 s (`MIN_SENSOR_INTERVAL_SECONDS`).
    cursor wedges every repo today).
 2. Treat the new 409s as "skip, not error": task through an inactive link, status change of a finished task, result through an
    inactive link, result for a task that is not SUCCESS.
-3. Push filtering to the webserver instead of Python: project `enabled` and `locked`, PR `task_id`, cross-project results `step`.
+3. Push filtering to the webserver instead of Python: project `enabled`, PR `task_id`, cross-project results `step`.
    Touches `launcher.py`, `pr_evaluate.py`, `delivery/results.py`, `pull_request_sync.py` and the fncli `find_*` helpers.
    `GET /projects?enabled=true` is untested and `parse_query_params` has no boolean coercion, so check that first.
 4. Delivery with no results link must record a failed result, not silently skip.

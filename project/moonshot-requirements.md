@@ -236,7 +236,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 1. `PUT /projects/:pid/repositories/triggers/:T {"watch_dir": "triggers"}` → 201, nested `trigger_repository.id == T`, `active: true`. **[business]**
 2. `PUT /projects/:pid/repositories/triggers/:T {}` or with an unknown field → 400. **[technical]**
 3. `PUT` to an unknown repository or project → 404. **[technical]**
-4. A second `PUT` on the same link replaces settings; fields left out take defaults → 200 (needs the project drained, see Out of scope). **[technical]**
+4. A second `PUT` on the same link replaces settings; fields left out take defaults → 200 (no project state needed). **[technical]**
 5. `GET /projects/:other/repositories/triggers/:T` where only the first project has the link → 404. **[business]**
 
 **Source:** ADR 0019 §11.
@@ -303,7 +303,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 **Happy path:** `DELETE /projects/:pid` deletes the project's tasks, triggers and links. It leaves secrets, datasets, repositories and stored secret values alone.
 
 **Validation cases:**
-1. Delete a drained project → 204. `GET /global/secrets/:label` and the global datasets and repositories still return 200. **[business]**
+1. Delete a project → 204. `GET /global/secrets/:label` and the global datasets and repositories still return 200. **[business]**
 2. After the delete, no call to the secret store's delete was made. **[technical]**
 
 **Source:** ADR 0019 §7.

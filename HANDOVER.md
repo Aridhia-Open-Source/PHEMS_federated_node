@@ -72,5 +72,5 @@ App behaviour the plan's author flagged. Don't fix any of it; just confirm or de
 ## Parked (don't start)
 
 - The Dagster ingest redesign.
-- Lock, drain and enabled guard questions.
+- Enabled and backfill guard questions (the project lock and drain checks are gone).
 - Moving the webserver to FastAPI.

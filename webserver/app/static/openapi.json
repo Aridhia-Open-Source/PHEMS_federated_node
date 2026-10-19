@@ -231,7 +231,7 @@
             "$ref": "#/components/responses/DatasetPost"
           }
         },
-        "description": "Admin only. No edit needs a lock or a drain; the tasks created before are pinned to the old setup and fail instead of running against the new one. project_id is rejected with a 400"
+        "description": "Admin only. Every edit applies at once; the tasks created before are pinned to the old setup and fail instead of running against the new one. project_id is rejected with a 400"
       },
       "delete": {
         "operationId": "deleteDataset",
@@ -281,7 +281,7 @@
             "description": "Projects are still linked to it and force is not true. details lists them as {id, name}"
           }
         },
-        "description": "Admin only. Soft delete: the dataset is gone from the API. Needs no lock or drain. While projects are linked to it the request is a 409 whose details list them, unless ?force=true, which revokes and deletes every project's link to it. A task in flight gets no data from it. The secret is left alone: it has its own lifecycle under /secrets"
+        "description": "Admin only. Soft delete: the dataset is gone from the API. Applies at once. While projects are linked to it the request is a 409 whose details list them, unless ?force=true, which revokes and deletes every project's link to it. A task in flight gets no data from it. The secret is left alone: it has its own lifecycle under /secrets"
       }
     },
     "/global/datasets/{id}/revoke": {
@@ -291,7 +291,7 @@
           "Datasets"
         ],
         "summary": "Revoke every project's link to a dataset",
-        "description": "Admin only. Needs no project lock. Revoking a revoked link changes nothing. Un-revoking is per link, with PATCH on the project's link.",
+        "description": "Admin only. Revoking a revoked link changes nothing. Un-revoking is per link, with PATCH on the project's link.",
         "parameters": [
           {
             "in": "path",
@@ -1830,7 +1830,7 @@
         "tags": [
           "Projects"
         ],
-        "summary": "Enable or disable a project, lock or unlock it",
+        "summary": "Enable or disable a project, optionally backfilling",
         "parameters": [
           {
             "in": "path",
@@ -1863,20 +1863,20 @@
             }
           },
           "400": {
-            "description": "Fields other than enabled and locked, or one not a boolean"
+            "description": "Fields other than enabled, backfill and revoked, one not a boolean, or backfill without enabled true on a disabled project"
           },
           "404": {
             "description": "Project not found"
           }
         },
-        "description": "Setting only locked is always allowed. Changing enabled needs neither the lock nor a drain; turning the project back on moves the cursor of its trigger repository links to now, so pull requests merged while it was off get no trigger. A disabled project gets no trigger for new pull requests. While locked, evaluation and launch skip the project and API tasks are rejected with 409."
+        "description": "Changing enabled is unconditional. Turning a disabled project back on moves the cursor of its trigger repository links to now, so pull requests merged while it was off get no trigger; send backfill true with enabled true to create those triggers instead (backfill is not stored, and is a 400 in any other case). A disabled project gets no trigger for new pull requests."
       },
       "delete": {
         "tags": [
           "Projects"
         ],
         "summary": "Delete a project and everything under it",
-        "description": "Soft delete: the project is gone from the API (404), and its dataset, secret, results repository and trigger repository links are revoked and deleted. Its tasks and triggers are kept. Needs no lock or drain. Secrets, datasets and repositories belong to no project and are left alone.",
+        "description": "Soft delete: the project is gone from the API (404), and its dataset, secret, results repository and trigger repository links are revoked and deleted. Its tasks and triggers are kept. Applies at once. Secrets, datasets and repositories belong to no project and are left alone.",
         "parameters": [
           {
             "in": "path",
@@ -2698,7 +2698,7 @@
           "Secrets"
         ],
         "summary": "Set keys on a secret",
-        "description": "Writes the given keys to the stored secret, e.g. to rotate a token. Every repository or dataset that references the secret, in any project, picks the new values up. Keys not in the request are left as they are. Exempt from the project lock. Requires the can_admin_dataset scope.",
+        "description": "Writes the given keys to the stored secret, e.g. to rotate a token. Every repository or dataset that references the secret, in any project, picks the new values up. Keys not in the request are left as they are. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -2792,7 +2792,7 @@
           "Secrets"
         ],
         "summary": "Revoke every project's link to a secret",
-        "description": "Admin only. Needs no project lock. Revoking a revoked link changes nothing. Un-revoking is per link, with PATCH on the project's link.",
+        "description": "Admin only. Revoking a revoked link changes nothing. Un-revoking is per link, with PATCH on the project's link.",
         "parameters": [
           {
             "in": "path",
@@ -2996,7 +2996,7 @@
           "Results Repositories"
         ],
         "summary": "Edit a global results repository",
-        "description": "No edit needs a lock or a drain: the edits (enabled, provider_id, secret_label) apply at once, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Admin only (can_do_admin scope).",
+        "description": "Every edit applies at once: the edits (enabled, provider_id, secret_label) are unconditional, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Admin only (can_do_admin scope).",
         "parameters": [
           {
             "in": "path",
@@ -3052,7 +3052,7 @@
           "Results Repositories"
         ],
         "summary": "Delete a global results repository and its links",
-        "description": "Soft delete: the repository is gone from the API. Needs no lock or drain. While projects are linked to it the request is a 409 whose details list them, unless ?force=true, which revokes and deletes every project's link to it. Admin only (can_do_admin scope).",
+        "description": "Soft delete: the repository is gone from the API. Applies at once. While projects are linked to it the request is a 409 whose details list them, unless ?force=true, which revokes and deletes every project's link to it. Admin only (can_do_admin scope).",
         "parameters": [
           {
             "in": "path",
@@ -3102,7 +3102,7 @@
           "Results Repositories"
         ],
         "summary": "Revoke every project's link to a resultsrepository",
-        "description": "Admin only. Needs no project lock. Revoking a revoked link changes nothing. Un-revoking is per link, with PATCH on the project's link.",
+        "description": "Admin only. Revoking a revoked link changes nothing. Un-revoking is per link, with PATCH on the project's link.",
         "parameters": [
           {
             "in": "path",
@@ -3315,7 +3315,7 @@
           "Trigger Repositories"
         ],
         "summary": "Edit a global trigger repository",
-        "description": "No edit needs a lock or a drain: the edits (enabled, provider_id, secret_label) apply at once, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Switching it back on moves every link's cursor to now: pull requests merged while it was off are stored but get no trigger. Admin only (can_do_admin scope).",
+        "description": "Every edit applies at once: the edits (enabled, provider_id, secret_label) are unconditional, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Switching it back on moves every link's cursor to now: pull requests merged while it was off are stored but get no trigger. Admin only (can_do_admin scope).",
         "parameters": [
           {
             "in": "path",
@@ -3371,7 +3371,7 @@
           "Trigger Repositories"
         ],
         "summary": "Delete a global trigger repository and its links",
-        "description": "Soft delete: the repository is gone from the API. Needs no lock or drain. While projects are linked to it the request is a 409 whose details list them, unless ?force=true, which revokes and deletes every project's link to it. A task in flight whose results go to it gets a REVOKED result. Admin only (can_do_admin scope).",
+        "description": "Soft delete: the repository is gone from the API. Applies at once. While projects are linked to it the request is a 409 whose details list them, unless ?force=true, which revokes and deletes every project's link to it. A task in flight whose results go to it gets a REVOKED result. Admin only (can_do_admin scope).",
         "parameters": [
           {
             "in": "path",
@@ -3421,7 +3421,7 @@
           "Trigger Repositories"
         ],
         "summary": "Revoke every project's link to a triggerrepository",
-        "description": "Admin only. Needs no project lock. Revoking a revoked link changes nothing. Un-revoking is per link, with PATCH on the project's link.",
+        "description": "Admin only. Revoking a revoked link changes nothing. Un-revoking is per link, with PATCH on the project's link.",
         "parameters": [
           {
             "in": "path",
@@ -3711,7 +3711,7 @@
           "Project Links"
         ],
         "summary": "Link a global dataset to the project, or replace its settings",
-        "description": "Links the dataset, and the first one linked becomes the project's default. Needs no lock the first time. When it is linked already the project's settings are replaced (fields left out take their defaults), which needs no lock. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
+        "description": "Links the dataset, and the first one linked becomes the project's default. When it is linked already the project's settings are replaced (fields left out take their defaults). revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -3782,7 +3782,7 @@
           "Project Links"
         ],
         "summary": "Edit a dataset link",
-        "description": "enabled needs no lock. revoked is admin only and takes effect at once. Requires the can_admin_dataset scope.",
+        "description": "enabled applies at once. revoked is admin only and takes effect at once. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -3843,7 +3843,7 @@
           "Project Links"
         ],
         "summary": "Remove a dataset link",
-        "description": "Removes the link, not the dataset: a soft delete that revokes the link, needing no lock or drain. If it was the project's default, the project has none afterwards. Requires the can_admin_dataset scope.",
+        "description": "Removes the link, not the dataset: a soft delete that revokes the link, applying at once. If it was the project's default, the project has none afterwards. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4029,7 +4029,7 @@
           "Project Links"
         ],
         "summary": "Link a global secret to the project, or replace its settings",
-        "description": "Links the secret, which needs no lock the first time. When it is linked already the project's settings are replaced (fields left out take their defaults), which needs no lock. revoked is not accepted: only PATCH sets it. Only the reference is linked, the values are never returned. Requires the can_admin_dataset scope.",
+        "description": "Links the secret, When it is linked already the project's settings are replaced (fields left out take their defaults). revoked is not accepted: only PATCH sets it. Only the reference is linked, the values are never returned. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4100,7 +4100,7 @@
           "Project Links"
         ],
         "summary": "Edit a secret link",
-        "description": "enabled needs no lock. revoked is admin only and takes effect at once. Requires the can_admin_secret scope.",
+        "description": "enabled applies at once. revoked is admin only and takes effect at once. Requires the can_admin_secret scope.",
         "parameters": [
           {
             "in": "path",
@@ -4161,7 +4161,7 @@
           "Project Links"
         ],
         "summary": "Unlink a secret",
-        "description": "Removes the link, not the secret: a soft delete that revokes the link, needing no lock or drain. If it was the project's default, the project has none afterwards. Requires the can_admin_secret scope.",
+        "description": "Removes the link, not the secret: a soft delete that revokes the link, applying at once. If it was the project's default, the project has none afterwards. Requires the can_admin_secret scope.",
         "parameters": [
           {
             "in": "path",
@@ -4348,7 +4348,7 @@
           "Project Links"
         ],
         "summary": "Link a global results repository to the project, or replace its settings",
-        "description": "A project has one. Linking needs the project locked. When it is linked already the settings are replaced, which needs no lock: a change of target_dir applies at once, and the tasks created before fail instead of delivering to the new place. Fields left out take their defaults. Refused when it would make results land where a trigger watches. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
+        "description": "A project has one. Linking needs the project disabled, otherwise a 409. When it is linked already the settings are replaced: a change of target_dir applies at once, and the tasks created before fail instead of delivering to the new place. Fields left out take their defaults. Refused when it would make results land where a trigger watches. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4406,7 +4406,7 @@
             "description": "Project or resource not found"
           },
           "409": {
-            "description": "The project already has another results repository, or the project is not locked when the link is first created"
+            "description": "The project already has another results repository, or the project is enabled when the link is first created"
           },
           "401": {
             "description": "Not authenticated"
@@ -4422,7 +4422,7 @@
           "Project Links"
         ],
         "summary": "Edit a results repository link",
-        "description": "No edit needs a lock; target_dir and owned_by_federated_node apply at once, and the tasks created before fail instead of delivering to the new place. revoked is admin only and takes effect at once. A revoked link makes delivery fail with 'results repository access revoked'. Requires the can_admin_dataset scope.",
+        "description": "Every edit is unconditional: target_dir and owned_by_federated_node apply at once, and the tasks created before fail instead of delivering to the new place. revoked is admin only and takes effect at once. A revoked link makes delivery fail with 'results repository access revoked'. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4483,7 +4483,7 @@
           "Project Links"
         ],
         "summary": "Remove a results repository link",
-        "description": "Removes the link, not the repository: a soft delete that revokes the link, needing no lock or drain. A task of the project still in flight gets a REVOKED result. Requires the can_admin_dataset scope.",
+        "description": "Removes the link, not the repository: a soft delete that revokes the link, applying at once. A task of the project still in flight gets a REVOKED result. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4669,7 +4669,7 @@
           "Project Links"
         ],
         "summary": "Link a global trigger repository to the project, or replace its settings",
-        "description": "A new watcher does not touch work in flight, so the first time needs no lock. The link's cursor starts after the latest pull request stored for the repository, or at the link's creation when there is none. When it is linked already the project's settings are replaced (fields left out take their defaults, the cursor stays), which needs no lock: a change of watch_dir or base_branch applies at once. Refused when it would watch where results land. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
+        "description": "A new watcher does not touch work in flight. The link's cursor starts after the latest pull request stored for the repository, or at the link's creation when there is none. When it is linked already the project's settings are replaced (fields left out take their defaults, the cursor stays): a change of watch_dir or base_branch applies at once. Refused when it would watch where results land. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4740,7 +4740,7 @@
           "Project Links"
         ],
         "summary": "Edit a trigger repository link",
-        "description": "No edit needs a lock; watch_dir and base_branch apply at once. revoked is admin only and takes effect at once. Enabling or un-revoking moves the link's cursor to now: pull requests merged while it was inactive get no trigger. Requires the can_admin_dataset scope.",
+        "description": "Every edit is unconditional: watch_dir and base_branch apply at once. revoked is admin only and takes effect at once. Enabling or un-revoking moves the link's cursor to now: pull requests merged while it was inactive get no trigger. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -4801,7 +4801,7 @@
           "Project Links"
         ],
         "summary": "Remove a trigger repository link",
-        "description": "Removes the link, not the repository: a soft delete that revokes the link, needing no lock or drain. Requires the can_admin_dataset scope.",
+        "description": "Removes the link, not the repository: a soft delete that revokes the link, applying at once. Requires the can_admin_dataset scope.",
         "parameters": [
           {
             "in": "path",
@@ -5329,7 +5329,7 @@
           "Git Providers"
         ],
         "summary": "Edit a global git provider",
-        "description": "No edit needs a lock or a drain: every edit (enabled, name, type, uri, api_uri) applies at once, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Switching it back on moves the cursor of every link to its trigger repositories to now: pull requests merged while it was off are stored but get no trigger. Admin only (can_do_admin scope).",
+        "description": "Every edit applies at once: every edit (enabled, name, type, uri, api_uri) is unconditional, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Switching it back on moves the cursor of every link to its trigger repositories to now: pull requests merged while it was off are stored but get no trigger. Admin only (can_do_admin scope).",
         "parameters": [
           {
             "in": "path",
@@ -6941,11 +6941,6 @@
           "updated_at": {
             "type": "string",
             "example": "2026-08-18 09:30:00"
-          },
-          "locked": {
-            "type": "boolean",
-            "description": "While locked, evaluation and launch skip the project and API tasks are rejected. Ingest still stores pull requests for it. Nothing else needs the lock except creating the project's results link: turning anything on or off and deleting anything under it apply at once",
-            "example": false
           }
         }
       },
@@ -7119,9 +7114,10 @@
             "type": "boolean",
             "example": true
           },
-          "locked": {
+          "backfill": {
             "type": "boolean",
-            "example": true
+            "description": "Only with enabled true on a disabled project: create the triggers for pull requests merged while it was off, instead of skipping them. Not stored",
+            "example": false
           }
         }
       },
@@ -7492,7 +7488,7 @@
             "description": "Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked"
           }
         },
-        "description": "Any of the fields. values rotates the secret, which needs no lock. enabled needs no lock either"
+        "description": "Any of the fields. values rotates the secret, both apply at once"
       },
       "Sensor": {
         "type": "object",
@@ -7657,7 +7653,7 @@
         "properties": {
           "enabled": {
             "type": "boolean",
-            "description": "Needs no lock",
+            "description": "Applies at once",
             "example": true
           },
           "revoked": {
@@ -7842,7 +7838,7 @@
       },
       "ProjectResultsRepositoryPatchBody": {
         "type": "object",
-        "description": "Any of the fields. revoked is admin only, none of them needs a lock or a drain",
+        "description": "Any of the fields. revoked is admin only, all of them apply at once",
         "properties": {
           "target_dir": {
             "type": "string",
@@ -7917,7 +7913,7 @@
       },
       "ProjectTriggerRepositoryPatchBody": {
         "type": "object",
-        "description": "Any of the fields. revoked is admin only, none of them needs a lock or a drain.",
+        "description": "Any of the fields. revoked is admin only, all of them apply at once.",
         "properties": {
           "watch_dir": {
             "type": "string",

@@ -104,7 +104,7 @@ Dagster's `Secret` model needs only `key`, `namespace` and `provider`. Its repos
 
 - `UNIQUE(project_id)` moves to `project_results_repositories` ("one per project for now" is kept).
 - `results.results_repository_id` repoints to the assignment, so each project's delivered PRs are tracked against its own assignment. `(task_id, results_repository_id)` stays unique.
-- `Project.in_flight_task_ids` already counts exactly the tasks that need the assignment (SUCCESS without a result, `IN_PROGRESS` delivery). Revoke is a system action and does not require the project locked, yet it breaks those deliveries. Minimum: keep returning the revoked row, and make delivery fail with a recorded error. Revoke is not blocked; the delivery fails with a recorded error (section 2).
+- `Project.in_flight_task_ids` already counts exactly the tasks that need the assignment (SUCCESS without a result, `IN_PROGRESS` delivery). Revoke is a system action and needs no particular project state, yet it breaks those deliveries. Minimum: keep returning the revoked row, and make delivery fail with a recorded error. Revoke is not blocked; the delivery fails with a recorded error (section 2).
 
 ### 9. Other places that change
 
@@ -140,7 +140,7 @@ Datasets, secrets, trigger repositories and results repositories are all **resou
 - **Ingest is only the global batch.** There is no single-PR project route. The ingest filter is `GET /global/repositories/triggers?pollable=true`, which ignores project links: a repository is polled while it, its provider and its secret are enabled.
 
 - **Filter in the webserver.** Clients (Dagster, fncli) don't fetch lists and filter them in Python. Every filter they need is a query option on the list endpoint, e.g. `?pollable=true`.
-- **Superseded (2026-10-18):** the drain and enabled guards were revisited, and the project lock was dropped in favour of enabling with an optional backfill; see "Switching off, revoking and deleting".
+- **Superseded (2026-10-18):** the drain and enabled guards were revisited, and the project lock (`locked`) was withdrawn and replaced by enabling with an optional `backfill`; see "Switching off, revoking and deleting".
 
 ### 12. Decisions settled
 

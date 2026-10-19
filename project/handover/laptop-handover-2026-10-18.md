@@ -20,15 +20,13 @@ Written by the cloud session. Nothing here has been run on a cluster. Where the 
 | # | Issue | Where | Suggested fix |
 |---|---|---|---|
 | 1 | A **deleted dataset link leaves its task `PENDING` for ever**: `get_project_dataset` gets a 404, the launcher logs it and retries every tick | `dagster/app/definitions/sensors/task/launcher.py`, the route hiding deleted rows | treat a 404 as a failure and set the task `FAILED` naming the dataset |
-| 2 | The launcher ignores `locked`: a locked, enabled project still launches `PENDING` tasks. Issue #540 expects that ("work already in flight carries on"); the old ADR said launch is paused | launcher reads `enabled=True` only | keep as is and say so (ADR 0025 and 0027 already do), or honour the lock |
 | 3 | `fncli link-set --revoked` is refused (403): `g.caller_is_admin` is `"Administrator" in roles`, the Dagster user has `System` | `webserver/app/helpers/keycloak.py` `is_user_admin` | the fncli admin login (done on the fixes branch), or accept `System` (lets a pipeline credential revoke grants) |
 | 4 | `config_hash` is stored and returned but never compared | `helpers/task_config.py` | use it as a quick equality check before the diff, or drop the column |
 | 5 | Delivery takes only the repository id and `target_dir` from the snapshot; the repository, provider and secret are read live | `dagster/app/delivery/results.py` | decide if that is intended (credentials must stay live) and say so in 0024 |
 | 6 | A PR merged just before a switch-off and not yet ingested is also skipped on switch-on | `helpers/pull_request_fanout.py` `skip_gap` | a `disabled_at` timestamp; cursor moves to it, not to now |
 | 7 | The cross-project loop check keys on `(provider_id, repo_path)`: the same server under two host names is not seen | `helpers/repository_loop.py` | leave, or resolve hosts |
 | 8 | A link's `active` ignores the secret; only the `pollable` filter uses it | `GitRepositoryMixin.active` | decide whether `active` should include the secret |
-| 9 | `POST .../pull_requests/<n>/task` does not check the project lock (race with creating a results link) | `project_trigger_repositories_api.py` | one line: 409 for a locked project, if the lock should mean that |
-| 10 | Stale text: comment on `locked` mentions drain (`models/project.py`); `ResultState` docstring says nothing retries `FAILED` but the retry sensor does | webserver models | edit the comments |
+| 10 | Stale text: `ResultState` docstring says nothing retries `FAILED` but the retry sensor does | webserver models | edit the comments |
 | 11 | Retrying a task that cannot be retried is a 400; the other refused moves are 409 | `tasks_api.py` `retry_task` | pick one |
 | 12 | The webserver calls Dagster (`/dagster/sensors` routes, `helpers/dagster.py`); ADR 0019 used to say it does not | `webserver/app/dagster_api.py` | keep as an operator convenience, or move it out |
 
