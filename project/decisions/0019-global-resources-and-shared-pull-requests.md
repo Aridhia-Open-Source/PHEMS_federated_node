@@ -1,6 +1,6 @@
 # 0019. Global resources assigned to projects, with pull requests stored once per repository
 
-- Status: Accepted (built). Stages 0-8 are done on the moonshot branches (local, not pushed).
+- Status: Accepted (built). Stages 0-8 are done on `moonshot/shared-resources`.
 - Supersedes the schema naming in [0018](0018-global-resources-and-gitea-mirror.md). The Gitea mirror is [0020](0020-gitea-mirror-service.md) and depends on this.
 - Detail of three parts is in [0021](0021-pull-requests-stored-once-fan-out-and-cursors.md) (pull requests, fan-out, cursors, backfill), [0022](0022-state-transition-tables.md) (state tables, 409s) and [0023](0023-dagster-pipeline-ops-sensors-and-retries.md) (Dagster sensors and ops). Where this record is thinner or older, those win.
 

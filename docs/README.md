@@ -25,7 +25,7 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0015](../project/decisions/0015-fncli-dev-ops-tool.md) | fncli as a dev and ops tool | Accepted | Scope stays small; copied Dagster client code is on purpose. |
 | [0016](../project/decisions/0016-tilt-dev-loop.md) | Tilt dev loop | Accepted | Dev only; the chart does not depend on it. |
 | [0017](../project/decisions/0017-task-status-written-by-run-status-sensors.md) | Task status written only by run-status sensors | Accepted | Delivery never writes the status; an illegal move is a 409. |
-| [0018](../project/decisions/0018-global-resources-and-gitea-mirror.md) | GlobalResources and a Gitea mirror (design note) | Proposed | History only; superseded by 0019 and 0020. |
+| [0018](../project/decisions/0018-global-resources-and-gitea-mirror.md) | GlobalResources and a Gitea mirror (design note) | Superseded by 0019 and 0020 | History only; superseded by 0019 and 0020. |
 | [0019](../project/decisions/0019-global-resources-and-shared-pull-requests.md) | GlobalResources assigned to projects, pull requests stored once | Accepted (built) | The model, fan-out and cursor rules, revoke versus enabled, soft delete, task configuration pinning, the listed gaps. |
 | [0020](../project/decisions/0020-gitea-mirror-service.md) | Gitea mirror service | Proposed | A separate service, outbound only; not built. |
 | [0021](../project/decisions/0021-pull-requests-stored-once-fan-out-and-cursors.md) | Pull requests stored once, fan-out, cursors | Accepted (built) | Match rule, the two cursors, `skip_gap`, backfill only at project enable. |

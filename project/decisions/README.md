@@ -32,7 +32,7 @@ Handover for the moonshot and mirror work: [../handover/README.md](../handover/R
 | [0015](0015-fncli-dev-ops-tool.md) | fncli as a dev/ops tool | Accepted (scope is deliberately small) |
 | [0016](0016-tilt-dev-loop.md) | Tilt dev loop, with the tilt-run image for run pods | Accepted |
 | [0017](0017-task-status-written-by-run-status-sensors.md) | Task status is written only by run-status sensors | Accepted |
-| [0018](0018-global-resources-and-gitea-mirror.md) | Global resources assigned to projects, and a Gitea mirror of GitHub (design note) | Proposed (schema naming superseded by 0019; mirror superseded by 0020) |
+| [0018](0018-global-resources-and-gitea-mirror.md) | Global resources assigned to projects, and a Gitea mirror of GitHub (design note) | Superseded by 0019 (schema) and 0020 (mirror) |
 | [0019](0019-global-resources-and-shared-pull-requests.md) | Global resources assigned to projects, with pull requests stored once per repository | Accepted (built, stages 0-8) |
 | [0020](0020-gitea-mirror-service.md) | Gitea mirror service: a self-contained GitHub mirror with generic webhooks | Proposed (gated on a Gitea spike) |
 | [0021](0021-pull-requests-stored-once-fan-out-and-cursors.md) | Pull requests stored once per repository, fan-out to links, cursors, skip_gap and backfill | Accepted (built) |
