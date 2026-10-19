@@ -1,0 +1,622 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.10, pytest-8.4.2, pluggy-1.6.0 -- /home/georgeeddie/Development/Aridhia-Open-Source/PHEMS/PHEMS_federated_node/dagster/.venv/bin/python
+rootdir: /home/georgeeddie/Development/Aridhia-Open-Source/PHEMS/fn-worktrees/moonshot/e2e-results/dagster
+configfile: pyproject.toml
+plugins: mock-3.16.0, anyio-4.12.1
+collecting ... collected 734 items / 615 deselected / 119 selected
+
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_leftovers[delete-backend-project] 
+-------------------------------- live log setup --------------------------------
+INFO     e2e:conftest.py:106 Setting the sensor interval to 1s (was 30) and restarting the code server
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:96 Deleting project 4
+INFO     app.backend:backend.py:108 Updating project 4
+INFO     project:project.py:54 Deleted backend project trigger-test-project (4)
+PASSED                                                                   [  0%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_leftovers[delete-backend-dataset] 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:37 Fetching datasets
+INFO     app.backend:backend.py:290 Deleting dataset 4
+INFO     dataset:dataset.py:59 Deleted backend dataset dev-dataset (4)
+PASSED                                                                   [  1%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_leftovers[delete-backend-results-repo] 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:266 Deleting results repository 4
+INFO     repository:repository.py:215 Deleted backend results repository http://gitea.fn.svc:4000/gitea_admin/results-demo-repo (4)
+PASSED                                                                   [  2%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_leftovers[delete-backend-trigger-repo] 
+-------------------------------- live log call ---------------------------------
+INFO     repository:repository.py:202 Deleted backend trigger repository http://gitea.fn.svc:4000/gitea_admin/trigger-demo-repo (4)
+PASSED                                                                   [  3%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_leftovers[delete-backend-provider] 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:165 Deleting git provider 4
+INFO     repository:repository.py:235 Deleted backend git provider gitea-gitea.fn.svc:4000 (4)
+PASSED                                                                   [  4%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_leftovers[delete-secret[trigger]] 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:138 Deleting secret trigger-demo-repo-creds
+INFO     secret:secret.py:146 Deleted secret trigger-demo-repo-creds
+PASSED                                                                   [  5%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_leftovers[delete-secret[results]] 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:138 Deleting secret results-demo-repo-creds
+INFO     secret:secret.py:146 Deleted secret results-demo-repo-creds
+PASSED                                                                   [  5%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_leftovers[delete-secret[dataset]] 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:138 Deleting secret dev-dataset-dataset-creds
+INFO     secret:secret.py:146 Deleted secret dev-dataset-dataset-creds
+PASSED                                                                   [  6%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_leftovers[delete-gitea-token[trigger]] 
+-------------------------------- live log call ---------------------------------
+INFO     secret:secret.py:160 Gitea token 'fn-sensor' does not exist
+PASSED                                                                   [  7%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_leftovers[delete-gitea-token[results]] 
+-------------------------------- live log call ---------------------------------
+INFO     secret:secret.py:158 Deleted Gitea token 'fn-results'
+PASSED                                                                   [  8%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_leftovers[delete-gitea-repo[trigger]] 
+-------------------------------- live log call ---------------------------------
+INFO     repository:repository.py:246 Deleted Gitea repo gitea_admin/trigger-demo-repo
+PASSED                                                                   [  9%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_leftovers[delete-gitea-repo[results]] 
+-------------------------------- live log call ---------------------------------
+INFO     repository:repository.py:246 Deleted Gitea repo gitea_admin/results-demo-repo
+PASSED                                                                   [ 10%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_setup[init-backend-project] 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:84 Creating project trigger-test-project
+INFO     app.backend:backend.py:91 Fetching project 5
+INFO     project:project.py:26 Backend project: trigger-test-project (id 5, enabled True)
+PASSED                                                                   [ 10%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_setup[init-gitea-repo[trigger]] 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:33 Creating repo trigger-demo-repo
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/trigger-demo-repo (default branch main)
+PASSED                                                                   [ 11%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_setup[init-gitea-repo[results]] 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:33 Creating repo results-demo-repo
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/results-demo-repo (default branch main)
+PASSED                                                                   [ 12%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_setup[init-git-secret[trigger]] 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:128 Creating secret trigger-demo-repo-creds
+INFO     secret:secret.py:42 Secret trigger-demo-repo-creds is fn-secret-trigger-demo-repo-creds in namespace fn and holds the new token (Gitea token 'fn-sensor', scope read:repository)
+PASSED                                                                   [ 13%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_setup[init-git-secret[results]] 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:128 Creating secret results-demo-repo-creds
+INFO     secret:secret.py:42 Secret results-demo-repo-creds is fn-secret-results-demo-repo-creds in namespace fn and holds the new token (Gitea token 'fn-results', scope write:repository)
+PASSED                                                                   [ 14%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_setup[init-dataset-secret] 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:128 Creating secret dev-dataset-dataset-creds
+INFO     secret:secret.py:70 Secret dev-dataset-dataset-creds is fn-secret-dev-dataset-dataset-creds
+PASSED                                                                   [ 15%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_setup[init-backend-trigger-repo] 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:31 Repo trigger-demo-repo already exists
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/trigger-demo-repo (default branch main)
+INFO     app.backend:backend.py:81 Reusing existing project trigger-test-project (5)
+INFO     project:project.py:26 Backend project: trigger-test-project (id 5, enabled True)
+INFO     app.backend:backend.py:159 Creating git provider gitea-gitea.fn.svc:4000
+INFO     app.backend:backend.py:295 Creating repository gitea_admin/trigger-demo-repo on provider 5
+INFO     app.backend:backend.py:65 Fetching trigger repositories of project 5
+INFO     app.backend:backend.py:209 Assigning repository http://gitea.fn.svc:4000/gitea_admin/trigger-demo-repo to project 5
+INFO     repository:repository.py:57 Backend trigger repository 5: http://gitea.fn.svc:4000/gitea_admin/trigger-demo-repo (provider gitea-gitea.fn.svc:4000, api_uri http://gitea.fn.svc:4000/api/v1, secret trigger-demo-repo-creds), assigned to project 5 (branch main, watch_dir triggers, pr_cursor 2026-10-18T16:44:18Z)
+PASSED                                                                   [ 15%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_setup[init-backend-results-repo] 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:81 Reusing existing project trigger-test-project (5)
+INFO     project:project.py:26 Backend project: trigger-test-project (id 5, enabled True)
+INFO     app.backend:backend.py:157 Reusing existing git provider gitea-gitea.fn.svc:4000 (5)
+INFO     app.backend:backend.py:229 Creating results repository gitea_admin/results-demo-repo on provider 5
+INFO     app.backend:backend.py:257 Assigning results repository http://gitea.fn.svc:4000/gitea_admin/results-demo-repo to project 5
+INFO     repository:repository.py:76 Backend results repository 5: http://gitea.fn.svc:4000/gitea_admin/results-demo-repo (provider gitea-gitea.fn.svc:4000, api_uri http://gitea.fn.svc:4000/api/v1, secret results-demo-repo-creds), assigned to project 5 (target_dir results)
+PASSED                                                                   [ 16%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_setup[init-backend-dataset] 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:81 Reusing existing project trigger-test-project (5)
+INFO     project:project.py:26 Backend project: trigger-test-project (id 5, enabled True)
+INFO     app.backend:backend.py:37 Fetching datasets
+INFO     app.backend:backend.py:255 Creating dataset dev-dataset
+INFO     app.backend:backend.py:50 Fetching datasets of project 5
+INFO     app.backend:backend.py:66 Assigning dataset dev-dataset to project 5
+INFO     dataset:dataset.py:32 Backend dataset 5: dev-dataset (postgres at db-datasets.fn.svc:5432, secret dev-dataset-dataset-creds), assigned to project 5 (active: True)
+PASSED                                                                   [ 17%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_setup[verify-git-secret[trigger]] 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:31 Repo trigger-demo-repo already exists
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/trigger-demo-repo (default branch main)
+INFO     app.gitea:gitea.py:34 Fetching merged PRs for gitea_admin/trigger-demo-repo, after 
+INFO     app.gitea:gitea.py:49 Fetched 0 closed PRs from Gitea for repository gitea_admin/trigger-demo-repo (page 1)
+INFO     secret:secret.py:58 Gitea accepted the token as a bearer token: 0 merged PR(s) on main
+PASSED                                                                   [ 18%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_setup[verify-git-secret[results]] 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:31 Repo results-demo-repo already exists
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/results-demo-repo (default branch main)
+INFO     app.gitea:gitea.py:34 Fetching merged PRs for gitea_admin/results-demo-repo, after 
+INFO     app.gitea:gitea.py:49 Fetched 0 closed PRs from Gitea for repository gitea_admin/results-demo-repo (page 1)
+INFO     secret:secret.py:58 Gitea accepted the token as a bearer token: 0 merged PR(s) on main
+PASSED                                                                   [ 19%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_setup[project-set[false]] PASSED [ 20%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_setup[project-healthcheck] 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:103 Checking health of project 5
+PASSED                                                                   [ 21%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_verify_project_after_setup 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:103 Checking health of project 5
+INFO     app.backend:backend.py:50 Fetching datasets of project 5
+INFO     app.backend:backend.py:278 Fetching dataset 5
+PASSED                                                                   [ 21%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_start_sensor[task_queued_sensor] PASSED [ 22%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_start_sensor[task_started_sensor] PASSED [ 23%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_start_sensor[task_success_sensor] PASSED [ 24%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_start_sensor[task_failure_sensor] PASSED [ 25%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_start_sensor[task_canceled_sensor] PASSED [ 26%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_start_sensor[task_results_delivery_sensor] PASSED [ 26%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_start_sensor[results_pull_request_sync_sensor] PASSED [ 27%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_start_sensor[results_delivery_retry_sensor] PASSED [ 28%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_start_sensor[git_pull_request_ingest_sensor] PASSED [ 29%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_start_sensor[git_pull_request_evaluate_sensor] PASSED [ 30%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_start_sensor[task_launcher_sensor] PASSED [ 31%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_project_starts_empty PASSED [ 31%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s3_record_counts 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:test_failure_paths.py:135 s3_before: (PRs, tasks) = (0, 0)
+PASSED                                                                   [ 32%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s3_create_branch 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:31 Repo trigger-demo-repo already exists
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/trigger-demo-repo (default branch main)
+INFO     fncli.gitea:gitea.py:75 Creating branch pr-20261018164423-e1d927 from main in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:97 Created branch pr-20261018164423-e1d927
+PASSED                                                                   [ 33%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s3_commit_file 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:84 Committing triggers/pr-20261018164423-e1d927.json to pr-20261018164423-e1d927 in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:110 Committed invalid file triggers/pr-20261018164423-e1d927.json to pr-20261018164423-e1d927
+PASSED                                                                   [ 34%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s3_create_pr 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:31 Repo trigger-demo-repo already exists
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/trigger-demo-repo (default branch main)
+INFO     fncli.gitea:gitea.py:99 Creating PR pr-20261018164423-e1d927 -> main in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:128 Opened PR #1: http://localhost:4000/gitea_admin/trigger-demo-repo/pulls/1
+PASSED                                                                   [ 35%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s3_merge_pr 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:109 Merging PR #1 in gitea_admin/trigger-demo-repo
+INFO     fncli.gitea:gitea.py:120 Merge returned 405, retrying (attempt 1/10)
+INFO     pr:pr.py:255 Merged PR #1
+PASSED                                                                   [ 36%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s3_pr_rejected 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:conftest.py:150 Waiting for PR #1 REJECTED
+INFO     e2e:conftest.py:150 Waiting for PR #1 REJECTED
+INFO     e2e:conftest.py:150 Waiting for PR #1 REJECTED
+INFO     e2e:conftest.py:148 Done: PR #1 REJECTED
+PASSED                                                                   [ 36%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s3_rejection_has_cause_and_no_task PASSED [ 37%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s3_no_task_created PASSED [ 38%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s4_record_counts 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:test_failure_paths.py:135 s4_before: (PRs, tasks) = (1, 0)
+PASSED                                                                   [ 39%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s4_create_branch 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:31 Repo trigger-demo-repo already exists
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/trigger-demo-repo (default branch main)
+INFO     fncli.gitea:gitea.py:75 Creating branch pr-20261018164509-bc1c71 from main in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:97 Created branch pr-20261018164509-bc1c71
+PASSED                                                                   [ 40%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s4_commit_file 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:84 Committing docs/pr-20261018164509-bc1c71.md to pr-20261018164509-bc1c71 in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:110 Committed unwatched file docs/pr-20261018164509-bc1c71.md to pr-20261018164509-bc1c71
+PASSED                                                                   [ 41%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s4_create_pr 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:31 Repo trigger-demo-repo already exists
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/trigger-demo-repo (default branch main)
+INFO     fncli.gitea:gitea.py:99 Creating PR pr-20261018164509-bc1c71 -> main in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:128 Opened PR #2: http://localhost:4000/gitea_admin/trigger-demo-repo/pulls/2
+PASSED                                                                   [ 42%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s4_merge_pr 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:109 Merging PR #2 in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:255 Merged PR #2
+PASSED                                                                   [ 42%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s4_nothing_created 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:conftest.py:127 Waiting for 5 new ticks of 3 sensors to see that nothing happens
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:148 Done: 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+PASSED                                                                   [ 43%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s5_record_counts 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:test_failure_paths.py:135 s5_before: (PRs, tasks) = (1, 0)
+PASSED                                                                   [ 44%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s5_stop_ingest 
+-------------------------------- live log call ---------------------------------
+INFO     sensor:sensor.py:75 Stopped sensor git_pull_request_ingest_sensor (STOPPED)
+PASSED                                                                   [ 45%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s5_start_ingest 
+-------------------------------- live log call ---------------------------------
+INFO     sensor:sensor.py:66 Started sensor git_pull_request_ingest_sensor (RUNNING)
+PASSED                                                                   [ 46%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s5_counts_unchanged 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:conftest.py:127 Waiting for 5 new ticks of 3 sensors to see that nothing happens
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:148 Done: 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+PASSED                                                                   [ 47%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s11_wait_for_tasks_to_finish 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:conftest.py:148 Done: no task in flight
+PASSED                                                                   [ 47%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s11_delete_trigger_token 
+-------------------------------- live log call ---------------------------------
+INFO     secret:secret.py:158 Deleted Gitea token 'fn-sensor'
+PASSED                                                                   [ 48%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s11_record_counts 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:test_failure_paths.py:135 s11_before: (PRs, tasks) = (1, 0)
+PASSED                                                                   [ 49%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s11_create_branch 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:31 Repo trigger-demo-repo already exists
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/trigger-demo-repo (default branch main)
+INFO     fncli.gitea:gitea.py:75 Creating branch pr-20261018164608-0337d9 from main in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:97 Created branch pr-20261018164608-0337d9
+PASSED                                                                   [ 50%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s11_commit_file 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:84 Committing triggers/pr-20261018164608-0337d9.json to pr-20261018164608-0337d9 in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:110 Committed watched file triggers/pr-20261018164608-0337d9.json to pr-20261018164608-0337d9
+PASSED                                                                   [ 51%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s11_create_pr 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:31 Repo trigger-demo-repo already exists
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/trigger-demo-repo (default branch main)
+INFO     fncli.gitea:gitea.py:99 Creating PR pr-20261018164608-0337d9 -> main in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:128 Opened PR #3: http://localhost:4000/gitea_admin/trigger-demo-repo/pulls/3
+PASSED                                                                   [ 52%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s11_merge_pr 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:109 Merging PR #3 in gitea_admin/trigger-demo-repo
+INFO     fncli.gitea:gitea.py:120 Merge returned 405, retrying (attempt 1/10)
+INFO     pr:pr.py:255 Merged PR #3
+PASSED                                                                   [ 52%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s11_nothing_ingested_without_token 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:conftest.py:127 Waiting for 5 new ticks of 3 sensors to see that nothing happens
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:148 Done: 5 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+PASSED                                                                   [ 53%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s11_healthcheck_fails 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:103 Checking health of project 5
+PASSED                                                                   [ 54%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s11_init_git_secret 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:125 Updating secret trigger-demo-repo-creds
+INFO     secret:secret.py:42 Secret trigger-demo-repo-creds is fn-secret-trigger-demo-repo-creds in namespace fn and holds the new token (Gitea token 'fn-sensor', scope read:repository)
+PASSED                                                                   [ 55%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s11_verify_git_secret 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:31 Repo trigger-demo-repo already exists
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/trigger-demo-repo (default branch main)
+INFO     app.gitea:gitea.py:34 Fetching merged PRs for gitea_admin/trigger-demo-repo, after 
+INFO     app.gitea:gitea.py:49 Fetched 3 closed PRs from Gitea for repository gitea_admin/trigger-demo-repo (page 1)
+INFO     app.gitea:gitea.py:49 Fetched 0 closed PRs from Gitea for repository gitea_admin/trigger-demo-repo (page 2)
+INFO     secret:secret.py:58 Gitea accepted the token as a bearer token: 3 merged PR(s) on main
+PASSED                                                                   [ 56%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s11_pr_processed_after_recovery 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:conftest.py:150 Waiting for the missed PR with a trigger and a task (+1 each)
+INFO     e2e:conftest.py:150 Waiting for the missed PR with a trigger and a task (+1 each)
+INFO     e2e:conftest.py:150 Waiting for the missed PR with a trigger and a task (+1 each)
+INFO     e2e:conftest.py:148 Done: the missed PR with a trigger and a task (+1 each)
+PASSED                                                                   [ 57%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s11_healthcheck_ok_again 
+-------------------------------- live log call ---------------------------------
+INFO     app.backend:backend.py:103 Checking health of project 5
+PASSED                                                                   [ 57%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s12_create_branch 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:31 Repo trigger-demo-repo already exists
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/trigger-demo-repo (default branch main)
+INFO     fncli.gitea:gitea.py:75 Creating branch pr-20261018164721-e719a8 from main in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:97 Created branch pr-20261018164721-e719a8
+PASSED                                                                   [ 58%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s12_commit_file 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:84 Committing triggers/pr-20261018164721-e719a8.json to pr-20261018164721-e719a8 in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:110 Committed failing file triggers/pr-20261018164721-e719a8.json to pr-20261018164721-e719a8
+PASSED                                                                   [ 59%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s12_create_pr 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:31 Repo trigger-demo-repo already exists
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/trigger-demo-repo (default branch main)
+INFO     fncli.gitea:gitea.py:99 Creating PR pr-20261018164721-e719a8 -> main in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:128 Opened PR #4: http://localhost:4000/gitea_admin/trigger-demo-repo/pulls/4
+PASSED                                                                   [ 60%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s12_merge_pr 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:109 Merging PR #4 in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:255 Merged PR #4
+PASSED                                                                   [ 61%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s12_pr_yielded 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:conftest.py:150 Waiting for PR #4 YIELDED with a task_id
+INFO     e2e:conftest.py:150 Waiting for PR #4 YIELDED with a task_id
+INFO     e2e:conftest.py:150 Waiting for PR #4 YIELDED with a task_id
+INFO     e2e:conftest.py:150 Waiting for PR #4 YIELDED with a task_id
+INFO     e2e:conftest.py:148 Done: PR #4 YIELDED with a task_id
+PASSED                                                                   [ 62%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s12_task_failed 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:conftest.py:150 Waiting for task 3 FAILED
+INFO     e2e:conftest.py:148 Done: task 3 FAILED
+PASSED                                                                   [ 63%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s12_no_result_and_stays_failed 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:conftest.py:127 Waiting for 12 new ticks of 3 sensors to see that nothing happens
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:150 Waiting for 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+INFO     e2e:conftest.py:148 Done: 12 new ticks of ['git_pull_request_ingest_sensor', 'git_pull_request_evaluate_sensor', 'task_launcher_sensor']
+PASSED                                                                   [ 63%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s17_wait_for_tasks_to_finish 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:conftest.py:148 Done: no task in flight
+PASSED                                                                   [ 64%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s17_stop_launcher 
+-------------------------------- live log call ---------------------------------
+INFO     sensor:sensor.py:75 Stopped sensor task_launcher_sensor (STOPPED)
+PASSED                                                                   [ 65%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s17_create_branch 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:31 Repo trigger-demo-repo already exists
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/trigger-demo-repo (default branch main)
+INFO     fncli.gitea:gitea.py:75 Creating branch pr-20261018164932-936096 from main in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:97 Created branch pr-20261018164932-936096
+PASSED                                                                   [ 66%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s17_commit_file 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:84 Committing triggers/pr-20261018164932-936096.json to pr-20261018164932-936096 in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:110 Committed watched file triggers/pr-20261018164932-936096.json to pr-20261018164932-936096
+PASSED                                                                   [ 67%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s17_create_pr 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:31 Repo trigger-demo-repo already exists
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/trigger-demo-repo (default branch main)
+INFO     fncli.gitea:gitea.py:99 Creating PR pr-20261018164932-936096 -> main in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:128 Opened PR #5: http://localhost:4000/gitea_admin/trigger-demo-repo/pulls/5
+PASSED                                                                   [ 68%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s17_merge_pr 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:109 Merging PR #5 in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:255 Merged PR #5
+PASSED                                                                   [ 68%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s17_task_is_created_and_waits_unlaunched 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:conftest.py:150 Waiting for S17's task
+INFO     e2e:conftest.py:150 Waiting for S17's task
+INFO     e2e:conftest.py:150 Waiting for S17's task
+INFO     e2e:conftest.py:150 Waiting for S17's task
+INFO     e2e:conftest.py:148 Done: S17's task
+INFO     e2e:conftest.py:148 Done: S17's task PENDING
+PASSED                                                                   [ 69%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s17_change_the_target_dir PASSED [ 70%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s17_start_launcher 
+-------------------------------- live log call ---------------------------------
+INFO     sensor:sensor.py:66 Started sensor task_launcher_sensor (RUNNING)
+PASSED                                                                   [ 71%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s17_task_fails_naming_the_change 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:conftest.py:150 Waiting for S17's task FAILED
+INFO     e2e:conftest.py:148 Done: S17's task FAILED
+PASSED                                                                   [ 72%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s17_restore_the_target_dir PASSED [ 73%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_wait_for_tasks_to_finish 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:conftest.py:148 Done: no task in flight
+PASSED                                                                   [ 73%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_record_counts 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:test_failure_paths.py:135 s13_before: (PRs, tasks) = (4, 3)
+PASSED                                                                   [ 74%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_stop_all_sensors 
+-------------------------------- live log call ---------------------------------
+INFO     sensor:sensor.py:75 Stopped sensor task_launcher_sensor (STOPPED)
+INFO     sensor:sensor.py:75 Stopped sensor git_pull_request_evaluate_sensor (STOPPED)
+INFO     sensor:sensor.py:75 Stopped sensor git_pull_request_ingest_sensor (STOPPED)
+INFO     sensor:sensor.py:75 Stopped sensor results_delivery_retry_sensor (STOPPED)
+INFO     sensor:sensor.py:75 Stopped sensor results_pull_request_sync_sensor (STOPPED)
+INFO     sensor:sensor.py:75 Stopped sensor task_results_delivery_sensor (STOPPED)
+INFO     sensor:sensor.py:75 Stopped sensor task_canceled_sensor (STOPPED)
+INFO     sensor:sensor.py:75 Stopped sensor task_failure_sensor (STOPPED)
+INFO     sensor:sensor.py:75 Stopped sensor task_success_sensor (STOPPED)
+INFO     sensor:sensor.py:75 Stopped sensor task_started_sensor (STOPPED)
+INFO     sensor:sensor.py:75 Stopped sensor task_queued_sensor (STOPPED)
+PASSED                                                                   [ 75%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_create_branch 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:31 Repo trigger-demo-repo already exists
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/trigger-demo-repo (default branch main)
+INFO     fncli.gitea:gitea.py:75 Creating branch pr-20261018165051-5d57e1 from main in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:97 Created branch pr-20261018165051-5d57e1
+PASSED                                                                   [ 76%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_commit_file 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:84 Committing triggers/pr-20261018165051-5d57e1.json to pr-20261018165051-5d57e1 in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:110 Committed watched file triggers/pr-20261018165051-5d57e1.json to pr-20261018165051-5d57e1
+PASSED                                                                   [ 77%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_create_pr 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:31 Repo trigger-demo-repo already exists
+INFO     repository:repository.py:31 Gitea repo: http://localhost:4000/gitea_admin/trigger-demo-repo (default branch main)
+INFO     fncli.gitea:gitea.py:99 Creating PR pr-20261018165051-5d57e1 -> main in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:128 Opened PR #6: http://localhost:4000/gitea_admin/trigger-demo-repo/pulls/6
+PASSED                                                                   [ 78%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_merge_pr 
+-------------------------------- live log call ---------------------------------
+INFO     fncli.gitea:gitea.py:109 Merging PR #6 in gitea_admin/trigger-demo-repo
+INFO     pr:pr.py:255 Merged PR #6
+PASSED                                                                   [ 78%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_nothing_happens_while_stopped PASSED [ 79%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_start_sensor[task_queued_sensor] PASSED [ 80%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_start_sensor[task_started_sensor] PASSED [ 81%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_start_sensor[task_success_sensor] PASSED [ 82%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_start_sensor[task_failure_sensor] PASSED [ 83%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_start_sensor[task_canceled_sensor] PASSED [ 84%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_start_sensor[task_results_delivery_sensor] PASSED [ 84%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_start_sensor[results_pull_request_sync_sensor] PASSED [ 85%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_start_sensor[results_delivery_retry_sensor] PASSED [ 86%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_start_sensor[git_pull_request_ingest_sensor] PASSED [ 87%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_start_sensor[git_pull_request_evaluate_sensor] PASSED [ 88%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_start_sensor[task_launcher_sensor] PASSED [ 89%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_s13_pr_processed_and_no_task_left_pending 
+-------------------------------- live log call ---------------------------------
+INFO     e2e:conftest.py:150 Waiting for the PR with a task (+1 each), and no task PENDING
+INFO     e2e:conftest.py:150 Waiting for the PR with a task (+1 each), and no task PENDING
+INFO     e2e:conftest.py:150 Waiting for the PR with a task (+1 each), and no task PENDING
+INFO     e2e:conftest.py:150 Waiting for the PR with a task (+1 each), and no task PENDING
+INFO     e2e:conftest.py:150 Waiting for the PR with a task (+1 each), and no task PENDING
+INFO     e2e:conftest.py:148 Done: the PR with a task (+1 each), and no task PENDING
+PASSED                                                                   [ 89%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_final[delete-backend-project] SKIPPED [ 90%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_final[delete-backend-dataset] SKIPPED [ 91%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_final[delete-backend-results-repo] SKIPPED [ 92%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_final[delete-backend-trigger-repo] SKIPPED [ 93%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_final[delete-backend-provider] SKIPPED [ 94%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_final[delete-secret[trigger]] SKIPPED [ 94%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_final[delete-secret[results]] SKIPPED [ 95%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_final[delete-secret[dataset]] SKIPPED [ 96%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_final[delete-gitea-token[trigger]] SKIPPED [ 97%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_final[delete-gitea-token[results]] SKIPPED [ 98%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_final[delete-gitea-repo[trigger]] SKIPPED [ 99%]
+dagster/fncli/tests/e2e/test_failure_paths.py::test_teardown_final[delete-gitea-repo[results]] SKIPPED [100%]
+------------------------------ live log teardown -------------------------------
+INFO     e2e:conftest.py:106 Setting the sensor interval to 30s (was 1) and restarting the code server
+
+
+========= 107 passed, 12 skipped, 615 deselected in 500.67s (0:08:20) ==========
+EXIT 0
