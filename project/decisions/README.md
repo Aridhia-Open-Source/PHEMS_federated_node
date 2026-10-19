@@ -2,7 +2,7 @@
 
 Decisions behind the trigger, task and results pipeline of the Federated Node, written in MADR style (Status, Context, Decision, Consequences, Alternatives considered). Each was checked against the code at the tip of the delta split (`split/11-fncli-pipeline`). "Provisional" means decided for now but expected to change; open items are listed in the record itself.
 
-New records are numbered in sequence as `NNNN-short-title.md` and added to the table.
+New records are numbered in sequence as `NNNN-short-title.md` and added to the table below and to the one in [../../docs/README.md](../../docs/README.md), the reviewer's guide, which also says what to check in each record.
 
 Handover for the moonshot and mirror work: [../handover/README.md](../handover/README.md).
 
