@@ -108,6 +108,8 @@ def snapshot(api: FncliBackendAPI, name: str) -> dict:
     for link in found["trigger"]:
         repo_id = link["trigger_repository"]["id"]
         prs = get(api, f"/projects/{pid}/repositories/triggers/{repo_id}/pull_requests", per_page=100)
+        # Stored once per repository, so also for a link that gets no trigger (project revoked or disabled)
+        stored = get(api, f"/global/repositories/triggers/{repo_id}/pull_requests", per_page=1)
         trigger_links.append(
             {
                 "repository": link["trigger_repository"].get("uri"),
@@ -115,6 +117,7 @@ def snapshot(api: FncliBackendAPI, name: str) -> dict:
                 "enabled": link["enabled"], "revoked": link["revoked"], "active": link["active"],
                 "global_enabled": link["trigger_repository"].get("enabled"),
                 "pr_count": link.get("pr_count"),
+                "stored_pr_count": stored["total"],
                 "pull_requests": [
                     {k: pr.get(k) for k in ("number", "state", "state_cause", "task_id")} for pr in prs["items"]
                 ],

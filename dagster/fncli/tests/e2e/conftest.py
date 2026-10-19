@@ -68,12 +68,18 @@ def counts(snapshot: dict) -> tuple[int, int]:
     return len(pull_requests(snapshot)), len(snapshot["tasks"])
 
 
+def stored_count(snapshot: dict) -> int:
+    """Pull requests stored for the trigger repository, whether or not the project link got a trigger for them."""
+    return sum(link["stored_pr_count"] for link in snapshot["trigger_links"])
+
+
 def summary(snapshot: dict) -> dict:
     """The part of a snapshot a failure message shows."""
     return {
         "project": {k: snapshot["project"][k] for k in ("enabled", "revoked")},
         "links": [{k: link[k] for k in ("enabled", "revoked", "active", "global_enabled")} for link in snapshot["trigger_links"]],
         "prs": pull_requests(snapshot),
+        "stored_prs": stored_count(snapshot),
         "tasks": snapshot["tasks"],
         "results": snapshot["results"],
     }

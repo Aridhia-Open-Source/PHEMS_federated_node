@@ -27,6 +27,7 @@ from fncli.tests.e2e.conftest import (
     counts,
     quiet_wait,
     start_sensor,
+    stored_count,
     summary,
     teardown_step,
 )
@@ -58,10 +59,15 @@ def assert_no_new_task(fncli, flow, key, what):
     assert len(snapshot["tasks"]) == flow[key][1], f"{what}: a task was created\n{json.dumps(summary(snapshot), indent=2)}"
 
 
+def record_stored(fncli, flow, key):
+    """Records the counts and, for the link that gets no trigger, how many pull requests the repository has stored."""
+    base.record_counts(fncli, flow, key)
+    flow[f"{key}_stored"] = stored_count(fncli.snapshot())
+
+
 def stored_without_a_trigger(flow, key):
-    """The pull request is stored (+1) and has no task."""
-    prs, tasks = flow[key]
-    return lambda snapshot: counts(snapshot) == (prs + 1, tasks)
+    """The pull request is stored (+1, read from the repository: the link gets no trigger for it) and has no task."""
+    return lambda snapshot: stored_count(snapshot) == flow[f"{key}_stored"] + 1 and counts(snapshot) == flow[key]
 
 
 # --- Preflight: the admin login the revoke tests need -----------------------------------------
@@ -103,7 +109,7 @@ def test_project_starts_empty(fncli):
 
 
 def test_revoked_project_record_counts(fncli, flow):
-    base.record_counts(fncli, flow, "revoked_project_before")
+    record_stored(fncli, flow, "revoked_project_before")
 
 
 def test_revoked_project_revoke_project(fncli):
@@ -287,7 +293,7 @@ def test_disabled_secret_missed_pr_not_replayed(fncli, flow):
 
 
 def test_backfill_record_counts(fncli, flow):
-    base.record_counts(fncli, flow, "backfill_before")
+    record_stored(fncli, flow, "backfill_before")
 
 
 def test_backfill_disable_project(fncli):
