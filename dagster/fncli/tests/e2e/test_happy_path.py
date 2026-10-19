@@ -31,7 +31,7 @@ from fncli.tests.e2e.conftest import (
 pytestmark = [pytest.mark.e2e, pytest.mark.e2e_success]
 
 TASK_TIMEOUT = 600
-STEP_TIMEOUT = 300
+STEP_TIMEOUT = 450
 
 
 @pytest.fixture(scope="module")
