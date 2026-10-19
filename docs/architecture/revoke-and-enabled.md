@@ -46,12 +46,16 @@ A project that is not enabled (or is deleted) is not looked at, so its waiting t
 
 ## May a finished task's result be delivered?
 
-Checked in this order by `POST /projects/<pid>/results`:
+Checked in this order by `POST /projects/<pid>/results`. A result that exists and is not final (step `UNKNOWN` or `PUSHED`) is re-checked for a revoke on every call, and each delivery attempt starts with this call:
 
 ```mermaid
 flowchart TD
     A["Result requested"] --> B{"Result exists?"}
-    B -- yes --> R0["Return it as it is"]
+    B -- yes --> X{"Final step?<br/>OPENED, MERGED, CLOSED,<br/>REVOKED or STALE"}
+    X -- yes --> R0["Return it as it is"]
+    X -- no --> Y{"Anything it uses revoked or deleted?"}
+    Y -- yes --> R4["REVOKED and FAILED, final, never delivered"]
+    Y -- no --> R5["Return it as it is"]
     B -- no --> C{"Task SUCCESS?"}
     C -- no --> E["409"]
     C -- yes --> D{"Anything it uses revoked or deleted?"}
@@ -82,14 +86,14 @@ flowchart TD
     V -- yes --> K["Task PENDING"]
 ```
 
-Only enabled projects are evaluated, and task creation from a trigger is a 409 while its ProjectTriggerRepository is inactive, so an UNKNOWN trigger waits. Switching a ProjectTriggerRepository, TriggerRepository, GitProvider or project back on (or un-revoking it) skips the gap: pull requests merged while it was off are stored but get no trigger. Enabling a disabled project with `"backfill": true` creates them instead (`backfill` is a 400 in any other case). A project has no lock: it is enabled or not.
+Only enabled projects are evaluated, and task creation from a trigger is a 409 while its ProjectTriggerRepository is inactive or the project is revoked, so an UNKNOWN trigger waits. Switching a ProjectTriggerRepository, TriggerRepository, GitProvider or project back on (or un-revoking it) skips the gap: pull requests merged while it was off are stored but get no trigger. Enabling a disabled project with `"backfill": true` creates them instead (`backfill` is a 400 in any other case). A project has no lock: it is enabled or not.
 
 ## What each state does
 
 | State | New pull requests | Waiting tasks | Running tasks | Finished tasks' results | Undo |
 |---|---|---|---|---|---|
 | Project disabled | Stored, no trigger | Wait. New API tasks: 409 | Finish | Delivered | Enable (optional `backfill`) |
-| Project revoked | Stored, no trigger | Fail at launch (they wait first if the project is also disabled). New tasks are still created, then fail | Finish | `REVOKED` | Un-revoke (gap skipped), retry failed tasks |
+| Project revoked | Stored, no trigger | Fail at launch (they wait first if the project is also disabled). New tasks, from the API or a trigger: 409 | Finish | `REVOKED` | Un-revoke (gap skipped), retry failed tasks |
 | TriggerRepository or GitProvider disabled | Not polled, batch refused. Stored on catch-up, no trigger | Launch | Finish | Delivered | Enable (gap skipped) |
 | TriggerRepository or GitProvider revoked | As disabled | Fail at launch | Finish | `REVOKED` | Un-revoke (gap skipped), retry failed tasks |
 | ResultsRepository or GitProvider disabled | n/a | Launch | Finish | `FAILED`, held, retried once active | Enable |
@@ -108,13 +112,14 @@ Deleting sets `deleted_at` and, on every row that has the flag, `revoked`, so a 
 
 ## Secrets
 
-Applies once the secrets change is merged. Today a Secret disable already disables the Datasets, TriggerRepositories and ResultsRepositories using it, the launcher fails a task whose Dataset's Secret is disabled, and a disabled Secret is not polled.
+Disabling a Secret also disables the Datasets, TriggerRepositories and ResultsRepositories using it, in the same commit. The launcher fails a task whose Dataset's Secret is disabled, and a disabled Secret is not read, so it is not polled.
 
 - Enabling a Secret does not re-enable them. It is two steps.
-- A disabled Secret's value moves to a quarantine namespace and is restored on enable. The row keeps the original namespace, so reads fail while it is moved.
+- A disabled Secret's value moves to a quarantine namespace and is restored on enable. The row keeps the original namespace, so reads fail while it is moved. A Secret created disabled is stored in quarantine. If the move fails so does the request, and nothing changes.
 - Enabling a Dataset, TriggerRepository or ResultsRepository whose Secret is disabled or deleted is a 409. Repoint it with `PATCH secret_label` (naming a disabled Secret there is a 400).
 - Rotating a disabled Secret is a 409, unless the same request enables it.
-- Deleting a Secret is a 409 while an enabled GlobalResource uses it. `?force=true` disables them first. Disabled ones may keep pointing at it until repointed.
+- Deleting a Secret is a 409 while an enabled GlobalResource uses it. `?force=true` disables them first. Disabled ones may keep pointing at it until repointed. The value is deleted from its namespace and from quarantine.
+- The healthcheck of a disabled Secret reports `secret_missing` (disabled) without reading the store.
 
 ## Who may do what
 
@@ -122,10 +127,9 @@ Applies once the secrets change is merged. Today a Secret disable already disabl
 
 ## Known limits
 
-- A result recorded before a revoke is not re-checked. A `FAILED` result that is not final is still retried, so after a project, Dataset or TriggerRepository revoke it can still be delivered. After a revoke on the results side it is paused, and resumes on un-revoke.
-- A running task is not stopped. A push already in progress may still complete.
+- A result recorded before a revoke keeps its step and state until `POST /projects/<pid>/results` is called for it again, which each delivery attempt does first. A non-final `FAILED` result is retried, so after a project, Dataset or TriggerRepository revoke its next attempt sets it `REVOKED`. After a revoke on the results side the retry is paused (only active links are retried), and resumes on un-revoke.
+- A running task is not stopped. A delivery already past that call is not stopped either, so a push in progress may still complete.
 - A leaked git token must also be revoked at the git host.
-- A revoked project that is still enabled is not refused new tasks. They are created and then fail at launch.
 - A project that is both revoked and disabled keeps its waiting tasks waiting, because the launcher only reads enabled projects. They fail once it is enabled.
 - `ProjectSecret` has the flags but nothing reads them.
 - `openapi.json` is not regenerated for the `revoked` fields.
