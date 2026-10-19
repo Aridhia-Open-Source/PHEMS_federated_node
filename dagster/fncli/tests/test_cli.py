@@ -21,8 +21,8 @@ def test_every_expected_command_is_registered():
     assert EXPECTED_COMMANDS <= set(cli.commands)
 
 
-def test_there_are_46_commands():
-    assert len(cli.commands) == 46
+def test_there_are_47_commands():
+    assert len(cli.commands) == 47
 
 
 def test_every_command_has_help_text():

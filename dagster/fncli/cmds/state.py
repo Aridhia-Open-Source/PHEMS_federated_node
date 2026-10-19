@@ -1,6 +1,6 @@
 """
 Commands for the end-to-end QA plan (project/handover/e2e-qa-plan.md): look at the test project's state, and change the
-state the webserver's rules act on (project enabled, a link's enabled and revoked, a global resource's enabled),
+state the webserver's rules act on (project enabled and revoked, a link's enabled and revoked, a global resource's enabled and revoked),
 plus a second project on the same global resources. Every write prints the HTTP status and body; `--expect STATUS` asserts
 the status, which is how the plan checks the 409 rules. Without it a status of 400 or more is a failure.
 """
@@ -10,7 +10,7 @@ import logging
 
 import click
 
-from fncli.cmds.common import ProjectConfig, build_admin_backend_api, build_backend_api
+from fncli.cmds.common import SECRET_CONFIGS, ProjectConfig, build_admin_backend_api, build_backend_api
 from fncli.backend import FncliBackendAPI
 
 logger = logging.getLogger("state")
@@ -150,16 +150,23 @@ def snapshot(api: FncliBackendAPI, name: str) -> dict:
     }
 
 
-def set_project(api: FncliBackendAPI, name: str, enabled: str | None, backfill: bool, expect: int | None) -> int:
+def set_project(
+    api: FncliBackendAPI, name: str, enabled: str | None, backfill: bool, expect: int | None,
+    revoked: str | None = None, admin_api: FncliBackendAPI | None = None,
+) -> int:
     data = {}
     if enabled is not None:
         data["enabled"] = enabled == "true"
     if backfill:
         data["backfill"] = True
+    if revoked is not None:
+        data["revoked"] = revoked == "true"
     if not data:
-        raise click.UsageError("Give --enabled and/or --backfill")
+        raise click.UsageError("Give --enabled, --revoked and/or --backfill")
     project = find_project(api, name)
-    return report(call(api, "PATCH", f"/projects/{project.id}", json=data), expect)
+    # Revoking is admin only, as for a link
+    writer = admin_api if "revoked" in data else api
+    return report(call(writer, "PATCH", f"/projects/{project.id}", json=data), expect)
 
 
 def set_link(
@@ -184,11 +191,29 @@ def set_link(
     return report(call(writer, "PATCH", link_path(kind, project.id, key), json=data), expect)
 
 
-def set_global(api: FncliBackendAPI, name: str, kind: str, enabled: str, expect: int | None) -> int:
-    """Turn the global resource behind the project's link on or off."""
+def set_global(
+    api: FncliBackendAPI, name: str, kind: str, enabled: str | None, expect: int | None,
+    revoked: str | None = None, admin_api: FncliBackendAPI | None = None,
+) -> int:
+    """Turn the global resource behind the project's link on or off, or revoke it from every project."""
+    data = {}
+    if enabled is not None:
+        data["enabled"] = enabled == "true"
+    if revoked is not None:
+        if kind not in ("trigger", "results"):
+            raise click.UsageError("--revoked is only for the trigger and results repositories")
+        data["revoked"] = revoked == "true"
+    if not data:
+        raise click.UsageError("Give --enabled and/or --revoked")
     project = find_project(api, name)
     key = link_key(kind, first_link(api, project.id, kind))
-    return report(call(api, "PATCH", global_path(kind, key), json={"enabled": enabled == "true"}), expect)
+    writer = admin_api if "revoked" in data else api
+    return report(call(writer, "PATCH", global_path(kind, key), json=data), expect)
+
+
+def set_secret(api: FncliBackendAPI, label: str, enabled: str, expect: int | None) -> int:
+    """Turn a secret on or off. Off also disables every repository and dataset that uses it; on changes only the secret."""
+    return report(call(api, "PATCH", f"/global/secrets/{label}", json={"enabled": enabled == "true"}), expect)
 
 
 def setup_second_project(api: FncliBackendAPI, config: ProjectConfig, name: str) -> int:
@@ -251,16 +276,20 @@ def project_show_command(project):
 
 @click.command("project-set")
 @click.option("--enabled", type=BOOL, default=None)
+@click.option("--revoked", type=BOOL, default=None, help="Admin only (logs in as the first Keycloak user). Takes effect immediately.")
 @click.option(
     "--backfill", is_flag=True, default=False,
     help="With --enabled true on a disabled project: create the triggers of the pull requests stored while it was off, instead of skipping them.",
 )
 @project_option
 @expect_option
-def project_set_command(enabled, backfill, project, expect):
-    """Enable or disable the project. Enabling skips what was merged while it was off, unless --backfill."""
+def project_set_command(enabled, revoked, backfill, project, expect):
+    """Enable or disable the project, or revoke or restore it. Enabling skips what was merged while it was off, unless --backfill."""
     config = ProjectConfig()
-    finish(set_project(build_backend_api(config), project or config.project_name, enabled, backfill, expect))
+    admin_api = build_admin_backend_api(config) if revoked is not None else None
+    finish(set_project(
+        build_backend_api(config), project or config.project_name, enabled, backfill, expect, revoked, admin_api
+    ))
 
 
 @click.command("link-set")
@@ -281,13 +310,36 @@ def link_set_command(kind, enabled, revoked, target_dir, project, expect):
 
 @click.command("global-set")
 @click.argument("kind", type=click.Choice(KINDS))
-@click.option("--enabled", type=BOOL, required=True)
+@click.option("--enabled", type=BOOL, default=None)
+@click.option(
+    "--revoked", type=BOOL, default=None,
+    help="Trigger and results only, from every project at once. Admin only (logs in as the first Keycloak user).",
+)
 @project_option
 @expect_option
-def global_set_command(kind, enabled, project, expect):
-    """Turn the global resource behind the project's link of that KIND on or off."""
+def global_set_command(kind, enabled, revoked, project, expect):
+    """Turn the global resource behind the project's link of that KIND on or off, or revoke or restore it."""
     config = ProjectConfig()
-    finish(set_global(build_backend_api(config), project or config.project_name, kind, enabled, expect))
+    admin_api = build_admin_backend_api(config) if revoked is not None else None
+    finish(set_global(
+        build_backend_api(config), project or config.project_name, kind, enabled, expect, revoked, admin_api
+    ))
+
+
+@click.command("secret-set")
+@click.option(
+    "--entity",
+    type=click.Choice(list(SECRET_CONFIGS)),
+    default="trigger",
+    show_default=True,
+    help="Whose secret: a repo's, or the dataset's.",
+)
+@click.option("--enabled", type=BOOL, required=True)
+@expect_option
+def secret_set_command(entity, enabled, expect):
+    """Turn a secret on or off. Off also disables the repositories and datasets that use it, and they stay off when it is turned on."""
+    config = SECRET_CONFIGS[entity]()
+    finish(set_secret(build_backend_api(config), config.secret_label, enabled, expect))
 
 
 @click.command("second-project-setup")
@@ -312,6 +364,7 @@ COMMANDS = [
     project_set_command,
     link_set_command,
     global_set_command,
+    secret_set_command,
     second_project_setup_command,
     second_project_teardown_command,
 ]

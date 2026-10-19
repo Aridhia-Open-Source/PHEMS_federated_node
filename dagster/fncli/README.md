@@ -207,9 +207,10 @@ checks the 409 rules. `KIND` is `trigger`, `results`, `dataset` or `secret`; `--
 | Command | What it does |
 |---|---|
 | `project-show [--project]` | JSON of the project's links (enabled, revoked, active), their pull requests (state, task), tasks and results. Read-only; stdout is clean JSON, so it pipes into `jq` |
-| `project-set [--enabled true\|false] [--backfill]` | Enables or disables the project (`PATCH /projects/<id>`). A new project is disabled; enabling it skips the pull requests stored while it was off, unless `--backfill` (with `--enabled true`, on a disabled project) creates their triggers |
+| `project-set [--enabled true\|false] [--revoked true\|false] [--backfill]` | Enables or disables the project, or revokes or restores it (admin only) (`PATCH /projects/<id>`). A new project is disabled; enabling it skips the pull requests stored while it was off, unless `--backfill` (with `--enabled true`, on a disabled project) creates their triggers |
 | `link-set KIND --enabled/--revoked true\|false` | Sets the flags of the project's link to a global resource. `--revoked` is admin only and immediate |
-| `global-set KIND --enabled true\|false` | Turns the global resource behind the link on or off |
+| `global-set KIND [--enabled true\|false] [--revoked true\|false]` | Turns the global resource behind the link on or off; `--revoked` (admin only, trigger and results) withdraws it from every project |
+| `secret-set [--entity trigger\|results\|dataset] --enabled true\|false` | Turns a secret on or off. Off also disables the repositories and datasets that use it, and they stay off when it is turned on |
 | `second-project-setup NAME` | Creates a second project linked to the same global resources (secrets, dataset, trigger and results repositories), enabled |
 | `second-project-teardown NAME` | Deletes that project. The global resources stay |
 

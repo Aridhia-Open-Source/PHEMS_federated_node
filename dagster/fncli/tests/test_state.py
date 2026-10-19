@@ -64,12 +64,65 @@ def test_disabling_a_project_sends_enabled_false(calls):
 
 
 def test_project_set_needs_a_flag(calls):
-    with pytest.raises(Exception, match="--enabled and/or --backfill"):
+    with pytest.raises(Exception, match="--enabled, --revoked and/or --backfill"):
         state.set_project(MagicMock(), "p", None, False, None)
 
 
 def test_project_set_command_options():
-    assert {param.name for param in state.project_set_command.params} == {"enabled", "backfill", "project", "expect"}
+    assert {param.name for param in state.project_set_command.params} == {"enabled", "revoked", "backfill", "project", "expect"}
+
+
+def test_revoking_a_project_uses_the_admin_login(calls):
+    system, admin = MagicMock(name="system"), MagicMock(name="admin")
+
+    state.set_project(system, "p", None, False, None, revoked="true", admin_api=admin)
+
+    ((used, method, path, kwargs),) = calls
+    assert used is admin and (method, path, kwargs["json"]) == ("PATCH", "/projects/1", {"revoked": True})
+
+
+def test_enabling_a_project_keeps_the_system_login_even_when_an_admin_is_given(calls):
+    system, admin = MagicMock(name="system"), MagicMock(name="admin")
+
+    state.set_project(system, "p", "true", False, None, admin_api=admin)
+
+    ((used, _, _, kwargs),) = calls
+    assert used is system and kwargs["json"] == {"enabled": True}
+
+
+def test_revoking_a_global_resource_uses_the_admin_login(calls):
+    system, admin = MagicMock(name="system"), MagicMock(name="admin")
+
+    state.set_global(system, "p", "results", None, None, revoked="false", admin_api=admin)
+
+    ((used, method, path, kwargs),) = calls
+    assert used is admin and (method, path, kwargs["json"]) == ("PATCH", "/global/repositories/results/7", {"revoked": False})
+
+
+def test_turning_a_global_resource_off_keeps_the_system_login(calls):
+    system, admin = MagicMock(name="system"), MagicMock(name="admin")
+
+    state.set_global(system, "p", "secret", "false", None, admin_api=admin)
+
+    ((used, _, path, kwargs),) = calls
+    assert used is system and path == "/global/secrets/7" and kwargs["json"] == {"enabled": False}
+
+
+def test_turning_a_secret_off_sends_enabled_false(calls):
+    state.set_secret(MagicMock(), "trigger-secret", "false", None)
+
+    ((_, method, path, kwargs),) = calls
+    assert (method, path, kwargs["json"]) == ("PATCH", "/global/secrets/trigger-secret", {"enabled": False})
+
+
+def test_only_repositories_can_be_revoked_globally(calls):
+    with pytest.raises(Exception, match="trigger and results"):
+        state.set_global(MagicMock(), "p", "dataset", None, None, revoked="true")
+
+
+def test_global_set_needs_a_flag(calls):
+    with pytest.raises(Exception, match="--enabled and/or --revoked"):
+        state.set_global(MagicMock(), "p", "trigger", None, None)
 
 
 def test_second_project_is_created_disabled_linked_then_enabled(monkeypatch):

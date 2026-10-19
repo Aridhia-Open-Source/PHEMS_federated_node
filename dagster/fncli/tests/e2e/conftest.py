@@ -4,6 +4,7 @@ Fixtures and helpers for the end-to-end tests. Run against a live dev cluster wi
     pytest dagster --e2e -v            # all of them
     pytest dagster --e2e success -v    # the happy path only
     pytest dagster --e2e failure -v    # the failure paths only
+    pytest dagster --e2e failure2 -v   # the failure paths that switch something off or revoke it only
 
 The project is cleared at the start of each run and left in place afterwards for inspection; E2E_TEARDOWN=1 also tears it
 down at the end. Nothing here runs at import time, so a normal test run
