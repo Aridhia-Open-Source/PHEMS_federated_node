@@ -143,6 +143,12 @@ def grew_by_one(flow, key):
 # --- Setup: a fresh project and the sensors running -------------------------------------------
 
 
+def test_teardown_leftover_second_project(fncli):
+    """A run that died mid-test leaves the second project behind, and creating it again fails with "already exists"."""
+    if fncli.backend_api.find_project(SECOND_PROJECT) is not None:
+        fncli.call(second_project_teardown_command, name=SECOND_PROJECT, expect=204)
+
+
 @pytest.mark.parametrize("command, options", TEARDOWN_STEPS, ids=TEARDOWN_IDS)
 def test_teardown_leftovers(fncli, command, options):
     teardown_step(fncli, command, options)
