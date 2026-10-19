@@ -249,3 +249,100 @@ def test_a_task_with_an_error_is_launched_by_a_later_tick_with_the_same_run_key(
     assert len(first) == 1 and isinstance(first[0], SkipReason)
     assert [r.run_key for r in second] == ["task/9/1"]
     backend_api.patch_task.assert_not_called()
+
+
+def config_with(**fields):
+    return {"current": True, "changes": [], "config_hash": None, "revoked": [], **fields}
+
+
+def test_a_revoked_and_disabled_project_keeps_its_task_pending_until_it_is_enabled_then_fails_it():
+    pending = task()
+    revoked_config = config_with(revoked=["project proj1", "results repository org/results"])
+    backend_api = make_backend([project(enabled=False)], {1: [pending]})
+    backend_api.get_task_config.return_value = revoked_config
+
+    # Disabled: the launcher reads enabled projects only, so it neither reads the task nor patches it
+    first = run(backend_api)
+
+    assert len(first) == 1 and isinstance(first[0], SkipReason)
+    backend_api.get_projects.assert_called_once_with(enabled=True)
+    backend_api.get_tasks.assert_not_called()
+    backend_api.get_task_config.assert_not_called()
+    backend_api.patch_task.assert_not_called()
+
+    # Enabled while still revoked: the task fails with the revoked cause and is not launched
+    backend_api = make_backend([project(enabled=True)], {1: [pending]})
+    backend_api.get_task_config.return_value = revoked_config
+
+    second = run(backend_api)
+
+    assert len(second) == 1 and isinstance(second[0], SkipReason)
+    backend_api.patch_task.assert_called_once_with(1, 9, {
+        "status": "FAILED", "state_cause": "revoked: project proj1; results repository org/results",
+    })
+
+
+def test_a_task_with_a_revoked_dataset_is_failed_naming_the_dataset_with_the_revoked_prefix():
+    backend_api = make_backend([project()], {1: [task()]})
+    backend_api.get_task_config.return_value = config_with(revoked=["dataset cdm"])
+
+    result = run(backend_api)
+
+    assert [r for r in result if isinstance(r, RunRequest)] == []
+    backend_api.patch_task.assert_called_once_with(1, 9, {"status": "FAILED", "state_cause": "revoked: dataset cdm"})
+    backend_api.get_project_dataset.assert_not_called()
+
+
+def test_a_task_whose_global_dataset_is_switched_off_is_failed_naming_the_dataset():
+    backend_api = make_backend([project()], {1: [task()]})
+    # The link is not active when the global dataset is disabled
+    backend_api.get_project_dataset.return_value = assignment(
+        active=False, dataset=DATASET.model_copy(update={"enabled": False})
+    )
+
+    run(backend_api)
+
+    cause = backend_api.patch_task.call_args.args[2]["state_cause"]
+    assert cause == "Dataset cdm is not active in project proj1"
+    assert not cause.startswith("revoked:")
+
+
+def test_a_stale_task_is_failed_as_stale_before_its_dataset_link_is_read():
+    backend_api = make_backend([project()], {1: [task()]})
+    backend_api.get_task_config.return_value = config_with(current=False, changes=["image changed"])
+    backend_api.get_project_dataset.return_value = assignment(active=False)
+
+    run(backend_api)
+
+    backend_api.patch_task.assert_called_once_with(1, 9, {
+        "status": "FAILED", "state_cause": "task configuration changed since the task was created: image changed",
+    })
+    backend_api.get_project_dataset.assert_not_called()
+
+
+def test_an_inactive_dataset_link_is_the_cause_before_a_disabled_dataset_secret():
+    backend_api = make_backend([project()], {1: [task()]})
+    secret = DATASET.secret.model_copy(update={"enabled": False})
+    backend_api.get_project_dataset.return_value = assignment(
+        active=False, dataset=DATASET.model_copy(update={"secret": secret})
+    )
+
+    run(backend_api)
+
+    backend_api.patch_task.assert_called_once_with(
+        1, 9, {"status": "FAILED", "state_cause": "Dataset cdm is not active in project proj1"}
+    )
+
+
+def test_a_task_failed_by_a_rule_is_patched_once_and_never_launched():
+    backend_api = make_backend([project()], {1: [task()]})
+    backend_api.get_task_config.return_value = config_with(
+        revoked=["dataset cdm"], current=False, changes=["image changed"]
+    )
+    backend_api.get_project_dataset.return_value = assignment(active=False)
+
+    result = run(backend_api)
+
+    assert not any(isinstance(r, RunRequest) for r in result)
+    backend_api.patch_task.assert_called_once()
+    backend_api.get_project_dataset.assert_not_called()

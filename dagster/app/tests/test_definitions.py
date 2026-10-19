@@ -4,7 +4,7 @@ import dagster as dg
 
 from app.definitions import defs
 from app.definitions.jobs import JOBS, k8s_pipes_job, noop_job
-from app.config import DEFAULT_SENSOR_STATUS
+from app.config import DEFAULT_SENSOR_STATUS, MIN_SENSOR_INTERVAL_SECONDS
 from app.definitions.sensors import SENSORS
 
 
@@ -59,3 +59,11 @@ class TestCodeLocation:
 
     def test_every_sensor_is_stopped_by_default(self):
         assert DEFAULT_SENSOR_STATUS == dg.DefaultSensorStatus.STOPPED
+
+    def test_there_are_exactly_eleven_sensors(self):
+        assert len(SENSORS) == 11
+        assert len(defs.sensors) == 11
+        assert len({sensor.name for sensor in defs.sensors}) == 11
+
+    def test_every_sensor_uses_the_configured_minimum_interval(self):
+        assert all(s.minimum_interval_seconds == MIN_SENSOR_INTERVAL_SECONDS for s in SENSORS)

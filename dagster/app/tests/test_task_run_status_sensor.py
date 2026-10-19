@@ -137,3 +137,25 @@ def test_any_other_backend_error_raises():
 
     with pytest.raises(requests.HTTPError):
         sensor_for(dg.DagsterRunStatus.STARTED, backend_api=backend_api)()
+
+
+DELIVERY_TAGS = {"trigger": "delivery", "delivery_task_id": "7"}
+
+
+@pytest.mark.parametrize("sensor", [
+    task_queued_sensor, task_started_sensor, task_success_sensor, task_failure_sensor, task_canceled_sensor,
+])
+def test_registered_sensors_ignore_delivery_runs(backend_api, dagster_instance, sensor):
+    run = make_dagster_run(tags=DELIVERY_TAGS).with_status(dg.DagsterRunStatus.SUCCESS)
+
+    sensor(context_for(run, dagster_instance))
+
+    backend_api.patch_task.assert_not_called()
+
+
+def test_a_failed_delivery_run_never_patches_the_task(backend_api, dagster_instance):
+    run = make_dagster_run(tags=DELIVERY_TAGS).with_status(dg.DagsterRunStatus.FAILURE)
+
+    task_failure_sensor(context_for(run, dagster_instance))
+
+    backend_api.patch_task.assert_not_called()

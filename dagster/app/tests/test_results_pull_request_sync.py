@@ -242,3 +242,16 @@ def test_the_sensor_skips_when_nothing_is_pushed_or_opened():
     request, _ = run_sensor([])
 
     assert isinstance(request, dg.SkipReason)
+
+
+def test_only_pushed_and_opened_results_are_synced_so_a_closed_one_reopened_stays_closed():
+    from app.definitions.sensors.task.pull_request_sync import SYNCED
+    from app.models import PullRequestResultStep
+
+    assert SYNCED == [PullRequestResultStep.PUSHED, PullRequestResultStep.OPENED]
+    # The backend returns no CLOSED result, so the provider is not asked about its pull request
+    backend_api, git_apis, git_api = sync([])
+    backend_api.get_results_by_step.assert_called_once_with(1, ["PUSHED", "OPENED"])
+    git_apis.for_repository.assert_not_called()
+    git_api.get_pull_request.assert_not_called()
+    backend_api.patch_result.assert_not_called()

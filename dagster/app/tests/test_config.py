@@ -5,6 +5,7 @@ from pydantic import ValidationError
 from app.config import (
     BackendConfig,
     PipesSecurityContextConfig,
+    ResultsDeliveryConfig,
     SensorStatusConfig,
 )
 
@@ -18,7 +19,7 @@ def clean_env(monkeypatch):
         "DAGSTER_PIPES_FS_GROUP", "DAGSTER_PIPES_RUN_AS_USER",
         "DAGSTER_PIPES_RUN_AS_GROUP", "DAGSTER_PIPES_SUPPLEMENTAL_GROUPS",
         "DAGSTER_SENSORS_INITIAL_STATUS", "DAGSTER_SENSORS_MIN_INTERVAL_SECONDS",
-        "DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS", "DAGSTER_DELIVERY_MAX_ATTEMPTS",
+        "DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS", "DAGSTER_DELIVERY_MAX_ATTEMPTS", "RESULTS_MAX_ZIP_BYTES",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -119,3 +120,16 @@ class TestPipesSecurityContext:
         monkeypatch.setenv("DAGSTER_PIPES_SUPPLEMENTAL_GROUPS", "")
 
         assert "supplementalGroups" not in PipesSecurityContextConfig().to_pod_security_context()
+
+
+class TestResultsDeliveryConfig:
+    def test_the_zip_cap_is_10_mib_by_default(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/artifacts")
+
+        assert ResultsDeliveryConfig().max_zip_bytes == 10 * 1024 * 1024
+
+    def test_the_zip_cap_comes_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/artifacts")
+        monkeypatch.setenv("RESULTS_MAX_ZIP_BYTES", "2048")
+
+        assert ResultsDeliveryConfig().max_zip_bytes == 2048
