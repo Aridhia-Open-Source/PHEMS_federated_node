@@ -10,7 +10,7 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 |---|---|---|
 | [0001](../project/decisions/0001-polymorphic-triggers.md) | Polymorphic Trigger (pull request or API request) | `state` sits on the parent; one task per trigger. |
 | [0002](../project/decisions/0002-task-spec-and-derivation.md) | TaskSpec, and a Task derived from spec and trigger | Bad specs are a 400 or a kept REJECTED trigger, never a 500. |
-| [0003](../project/decisions/0003-task-status-written-by-run-status-sensors.md) | Task status written only by run-status sensors | Delivery never writes the status; the launcher writes FAILED only for a rule. |
+| [0003](../project/decisions/0003-task-status-written-by-run-status-sensors.md) | Task status written by the run-status and reconcile sensors | Delivery never writes the status; the launcher writes FAILED only for a rule. |
 | [0004](../project/decisions/0004-polymorphic-result-and-forward-only-state.md) | Polymorphic Result, forward-only step, separate state | A step only moves forward; MERGED, CLOSED, REVOKED and STALE are final. |
 | [0005](../project/decisions/0005-state-transition-tables.md) | State transition tables | `TRIGGER_MOVES`, `TASK_MOVES`, `RETRYABLE`, `RESULT_ORDER`; 409 on a refused move, 400 on a bad retry. |
 | [0006](../project/decisions/0006-global-resources-and-project-links.md) | Global resources linked to projects | The tables and links, the URL layout, datasets and the default dataset, cross-project loops. |
@@ -21,7 +21,7 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0011](../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md) | Pull requests stored once, fan-out, cursors | Match rule, the two cursors, `skip_gap`, backfill only at project enable. |
 | [0012](../project/decisions/0012-github-ingest-pulls-endpoint.md) | Ingest merged pull requests through the pulls endpoint | Cursor handling, paging, truncated file lists. |
 | [0013](../project/decisions/0013-results-delivered-as-branch-and-pull-request.md) | Results delivered as a pushed branch plus a pull request | Layout under `target_dir`, size cap, resume after a partial push. |
-| [0014](../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md) | Dagster pipeline: ingest op, eleven sensors | Batches of 100, one interval, STOPPED by default and start order, 409 as skip. |
+| [0014](../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md) | Dagster pipeline: ingest op, twelve sensors | Batches of 100, one interval, STOPPED by default, any start order, 409 as skip. |
 | [0015](../project/decisions/0015-run-keys-retries-and-results-pr-sync.md) | Run keys, retries and the results pull request sync | Run keys and retries; delivery retry; the sync reconciler's limits. |
 | [0016](../project/decisions/0016-pydantic-dto-layer.md) | Pydantic DTO layer for API responses | Responses go through DTOs; validation gives a 400. |
 | [0017](../project/decisions/0017-authorization-detached-from-dar-and-keycloak.md) | Authorization detached from DAR, Keycloak and whitelisted images | What is disconnected is listed and nothing else calls it. |

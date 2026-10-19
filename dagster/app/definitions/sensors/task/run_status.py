@@ -11,7 +11,7 @@ from app.models import TaskStatus
 
 
 class TaskRunStatusSensor(BaseSensor):
-    """Mirrors the status of a task's Dagster run onto the task. Nothing else writes Task.status."""
+    """Mirrors the status of a task's Dagster run onto the task. Besides the reconcile sensor and the launcher's rule failures, nothing else writes Task.status."""
 
     # Dagster statuses that share a name with a task status map onto it. The rest are renamed.
     STATUS_MAP = {

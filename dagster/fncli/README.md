@@ -179,9 +179,8 @@ whose spec has an unknown field, so the PR is rejected.
 
 Everything is STOPPED in Dagster by default. The whole path from a merged PR is: `ingest` polls the repository once and stores the PR, which the backend fans out to every project assigned to the repository (a trigger per assignment, UNKNOWN), `evaluate` turns each into a task (YIELDED, or REJECTED with a cause), `launcher`
 starts a Dagster run for each PENDING task, and the run-status sensors copy the run's status onto the
-task. The run-status sensors only see events from the moment they start, so they must be running
-BEFORE the launcher: a run that finishes first leaves its task PENDING for good. `start-sensor
---sensor all` starts them in the safe order.
+task. The reconcile sensor sets every unfinished task to the current status of its run on each tick,
+so the start order of the sensors does not matter. `start-sensor --sensor all` starts them all.
 
 `hello-world` prints a greeting, to check the CLI is installed.
 
