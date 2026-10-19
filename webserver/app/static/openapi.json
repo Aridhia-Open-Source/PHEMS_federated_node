@@ -8076,7 +8076,7 @@
           },
           "existing": {
             "type": "array",
-            "description": "Numbers already stored, left as they were",
+            "description": "Numbers already stored, left as they were. A pull request skipped because its merge commit is already stored on the same base branch under another number is reported as that other number",
             "items": {
               "type": "integer"
             },

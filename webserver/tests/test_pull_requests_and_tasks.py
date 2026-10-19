@@ -756,20 +756,55 @@ def test_cancel_is_not_implemented_and_leaves_the_task_alone(client, admin_heade
     assert client.get(f"/projects/{project.id}/tasks/{tid}", headers=admin_headers).json["status"] == "PENDING"
 
 
-def test_a_repeated_merge_commit_sha_under_a_new_number_is_a_409_and_the_batch_stores_nothing(
-    client, admin_headers, project, global_trigger_repo
+def test_one_merge_commit_on_two_base_branches_is_stored_twice_and_fans_out_to_each(
+    client, admin_headers, project, other_project, global_trigger_repo
 ):
-    """
-    Only the (repository, number) conflict is ignored by the insert; (repository, merge_commit_sha) is a unique
-    constraint too, and the IntegrityError becomes a 409 for the whole batch (rolled back).
-    """
+    """A fast-forward or rebase merge gives a release branch and main the same commit under two numbers."""
+    T = global_trigger_repo.id
+    link(client, admin_headers, project.id, T, base_branch="main")
+    link(client, admin_headers, other_project.id, T, base_branch="release")
+    sha = f"{9:040x}"
+
+    response = post_prs(
+        client, admin_headers, T,
+        pr(1, merge_commit_sha=sha, base_branch="main"), pr(2, merge_commit_sha=sha, base_branch="release"),
+    )
+
+    assert response.status_code == 201
+    assert response.json == {"created": [1, 2], "existing": []}
+    assert global_total(client, admin_headers, T) == 2
+    assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN"}
+    assert states(client, admin_headers, other_project.id, T) == {2: "UNKNOWN"}
+
+
+def test_a_repeated_merge_commit_on_the_same_base_branch_under_a_new_number_is_skipped(
+    client, admin_headers, project, global_trigger_repo, caplog
+):
+    """The duplicate stores nothing and gets no trigger, the rest of the batch is stored, and the post is a 201."""
     T = global_trigger_repo.id
     link(client, admin_headers, project.id, T)
     assert post_prs(client, admin_headers, T, pr(1)).status_code == 201
 
-    clash = post_prs(client, admin_headers, T, pr(2), pr(5, merge_commit_sha=f"{1:040x}"))
+    with caplog.at_level("WARNING", logger="pull_request_fanout"):
+        response = post_prs(client, admin_headers, T, pr(2), pr(5, merge_commit_sha=f"{1:040x}"), pr(6))
 
-    assert clash.status_code == 409
-    assert clash.json == {"error": "Record already exists"}
+    assert response.status_code == 201
+    assert response.json == {"created": [2, 6], "existing": [1]}
+    assert global_total(client, admin_headers, T) == 3
+    assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN", 2: "UNKNOWN", 6: "UNKNOWN"}
+    assert "#5" in caplog.text and "#1" in caplog.text
+    # Ingest is not blocked: a later batch is stored
+    assert post_prs(client, admin_headers, T, pr(7)).json == {"created": [7], "existing": []}
+
+
+def test_posting_the_same_pull_request_again_changes_nothing(client, admin_headers, project, global_trigger_repo):
+    T = global_trigger_repo.id
+    link(client, admin_headers, project.id, T)
+    assert post_prs(client, admin_headers, T, pr(1)).status_code == 201
+
+    again = post_prs(client, admin_headers, T, pr(1))
+
+    assert again.status_code == 201
+    assert again.json == {"created": [], "existing": [1]}
     assert global_total(client, admin_headers, T) == 1
     assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN"}

@@ -289,7 +289,10 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['trigger_repository_id'], ['trigger_repositories.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('trigger_repository_id', 'number', name='uq_pull_requests_repo_number'),
-        sa.UniqueConstraint('trigger_repository_id', 'merge_commit_sha', name='uq_pull_requests_repo_merge_commit_sha'),
+        sa.UniqueConstraint(
+            'trigger_repository_id', 'base_branch', 'merge_commit_sha',
+            name='uq_pull_requests_repo_base_branch_merge_commit_sha'
+        ),
     )
     op.create_index(
         'ix_pull_requests_repo_merged_at_number', 'pull_requests', ['trigger_repository_id', 'merged_at', 'number']

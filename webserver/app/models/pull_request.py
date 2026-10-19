@@ -32,8 +32,12 @@ class PullRequest(db.Model, BaseModel):
 
     __table_args__ = (
         sa.UniqueConstraint('trigger_repository_id', 'number', name='uq_pull_requests_repo_number'),
-        # Integrity check: the same merge can't be stored twice under different numbers
-        sa.UniqueConstraint('trigger_repository_id', 'merge_commit_sha', name='uq_pull_requests_repo_merge_commit_sha'),
+        # The same merge can't be stored twice under different numbers on one base branch; a fast-forward
+        # or rebase merge can give two base branches the same commit
+        sa.UniqueConstraint(
+            'trigger_repository_id', 'base_branch', 'merge_commit_sha',
+            name='uq_pull_requests_repo_base_branch_merge_commit_sha'
+        ),
         sa.Index('ix_pull_requests_repo_merged_at_number', 'trigger_repository_id', 'merged_at', 'number'),
     )
 

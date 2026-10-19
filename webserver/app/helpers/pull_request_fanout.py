@@ -2,8 +2,9 @@
 Pull requests are stored once per global trigger repository and every project that watches
 the repository gets a trigger for each one it should evaluate (ADR 0011).
 
-- `store_pull_request` upserts the provider's facts. The unique constraint decides, so two
-  concurrent posts of one pull request store it once.
+- `store_pull_request` upserts the provider's facts. The unique constraints decide, so two
+  concurrent posts of one pull request store it once. A pull request whose merge commit is
+  already stored under another number for the same base branch is skipped with a warning.
 - `fan_out` creates the triggers of newly stored pull requests for the assignments that accept triggers
   (active, and their project enabled).
 - `skip_gap` moves the assignments' cursor to now when they become active again (a link enabled
@@ -59,8 +60,9 @@ def store_pull_request(
     merge_commit_sha: str, base_branch: str, files_truncated: bool, changed_files: list[dict]
 ) -> tuple[PullRequest, bool]:
     """
-    Stores the pull request's facts unless the repository already has that number, and returns
-    it with whether this call stored it. The facts of a stored pull request are not changed.
+    Stores the pull request's facts unless the repository already has that number, or already has
+    that merge commit on the same base branch under another number, and returns the stored row
+    with whether this call stored it. The facts of a stored pull request are not changed.
     `changed_files` is a list of {"path", "status"}.
     """
     stored_id = session.execute(
@@ -68,11 +70,23 @@ def store_pull_request(
             trigger_repository_id=trigger_repository_id, number=number, title=title, raised_by=raised_by,
             merged_at=merged_at, merge_commit_sha=merge_commit_sha, base_branch=base_branch,
             files_truncated=files_truncated,
-        ).on_conflict_do_nothing(constraint='uq_pull_requests_repo_number').returning(PullRequest.id)
+        ).on_conflict_do_nothing().returning(PullRequest.id)
     ).scalar_one_or_none()
 
     if stored_id is None:
-        existing = PullRequest.query.filter_by(trigger_repository_id=trigger_repository_id, number=number).one()
+        existing = PullRequest.query.filter_by(trigger_repository_id=trigger_repository_id, number=number).first()
+        if existing is None:
+            existing = PullRequest.query.filter_by(
+                trigger_repository_id=trigger_repository_id, base_branch=base_branch, merge_commit_sha=merge_commit_sha
+            ).first()
+            if existing is None:
+                raise RuntimeError(
+                    f"Pull request #{number} was not stored and no stored pull request conflicts with it"
+                )
+            logger.warning(
+                "Pull request #%s skipped: #%s already has merge commit %s on %s",
+                number, existing.number, merge_commit_sha, base_branch,
+            )
         return existing, False
 
     if changed_files:
