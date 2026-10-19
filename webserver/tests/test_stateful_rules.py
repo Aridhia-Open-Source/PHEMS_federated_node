@@ -1,6 +1,8 @@
 """
 Random sequences of actions against the webserver, checked against a small model of the rules (Hypothesis stateful testing).
-NOT RUN: written for review. It needs `hypothesis` (not yet in the dev requirements) and the usual test database.
+The rules are those in docs/architecture/revoke-and-enabled.md (enabled and revoked) and ADR 0019
+(project/decisions/0019-global-resources-and-shared-pull-requests.md: the cursor, fan-out and backfill).
+It needs `hypothesis` (pinned in requirements-dev.txt) and the usual test database.
 
 One project, linked to one global trigger repository. Hypothesis builds random sequences of the actions below and, after
 every action, compares the real state (the API) with the model. A failing sequence is shrunk to the shortest that fails.
@@ -8,35 +10,37 @@ every action, compares the real state (the API) with the model. A failing sequen
 ACTIONS (rules)
   merge_pr(matching)          a PR is merged at the provider (the model's "git server"); matching ones add a spec file under watch_dir
   ingest()                    what the ingest sensor does: post the PRs merged after the newest stored one, 100 at most
-  ingest_when_disabled()      the same call to a disabled global repository is refused (400) and stores nothing
-  evaluate_one()              what the evaluate sensor does: create the task of an UNKNOWN trigger (201 if the link is active, else 409)
+  ingest_when_inactive()      the same call to a global repository that is disabled or revoked is refused (400) and stores nothing
+  evaluate_one()              what the evaluate sensor does: create the task of an UNKNOWN trigger (201 if the link is active and the
+                              project is not revoked, else 409)
   progress_task()             a task moves PENDING -> QUEUED -> RUNNING -> SUCCESS or FAILED (the run-status sensors)
   finished_task_is_final()    a finished task cannot change to another status (409)
   set_link_enabled(v)         turn the link on or off: always 200, no drain needed
-  set_project_enabled(v, b)   turn the project on or off: always 200; off -> on skips the gap (M7), or with backfill creates the missed triggers (M8)
-  refused_backfill(v)         backfill with anything but "enabled": true on a disabled project is refused (400, M8)
   set_link_revoked(v)         revoke or re-grant the link: always 200, takes effect at once
-  set_global_enabled(v)       turn the global repository on or off: always 200; off -> on skips the gap (M6)
+  set_global_enabled(v)       turn the global repository on or off: always 200
+  set_global_revoked(v)       revoke or re-grant the global repository for every project: always 200
+  set_project_enabled(v, b)   turn the project on or off: always 200; off -> on skips the gap, or with backfill creates the missed triggers
+  set_project_revoked(v)      revoke or re-grant the project: always 200; re-granting skips the gap
+  refused_backfill(v)         backfill with anything but "enabled": true on a disabled project is refused (400)
 
 INVARIANTS (checked after every action)
   triggers_match_model        the project's triggers (number -> state) are exactly the model's
   stored_prs_match_model      the repository has stored exactly the PRs the model says
   tasks_match_model           the project's tasks (id -> status) are exactly the model's; no PR has two tasks
-  link_active_matches_model   the link is active iff the global repository, the link are on and the link is not revoked
+  link_active_matches_model   the link is active iff the global repository and the link are on and not revoked
+  flags_match_model           the enabled and revoked flags of the project, the global repository and the link are the model's
 
-THE MODEL'S RULES (to review; each one is a decision, not just a description of the code)
-  M1  A stored PR gets a trigger for the link only if it matches (spec file under watch_dir), the link is active and the project is enabled when it is stored.
-  M2  NO REPLAY: whenever the LINK becomes active again (link enabled, link re-granted), its cursor moves to now, as in M6: every
-      PR that exists at that moment is stored but never gets a trigger; PRs merged after it do.
-  M3  An inactive link refuses to create a task (409) and the trigger stays UNKNOWN.
-  M4  Changing an enabled flag (the link's, the repository's or the project's) needs no drain: it is always 200.
-  M5  Revoking needs no draining.
-  M6  A disabled global repository refuses new PRs entirely (the sensor fetches them again once it is back on, the ingest cursor
-      being the newest stored PR). Switching it back on moves the link's cursor to now: every PR that exists at that moment is still
-      stored when ingested but never gets a trigger (not at ingest, not by a backfill); PRs merged after it do.
-  M7  A disabled project gets no trigger for the PRs stored meanwhile. Switching it back on moves the cursor of its links to now, as in M6.
-  M8  Switching a disabled project on with "backfill": true leaves the cursor where it is and gives its active links a trigger for every
-      stored PR that matches, is after the cursor and has none yet. "backfill" with anything else is a 400 and changes nothing.
+THE MODEL'S RULES, in words (each one is a decision; the documents above are the reference)
+  - A stored PR gets a trigger for the link only if it matches (a spec file under watch_dir), the link is active, and the project is
+    enabled and not revoked when it is stored.
+  - No replay: whenever the link, the global repository or the project becomes usable again (switched on or re-granted), its cursor
+    moves to now. Every PR that exists at that moment is stored when ingested but never gets a trigger; PRs merged after it do.
+  - An inactive link, or a revoked project, refuses to create a task (409) and the trigger stays UNKNOWN.
+  - A global repository that is disabled or revoked refuses new PRs entirely (400). The sensor fetches them again once it is back,
+    the ingest cursor being the newest stored PR.
+  - Switching any flag needs no draining: it is always 200, a revoke takes effect at once, and a revoke never changes `enabled`.
+  - Enabling a disabled project with "backfill": true leaves the cursor where it is and gives its links that accept triggers a trigger
+    for every stored PR that matches, is after the cursor and has none yet. "backfill" with anything else is a 400 and changes nothing.
 """
 
 import json
@@ -107,9 +111,12 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         self.link_enabled = link.json["enabled"]
         self.link_revoked = link.json["revoked"]
         self.project_enabled = project_json["enabled"]
-        self.global_enabled = self.call("get", f"/global/repositories/triggers/{self.repo_id}").json["enabled"]
+        self.project_revoked = project_json["revoked"]
+        repo_json = self.call("get", f"/global/repositories/triggers/{self.repo_id}").json
+        self.global_enabled = repo_json["enabled"]
+        self.global_revoked = repo_json["revoked"]
         self.provider = []          # PRs merged at the git server: {"number", "matching", "merged_at"}
-        self.skip_before = 0        # M2, M6: PRs numbered up to this existed when the link last became active again
+        self.skip_before = 0        # PRs numbered up to this existed when the link, repository or project last became usable again
         self.stored = {}            # number -> matching, what the repository has stored
         self.triggers = {}          # number -> state, the project's triggers
         self.tasks = {}             # task id -> status
@@ -130,11 +137,19 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         return getattr(self.client, method)(url, json=body, headers=self.headers)
 
     @property
+    def global_active(self) -> bool:
+        return self.global_enabled and not self.global_revoked
+
+    @property
     def link_active(self) -> bool:
-        return self.global_enabled and self.link_enabled and not self.link_revoked
+        return self.global_active and self.link_enabled and not self.link_revoked
+
+    @property
+    def project_accepts(self) -> bool:
+        return self.project_enabled and not self.project_revoked
 
     def skip_gap_if_activated(self, was_active: bool):
-        """M2: a link that has become active again gives no trigger to the PRs that exist now."""
+        """A link that has become active again gives no trigger to the PRs that exist now."""
         if self.link_active and not was_active:
             self.skip_before = len(self.provider)
 
@@ -147,7 +162,7 @@ class TriggerLinkMachine(RuleBasedStateMachine):
             "number": len(self.provider) + 1, "matching": matching, "merged_at": CLOCK_START + timedelta(minutes=self.tick),
         })
 
-    @precondition(lambda self: self.global_enabled)
+    @precondition(lambda self: self.global_active)
     @rule()
     def ingest(self):
         cursor = max(self.stored, default=0)
@@ -159,12 +174,12 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         assert response.json["existing"] == []
         for pull in batch:
             self.stored[pull["number"]] = pull["matching"]
-            if pull["matching"] and self.link_active and self.project_enabled and pull["number"] > self.skip_before:  # M1, M6, M7
+            if pull["matching"] and self.link_active and self.project_accepts and pull["number"] > self.skip_before:
                 self.triggers[pull["number"]] = "UNKNOWN"
 
-    @precondition(lambda self: not self.global_enabled)
+    @precondition(lambda self: not self.global_active)
     @rule()
-    def ingest_when_disabled(self):  # M6
+    def ingest_when_inactive(self):
         response = self.call("post", f"/global/repositories/triggers/{self.repo_id}/pull_requests",
                              {"pull_requests": [pr_body(p["number"], p["matching"], p["merged_at"]) for p in self.provider[:1]]})
         assert response.status_code == 400, response.json
@@ -174,11 +189,11 @@ class TriggerLinkMachine(RuleBasedStateMachine):
     def evaluate_one(self, data):
         number = data.draw(st.sampled_from(sorted(n for n, s in self.triggers.items() if s == "UNKNOWN")))
         response = self.call("post", f"{self.link_url}/pull_requests/{number}/task", {"spec_raw": SPEC_RAW})
-        if self.link_active:
+        if self.link_active and not self.project_revoked:
             assert response.status_code == 201, response.json
             self.triggers[number] = "YIELDED"
             self.tasks[response.json["id"]] = "PENDING"
-        else:  # M3
+        else:
             assert response.status_code == 409, response.json
 
     @precondition(lambda self: UNFINISHED & set(self.tasks.values()))
@@ -201,7 +216,7 @@ class TriggerLinkMachine(RuleBasedStateMachine):
     # ----------------------------------------------------------------------------- the flags
 
     @rule(value=st.booleans())
-    def set_link_enabled(self, value):  # M4
+    def set_link_enabled(self, value):
         was = self.link_active
         self.tick += 1  # the route reads the clock during the call: the cursor lands after every PR merged so far
         response = self.call("patch", self.link_url, {"enabled": value})
@@ -210,7 +225,7 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         self.skip_gap_if_activated(was)
 
     @rule(value=st.booleans(), backfill=st.sampled_from([None, False, True]))
-    def set_project_enabled(self, value, backfill):  # M4, and M7 or M8 when it is switched back on
+    def set_project_enabled(self, value, backfill):
         switched_on = value and not self.project_enabled
         body = {"enabled": value}
         if switched_on and backfill is not None:
@@ -219,8 +234,8 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         response = self.call("patch", f"/projects/{self.project_id}", body)
         assert response.status_code == 200, response.json
         self.project_enabled = value
-        if switched_on and backfill:  # M8
-            if self.link_active:
+        if switched_on and backfill:  # a revoked project or an inactive link gets nothing from the backfill
+            if self.link_active and not self.project_revoked:
                 for number, matching in self.stored.items():
                     if matching and number > self.skip_before and number not in self.triggers:
                         self.triggers[number] = "UNKNOWN"
@@ -228,14 +243,14 @@ class TriggerLinkMachine(RuleBasedStateMachine):
             self.skip_before = len(self.provider)
 
     @rule(enabled=st.sampled_from([None, False, True]))
-    def refused_backfill(self, enabled):  # M8
+    def refused_backfill(self, enabled):
         if enabled and not self.project_enabled:
             return  # that is set_project_enabled
         body = {"backfill": True} if enabled is None else {"enabled": enabled, "backfill": True}
         assert self.call("patch", f"/projects/{self.project_id}", body).status_code == 400
 
     @rule(value=st.booleans())
-    def set_link_revoked(self, value):  # M5
+    def set_link_revoked(self, value):
         was = self.link_active
         self.tick += 1
         response = self.call("patch", self.link_url, {"revoked": value})
@@ -244,13 +259,33 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         self.skip_gap_if_activated(was)
 
     @rule(value=st.booleans())
-    def set_global_enabled(self, value):  # M4, and M6 when it is switched back on
-        switched_on = value and not self.global_enabled
+    def set_global_enabled(self, value):
+        was = self.global_active
         self.tick += 1  # the route reads the clock during the call: the cursor lands after every PR merged so far
         response = self.call("patch", f"/global/repositories/triggers/{self.repo_id}", {"enabled": value})
         assert response.status_code == 200, response.json
         self.global_enabled = value
-        if switched_on:
+        if self.global_active and not was:
+            self.skip_before = len(self.provider)
+
+    @rule(value=st.booleans())
+    def set_global_revoked(self, value):
+        was = self.global_active
+        self.tick += 1
+        response = self.call("patch", f"/global/repositories/triggers/{self.repo_id}", {"revoked": value})
+        assert response.status_code == 200, response.json
+        self.global_revoked = value
+        if self.global_active and not was:
+            self.skip_before = len(self.provider)
+
+    @rule(value=st.booleans())
+    def set_project_revoked(self, value):
+        was_revoked = self.project_revoked
+        self.tick += 1
+        response = self.call("patch", f"/projects/{self.project_id}", {"revoked": value})
+        assert response.status_code == 200, response.json
+        self.project_revoked = value
+        if was_revoked and not value:
             self.skip_before = len(self.provider)
 
     # ----------------------------------------------------------------------------- invariants
@@ -277,9 +312,18 @@ class TriggerLinkMachine(RuleBasedStateMachine):
     def link_active_matches_model(self):
         assert self.call("get", self.link_url).json["active"] == self.link_active
 
+    @invariant()
+    def flags_match_model(self):
+        project = self.call("get", f"/projects/{self.project_id}").json
+        repo = self.call("get", f"/global/repositories/triggers/{self.repo_id}").json
+        link = self.call("get", self.link_url).json
+        assert (project["enabled"], project["revoked"]) == (self.project_enabled, self.project_revoked)
+        assert (repo["enabled"], repo["revoked"]) == (self.global_enabled, self.global_revoked)
+        assert (link["enabled"], link["revoked"]) == (self.link_enabled, self.link_revoked)
 
-# The default is a quick smoke run (about 45 s). STATEFUL_DEEP=1 runs the deep search (about 7 minutes), the size that
-# catches the deliberately broken apps listed in the handover; run it before relying on this file.
+
+# The default is a quick smoke run (about 45 s). STATEFUL_DEEP=1 runs the deep search (about 7 minutes); run it before
+# relying on this file.
 DEEP = os.environ.get("STATEFUL_DEEP") == "1"
 TriggerLinkMachine.TestCase.settings = settings(
     max_examples=300 if DEEP else 50, stateful_step_count=40 if DEEP else 25, deadline=None,
