@@ -33,6 +33,8 @@ def pytest_configure(config):
         # Each step depends on the one before, so stop at the first failure, and show progress as it happens
         config.option.maxfail = 1
         config.option.log_cli_level = "INFO"
+        # Every step's time at the end, to see where a run spends it (the same as --durations=0)
+        config.option.durations = 0
 
 
 def pytest_collection_modifyitems(config, items):
