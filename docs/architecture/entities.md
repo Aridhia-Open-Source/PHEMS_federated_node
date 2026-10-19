@@ -12,6 +12,7 @@ erDiagram
         int id PK
         string name UK
         bool enabled
+        bool revoked
         int default_dataset_id FK "composite with project_id"
     }
     secrets {
@@ -20,6 +21,7 @@ erDiagram
         enum provider "K8S"
         string key UK "name in the store"
         string namespace
+        bool enabled
     }
     datasets {
         int id PK
@@ -27,6 +29,8 @@ erDiagram
         int secret_id FK
         string host
         string type
+        bool enabled
+        bool revoked
     }
     project_secrets {
         int id PK
@@ -48,6 +52,8 @@ erDiagram
         int secret_id FK
         string provider
         string api_uri
+        bool enabled
+        bool revoked
     }
     pull_requests {
         int id PK
@@ -89,6 +95,8 @@ erDiagram
         int secret_id FK
         string provider
         string api_uri
+        bool enabled
+        bool revoked
     }
     project_results_repositories {
         int id PK
@@ -143,7 +151,8 @@ erDiagram
     }
     pull_request_results {
         int result_id PK, FK
-        string state "UNKNOWN PUSHED OPENED MERGED CLOSED REVOKED"
+        string step "UNKNOWN PUSHED OPENED MERGED CLOSED REVOKED STALE"
+        string state "IN_PROGRESS DELIVERED FAILED"
         string branch
         string commit_sha
         int number
@@ -221,6 +230,7 @@ classDiagram
         +string error
     }
     class PullRequestResult {
+        +string step
         +string state
         +string branch
         +string commit_sha
@@ -228,7 +238,7 @@ classDiagram
         +string url
         +datetime merged_at
         +string merge_commit_sha
-        +set_state(state)
+        +set_step(step)
     }
     Result <|-- PullRequestResult : type PR
 ```
@@ -265,9 +275,9 @@ stateDiagram-v2
     SUCCESS --> [*]
 ```
 
-Only the run-status sensors write the status; the backend does not enforce the order. Delivery never changes it ([0017](../../project/decisions/0017-task-status-written-by-run-status-sensors.md)).
+Only the run-status sensors write the status; the backend refuses a move that is not in `TASK_MOVES` with a 409 (forward only, only a retry moves a final task back). Delivery never changes it ([0017](../../project/decisions/0017-task-status-written-by-run-status-sensors.md)).
 
-## PullRequestResult state
+## PullRequestResult step
 
 ```mermaid
 stateDiagram-v2
@@ -279,10 +289,14 @@ stateDiagram-v2
     OPENED --> CLOSED : PR closed unmerged (sync sensor)
     PUSHED --> MERGED : delivery found its PR already merged
     PUSHED --> CLOSED : delivery found its PR already closed
-    [*] --> REVOKED : POST /projects/<id>/results through a revoked link
+    [*] --> REVOKED : POST /projects/<id>/results when something the task uses is revoked or deleted
+    UNKNOWN --> REVOKED : the same POST again, something is revoked by now
+    PUSHED --> REVOKED : the same POST again, something is revoked by now
+    [*] --> STALE : POST /projects/<id>/results when the task's configuration changed
     MERGED --> [*]
     CLOSED --> [*]
     REVOKED --> [*]
+    STALE --> [*]
 ```
 
-Forward only: `UNKNOWN < PUSHED < OPENED < MERGED = CLOSED`. A PATCH to the same state is accepted; to an earlier state, or out of `MERGED`/`CLOSED`, is a 400. A failed delivery leaves the state and sets `error` and `attempts`.
+Forward only: `UNKNOWN < PUSHED < OPENED < MERGED = CLOSED = REVOKED = STALE`. A PATCH to the same step is accepted; to an earlier step, or out of `MERGED`, `CLOSED`, `REVOKED` or `STALE`, is a 409. A failed delivery leaves the step and sets `error` and `attempts`.
