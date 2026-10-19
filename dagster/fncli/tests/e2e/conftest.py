@@ -134,6 +134,30 @@ def tick_ids(api: DagsterAPI, sensor: str) -> set[str]:
     return {tick["id"] for tick in api.get_sensor_ticks(sensor)}
 
 
+RETRY_INTERVAL = 5  # seconds: a failed run is retried at most this often
+SENSOR_INTERVAL = 1  # seconds: the "nothing happens" checks then take a few of these
+
+
+@pytest.fixture(scope="module", autouse=True)
+def fast_sensors(request):
+    """Run every e2e module with a 1 s sensor interval, and put the cluster's interval back afterwards, even when a test failed.
+
+    Skipped when E2E_KEEP_INTERVAL=1. The code server restarts both times, which stops the sensors: each module's test_start_sensor
+    starts them again after setup, and the restore leaves them stopped, as a fresh install does.
+    """
+    if os.environ.get("E2E_KEEP_INTERVAL") == "1":
+        yield
+        return
+    previous, previous_retry = set_sensor_interval(SENSOR_INTERVAL, RETRY_INTERVAL)
+
+    def restore():
+        if previous is not None:
+            set_sensor_interval(int(previous), int(previous_retry))
+
+    request.addfinalizer(restore)
+    yield
+
+
 def quiet_wait(ticks: int = 3, sensors: list[str] = QUIET_SENSORS):
     """The wait of the "nothing happens" checks: until each sensor has run `ticks` new ticks, so "nothing happened" was
     seen across ticks that really ran (a stopped or stuck sensor fails here instead of passing the check)."""

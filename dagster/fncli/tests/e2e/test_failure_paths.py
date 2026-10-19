@@ -1,14 +1,11 @@
 """
-The failure paths of the global-resources flow, from project/handover/e2e-qa-plan.md. Same style as
-the happy path: one test per fncli command or expected state, in order, on one project, stopping at
-the first failure with the last snapshot. The scenarios run in the plan's order and each leaves the
-project as the next expects it: links active, tokens restored.
+The failure paths of the GlobalResource flow. Same style as the happy path: one test per fncli command or
+expected state, in order, on one project, stopping at the first failure with the last snapshot. Each group of
+tests leaves the project as the next expects it: links active, tokens restored.
 
-Not here: disabling a trigger link, disabling a GlobalResource, and mid-task result revocation.
-These require monitoring tasks during execution and are covered by the webserver and Dagster unit tests
-instead. See ../../../../docs/architecture/revoke-and-enabled.md#the-two-flags for when GlobalResources
-and trigger links are revoked and disabled. Setup and teardown are at the run's start and end; known
-testing gaps are documented but not automated.
+Not covered here, only by the webserver and Dagster unit tests: switching a trigger link or a GlobalResource
+off, a revoked project or results link, revoking a result that is already held, disabling a Secret, and
+enabling a project with backfill. The rules are in ../../../../docs/architecture/revoke-and-enabled.md.
 
 The "nothing happens" checks wait a few sensor ticks (5 ticks of the 1 s interval the suite sets; E2E_KEEP_INTERVAL=1 leaves the cluster's own). The project is cleared at the start of the run, and kept
 afterwards unless E2E_TEARDOWN=1.
@@ -53,7 +50,6 @@ from fncli.tests.e2e.conftest import (
     logger,
     pull_requests,
     quiet_wait,
-    set_sensor_interval,
     start_sensor,
     summary,
     teardown_step,
@@ -62,8 +58,6 @@ from fncli.tests.e2e.conftest import (
 
 pytestmark = [pytest.mark.e2e, pytest.mark.e2e_failure]
 
-RETRY_INTERVAL = 5  # seconds: a failed run is retried at most this often
-SENSOR_INTERVAL = 1  # seconds: the "nothing happens" checks then take QUIET_TICKS of these
 QUIET_TICKS = 5
 TASK_TIMEOUT = int(os.environ.get("E2E_TASK_TIMEOUT", 600))  # a task that fails to start can sit in a pull back-off
 STEP_TIMEOUT = 300
@@ -72,26 +66,6 @@ UNFINISHED_TASK = ["PENDING", "QUEUED", "RUNNING"]
 SECOND_PROJECT = "QaTwo"
 # Every step a result can end at: a revoked result stays at REVOKED and is never delivered
 SETTLED_STEPS = ["OPENED", "MERGED", "CLOSED", "REVOKED", "STALE"]
-
-
-@pytest.fixture(scope="module", autouse=True)
-def fast_sensors(request):
-    """Run the suite with a 1 s sensor interval, and put the cluster's interval back afterwards, even when a test failed.
-
-    Skipped when E2E_KEEP_INTERVAL=1. The code server restarts both times, which stops the sensors: test_start_sensor
-    starts them again after setup, and the restore leaves them stopped, as a fresh install does.
-    """
-    if os.environ.get("E2E_KEEP_INTERVAL") == "1":
-        yield
-        return
-    previous, previous_retry = set_sensor_interval(SENSOR_INTERVAL, RETRY_INTERVAL)
-
-    def restore():
-        if previous is not None:
-            set_sensor_interval(int(previous), int(previous_retry))
-
-    request.addfinalizer(restore)
-    yield
 
 
 @pytest.fixture(scope="module")
@@ -343,7 +317,7 @@ def test_idempotent_after_revoke_start_ingest(fncli):
 
 def test_idempotent_after_revoke_counts_unchanged(fncli, flow):
     quiet_wait(QUIET_TICKS)
-    fncli.assert_counts(flow["idempotent_after_revoke_before"], "ingest restarted after S6")
+    fncli.assert_counts(flow["idempotent_after_revoke_before"], "ingest restarted after the trigger link was un-revoked")
 
 
 # --- a second project on the same repository ---------------------------------------------
@@ -534,12 +508,12 @@ def test_failing_task_pr_yielded(fncli, flow):
         pr = pr_of(snapshot, flow, "failing_task")
         return pr if pr and pr["state"] == "YIELDED" and pr["task_id"] else None
 
-    flow["s12_task"] = fncli.wait_for_state(f"PR #{flow['failing_task_pr']} YIELDED with a task_id", STEP_TIMEOUT, yielded)["task_id"]
+    flow["failing_task"] = fncli.wait_for_state(f"PR #{flow['failing_task_pr']} YIELDED with a task_id", STEP_TIMEOUT, yielded)["task_id"]
 
 
 def test_failing_task_task_failed(fncli, flow):
     def failed(snapshot):
-        return next((t for t in snapshot["tasks"] if t["id"] == flow["s12_task"] and t["status"] == "FAILED"), None)
+        return next((t for t in snapshot["tasks"] if t["id"] == flow["failing_task"] and t["status"] == "FAILED"), None)
 
     fncli.wait_for_state(f"task {flow['failing_task_task']} FAILED", TASK_TIMEOUT, failed)
 
@@ -547,9 +521,9 @@ def test_failing_task_task_failed(fncli, flow):
 def test_failing_task_no_result_and_stays_failed(fncli, flow):
     quiet_wait(ticks=12)
     snapshot = fncli.snapshot()
-    task = next(t for t in snapshot["tasks"] if t["id"] == flow["s12_task"])
+    task = next(t for t in snapshot["tasks"] if t["id"] == flow["failing_task"])
     assert task["status"] == "FAILED", f"the task left FAILED\n{summary(snapshot)}"
-    assert not [r for r in snapshot["results"] if r["task_id"] == flow["s12_task"]], f"a failed task has a result\n{summary(snapshot)}"
+    assert not [r for r in snapshot["results"] if r["task_id"] == flow["failing_task"]], f"a failed task has a result\n{summary(snapshot)}"
 
 
 # --- the results link's target_dir changes before the task launches: the task fails ---------
@@ -580,16 +554,16 @@ def test_target_dir_change_merge_pr(fncli, flow):
 
 
 def test_target_dir_change_task_is_created_and_waits_unlaunched(fncli, flow):
-    flow["s17_task"] = fncli.wait_for_state("task from target_dir change test", STEP_TIMEOUT, yielded_with_task(flow, "target_dir_change"))["task_id"]
+    flow["target_dir_task"] = fncli.wait_for_state("task from target_dir change test", STEP_TIMEOUT, yielded_with_task(flow, "target_dir_change"))["task_id"]
     fncli.wait_for_state(
         "target_dir change test task PENDING",
         STEP_TIMEOUT,
-        lambda s: any(t["id"] == flow["s17_task"] and t["status"] == "PENDING" for t in s["tasks"]),
+        lambda s: any(t["id"] == flow["target_dir_task"] and t["status"] == "PENDING" for t in s["tasks"]),
     )
 
 
 def test_target_dir_change_change_the_target_dir(fncli, flow):
-    flow["s17_original_dir"] = fncli.snapshot()["results_links"][0]["target_dir"]
+    flow["target_dir_original"] = fncli.snapshot()["results_links"][0]["target_dir"]
     fncli.call(link_set_command, kind="results", target_dir="changed-by-s17/", expect=200)
 
 
@@ -601,15 +575,15 @@ def test_target_dir_change_task_fails_naming_the_change(fncli, flow):
     task = fncli.wait_for_state(
         "target_dir change test task FAILED",
         TASK_TIMEOUT,
-        lambda s: next((t for t in s["tasks"] if t["id"] == flow["s17_task"] and t["status"] == "FAILED"), None),
+        lambda s: next((t for t in s["tasks"] if t["id"] == flow["target_dir_task"] and t["status"] == "FAILED"), None),
     )
     cause = task.get("state_cause") or ""
     assert "configuration changed" in cause and "target_dir" in cause, f"unexpected cause: {cause!r}"
-    assert not [r for r in fncli.snapshot()["results"] if r["task_id"] == flow["s17_task"]], "a stale task has a result"
+    assert not [r for r in fncli.snapshot()["results"] if r["task_id"] == flow["target_dir_task"]], "a stale task has a result"
 
 
 def test_target_dir_change_restore_the_target_dir(fncli, flow):
-    fncli.call(link_set_command, kind="results", target_dir=flow["s17_original_dir"], expect=200)
+    fncli.call(link_set_command, kind="results", target_dir=flow["target_dir_original"], expect=200)
 
 
 # --- sensors stopped, a PR merged, sensors started again -----------------------------------
