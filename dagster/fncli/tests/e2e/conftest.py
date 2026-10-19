@@ -37,10 +37,14 @@ logger = logging.getLogger("e2e")
 PR_STATES = ["UNKNOWN", "YIELDED"]
 TASK_STATUSES = ["PENDING", "QUEUED", "RUNNING", "SUCCESS"]
 RESULT_STEPS = ["UNKNOWN", "PUSHED", "OPENED", "MERGED"]
+# Values that never lead on to a later state: a wait for a later state fails at once instead of at the timeout
+DEAD_ENDS = ["FAILED", "REVOKED", "STALE"]
 
 
 def reached(order: list[str], value: str, minimum: str) -> bool:
-    """Whether value is minimum or later in order. A value outside it (FAILED, REJECTED, CLOSED) has not reached it."""
+    """Whether value is minimum or later in order. A value outside it (REJECTED, CLOSED) has not reached it; a dead end fails the test."""
+    if value in DEAD_ENDS:
+        pytest.fail(f"Found {value}, which will never reach {minimum}")
     return value in order and order.index(value) >= order.index(minimum)
 
 
@@ -66,6 +70,7 @@ def counts(snapshot: dict) -> tuple[int, int]:
 def summary(snapshot: dict) -> dict:
     """The part of a snapshot a failure message shows."""
     return {
+        "project": {k: snapshot["project"][k] for k in ("enabled", "revoked")},
         "links": [{k: link[k] for k in ("enabled", "revoked", "active", "global_enabled")} for link in snapshot["trigger_links"]],
         "prs": pull_requests(snapshot),
         "tasks": snapshot["tasks"],
@@ -87,7 +92,7 @@ def teardown_step(fncli, command, options, final: bool = False):
 
 INTERVAL_KEY = "DAGSTER_SENSORS_MIN_INTERVAL_SECONDS"
 RETRY_INTERVAL_KEY = "DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS"
-_tick_seconds = {"value": float(os.environ.get(INTERVAL_KEY, 10))}
+_tick_seconds = {"value": float(os.environ.get(INTERVAL_KEY, 30))}
 
 
 def tick_seconds() -> float:
