@@ -59,6 +59,54 @@ def restart_code_server(namespace: str, timeout: int = 180):
             and status.replicas == current.spec.replicas
             and status.available_replicas == current.spec.replicas
         ):
+            # Pod is ready; now wait for the location to load in Dagster
+            _wait_for_location_loaded(namespace, timeout - (time.time() - (deadline - timeout)))
             return
         time.sleep(3)
     raise TimeoutError(f"The code server did not become ready within {timeout}s")
+
+
+def _wait_for_location_loaded(namespace: str, timeout: float):
+    """Poll Dagster until the location is loaded."""
+    import time
+
+    from fncli.cmds.common import DagsterConfig
+
+    location_name = "dagster-fn"
+    deadline = time.time() + timeout
+    last_error = None
+
+    while time.time() < deadline:
+        try:
+            from fncli.sensors import DagsterAPI
+
+            api = DagsterAPI(DagsterConfig().dagster_url)
+            result = api.graphql(
+                """
+                {
+                  workspaceOrError {
+                    __typename
+                    ... on Workspace {
+                      locationEntries {
+                        name
+                        loadStatus
+                      }
+                    }
+                  }
+                }
+                """,
+                {},
+            )
+            workspace = result.get("workspaceOrError", {})
+            if workspace.get("__typename") == "Workspace":
+                for entry in workspace.get("locationEntries", []):
+                    if entry.get("name") == location_name:
+                        if entry.get("loadStatus") == "LOADED":
+                            return
+            last_error = f"Location {location_name} status: {result}"
+        except Exception as e:
+            last_error = str(e)
+
+        time.sleep(1)
+
+    raise TimeoutError(f"Location did not load within {timeout}s. Last error: {last_error}")
