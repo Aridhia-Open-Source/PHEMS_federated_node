@@ -67,7 +67,8 @@ STEP_TIMEOUT = 300
 # A task that has not finished, and a result that is still being delivered, are work in flight
 UNFINISHED_TASK = ["PENDING", "QUEUED", "RUNNING"]
 SECOND_PROJECT = "QaTwo"
-DELIVERED = ["OPENED", "MERGED"]
+# Every step a result can end at: a revoked result stays at REVOKED and is never delivered
+SETTLED_STEPS = ["OPENED", "MERGED", "CLOSED", "REVOKED", "STALE"]
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -126,7 +127,7 @@ def tasks_finished(snapshot):
 
 
 def drained(snapshot):
-    return tasks_finished(snapshot) and all(r["step"] in DELIVERED for r in snapshot["results"])
+    return tasks_finished(snapshot) and all(r["step"] in SETTLED_STEPS for r in snapshot["results"])
 
 
 def record_counts(fncli, flow, key):
@@ -408,7 +409,7 @@ def test_s10_only_the_test_project_gets_the_next_pr(fncli, flow):
 
 def test_s10_wait_for_tasks_to_finish_before_teardown(fncli):
     for project in (None, SECOND_PROJECT):
-        fncli.wait_for_state("no task in flight and every result delivered", TASK_TIMEOUT, drained, project=project)
+        fncli.wait_for_state("no task in flight and every result settled", TASK_TIMEOUT, drained, project=project)
 
 
 def test_s10_second_project_teardown(fncli):
