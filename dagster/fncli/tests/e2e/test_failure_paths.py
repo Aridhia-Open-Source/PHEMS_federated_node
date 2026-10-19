@@ -4,8 +4,11 @@ the happy path: one test per fncli command or expected state, in order, on one p
 the first failure with the last snapshot. The scenarios run in the plan's order and each leaves the
 project as the next expects it: links active, tokens restored.
 
-Not here: S7, S8, S9 and S16 (the old project rules, a disabled global repository, the results link revoked
-mid-task). They depend on catching a task in flight, and are covered by the webserver and Dagster unit tests. S14 is the teardown and the setup at the two ends; S15 (known gaps) is not automated.
+Not here: disabling a trigger link, disabling a GlobalResource, and mid-task result revocation.
+These require monitoring tasks during execution and are covered by the webserver and Dagster unit tests
+instead. See ../../../../docs/architecture/revoke-and-enabled.md#the-two-flags for when GlobalResources
+and trigger links are revoked and disabled. Setup and teardown are at the run's start and end; known
+testing gaps are documented but not automated.
 
 The "nothing happens" checks wait a few sensor ticks (5 ticks of the 1 s interval the suite sets; E2E_KEEP_INTERVAL=1 leaves the cluster's own). The project is cleared at the start of the run, and kept
 afterwards unless E2E_TEARDOWN=1.
@@ -188,190 +191,190 @@ def test_project_starts_empty(fncli):
     assert trigger_link(snapshot)["active"] is True
 
 
-# --- S3: an invalid spec is rejected, no task -------------------------------------------------
+# --- an invalid spec is rejected, no task -------------------------------------------------
 
 
-def test_s3_record_counts(fncli, flow):
-    record_counts(fncli, flow, "s3_before")
+def test_invalid_spec_record_counts(fncli, flow):
+    record_counts(fncli, flow, "invalid_spec_before")
 
-def test_s3_create_branch(fncli, flow):
-    create_branch(fncli, flow, "s3")
-
-
-def test_s3_commit_file(fncli, flow):
-    commit_file(fncli, flow, "s3", "invalid")
+def test_invalid_spec_create_branch(fncli, flow):
+    create_branch(fncli, flow, "invalid_spec")
 
 
-def test_s3_create_pr(fncli, flow):
-    create_pr(fncli, flow, "s3", "invalid")
+def test_invalid_spec_commit_file(fncli, flow):
+    commit_file(fncli, flow, "invalid_spec", "invalid")
 
 
-def test_s3_merge_pr(fncli, flow):
-    merge_pr(fncli, flow, "s3")
+def test_invalid_spec_create_pr(fncli, flow):
+    create_pr(fncli, flow, "invalid_spec", "invalid")
 
 
-def test_s3_pr_rejected(fncli, flow):
+def test_invalid_spec_merge_pr(fncli, flow):
+    merge_pr(fncli, flow, "invalid_spec")
+
+
+def test_invalid_spec_pr_rejected(fncli, flow):
     def rejected(snapshot):
-        pr = pr_of(snapshot, flow, "s3")
+        pr = pr_of(snapshot, flow, "invalid_spec")
         return pr if pr and pr["state"] == "REJECTED" else None
 
-    flow["s3_rejected"] = fncli.wait_for_state(f"PR #{flow['s3_pr']} REJECTED", STEP_TIMEOUT, rejected)
+    flow["invalid_spec_rejected"] = fncli.wait_for_state(f"PR #{flow['invalid_spec_pr']} REJECTED", STEP_TIMEOUT, rejected)
 
 
-def test_s3_rejection_has_cause_and_no_task(flow):
-    pr = flow["s3_rejected"]
+def test_invalid_spec_rejection_has_cause_and_no_task(flow):
+    pr = flow["invalid_spec_rejected"]
     assert pr["state_cause"], f"REJECTED without a state_cause: {pr}"
     assert pr["task_id"] is None, f"a rejected PR has a task: {pr}"
 
 
-def test_s3_no_task_created(fncli, flow):
-    prs, tasks = flow["s3_before"]
+def test_invalid_spec_no_task_created(fncli, flow):
+    prs, tasks = flow["invalid_spec_before"]
     snapshot = fncli.snapshot()
     assert len(snapshot["tasks"]) == tasks, f"the task count grew\n{summary(snapshot)}"
     assert len(pull_requests(snapshot)) == prs + 1
 
 
-# --- S4: a PR outside the watched directory creates no trigger ---------------------------------
+# --- a PR outside the watched directory creates no trigger ---------------------------------
 
 
-def test_s4_record_counts(fncli, flow):
-    record_counts(fncli, flow, "s4_before")
+def test_unwatched_pr_record_counts(fncli, flow):
+    record_counts(fncli, flow, "unwatched_pr_before")
 
-def test_s4_create_branch(fncli, flow):
-    create_branch(fncli, flow, "s4")
-
-
-def test_s4_commit_file(fncli, flow):
-    commit_file(fncli, flow, "s4", "unwatched")
+def test_unwatched_pr_create_branch(fncli, flow):
+    create_branch(fncli, flow, "unwatched_pr")
 
 
-def test_s4_create_pr(fncli, flow):
-    create_pr(fncli, flow, "s4", "unwatched")
+def test_unwatched_pr_commit_file(fncli, flow):
+    commit_file(fncli, flow, "unwatched_pr", "unwatched")
 
 
-def test_s4_merge_pr(fncli, flow):
-    merge_pr(fncli, flow, "s4")
+def test_unwatched_pr_create_pr(fncli, flow):
+    create_pr(fncli, flow, "unwatched_pr", "unwatched")
 
 
-def test_s4_nothing_created(fncli, flow):
+def test_unwatched_pr_merge_pr(fncli, flow):
+    merge_pr(fncli, flow, "unwatched_pr")
+
+
+def test_unwatched_pr_nothing_created(fncli, flow):
     quiet_wait(QUIET_TICKS)
-    fncli.assert_counts(flow["s4_before"], "unwatched PR")
+    fncli.assert_counts(flow["unwatched_pr_before"], "unwatched PR")
 
 
-# --- S5: restarting ingest does not duplicate ---------------------------------------------------
+# --- restarting ingest does not duplicate ---------------------------------------------------
 
 
-def test_s5_record_counts(fncli, flow):
-    record_counts(fncli, flow, "s5_before")
+def test_idempotent_ingest_record_counts(fncli, flow):
+    record_counts(fncli, flow, "idempotent_ingest_before")
 
 
-def test_s5_stop_ingest(fncli):
+def test_idempotent_ingest_stop_ingest(fncli):
     fncli.call(stop_sensor_command, sensor="ingest")
 
 
-def test_s5_start_ingest(fncli):
+def test_idempotent_ingest_start_ingest(fncli):
     fncli.call(start_sensor_command, sensor="ingest")
 
 
-def test_s5_counts_unchanged(fncli, flow):
+def test_idempotent_ingest_counts_unchanged(fncli, flow):
     quiet_wait(QUIET_TICKS)
-    fncli.assert_counts(flow["s5_before"], "ingest restarted")
+    fncli.assert_counts(flow["idempotent_ingest_before"], "ingest restarted")
 
 
-# --- S6: a PR merged while the link is revoked never gets a trigger -------------------------------
+# --- a PR merged while the link is revoked never gets a trigger -------------------------------
 
 
-def test_s6_record_counts(fncli, flow):
-    record_counts(fncli, flow, "s6_before")
+def test_revoked_link_record_counts(fncli, flow):
+    record_counts(fncli, flow, "revoked_link_before")
 
 
-def test_s6_revoke_link(fncli):
+def test_revoked_link_revoke_link(fncli):
     fncli.call(link_set_command, kind="trigger", revoked="true", expect=200)
 
 
-def test_s6_link_inactive(fncli):
+def test_revoked_link_link_inactive(fncli):
     fncli.wait_for_state("the trigger link inactive", STEP_TIMEOUT, lambda s: trigger_link(s)["active"] is False)
 
-def test_s6_create_branch(fncli, flow):
-    create_branch(fncli, flow, "s6")
+def test_revoked_link_create_branch(fncli, flow):
+    create_branch(fncli, flow, "revoked_link")
 
 
-def test_s6_commit_file(fncli, flow):
-    commit_file(fncli, flow, "s6", "watched")
+def test_revoked_link_commit_file(fncli, flow):
+    commit_file(fncli, flow, "revoked_link", "watched")
 
 
-def test_s6_create_pr(fncli, flow):
-    create_pr(fncli, flow, "s6", "watched")
+def test_revoked_link_create_pr(fncli, flow):
+    create_pr(fncli, flow, "revoked_link", "watched")
 
 
-def test_s6_merge_pr(fncli, flow):
-    merge_pr(fncli, flow, "s6")
+def test_revoked_link_merge_pr(fncli, flow):
+    merge_pr(fncli, flow, "revoked_link")
 
 
-def test_s6_nothing_ingested_while_revoked(fncli, flow):
+def test_revoked_link_nothing_ingested_while_revoked(fncli, flow):
     quiet_wait(QUIET_TICKS)
-    fncli.assert_counts(flow["s6_before"], "revoked link")
+    fncli.assert_counts(flow["revoked_link_before"], "revoked link")
 
 
-def test_s6_unrevoke_link(fncli):
+def test_revoked_link_unrevoke_link(fncli):
     fncli.call(link_set_command, kind="trigger", revoked="false", expect=200)
 
 
-def test_s6_missed_pr_not_replayed(fncli, flow):
+def test_revoked_link_missed_pr_not_replayed(fncli, flow):
     """Un-revoking moves the link's cursor to now: the PR merged while revoked is stored but gets no trigger."""
     quiet_wait(QUIET_TICKS)
-    fncli.assert_counts(flow["s6_before"], "PR merged while the link was revoked, after un-revoking")
+    fncli.assert_counts(flow["revoked_link_before"], "PR merged while the link was revoked, after un-revoking")
 
 
-# --- S5 again, as the plan asks, after S6 -------------------------------------------------
+# --- idempotency check again after revocation recovery -------------------------------------------------
 
 
-def test_s5b_record_counts(fncli, flow):
-    record_counts(fncli, flow, "s5b_before")
+def test_idempotent_after_revoke_record_counts(fncli, flow):
+    record_counts(fncli, flow, "idempotent_after_revoke_before")
 
 
-def test_s5b_stop_ingest(fncli):
+def test_idempotent_after_revoke_stop_ingest(fncli):
     fncli.call(stop_sensor_command, sensor="ingest")
 
 
-def test_s5b_start_ingest(fncli):
+def test_idempotent_after_revoke_start_ingest(fncli):
     fncli.call(start_sensor_command, sensor="ingest")
 
 
-def test_s5b_counts_unchanged(fncli, flow):
+def test_idempotent_after_revoke_counts_unchanged(fncli, flow):
     quiet_wait(QUIET_TICKS)
-    fncli.assert_counts(flow["s5b_before"], "ingest restarted after S6")
+    fncli.assert_counts(flow["idempotent_after_revoke_before"], "ingest restarted after S6")
 
 
-# --- S10: a second project on the same repository ---------------------------------------------
+# --- a second project on the same repository ---------------------------------------------
 
 
-def test_s10_wait_for_tasks_to_finish(fncli):
+def test_second_project_wait_for_tasks_to_finish(fncli):
     fncli.wait_for_state("no task in flight", TASK_TIMEOUT, tasks_finished)
 
 
-def test_s10_record_counts(fncli, flow):
-    record_counts(fncli, flow, "s10_before")
+def test_second_project_record_counts(fncli, flow):
+    record_counts(fncli, flow, "second_project_before")
 
 
-def test_s10_second_project_setup(fncli):
+def test_second_project_second_project_setup(fncli):
     fncli.call(second_project_setup_command, name=SECOND_PROJECT)
 
 
-def test_s10_create_branch(fncli, flow):
-    create_branch(fncli, flow, "s10")
+def test_second_project_create_branch(fncli, flow):
+    create_branch(fncli, flow, "second_project")
 
 
-def test_s10_commit_file(fncli, flow):
-    commit_file(fncli, flow, "s10", "watched")
+def test_second_project_commit_file(fncli, flow):
+    commit_file(fncli, flow, "second_project", "watched")
 
 
-def test_s10_create_pr(fncli, flow):
-    create_pr(fncli, flow, "s10", "watched")
+def test_second_project_create_pr(fncli, flow):
+    create_pr(fncli, flow, "second_project", "watched")
 
 
-def test_s10_merge_pr(fncli, flow):
-    merge_pr(fncli, flow, "s10")
+def test_second_project_merge_pr(fncli, flow):
+    merge_pr(fncli, flow, "second_project")
 
 
 def yielded_with_task(flow, key):
@@ -382,97 +385,97 @@ def yielded_with_task(flow, key):
     return check
 
 
-def test_s10_both_projects_get_a_task(fncli, flow):
-    flow["s10_task_one"] = fncli.wait_for_state("the test project's task", STEP_TIMEOUT, yielded_with_task(flow, "s10"))["task_id"]
-    flow["s10_task_two"] = fncli.wait_for_state(
-        f"{SECOND_PROJECT}'s task", STEP_TIMEOUT, yielded_with_task(flow, "s10"), project=SECOND_PROJECT
+def test_second_project_both_projects_get_a_task(fncli, flow):
+    flow["second_project_task_one"] = fncli.wait_for_state("the test project's task", STEP_TIMEOUT, yielded_with_task(flow, "second_project"))["task_id"]
+    flow["second_project_task_two"] = fncli.wait_for_state(
+        f"{SECOND_PROJECT}'s task", STEP_TIMEOUT, yielded_with_task(flow, "second_project"), project=SECOND_PROJECT
     )["task_id"]
-    assert flow["s10_task_one"] != flow["s10_task_two"], "both projects share one task for the same PR"
+    assert flow["second_project_task_one"] != flow["second_project_task_two"], "both projects share one task for the same PR"
 
 
-def test_s10_revoke_second_projects_link(fncli):
+def test_second_project_revoke_second_projects_link(fncli):
     fncli.call(link_set_command, kind="trigger", revoked="true", project=SECOND_PROJECT, expect=200)
 
 
-def test_s10_wait_for_tasks_to_finish_again(fncli):
+def test_second_project_wait_for_tasks_to_finish_again(fncli):
     for project in (None, SECOND_PROJECT):
         fncli.wait_for_state("no task in flight", TASK_TIMEOUT, tasks_finished, project=project)
 
 
-def test_s10_record_both_counts(fncli, flow):
-    record_counts(fncli, flow, "s10b_before")
-    flow["s10b_two_before"] = counts(fncli.snapshot(SECOND_PROJECT))
+def test_second_project_record_both_counts(fncli, flow):
+    record_counts(fncli, flow, "second_project_variant_before")
+    flow["second_project_variant_two_before"] = counts(fncli.snapshot(SECOND_PROJECT))
 
 
-def test_s10_create_branch_two(fncli, flow):
-    create_branch(fncli, flow, "s10b")
+def test_second_project_create_branch_two(fncli, flow):
+    create_branch(fncli, flow, "second_project_variant")
 
 
-def test_s10_commit_file_two(fncli, flow):
-    commit_file(fncli, flow, "s10b", "watched")
+def test_second_project_commit_file_two(fncli, flow):
+    commit_file(fncli, flow, "second_project_variant", "watched")
 
 
-def test_s10_create_pr_two(fncli, flow):
-    create_pr(fncli, flow, "s10b", "watched")
+def test_second_project_create_pr_two(fncli, flow):
+    create_pr(fncli, flow, "second_project_variant", "watched")
 
 
-def test_s10_merge_pr_two(fncli, flow):
-    merge_pr(fncli, flow, "s10b")
+def test_second_project_merge_pr_two(fncli, flow):
+    merge_pr(fncli, flow, "second_project_variant")
 
 
-def test_s10_only_the_test_project_gets_the_next_pr(fncli, flow):
-    fncli.wait_for_state("the test project's next PR with a task (+1 each)", STEP_TIMEOUT, grew_by_one(flow, "s10b_before"))
+def test_second_project_only_the_test_project_gets_the_next_pr(fncli, flow):
+    fncli.wait_for_state("the test project's next PR with a task (+1 each)", STEP_TIMEOUT, grew_by_one(flow, "second_project_variant_before"))
     quiet_wait(QUIET_TICKS)
     two = counts(fncli.snapshot(SECOND_PROJECT))
-    assert two == flow["s10b_two_before"], f"{SECOND_PROJECT} got something through its revoked link: {two}"
+    assert two == flow["second_project_variant_two_before"], f"{SECOND_PROJECT} got something through its revoked link: {two}"
 
 
-def test_s10_wait_for_tasks_to_finish_before_teardown(fncli):
+def test_second_project_wait_for_tasks_to_finish_before_teardown(fncli):
     for project in (None, SECOND_PROJECT):
         fncli.wait_for_state("no task in flight and every result settled", TASK_TIMEOUT, drained, project=project)
 
 
-def test_s10_second_project_teardown(fncli):
+def test_second_project_second_project_teardown(fncli):
     fncli.call(second_project_teardown_command, name=SECOND_PROJECT, expect=204)
 
 
-# --- S11: a lost token fails clearly, then recovers -------------------------------------------
+# --- a lost token fails clearly, then recovers -------------------------------------------
 
 
-def test_s11_wait_for_tasks_to_finish(fncli):
+def test_lost_token_wait_for_tasks_to_finish(fncli):
     # Lets the tasks of the earlier scenarios settle before the counts are taken
     fncli.wait_for_state("no task in flight", TASK_TIMEOUT, tasks_finished)
 
 
-def test_s11_delete_trigger_token(fncli):
+def test_lost_token_delete_trigger_token(fncli):
     fncli.call(delete_gitea_token_command, entity="trigger")
 
 
-def test_s11_record_counts(fncli, flow):
-    record_counts(fncli, flow, "s11_before")
+def test_lost_token_record_counts(fncli, flow):
+    record_counts(fncli, flow, "lost_token_before")
 
-def test_s11_create_branch(fncli, flow):
-    create_branch(fncli, flow, "s11")
-
-
-def test_s11_commit_file(fncli, flow):
-    commit_file(fncli, flow, "s11", "watched")
+def test_lost_token_create_branch(fncli, flow):
+    create_branch(fncli, flow, "lost_token")
 
 
-def test_s11_create_pr(fncli, flow):
-    create_pr(fncli, flow, "s11", "watched")
+def test_lost_token_commit_file(fncli, flow):
+    commit_file(fncli, flow, "lost_token", "watched")
 
 
-def test_s11_merge_pr(fncli, flow):
-    merge_pr(fncli, flow, "s11")
+def test_lost_token_create_pr(fncli, flow):
+    create_pr(fncli, flow, "lost_token", "watched")
 
 
-def test_s11_nothing_ingested_without_token(fncli, flow):
+def test_lost_token_merge_pr(fncli, flow):
+    merge_pr(fncli, flow, "lost_token")
+
+
+def test_lost_token_nothing_ingested_without_token(fncli, flow):
     quiet_wait(QUIET_TICKS)
-    fncli.assert_counts(flow["s11_before"], "trigger token deleted")
+    fncli.assert_counts(flow["lost_token_before"], "trigger token deleted")
 
 
-def test_s11_ingest_shows_an_auth_error(fncli):
+def test_lost_token_ingest_shows_an_auth_error(fncli):
     """The ingest sensor fails its tick naming the repository, rather than silently skipping or crashing. The other
     sensors kept ticking: the quiet wait above only returns when ingest, evaluate and launcher all ticked."""
     fncli.call(sensor_status_command)
@@ -483,65 +486,65 @@ def test_s11_ingest_shows_an_auth_error(fncli):
         return " ".join([error.get("message") or "", " ".join(error.get("stack") or []), causes])
 
     texts = [error_text(tick["error"]) for tick in ticks if tick["status"] == "FAILURE" and tick["error"]]
-    logger.info(f"S11 ingest ticks: {[tick['status'] for tick in ticks]}; errors: {[t[:200] for t in texts[:2]]}")
+    logger.info(f"ingest ticks after token deletion: {[tick['status'] for tick in ticks]}; errors: {[t[:200] for t in texts[:2]]}")
     assert any("Ingest failed" in text for text in texts), f"no ingest tick failed with the token deleted: {ticks}"
 
 
-def test_s11_healthcheck_fails(fncli):
+def test_lost_token_healthcheck_fails(fncli):
     assert fncli.exit_code(project_healthcheck_command) != 0, "project-healthcheck exited 0 with the trigger token deleted"
 
 
-def test_s11_init_git_secret(fncli):
+def test_lost_token_init_git_secret(fncli):
     fncli.call(init_git_secret_command, entity="trigger")
 
 
-def test_s11_verify_git_secret(fncli):
+def test_lost_token_verify_git_secret(fncli):
     fncli.call(verify_git_secret_command, entity="trigger")
 
 
-def test_s11_pr_processed_after_recovery(fncli, flow):
-    fncli.wait_for_state("the missed PR with a trigger and a task (+1 each)", STEP_TIMEOUT, grew_by_one(flow, "s11_before"))
+def test_lost_token_pr_processed_after_recovery(fncli, flow):
+    fncli.wait_for_state("the missed PR with a trigger and a task (+1 each)", STEP_TIMEOUT, grew_by_one(flow, "lost_token_before"))
 
 
-def test_s11_healthcheck_ok_again(fncli):
+def test_lost_token_healthcheck_ok_again(fncli):
     fncli.call(project_healthcheck_command)
 
 
-# --- S12: a failing task stays failed ---------------------------------------------------------
+# --- a failing task stays failed ---------------------------------------------------------
 
 
-def test_s12_create_branch(fncli, flow):
-    create_branch(fncli, flow, "s12")
+def test_failing_task_create_branch(fncli, flow):
+    create_branch(fncli, flow, "failing_task")
 
 
-def test_s12_commit_file(fncli, flow):
-    commit_file(fncli, flow, "s12", "failing")  # a valid spec whose task exits non-zero
+def test_failing_task_commit_file(fncli, flow):
+    commit_file(fncli, flow, "failing_task", "failing")  # a valid spec whose task exits non-zero
 
 
-def test_s12_create_pr(fncli, flow):
-    create_pr(fncli, flow, "s12", "failing")
+def test_failing_task_create_pr(fncli, flow):
+    create_pr(fncli, flow, "failing_task", "failing")
 
 
-def test_s12_merge_pr(fncli, flow):
-    merge_pr(fncli, flow, "s12")
+def test_failing_task_merge_pr(fncli, flow):
+    merge_pr(fncli, flow, "failing_task")
 
 
-def test_s12_pr_yielded(fncli, flow):
+def test_failing_task_pr_yielded(fncli, flow):
     def yielded(snapshot):
-        pr = pr_of(snapshot, flow, "s12")
+        pr = pr_of(snapshot, flow, "failing_task")
         return pr if pr and pr["state"] == "YIELDED" and pr["task_id"] else None
 
-    flow["s12_task"] = fncli.wait_for_state(f"PR #{flow['s12_pr']} YIELDED with a task_id", STEP_TIMEOUT, yielded)["task_id"]
+    flow["s12_task"] = fncli.wait_for_state(f"PR #{flow['failing_task_pr']} YIELDED with a task_id", STEP_TIMEOUT, yielded)["task_id"]
 
 
-def test_s12_task_failed(fncli, flow):
+def test_failing_task_task_failed(fncli, flow):
     def failed(snapshot):
         return next((t for t in snapshot["tasks"] if t["id"] == flow["s12_task"] and t["status"] == "FAILED"), None)
 
-    fncli.wait_for_state(f"task {flow['s12_task']} FAILED", TASK_TIMEOUT, failed)
+    fncli.wait_for_state(f"task {flow['failing_task_task']} FAILED", TASK_TIMEOUT, failed)
 
 
-def test_s12_no_result_and_stays_failed(fncli, flow):
+def test_failing_task_no_result_and_stays_failed(fncli, flow):
     quiet_wait(ticks=12)
     snapshot = fncli.snapshot()
     task = next(t for t in snapshot["tasks"] if t["id"] == flow["s12_task"])
@@ -549,54 +552,54 @@ def test_s12_no_result_and_stays_failed(fncli, flow):
     assert not [r for r in snapshot["results"] if r["task_id"] == flow["s12_task"]], f"a failed task has a result\n{summary(snapshot)}"
 
 
-# --- S17: the results link's target_dir changes before the task launches: the task fails ---------
+# --- the results link's target_dir changes before the task launches: the task fails ---------
 
 
-def test_s17_wait_for_tasks_to_finish(fncli):
+def test_target_dir_change_wait_for_tasks_to_finish(fncli):
     fncli.wait_for_state("no task in flight", TASK_TIMEOUT, tasks_finished)
 
 
-def test_s17_stop_launcher(fncli):
+def test_target_dir_change_stop_launcher(fncli):
     fncli.call(stop_sensor_command, sensor="launcher")
 
 
-def test_s17_create_branch(fncli, flow):
-    create_branch(fncli, flow, "s17")
+def test_target_dir_change_create_branch(fncli, flow):
+    create_branch(fncli, flow, "target_dir_change")
 
 
-def test_s17_commit_file(fncli, flow):
-    commit_file(fncli, flow, "s17", "watched")
+def test_target_dir_change_commit_file(fncli, flow):
+    commit_file(fncli, flow, "target_dir_change", "watched")
 
 
-def test_s17_create_pr(fncli, flow):
-    create_pr(fncli, flow, "s17", "watched")
+def test_target_dir_change_create_pr(fncli, flow):
+    create_pr(fncli, flow, "target_dir_change", "watched")
 
 
-def test_s17_merge_pr(fncli, flow):
-    merge_pr(fncli, flow, "s17")
+def test_target_dir_change_merge_pr(fncli, flow):
+    merge_pr(fncli, flow, "target_dir_change")
 
 
-def test_s17_task_is_created_and_waits_unlaunched(fncli, flow):
-    flow["s17_task"] = fncli.wait_for_state("S17's task", STEP_TIMEOUT, yielded_with_task(flow, "s17"))["task_id"]
+def test_target_dir_change_task_is_created_and_waits_unlaunched(fncli, flow):
+    flow["s17_task"] = fncli.wait_for_state("task from target_dir change test", STEP_TIMEOUT, yielded_with_task(flow, "target_dir_change"))["task_id"]
     fncli.wait_for_state(
-        "S17's task PENDING",
+        "target_dir change test task PENDING",
         STEP_TIMEOUT,
         lambda s: any(t["id"] == flow["s17_task"] and t["status"] == "PENDING" for t in s["tasks"]),
     )
 
 
-def test_s17_change_the_target_dir(fncli, flow):
+def test_target_dir_change_change_the_target_dir(fncli, flow):
     flow["s17_original_dir"] = fncli.snapshot()["results_links"][0]["target_dir"]
     fncli.call(link_set_command, kind="results", target_dir="changed-by-s17/", expect=200)
 
 
-def test_s17_start_launcher(fncli):
+def test_target_dir_change_start_launcher(fncli):
     fncli.call(start_sensor_command, sensor="launcher")
 
 
-def test_s17_task_fails_naming_the_change(fncli, flow):
+def test_target_dir_change_task_fails_naming_the_change(fncli, flow):
     task = fncli.wait_for_state(
-        "S17's task FAILED",
+        "target_dir change test task FAILED",
         TASK_TIMEOUT,
         lambda s: next((t for t in s["tasks"] if t["id"] == flow["s17_task"] and t["status"] == "FAILED"), None),
     )
@@ -605,56 +608,56 @@ def test_s17_task_fails_naming_the_change(fncli, flow):
     assert not [r for r in fncli.snapshot()["results"] if r["task_id"] == flow["s17_task"]], "a stale task has a result"
 
 
-def test_s17_restore_the_target_dir(fncli, flow):
+def test_target_dir_change_restore_the_target_dir(fncli, flow):
     fncli.call(link_set_command, kind="results", target_dir=flow["s17_original_dir"], expect=200)
 
 
-# --- S13: sensors stopped, a PR merged, sensors started again -----------------------------------
+# --- sensors stopped, a PR merged, sensors started again -----------------------------------
 
 
-def test_s13_wait_for_tasks_to_finish(fncli):
+def test_sensors_restarted_wait_for_tasks_to_finish(fncli):
     fncli.wait_for_state("no task in flight", TASK_TIMEOUT, tasks_finished)
 
 
-def test_s13_record_counts(fncli, flow):
-    record_counts(fncli, flow, "s13_before")
+def test_sensors_restarted_record_counts(fncli, flow):
+    record_counts(fncli, flow, "sensors_restarted_before")
 
 
-def test_s13_stop_all_sensors(fncli):
+def test_sensors_restarted_stop_all_sensors(fncli):
     fncli.call(stop_sensor_command, sensor="all")
 
 
-def test_s13_create_branch(fncli, flow):
-    create_branch(fncli, flow, "s13")
+def test_sensors_restarted_create_branch(fncli, flow):
+    create_branch(fncli, flow, "sensors_restarted")
 
 
-def test_s13_commit_file(fncli, flow):
-    commit_file(fncli, flow, "s13", "watched")
+def test_sensors_restarted_commit_file(fncli, flow):
+    commit_file(fncli, flow, "sensors_restarted", "watched")
 
 
-def test_s13_create_pr(fncli, flow):
-    create_pr(fncli, flow, "s13", "watched")
+def test_sensors_restarted_create_pr(fncli, flow):
+    create_pr(fncli, flow, "sensors_restarted", "watched")
 
 
-def test_s13_merge_pr(fncli, flow):
-    merge_pr(fncli, flow, "s13")
+def test_sensors_restarted_merge_pr(fncli, flow):
+    merge_pr(fncli, flow, "sensors_restarted")
 
 
-def test_s13_nothing_happens_while_stopped(fncli, flow):
+def test_sensors_restarted_nothing_happens_while_stopped(fncli, flow):
     time.sleep(max(10, QUIET_TICKS * tick_seconds()))  # no ticks to count: the sensors are off
-    fncli.assert_counts(flow["s13_before"], "all sensors stopped")
+    fncli.assert_counts(flow["sensors_restarted_before"], "all sensors stopped")
 
 
 @pytest.mark.parametrize("sensor", ALL_SENSORS)  # in start order: the run-status sensors before the launcher
-def test_s13_start_sensor(sensor):
+def test_sensors_restarted_start_sensor(sensor):
     start_sensor(sensor)
 
 
-def test_s13_pr_processed_and_no_task_left_pending(fncli, flow):
+def test_sensors_restarted_pr_processed_and_no_task_left_pending(fncli, flow):
     fncli.wait_for_state(
         "the PR with a task (+1 each), and no task PENDING",
         TASK_TIMEOUT,
-        lambda s: grew_by_one(flow, "s13_before")(s) and all(t["status"] != "PENDING" for t in s["tasks"]),
+        lambda s: grew_by_one(flow, "sensors_restarted_before")(s) and all(t["status"] != "PENDING" for t in s["tasks"]),
     )
 
 
