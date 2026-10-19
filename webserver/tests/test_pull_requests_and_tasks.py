@@ -718,3 +718,40 @@ def test_rejected_trigger_cannot_go_back_to_unknown(client, admin_headers, pr_tr
     client.patch(pr_trigger, json={"state": "REJECTED", "state_cause": "bad"}, headers=admin_headers)
     assert client.patch(pr_trigger, json={"state": "UNKNOWN"}, headers=admin_headers).status_code == 409
     assert pr_state(client, admin_headers, pr_trigger)["state"] == "REJECTED"
+
+
+# --------------------------------------------------------------------------- gaps from the ADR audit
+
+
+@pytest.mark.parametrize("status", ["RUNNING", "SUCCESS", "FAILED"])
+def test_patching_a_pr_task_status_leaves_the_trigger_yielded(client, admin_headers, project, pr_trigger, tid, status):
+    """The trigger state is the pull request's own (ADR 0001); the task's status does not move it."""
+    assert pr_state(client, admin_headers, pr_trigger)["state"] == "YIELDED"
+    assert patch_task(client, admin_headers, project, tid, {"status": status}).status_code == 200
+    trigger = pr_state(client, admin_headers, pr_trigger)
+    assert trigger["state"] == "YIELDED" and trigger["task_id"] == tid
+
+
+def test_cancel_is_not_implemented_and_leaves_the_task_alone(client, admin_headers, project, tid):
+    response = client.post(f"/projects/{project.id}/tasks/{tid}/cancel", json={}, headers=admin_headers)
+    assert response.status_code == 501
+    assert client.get(f"/projects/{project.id}/tasks/{tid}", headers=admin_headers).json["status"] == "PENDING"
+
+
+def test_a_repeated_merge_commit_sha_under_a_new_number_is_a_409_and_the_batch_stores_nothing(
+    client, admin_headers, project, global_trigger_repo
+):
+    """
+    Only the (repository, number) conflict is ignored by the insert; (repository, merge_commit_sha) is a unique
+    constraint too, and the IntegrityError becomes a 409 for the whole batch (rolled back).
+    """
+    T = global_trigger_repo.id
+    link(client, admin_headers, project.id, T)
+    assert post_prs(client, admin_headers, T, pr(1)).status_code == 201
+
+    clash = post_prs(client, admin_headers, T, pr(2), pr(5, merge_commit_sha=f"{1:040x}"))
+
+    assert clash.status_code == 409
+    assert clash.json == {"error": "Record already exists"}
+    assert global_total(client, admin_headers, T) == 1
+    assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN"}

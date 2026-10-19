@@ -9,6 +9,10 @@ import pytest
 from app.models.dataset import Dataset
 from app.models.git_provider import GitProvider
 from app.models.project import Project
+from app.models.project_dataset import ProjectDataset
+from app.models.project_results_repository import ProjectResultsRepository
+from app.models.project_secret import ProjectSecret
+from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.results_repository import ResultsRepository
 from app.models.trigger_repository import TriggerRepository
 
@@ -88,3 +92,63 @@ def test_system_cannot_revoke(client, system_headers, request, url_of, model, fi
     refused = client.patch(url, json={"revoked": True}, headers=system_headers)
     assert refused.status_code == 403, refused.json
     assert model.query.get(resource.id).revoked is False
+
+
+# Every route that accepts `revoked` (ADR 0008: only administrators set it, on every route that has it).
+# kind -> (fixtures it needs, url, model, the filter picking its row)
+def _revoke_target(request, kind):
+    get = request.getfixturevalue
+    project = get("project")
+    if kind == "dataset link":
+        get("linked_dataset")
+        ds = get("global_dataset")
+        return f"/projects/{project.id}/datasets/{ds.id}", ProjectDataset, {"project_id": project.id}
+    if kind == "secret link":
+        get("linked_secret")
+        return f"/projects/{project.id}/secrets/{get('global_secret').label}", ProjectSecret, {"project_id": project.id}
+    if kind == "trigger link":
+        get("linked_trigger_repo")
+        return (f"/projects/{project.id}/repositories/triggers/{get('global_trigger_repo').id}",
+                ProjectTriggerRepository, {"project_id": project.id})
+    if kind == "results link":
+        get("linked_results_repo")
+        return (f"/projects/{project.id}/repositories/results/{get('global_results_repo').id}",
+                ProjectResultsRepository, {"project_id": project.id})
+    resource = get({"dataset": "global_dataset", "trigger repository": "global_trigger_repo",
+                    "results repository": "global_results_repo", "git provider": "git_provider",
+                    "project": "project"}[kind])
+    url = {"dataset": DS, "trigger repository": TRIG, "results repository": RES, "git provider": PROV}.get(kind)
+    model = {"dataset": Dataset, "trigger repository": TriggerRepository, "results repository": ResultsRepository,
+             "git provider": GitProvider, "project": Project}[kind]
+    return (f"{url}/{resource.id}" if url else f"/projects/{resource.id}"), model, {"id": resource.id}
+
+
+REVOKE_KINDS = ["dataset", "trigger repository", "results repository", "git provider", "project",
+                "dataset link", "secret link", "trigger link", "results link"]
+
+
+def _revoked(model, where):
+    return model.query.filter_by(**where).one().revoked
+
+
+@pytest.mark.parametrize("kind", REVOKE_KINDS)
+def test_only_an_admin_can_revoke(client, admin_headers, system_headers, post_json_user_header, request, kind):
+    url, model, where = _revoke_target(request, kind)
+    for headers in (system_headers, post_json_user_header):
+        assert client.patch(url, json={"revoked": True}, headers=headers).status_code == 403
+        assert _revoked(model, where) is False
+    revoked = client.patch(url, json={"revoked": True}, headers=admin_headers)
+    assert revoked.status_code == 200, revoked.json
+    assert _revoked(model, where) is True
+
+
+@pytest.mark.parametrize("kind", REVOKE_KINDS)
+def test_only_an_admin_can_unrevoke(client, admin_headers, system_headers, post_json_user_header, request, kind):
+    url, model, where = _revoke_target(request, kind)
+    assert client.patch(url, json={"revoked": True}, headers=admin_headers).status_code == 200
+    for headers in (system_headers, post_json_user_header):
+        assert client.patch(url, json={"revoked": False}, headers=headers).status_code == 403
+        assert _revoked(model, where) is True
+    restored = client.patch(url, json={"revoked": False}, headers=admin_headers)
+    assert restored.status_code == 200, restored.json
+    assert _revoked(model, where) is False

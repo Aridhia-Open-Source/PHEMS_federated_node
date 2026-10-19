@@ -5,6 +5,7 @@ One test per rule; fixtures come from conftest.
 import pytest
 
 from app.helpers.base_model import db
+from app.helpers.task_config import build_snapshot, snapshot_hash
 from app.models.project import Project
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.result import Result
@@ -808,3 +809,132 @@ def test_post_result_through_a_switched_off_link_is_failed_and_waits(
     )
     assert post_result(client, admin_headers, project, task, global_results_repo).json["id"] == created.json["id"]
     assert client.get(f"{results_url(project)}?state=FAILED&active_link=true", headers=admin_headers).json == []
+
+
+def switch_off(client, admin_headers, project, global_results_repo, how):
+    """Switch the results link off at the link, the global repository or the repository's provider."""
+    if how == "link":
+        switch_link(project, False)
+        return
+    url = {"repository": f"{RESULTS_GLOBAL}/{global_results_repo.id}",
+           "provider": f"/global/providers/{global_results_repo.provider_id}"}[how]
+    assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 200
+
+
+def switch_on(client, admin_headers, project, global_results_repo, how):
+    if how == "link":
+        switch_link(project, True)
+        return
+    url = {"repository": f"{RESULTS_GLOBAL}/{global_results_repo.id}",
+           "provider": f"/global/providers/{global_results_repo.provider_id}"}[how]
+    assert client.patch(url, json={"enabled": True}, headers=admin_headers).status_code == 200
+
+
+@pytest.mark.parametrize("how", ["repository", "provider"])
+def test_post_result_through_a_switched_off_global_repository_or_provider_is_failed_and_waits(
+    client, admin_headers, project, global_results_repo, linked_results_repo, make_task, how
+):
+    task = make_task(status="SUCCESS")
+    switch_off(client, admin_headers, project, global_results_repo, how)
+    listed = f"{results_url(project)}?state=FAILED"
+
+    created = post_result(client, admin_headers, project, task, global_results_repo)
+
+    assert created.status_code == 201, created.json
+    assert (created.json["step"], created.json["state"], created.json["error"]) == (
+        "UNKNOWN", "FAILED", "results link switched off"
+    )
+    rid = created.json["id"]
+    assert post_result(client, admin_headers, project, task, global_results_repo).json["id"] == rid
+    # held, not delivered: the active_link filter leaves it out while the link is off, and takes it back once it is on
+    assert [r["id"] for r in client.get(listed, headers=admin_headers).json] == [rid]
+    assert client.get(f"{listed}&active_link=true", headers=admin_headers).json == []
+    switch_on(client, admin_headers, project, global_results_repo, how)
+    assert [r["id"] for r in client.get(f"{listed}&active_link=true", headers=admin_headers).json] == [rid]
+    assert get_result(client, admin_headers, project, rid)["step"] == "UNKNOWN"
+
+
+def test_post_result_checks_a_success_task_before_anything_is_revoked(
+    client, admin_headers, project, global_results_repo, linked_results_repo, make_task
+):
+    task = make_task()  # PENDING
+    assert client.patch(link_url(project, global_results_repo), json={"revoked": True}, headers=admin_headers).status_code == 200
+    assert post_result(client, admin_headers, project, task, global_results_repo).status_code == 409
+    assert client.get(results_url(project), headers=admin_headers).json == []
+
+
+def test_post_result_revoked_beats_switched_off(
+    client, admin_headers, project, global_results_repo, linked_results_repo, make_task
+):
+    task = make_task(status="SUCCESS")
+    switch_link(project, False)
+    assert client.patch(link_url(project, global_results_repo), json={"revoked": True}, headers=admin_headers).status_code == 200
+    created = post_result(client, admin_headers, project, task, global_results_repo)
+    assert created.status_code == 201
+    assert (created.json["step"], created.json["state"]) == ("REVOKED", "FAILED")
+
+
+@pytest.mark.parametrize("how", ["link", "repository", "provider"])
+def test_post_result_stale_beats_switched_off_and_is_final(
+    client, admin_headers, project, global_results_repo, linked_results_repo, make_task, how
+):
+    snapshot = build_snapshot(project, None)
+    task = make_task(status="SUCCESS", config_snapshot=snapshot, config_hash=snapshot_hash(snapshot))
+    assert client.patch(link_url(project, global_results_repo), json={"target_dir": "out"}, headers=admin_headers).status_code == 200
+    switch_off(client, admin_headers, project, global_results_repo, how)
+
+    created = post_result(client, admin_headers, project, task, global_results_repo)
+
+    assert created.status_code == 201, created.json
+    assert (created.json["step"], created.json["state"]) == ("STALE", "FAILED")
+    assert created.json["error"].startswith("task configuration changed since the task was created: ")
+    rid = created.json["id"]
+    # final: switching the link back on does not deliver it, and a second post returns it
+    switch_on(client, admin_headers, project, global_results_repo, how)
+    again = post_result(client, admin_headers, project, task, global_results_repo)
+    assert again.status_code == 200 and again.json["id"] == rid and again.json["step"] == "STALE"
+    assert patch_result(client, admin_headers, project, rid, {"step": "PUSHED"}).status_code == 409
+
+
+def test_patching_a_result_to_failed_leaves_its_step_alone(client, admin_headers, project, result_id):
+    """State and step are separate columns (ADR 0004): a failed delivery keeps the step it reached."""
+    assert patch_result(client, admin_headers, project, result_id, {"step": "PUSHED"}).status_code == 200
+    response = patch_result(client, admin_headers, project, result_id,
+                            {"state": "FAILED", "error": "push rejected", "attempts": 2})
+    assert response.status_code == 200, response.json
+    assert (response.json["step"], response.json["state"], response.json["error"], response.json["attempts"]) == (
+        "PUSHED", "FAILED", "push rejected", 2
+    )
+    assert get_result(client, admin_headers, project, result_id)["step"] == "PUSHED"
+
+
+# ---------------------------------------------------------------- loop refusal: a trigger watching the whole repository
+
+
+def test_whole_repository_trigger_then_results_link_in_the_same_repository_is_refused(
+    client, admin_headers, disabled_project, make_trigger_repo, make_results_repo
+):
+    trigger = make_trigger_repo(uri="github.com/org/shared")
+    results = make_results_repo(uri="github.com/org/shared")
+    assert client.put(trigger_url(disabled_project, trigger), json={"watch_dir": ""},
+                      headers=admin_headers).status_code == 201
+
+    response = client.put(link_url(disabled_project, results), json={"target_dir": "out"}, headers=admin_headers)
+
+    assert response.status_code == 400, response.json
+    assert "watches the whole repository" in response.json["error"]
+    assert links(client, admin_headers, disabled_project) == []
+
+
+def test_results_link_then_whole_repository_trigger_in_the_same_repository_is_refused(
+    client, admin_headers, project, make_trigger_repo, make_results_repo
+):
+    trigger = make_trigger_repo(uri="github.com/org/shared")
+    results = make_results_repo(uri="github.com/org/shared")
+    assert put_link(client, admin_headers, project, results, "out").status_code == 201
+
+    response = client.put(trigger_url(project, trigger), json={"watch_dir": ""}, headers=admin_headers)
+
+    assert response.status_code == 400, response.json
+    assert "watches the whole repository" in response.json["error"]
+    assert client.get(trigger_url(project, trigger), headers=admin_headers).status_code == 404
