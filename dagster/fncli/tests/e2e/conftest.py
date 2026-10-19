@@ -78,18 +78,26 @@ def summary(snapshot: dict) -> dict:
     }
 
 
-def start_sensor(sensor: str, attempts: int = 5, wait: float = 5):
-    # start-sensor takes a group, not a name, so the API call it makes for each sensor is made here
+def start_sensor(sensor: str, timeout: float = 150):
+    # start-sensor takes a group, not a name, so the API call it makes for each sensor is made here.
+    # Poll until the sensor is available, since the location may still be loading after a code server restart.
     api = DagsterAPI(DagsterConfig().dagster_url)
-    for attempt in range(attempts):
+    deadline = time.time() + timeout
+    last_error = None
+
+    while time.time() < deadline:
         try:
             return api.start_sensor(sensor)
         except RuntimeError as error:
+            error_str = str(error)
             # Right after a code server restart the sensors are not loaded yet
-            if "SensorNotFoundError" not in str(error) or attempt == attempts - 1:
+            if "SensorNotFoundError" not in error_str:
                 raise
-            logger.info(f"Sensor {sensor} not found yet, trying again in {wait}s")
-            time.sleep(wait)
+            last_error = error_str
+            logger.info(f"Sensor {sensor} not found yet, waiting for location to load")
+            time.sleep(1)
+
+    raise RuntimeError(f"Sensor {sensor} did not load within {timeout}s. Last error: {last_error}")
 
 
 def teardown_step(fncli, command, options, final: bool = False):
