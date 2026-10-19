@@ -29,10 +29,10 @@ def test_create_and_get_shape_defaults(client, admin_headers):
     assert created.status_code == 201, created.json
     assert set(created.json) == {"id"}
     got = client.get(f"/projects/{created.json['id']}", headers=admin_headers).json
-    assert set(got) == {"id", "name", "description", "enabled", "default_dataset_id",
+    assert set(got) == {"id", "name", "description", "enabled", "revoked", "default_dataset_id",
                         "created_at", "updated_at"}
-    assert (got["name"], got["description"], got["enabled"], got["default_dataset_id"]) == \
-        ("Alpha", "first", False, None)
+    assert (got["name"], got["description"], got["enabled"], got["revoked"], got["default_dataset_id"]) == \
+        ("Alpha", "first", False, False, None)
     plain = create(client, admin_headers, name="Plain", enabled=True)
     plain_json = client.get(f"/projects/{plain.json['id']}", headers=admin_headers).json
     assert plain_json["description"] is None and plain_json["enabled"] is True
@@ -71,6 +71,34 @@ def test_patch_invalid_is_400_and_changes_nothing(client, admin_headers, project
     response = client.patch(f"/projects/{project.id}", json=body, headers=admin_headers)
     assert response.status_code == 400 and "error" in response.json
     assert refresh(project).enabled is True
+
+
+@pytest.mark.parametrize("body", [{"revoked": "true"}, {"revoked": 1}, {"revoked": None}])
+def test_patch_revoked_must_be_a_boolean(client, admin_headers, project, body):
+    response = client.patch(f"/projects/{project.id}", json=body, headers=admin_headers)
+    assert response.status_code == 400 and "boolean" in response.json["error"]
+    assert refresh(project).revoked is False
+
+
+def test_patch_revoked_is_admin_only_shows_in_the_dto_and_leaves_enabled_alone(
+        client, admin_headers, post_json_user_header, project):
+    url = f"/projects/{project.id}"
+    refused = client.patch(url, json={"revoked": True}, headers=post_json_user_header)
+    assert refused.status_code == 403
+    assert refresh(project).revoked is False
+
+    revoked = patch(client, admin_headers, project.id, revoked=True)
+    assert revoked.status_code == 200, revoked.json
+    assert (revoked.json["revoked"], revoked.json["enabled"]) == (True, True)
+    assert client.get(url, headers=admin_headers).json["revoked"] is True
+    listed = client.get("/projects", headers=admin_headers).json["items"]
+    assert [p["revoked"] for p in listed] == [True]
+
+    # a re-grant is one call, clears the flag only, and a disabled project stays disabled
+    assert patch(client, admin_headers, project.id, enabled=False).json["revoked"] is True
+    restored = patch(client, admin_headers, project.id, revoked=False)
+    assert (restored.json["revoked"], restored.json["enabled"]) == (False, False)
+    assert refresh(project).revoked is False
 
 
 def test_enable_and_disable_ignore_tasks_in_flight(client, admin_headers, project, make_task):

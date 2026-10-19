@@ -20,6 +20,9 @@ class Project(SoftDeleteMixin, db.Model, BaseModel):
     # Sensors only act on the repositories of enabled projects. While a project is disabled it
     # gets no new triggers and API tasks are rejected; its PENDING tasks wait.
     enabled = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
+    # The controller withdrew the project: everything it uses is blocked, its tasks fail and nothing is
+    # delivered. Never touches enabled, so a re-grant restores the previous state.
+    revoked = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
     # A dataset the project has been assigned: set with the first one linked.
     default_dataset_id = sa.Column(sa.Integer, sa.ForeignKey('datasets.id', ondelete='RESTRICT'), nullable=True)
     created_at = sqla_column.created_at()

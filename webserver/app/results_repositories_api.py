@@ -7,20 +7,18 @@ only. Deleting one is a soft delete, refused with a 409 naming the projects it i
 - POST /global/repositories/results
 - PATCH /global/repositories/results/<id>
 - DELETE /global/repositories/results/<id>
-- POST /global/repositories/results/<id>/revoke
 - GET /global/repositories/results/<id>/healthcheck, see healthcheck_api.py
 """
 from http import HTTPStatus
 
-from flask import Blueprint, request
+from flask import Blueprint, g, request
 
 from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
 from app.dtos.results_repository import ResultsRepositoryDTO
 from app.helpers.base_model import db
-from app.helpers.exceptions import InvalidRequest
-from app.helpers.revoke import revoke_links
+from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.helpers.soft_delete import delete_global
-from app.helpers.wrappers import audit, auth
+from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
@@ -51,18 +49,6 @@ def get_repository(repo_id):
     """
     repo = ResultsRepository.get_by_id(repo_id)
     return ResultsRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK
-
-
-@bp.route('/<int:repo_id>/revoke', methods=['POST'])
-@audit
-@auth(scope='can_do_admin')
-def revoke_repository(repo_id):
-    """
-    POST /global/repositories/results/<id>/revoke — revokes every project's link to the repository
-    at once, admin only. Returns the ids of the links. Un-revoking is per link.
-    """
-    repo = ResultsRepository.get_by_id(repo_id)
-    return revoke_links(repo.project_assignments), HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['DELETE'])
@@ -118,23 +104,29 @@ def patch_repository(repo_id):
     """
     PATCH /global/repositories/results/<id> — update repository. The tasks created
     before are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be
-    named (400), unless it is the one already in use.
+    named (400), unless it is the one already in use. `revoked` (a boolean) withdraws the repository from every
+    project at once, or restores it, and does not change `enabled`: see helpers/task_config.revoked_resources.
     """
     repo = ResultsRepository.get_by_id(repo_id)
 
     body = request.json or {}
     if not body:
         raise InvalidRequest("No fields provided to update")
-    unknown = set(body) - {'provider_id', 'secret_label', 'enabled'}
+    unknown = set(body) - {'provider_id', 'secret_label', 'enabled', 'revoked'}
     if unknown:
         raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
     req = RepositoryPatchRequest.parse(body)
+    if 'revoked' in body and not g.caller_is_admin:
+        raise UnauthorizedError("Only an admin can revoke or re-grant a results repository")
 
     if 'secret_label' in body:
         repo.secret_id = Secret.get_enabled_by_label(req.secret_label, repo.secret_id).id
 
     if 'enabled' in body:
         repo.enabled = req.enabled
+
+    if 'revoked' in body:
+        repo.revoked = req.revoked
 
     if 'provider_id' in body:
         provider = GitProvider.get_by_request_id(req.provider_id)

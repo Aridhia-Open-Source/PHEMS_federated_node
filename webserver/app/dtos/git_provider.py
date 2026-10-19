@@ -14,6 +14,7 @@ class GitProviderRefDTO(DTO):
     uri: str
     api_uri: str
     enabled: bool
+    revoked: bool
 
 
 class GitProviderDTO(GitProviderRefDTO):
@@ -52,6 +53,7 @@ class GitProviderPatchRequest(BaseModel):
     uri: str | None = Field(default=None, min_length=1, max_length=4096)
     api_uri: str | None = Field(default=None, min_length=1, max_length=4096)
     enabled: bool | None = None
+    revoked: bool | None = None
 
     @model_validator(mode="after")
     def not_null(self):

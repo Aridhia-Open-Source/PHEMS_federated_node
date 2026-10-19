@@ -34,7 +34,7 @@ def make_backend(projects, tasks_by_project):
     backend_api.get_projects.side_effect = lambda enabled: [p for p in projects if p.enabled == enabled]
     backend_api.get_tasks.side_effect = lambda status, project_id: tasks_by_project[project_id]
     backend_api.get_project_dataset.return_value = assignment()
-    backend_api.get_task_config.return_value = {"current": True, "changes": [], "config_hash": None}
+    backend_api.get_task_config.return_value = {"current": True, "changes": [], "config_hash": None, "revoked": []}
     return backend_api
 
 
@@ -162,8 +162,8 @@ def test_a_task_is_checked_against_its_configuration_before_launch():
 def test_a_task_whose_configuration_changed_is_failed_and_the_next_is_launched():
     backend_api = make_backend([project()], {1: [task(id=9), task(id=10)]})
     backend_api.get_task_config.side_effect = lambda project_id, task_id: (
-        {"current": False, "changes": ["image changed", "env changed"], "config_hash": "h"}
-        if task_id == 9 else {"current": True, "changes": [], "config_hash": None}
+        {"current": False, "changes": ["image changed", "env changed"], "config_hash": "h", "revoked": []}
+        if task_id == 9 else {"current": True, "changes": [], "config_hash": None, "revoked": []}
     )
 
     result = run(backend_api)
@@ -175,9 +175,49 @@ def test_a_task_whose_configuration_changed_is_failed_and_the_next_is_launched()
     })
 
 
+def test_a_task_with_a_revoked_resource_is_failed_and_not_launched():
+    backend_api = make_backend([project()], {1: [task(id=9), task(id=10)]})
+    backend_api.get_task_config.side_effect = lambda project_id, task_id: {
+        "current": True, "changes": [], "config_hash": None,
+        "revoked": ["dataset ds", "results repository org/results"] if task_id == 9 else [],
+    }
+
+    result = run(backend_api)
+
+    assert [r.run_key for r in result] == ["task/10/1"]
+    backend_api.patch_task.assert_called_once_with(1, 9, {
+        "status": "FAILED", "state_cause": "revoked: dataset ds; results repository org/results",
+    })
+    # the dataset link is not read for it: the task failed before
+    backend_api.get_project_dataset.assert_called_once()
+
+
+def test_revoked_is_the_cause_of_a_task_that_is_also_stale():
+    backend_api = make_backend([project()], {1: [task()]})
+    backend_api.get_task_config.return_value = {
+        "current": False, "changes": ["image changed"], "config_hash": "h", "revoked": ["trigger repository org/repo"],
+    }
+
+    assert [r for r in run(backend_api) if isinstance(r, RunRequest)] == []
+    backend_api.patch_task.assert_called_once_with(1, 9, {
+        "status": "FAILED", "state_cause": "revoked: trigger repository org/repo",
+    })
+
+
+def test_the_revoked_cause_is_cut_to_the_column_length():
+    backend_api = make_backend([project()], {1: [task()]})
+    backend_api.get_task_config.return_value = {
+        "current": True, "changes": [], "config_hash": None, "revoked": ["dataset " + "x" * 2000],
+    }
+
+    run(backend_api)
+
+    assert len(backend_api.patch_task.call_args.args[2]["state_cause"]) == 1024
+
+
 def test_the_stale_cause_is_cut_to_the_column_length():
     backend_api = make_backend([project()], {1: [task()]})
-    backend_api.get_task_config.return_value = {"current": False, "changes": ["x" * 2000], "config_hash": None}
+    backend_api.get_task_config.return_value = {"current": False, "changes": ["x" * 2000], "config_hash": None, "revoked": []}
 
     run(backend_api)
 
@@ -188,7 +228,7 @@ def test_an_error_for_one_task_leaves_it_pending_and_does_not_stop_the_others():
     backend_api = make_backend([project()], {1: [task(id=9), task(id=10)]})
     backend_api.get_task_config.side_effect = lambda project_id, task_id: (
         (_ for _ in ()).throw(RuntimeError("backend down"))
-        if task_id == 9 else {"current": True, "changes": [], "config_hash": None}
+        if task_id == 9 else {"current": True, "changes": [], "config_hash": None, "revoked": []}
     )
 
     result = run(backend_api)
@@ -200,7 +240,7 @@ def test_an_error_for_one_task_leaves_it_pending_and_does_not_stop_the_others():
 def test_a_task_with_an_error_is_launched_by_a_later_tick_with_the_same_run_key():
     backend_api = make_backend([project()], {1: [task()]})
     backend_api.get_task_config.side_effect = [
-        RuntimeError("backend down"), {"current": True, "changes": [], "config_hash": None}
+        RuntimeError("backend down"), {"current": True, "changes": [], "config_hash": None, "revoked": []}
     ]
 
     first = run(backend_api)

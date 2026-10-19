@@ -3,8 +3,8 @@ Soft delete: a deleted row keeps existing but the API treats it as gone. Every O
 every collection loaded through a relationship hides rows with `deleted_at` set; an internal or
 audit read opts out with `.execution_options(include_deleted=True)`. Following a many-to-one
 reference (task.project, link.results_repository, result.assignment) still loads a deleted row,
-so history never meets None. A link also gets `revoked`, since deleting something withdraws
-everything under it.
+so history never meets None. A row that has `revoked` (a link, a global resource, a project) also gets it,
+since deleting something withdraws everything under it.
 """
 from datetime import datetime as dt
 from datetime import timezone as tz
@@ -23,7 +23,7 @@ class SoftDeleteMixin:
     deleted_at = sa.Column(sa.DateTime, nullable=True)
 
     def soft_delete(self):
-        """Marks the row deleted, and a link revoked. Leaves the commit to the caller."""
+        """Marks the row deleted, and revoked if it has the flag. Leaves the commit to the caller."""
         self.deleted_at = dt.now(tz=tz.utc).replace(tzinfo=None)
         if hasattr(self, 'revoked'):
             self.revoked = True

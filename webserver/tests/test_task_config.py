@@ -131,7 +131,8 @@ def test_config_is_current_then_stale_after_target_dir_changes(
     current = client.get(config_url(project, task), headers=admin_headers)
     assert current.status_code == 200
     assert current.json == {
-        "current": True, "changes": [], "config_hash": task.config_hash, "config_snapshot": task.config_snapshot
+        "current": True, "changes": [], "config_hash": task.config_hash, "config_snapshot": task.config_snapshot,
+        "revoked": [],
     }
     assert current.json["config_snapshot"]["results"]["target_dir"] == "results"
 
@@ -145,7 +146,7 @@ def test_config_is_current_then_stale_after_target_dir_changes(
 def test_config_of_a_task_without_a_snapshot_is_current(client, admin_headers, project, make_task):
     task = make_task()
     assert client.get(config_url(project, task), headers=admin_headers).json == {
-        "current": True, "changes": [], "config_hash": None, "config_snapshot": None}
+        "current": True, "changes": [], "config_hash": None, "config_snapshot": None, "revoked": []}
 
 
 def test_config_404_for_a_task_of_another_project(client, admin_headers, project, other_project, make_task):
@@ -208,6 +209,138 @@ def test_revoked_link_is_checked_before_stale(
     task.status = "SUCCESS"
     db.session.commit()
     assert post_result(client, admin_headers, project, task, global_results_repo).json["step"] == "REVOKED"
+
+
+# --------------------------------------------------------------------------- revoked resources
+
+
+@pytest.fixture
+def full_task(client, admin_headers, project, pr_trigger, spec_raw, linked_dataset, linked_results_repo) -> Task:
+    """A task made from a pull request, on the project's dataset, with its results link: all three active."""
+    created = client.post(f"{pr_trigger}/task", json={"spec_raw": spec_raw}, headers=admin_headers)
+    assert created.status_code == 201, created.json
+    task = reload_task(created.json["id"])
+    assert task.spec.dataset_id is not None and task.config_snapshot["results"] is not None
+    return task
+
+
+@pytest.fixture
+def links(project, global_trigger_repo, global_dataset, global_results_repo) -> dict:
+    """Per resource of a task: the URL of the project's link to it, and the name revoked gives it."""
+    return {
+        "trigger": (f"/projects/{project.id}/repositories/triggers/{global_trigger_repo.id}",
+                    f"trigger repository {global_trigger_repo.repo_path}"),
+        "dataset": (f"/projects/{project.id}/datasets/{global_dataset.id}", f"dataset {global_dataset.name}"),
+        "results": (f"/projects/{project.id}/repositories/results/{global_results_repo.id}",
+                    f"results repository {global_results_repo.repo_path}"),
+    }
+
+
+def revoked_of(client, admin_headers, project, task) -> list[str]:
+    response = client.get(config_url(project, task), headers=admin_headers)
+    assert response.status_code == 200, response.json
+    return response.json["revoked"]
+
+
+def test_nothing_is_revoked_for_a_current_task_or_for_links_only_switched_off(
+        client, admin_headers, project, full_task, links):
+    assert revoked_of(client, admin_headers, project, full_task) == []
+    for url, _ in links.values():
+        assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 200
+    assert revoked_of(client, admin_headers, project, full_task) == []
+
+
+@pytest.mark.parametrize("kind", ["trigger", "dataset", "results"])
+def test_a_revoked_link_is_named(client, admin_headers, project, full_task, links, kind):
+    url, name = links[kind]
+    assert client.patch(url, json={"revoked": True}, headers=admin_headers).status_code == 200
+    assert revoked_of(client, admin_headers, project, full_task) == [name]
+    # revoking is the controller's and does not touch the other rules: the snapshot is still current
+    assert client.get(config_url(project, full_task), headers=admin_headers).json["current"] is True
+
+
+@pytest.mark.parametrize("kind", ["dataset", "results"])
+def test_a_deleted_link_is_named(client, admin_headers, project, full_task, links, kind):
+    url, name = links[kind]
+    assert client.delete(url, headers=admin_headers).status_code == 204
+    assert revoked_of(client, admin_headers, project, full_task) == [name]
+
+
+def test_every_revoked_link_is_named_in_the_order_of_the_trigger_dataset_and_results(
+        client, admin_headers, project, full_task, links):
+    for url, _ in links.values():
+        assert client.patch(url, json={"revoked": True}, headers=admin_headers).status_code == 200
+    assert revoked_of(client, admin_headers, project, full_task) == [name for _, name in links.values()]
+
+
+def test_a_dataset_the_project_has_no_link_to_is_revoked(
+        client, admin_headers, project, global_dataset, make_task):
+    task = make_task(dataset_id=global_dataset.id)
+    assert revoked_of(client, admin_headers, project, task) == [f"dataset {global_dataset.name}"]
+
+
+def test_a_task_without_a_pull_request_or_a_snapshot_is_checked_against_the_projects_results_link(
+        client, admin_headers, project, linked_results_repo, global_results_repo, make_task):
+    task = make_task()
+    assert revoked_of(client, admin_headers, project, task) == []
+    url = f"/projects/{project.id}/repositories/results/{global_results_repo.id}"
+    assert client.patch(url, json={"revoked": True}, headers=admin_headers).status_code == 200
+    assert revoked_of(client, admin_headers, project, task) == [f"results repository {global_results_repo.repo_path}"]
+
+
+@pytest.fixture
+def global_revokes(project, global_trigger_repo, global_dataset, global_results_repo) -> dict:
+    """Per kind: the URL PATCHed with {"revoked": true}, and the name a task's revoked list gives it then."""
+    provider = global_trigger_repo.provider
+    return {
+        "project": (f"/projects/{project.id}", f"project {project.name} (revoked)"),
+        "trigger": (f"/global/repositories/triggers/{global_trigger_repo.id}",
+                    f"trigger repository {global_trigger_repo.repo_path} (revoked)"),
+        "dataset": (f"/global/datasets/{global_dataset.id}", f"dataset {global_dataset.name} (revoked)"),
+        "results": (f"/global/repositories/results/{global_results_repo.id}",
+                    f"results repository {global_results_repo.repo_path} (revoked)"),
+        # both repositories are on it: it is named once
+        "provider": (f"/global/providers/{provider.id}", f"provider {provider.name} (revoked)"),
+    }
+
+
+@pytest.mark.parametrize("kind", ["project", "trigger", "dataset", "results", "provider"])
+def test_a_revoked_global_resource_provider_or_project_is_named_until_it_is_restored(
+        client, admin_headers, project, full_task, global_revokes, kind):
+    url, name = global_revokes[kind]
+    assert client.patch(url, json={"revoked": True}, headers=admin_headers).status_code == 200
+    assert revoked_of(client, admin_headers, project, full_task) == [name]
+    # revoking is the controller's and does not touch the other rules: the snapshot is still current
+    assert client.get(config_url(project, full_task), headers=admin_headers).json["current"] is True
+
+    assert client.patch(url, json={"revoked": False}, headers=admin_headers).status_code == 200
+    assert revoked_of(client, admin_headers, project, full_task) == []
+
+
+def test_everything_revoked_is_named_once_the_project_first(
+        client, admin_headers, project, full_task, links, global_revokes):
+    for url, _ in (*links.values(), *global_revokes.values()):
+        assert client.patch(url, json={"revoked": True}, headers=admin_headers).status_code == 200
+    names = {kind: name for kind, (_, name) in links.items()}
+    revoked = {kind: name for kind, (_, name) in global_revokes.items()}
+    assert revoked_of(client, admin_headers, project, full_task) == [
+        revoked["project"],
+        names["trigger"], revoked["trigger"], revoked["provider"],
+        names["dataset"], revoked["dataset"],
+        names["results"], revoked["results"],
+    ]
+
+
+def test_a_task_without_a_pull_request_names_its_revoked_dataset_and_the_projects_results_repository(
+        client, admin_headers, project, linked_dataset, linked_results_repo, global_dataset, global_results_repo,
+        make_task):
+    task = make_task(dataset_id=global_dataset.id)
+    assert revoked_of(client, admin_headers, project, task) == []
+    for url in (f"/global/datasets/{global_dataset.id}", f"/global/repositories/results/{global_results_repo.id}"):
+        assert client.patch(url, json={"revoked": True}, headers=admin_headers).status_code == 200
+    assert revoked_of(client, admin_headers, project, task) == [
+        f"dataset {global_dataset.name} (revoked)", f"results repository {global_results_repo.repo_path} (revoked)",
+    ]
 
 
 def test_stale_step_is_a_valid_filter(client, admin_headers, project):

@@ -9,6 +9,7 @@ class ProjectDTO(DTO):
     name: str
     description: str | None
     enabled: bool
+    revoked: bool
     default_dataset_id: int | None
     created_at: WireDatetime
     updated_at: WireDatetime

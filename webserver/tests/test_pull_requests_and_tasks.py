@@ -248,6 +248,25 @@ def test_a_disabled_project_gets_no_trigger_and_enabling_it_skips_the_gap(
     assert states(client, admin_headers, project.id, T) == {3: "UNKNOWN"}
 
 
+def test_a_revoked_project_gets_no_trigger_and_re_granting_it_skips_the_gap(
+        client, admin_headers, project, global_trigger_repo):
+    T = global_trigger_repo.id
+    link(client, admin_headers, project.id, T)
+    # the cursor far back, so only the project being revoked keeps PR 1 from a trigger
+    ProjectTriggerRepository.query.filter_by(project_id=project.id).one().initial_cursor = datetime(2000, 1, 1)
+    db.session.commit()
+    revoked = client.patch(f"/projects/{project.id}", json={"revoked": True}, headers=admin_headers)
+    assert revoked.status_code == 200 and revoked.json["enabled"] is True
+    post_prs(client, admin_headers, T, pr(1, merged_at=merged_hours_from_now(-1)))
+    assert states(client, admin_headers, project.id, T) == {}  # stored, but a revoked project gets no trigger
+    assert global_total(client, admin_headers, T) == 1
+
+    assert client.patch(f"/projects/{project.id}", json={"revoked": False}, headers=admin_headers).status_code == 200
+    assert states(client, admin_headers, project.id, T) == {}  # the gap is not replayed
+    post_prs(client, admin_headers, T, pr(2, merged_at=merged_hours_from_now(-1)), pr(3, merged_at=merged_hours_from_now(1)))
+    assert states(client, admin_headers, project.id, T) == {3: "UNKNOWN"}
+
+
 def disabled_project_with_a_stored_pull_request(client, admin_headers, project, T):
     """The project linked to T, then disabled, then PR 1 stored while it is off: it has no trigger."""
     link(client, admin_headers, project.id, T)
