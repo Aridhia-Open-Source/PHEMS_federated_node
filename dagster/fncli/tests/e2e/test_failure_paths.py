@@ -17,7 +17,7 @@ import time
 import pytest
 
 from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
-from fncli.cmds.common import DagsterConfig
+from fncli.cmds.common import DagsterConfig, build_admin_backend_api
 from fncli.cmds.pr import (
     commit_gitea_file_command,
     create_gitea_branch_command,
@@ -138,6 +138,20 @@ def record_counts(fncli, flow, key):
 def grew_by_one(flow, key):
     prs, tasks = flow[key]
     return lambda snapshot: counts(snapshot) == (prs + 1, tasks + 1)
+
+
+# --- Preflight: the admin login the revoke tests need -----------------------------------------
+
+
+def test_admin_login(fncli):
+    """Revoking is admin only: log in as the first Keycloak user once, here, so a bad login fails with its cause."""
+    try:
+        build_admin_backend_api(fncli.config).session.adapter.access_token
+    except Exception as error:
+        pytest.fail(
+            "admin login failed: check the first Keycloak user exists and KEYCLOAK_FIRST_USER_EMAIL in .dev.env "
+            f"matches the chart ({type(error).__name__}: {error})"
+        )
 
 
 # --- Setup: a fresh project and the sensors running -------------------------------------------
