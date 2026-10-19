@@ -5,7 +5,7 @@ from app.utils import BackendSession
 from app.models import (
     ProjectTriggerRepository, TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository,
     ResultsRepository, Task,
-    TaskTrigger, PullRequestResult, Dataset, ProjectDataset
+    TaskTrigger, PullRequestResult, Dataset, ProjectDataset, LaunchDecision
 )
 
 default_logger = logging.getLogger(__name__)
@@ -188,6 +188,20 @@ class BackendAPI:
         self.logger.info(f"Fetching the configuration check of task {task_id}")
         response = self.session.get(f"/projects/{project_id}/tasks/{task_id}/config")
         return response.json()
+
+    def launch_task(self, project_id: int, task_id: int) -> LaunchDecision | None:
+        """
+        The launcher's one call for a PENDING task. The backend decides: on "fail" it has already moved the task
+        to FAILED with the cause; on "launch" it returns the task and its dataset, what the run request needs, and
+        changes nothing. None when the task is no longer PENDING (409). 404 if it is not in the project.
+        """
+        self.logger.info(f"Launching task {task_id}")
+        response = self.session.post(f"/projects/{project_id}/tasks/{task_id}/launch", raise_for_status=False)
+        if response.status_code == HTTPStatus.CONFLICT:
+            self.logger.info(f"Task {task_id} is no longer pending: {response.text}")
+            return None
+        response.raise_for_status()
+        return LaunchDecision(**response.json())
 
     def get_task_trigger(self, project_id: int, task_id: int) -> TaskTrigger:
         """Get the pull request that yielded a task, with its trigger repository. 404 if the task has none."""
