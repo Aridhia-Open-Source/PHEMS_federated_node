@@ -1,6 +1,6 @@
 # Sensors
 
-One document per sensor. Wider picture: [flows.md](../flows.md). Entities and states: [entities.md](../entities.md). Decisions: [0023](../../../project/decisions/0023-dagster-pipeline-ops-sensors-and-retries.md) (the pipeline), [0021](../../../project/decisions/0021-pull-requests-stored-once-fan-out-and-cursors.md) (pull requests and cursors), [0022](../../../project/decisions/0022-state-transition-tables.md) (the 409s), [0009](../../../project/decisions/0009-sync-reconciler-and-operational-rules.md) (run keys).
+One document per sensor. Wider picture: [flows.md](../flows.md). Entities and states: [entities.md](../entities.md). Decisions: [0014](../../../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md) (the pipeline), [0011](../../../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md) (pull requests and cursors), [0005](../../../project/decisions/0005-state-transition-tables.md) (the 409s), [0015](../../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md) (run keys).
 
 ## What a sensor is here
 

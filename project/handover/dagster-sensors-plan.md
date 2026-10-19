@@ -19,7 +19,7 @@ Minimum interval 10 s (`MIN_SENSOR_INTERVAL_SECONDS`).
 ## Proposed (about 4 groups)
 
 - **Mirror webhook replaces ingest polling.** The webserver receives the Gitea-mirror webhook and stores the PR; a slow ingest poll
-  stays as the fallback. Depends on the Gitea mirror (ADR 0020).
+  stays as the fallback. Depends on the Gitea mirror ([gitea-mirror-plan.md](gitea-mirror-plan.md)).
 - **One per-PR job** (evaluate, create task, run), started by one sensor or the webhook, keyed by `run_key` so a PR runs once.
   This replaces the evaluate sensor and the launcher.
 - **Delivery becomes the last op of the task job**, so the delivery sensor goes away.

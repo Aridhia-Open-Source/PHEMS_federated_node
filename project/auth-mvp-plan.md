@@ -39,7 +39,7 @@ Research only. No code changed. Paths are in `webserver/app/` unless stated. Lin
 - **kc-init** (`build/kc-init`): `setup_realm.py` creates the first user (role `Administrator`, `FIRST_USER_*`) and the Dagster user via `create_system_user` (`common.py:477`, role `System`). Realm changes after install need a migration in `migrations/` (m001, m002 exist). `partial_import` skips the existing `global` client, so a scope or policy change needs m003.
 - **Legacy `origin/develop`**:
   - The same decorator also did dataset-resource lookup, and per-DAR clients plus token exchange (`models/request.py`, `Keycloak(client)`) for non-admins.
-  - On shared-resources this is disconnected (ADR 0014, `TODO(DAR)` at wrappers.py:35).
+  - On shared-resources this is disconnected (ADR 0017, `TODO(DAR)` at wrappers.py:35).
   - `dagster-develop` added: the `dagster` System user and `dagster-keycloak-creds` secret (+ rotation), `fn-service` (Super Administrator) for backend admin calls, the System bypass, and `is_system_user`.
 - **Who calls the API**:
   - Dagster `dagster/app/backend.py` and fncli `dagster/fncli/cmds/common.py:134` both read `dagster-keycloak-creds` (`DAGSTER_KC_USER` / `DAGSTER_KC_PASSWORD`). Both are System.
@@ -186,7 +186,7 @@ Current = effective scope after hooks. All handlers on shared-resources (a `/` a
    - Per route group, one case per role: no token gives 401; a lower role gives 403; the right role and any higher role are not 401/403 (404 for unknown ids is fine).
    - A few real 2xx cases per group: users list, projects GET, task PATCH, batch ingest.
    - Add a test that `g.caller_is_admin` is true for admin and system.
-9. **Docs**: `project/decisions/` ADR for the role model (supersedes the auth notes in 0014).
+9. **Docs**: `project/decisions/` ADR for the role model (extends the auth notes in 0017).
 
 ## 6. Out of scope
 

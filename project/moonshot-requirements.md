@@ -28,15 +28,15 @@
 - Purpose: the owner's source of truth. Use it to validate the work, confirm assumptions and brief the manager. A review agent will check both branches against it.
 - Built from the ADRs first, not from the code. The code was read only to see whether a decision was implemented.
 - Branches:
-  - **shared-resources** (ADR 0019): `origin/moonshot/shared-resources`.
-  - **gitea-mirror** (ADR 0020): `origin/moonshot/gitea-mirror`.
+  - **shared-resources** (ADR 0006): `origin/moonshot/shared-resources`.
+  - **gitea-mirror** (the Gitea mirror plan): `origin/moonshot/gitea-mirror`.
 - Tags in validation cases: **[business]** is about what the owner wants. **[technical]** is about how it is built.
 - Notes: `Uncertain (Qn)` means sources conflict or I inferred it. `Assumption (Qn)` means no source at all. Every note is collected in section 5.
 
 Precedence when sources disagree:
 
 1. Decisions the owner made on 2026-10-17 ("decision 2026-10-17").
-2. ADR 0019 (and ADR 0020 with its "Decisions changed by the 2026-10-17 review" section).
+2. ADR 0006 (and the Gitea mirror plan with its "Decisions changed by the 2026-10-17 review" section).
 3. Handovers, commit messages, READMEs.
 4. The code (only proves what was built).
 
@@ -65,7 +65,7 @@ Precedence when sources disagree:
 
 **What is built (gitea-mirror).** A separate service. It copies merged GitHub PRs into the node's own Gitea, so the node reads locally and never needs GitHub tokens in the evaluation path. It can also send signed webhooks when a PR is mirrored. It is built and unit-tested, but **not verified on a real cluster or against the real GitHub API**. The node-side receiver for its webhooks is **not built**.
 
-**What is parked.** Narrowing Dagster's secret permissions. Restarting Dagster after credential rotation (dropped). Legacy models. The sensor redesign. Flask to FastAPI. Authorization rework. Guards on editing shared resources (replaced by pinning a task to its configuration, ADR 0019). Full list in section 4.
+**What is parked.** Narrowing Dagster's secret permissions. Restarting Dagster after credential rotation (dropped). Legacy models. The sensor redesign. Flask to FastAPI. Authorization rework. Guards on editing shared resources (replaced by pinning a task to its configuration, ADR 0006). Full list in section 4.
 
 **Known open risks (section 5 has the list).** Four trigger-loss and ingest bugs found in review are still unfixed in code. The owner needs to say which of them block the MVP.
 
@@ -169,9 +169,9 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 4. `POST` of a global resource with a non-admin token → 403. **[business]**
 5. No `POST` route exists under `/projects/:pid/datasets`, `/secrets` or `/repositories/...` (only `PUT` to link) → `POST` returns 404 or 405. **[technical]**
 
-**Source:** ADR 0019 §1, §9, §11 ("Projects never create resources"). Status codes also confirmed in code.
+**Source:** ADR 0006. Status codes also confirmed in code.
 
-> **Uncertain (Q1):** ADR §9 says creating global resources "requires the admin role for now". Code has `@auth(scope='can_do_admin')` on POST and DELETE, but `PATCH /global/secrets/<label>` has no admin check (known gap in the tests handover, not fixed). Is that acceptable for the MVP?
+> **Uncertain (Q1):** ADR 0006 says creating global resources "requires the admin role for now". Code has `@auth(scope='can_do_admin')` on POST and DELETE, but `PATCH /global/secrets/<label>` has no admin check (known gap in the tests handover, not fixed). Is that acceptable for the MVP?
 
 ### SR-GLOB-02 Secrets are addressed by label; values are never returned
 
@@ -184,7 +184,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 4. `PATCH /global/secrets/<label>` with new `values` (rotation) on a secret linked to a project → 200 (rotation is free). **[business]**
 5. `DELETE /global/secrets/<label>` while a repository or dataset uses it → 409. **[technical]**
 
-**Source:** ADR 0019 §7.
+**Source:** ADR 0007.
 
 ### SR-GLOB-03 Each global resource has its own `enabled`; a disabled secret is refused
 
@@ -196,7 +196,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. `PATCH` a repository keeping its current (disabled) secret → not refused. **[technical]**
 4. `POST` batch ingest to a disabled trigger repository → 400, nothing stored. **[business]**
 
-**Source:** ADR 0019 §2 ("Global `enabled`"), §12 item 14.
+**Source:** ADR 0006 and 0008.
 
 ### SR-GLOB-04 Datasets are global and addressed by id
 
@@ -208,9 +208,9 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. `PATCH /global/datasets/<id>` → 200. **[technical]**
 4. A duplicate dataset name → 409 (not 500). **[technical]**
 
-**Source:** ADR 0019 §6, §12 items 5 and 15.
+**Source:** ADR 0006.
 
-> **Uncertain (Q2):** ADR §12 item 15 marks "Dataset PATCH returns 200" and "`/tasks` clamps `page`/`per_page` below 1 to 1" with "(?)". Both are built as written. Owner to confirm. The duplicate-name 409 comes only from the handover's flagged-then-fixed list (round 1 of app fixes, "unique violations are 409").
+> **Uncertain (Q2):** ADR 0006 marks "Dataset PATCH returns 200" and "`/tasks` clamps `page`/`per_page` below 1 to 1" with "(?)". Both are built as written. Owner to confirm. The duplicate-name 409 comes only from the handover's flagged-then-fixed list (round 1 of app fixes, "unique violations are 409").
 
 ### SR-GLOB-05 Trigger and results repositories are global and unique by URI
 
@@ -222,7 +222,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. `POST` with a bad `provider` → 400. **[technical]**
 4. `GET /global/repositories/triggers?active_link=true` → only repositories that have an active link of an enabled project. **[business]**
 
-**Source:** ADR 0019 §1, §11.
+**Source:** ADR 0006.
 
 ---
 
@@ -239,7 +239,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 4. A second `PUT` on the same link replaces settings; fields left out take defaults → 200 (no project state needed). **[technical]**
 5. `GET /projects/:other/repositories/triggers/:T` where only the first project has the link → 404. **[business]**
 
-**Source:** ADR 0019 §11.
+**Source:** ADR 0006.
 
 ### SR-LINK-02 `enabled`, `revoked` and `active` behave as defined
 
@@ -252,7 +252,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 4. `GET /projects/:pid/repositories/triggers` → includes the revoked link with its flags. `?active=true` leaves it out. **[technical]**
 5. `PUT` never sets `revoked`; a `PUT` leaves the stored `revoked` alone. **[technical]**
 
-**Source:** ADR 0019 §2, §11, §12 item 11.
+**Source:** ADR 0006 and 0008.
 
 ### SR-LINK-03 Revoke takes effect immediately and only on that resource
 
@@ -264,7 +264,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. After revoking a trigger link, `POST .../pull_requests/:n/task` on an existing UNKNOWN trigger → 409. **[business]**
 4. After revoking one link, the project still shows `enabled: true` and its other links stay active. **[business]**
 
-**Source:** ADR 0019 §2, §12 items 1 and 10.
+**Source:** ADR 0006 and 0008.
 
 ### SR-LINK-04 Link uniqueness
 
@@ -274,7 +274,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 1. `PUT` a second, different results repository for a project that already has one → 409. **[business]**
 2. A second `PUT` to the same trigger repository replaces the settings (it does not add a second link) → 200, link count stays 1. **[technical]**
 
-**Source:** ADR 0019 §8, §11.
+**Source:** ADR 0006.
 
 ### SR-LINK-05 Loops across projects are forbidden
 
@@ -284,7 +284,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 1. Project A links results repository R at `target_dir: "triggers/out"`, where R's URI equals a trigger repository linked with `watch_dir: "triggers"` → 400, message mentions overlap. **[business]**
 2. Same setup, but the trigger repository is linked by a different project → 400. **[business]**
 
-**Source:** ADR 0019 §9, §12 item 3.
+**Source:** ADR 0006.
 
 ### SR-LINK-06 Dataset links and the default dataset
 
@@ -296,7 +296,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. Task from a PR with no dataset named → runs on the project's default dataset (`spec.dataset_id == D`). **[business]**
 4. Delete a global dataset that a task ran on → refused (the task spec row blocks it). **[technical]**
 
-**Source:** ADR 0019 §6.
+**Source:** ADR 0006.
 
 ### SR-LINK-07 Deleting a project removes links only
 
@@ -306,7 +306,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 1. Delete a project → 204. `GET /global/secrets/:label` and the global datasets and repositories still return 200. **[business]**
 2. After the delete, no call to the secret store's delete was made. **[technical]**
 
-**Source:** ADR 0019 §7.
+**Source:** ADR 0007.
 
 ---
 
@@ -323,7 +323,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 4. Post a body where `pull_requests` is not a list, or a PR lacks `title` or has an unknown field → 400. **[technical]**
 5. Post to an unknown repository → 404. **[technical]**
 
-**Source:** ADR 0019 §3, §4, §11. Cap of 100 from the ingest sensors decision 2026-10-17.
+**Source:** ADR 0006, 0011 and 0014. Cap of 100 from the ingest sensors decision 2026-10-17.
 
 ### SR-PR-02 Provider facts are stored once per repository
 
@@ -334,9 +334,9 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 2. Ingest a PR with `files_truncated: true` and an empty file list → every active link gets a trigger. **[technical]**
 3. Ingest a PR into a repository with no links → 201, stored, no triggers. **[business]**
 
-**Source:** ADR 0019 §3.
+**Source:** ADR 0011.
 
-> **Uncertain (Q3):** ADR §3 says `pull_request_files(pull_request_id, path)`. The code also stores a file `status`. Needed because the match rule uses it (see SR-PR-03).
+> **Uncertain (Q3):** ADR 0011 says `pull_request_files(pull_request_id, path)`. The code also stores a file `status`. Needed because the match rule uses it (see SR-PR-03).
 
 ### SR-PR-03 Fan-out creates one trigger per active, matching link
 
@@ -348,7 +348,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. Two projects link the same repository, both match → each gets its own trigger and its own task later (different task ids). **[business]**
 4. A revoked or disabled link on the repository → no trigger created. **[business]**
 
-**Source:** ADR 0019 §3, §12 item 10.
+**Source:** ADR 0006 and 0011.
 
 > **Uncertain (Q4):** The code's match rule is stricter than the ADR. It needs a file ending `.json` with status `added` under `watch_dir`. The ADR only says "its `watch_dir` against `pull_request_files.path`". The tests handover states the stricter rule. Confirm it is intended.
 
@@ -365,7 +365,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 4. The Dagster parser given a PR with no watched `.json` file → outcome REJECTED. It also rejects a PR with several new spec files. **[technical]**
 5. `openapi.json` does not list `IGNORED`. **[technical]**
 
-**Source:** decision 2026-10-17 ("`IGNORED` removed: a PR with no watched file is REJECTED"), ADR 0019 §3 and §12 item 10.
+**Source:** decision 2026-10-17 ("`IGNORED` removed: a PR with no watched file is REJECTED"), ADR 0006 and 0011.
 
 > **Uncertain (Q6):** Two layers apply the idea. The webserver fan-out skips a non-matching link (no trigger). The Dagster parser marks a PR REJECTED when it finds no watched file at evaluation. The decision text says "REJECTED" only. I read both as consistent, because fan-out normally stops such PRs first. Please confirm.
 
@@ -379,7 +379,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. Link response contains `pr_cursor`; the global repository response contains the global cursor. **[technical]**
 4. Changing `watch_dir` or `base_branch` does not replay older PRs. **[business]**
 
-**Source:** ADR 0019 §3.
+**Source:** ADR 0011.
 
 ### SR-PR-06 Project PR lists filter in the webserver
 
@@ -402,7 +402,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. Call on a REJECTED trigger, or through an inactive link → 409. **[business]**
 4. Call with `spec_raw` missing → 400. **[technical]**
 
-**Source:** ADR 0019 §12 item 10.
+**Source:** ADR 0006.
 
 ---
 
@@ -455,7 +455,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. `PATCH` a RUNNING task `{"status": "SUCCESS"}` → 200. **[technical]**
 4. `PATCH` with an invalid status or an unknown field → 400. **[technical]**
 
-**Source:** ADR 0019 §12 item 12 (supersedes ADR 0017's "PATCH accepts any valid status").
+**Source:** ADR 0006 (supersedes ADR 0003's "PATCH accepts any valid status").
 
 ### SR-TASK-05 Retry resets a failed or canceled task
 
@@ -466,9 +466,9 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 2. Retry a RUNNING task → 400. **[technical]**
 3. Retry a SUCCESS task → 400. **[technical]**
 
-**Source:** ADR 0017.
+**Source:** ADR 0003.
 
-> **Uncertain (Q8):** The handover asks whether "retry on a SUCCESS task returns 400" is intended. ADR 0017 says only FAILED or CANCELED can retry, so I wrote 400. Confirm.
+> **Uncertain (Q8):** The handover asks whether "retry on a SUCCESS task returns 400" is intended. ADR 0003 says only FAILED or CANCELED can retry, so I wrote 400. Confirm.
 
 ### SR-TASK-06 Create and validate a task through the API
 
@@ -480,7 +480,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. Invalid spec → 400 and no task row. **[business]**
 4. `POST .../tasks/validate` with a valid body → 200, no task created. **[technical]**
 
-**Source:** ADR 0001, ADR 0002 (background); behaviour confirmed in code. ADR 0019 §6 for the dataset rule.
+**Source:** ADR 0001, ADR 0002 (background); behaviour confirmed in code. ADR 0006 for the dataset rule.
 
 > **Decided (Q9, 2026-10-19):** task creation on a disabled project is a 409. The project lock is gone; this is the only place a disabled project is refused.
 
@@ -499,7 +499,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 4. `POST` naming a results repository the project is not linked to → 400. **[technical]**
 5. `GET /projects/:pid/results?step=OPENED` → only OPENED results. **[technical]**
 
-**Source:** ADR 0019 §8, §11.
+**Source:** ADR 0006.
 
 ### SR-RES-02 Only a SUCCESS task can have results
 
@@ -510,9 +510,9 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 2. `POST /results` for a SUCCESS task whose link is inactive → 409. **[business]**
 3. Re-posting a result that already exists → 200 even if the link is inactive now. **[technical]**
 
-**Source:** ADR 0019 §12 item 13.
+**Source:** ADR 0006.
 
-> **Uncertain (Q10):** ADR §12 item 13 marks the inactive-link 409 with "(?)" ("agreed for now"). Built as written. Owner to confirm.
+> **Uncertain (Q10):** ADR 0006 marks the inactive-link 409 with "(?)" ("agreed for now"). Built as written. Owner to confirm.
 
 ### SR-RES-03 Result progress only moves forward
 
@@ -524,7 +524,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. `PATCH` with an unknown field, a negative counter or a non-string `step` → 400. **[technical]**
 4. `PATCH /projects/:other/results/:id` → 404. **[technical]**
 
-**Source:** ADR 0008; confirmed in the tests handover (round 1 fixes).
+**Source:** ADR 0004; confirmed in the tests handover (round 1 fixes).
 
 ### SR-RES-04 Delivery pushes a branch and opens a results PR
 
@@ -537,7 +537,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 4. A delivery that fails records `state: FAILED`, an `error` and one more `attempts`, and the Dagster run fails. **[technical]**
 5. A relaunched delivery resumes: a branch already on the remote is not pushed again; an existing PR is looked up before opening one. **[technical]**
 
-**Source:** ADR 0007, ADR 0017, decision 2026-10-17 (`/trigger`). Resume behaviour from the code docstring.
+**Source:** ADR 0013, ADR 0003, decision 2026-10-17 (`/trigger`). Resume behaviour from the code docstring.
 
 ### SR-RES-05 A results PR merged or closed is synced back
 
@@ -548,7 +548,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 2. Close the results PR unmerged → result CLOSED. **[business]**
 3. The sensor still works when the project's results link was revoked after the PR opened. **[technical]**
 
-**Source:** ADR 0009, ADR 0019 §2 (visibility contract).
+**Source:** ADR 0015, ADR 0008.
 
 ### SR-RES-06 Revoked or inactive results link in flight
 
@@ -558,9 +558,9 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 1. Revoke the results link while a result exists and is not past PUSHED, then relaunch delivery → result `state: FAILED`, `error: "results repository access revoked"`. **[business]**
 2. `GET /projects/:pid/repositories/results` for a project whose link is revoked → 200 with the link and its flags (not an empty list). **[technical]**
 
-**Source:** ADR 0019 §2, §5, §8.
+**Source:** ADR 0006 and 0008.
 
-> **Uncertain (Q11):** For a task that is SUCCESS **with no result row yet**, a revoked link makes `POST /results` return 409. The delivery sensor treats a 409 as "skip" (decision 2026-10-17). So no result is recorded and no error is shown, which differs from ADR §2 ("fails with a recorded error"). Also: the delivery sensor launches once per task attempt, so re-activating the link may not re-trigger delivery. Which behaviour does the owner want for a SUCCESS task with no result?
+> **Uncertain (Q11):** For a task that is SUCCESS **with no result row yet**, a revoked link makes `POST /results` return 409. The delivery sensor treats a 409 as "skip" (decision 2026-10-17). So no result is recorded and no error is shown, which differs from ADR 0008 ("fails with a recorded error"). Also: the delivery sensor launches once per task attempt, so re-activating the link may not re-trigger delivery. Which behaviour does the owner want for a SUCCESS task with no result?
 
 ### SR-RES-07 A project with no results link is not handled
 
@@ -588,7 +588,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. A repository with no active link, or only links of disabled projects, is not polled. **[business]**
 4. With nothing to poll, the sensor yields a skip reason, not an error. **[technical]**
 
-**Source:** ADR 0019 §4, §11; decision 2026-10-17 (filtering in webserver).
+**Source:** ADR 0006 and 0014; decision 2026-10-17 (filtering in webserver).
 
 ### SR-SENS-02 Ingest posts at most 100 PRs per batch, oldest first
 
@@ -623,7 +623,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. The sensor calls `GET .../pull_requests?state=UNKNOWN` and does not filter in Python. **[technical]**
 4. A disabled project is not evaluated. **[business]**
 
-**Source:** ADR 0019 §11, §12 item 11; decision 2026-10-17.
+**Source:** ADR 0006; decision 2026-10-17.
 
 ### SR-SENS-05 Evaluate turns a PR into a task or REJECTED
 
@@ -634,7 +634,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 2. A PR adding one invalid spec → trigger REJECTED with `state_cause`, no task. **[business]**
 3. A PR adding two spec files under `watch_dir` → REJECTED. **[technical]**
 
-**Source:** ADR 0006, ADR 0002, decision 2026-10-17 (IGNORED removed).
+**Source:** ADR 0012, ADR 0002, decision 2026-10-17 (IGNORED removed).
 
 ### SR-SENS-06 New 409s are skipped, not errors
 
@@ -649,7 +649,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. Delivery gets 409 from `POST /results` → no exception, no result created. **[business]**
 4. A 400 or 500 in the same places still raises (only 409 is skipped). **[technical]**
 
-**Source:** decision 2026-10-17; ADR 0019 §12 items 10, 12, 13.
+**Source:** decision 2026-10-17; ADR 0006.
 
 ### SR-SENS-07 A disabled secret is refused before its token is read
 
@@ -674,7 +674,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. A PENDING task whose dataset link is inactive → task patched to FAILED with a cause, no run. **[business]**
 4. The launcher reads enabled projects only: a disabled project's PENDING tasks wait. **[technical]**
 
-**Source:** ADR 0017; ADR 0019 §11.
+**Source:** ADR 0003; ADR 0006.
 
 ### SR-SENS-09 Only run-status sensors write task status
 
@@ -685,7 +685,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 2. A run finishes → task SUCCESS or FAILED with `completed_at`. **[business]**
 3. A delivery run finishing or failing does not change the task. **[business]**
 
-**Source:** ADR 0017.
+**Source:** ADR 0003.
 
 ### SR-SENS-10 Dagster never fetches lists to filter them in Python
 
@@ -696,7 +696,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 2. No sensor or delivery code loads a list and then filters it with a Python `if` on a field the webserver could filter (review each of `launcher.py`, `pr_evaluate.py`, `delivery/results.py`, `pull_request_sync.py`). **[technical]**
 3. The webserver supports each option (`GET /projects?enabled=true` returns only those projects). **[technical]**
 
-**Source:** decision 2026-10-17; ADR 0019 §11 ("Filter in the webserver").
+**Source:** decision 2026-10-17; ADR 0006.
 
 > **Uncertain (Q15):** `pull_request_sync.py` loops over **all** projects (`get_projects()`, no filter) and then asks for results by step per project. The step filter is in the webserver. The project loop is not filtered. This looks intended (a disabled project's results PRs should still sync), but no source says so.
 
@@ -759,7 +759,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. A page past the end → 200 with empty items. On the task and PR lists, `page=0` or `per_page=0` is treated as 1 (200). **[technical]**
 4. Non-numeric `page` → 400. **[technical]**
 
-**Source:** tests handover (app fixes round 1); ADR 0019 §12 item 15 (clamping, "(?)", see Q2).
+**Source:** tests handover (app fixes round 1); ADR 0006 (clamping, "(?)", see Q2).
 
 ### SR-API-03 The API exposes the real model; no flat compatibility layer
 
@@ -770,9 +770,9 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 2. `GET /projects/:pid/repositories/triggers/:id` uses the repository's id; the link row id does not appear in any URL. **[technical]**
 3. `GET /project_trigger_repositories` (cross-project list) does not exist → 404. **[technical]**
 
-**Source:** ADR 0019 §4, §11.
+**Source:** ADR 0006 and 0014.
 
-> **Uncertain (Q18):** ADR 0019 §11's table and §12 do not yet list the task routes, `/trigger`, or `/global/users|registries|whitelisted_images`. ADR 0017 still says `PATCH /tasks/<id>` accepts any status and `/cancel` is not implemented. `openapi.json` still lists stale routes. The ADRs are behind the 2026-10-17 decisions. Should the ADRs be updated before the review?
+> **Uncertain (Q18):** the URL layout in ADR 0006 does not list the task routes, `/trigger`, or `/global/users|registries|whitelisted_images`. `openapi.json` still lists stale routes.
 
 ---
 
@@ -818,14 +818,14 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 ### SR-DEV-04 Schema: baseline migration edited in place
 
-**Happy path:** The shared-resources schema is folded into `001_baseline` (with the old 002), per ADR 0013, because the line is unreleased.
+**Happy path:** The shared-resources schema is folded into `001_baseline` (with the old 002), per ADR 0006, because the line is unreleased.
 
 **Validation cases:**
 1. `alembic upgrade head`, `downgrade base`, `upgrade head` on a fresh Postgres → all succeed. **[technical]**
 2. Only one migration file for the webserver (no `002_*`). **[technical]**
 3. `ck_triggers_state_cause_for_rejected` exists: a REJECTED trigger needs a `state_cause`. **[technical]**
 
-**Source:** ADR 0019 §10, ADR 0013; tests handover ("checked before handoff").
+**Source:** ADR 0006; tests handover ("checked before handoff").
 
 ### SR-DEV-05 Dev cluster ownership guard
 
@@ -855,7 +855,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 ### 3.10 Gitea mirror (GM)
 
-Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-10-17 review"), then the README and the plan.
+Precedence for this section: the Gitea mirror plan (with its "Decisions changed by the 2026-10-17 review"), then the README and the plan.
 
 ### GM-01 The mirror is self-contained
 
@@ -865,9 +865,9 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 1. No import of `app.*` from the webserver or Dagster in `gitea-mirror/`; no call to the node's API. **[technical]**
 2. The node uses a mirror by registering the Gitea repository as an ordinary trigger repository (no node code change needed). **[business]**
 
-**Source:** ADR 0020 "Decision".
+**Source:** the Gitea mirror plan "Decision".
 
-> **Uncertain (Q22):** ADR 0020 status line says "Proposed", but it is built and reviewed (2026-10-17). The control board says the mirror was un-parked on 2026-10-17 for an end-to-end plan. The branch descriptions still say "PARKED 2026-10-16". I treated it as built and in scope.
+> **Uncertain (Q22):** The Gitea mirror plan describes the mirror as not built, but on its branch it is built and reviewed (2026-10-17). The control board says the mirror was un-parked on 2026-10-17 for an end-to-end plan. The branch descriptions still say "PARKED 2026-10-16". I treated it as built and in scope.
 
 ### GM-02 Outbound only, GitHub.com upstream only
 
@@ -878,7 +878,7 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 2. `POST /mirrors` with userinfo, port, query or fragment in `upstream_uri` → 400. **[technical]**
 3. The GitHub token is only ever sent to github.com. **[technical]**
 
-**Source:** ADR 0020 "Decisions changed by the 2026-10-17 review".
+**Source:** the Gitea mirror plan "Decisions changed by the 2026-10-17 review".
 
 ### GM-03 Merged PRs become Gitea PRs marked manually-merged
 
@@ -890,9 +890,9 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 3. Works for merge-commit, squash and fast-forward merges. **[technical]**
 4. The repository is created with `allow_manual_merge: true`; the default branch is set to the base branch after the first push. **[technical]**
 
-**Source:** ADR 0020 "What it does"; SPIKE.md; README "Sync behaviour".
+**Source:** the Gitea mirror plan "What it does"; SPIKE.md; README "Sync behaviour".
 
-> **Uncertain (Q23):** A rebase merge with rewritten SHAs was never found upstream and is untested (ADR 0020, SPIKE, plan). I expect it to behave like squash. Not verified.
+> **Uncertain (Q23):** A rebase merge with rewritten SHAs was never found upstream and is untested (the Gitea mirror plan, SPIKE, plan). I expect it to behave like squash. Not verified.
 
 ### GM-04 PRs are replayed in merged order, with the base rewound
 
@@ -904,7 +904,7 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 3. A PR that keeps failing is quarantined (recorded as an error) and does not block the other PRs. **[technical]**
 4. A per-mirror lock stops two syncs of one mirror running together (`POST /mirrors/:id/resync` → 409 while locked). **[technical]**
 
-**Source:** ADR 0020 "What it does"; SPIKE.md; README "Sync behaviour".
+**Source:** the Gitea mirror plan "What it does"; SPIKE.md; README "Sync behaviour".
 
 ### GM-05 Both PR numbers are stored and sent
 
@@ -915,7 +915,7 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 2. The webhook event has `number` (GitHub's) and `gitea_pr_number`. **[business]**
 3. The event `merged_at` is GitHub's time (Gitea's merged time is the sync time). **[business]**
 
-**Source:** ADR 0020 "What it does" and "Webhooks".
+**Source:** the Gitea mirror plan "What it does" and "Webhooks".
 
 ### GM-06 Sync starts from now; no history backfill
 
@@ -926,7 +926,7 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 2. A PR merged before the mirror was created is not mirrored. **[business]**
 3. The cursor does not skip a PR with the same `updated_at` as another; it only moves past settled PRs. **[technical]**
 
-**Source:** ADR 0020; README "Sync behaviour".
+**Source:** the Gitea mirror plan; README "Sync behaviour".
 
 ### GM-07 Authors are shadow Gitea users
 
@@ -937,9 +937,9 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 2. `POST /mirrors` returns `users_sync` (ok, skipped or failed). **[technical]**
 3. A pre-existing non-shadow Gitea account with the same name → error, not reused. **[technical]**
 
-**Source:** ADR 0020 "What it does"; README "Sync behaviour".
+**Source:** the Gitea mirror plan "What it does"; README "Sync behaviour".
 
-> **Uncertain (Q24):** ADR 0020 says users are "named after the GitHub login". The README (written after the review) says shadow users get a `gh-` prefix. I follow the README (later) but the ADR was not updated. Then the Gitea author name is `gh-alice`, and `raised_by` would not match upstream. Which is intended?
+> **Uncertain (Q24):** The Gitea mirror plan says users are "named after the GitHub login". The README (written after the review) says shadow users get a `gh-` prefix. I follow the README (later) but the plan was not updated. Then the Gitea author name is `gh-alice`, and `raised_by` would not match upstream. Which is intended?
 
 ### GM-08 A PR is recorded before the cursor advances; repeats are harmless
 
@@ -949,7 +949,7 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 1. Sync twice with no new upstream PRs → the second run changes nothing (no new Gitea PRs, no new rows). **[business]**
 2. A failure after the Gitea PR was opened but before its row was recorded → the retry resumes from the merge step and opens no second PR. **[technical]**
 
-**Source:** ADR 0020; README "Sync behaviour" and "Known gaps"; plan finding 2.
+**Source:** the Gitea mirror plan; README "Sync behaviour" and "Known gaps"; plan finding 2.
 
 ### GM-09 Webhooks are generic subscriptions
 
@@ -961,7 +961,7 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 3. A disabled webhook receives nothing. **[technical]**
 4. `POST /webhooks/:id/test` sends a signed `ping`; a failure → 502 with the exception class. **[technical]**
 
-**Source:** ADR 0020 "Webhooks".
+**Source:** the Gitea mirror plan "Webhooks".
 
 ### GM-10 Event body and signature
 
@@ -973,7 +973,7 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 3. `X-Gitea-Mirror-Delivery` equals `delivery_id` and is the same UUID on every retry. **[business]**
 4. `X-Gitea-Mirror-Timestamp` is sent but not signed (receivers must dedupe on the delivery id). **[technical]**
 
-**Source:** ADR 0020 "Webhooks" and "Decisions changed by the 2026-10-17 review".
+**Source:** the Gitea mirror plan "Webhooks" and "Decisions changed by the 2026-10-17 review".
 
 > **Uncertain (Q25):** The README's example body still shows `"delivery_id": "17"` (a row id), while the ADR and the README text say it is a UUID. The README example is stale. Confirm the UUID wins.
 
@@ -988,7 +988,7 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 4. A webhook whose secret lacks `token` does not stop other deliveries. **[technical]**
 5. There is no redeliver route; an operator uses the in-pod helper `requeue_failed`. **[technical]**
 
-**Source:** ADR 0020 "Webhooks" and review decisions; README.
+**Source:** the Gitea mirror plan "Webhooks" and review decisions; README.
 
 ### GM-12 Webhook URL policy
 
@@ -1000,7 +1000,7 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 3. `POST /webhooks` with `http://svc.ns.svc.cluster.local/...` → accepted. **[business]**
 4. A URL with credentials → 400. **[technical]**
 
-**Source:** ADR 0020 "Decisions changed by the 2026-10-17 review"; README "Input rules".
+**Source:** the Gitea mirror plan "Decisions changed by the 2026-10-17 review"; README "Input rules".
 
 > **Uncertain (Q26):** Hosts are only checked at registration, ping and patch. DNS rebinding at delivery time is a known gap (plan). Does this matter for the MVP?
 
@@ -1015,7 +1015,7 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 4. A duplicate upstream URI, or Gitea owner and repo → 409. **[technical]**
 5. `GET /mirrors/:id/status` returns `cursor`, `last_sync_at`, `last_success_at`, `last_error`, `prs_mirrored`, `token_expired`. **[business]**
 
-**Source:** ADR 0020 "State and configuration"; README "API".
+**Source:** the Gitea mirror plan "State and configuration"; README "API".
 
 ### GM-14 Credentials are read by reference and passed safely
 
@@ -1026,7 +1026,7 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 2. Git credentials are passed through `GIT_CONFIG_COUNT` environment variables, not argv. **[technical]**
 3. An expired GitHub token gives a clear `token_expired` status, not a crash loop. **[business]**
 
-**Source:** ADR 0020; README "Sync behaviour"; plan finding 13.
+**Source:** the Gitea mirror plan; README "Sync behaviour"; plan finding 13.
 
 ### GM-15 Health and resilience
 
@@ -1049,7 +1049,7 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 3. Install without `helm --wait`; the pod starts once the init job has created `gitea-mirror-gitea-token`. **[technical]**
 4. The pod runs with a read-only root filesystem and has startup and liveness probes. **[technical]**
 
-**Source:** ADR 0020 "Needed alongside it"; plan review table (findings 1, 17, 18).
+**Source:** the Gitea mirror plan "Needed alongside it"; plan review table (findings 1, 17, 18).
 
 > **Uncertain (Q27):** The chart and the install order were **not verified on a real cluster** (plan "Not verified"). The mirror was also never run against the real GitHub API, or over a real network for webhooks.
 
@@ -1061,7 +1061,7 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 1. `fncli mirror --help` lists those commands. **[technical]**
 2. `fncli mirror add` followed by `fncli mirror status` shows a mirror with a cursor. **[business]**
 
-**Source:** ADR 0020 "Needed alongside it"; plan stage 8.
+**Source:** the Gitea mirror plan "Needed alongside it"; plan stage 8.
 
 > **Uncertain (Q28):** On the gitea-mirror branch these commands live in `scripts/fncli` and import `fncli.dagster.utils` and `fncli.dagster.config`. On shared-resources, fncli is now `dagster/fncli` and those modules are gone (it imports `app.*`). The mirror commands must be ported to `dagster/fncli/cmds/mirror.py`. Do that when the branches merge?
 
@@ -1086,7 +1086,7 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 1. No route in the webserver accepts mirror webhooks. **[business]**
 2. A Gitea repository registered as a trigger repository is polled by the normal ingest sensor. **[business]**
 
-**Source:** ADR 0020 "Needed alongside it"; plan "Hooking the node up (later)".
+**Source:** the Gitea mirror plan "Needed alongside it"; plan "Hooking the node up (later)".
 
 ---
 
@@ -1101,12 +1101,12 @@ Precedence for this section: ADR 0020 (with its "Decisions changed by the 2026-1
 | Sensor redesign (per-PR job, delivery as an op, mirror webhook replacing ingest polling) | Parked. Decision 2026-10-17; `dagster-sensors-plan.md`. |
 | Flask to FastAPI | Parked after the MVP. |
 | Auth rework and normal-user permissions | Later full rewrite. Only the super user and the Dagster system user matter now (tests handover). |
-| Drain and enabled guards on editing, deleting or unlinking resources | Replaced by pinning a task to its configuration and by soft delete (ADR 0019). Worst case a project keeps failing or lacks a secret. |
+| Drain and enabled guards on editing, deleting or unlinking resources | Replaced by pinning a task to its configuration and by soft delete (ADR 0006). Worst case a project keeps failing or lacks a secret. |
 | Handling a project with no results link | Not for the MVP. Comment only (SR-RES-07). |
-| Mirror webhook receiver on the node, `mirror_uri` and `mirror_secret_id` on trigger repositories | Later, node-side (ADR 0020). |
-| Mirror: history backfill, open PRs, comments, reviews, branch deletion, other git hosts | Out of the mirror's scope (ADR 0020, README known gaps). |
+| Mirror webhook receiver on the node, `mirror_uri` and `mirror_secret_id` on trigger repositories | Later, node-side (the Gitea mirror plan). |
+| Mirror: history backfill, open PRs, comments, reviews, branch deletion, other git hosts | Out of the mirror's scope (the Gitea mirror plan, README known gaps). |
 | Real-time updates | Never a requirement. |
-| Webhooks from GitHub straight into the node, Argo CD, one mirror per project, `disabled_reason` string, a flat compatibility API | Rejected in ADRs 0018, 0019 and 0020. |
+| Webhooks from GitHub straight into the node, Argo CD, one mirror per project, `disabled_reason` string, a flat compatibility API | Rejected in ADR 0006 and the Gitea mirror plan. |
 | Audit and `@auth`/`@audit` changes | Out of scope (tests handover). |
 | `audit` details overflow on a 4096-char `url` | Known, not fixed, out of scope. |
 
@@ -1129,7 +1129,7 @@ These are not requirements. The review found them and I checked the code: they a
 **B. Notes in the text**
 
 1. **Q1** (SR-GLOB-01): `PATCH /global/secrets/<label>` has no admin check. Accept for the MVP?
-2. **Q2** (SR-GLOB-04): Confirm dataset `PATCH` returns 200 and task and PR lists clamp `page` and `per_page` below 1 (both marked "(?)" in ADR §12 item 15).
+2. **Q2** (SR-GLOB-04): Confirm dataset `PATCH` returns 200 and task and PR lists clamp `page` and `per_page` below 1 (both marked "(?)" in ADR 0006).
 3. **Q3** (SR-PR-02): The code also stores a file `status`. OK?
 4. **Q4** (SR-PR-03): The match rule needs a `.json` file with status `added` under `watch_dir`. The ADR says only "watch_dir against the path". Is the stricter rule intended?
 5. **Q5** (SR-PR-03): Fan-out makes triggers for links of disabled projects, but ingest does not poll for them. Intended?
@@ -1145,11 +1145,11 @@ These are not requirements. The review found them and I checked the code: they a
 15. **Q15** (SR-SENS-10): `pull_request_sync` loops over all projects, including disabled ones. Intended?
 16. **Q16** (SR-HC-01): Healthchecks have no ADR. Confirm the status values and "failed check is still HTTP 200".
 17. **Q17** (SR-API-01): The `whitelisted_images` blueprint is not registered, but `openapi.json` still lists it. Should it answer?
-18. **Q18** (SR-API-03): ADR 0019 and ADR 0017 are behind the 2026-10-17 decisions. Update them before review? (ADR 0015 already says fncli is in `dagster/fncli` with no copies.)
+18. **Q18** (SR-API-03): The URL layout in ADR 0006 does not list every route yet. (ADR 0018 says fncli is in `dagster/fncli` with no copies.)
 19. **Q19** (SR-DEV-01): Resolved. Dagster plus fncli: 470 passed (346 + 124).
 20. **Q20** (SR-DEV-03): Resolved. The move is done and committed. Only the mirror branch's `scripts/fncli` edits remain (Q28).
 21. **Q21** (SR-DEV-06): The e2e script has never run. Is `e2e-qa-plan.md` still the plan (its branch `moonshot/fncli-e2e` is gone)?
-22. **Q22** (GM-01): ADR 0020 says "Proposed"; branch descriptions say "PARKED"; the control board says un-parked for e2e. Treat the mirror as in scope and built?
+22. **Q22** (GM-01): The Gitea mirror plan says not built; branch descriptions say "PARKED"; the control board says un-parked for e2e. Treat the mirror as in scope and built?
 23. **Q23** (GM-03): Rebase merges with rewritten SHAs are untested.
 24. **Q24** (GM-07): Shadow users: ADR says named after the login; README says `gh-` prefix. Which one?
 25. **Q25** (GM-10): The README example `delivery_id` is stale (`"17"`). UUID wins?

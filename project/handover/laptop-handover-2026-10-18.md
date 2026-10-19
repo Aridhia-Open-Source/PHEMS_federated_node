@@ -5,7 +5,7 @@ Written by the cloud session. Nothing here has been run on a cluster. Where the 
 ## What exists
 
 - **Review stack:** draft PRs #555 to #561 (branches `split/01-schema` to `split/07-tests` over `split/00-base` = `dagster-develop` without tests). Cut from `moonshot/shared-resources` `c55984fb`; the top has the same code plus the decision records. Start from `project/handover/review-guide-shared-resources.md` (on the stack tip, `split/06-docs`). CI does not trigger on `split/*` bases. There is no route into `dagster-develop` yet.
-- **Decision records:** ADR 0019 stays the umbrella. Three records carry the detail: 0021 (pull requests, fan-out, cursors, backfill), 0022 (state transition tables) and 0023 (Dagster pipeline). Task configuration pinning and switching off, revoking and deleting are sections of 0019, not separate records. Each new record ends with "Not built or open". Rebuilding the stack if `shared-resources` moves: re-cut the branches by path as in `project/handover/split-plan.md`, then re-add the records (they are plain files).
+- **Decision records:** ADR 0006 is the umbrella (global resources and links). The detail is in 0008 (enabled, revoked, soft delete), 0009 (task pinning), 0011 (pull requests, fan-out, cursors, backfill), 0005 (state transition tables) and 0014 (Dagster pipeline). Each record ends with its open questions, if any. Rebuilding the stack if `shared-resources` moves: re-cut the branches by path as in `project/handover/split-plan.md`, then re-add the records (they are plain files).
 - **`moonshot/e2e-run1-fixes`** (not merged, no PR): fixes for the first live e2e run (`started_at` taken from the run record, an admin login for `link-set --revoked`, the S11 error text, the fast-sensors config). See `project/handover/e2e-run1-fixes.md` on that branch.
 - Unit tests at the stack tip (hand runs): webserver 812 passed (1 skipped), deep Hypothesis passed, Dagster app 377, fncli 139.
 
@@ -28,22 +28,22 @@ Written by the cloud session. Nothing here has been run on a cluster. Where the 
 | 8 | A link's `active` ignores the secret; only the `pollable` filter uses it | `GitRepositoryMixin.active` | decide whether `active` should include the secret |
 | 10 | Stale text: `ResultState` docstring says nothing retries `FAILED` but the retry sensor does | webserver models | edit the comments |
 | 11 | Retrying a task that cannot be retried is a 400; the other refused moves are 409 | `tasks_api.py` `retry_task` | pick one |
-| 12 | The webserver calls Dagster (`/dagster/sensors` routes, `helpers/dagster.py`); ADR 0019 used to say it does not | `webserver/app/dagster_api.py` | keep as an operator convenience, or move it out |
+| 12 | The webserver calls Dagster (`/dagster/sensors` routes, `helpers/dagster.py`); ADR 0008 says Dagster does not know the webserver, apart from these routes | `webserver/app/dagster_api.py` | keep as an operator convenience, or move it out |
 
 ## Decide or verify (the cloud session was unsure)
 
-- Dataset `PATCH` returns 200, and `GET /tasks` clamps `page` and `per_page` below 1: both still marked unconfirmed in ADR 0019.
+- Dataset `PATCH` returns 200, and `GET /tasks` clamps `page` and `per_page` below 1: both listed as open questions in ADR 0006.
 - `started_at` fix: does Dagster fill `start_time` for a run that goes STARTED to SUCCESS between two ticks? If not, the fix does nothing.
 - S11: the test now reads the tick error's `stack` and `causes`; confirm the Dagster GraphQL `PythonError` has those fields and that "Ingest failed" is in them.
 - `FNCLI_ADMIN_USER`: the first Keycloak user's backend login name (probably its email). Not checked.
-- How a duplicate `merge_commit_sha` under a new PR number surfaces to the caller ([0021](../decisions/0021-pull-requests-stored-once-fan-out-and-cursors.md) says not checked). The run-status sensors do skip a 409 on an already finished task ([0023](../decisions/0023-dagster-pipeline-ops-sensors-and-retries.md)).
-- Whether a test cross-checks the Dagster enums against the webserver's ([0022](../decisions/0022-state-transition-tables.md) found none).
+- How a duplicate `merge_commit_sha` under a new PR number surfaces to the caller ([0011](../decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md) says not checked). The run-status sensors do skip a 409 on an already finished task ([0014](../decisions/0014-dagster-pipeline-ops-sensors-and-retries.md)).
+- Whether a test cross-checks the Dagster enums against the webserver's ([0005](../decisions/0005-state-transition-tables.md) found none).
 - CI: `build.yml` does not trigger for PRs into `split/*`; use `workflow_dispatch` or retarget when the route into `dagster-develop` is chosen. The route itself is undecided.
 
 ## Docs still stale
 
 - `project/handover/moonshot-as-built.md` still describes backfill, `IGNORED` and the drain rules; the decision records are the source of truth.
-- The Hypothesis rule set (`webserver/tests/test_stateful_rules.py`) was updated by the laptop controller for soft delete; its docstring is the place to check the model against ADR 0019, "Switching off, revoking and deleting".
+- The Hypothesis rule set (`webserver/tests/test_stateful_rules.py`) was updated by the laptop controller for soft delete; its docstring is the place to check the model against ADR 0008.
 
 ## Housekeeping that needs the laptop
 

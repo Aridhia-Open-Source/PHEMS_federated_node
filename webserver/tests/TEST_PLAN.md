@@ -1,4 +1,4 @@
-# Route test plan (ADR 0019 layout)
+# Route test plan (ADR 0006 layout)
 
 > **Superseded.** This was the plan for the first 83 tests. Those tests were later merged into the condensed files in `tests/`,
 > and the `IGNORED` state it mentions has been removed: a PR that does not

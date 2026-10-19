@@ -16,10 +16,9 @@ set). Review that branch separately.
 
 ## Reading order
 
-1. **Intent (30 minutes).** `project/decisions/0019-global-resources-and-shared-pull-requests.md` (decisions 1 to 15, the cursor paragraph and the
-   Consequences gaps), `project/decisions/0018-global-resources-and-gitea-mirror.md`, then ADRs 0021 (pull requests, cursors, backfill), 0022 (state tables) and 0023 (Dagster pipeline) in `project/decisions/`, then the status block at the top of
+1. **Intent (30 minutes).** `project/decisions/0006-global-resources-and-project-links.md`, then ADRs 0008 (enabled, revoked, soft delete), 0009 (task pinning), 0011 (pull requests, cursors, backfill), 0005 (state tables) and 0014 (Dagster pipeline) in `project/decisions/`, then the status block at the top of
    `project/moonshot-as-built.md`.
-2. **Schema.** `webserver/migrations/versions/001_baseline.py` (edited in place, ADR 0013; the only migration).
+2. **Schema.** `webserver/migrations/versions/001_baseline.py` (the only migration, ADR 0006).
    Check: constraints (unique `(provider_id, repo_path)`, unique PR per repo by number and by merge sha),
    `ondelete` behaviour, the `enabled` default (a new project is disabled), that each migration downgrades.
 3. **Models.** `webserver/app/models/`: `git_provider.py`, `git_repository.py`, `trigger_repository.py`, `results_repository.py`,
@@ -52,7 +51,7 @@ set). Review that branch separately.
 - Anything that reads a token or secret without checking it is enabled and the link is not revoked?
 
 ## Known gaps (already recorded, do not re-raise as new)
-- The disabled check and the results link are two steps; `post_task` does not check the project is enabled (ADR 0019, Consequences). Accepted, post-beta.
+- The disabled check and the results link are two steps; `post_task` does not check the project is enabled (ADR 0008, Consequences). Accepted, post-beta.
 - A revoked secret link is still used when a token is read (Dagster); revoked or disabled secrets are enforced only at create and patch.
 - Delivery with no results link is not handled (comment in Dagster).
 - The ingest versus link-create race, and `get_or_assign_*` in fncli returning an existing link with different settings.

@@ -28,7 +28,7 @@
 - Written blind from the code, without the ADRs. Mapped to the IDs in `moonshot-requirements.md`. Paths are relative to the repo root (gitea-mirror paths relative to `gitea-mirror/` as `app/...`).
 - The SR sections were first read from `origin/moonshot/shared-resources` (before the fncli move). The dev-tooling and fncli sections (SR-DEV-01, SR-DEV-03, "fncli" under built-but-not-mapped) were re-checked against the local worktree and corrected. Everything else in SR is unchanged by the 3 local commits (checked with `git diff`: only fncli, `scripts/e2e_shared_resources.sh`, `test_live_client_integration.py` and two handover docs differ).
 - Not run. Test counts (webserver 606, Dagster plus fncli 470 = 346 + 124, mirror 336/365) are as reported by the owner or the handovers.
-- Shorthand: "drained" and "all drained" were rules that have since been removed (ADR 0019, "Switching off, revoking and deleting"). "active" (link) = global resource `enabled` and link `enabled` and not link `revoked`.
+- Shorthand: "drained" and "all drained" were rules that have since been removed (ADR 0008). "active" (link) = global resource `enabled` and link `enabled` and not link `revoked`.
 
 ---
 
@@ -960,7 +960,7 @@ Behaviour in the code that no requirement ID covers.
 - **Spike scripts.** `gitea-mirror/spike/00_prepare.sh` to `05_pullmirror.sh`, `common.sh`. They are shell scripts, not used by the app.
 - **Dev-cluster ownership guard (outside gitea-mirror).** `scripts/deploy_owner.sh` (`claim`, `show`, `release`) records the owning worktree in ConfigMap `fn-dev-owner` (namespace `default`). `scripts/deploy.sh` and `scripts/upgrade.sh` call `claim`. `scripts/teardown.sh` calls `release`. `make deploy-owner` calls `show`. `FORCE_OWNER=1` overrides. Documented in `.tilt/TILT_QUICKSTART.md`.
 - **`.worktreeinclude`.** New file listing `*.env`, `.env*`, `*.yaml`, `*.yml`.
-- **Docs changed on the branch.** `project/decisions/0020-gitea-mirror-service.md`, `project/handover/gitea-mirror-plan.md` (not read, as instructed).
+- **Docs changed on the branch.** `project/handover/gitea-mirror-plan.md` (not read, as instructed).
 - **fncli changes outside the `mirror` commands.** Only the import and registration lines in `scripts/fncli/cli.py`.
 - **Other chart changes.** `gitea-init-job.yaml` now also creates the mirror's Gitea token (details under GM-16). It also drops the earlier `gitea admin user create` fallback shape; the create now sits in an `else` branch.
 - **Other `requirements`.** `gitea-mirror/requirements-dev.txt`, `docker-compose-*.yaml`, `build/test.Dockerfile` (test tooling).

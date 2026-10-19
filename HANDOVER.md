@@ -14,7 +14,7 @@ Don't commit or push without their OK. Never open PRs for this work.
 
 ## Where things stand
 
-- The webserver routes have been rewritten to the layout in **ADR 0019 section 11** (`project/decisions/0019-global-resources-and-shared-pull-requests.md`). Read that section first. The fan-out and cursors are in ADR 0021, the state tables in ADR 0022 and the Dagster sensors in ADR 0023 (`project/decisions/`); where 0019 is thinner, those win.
+- The webserver routes follow the layout in **ADR 0006, "URL layout"** (`project/decisions/0006-global-resources-and-project-links.md`). Read that section first. The flags and soft delete are in ADR 0008, task pinning in ADR 0009, the fan-out and cursors in ADR 0011, the state tables in ADR 0005 and the Dagster sensors in ADR 0014 (`project/decisions/`).
   - Global resources live under `/global/...`: `datasets`, `secrets`, `repositories/triggers` and `repositories/results`.
   - Project links live under `/projects/:pid/...` and are keyed by the **global** id (a secret's label). `PUT` links a resource (201 the first time, 200 after), `PATCH` changes the link's settings, and `DELETE` unlinks it.
   - Results live under `/projects/:pid/results`.
@@ -62,7 +62,7 @@ python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 - **Dagster and fncli tests:** most still use the old routes. That's out of scope here.
 
 App behaviour the plan's author flagged. Don't fix any of it; just confirm or deny it in your report:
-- (Outdated) Ingest no longer creates triggers for disabled projects: fan-out skips a link whose project is disabled or revoked (`accepts_triggers`, ADR 0021). Confirm or deny that this holds in the tests.
+- (Outdated) Ingest no longer creates triggers for disabled projects: fan-out skips a link whose project is disabled or revoked (`accepts_triggers`, ADR 0011). Confirm or deny that this holds in the tests.
 - A duplicate dataset name returns 500. The other global resources return 409.
 - `PATCH /global/datasets/:id` returns 202, while every other `PATCH` returns 200.
 - Deleting a trigger link that has PRs returns a raw foreign-key 400. It should be a 409.
@@ -71,6 +71,6 @@ App behaviour the plan's author flagged. Don't fix any of it; just confirm or de
 
 ## Parked (don't start)
 
-- The Dagster ingest redesign is built (ADR 0023); only the open items listed there are parked.
+- The Dagster ingest is the op described in ADR 0014; only the open questions listed there are parked.
 - Enabled and backfill guard questions (the project lock and drain checks are gone).
 - Moving the webserver to FastAPI.

@@ -14,11 +14,11 @@ Split the final tree by path, not by history. Each PR takes a group of files fro
 | # | Branch | Paths | What the reviewer looks at |
 |---|---|---|---|
 | 1 | `split/01-schema` | `webserver/migrations/`, `webserver/app/models/`, `webserver/app/helpers/state_rules.py`, `webserver/app/helpers/soft_delete.py`, `webserver/tests/test_state_rules.py` | Baseline schema (one migration), enums and transition tables, soft delete mixin |
-| 2 | `split/02-webserver` | `webserver/` (everything else: routes, DTOs, helpers, `static/openapi.json`, tests, build and test config) | ADR 0019 rules: fan-out and `skip_gap`, config pinning, results gate, revoke and delete, filters |
+| 2 | `split/02-webserver` | `webserver/` (everything else: routes, DTOs, helpers, `static/openapi.json`, tests, build and test config) | ADR 0006, 0008, 0009 and 0011 rules: fan-out and `skip_gap`, config pinning, results gate, revoke and delete, filters |
 | 3 | `split/03-dagster` | `dagster/app/`, `pypipes/` | Sensors and ops: ingest op, evaluate, launcher, run status, delivery and its retry sensor, sensor helpers |
 | 4 | `split/04-fncli-e2e` | `dagster/fncli/`, `scripts/fncli/`, `scripts/e2e_*` | fncli commands, simulation, e2e happy and failure suites |
 | 5 | `split/05-deploy` | `k8s/`, `scripts/` (rest), `dev.db/`, Tiltfile and Makefile changes if any | Helm values (sensor interval, retry interval, max attempts), deploy owner guard, dev tooling |
-| 6 | `split/06-docs` | `project/`, `docs/` | ADRs 0007-0009, 0013, 0019, 0020 (and 0021-0023 once added), flow docs, handovers |
+| 6 | `split/06-docs` | `project/`, `docs/` | the ADRs, flow docs, handovers |
 
 Anything not matched by 1-5 falls into 6; check `git status` after step 5 for stragglers.
 
@@ -45,4 +45,4 @@ Then one PR per branch, each targeting the previous branch (PR 1 targets `dagste
 ## Not done (cheap split)
 
 - Lower PRs are not tested on their own.
-- No new review guide; reviewers start from ADR 0019 ("Switching off, revoking and deleting"), ADR 0009 ("Run keys and retries"), ADRs 0021 to 0023 and `docs/architecture/flows.md`.
+- No new review guide; reviewers start from ADR 0008 (enabled, revoked, soft delete), ADR 0015 (run keys and retries), ADRs 0011, 0005 and 0014 and `docs/architecture/flows.md`.

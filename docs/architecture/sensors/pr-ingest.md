@@ -1,6 +1,6 @@
 # Pull request ingest
 
-Sensor `git_pull_request_ingest_sensor` (`PullRequestIngestSensor`) and its job `ingest_pull_requests_job`. Code: `dagster/app/definitions/sensors/git/pr_ingest.py`, `ingest_job.py`, `__init__.py`. Index: [README](README.md). Decisions: [0023](../../../project/decisions/0023-dagster-pipeline-ops-sensors-and-retries.md), and [0021](../../../project/decisions/0021-pull-requests-stored-once-fan-out-and-cursors.md) for what the backend does with the POST.
+Sensor `git_pull_request_ingest_sensor` (`PullRequestIngestSensor`) and its job `ingest_pull_requests_job`. Code: `dagster/app/definitions/sensors/git/pr_ingest.py`, `ingest_job.py`, `__init__.py`. Index: [README](README.md). Decisions: [0014](../../../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md), and [0011](../../../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md) for what the backend does with the POST.
 
 ## 1. Purpose
 

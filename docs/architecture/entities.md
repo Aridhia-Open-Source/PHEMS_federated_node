@@ -1,8 +1,8 @@
 # Entities and state machines
 
-The final backend schema (`webserver/migrations/versions/001_baseline.py`), the two inheritance trees, and the three state machines. Decisions: [0001](../../project/decisions/0001-polymorphic-triggers.md), [0008](../../project/decisions/0008-polymorphic-result-and-forward-only-state.md), [0009](../../project/decisions/0009-sync-reconciler-and-operational-rules.md), [0017](../../project/decisions/0017-task-status-written-by-run-status-sensors.md), [0019](../../project/decisions/0019-global-resources-and-shared-pull-requests.md), [0021](../../project/decisions/0021-pull-requests-stored-once-fan-out-and-cursors.md) (pull requests and cursors), [0022](../../project/decisions/0022-state-transition-tables.md) (the state tables behind the three diagrams below).
+The final backend schema (`webserver/migrations/versions/001_baseline.py`), the two inheritance trees, and the three state machines. Decisions: [0001](../../project/decisions/0001-polymorphic-triggers.md), [0003](../../project/decisions/0003-task-status-written-by-run-status-sensors.md), [0004](../../project/decisions/0004-polymorphic-result-and-forward-only-state.md), [0005](../../project/decisions/0005-state-transition-tables.md) (the state tables behind the three diagrams below), [0006](../../project/decisions/0006-global-resources-and-project-links.md), [0008](../../project/decisions/0008-enabled-revoked-and-soft-delete.md), [0011](../../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md) (pull requests and cursors), [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md).
 
-Not drawn: `audit`, `registries`, `whitelisted_images`, `catalogues`, `dictionaries`, `dars` (disconnected, [0014](../../project/decisions/0014-dar-rename-and-detached-auth.md)) and `results_backends` (present in the baseline, unused by the pipeline).
+Not drawn: `audit`, `registries`, `whitelisted_images`, `catalogues`, `dictionaries`, `dars` (disconnected, [0017](../../project/decisions/0017-authorization-detached-from-dar-and-keycloak.md)) and `results_backends` (present in the baseline, unused by the pipeline).
 
 ## Schema
 
@@ -13,7 +13,7 @@ erDiagram
         string name UK
         bool enabled
         bool revoked
-        int default_dataset_id FK "composite with project_id"
+        int default_dataset_id FK "first linked dataset"
     }
     secrets {
         int id PK
@@ -46,12 +46,20 @@ erDiagram
         bool enabled
         bool revoked
     }
+    git_providers {
+        int id PK
+        string name UK
+        string type "github or gitea"
+        string uri UK
+        string api_uri
+        bool enabled
+        bool revoked
+    }
     trigger_repositories {
         int id PK
-        string uri UK
+        int provider_id FK
+        string repo_path "owner/name, unique with the provider"
         int secret_id FK
-        string provider
-        string api_uri
         bool enabled
         bool revoked
     }
@@ -67,9 +75,8 @@ erDiagram
         bool files_truncated "unique with trigger_repository_id and number"
     }
     pull_request_files {
-        int id PK
-        int pull_request_id FK
-        string path
+        int pull_request_id PK, FK
+        string path PK
         string status "added, modified, ..."
     }
     project_trigger_repositories {
@@ -91,10 +98,9 @@ erDiagram
     }
     results_repositories {
         int id PK
-        string uri UK
+        int provider_id FK
+        string repo_path "owner/name, unique with the provider"
         int secret_id FK
-        string provider
-        string api_uri
         bool enabled
         bool revoked
     }
@@ -169,6 +175,8 @@ erDiagram
     projects ||--o{ triggers : "scopes"
     projects ||--o{ tasks : "scopes"
     secrets ||--o{ datasets : "credentials of"
+    git_providers ||--o{ trigger_repositories : "hosts"
+    git_providers ||--o{ results_repositories : "hosts"
     secrets ||--o{ trigger_repositories : "token of"
     secrets ||--o{ results_repositories : "token of"
     datasets ||--o{ project_datasets : "is assigned via"
@@ -188,7 +196,7 @@ erDiagram
     results ||--o| pull_request_results : "is a"
 ```
 
-Composite foreign key `(project_id, default_dataset_id)` on `projects` references `project_datasets`. Global resources (`secrets`, `trigger_repositories`, `results_repositories`, `datasets`) have no `project_id`. Pull requests are stored once per global repository (`UNIQUE(trigger_repository_id, number)`), with their changed files in `pull_request_files` and `files_truncated` set when the provider's list was cut. A `pull_request_triggers` row is unique per `(assignment, pull request)` and keeps the evaluation state; the pull request's number, title, author, merge time and commit are read through `pull_request`. A `project_trigger_repositories` row has `UNIQUE(project_id, trigger_repository_id)`, so the API addresses it by the global repository id. A `project_secrets` row links a project to a secret (`UNIQUE(project_id, secret_id)`, `enabled`, `revoked`) and never holds values. `pr_cursor` is not a column. For a global repository it is the latest `merged_at` of its pull requests, or the repository's creation when none is stored. For an assignment it is the latest `merged_at` of its triggers, or `initial_cursor` when it has none. Fan-out starts after the pair `(initial_cursor, initial_cursor_number)`, set when the link is created and moved to now by `skip_gap` when the link becomes active again ([0021](../../project/decisions/0021-pull-requests-stored-once-fan-out-and-cursors.md)). An assignment is active when `enabled` and not `revoked`. A `results` row is unique per `(task_id, results_repository_id)` where `results_repository_id` is the `project_results_repositories` id.
+`projects.default_dataset_id` references `datasets` and is set with the first dataset linked; it is only used while the project's link to it is active. Global resources (`secrets`, `git_providers`, `trigger_repositories`, `results_repositories`, `datasets`) have no `project_id`. A repository's `uri` is its provider's `uri` and its `repo_path`. Pull requests are stored once per global repository (`UNIQUE(trigger_repository_id, number)`), with their changed files in `pull_request_files` and `files_truncated` set when the provider's list was cut. A `pull_request_triggers` row is unique per `(assignment, pull request)` and keeps the evaluation state; the pull request's number, title, author, merge time and commit are read through `pull_request`. A `project_trigger_repositories` row has `UNIQUE(project_id, trigger_repository_id)`, so the API addresses it by the global repository id. A `project_secrets` row links a project to a secret (`UNIQUE(project_id, secret_id)`, `enabled`, `revoked`) and never holds values. `pr_cursor` is not a column. For a global repository it is the latest `merged_at` of its pull requests, or the repository's creation when none is stored. For an assignment it is the latest `merged_at` of its triggers, or `initial_cursor` when it has none. Fan-out starts after the pair `(initial_cursor, initial_cursor_number)`, set when the link is created and moved to now by `skip_gap` when the link becomes active again ([0011](../../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md)). An assignment is active when `enabled` and not `revoked`. A `results` row is unique per `(task_id, results_repository_id)` where `results_repository_id` is the `project_results_repositories` id.
 
 ## Inheritance trees
 
@@ -243,7 +251,7 @@ classDiagram
     Result <|-- PullRequestResult : type PR
 ```
 
-`state` is on the `Trigger` parent (the verdict is the same for any kind) but on the `PullRequestResult` child (the delivery lifecycle belongs to the delivery kind), see [0008](../../project/decisions/0008-polymorphic-result-and-forward-only-state.md). The trigger side is the merged pull request we watch; the result side is the pull request we open.
+`state` is on the `Trigger` parent (the verdict is the same for any kind) but on the `PullRequestResult` child (the delivery lifecycle belongs to the delivery kind), see [0004](../../project/decisions/0004-polymorphic-result-and-forward-only-state.md). The trigger side is the merged pull request we watch; the result side is the pull request we open.
 
 ## Trigger state
 
@@ -256,7 +264,7 @@ stateDiagram-v2
     REJECTED --> [*]
 ```
 
-`state_cause` is required for `REJECTED`, which is final like `YIELDED`, and forbidden otherwise (check constraint and `set_state`). Moves come from `TRIGGER_MOVES`; any other move is a 409 ([0022](../../project/decisions/0022-state-transition-tables.md)). An `ApiRequestTrigger` is validated inside `POST /projects/{project_id}/tasks`: it is recorded `REJECTED` (with the cause) when invalid, else `YIELDED` with its task, and is never `UNKNOWN` for long.
+`state_cause` is required for `REJECTED`, which is final like `YIELDED`, and forbidden otherwise (check constraint and `set_state`). Moves come from `TRIGGER_MOVES`; any other move is a 409 ([0005](../../project/decisions/0005-state-transition-tables.md)). An `ApiRequestTrigger` is validated inside `POST /projects/{project_id}/tasks`: it is recorded `REJECTED` (with the cause) when invalid, else `YIELDED` with its task, and is never `UNKNOWN` for long.
 
 ## Task status
 
@@ -276,7 +284,7 @@ stateDiagram-v2
     SUCCESS --> [*]
 ```
 
-The run-status sensors write the status, and the launcher writes `FAILED` for a task a rule stops (revoked, configuration changed, dataset not active); the backend refuses a move that is not in `TASK_MOVES` with a 409 (forward only, only a retry moves a final task back). A retry of a task that is not `FAILED` or `CANCELED` is a 400. Delivery never changes the status ([0017](../../project/decisions/0017-task-status-written-by-run-status-sensors.md), [0022](../../project/decisions/0022-state-transition-tables.md)).
+The run-status sensors write the status, and the launcher writes `FAILED` for a task a rule stops (revoked, configuration changed, dataset not active); the backend refuses a move that is not in `TASK_MOVES` with a 409 (forward only, only a retry moves a final task back). A retry of a task that is not `FAILED` or `CANCELED` is a 400. Delivery never changes the status ([0003](../../project/decisions/0003-task-status-written-by-run-status-sensors.md), [0005](../../project/decisions/0005-state-transition-tables.md)).
 
 ## PullRequestResult step
 

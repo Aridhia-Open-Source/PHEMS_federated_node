@@ -1,10 +1,8 @@
-# 0016. Tilt dev loop, with the tilt-run image for run pods
-
-- Status: Accepted
+# 0020. Tilt dev loop, with the tilt-run image for run pods
 
 ## Context
 
-A rebuild-and-redeploy loop took minutes. The Dagster code runs in two kinds of pod: the code server (live-updatable), and run pods that Dagster's launcher starts from `DAGSTER_CURRENT_IMAGE`, which a live update does not touch.
+A rebuild-and-redeploy loop takes minutes. The Dagster code runs in two kinds of pod: the code server (live-updatable), and run pods that Dagster's launcher starts from `DAGSTER_CURRENT_IMAGE`, which a live update does not touch.
 
 ## Decision
 
@@ -17,9 +15,9 @@ A rebuild-and-redeploy loop took minutes. The Dagster code runs in two kinds of 
 
 - The edit-to-run loop is seconds; the `deliver_results_job` and `k8s_pipes_job` run pods see code changes.
 - The chart and Tilt both define the Dagster gRPC command; the Tiltfile must keep an empty entrypoint and not clear the chart's args.
-- Dev-only: production uses the chart's images.
+- Dev only: production uses the chart's images.
 
 ## Alternatives considered
 
-- **Skaffold / manual docker build**: no per-file live update.
-- **Only live-update the code server**: run pods would run stale code.
+- **Skaffold or a manual docker build:** no per-file live update.
+- **Only live-update the code server:** run pods would run stale code.

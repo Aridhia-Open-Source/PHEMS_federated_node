@@ -1,10 +1,10 @@
 # Architecture decision records
 
-Decisions behind the trigger, task and results pipeline of the Federated Node, written in MADR style (Status, Context, Decision, Consequences, Alternatives considered). Each was checked against the code at the time it was written; 0021 to 0023 against `moonshot/shared-resources` on 2026-10-19. "Provisional" means decided for now but expected to change; open items are listed in the record itself.
+The architecture of the Federated Node's trigger, task and results pipeline, written in MADR style (Context, Decision, Consequences, Alternatives considered, Open questions). Together the records describe the system as it is; each is written in the present tense and open questions are listed at the end of the record they belong to.
 
 New records are numbered in sequence as `NNNN-short-title.md` and added to the table below and to the one in [../../docs/README.md](../../docs/README.md), the reviewer's guide, which also says what to check in each record.
 
-Handover for the moonshot and mirror work: [../handover/README.md](../handover/README.md).
+Plans and notes that are not decision records: [../handover/README.md](../handover/README.md).
 
 ## Diagrams
 
@@ -13,28 +13,25 @@ Handover for the moonshot and mirror work: [../handover/README.md](../handover/R
 
 ## Index
 
-| No. | Title | Status |
+| No. | Title | Summary |
 |---|---|---|
-| [0001](0001-polymorphic-triggers.md) | Polymorphic Trigger with PullRequestTrigger and ApiRequestTrigger | Accepted |
-| [0002](0002-task-spec-and-derivation.md) | TaskSpec, and a Task derived from spec and trigger | Accepted |
-| [0003](0003-project-scoped-git-repositories.md) | Project-scoped trigger and results repositories | Superseded by 0019 |
-| [0004](0004-secrets-and-secret-providers.md) | Generic Secret model and SecretProvider; per-repository tokens | Superseded by 0019 |
-| [0005](0005-git-api-protocol-and-factory.md) | GitAPI protocol and GitAPIFactory over Gitea and GitHub | Accepted |
-| [0006](0006-github-ingest-pulls-endpoint.md) | Ingest merged pull requests through the pulls endpoint, not search | Accepted |
-| [0007](0007-results-delivered-as-branch-and-pull-request.md) | Results delivered as a pushed branch plus a results pull request | Accepted (size cap and layout are tuneable) |
-| [0008](0008-polymorphic-result-and-forward-only-state.md) | Polymorphic Result, PullRequestResult and one forward-only state | Accepted |
-| [0009](0009-sync-reconciler-and-operational-rules.md) | Monotonic PATCH rule, sync reconciler, STOPPED sensors, known limits | Accepted (the known limits are open) |
-| [0010](0010-gitea-port-4000-and-localhost-forward.md) | Gitea on port 4000 in-cluster, localhost forward, fncli host translation | Accepted |
-| [0011](0011-remove-legacy-sensors-and-github-ops.md) | Remove the legacy GitHub/Gitea sensors and the GitHub transfer/comment ops | Accepted (chart leftovers are a follow-up) |
-| [0012](0012-pydantic-dto-layer.md) | Pydantic DTO layer for API responses | Accepted (applied to the models touched so far) |
-| [0013](0013-baseline-migration-edited-in-place.md) | Baseline migration edited in place while the schema is not live | Provisional (until a deployment holds data worth keeping) |
-| [0014](0014-dar-rename-and-detached-auth.md) | DAR rename; Keycloak and whitelisted images detached | Provisional (disconnected until the authorization rework) |
-| [0015](0015-fncli-dev-ops-tool.md) | fncli as a dev/ops tool | Accepted (scope is deliberately small) |
-| [0016](0016-tilt-dev-loop.md) | Tilt dev loop, with the tilt-run image for run pods | Accepted |
-| [0017](0017-task-status-written-by-run-status-sensors.md) | Task status is written only by run-status sensors | Accepted |
-| [0018](0018-global-resources-and-gitea-mirror.md) | Global resources assigned to projects, and a Gitea mirror of GitHub (design note) | Superseded by 0019 (schema) and 0020 (mirror) |
-| [0019](0019-global-resources-and-shared-pull-requests.md) | Global resources assigned to projects, with pull requests stored once per repository | Accepted (built, stages 0-8) |
-| [0020](0020-gitea-mirror-service.md) | Gitea mirror service: a self-contained GitHub mirror with generic webhooks | Proposed (gated on a Gitea spike) |
-| [0021](0021-pull-requests-stored-once-fan-out-and-cursors.md) | Pull requests stored once per repository, fan-out to links, cursors, skip_gap and backfill | Accepted (built) |
-| [0022](0022-state-transition-tables.md) | State transition tables for triggers, tasks and result steps; 409 on a refused move | Accepted (built) |
-| [0023](0023-dagster-pipeline-ops-sensors-and-retries.md) | Dagster pipeline: ingest op, eleven sensors, one interval, retries, 409 as skip | Accepted (built) |
+| [0001](0001-polymorphic-triggers.md) | Polymorphic Trigger with PullRequestTrigger and ApiRequestTrigger | A trigger records why a task exists; `state` sits on the parent; one task per trigger. |
+| [0002](0002-task-spec-and-derivation.md) | TaskSpec, and a Task derived from spec and trigger | One normalised, validated spec from the two request shapes; the raw spec is kept on the trigger. |
+| [0003](0003-task-status-written-by-run-status-sensors.md) | Task status is written only by run-status sensors | The status mirrors the Dagster run; the launcher only fails tasks a rule stops; delivery never writes it. |
+| [0004](0004-polymorphic-result-and-forward-only-state.md) | Polymorphic Result, PullRequestResult, a forward-only step and a separate state | A delivery's step only moves forward; failure is a state, not a step. |
+| [0005](0005-state-transition-tables.md) | State transition tables for triggers, tasks and result steps; 409 on a refused move | Allowed moves are data; a late or wrong write cannot undo a final state. |
+| [0006](0006-global-resources-and-project-links.md) | Global resources, linked to projects | Secrets, git providers, repositories and datasets are global; a project reaches them through its own link; URL layout. |
+| [0007](0007-secrets-and-secret-providers.md) | Generic Secret model and SecretProvider; per-repository tokens | A secret is a reference to a value in a store; each repository has its own token. |
+| [0008](0008-enabled-revoked-and-soft-delete.md) | Enabled, revoked and soft delete | A person's switch and the controller's withdrawal are separate flags; deletes are soft. |
+| [0009](0009-task-pinned-to-its-configuration.md) | A task is pinned to its configuration | A snapshot of results and dataset configuration fails or stales a task whose setup changed. |
+| [0010](0010-git-api-protocol-and-factory.md) | GitAPI protocol and GitAPIFactory over Gitea and GitHub | Provider-neutral sensors and delivery over one protocol. |
+| [0011](0011-pull-requests-stored-once-fan-out-and-cursors.md) | Pull requests stored once per repository, fanned out to project links, with cursors | One poll and one copy per repository; match rule, two cursors, `skip_gap` and backfill. |
+| [0012](0012-github-ingest-pulls-endpoint.md) | Ingest merged pull requests through the pulls endpoint, not search | The list-pulls endpoint avoids the search rate limit and index lag. |
+| [0013](0013-results-delivered-as-branch-and-pull-request.md) | Results delivered as a pushed branch plus a results pull request | Zip, spec and metadata pushed to a branch and opened as a reviewable pull request; resumable. |
+| [0014](0014-dagster-pipeline-ops-sensors-and-retries.md) | The Dagster pipeline: ingest as an op, eleven sensors, one interval, retries | Per-repository ingest runs, per-item isolation, 409 as skip, sensors stopped by default. |
+| [0015](0015-run-keys-retries-and-results-pr-sync.md) | Run keys, retries and the results pull request sync | Run keys with a retry slot, delivery retry, and the sync reconciler. |
+| [0016](0016-pydantic-dto-layer.md) | Pydantic DTO layer for API responses | Responses are built by DTOs; Dagster and fncli parse them into their own models. |
+| [0017](0017-authorization-detached-from-dar-and-keycloak.md) | Authorization detached from DAR, Keycloak and whitelisted images | DAR and whitelisted images are disconnected until the authorization rework. |
+| [0018](0018-fncli-dev-ops-tool.md) | fncli as a dev/ops tool | Idempotent step commands for setting up and exercising the Tilt cluster. |
+| [0019](0019-gitea-port-4000-and-localhost-forward.md) | Gitea on port 4000 in-cluster, localhost forward, fncli host translation | One stored URL works for pods and host tooling. |
+| [0020](0020-tilt-dev-loop.md) | Tilt dev loop, with the tilt-run image for run pods | Live update for the code servers and a rebuilt run image for run pods. |
