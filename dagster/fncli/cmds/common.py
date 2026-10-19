@@ -51,13 +51,6 @@ class BackendConfig(EnvConfig):
     backend_url: str = Field(default="", alias="BACKEND_URL")
 
 
-class AdminConfig(EnvConfig):
-    """Optional: an admin user of the backend. Revoking a link is admin only and the dagster system user is refused (403)."""
-
-    admin_user: str = Field(default="", alias="FNCLI_ADMIN_USER", validate_default=False)
-    admin_password: str = Field(default="", alias="FNCLI_ADMIN_PASSWORD", validate_default=False)
-
-
 class ProjectConfig(BackendConfig):
     project_name: str = Field(default="", alias="TEST_PROJECT_NAME")
 
@@ -159,10 +152,11 @@ def build_backend_api(config: BackendConfig) -> FncliBackendAPI:
     return FncliBackendAPI(BackendSession(adapter))
 
 
-def build_admin_backend_api(config: BackendConfig) -> FncliBackendAPI | None:
-    """Logs in as the admin user named by FNCLI_ADMIN_USER and FNCLI_ADMIN_PASSWORD, or None when they are not set."""
-    admin = AdminConfig()
-    if not (admin.admin_user and admin.admin_password):
-        return None
-    adapter = BackendAdapter(base_url=config.backend_url, username=admin.admin_user, password=admin.admin_password)
+def build_admin_backend_api(config: BackendConfig) -> FncliBackendAPI:
+    """Logs in as the first Keycloak user (an Administrator), which deploy.sh stores in the keycloak-first-user secret."""
+    adapter = BackendAdapter(
+        base_url=config.backend_url,
+        username=get_k8s_secret(secret_name="keycloak-first-user", namespace=config.keycloak_namespace, key="EMAIL"),
+        password=get_k8s_secret(secret_name="keycloak-first-user", namespace=config.keycloak_namespace, key="PASSWORD"),
+    )
     return FncliBackendAPI(BackendSession(adapter))

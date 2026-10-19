@@ -37,16 +37,6 @@ def test_other_changes_keep_the_system_login_even_when_an_admin_is_given(calls):
     assert used is system and kwargs["json"] == {"enabled": False, "target_dir": "out/"}
 
 
-def test_revoking_without_an_admin_falls_back_to_the_system_login_and_says_so(calls, capsys):
-    system = MagicMock(name="system")
-
-    state.set_link(system, "p", "trigger", None, "true", None)
-
-    ((used, _, _, _),) = calls
-    assert used is system
-    assert "FNCLI_ADMIN_USER" in capsys.readouterr().out
-
-
 def test_target_dir_is_only_for_the_results_link(calls):
     with pytest.raises(Exception, match="results link"):
         state.set_link(MagicMock(), "p", "trigger", None, None, None, target_dir="x/")

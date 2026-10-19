@@ -27,6 +27,7 @@ kubectl config set-context \
 helm upgrade \
   --install "$RELEASE_NAME" . \
   -f "$VALUES_FILE" \
+  --set "firstUserSecret.email=$KEYCLOAK_FIRST_USER_EMAIL" \
   --timeout 30m \
   --namespace "$NAMESPACE"
 
