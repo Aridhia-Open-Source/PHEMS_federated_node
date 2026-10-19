@@ -18,8 +18,11 @@ The task launcher follows it. `GET /projects/<id>/tasks/<id>/config` returns `ou
 
 - A rule changes in one place, with its tests next to the data it reads.
 - The launcher's tests mock the answer and check that it does what the outcome says.
-- The launcher still reads the dataset to build the run configuration; that is data, not a rule.
-- Each tick costs the webserver the rule queries for every pending task.
+- The launcher still reads the dataset to build the run configuration; that is data, not a rule. That is one extra small request per launched task.
+- Each tick costs the webserver the rule queries for every pending task. A task stays pending for a few ticks, so at the expected number of projects and tasks this is small.
+- The decision and the write that follows it are two calls, so state can change between them. This is the design: the pipeline is event-driven and reconciling, and every actor acts on a view of the state that may already be stale. What keeps it safe is that every write goes through the state tables, which refuse an invalid move; delivery checks again before publishing, so a run started just after a revoke publishes nothing; and a retry re-evaluates from the current state. At worst a task runs against a setup that has just changed and fails or is not delivered, or fails when it could have run. No lock is planned, because one would narrow the window without closing it.
+- A task failed by a rule stays failed until it is retried; there is no automatic re-evaluation.
+- `get_task_config` returns the answer as a plain dictionary because delivery reads it too; only the launcher parses it into a model.
 
 ## Alternatives considered
 
@@ -28,4 +31,4 @@ The task launcher follows it. `GET /projects/<id>/tasks/<id>/config` returns `ou
 ## Open questions
 
 - Delivery should follow the same pattern: a deliver decision from the webserver, with Dagster pushing and reporting.
-- A full launch endpoint that decides and moves the task under a row lock, so the decision and the write cannot be separated, is a possible next step.
+- A launch endpoint that decides, moves the task and returns the run configuration in one call would remove the extra dataset request.

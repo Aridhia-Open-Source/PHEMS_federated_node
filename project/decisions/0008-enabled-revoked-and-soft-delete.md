@@ -32,6 +32,7 @@ Switching off stops new work and work in flight finishes once it is back on. Rev
 - `REJECTED` is final for a trigger: no request moves it back ([0005](0005-state-transition-tables.md)).
 - A project has one flag, `enabled`, and no lock. A new project is disabled, so its results repository is linked before it is enabled. A disabled or revoked project gets no new triggers, and a task is refused (409) whether it comes from a pull request or from the API; one shared check (`require_accepts_tasks`) applies both. A trigger that exists when its project is disabled stays `UNKNOWN` and gets its task once the project is enabled and not revoked. A disabled project's `PENDING` tasks wait. Enabling it skips the gap by default; `"backfill": true` creates the missed triggers instead.
 - A delivery already past the results check, and a running task, are not stopped by a revoke.
+- The check that a project accepts tasks and the task insert are separate steps, so a task can be created just as the project is disabled. This follows from the event-driven design ([0021](0021-webserver-owns-the-record-and-the-rules.md)): at worst the task runs against a setup that has just changed and fails or is not delivered, nothing is lost and other projects are unaffected.
 
 ### Soft delete
 
@@ -63,7 +64,6 @@ The webserver owns the business record, the rules, audit and compliance; Dagster
 
 ## Open questions
 
-- The check that a project accepts tasks and the task insert take no row lock on the project, so a task can be created just as the project is disabled. At worst it runs against a setup that has just changed and fails or is not delivered; nothing is lost and other projects are unaffected. A row lock would close it.
 - `ProjectSecret` has the flags but nothing reads them.
 - A delivery that stays `FAILED` after the maximum attempts raises no alert ([0015](0015-run-keys-retries-and-results-pr-sync.md)).
 - A link's `active` ignores its secret; only the `pollable` filter uses the secret's flags.
