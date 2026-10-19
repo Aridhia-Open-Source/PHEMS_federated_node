@@ -28,6 +28,9 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0018](../project/decisions/0018-global-resources-and-gitea-mirror.md) | GlobalResources and a Gitea mirror (design note) | Proposed | History only; superseded by 0019 and 0020. |
 | [0019](../project/decisions/0019-global-resources-and-shared-pull-requests.md) | GlobalResources assigned to projects, pull requests stored once | Accepted (built) | The model, fan-out and cursor rules, revoke versus enabled, soft delete, task configuration pinning, the listed gaps. |
 | [0020](../project/decisions/0020-gitea-mirror-service.md) | Gitea mirror service | Proposed | A separate service, outbound only; not built. |
+| [0021](../project/decisions/0021-pull-requests-stored-once-fan-out-and-cursors.md) | Pull requests stored once, fan-out, cursors | Accepted (built) | Match rule, the two cursors, `skip_gap`, backfill only at project enable. |
+| [0022](../project/decisions/0022-state-transition-tables.md) | State transition tables | Accepted (built) | `TRIGGER_MOVES`, `TASK_MOVES`, `RETRYABLE`, `RESULT_ORDER`; 409 on a refused move, 400 on a bad retry. |
+| [0023](../project/decisions/0023-dagster-pipeline-ops-sensors-and-retries.md) | Dagster pipeline: ingest op, eleven sensors, retries | Accepted (built) | Batches of 100, one interval, STOPPED by default and start order, 409 as skip. |
 
 ## Other docs by topic
 
@@ -63,9 +66,9 @@ Historical, not a design source: the other files in [project/handover](../projec
 
 1. This guide and [entities.md](architecture/entities.md): the schema and the three state machines.
 2. ADR [0019](../project/decisions/0019-global-resources-and-shared-pull-requests.md): the intent.
-3. [revoke-and-enabled.md](architecture/revoke-and-enabled.md): what each flag does to each GlobalResource and ProjectResource.
+3. [revoke-and-enabled.md](architecture/revoke-and-enabled.md): what each flag does to each GlobalResource and ProjectResource. Then ADRs [0021](../project/decisions/0021-pull-requests-stored-once-fan-out-and-cursors.md) (pull requests and cursors) and [0022](../project/decisions/0022-state-transition-tables.md) (state tables).
 4. ADRs [0001](../project/decisions/0001-polymorphic-triggers.md), [0002](../project/decisions/0002-task-spec-and-derivation.md), [0008](../project/decisions/0008-polymorphic-result-and-forward-only-state.md), [0017](../project/decisions/0017-task-status-written-by-run-status-sensors.md): triggers, tasks, results and who writes which state.
 5. ADRs [0005](../project/decisions/0005-git-api-protocol-and-factory.md) to [0007](../project/decisions/0007-results-delivered-as-branch-and-pull-request.md): the git side and delivery.
 6. [flows.md](architecture/flows.md): the whole path from a merged pull request to a results pull request.
-7. ADR [0009](../project/decisions/0009-sync-reconciler-and-operational-rules.md) and the sensor and job inventory in [flows.md](architecture/flows.md#sensor-and-job-inventory): run keys, retries, the launcher rules. Then the [sensors docs](architecture/sensors/README.md), one per sensor. This is the sensors part and comes last.
+7. ADRs [0023](../project/decisions/0023-dagster-pipeline-ops-sensors-and-retries.md), [0009](../project/decisions/0009-sync-reconciler-and-operational-rules.md) and the sensor and job inventory in [flows.md](architecture/flows.md#sensor-and-job-inventory): run keys, retries, the launcher rules. Then the [sensors docs](architecture/sensors/README.md), one per sensor. This is the sensors part and comes last.
 8. The remaining ADRs (0010 to 0016) as needed; skip 0003, 0004 and 0018.

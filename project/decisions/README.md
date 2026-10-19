@@ -1,6 +1,6 @@
 # Architecture decision records
 
-Decisions behind the trigger, task and results pipeline of the Federated Node, written in MADR style (Status, Context, Decision, Consequences, Alternatives considered). Each was checked against the code at the tip of the delta split (`split/11-fncli-pipeline`). "Provisional" means decided for now but expected to change; open items are listed in the record itself.
+Decisions behind the trigger, task and results pipeline of the Federated Node, written in MADR style (Status, Context, Decision, Consequences, Alternatives considered). Each was checked against the code at the time it was written; 0021 to 0023 against `moonshot/shared-resources` on 2026-10-19. "Provisional" means decided for now but expected to change; open items are listed in the record itself.
 
 New records are numbered in sequence as `NNNN-short-title.md` and added to the table below and to the one in [../../docs/README.md](../../docs/README.md), the reviewer's guide, which also says what to check in each record.
 
@@ -35,3 +35,6 @@ Handover for the moonshot and mirror work: [../handover/README.md](../handover/R
 | [0018](0018-global-resources-and-gitea-mirror.md) | Global resources assigned to projects, and a Gitea mirror of GitHub (design note) | Proposed (schema naming superseded by 0019; mirror superseded by 0020) |
 | [0019](0019-global-resources-and-shared-pull-requests.md) | Global resources assigned to projects, with pull requests stored once per repository | Accepted (built, stages 0-8) |
 | [0020](0020-gitea-mirror-service.md) | Gitea mirror service: a self-contained GitHub mirror with generic webhooks | Proposed (gated on a Gitea spike) |
+| [0021](0021-pull-requests-stored-once-fan-out-and-cursors.md) | Pull requests stored once per repository, fan-out to links, cursors, skip_gap and backfill | Accepted (built) |
+| [0022](0022-state-transition-tables.md) | State transition tables for triggers, tasks and result steps; 409 on a refused move | Accepted (built) |
+| [0023](0023-dagster-pipeline-ops-sensors-and-retries.md) | Dagster pipeline: ingest op, eleven sensors, one interval, retries, 409 as skip | Accepted (built) |

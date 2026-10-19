@@ -1,6 +1,6 @@
 # 0017. Task status is written only by run-status sensors
 
-- Status: Accepted
+- Status: Accepted. Amended: the launcher also patches `FAILED` when a rule stops a launch, and `PATCH` refuses moves not in `TASK_MOVES` (see [0022](0022-state-transition-tables.md) and [0023](0023-dagster-pipeline-ops-sensors-and-retries.md)).
 
 ## Context
 
@@ -9,7 +9,7 @@ Several components could set a task's status (the launcher, the delivery job, th
 ## Decision
 
 - `TaskStatus` is `PENDING`, `QUEUED`, `RUNNING`, `SUCCESS`, `FAILED`, `CANCELED`; Dagster's vocabulary is mapped into it (`STARTED` to `RUNNING`, `FAILURE` to `FAILED`) and never stored.
-- The launcher (`task_launcher_sensor`) only yields a `RunRequest` per `PENDING` task of an enabled project; it patches nothing. The run key `task/<id>/<attempt>` de-duplicates the re-yield until the run exists.
+- The launcher (`task_launcher_sensor`) only yields a `RunRequest` per `PENDING` task of an enabled project; it patches nothing when it launches (amended: it patches `FAILED`, with the cause, for a task whose launch a rule stops, since no run will exist; see 0023). The run key `task/<id>/<attempt>` de-duplicates the re-yield until the run exists.
 - Five run-status sensors (queued, started, success, failure, canceled) on `k8s_pipes_job` patch the task with the mapped status and the run id; `started_at` at start, `completed_at` at a terminal status. They act only on runs tagged `trigger=task`.
 - `deliver_results_job` runs are tagged `trigger=delivery` and `delivery_task_id`, never `task_id`, so a delivery run is never mistaken for a task run and delivery cannot change the task.
 - Retry: `POST /tasks/<id>/retry` accepts only `FAILED` or `CANCELED`, sets `PENDING`, bumps `attempt` and clears run fields; the new attempt gets a new run key.
@@ -18,7 +18,7 @@ Several components could set a task's status (the launcher, the delivery job, th
 
 - A task's status is a mirror of its run; it cannot be wrong for another reason than a sensor not running.
 - The status sensors must be running before the launcher.
-- `PATCH /tasks/<id>` accepts any valid status, and `POST /tasks/<id>/cancel` is not implemented (`NotImplementedException`).
+- `PATCH /tasks/<id>` used to accept any valid status. It now refuses a move not in `TASK_MOVES` with a 409 ([0022](0022-state-transition-tables.md)). `POST /tasks/<id>/cancel` is still not implemented (`NotImplementedException`).
 
 ## Alternatives considered
 

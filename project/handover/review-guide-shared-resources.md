@@ -17,7 +17,7 @@ set). Review that branch separately.
 ## Reading order
 
 1. **Intent (30 minutes).** `project/decisions/0019-global-resources-and-shared-pull-requests.md` (decisions 1 to 15, the cursor paragraph and the
-   Consequences gaps), `project/decisions/0018-global-resources-and-gitea-mirror.md`, then the status block at the top of
+   Consequences gaps), `project/decisions/0018-global-resources-and-gitea-mirror.md`, then ADRs 0021 (pull requests, cursors, backfill), 0022 (state tables) and 0023 (Dagster pipeline) in `project/decisions/`, then the status block at the top of
    `project/moonshot-as-built.md`.
 2. **Schema.** `webserver/migrations/versions/001_baseline.py` (edited in place, ADR 0013; the only migration).
    Check: constraints (unique `(provider_id, repo_path)`, unique PR per repo by number and by merge sha),

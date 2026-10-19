@@ -15,6 +15,8 @@ The state of a results pull request is written by two independent actors: the de
 
 ## Run keys and retries
 
+The sensors and jobs these keys belong to are in [0023](0023-dagster-pipeline-ops-sensors-and-retries.md).
+
 Dagster keeps run keys per sensor for good: a key that was launched once is never launched again, even if its run failed. So a retry needs a new key.
 
 - **State plus slot.** `run_key(kind, item_id, state)` in `sensors/base.py` gives `kind/item_id/state/slot`, with `slot = int(time.time() // retry interval)` (a part that is `None` is left out). A new state gives a new key at once. A failed run with an unchanged state is retried once per retry interval, when the slot moves on.

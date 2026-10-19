@@ -87,7 +87,7 @@ The job runs up to 3 pull requests at once, to stay under the git provider's rat
 - A bad spec is an outcome, not an error. REJECTED is final and never re-evaluated.
 - A git or backend failure raises. The op retries 3 times with a growing delay (5 s, then doubling). After that the run fails and the pull request stays UNKNOWN.
 - A UNKNOWN pull request left behind keeps its link in the sensor's list. The next slot gives a new run key (the newest number is the same, the slot is not), so the link is evaluated again.
-- A 409 leaves the pull request as it is. It is logged, not retried by the op. If the cause is still there (see section 7) the link is relaunched every retry interval.
+- A 409 (the move is refused, [0022](../../../project/decisions/0022-state-transition-tables.md); the rule is skip, [0023](../../../project/decisions/0023-dagster-pipeline-ops-sensors-and-retries.md)) leaves the pull request as it is. It is logged, not retried by the op. If the cause is still there (see section 7) the link is relaunched every retry interval.
 - A failing check of one link is logged and the others still launch. The tick fails only when nothing launched. A failure while listing projects or links fails the tick.
 - A link with a run queued or started is skipped.
 

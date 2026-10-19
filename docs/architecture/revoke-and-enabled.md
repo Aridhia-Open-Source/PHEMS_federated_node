@@ -1,6 +1,6 @@
 # Revoke and enabled
 
-Two flags control what a project, a GlobalResource or a ProjectResource may do. Entities: [entities.md](entities.md). Flows: [flows.md](flows.md).
+Two flags control what a project, a GlobalResource or a ProjectResource may do. Entities: [entities.md](entities.md). Flows: [flows.md](flows.md). Decisions: [0019](../../project/decisions/0019-global-resources-and-shared-pull-requests.md), [0021](../../project/decisions/0021-pull-requests-stored-once-fan-out-and-cursors.md) (`skip_gap` and backfill), [0022](../../project/decisions/0022-state-transition-tables.md) (which moves are a 409).
 
 - A **GlobalResource** is a `Dataset`, `TriggerRepository`, `ResultsRepository` or `GitProvider`. A `Secret` is only used by GlobalResources.
 - A **ProjectResource** is a project's link to a GlobalResource: `ProjectDataset`, `ProjectTriggerRepository`, `ProjectResultsRepository`. (`ProjectSecret` exists but nothing reads it.)
@@ -86,7 +86,7 @@ flowchart TD
     V -- yes --> K["Task PENDING"]
 ```
 
-Only enabled projects are evaluated, and task creation from a trigger is a 409 while its ProjectTriggerRepository is inactive or the project is revoked, so an UNKNOWN trigger waits. Switching a ProjectTriggerRepository, TriggerRepository, GitProvider or project back on (or un-revoking it) skips the gap: pull requests merged while it was off are stored but get no trigger. Enabling a disabled project with `"backfill": true` creates them instead (`backfill` is a 400 in any other case). A project has no lock: it is enabled or not.
+Only enabled projects are evaluated, and task creation from a trigger is a 409 while its ProjectTriggerRepository is inactive or the project is revoked, so an UNKNOWN trigger waits. Switching a ProjectTriggerRepository, TriggerRepository, GitProvider or project back on (or un-revoking it) skips the gap: pull requests merged while it was off are stored but get no trigger. Enabling a disabled project with `"backfill": true` creates them instead (`backfill` is a 400 in any other case). A project has no lock: it is enabled or not. The mechanics (the cursor pair, which switches call `skip_gap`, what `backfill` creates) are in [0021](../../project/decisions/0021-pull-requests-stored-once-fan-out-and-cursors.md).
 
 ## What each state does
 

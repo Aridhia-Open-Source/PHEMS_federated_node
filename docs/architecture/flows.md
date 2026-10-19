@@ -1,6 +1,6 @@
 # Flows and components
 
-How a merged pull request becomes a task, a run, and a results pull request. Decisions: [index](../../project/decisions/README.md). Entities and states: [entities.md](entities.md).
+How a merged pull request becomes a task, a run, and a results pull request. Decisions: [index](../../project/decisions/README.md). Entities and states: [entities.md](entities.md). The detail is in [0021](../../project/decisions/0021-pull-requests-stored-once-fan-out-and-cursors.md) (pull requests, fan-out, cursors), [0022](../../project/decisions/0022-state-transition-tables.md) (state tables) and [0023](../../project/decisions/0023-dagster-pipeline-ops-sensors-and-retries.md) (the Dagster pipeline).
 
 ## End to end
 
@@ -31,7 +31,7 @@ flowchart TD
     O -->|open| M
 ```
 
-All sensors are STOPPED by default and started by the operator ([0009](../../project/decisions/0009-sync-reconciler-and-operational-rules.md)). The delivery job only runs after a task run succeeds; a failed delivery is relaunched by `results_delivery_retry_sensor`. Run keys carry a retry slot (`DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS`, default 60 s), so a failed run is retried at most once per interval; see [0009](../../project/decisions/0009-sync-reconciler-and-operational-rules.md).
+All sensors are STOPPED by default and started by the operator, `fncli start-sensor --sensor all`, run-status sensors first and the launcher last ([0023](../../project/decisions/0023-dagster-pipeline-ops-sensors-and-retries.md), [0009](../../project/decisions/0009-sync-reconciler-and-operational-rules.md)). The delivery job only runs after a task run succeeds; a failed delivery is relaunched by `results_delivery_retry_sensor`. Run keys carry a retry slot (`DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS`, default 60 s), so a failed run is retried at most once per interval; see [0009](../../project/decisions/0009-sync-reconciler-and-operational-rules.md).
 
 ## Global resources and assignments
 
@@ -155,7 +155,7 @@ The run pod (not the daemon) delivers results because it mounts the artifacts vo
 
 ## Sensor and job inventory
 
-All sensors have `default_status=STOPPED` and a 30 s minimum interval (`DAGSTER_SENSORS_MIN_INTERVAL_SECONDS`).
+The 11 sensors have `default_status=STOPPED` (`fnDagster.sensors.initialStatus`) and one minimum interval, 30 s by default (`fnDagster.sensors.minIntervalSeconds`, env `DAGSTER_SENSORS_MIN_INTERVAL_SECONDS`; the dev values use 5). See [0023](../../project/decisions/0023-dagster-pipeline-ops-sensors-and-retries.md).
 
 | Name | Kind | Watches / reads | Launches or writes | Defined in |
 |---|---|---|---|---|
