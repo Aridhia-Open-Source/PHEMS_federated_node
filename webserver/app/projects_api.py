@@ -98,27 +98,38 @@ def patch_project(project_id: int):
     on again skips the gap: what was merged while it was off gets no trigger. With
     `"backfill": true` it creates those triggers instead. `backfill` is only for enabling a
     disabled project (`"enabled": true`), otherwise a 400, and is not stored.
+    `revoked` (a boolean, admin only) withdraws the project, or restores it, and does not change `enabled`:
+    while it is revoked its tasks fail, nothing is delivered and no pull request gets a trigger
+    (see helpers/task_config.revoked_resources). Restoring it skips the gap like enabling does.
     """
     project = Project.get_by_id(project_id)
 
     body = request.json or {}
-    fields = {"enabled", "backfill"}
+    fields = {"enabled", "backfill", "revoked"}
     if not body or not set(body) <= fields:
         raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
     for field in body:
         if not isinstance(body[field], bool):
             raise InvalidRequest(f"{field} must be a boolean")
+    if "revoked" in body and not g.caller_is_admin:
+        raise UnauthorizedError("Only an admin can revoke or re-grant a project")
     if "backfill" in body and (body.get("enabled") is not True or project.enabled):
         raise InvalidRequest("backfill is only valid with enabled: true on a disabled project")
 
+    was_revoked = project.revoked
+    if "revoked" in body:
+        project.revoked = body["revoked"]
     if body.get("enabled") and not project.enabled:
         project.enabled = True
         if body.get("backfill"):
             backfill(project.trigger_repository_assignments)
         else:
             skip_gap(project.trigger_repository_assignments)
-    elif "enabled" in body:
-        project.enabled = body["enabled"]
+    else:
+        if "enabled" in body:
+            project.enabled = body["enabled"]
+        if was_revoked and not project.revoked:
+            skip_gap(project.trigger_repository_assignments)
     db.session.commit()
     return ProjectDTO.from_model(project).dump(), HTTPStatus.OK
 

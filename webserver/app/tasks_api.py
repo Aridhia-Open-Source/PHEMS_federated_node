@@ -28,7 +28,7 @@ from app.helpers.exceptions import (
 from app.helpers.keycloak import Keycloak
 from app.helpers.state_rules import transition
 from app.helpers.query_filters import arg_get
-from app.helpers.task_config import config_changes
+from app.helpers.task_config import config_changes, revoked_resources
 from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.wrappers import audit, auth
 from app.dtos.task import NewTaskDTO, TaskDTO
@@ -317,13 +317,15 @@ def get_task_config(project_id, task_id):
     under (its results repository and target_dir, its dataset) is still the current one. If not, the task
     must not launch or publish, and changes lists what differs. A task without a stored snapshot is current.
     config_snapshot is the pinned configuration itself: delivery takes its target_dir from it, as the link may be deleted by then.
+    revoked names what the task uses that is revoked or deleted (its project, trigger, dataset or results repository): such a
+    task must not launch either, and its results are never delivered.
     """
     task = get_project_task(project_id, task_id)
     does_user_own_task(task)
     changes = config_changes(task)
     return {
         "current": not changes, "changes": changes, "config_hash": task.config_hash,
-        "config_snapshot": task.config_snapshot,
+        "config_snapshot": task.config_snapshot, "revoked": revoked_resources(task),
     }, HTTPStatus.OK
 
 

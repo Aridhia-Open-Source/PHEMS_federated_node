@@ -8,20 +8,18 @@ admin-only. Deleting a dataset is a soft delete, refused with a 409 naming the p
 - GET /global/datasets/id
 - PATCH /global/datasets/id (200 like every other PATCH (?) assumed by the implementer, owner to confirm)
 - DELETE /global/datasets/id
-- POST /global/datasets/id/revoke
 - GET /global/datasets/id/healthcheck, see healthcheck_api.py
 """
 import logging
 from http import HTTPStatus
 
-from flask import Blueprint, request
+from flask import Blueprint, g, request
 
 from .dtos.base import page_of
 from .dtos.dataset import DatasetDTO, DatasetPatchRequest, DatasetRequest
 from .helpers.base_model import db
-from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
+from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
 from .helpers.query_validator import validate
-from .helpers.revoke import revoke_links
 from .helpers.soft_delete import delete_global
 from .helpers.wrappers import audit, auth
 from .models.dataset import Dataset
@@ -127,18 +125,6 @@ def get_dataset(dataset_id: int):
     return DatasetDTO.from_model(ds).dump(), HTTPStatus.OK
 
 
-@bp.route('/<int:dataset_id>/revoke', methods=['POST'])
-@audit
-@auth(scope='can_do_admin')
-def revoke_dataset(dataset_id: int):
-    """
-    POST /global/datasets/id/revoke endpoint. Revokes every project's link to the dataset at
-    once, admin only. Returns the ids of the links. Un-revoking is per link.
-    """
-    ds = Dataset.get_by_id(dataset_id)
-    return revoke_links(ds.project_assignments), HTTPStatus.OK
-
-
 @bp.route('/<int:dataset_id>', methods=['DELETE'])
 @audit
 @auth(scope='can_do_admin')
@@ -160,7 +146,8 @@ def patch_dataset(dataset_id: int):
     """
     PATCH /global/datasets/id endpoint. Edits an existing dataset with a given id. The tasks created before
     are pinned to the old setup and fail instead of running against the new one. Admin only. Returns 200. A disabled secret_label is a 400, unless it is the
-    one already in use.
+    one already in use. `revoked` (a boolean) withdraws the dataset from every project at once, or restores it:
+    the tasks that use it fail and nothing of theirs is delivered while it is revoked. It does not change `enabled`.
     """
     ds = Dataset.get_by_id(dataset_id)
 
@@ -170,6 +157,8 @@ def patch_dataset(dataset_id: int):
     req = DatasetPatchRequest.parse(body)
     if not req.model_fields_set:
         raise InvalidRequest("No field to update")
+    if req.revoked is not None and not g.caller_is_admin:
+        raise UnauthorizedError("Only an admin can revoke or re-grant a dataset")
     body = req.model_dump(exclude_unset=True, exclude={"catalogue", "dictionaries", "secret_label"})
     cata_body = req.catalogue
     dict_body = req.dictionaries or []

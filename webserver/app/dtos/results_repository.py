@@ -12,6 +12,7 @@ class ResultsRepositoryDTO(DTO):
     provider: GitProviderRefDTO
     secret: SecretDTO
     enabled: bool
+    revoked: bool
 
     @classmethod
     def from_model(cls, obj: ResultsRepository):
@@ -22,6 +23,7 @@ class ResultsRepositoryDTO(DTO):
             provider=GitProviderRefDTO.from_model(obj.provider),
             secret=SecretDTO.from_model(obj.secret),
             enabled=obj.enabled,
+            revoked=obj.revoked,
         )
 
 

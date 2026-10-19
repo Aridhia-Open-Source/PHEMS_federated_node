@@ -103,6 +103,9 @@ class GitProvider(SoftDeleteMixin, db.Model, BaseModel):
     api_uri = sa.Column(sa.String(4096), nullable=False)
     # Turned on or off for the whole node: the repositories on a disabled provider are not active
     enabled = sa.Column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
+    # The controller withdrew the provider from the whole node: the repositories on it are blocked.
+    # Never touches enabled, so a re-grant restores the previous state.
+    revoked = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
 
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()

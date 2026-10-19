@@ -5,6 +5,9 @@ repositories. One table-driven test per resource kind and failure class, not per
 import pytest
 
 from app.helpers.base_model import db
+from app.models.dataset import Dataset
+from app.models.results_repository import ResultsRepository
+from app.models.trigger_repository import TriggerRepository
 
 DS = "/global/datasets"
 SEC = "/global/secrets"
@@ -52,7 +55,7 @@ def test_repo_path_normalised_on_create(client, admin_headers, global_secret, gi
     assert response.json["uri"] == "https://github.com/org/new"  # derived from the provider
     assert response.json["provider"] == {
         "id": git_provider.id, "name": "github-github.com", "type": "github", "uri": "https://github.com",
-        "api_uri": "https://api.github.com", "enabled": True,
+        "api_uri": "https://api.github.com", "enabled": True, "revoked": False,
     }
     assert response.json["enabled"] is True
 
@@ -304,6 +307,79 @@ def test_secret_rotate_and_disable(client, admin_headers, k8s_client, global_sec
     both = client.patch(f"{SEC}/test-creds", json={"enabled": False, "values": {"TOKEN": "n"}}, headers=admin_headers)
     assert both.status_code == 200 and both.json["enabled"] is False
     assert client.patch(f"{SEC}/test-creds", json={"enabled": True}, headers=admin_headers).json["enabled"] is True
+
+
+def deleted_enabled(model, ident) -> bool:
+    """`enabled` of a soft deleted row, which the API no longer shows."""
+    db.session.expire_all()
+    return model.query.execution_options(include_deleted=True).filter_by(id=ident).one().enabled
+
+
+def test_disabling_a_secret_disables_what_uses_it_and_enabling_it_does_not_enable_it_again(
+        client, admin_headers, k8s_client, global_secret, global_dataset, global_trigger_repo, global_results_repo,
+        make_global_secret, make_global_dataset, make_trigger_repo, make_results_repo):
+    other = make_global_secret(label="other-creds")
+    elsewhere = {
+        DS: make_global_dataset(name="Elsewhere", secret=other),
+        TRIG: make_trigger_repo(uri="github.com/org/elsewhere", secret=other),
+        RES: make_results_repo(uri="github.com/org/elsewhere-results", secret=other),
+    }
+    own = {DS: global_dataset, TRIG: global_trigger_repo, RES: global_results_repo}
+    # one deleted resource of each kind on the secret, which the API no longer shows
+    deleted = {
+        DS: make_global_dataset(name="Gone", secret=global_secret),
+        TRIG: make_trigger_repo(uri="github.com/org/gone", secret=global_secret),
+        RES: make_results_repo(uri="github.com/org/gone-results", secret=global_secret),
+    }
+    deleted_ids = {base: resource.id for base, resource in deleted.items()}
+    for base, ident in deleted_ids.items():
+        assert client.delete(f"{base}/{ident}", headers=admin_headers).status_code == 204
+    enabled = lambda base, resource: client.get(f"{base}/{resource.id}", headers=admin_headers).json["enabled"]  # noqa: E731
+
+    off = client.patch(f"{SEC}/test-creds", json={"enabled": False}, headers=admin_headers)
+    assert off.status_code == 200 and off.json["enabled"] is False
+    assert [enabled(base, resource) for base, resource in own.items()] == [False, False, False]
+    assert [enabled(base, resource) for base, resource in elsewhere.items()] == [True, True, True]
+    assert [deleted_enabled(model, deleted_ids[base]) for base, model in
+            ((DS, Dataset), (TRIG, TriggerRepository), (RES, ResultsRepository))] == [True, True, True]
+
+    # on again changes only the secret: each resource is enabled by hand
+    on = client.patch(f"{SEC}/test-creds", json={"enabled": True}, headers=admin_headers)
+    assert on.json["enabled"] is True
+    assert [enabled(base, resource) for base, resource in own.items()] == [False, False, False]
+    assert client.patch(f"{DS}/{global_dataset.id}", json={"enabled": True}, headers=admin_headers).status_code == 200
+
+    # off while it is off already changes nothing else
+    assert client.patch(f"{SEC}/test-creds", json={"enabled": False}, headers=admin_headers).status_code == 200
+    assert client.patch(f"{DS}/{global_dataset.id}", json={"enabled": True}, headers=admin_headers).status_code == 200
+    assert client.patch(f"{SEC}/test-creds", json={"enabled": False}, headers=admin_headers).status_code == 200
+    assert enabled(DS, global_dataset) is True
+
+
+WRITE_FAMILIES = {
+    # base URL, the fixture that makes one, the id its routes use
+    "secrets": (SEC, "global_secret", lambda secret: secret.label),
+    "datasets": (DS, "global_dataset", lambda dataset: dataset.id),
+    "trigger repositories": (TRIG, "global_trigger_repo", lambda repo: repo.id),
+    "results repositories": (RES, "global_results_repo", lambda repo: repo.id),
+    "providers": (PROV, "git_provider", lambda provider: provider.id),
+}
+
+
+@pytest.mark.parametrize("method", ["post", "patch", "delete"])
+@pytest.mark.parametrize("family", WRITE_FAMILIES)
+def test_a_non_admin_is_refused_on_the_write_routes_of_the_global_resources(
+        client, admin_headers, post_json_user_header, request, family, method):
+    base, fixture, ident = WRITE_FAMILIES[family]
+    resource = request.getfixturevalue(fixture)
+    url = base if method == "post" else f"{base}/{ident(resource)}"
+
+    refused = getattr(client, method)(url, json={"enabled": False}, headers=post_json_user_header)
+
+    assert refused.status_code == 403, refused.json
+    # nothing changed or went
+    kept = client.get(f"{base}/{ident(resource)}", headers=admin_headers)
+    assert kept.status_code == 200 and kept.json["enabled"] is True
 
 
 @pytest.mark.parametrize("body", [

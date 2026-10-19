@@ -49,6 +49,7 @@ class RepositoryPatchRequest(BaseModel):
     provider_id: int | None = None
     secret_label: str | None = Field(default=None, min_length=1)
     enabled: bool | None = None
+    revoked: bool | None = None
 
     @model_validator(mode="after")
     def not_null(self):

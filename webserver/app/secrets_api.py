@@ -2,13 +2,12 @@
 Secret endpoints. The values only ever go to the secret store; the database keeps a
 reference so that repositories and datasets can share a secret. A secret belongs to no
 project and is addressed by its label, which is unique. A project is linked to one under
-/projects/<id>/secrets (see projects_api.py). Creating and deleting are admin-only:
+/projects/<id>/secrets (see projects_api.py). Creating, editing and deleting are admin-only:
 - GET /global/secrets
 - GET /global/secrets/<label>
 - POST /global/secrets
 - PATCH /global/secrets/<label>
 - DELETE /global/secrets/<label>
-- POST /global/secrets/<label>/revoke
 - GET /global/secrets/<label>/healthcheck, see healthcheck_api.py
 """
 import logging
@@ -24,7 +23,6 @@ from app.helpers.const import DEFAULT_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.kubernetes_names import validate_secret_key
-from app.helpers.revoke import revoke_links
 from app.helpers.wrappers import audit, auth
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
@@ -182,11 +180,14 @@ def post_secret():
 
 @bp.route('/<label>', methods=['PATCH'])
 @audit
+@auth(scope='can_do_admin')
 def patch_secret(label):
     """
     PATCH /global/secrets/<label> — set keys on the stored secret, e.g. to rotate a token, and/or turn
     it on or off (enabled). Every repository and dataset that references it, in any project, picks
-    the new values up.
+    the new values up. Admin only. Turning it off also disables every dataset, trigger repository and
+    results repository that uses it, in the same commit; turning it on changes only the secret, those
+    stay disabled until each is enabled. Turning off a secret that is off already changes nothing else.
     Body: {"values": {"KEY": "value", ...}, "enabled": true}, any of them.
     """
     secret = _get_secret(label)
@@ -197,6 +198,9 @@ def patch_secret(label):
     if "enabled" in body:
         if not isinstance(body["enabled"], bool):
             raise InvalidRequest("enabled must be a boolean")
+        if secret.enabled and not body["enabled"]:
+            for resource in (*secret.datasets, *secret.trigger_repositories, *secret.results_repositories):
+                resource.enabled = False
         secret.enabled = body["enabled"]
 
     if "values" in body or "enabled" not in body:
@@ -211,18 +215,6 @@ def patch_secret(label):
     session.commit()
 
     return SecretDTO.from_model(secret).dump(), HTTPStatus.OK
-
-
-@bp.route('/<label>/revoke', methods=['POST'])
-@audit
-@auth(scope='can_do_admin')
-def revoke_secret(label):
-    """
-    POST /global/secrets/<label>/revoke — revokes every project's link to the secret at once,
-    admin only. Returns the ids of the links. Un-revoking is per link.
-    """
-    secret = _get_secret(label)
-    return revoke_links(secret.project_assignments), HTTPStatus.OK
 
 
 @bp.route('/<label>', methods=['DELETE'])

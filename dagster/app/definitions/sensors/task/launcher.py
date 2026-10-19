@@ -43,19 +43,29 @@ class TaskLauncherSensor(BaseSensor):
         if not launched:
             yield dg.SkipReason("No pending tasks found.")
 
+    def _fail(self, project: Project, task: Task, cause: str) -> None:
+        """Records the cause on the task and fails it, so it does not launch."""
+        self.log.warning(f"Task {task.id} not launched: {cause}")
+        self.backend_api.patch_task(
+            project.id, task.id,
+            {"status": TaskStatus.FAILED.value, "state_cause": cause[:MAX_CAUSE_LENGTH]},
+        )
+
     def _launch(self, project: Project, task: Task) -> dg.RunRequest | None:
         """
-        The run for the task, or None when a rule fails it, with the cause recorded: its configuration
-        changed since it was created, its dataset is not active in the project, or the dataset's secret
-        is disabled. A manual retry launches it once the cause is gone. Any other error is raised.
+        The run for the task, or None when a rule fails it, with the cause recorded: something it uses (its
+        project, trigger, dataset or results repository) is revoked or deleted, its configuration changed since it was
+        created, its dataset is not active in the project, or the dataset's secret is disabled. A manual retry
+        launches it once the cause is gone. Any other error is raised.
         """
         config = self.backend_api.get_task_config(project.id, task.id)
+        if config["revoked"]:
+            self._fail(project, task, "revoked: " + "; ".join(config["revoked"]))
+            return None
         if not config["current"]:
-            cause = "task configuration changed since the task was created: " + "; ".join(config["changes"])
-            self.log.warning(f"Task {task.id} not launched: {cause}")
-            self.backend_api.patch_task(
-                project.id, task.id,
-                {"status": TaskStatus.FAILED.value, "state_cause": cause[:MAX_CAUSE_LENGTH]},
+            self._fail(
+                project, task,
+                "task configuration changed since the task was created: " + "; ".join(config["changes"]),
             )
             return None
         dataset = None
@@ -67,10 +77,7 @@ class TaskLauncherSensor(BaseSensor):
             elif not assignment.dataset.secret.enabled:
                 cause = f"The secret of dataset {assignment.dataset.name} is disabled"
             if cause:
-                self.log.warning(f"Task {task.id} not launched: {cause}")
-                self.backend_api.patch_task(
-                    project.id, task.id, {"status": TaskStatus.FAILED.value, "state_cause": cause}
-                )
+                self._fail(project, task, cause)
                 return None
             dataset = assignment.dataset
         return dg.RunRequest(

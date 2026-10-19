@@ -22,6 +22,7 @@ class DatasetDTO(DTO):
     type: str
     extra_connection_args: str | None
     enabled: bool
+    revoked: bool
     created_at: WireDatetime
     updated_at: WireDatetime
     slug: str
@@ -41,6 +42,7 @@ class DatasetDTO(DTO):
             type=obj.type,
             extra_connection_args=obj.extra_connection_args,
             enabled=obj.enabled,
+            revoked=obj.revoked,
             created_at=obj.created_at,
             updated_at=obj.updated_at,
             slug=slug,
@@ -100,6 +102,7 @@ class DatasetPatchRequest(BaseModel):
     type: str | None = None
     extra_connection_args: str | None = Field(default=None, max_length=4096)
     enabled: StrictBool | None = None
+    revoked: StrictBool | None = None
     secret_label: str | None = Field(default=None, min_length=1)
     catalogue: dict | None = None
     dictionaries: list | None = None
@@ -122,7 +125,7 @@ class DatasetPatchRequest(BaseModel):
             raise ValueError(f"DB type {value} is not supported.")
         return value
 
-    @field_validator("port", "host", "name", "secret_label", "enabled", "type")
+    @field_validator("port", "host", "name", "secret_label", "enabled", "revoked", "type")
     @classmethod
     def not_null(cls, value, info):
         """These columns are non-nullable, so an explicit null is a mistake."""

@@ -65,8 +65,8 @@ class ProjectTriggerRepository(SoftDeleteMixin, db.Model, BaseModel):
 
     @property
     def accepts_triggers(self) -> bool:
-        """Whether a new pull request gets a trigger for this link: it is active and its project is enabled."""
-        return self.active and self.project.enabled
+        """Whether a new pull request gets a trigger for this link: it is active and its project is enabled and not revoked."""
+        return self.active and self.project.enabled and not self.project.revoked
 
     @property
     def dataset(self):

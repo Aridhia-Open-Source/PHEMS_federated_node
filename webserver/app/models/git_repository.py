@@ -45,8 +45,8 @@ class GitRepositoryMixin:
 
     @property
     def active(self) -> bool:
-        """Whether the repository is turned on, and so is its provider."""
-        return self.enabled and self.provider.enabled
+        """Whether the repository is turned on and not revoked, and so is its provider."""
+        return self.enabled and not self.revoked and self.provider.enabled and not self.provider.revoked
 
     def get_token(self) -> str:
         """

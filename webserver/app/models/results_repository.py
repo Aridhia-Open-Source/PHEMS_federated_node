@@ -14,6 +14,9 @@ class ResultsRepository(SoftDeleteMixin, GitRepositoryMixin, db.Model, BaseModel
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     # Turned on or off for the whole node, whatever the projects' links say
     enabled = sa.Column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
+    # The controller withdrew the repository from the whole node: every project's use of it is blocked.
+    # Never touches enabled, so a re-grant restores the previous state.
+    revoked = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
 

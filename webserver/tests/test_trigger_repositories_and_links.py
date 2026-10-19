@@ -367,8 +367,12 @@ def test_two_projects_link_one_repo_independently(client, admin_headers, project
     assert other["revoked"] is False and other["active"] is False
 
 
-def test_switching_a_repository_back_on_skips_the_gap(client, admin_headers, project, global_trigger_repo):
-    """Pull requests merged before the repository was switched back on are stored but get no trigger; later ones do."""
+@pytest.mark.parametrize("off, on", [
+    ({"enabled": False}, {"enabled": True}),
+    ({"revoked": True}, {"revoked": False}),
+])
+def test_switching_a_repository_back_on_skips_the_gap(client, admin_headers, project, global_trigger_repo, off, on):
+    """Pull requests merged before the repository was switched back on (or restored) are stored but get no trigger; later ones do."""
     T = global_trigger_repo.id
     link = f"/projects/{project.id}/repositories/triggers/{T}"
     assert client.put(link, json={"watch_dir": "triggers"}, headers=admin_headers).status_code == 201
@@ -385,8 +389,8 @@ def test_switching_a_repository_back_on_skips_the_gap(client, admin_headers, pro
             "changed_files": [{"path": "triggers/spec.json", "status": "added"}],
         }
 
-    assert patch(client, admin_headers, f"{BASE}/{T}", {"enabled": False}).status_code == 200
-    assert patch(client, admin_headers, f"{BASE}/{T}", {"enabled": True}).status_code == 200
+    assert patch(client, admin_headers, f"{BASE}/{T}", off).status_code == 200
+    assert patch(client, admin_headers, f"{BASE}/{T}", on).status_code == 200
 
     merged_before = datetime.utcnow() - timedelta(hours=1)
     merged_after = datetime.utcnow() + timedelta(days=1)
@@ -402,33 +406,69 @@ def test_switching_a_repository_back_on_skips_the_gap(client, admin_headers, pro
     assert [i["number"] for i in triggers["items"]] == [2]
 
 
-# --------------------------------------------------------------------------- global revoke
+# --------------------------------------------------------------------------- global revoke (PATCH revoked)
+
+# The kinds that are revoked with PATCH {"revoked": true}; the secret (parked) cannot be revoked
+by_global = pytest.mark.parametrize("ctx", ["dataset", "trigger", "results"], indirect=True)
 
 
-@by_kind
-def test_global_revoke_revokes_every_link(ctx, client, admin_headers, post_json_user_header, project, other_project,
-                                          make_task):
+@by_global
+@pytest.mark.parametrize("value", ["yes", 1, None])
+def test_patch_revoked_must_be_a_boolean(ctx, client, admin_headers, value):
+    assert patch(client, admin_headers, ctx.glob, {"revoked": value}).status_code == 400
+    assert get(client, admin_headers, ctx.glob).json["revoked"] is False
+
+
+@by_global
+def test_patch_revoked_is_admin_only_shows_in_the_dto_and_leaves_enabled_alone(
+        ctx, client, admin_headers, post_json_user_header):
+    assert get(client, admin_headers, ctx.glob).json["revoked"] is False
+    assert patch(client, post_json_user_header, ctx.glob, {"revoked": True}).status_code == 403
+    assert get(client, admin_headers, ctx.glob).json["revoked"] is False
+
+    revoked = patch(client, admin_headers, ctx.glob, {"revoked": True})
+    assert revoked.status_code == 200, revoked.json
+    assert (revoked.json["revoked"], revoked.json["enabled"]) == (True, True)
+    assert get(client, admin_headers, ctx.glob).json["revoked"] is True
+
+    # one call restores it, and clears the flag only
+    restored = patch(client, admin_headers, ctx.glob, {"revoked": False})
+    assert (restored.json["revoked"], restored.json["enabled"]) == (False, True)
+
+
+@by_global
+def test_a_revoked_global_resource_makes_its_links_inactive_one_created_later_too(
+        ctx, client, admin_headers, project, other_project):
     link_project(client, admin_headers, ctx, project)
+    assert get(client, admin_headers, ctx.link(project.id)).json["active"] is True
+
+    assert patch(client, admin_headers, ctx.glob, {"revoked": True}).status_code == 200
+    # the link is untouched: the global resource is what says no
+    link = get(client, admin_headers, ctx.link(project.id)).json
+    assert (link["enabled"], link["revoked"], link["active"]) == (True, False, False)
     link_project(client, admin_headers, ctx, other_project)
-    url = f"{ctx.glob}/revoke"
-    assert client.post(url, headers=post_json_user_header).status_code == 403
-    assert get(client, admin_headers, ctx.link(project.id)).json["revoked"] is False
+    later = get(client, admin_headers, ctx.link(other_project.id)).json
+    assert (later["enabled"], later["revoked"], later["active"]) == (True, False, False)
 
-    # even with a task in flight
-    make_task()
-    r = client.post(url, headers=admin_headers)
-    assert r.status_code == 200 and len(r.json) == 2
-    for p in (project, other_project):
-        link = get(client, admin_headers, ctx.link(p.id)).json
-        assert link["revoked"] is True and link["active"] is False
-
-    # again is a no-op, and un-revoking stays per link
-    assert client.post(url, headers=admin_headers).json == r.json
-    assert patch(client, admin_headers, ctx.link(project.id), {"revoked": False}).json["active"] is True
-    assert get(client, admin_headers, ctx.link(other_project.id)).json["revoked"] is True
+    assert patch(client, admin_headers, ctx.glob, {"revoked": False}).status_code == 200
+    assert get(client, admin_headers, ctx.link(project.id)).json["active"] is True
+    assert get(client, admin_headers, ctx.link(other_project.id)).json["active"] is True
 
 
-@by_kind
-def test_global_revoke_unknown_resource_is_404(ctx, client, admin_headers):
-    url = ctx.glob.replace(str(ctx.obj.label if ctx.kind == "secret" else ctx.obj.id), "99999" if ctx.kind != "secret" else "nope")
-    assert client.post(f"{url}/revoke", headers=admin_headers).status_code == 404
+def test_a_revoked_trigger_repository_is_not_polled_and_takes_no_pull_requests(
+        client, admin_headers, project, global_trigger_repo, make_trigger_repo, make_pr_batch):
+    T = global_trigger_repo.id
+    ids = lambda q="": [r["id"] for r in get(client, admin_headers, f"{BASE}{q}").json]  # noqa: E731
+    unlinked = make_trigger_repo(uri="github.com/org/unlinked")
+    assert ids("?pollable=true") == [T, unlinked.id]
+
+    assert patch(client, admin_headers, f"{BASE}/{T}", {"revoked": True}).status_code == 200
+    assert ids("?pollable=true") == [unlinked.id]
+    assert ids() == [T, unlinked.id]  # still listed
+    refused = client.post(f"{BASE}/{T}/pull_requests", json=make_pr_batch(1), headers=admin_headers)
+    assert refused.status_code == 400 and "revoked" in refused.json["error"]
+    assert get(client, admin_headers, f"{BASE}/{T}/pull_requests").json["total"] == 0  # nothing stored
+
+    assert patch(client, admin_headers, f"{BASE}/{T}", {"revoked": False}).status_code == 200
+    assert ids("?pollable=true") == [T, unlinked.id]
+    assert client.post(f"{BASE}/{T}/pull_requests", json=make_pr_batch(1), headers=admin_headers).status_code == 201

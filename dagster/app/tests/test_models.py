@@ -1,8 +1,8 @@
 import pytest
 
 from app.models import (
-    Dataset, GitProvider, NewPullRequest, ProjectTriggerRepository, PullRequest, PullRequestTrigger, Secret, SecretProviderType,
-    TriggerRepository,
+    Dataset, GitProvider, NewPullRequest, Project, ProjectTriggerRepository, PullRequest, PullRequestTrigger, Secret,
+    SecretProviderType, TriggerRepository,
 )
 from app.models.pull_request import PROVIDER_FILES_CAP
 from app.tests.conftest import (
@@ -137,3 +137,16 @@ class TestPullRequestFacts:
         )
 
         assert (facts.id, facts.base_branch, facts.files_truncated) == (3, "main", False)
+
+
+class TestRevokedOnTheGlobalSide:
+    """The backend's `revoked` flag on a global resource, a provider and a project is kept; the launcher reads it through /config."""
+
+    def test_the_flag_is_kept_on_a_dataset_a_repository_its_provider_and_a_project(self):
+        dataset = Dataset(**{**SAMPLE_DATASET, "revoked": True})
+        repo = TriggerRepository(**{
+            **SAMPLE_TRIGGER_REPOSITORY, "revoked": True, "provider": {**SAMPLE_TRIGGER_REPOSITORY["provider"], "revoked": True},
+        })
+        project = Project(id=1, name="p", enabled=True, revoked=True)
+
+        assert (dataset.revoked, repo.revoked, repo.provider.revoked, project.revoked) == (True, True, True, True)

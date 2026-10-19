@@ -7,25 +7,23 @@ only. Deleting one is a soft delete, refused with a 409 naming the projects it i
 - POST /global/repositories/triggers
 - PATCH /global/repositories/triggers/<id>
 - DELETE /global/repositories/triggers/<id>
-- POST /global/repositories/triggers/<id>/revoke
 - GET /global/repositories/triggers/<id>/pull_requests
 - POST /global/repositories/triggers/<id>/pull_requests
 - GET /global/repositories/triggers/<id>/healthcheck, see healthcheck_api.py
 """
 from http import HTTPStatus
 
-from flask import Blueprint, request
+from flask import Blueprint, g, request
 
 from app.dtos.base import page_of
 from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
 from app.dtos.trigger_repository import PullRequestDTO, PullRequestRequest, TriggerRepositoryDTO
 from app.helpers.base_model import db
-from app.helpers.exceptions import InvalidRequest
+from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.helpers.query_filters import arg_get
 from app.helpers.pull_request_fanout import ingest_pull_requests, skip_gap
-from app.helpers.revoke import revoke_links
 from app.helpers.soft_delete import delete_global
-from app.helpers.wrappers import audit, auth
+from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
 from app.models.pull_request import PullRequest
 from app.models.trigger_repository import TriggerRepository
@@ -45,15 +43,16 @@ def auth_before():
 @bp.route('', methods=['GET'])
 def get_repositories():
     """
-    GET /global/repositories/triggers/ — list the repositories. With ?pollable=true only the enabled
-    repositories on an enabled provider with an enabled secret, whatever their project links: that is
-    what Dagster polls.
+    GET /global/repositories/triggers/ — list the repositories. With ?pollable=true only the enabled and
+    not revoked repositories on an enabled, not revoked provider with an enabled secret, whatever their project
+    links: that is what Dagster polls.
     """
     query = TriggerRepository.query
     if request.args.get('pollable', '').lower() == 'true':
         query = query.filter(
             TriggerRepository.enabled.is_(True),
-            TriggerRepository.provider.has(GitProvider.enabled.is_(True)),
+            TriggerRepository.revoked.is_(False),
+            TriggerRepository.provider.has(GitProvider.enabled.is_(True) & GitProvider.revoked.is_(False)),
             TriggerRepository.secret.has(Secret.enabled.is_(True)),
         )
     return [TriggerRepositoryDTO.from_model(r).dump() for r in query.order_by(TriggerRepository.id)], HTTPStatus.OK
@@ -91,13 +90,13 @@ def post_pull_requests_batch(repo_id):
     """
     POST /global/repositories/triggers/<id>/pull_requests — store up to 100 pull requests of the
     repository and create their triggers for every active assignment. Idempotent: a number
-    already stored is left as it is. Refused for a disabled repository, which stores nothing.
+    already stored is left as it is. Refused for a disabled or revoked repository (or one on such a provider), which stores nothing.
     Responds with the numbers stored and those already there.
     Body: {"pull_requests": [pull requests, see PullRequestRequest]}
     """
     repo = TriggerRepository.get_by_id(repo_id)
     if not repo.active:
-        raise InvalidRequest(f"Trigger repository {repo.uri} is disabled")
+        raise InvalidRequest(f"Trigger repository {repo.uri} is disabled or revoked")
     body = (request.json or {}).get('pull_requests')
     if not isinstance(body, list):
         raise InvalidRequest("pull_requests must be a list of pull requests")
@@ -112,18 +111,6 @@ def post_pull_requests_batch(repo_id):
         'created': [pr.number for pr in created],
         'existing': [pr.number for pr in existing],
     }, HTTPStatus.CREATED
-
-
-@bp.route('/<int:repo_id>/revoke', methods=['POST'])
-@audit
-@auth(scope='can_do_admin')
-def revoke_repository(repo_id):
-    """
-    POST /global/repositories/triggers/<id>/revoke — revokes every project's link to the repository
-    at once, admin only. Returns the ids of the links. Un-revoking is per link.
-    """
-    repo = TriggerRepository.get_by_id(repo_id)
-    return revoke_links(repo.project_assignments), HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['DELETE'])
@@ -179,17 +166,20 @@ def patch_repository(repo_id):
     """
     PATCH /global/repositories/triggers/<id> — update repository. The tasks created
     before are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be
-    named (400), unless it is the one already in use.
+    named (400), unless it is the one already in use. `revoked` (a boolean) withdraws the repository from every
+    project at once, or restores it, and does not change `enabled`: see helpers/task_config.revoked_resources.
     """
     repo = TriggerRepository.get_by_id(repo_id)
 
     body = request.json or {}
     if not body:
         raise InvalidRequest("No fields provided to update")
-    unknown = set(body) - {'provider_id', 'secret_label', 'enabled'}
+    unknown = set(body) - {'provider_id', 'secret_label', 'enabled', 'revoked'}
     if unknown:
         raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
     req = RepositoryPatchRequest.parse(body)
+    if 'revoked' in body and not g.caller_is_admin:
+        raise UnauthorizedError("Only an admin can revoke or re-grant a trigger repository")
 
     if 'secret_label' in body:
         repo.secret_id = Secret.get_enabled_by_label(req.secret_label, repo.secret_id).id
@@ -199,6 +189,12 @@ def patch_repository(repo_id):
         if req.enabled and not repo.enabled:
             skip_gap(repo.project_assignments)
         repo.enabled = req.enabled
+
+    if 'revoked' in body:
+        # Restored: what was merged while it was revoked gets no trigger
+        if repo.revoked and not req.revoked:
+            skip_gap(repo.project_assignments)
+        repo.revoked = req.revoked
 
     if 'provider_id' in body:
         provider = GitProvider.get_by_request_id(req.provider_id)

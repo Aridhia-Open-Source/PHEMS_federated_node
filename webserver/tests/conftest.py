@@ -54,6 +54,8 @@ def check_database_connection():
 
 
 sample_repo_uri = "github.com/org/test-repo"
+# The scopes the mocked Keycloak grants the admin token only: a non-admin token is refused (403) on a route with one
+ADMIN_ONLY_SCOPES = ('can_admin_request', 'can_do_admin')
 
 
 def provider_of(uri: str, type: str = "github", api_uri: str | None = None) -> GitProvider:
@@ -678,7 +680,7 @@ def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
             get_user_by_username=Mock(return_value=basic_user),
             is_user_admin=Mock(side_effect=lambda token: token == "admin_token"),
             has_user_roles=Mock(side_effect=lambda user_id, roles: False),
-            is_token_valid=Mock(side_effect=lambda token, scope, *args, **kwargs: token == "admin_token" or scope != 'can_admin_request')
+            is_token_valid=Mock(side_effect=lambda token, scope, *args, **kwargs: token == "admin_token" or scope not in ADMIN_ONLY_SCOPES)
         )),
         # TODO(DAR): the datasets_api Keycloak mock went with the DAR code in that module
         "users_api_kc": mocker.patch('app.users_api.Keycloak', return_value=Mock(

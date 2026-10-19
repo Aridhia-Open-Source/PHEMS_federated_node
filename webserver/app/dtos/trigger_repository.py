@@ -18,6 +18,7 @@ class TriggerRepositoryDTO(DTO):
     provider: GitProviderRefDTO
     secret: SecretDTO
     enabled: bool
+    revoked: bool
     # Where polling the provider resumes, see TriggerRepository.get_ingest_cursor
     pr_cursor: str
 
@@ -30,6 +31,7 @@ class TriggerRepositoryDTO(DTO):
             provider=GitProviderRefDTO.from_model(obj.provider),
             secret=SecretDTO.from_model(obj.secret),
             enabled=obj.enabled,
+            revoked=obj.revoked,
             pr_cursor=obj.get_ingest_cursor(),
         )
 

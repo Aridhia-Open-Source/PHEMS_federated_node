@@ -10,11 +10,11 @@ admin only. Deleting is a soft delete.
 """
 from http import HTTPStatus
 
-from flask import Blueprint, request
+from flask import Blueprint, g, request
 
 from app.dtos.git_provider import GitProviderDTO, GitProviderPatchRequest, GitProviderRequest
 from app.helpers.base_model import db
-from app.helpers.exceptions import InvalidRequest
+from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.helpers.pull_request_fanout import skip_gap
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
@@ -85,7 +85,9 @@ def post_provider():
 def patch_provider(provider_id):
     """
     PATCH /global/providers/<id> — update a provider. The tasks created before
-    are pinned to the old setup and fail instead of running against the new one.
+    are pinned to the old setup and fail instead of running against the new one. `revoked` (a boolean) withdraws
+    the provider, and so every repository on it, from every project at once, or restores it, and does not
+    change `enabled`: see helpers/task_config.revoked_resources.
     """
     provider = GitProvider.get_by_id(provider_id)
 
@@ -93,10 +95,12 @@ def patch_provider(provider_id):
     if not body:
         raise InvalidRequest("No fields provided to update")
     req = GitProviderPatchRequest.parse(body)
+    if 'revoked' in body and not g.caller_is_admin:
+        raise UnauthorizedError("Only an admin can revoke or re-grant a git provider")
 
-    was_enabled = provider.enabled
+    was_enabled, was_revoked = provider.enabled, provider.revoked
     try:
-        for field in ('name', 'type', 'enabled'):
+        for field in ('name', 'type', 'enabled', 'revoked'):
             if field in body:
                 setattr(provider, field, getattr(req, field))
         # uri before api_uri, which has to be on the uri's host
@@ -108,8 +112,8 @@ def patch_provider(provider_id):
         raise InvalidRequest(str(e))
     _check_unique(provider, provider.id)
 
-    # Switched back on: what was merged while it was off gets no trigger
-    if provider.enabled and not was_enabled:
+    # Switched back on or restored: what was merged while it was off or revoked gets no trigger
+    if (provider.enabled and not was_enabled) or (was_revoked and not provider.revoked):
         skip_gap([a for r in provider.trigger_repositories for a in r.project_assignments])
 
     session.commit()
