@@ -110,23 +110,29 @@ def prepare_dataset_health(dataset: Dataset) -> Callable[[], DatasetHealthDTO]:
 def prepare_secret_health(secret: Secret) -> Callable[[], SecretHealthDTO]:
     """
     A global secret: is it in its store, with the keys its datasets and repositories read.
-    A secret nothing uses needs no particular key.
+    A secret nothing uses needs no particular key. A disabled one is reported as not readable
+    (secret_missing, saying it is disabled) without looking in the store, its value being in quarantine.
     """
     expected = set()
     if secret.datasets:
         expected |= set(Dataset.SECRET_KEYS)
     if secret.trigger_repositories or secret.results_repositories:
         expected |= set(GitRepositoryMixin.SECRET_KEYS)
-    keys = SecretProvider(secret.provider).keys(secret.key, secret.namespace)
-    if keys is None:
-        check = ConnectionCheck(ConnectionStatus.SECRET_MISSING, f"Secret {secret.label} is not in its store")
+    if not secret.enabled:
+        # Its value is in quarantine, out of reach on purpose: not read
         keys = []
-    elif expected - set(keys):
-        check = ConnectionCheck(
-            ConnectionStatus.SECRET_MISSING, f"Secret {secret.label} has no {', '.join(sorted(expected - set(keys)))}"
-        )
+        check = ConnectionCheck(ConnectionStatus.SECRET_MISSING, f"Secret {secret.label} is disabled, so it cannot be read")
     else:
-        check = ConnectionCheck(ConnectionStatus.OK, "OK")
+        keys = SecretProvider(secret.provider).keys(secret.key, secret.namespace)
+        if keys is None:
+            check = ConnectionCheck(ConnectionStatus.SECRET_MISSING, f"Secret {secret.label} is not in its store")
+            keys = []
+        elif expected - set(keys):
+            check = ConnectionCheck(
+                ConnectionStatus.SECRET_MISSING, f"Secret {secret.label} has no {', '.join(sorted(expected - set(keys)))}"
+            )
+        else:
+            check = ConnectionCheck(ConnectionStatus.OK, "OK")
     health = SecretHealthDTO(
         label=secret.label, provider=secret.provider, enabled=secret.enabled,
         status=check.status.value, health_check=_health_check(check),

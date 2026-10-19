@@ -48,6 +48,10 @@
                 "tasks": {
                     "type": "string",
                     "default": "tasks"
+                },
+                "quarantine": {
+                    "type": "string",
+                    "default": "fn-quarantine"
                 }
             }
         },

@@ -73,6 +73,8 @@ global:
   namespaces:
     keycloak: keycloak
     tasks: tasks
+    # Where the backend keeps the value of a disabled secret, moved out of its own namespace
+    quarantine: fn-quarantine
 
 token:
   # 8 hours. Was 2592000 (30 days), the same order as the rotation period -- which meant sessions

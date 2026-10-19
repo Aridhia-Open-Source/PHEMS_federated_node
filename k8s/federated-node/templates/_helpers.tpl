@@ -174,6 +174,9 @@ securityContext:
 {{- define "tasks_namespace" -}}
 {{ ((.Values.global).namespaces).tasks | default "tasks" }}
 {{- end -}}
+{{- define "quarantine_namespace" -}}
+{{ ((.Values.global).namespaces).quarantine | default "fn-quarantine" }}
+{{- end -}}
 {{- define "testsBaseUrl" }}
 {{- if not .Values.local_development -}}
 https://{{ .Values.host }}

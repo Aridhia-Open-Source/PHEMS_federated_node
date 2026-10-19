@@ -34,6 +34,8 @@ PASS_GENERATOR_SET = string.ascii_letters + string.digits + "!$@#.-_"
 PUBLIC_URL = os.getenv("PUBLIC_URL")
 
 DEFAULT_NAMESPACE = os.getenv("DEFAULT_NAMESPACE")
+# Where a disabled secret's value is kept, out of reach of everything that reads the secrets' own namespace
+QUARANTINE_NAMESPACE = os.getenv("QUARANTINE_NAMESPACE", "fn-quarantine")
 TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
 DAGSTER_WEBSERVER_URI = os.getenv("DAGSTER_WEBSERVER_URI")
 

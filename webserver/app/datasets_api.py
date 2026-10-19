@@ -146,7 +146,7 @@ def patch_dataset(dataset_id: int):
     """
     PATCH /global/datasets/id endpoint. Edits an existing dataset with a given id. The tasks created before
     are pinned to the old setup and fail instead of running against the new one. Admin only. Returns 200. A disabled secret_label is a 400, unless it is the
-    one already in use. `revoked` (a boolean) withdraws the dataset from every project at once, or restores it:
+    one already in use. Enabling the dataset is a 409 while its secret (the new one, if secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the dataset from every project at once, or restores it:
     the tasks that use it fail and nothing of theirs is delivered while it is revoked. It does not change `enabled`.
     """
     ds = Dataset.get_by_id(dataset_id)
@@ -164,8 +164,12 @@ def patch_dataset(dataset_id: int):
     dict_body = req.dictionaries or []
     if req.name is not None:
         _reject_taken_name(req.name, ds.id)
+    secret = ds.secret
     if req.secret_label is not None:
-        body["secret_id"] = Secret.get_enabled_by_label(req.secret_label, ds.secret_id).id
+        secret = Secret.get_enabled_by_label(req.secret_label, ds.secret_id)
+        body["secret_id"] = secret.id
+    if req.enabled:
+        secret.require_usable()
 
     try:
         ds.update(**body)

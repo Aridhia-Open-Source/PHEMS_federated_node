@@ -1,3 +1,5 @@
+from http import HTTPStatus
+
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship, validates
 
@@ -68,6 +70,17 @@ class Secret(SoftDeleteMixin, db.Model, BaseModel):
         if not secret.enabled and secret.id != current_id:
             raise InvalidRequest(f"Secret {label} is disabled")
         return secret
+
+    def require_usable(self) -> None:
+        """
+        For enabling a dataset or repository that uses this secret: a 409 while the secret is
+        disabled or deleted, repoint it first. Not a 400 like naming a disabled secret, since
+        the request is fine and it is the state of the node that refuses it.
+        """
+        if self.deleted_at is not None:
+            raise InvalidRequest(f"Secret {self.label} is deleted", code=HTTPStatus.CONFLICT)
+        if not self.enabled:
+            raise InvalidRequest(f"Secret {self.label} is disabled", code=HTTPStatus.CONFLICT)
 
     @validates('label')
     def validate_label(self, key, value):

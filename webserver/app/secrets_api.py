@@ -2,7 +2,9 @@
 Secret endpoints. The values only ever go to the secret store; the database keeps a
 reference so that repositories and datasets can share a secret. A secret belongs to no
 project and is addressed by its label, which is unique. A project is linked to one under
-/projects/<id>/secrets (see projects_api.py). Creating, editing and deleting are admin-only:
+/projects/<id>/secrets (see projects_api.py). Creating, editing and deleting are admin-only. A disabled
+secret's value is moved out of its namespace into a quarantine namespace (QUARANTINE_NAMESPACE), so nothing
+reading the secret where the row says it is can get it, and moved back when the secret is enabled again:
 - GET /global/secrets
 - GET /global/secrets/<label>
 - POST /global/secrets
@@ -19,7 +21,7 @@ from kubernetes.client.exceptions import ApiException
 
 from app.dtos.secret import SecretDTO
 from app.helpers.base_model import db
-from app.helpers.const import DEFAULT_NAMESPACE
+from app.helpers.const import DEFAULT_NAMESPACE, QUARANTINE_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.kubernetes_names import validate_secret_key
@@ -57,6 +59,7 @@ class K8sSecretProvider:
     """Writes and deletes secrets in Kubernetes."""
 
     namespace = DEFAULT_NAMESPACE
+    quarantine_namespace = QUARANTINE_NAMESPACE
 
     def set(self, key: str, namespace: str, values: dict[str, str]):
         """The caller is the authority on the content, so it overwrites what is there."""
@@ -86,6 +89,35 @@ class K8sSecretProvider:
                 logger.error(apie)
                 raise InvalidRequest("Could not clear the secret properly") from apie
 
+    def quarantine(self, key: str, namespace: str):
+        """Moves a secret from its namespace into the quarantine namespace."""
+        self._move(key, namespace, self.quarantine_namespace)
+
+    def restore(self, key: str, namespace: str):
+        """Moves a secret from the quarantine namespace back into its namespace."""
+        self._move(key, self.quarantine_namespace, namespace)
+
+    def _move(self, key: str, source: str, target: str):
+        """
+        Kubernetes cannot move a secret: copy it, then delete the original, so that a failure
+        in between leaves the value in both places and not in neither. A secret that is not in
+        the source is already where it should be (or is not in the store at all): nothing to do,
+        which also makes a repeated move safe. The copy overwrites, so it replaces what an
+        earlier move that failed after the copy left in the target.
+        """
+        try:
+            data = KubernetesClient().read_namespaced_secret(key, source).data or {}
+        except ApiException as apie:
+            if apie.status == 404:
+                return
+            logger.error(apie)
+            raise InvalidRequest("Could not move the secret") from apie
+        values = {name: KubernetesClient.decode_secret_value(value) for name, value in data.items()}
+        KubernetesClient().create_secret(
+            name=key, values=values, namespaces=[target], labels=SECRET_LABELS, overwrite=True
+        )
+        self.delete(key, source)
+
 
 class SecretProvider:
     """Writes and deletes secret values in the store the provider name selects."""
@@ -99,8 +131,18 @@ class SecretProvider:
     def namespace(self) -> str | None:
         return self.provider.namespace
 
+    @property
+    def quarantine_namespace(self) -> str | None:
+        return self.provider.quarantine_namespace
+
     def set(self, key: str, namespace: str, values: dict[str, str]):
         self.provider.set(key, namespace, values)
+
+    def quarantine(self, key: str, namespace: str):
+        self.provider.quarantine(key, namespace)
+
+    def restore(self, key: str, namespace: str):
+        self.provider.restore(key, namespace)
 
     def keys(self, key: str, namespace: str) -> list[str] | None:
         return self.provider.keys(key, namespace)
@@ -172,7 +214,9 @@ def post_secret():
 
     # The store first, so a failure there leaves no row pointing at nothing. If the row
     # then fails, the stored secret is left for a retry to adopt: writing it overwrites.
-    SecretProvider(secret.provider).set(secret.key, secret.namespace, values)
+    # One created disabled goes straight to quarantine, as if it had been disabled after.
+    store = SecretProvider(secret.provider)
+    store.set(secret.key, secret.namespace if secret.enabled else store.quarantine_namespace, values)
     secret.add()
 
     return SecretDTO.from_model(secret).dump(), HTTPStatus.CREATED
@@ -188,6 +232,11 @@ def patch_secret(label):
     the new values up. Admin only. Turning it off also disables every dataset, trigger repository and
     results repository that uses it, in the same commit; turning it on changes only the secret, those
     stay disabled until each is enabled. Turning off a secret that is off already changes nothing else.
+    Turning it off moves its stored value to the quarantine namespace and turning it on moves it back,
+    before anything is committed: if the move fails so does the request, and nothing has changed. The
+    row keeps the secret's own namespace, which is what makes it unreadable there meanwhile. A disabled
+    secret cannot be rotated (409), unless the same request turns it on. Rotation comes before the move
+    when both are asked for.
     Body: {"values": {"KEY": "value", ...}, "enabled": true}, any of them.
     """
     secret = _get_secret(label)
@@ -195,22 +244,34 @@ def patch_secret(label):
     unknown = set(body) - {"values", "enabled"}
     if unknown and ("values" in body or "enabled" in body):
         raise InvalidRequest(f"Unknown fields: {', '.join(sorted(unknown))}")
-    if "enabled" in body:
-        if not isinstance(body["enabled"], bool):
-            raise InvalidRequest("enabled must be a boolean")
-        if secret.enabled and not body["enabled"]:
-            for resource in (*secret.datasets, *secret.trigger_repositories, *secret.results_repositories):
-                resource.enabled = False
-        secret.enabled = body["enabled"]
+    if "enabled" in body and not isinstance(body["enabled"], bool):
+        raise InvalidRequest("enabled must be a boolean")
+    values = _get_values(body) if "values" in body or "enabled" not in body else None
+    turning_on = body.get("enabled") is True and not secret.enabled
+    turning_off = body.get("enabled") is False and secret.enabled
+    if values and not secret.enabled and not turning_on:
+        raise InvalidRequest(
+            f"Secret {secret.label} is disabled: enable it before rotating it", code=HTTPStatus.CONFLICT
+        )
 
-    if "values" in body or "enabled" not in body:
-        values = _get_values(body)
+    # The store first, and the row only once it has all succeeded: each step is safe to repeat.
+    store = SecretProvider(secret.provider)
+    namespace = secret.namespace
+    if turning_on:
+        store.restore(secret.key, namespace)
+    if values:
         # Written to the provider's current namespace, which the row then records. If that has
         # changed since the secret was created, only these values move: the old copy and any
         # keys not in this request are left behind, so a namespace move means re-creating it.
-        store = SecretProvider(secret.provider)
-        store.set(secret.key, store.namespace, values)
-        secret.namespace = store.namespace
+        namespace = store.namespace
+        store.set(secret.key, namespace, values)
+    if turning_off:
+        store.quarantine(secret.key, namespace)
+        for resource in (*secret.datasets, *secret.trigger_repositories, *secret.results_repositories):
+            resource.enabled = False
+    if "enabled" in body:
+        secret.enabled = body["enabled"]
+    secret.namespace = namespace
     secret.updated_at = dt.now()
     session.commit()
 
@@ -223,25 +284,37 @@ def patch_secret(label):
 def delete_secret(label):
     """
     DELETE /global/secrets/<label> — soft delete the reference and revoke and delete its project
-    links, and delete the stored secret. Admin only. Refused with a 409 while a repository or
-    dataset still uses it.
+    links, and delete the stored secret, from its namespace and from quarantine. Admin only. Refused
+    with a 409 naming the enabled datasets and repositories that still use it: they have to be
+    disabled first, unless ?force=true, which disables them and goes on. Disabled ones may stay
+    pointing at it, and can be repointed with their secret_label.
     """
     secret = _get_secret(label)
-    users = len(secret.trigger_repositories) + len(secret.results_repositories) + len(secret.datasets)
-    if users:
+    enabled = [(dataset.name, dataset) for dataset in secret.datasets if dataset.enabled] + [
+        (repository.uri, repository)
+        for repository in (*secret.trigger_repositories, *secret.results_repositories) if repository.enabled
+    ]
+    if enabled and request.args.get("force", "").lower() != "true":
         raise InvalidRequest(
-            f"Secret {secret.label} is still used by {users} repositories or datasets",
+            f"Secret {secret.label} is still used by enabled datasets or repositories: "
+            f"{', '.join(name for name, _ in enabled)}. Disable them first or delete with ?force=true",
             code=HTTPStatus.CONFLICT
         )
 
     # Staged, not committed: if the store delete fails the row has to come back, and a
     # rollback after a commit is a no-op.
+    for _, resource in enabled:
+        resource.enabled = False
     for assignment in secret.project_assignments:
         assignment.soft_delete()
     secret.soft_delete()
 
+    store = SecretProvider(secret.provider)
     try:
-        SecretProvider(secret.provider).delete(secret.key, secret.namespace)
+        store.delete(secret.key, secret.namespace)
+        # Wherever it is: a disabled secret's value is only there, and one that was
+        # being moved when something failed may be in both.
+        store.delete(secret.key, store.quarantine_namespace)
     except InvalidRequest:
         session.rollback()
         raise
