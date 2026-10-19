@@ -62,7 +62,7 @@ Three branches stack on `moonshot/shared-resources`, each on the one before. Non
 |---|---|---|
 | `moonshot/launch-decider` | `decide_launch` in the webserver holds the launcher's rules; `GET .../tasks/<id>/config` returns `outcome` and `cause`; the launcher only acts on the outcome. ADR 0021 (responsibility). | webserver, Dagster and fncli unit suites pass |
 | `moonshot/launch-endpoint` | `POST /projects/<pid>/tasks/<id>/launch` decides, moves the task to `FAILED` on a rule failure, and returns the task and dataset on `launch`, so the launcher makes one call. A captured response in `dagster/app/tests/contract/` is checked against the real route. | same suites pass |
-| `moonshot/task-reconcile-sensor` | `task_reconcile_sensor`, a level-triggered safety net that compares unfinished tasks with their Dagster runs each tick. The sensor start order no longer matters; there are twelve sensors. | in progress; see the branch |
+| `moonshot/task-reconcile-sensor` | `task_reconcile_sensor`, a level-triggered safety net that compares unfinished tasks with their Dagster runs each tick. The sensor start order no longer matters; there are twelve sensors. | Dagster app and fncli unit suites pass (434; 159 with e2e skipped) |
 
 ## Run on a full environment
 
@@ -71,7 +71,7 @@ The cloud checks ran only unit tests. These have never run against a cluster:
 - `pytest dagster --e2e failure2`. It includes scenarios for a revoked or stale results link, a switched-off results link that is delivered once switched back on, and a revoked or switched-off dataset at launch. Assumptions to check: a delivery sensor restarted after a run finished delivers it, a task can be created and launched while its results link is switched off, and the watched task uses the project's default dataset.
 - The success and failure suites against `moonshot/launch-endpoint` and the reconcile sensor, once reviewed.
 - `dagster/app/tests/test_enum_drift.py`, from a full checkout (it skips when `webserver/` is not beside `dagster/`).
-- With the sensors stopped, let a task run to the end and then start them: the reconcile sensor should bring the task to its final status.
+- With the sensors stopped, let a task run to the end and then start them: the reconcile sensor should bring the task to its final status. It finds the run by its `trigger`, `task_id` and `attempt` tags and was tested against a fake instance and one real instance, never a live Dagster with real runs; check that its ticks show in the Dagster UI.
 
 ## Decisions pending
 
