@@ -34,7 +34,7 @@ class TaskRunStatusSensor(BaseSensor):
 
         Every status records the run id, so a run that skips one still leaves it on the task.
         When the run starts the task records the start time. When it reaches a terminal status
-        the task records the time the run ended.
+        the task records the time the run ended, and the time it started from the run itself.
         The exit code is not recorded: the run does not expose it.
         A finished task refuses a status change with a 409, which is skipped.
         """
@@ -48,10 +48,16 @@ class TaskRunStatusSensor(BaseSensor):
         if run.status == dg.DagsterRunStatus.STARTED:
             fields["started_at"] = now
         elif task_status in self.TERMINAL_STATUSES:
-            end_time = self.context.instance.get_run_record_by_id(run.run_id).end_time
-            fields["completed_at"] = datetime.fromtimestamp(end_time, timezone.utc).strftime(
+            record = self.context.instance.get_run_record_by_id(run.run_id)
+            fields["completed_at"] = datetime.fromtimestamp(record.end_time, timezone.utc).strftime(
                 "%Y-%m-%dT%H:%M:%SZ"
             )
+            # A short run can go from STARTED to its end between two ticks, so the STARTED event was never seen:
+            # take the start from the run itself.
+            if record.start_time is not None:
+                fields["started_at"] = datetime.fromtimestamp(record.start_time, timezone.utc).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                )
 
         try:
             self.backend_api.patch_task(project_id, task_id, fields)
