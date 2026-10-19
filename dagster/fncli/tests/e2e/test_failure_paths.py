@@ -457,9 +457,14 @@ def test_s11_ingest_shows_an_auth_error(fncli):
     sensors kept ticking: the quiet wait above only returns when ingest, evaluate and launcher all ticked."""
     fncli.call(sensor_status_command)
     ticks = DagsterAPI(DagsterConfig().dagster_url).get_sensor_ticks("git_pull_request_ingest_sensor", QUIET_TICKS + 2)
-    messages = [(tick["error"] or {}).get("message", "") for tick in ticks if tick["status"] == "FAILURE"]
-    logger.info(f"S11 ingest ticks: {[tick['status'] for tick in ticks]}; errors: {messages[:2]}")
-    assert any("Ingest failed" in message for message in messages), f"no ingest tick failed with the token deleted: {ticks}"
+    def error_text(error: dict) -> str:
+        """The tick's error is a wrapper (SensorExecutionError): the sensor's own message is in its stack and causes."""
+        causes = " ".join(error_text(cause) for cause in error.get("causes") or [])
+        return " ".join([error.get("message") or "", " ".join(error.get("stack") or []), causes])
+
+    texts = [error_text(tick["error"]) for tick in ticks if tick["status"] == "FAILURE" and tick["error"]]
+    logger.info(f"S11 ingest ticks: {[tick['status'] for tick in ticks]}; errors: {[t[:200] for t in texts[:2]]}")
+    assert any("Ingest failed" in text for text in texts), f"no ingest tick failed with the token deleted: {ticks}"
 
 
 def test_s11_healthcheck_fails(fncli):
