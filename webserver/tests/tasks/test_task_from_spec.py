@@ -197,6 +197,26 @@ class TestPostTasks:
         assert Task.query.count() == 0
         assert ApiRequestTrigger.query.count() == 0
 
+    def test_a_revoked_project_rejects_the_task(
+            self, client, cr_client, registry_client, post_json_admin_header, task_body, project
+        ):
+        project.revoked = True
+        db.session.commit()
+        response = self.post(client, post_json_admin_header, project, task_body)
+        assert response.status_code == 409
+        assert response.json["error"] == f"Project {project.id} is revoked"
+        assert Task.query.count() == 0
+        assert ApiRequestTrigger.query.count() == 0
+
+    def test_a_disabled_and_revoked_project_is_refused_as_disabled(
+            self, client, cr_client, registry_client, post_json_admin_header, task_body, disabled_project
+        ):
+        disabled_project.revoked = True
+        db.session.commit()
+        response = self.post(client, post_json_admin_header, disabled_project, task_body)
+        assert response.status_code == 409
+        assert response.json["error"] == f"Project '{disabled_project.name}' is disabled"
+
     def test_invalid_spec_keeps_a_rejected_request(
             self, client, cr_client, registry_client, post_json_admin_header, task_body, project
         ):

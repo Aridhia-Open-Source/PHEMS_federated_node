@@ -56,6 +56,9 @@ def check_database_connection():
 sample_repo_uri = "github.com/org/test-repo"
 # The scopes the mocked Keycloak grants the admin token only: a non-admin token is refused (403) on a route with one
 ADMIN_ONLY_SCOPES = ('can_admin_request', 'can_do_admin')
+# The Dagster System user: Keycloak.is_token_valid skips the permission check for it, so it passes every scope, but it is not
+# an admin (is_user_admin, which g.caller_is_admin and so `revoked` use, is False for it)
+SYSTEM_TOKEN = "system_token"
 
 
 def provider_of(uri: str, type: str = "github", api_uri: str | None = None) -> GitProvider:
@@ -147,6 +150,11 @@ def post_json_admin_header(login_admin):
         "Content-Type": "application/json",
         "Authorization": f"Bearer {login_admin}"
     }
+
+@fixture
+def system_headers():
+    """The Dagster System user's bearer token, with a JSON content type."""
+    return {"Content-Type": "application/json", "Authorization": f"Bearer {SYSTEM_TOKEN}"}
 
 @fixture
 def simple_user_header(user_token):
@@ -680,7 +688,7 @@ def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
             get_user_by_username=Mock(return_value=basic_user),
             is_user_admin=Mock(side_effect=lambda token: token == "admin_token"),
             has_user_roles=Mock(side_effect=lambda user_id, roles: False),
-            is_token_valid=Mock(side_effect=lambda token, scope, *args, **kwargs: token == "admin_token" or scope not in ADMIN_ONLY_SCOPES)
+            is_token_valid=Mock(side_effect=lambda token, scope, *args, **kwargs: token in ("admin_token", SYSTEM_TOKEN) or scope not in ADMIN_ONLY_SCOPES)
         )),
         # TODO(DAR): the datasets_api Keycloak mock went with the DAR code in that module
         "users_api_kc": mocker.patch('app.users_api.Keycloak', return_value=Mock(

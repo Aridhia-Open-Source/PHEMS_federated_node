@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from app.dtos.base import DTO, WireDatetime
 from app.helpers.exceptions import InvalidRequest
@@ -57,6 +57,14 @@ class ProjectRequest(BaseModel):
     name: str = Field(min_length=1, max_length=256)
     description: str | None = Field(default=None, max_length=4096)
     enabled: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def revoked_is_patch_only(cls, data):
+        """A project is created not revoked: revoking is a PATCH, by an admin."""
+        if isinstance(data, dict) and "revoked" in data:
+            raise ValueError("revoked is not accepted on create, revoke with PATCH")
+        return data
 
     @field_validator("name")
     @classmethod
