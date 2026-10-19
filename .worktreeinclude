@@ -1,6 +1,0 @@
-# Gitignored files Claude Code copies into the worktrees it creates (only files that match here
-# AND are gitignored). Same set as `git wk env`: local env and yaml config.
-*.env
-.env*
-*.yaml
-*.yml

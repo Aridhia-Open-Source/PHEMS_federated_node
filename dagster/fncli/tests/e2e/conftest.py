@@ -190,7 +190,10 @@ def env():
     """Replaces the unit tests' fake settings: the e2e tests use the real .dev.env."""
 
 
-def wait_for(predicate, timeout: float, describe: str, interval: float = 10):
+POLL_SECONDS = 2  # how often a wait for something to happen looks at the project
+
+
+def wait_for(predicate, timeout: float, describe: str, interval: float = POLL_SECONDS):
     """Poll predicate() until it returns something truthy, and return that. On timeout fail with `describe()`'s message."""
     deadline = time.monotonic() + timeout
     while True:
@@ -240,7 +243,7 @@ class Fncli:
         """The snapshot of the test project, or of another one by name."""
         return snapshot(self.backend_api, project or self.config.project_name)
 
-    def wait_for_state(self, what: str, timeout: float, check, project: str | None = None, interval: float = 10):
+    def wait_for_state(self, what: str, timeout: float, check, project: str | None = None, interval: float = POLL_SECONDS):
         """Poll the project snapshot until check(snapshot) is truthy and return that. On timeout the failure carries the last snapshot of PRs, tasks and results."""
         last = {}
 

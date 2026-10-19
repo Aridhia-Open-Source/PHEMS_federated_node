@@ -40,3 +40,6 @@ uc1
 
 # Local UC1 runs (scripts/run_uc1_local.sh)
 uc1-local-results/
+
+# worktree include files
+.worktreeinclude

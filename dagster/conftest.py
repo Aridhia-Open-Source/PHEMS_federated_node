@@ -35,6 +35,8 @@ def pytest_configure(config):
         # Each step depends on the one before, so stop at the first failure, and show progress as it happens
         config.option.maxfail = 1
         config.option.log_cli_level = "INFO"
+        config.option.log_cli_format = "%(asctime)s %(levelname)-8s %(name)s:%(filename)s:%(lineno)d %(message)s"
+        config.option.log_cli_date_format = "%H:%M:%S"
         # Every step's time at the end, to see where a run spends it (the same as --durations=0)
         config.option.durations = 0
 
