@@ -28,8 +28,7 @@ spec:
           args: [
             "start",
             "--import-realm",
-            "--http-enabled=true",
-            "--health-enabled=true"
+            "--http-enabled=true"
           ]
           name: keycloak
           imagePullPolicy: {{ .Values.pullPolicy }}
