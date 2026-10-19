@@ -192,7 +192,8 @@ def test_the_registered_sensor_runs_with_a_context(dagster_instance, monkeypatch
     world.add_task(9, "RUNNING", run_status=S.SUCCESS)
     context = dg.build_sensor_context(resources={"backend_api": world.backend_api}, instance=dagster_instance)
 
-    list(task_reconcile_sensor(context))
+    result = task_reconcile_sensor.evaluate_tick(context)
+    assert result.skip_message == "Reconciled 1 tasks."
 
     assert world.tasks[9].status == "SUCCESS"
 
