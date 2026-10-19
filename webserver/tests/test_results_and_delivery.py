@@ -521,6 +521,122 @@ def test_post_result_is_not_revoked_when_the_trigger_and_dataset_links_are_only_
     assert (response.json["step"], response.json["state"]) == ("UNKNOWN", "IN_PROGRESS")
 
 
+def revoke_urls(project, global_results_repo, global_dataset, global_trigger_repo):
+    """What can be revoked after a result exists: kind -> (url, the name revoked_resources gives it)."""
+    return {
+        "trigger link": (trigger_url(project, global_trigger_repo), f"trigger repository {global_trigger_repo.repo_path}"),
+        "dataset link": (f"/projects/{project.id}/datasets/{global_dataset.id}", f"dataset {global_dataset.name}"),
+        "results link": (link_url(project, global_results_repo), f"results repository {global_results_repo.repo_path}"),
+        "project": (f"/projects/{project.id}", f"project {project.name} (revoked)"),
+        "global trigger": (f"/global/repositories/triggers/{global_trigger_repo.id}",
+                           f"trigger repository {global_trigger_repo.repo_path} (revoked)"),
+        "global dataset": (f"/global/datasets/{global_dataset.id}", f"dataset {global_dataset.name} (revoked)"),
+        "global results": (f"{RESULTS_GLOBAL}/{global_results_repo.id}",
+                           f"results repository {global_results_repo.repo_path} (revoked)"),
+    }
+
+
+def held_result(client, admin_headers, project, task, repo):
+    """A result recorded while the results link was switched off: UNKNOWN and FAILED, waiting for the link."""
+    switch_link(project, False)
+    created = post_result(client, admin_headers, project, task, repo)
+    assert created.status_code == 201, created.json
+    assert (created.json["step"], created.json["state"]) == ("UNKNOWN", "FAILED")
+    return created.json["id"]
+
+
+@pytest.mark.parametrize("kind", [
+    "trigger link", "dataset link", "results link", "project", "global trigger", "global dataset", "global results"
+])
+def test_post_result_revokes_an_existing_held_result_when_something_is_revoked_later(
+    client, admin_headers, project, global_results_repo, global_dataset, global_trigger_repo, pr_trigger, spec_raw,
+    linked_dataset, linked_results_repo, kind
+):
+    task = pr_task_in_flight(client, admin_headers, project, pr_trigger, spec_raw, linked_dataset, linked_results_repo)
+    rid = held_result(client, admin_headers, project, task, global_results_repo)
+    url, name = revoke_urls(project, global_results_repo, global_dataset, global_trigger_repo)[kind]
+    assert client.patch(url, json={"revoked": True}, headers=admin_headers).status_code == 200
+
+    again = post_result(client, admin_headers, project, task, global_results_repo)
+
+    assert again.status_code == 200, again.json
+    assert (again.json["id"], again.json["step"], again.json["state"]) == (rid, "REVOKED", "FAILED")
+    assert again.json["error"] == f"revoked: {name}"
+    assert get_result(client, admin_headers, project, rid)["step"] == "REVOKED"
+    # final: the delivery cannot move it, and the retry sensor's FAILED, non-final query no longer finds it
+    assert patch_result(client, admin_headers, project, rid, {"step": "PUSHED"}).status_code == 409
+    assert patch_result(client, admin_headers, project, rid, {"step": "OPENED"}).status_code == 409
+
+
+@pytest.mark.parametrize("step, state", [
+    ("UNKNOWN", "IN_PROGRESS"), ("UNKNOWN", "FAILED"), ("PUSHED", "IN_PROGRESS"), ("PUSHED", "FAILED")
+])
+def test_post_result_revokes_an_existing_result_from_each_non_final_step_and_state(
+    client, admin_headers, project, global_results_repo, global_trigger_repo, pr_trigger, spec_raw,
+    linked_dataset, linked_results_repo, step, state
+):
+    task = pr_task_in_flight(client, admin_headers, project, pr_trigger, spec_raw, linked_dataset, linked_results_repo)
+    rid = new_result(client, admin_headers, project, task, global_results_repo)
+    assert patch_result(client, admin_headers, project, rid, {"step": step, "state": state, "error": "boom"}).status_code == 200
+    assert client.patch(trigger_url(project, global_trigger_repo), json={"revoked": True}, headers=admin_headers).status_code == 200
+
+    again = post_result(client, admin_headers, project, task, global_results_repo)
+
+    assert again.status_code == 200, again.json
+    assert (again.json["id"], again.json["step"], again.json["state"]) == (rid, "REVOKED", "FAILED")
+    assert again.json["error"] == f"revoked: trigger repository {global_trigger_repo.repo_path}"
+
+
+def test_post_result_returns_an_existing_result_unchanged_when_nothing_is_revoked(
+    client, admin_headers, project, global_results_repo, global_trigger_repo, pr_trigger, spec_raw,
+    linked_dataset, linked_results_repo
+):
+    task = pr_task_in_flight(client, admin_headers, project, pr_trigger, spec_raw, linked_dataset, linked_results_repo)
+    rid = held_result(client, admin_headers, project, task, global_results_repo)
+    # switched off is not revoked
+    assert client.patch(trigger_url(project, global_trigger_repo), json={"enabled": False}, headers=admin_headers).status_code == 200
+    before = get_result(client, admin_headers, project, rid)
+
+    again = post_result(client, admin_headers, project, task, global_results_repo)
+
+    assert again.status_code == 200 and again.json == before
+    assert (before["step"], before["state"], before["error"]) == ("UNKNOWN", "FAILED", "results link switched off")
+
+
+@pytest.mark.parametrize("step", ["OPENED", "MERGED", "CLOSED"])
+def test_post_result_returns_an_existing_final_result_unchanged_even_if_something_is_revoked_now(
+    client, admin_headers, project, global_results_repo, global_trigger_repo, pr_trigger, spec_raw,
+    linked_dataset, linked_results_repo, step
+):
+    task = pr_task_in_flight(client, admin_headers, project, pr_trigger, spec_raw, linked_dataset, linked_results_repo)
+    rid = new_result(client, admin_headers, project, task, global_results_repo)
+    assert patch_result(client, admin_headers, project, rid, {"step": step, "state": "DELIVERED"}).status_code == 200
+    before = get_result(client, admin_headers, project, rid)
+    assert client.patch(trigger_url(project, global_trigger_repo), json={"revoked": True}, headers=admin_headers).status_code == 200
+    assert client.patch(f"/projects/{project.id}", json={"revoked": True}, headers=admin_headers).status_code == 200
+
+    again = post_result(client, admin_headers, project, task, global_results_repo)
+
+    assert again.status_code == 200 and again.json == before
+    assert (again.json["step"], again.json["state"]) == (step, "DELIVERED")
+
+
+def test_post_result_keeps_the_error_of_an_existing_revoked_result(
+    client, admin_headers, project, global_results_repo, global_dataset, global_trigger_repo, pr_trigger, spec_raw,
+    linked_dataset, linked_results_repo
+):
+    task = pr_task_in_flight(client, admin_headers, project, pr_trigger, spec_raw, linked_dataset, linked_results_repo)
+    assert client.patch(trigger_url(project, global_trigger_repo), json={"revoked": True}, headers=admin_headers).status_code == 200
+    created = post_result(client, admin_headers, project, task, global_results_repo)
+    assert created.status_code == 201 and created.json["step"] == "REVOKED"
+    assert client.patch(f"/projects/{project.id}/datasets/{global_dataset.id}", json={"revoked": True}, headers=admin_headers).status_code == 200
+
+    again = post_result(client, admin_headers, project, task, global_results_repo)
+
+    assert again.status_code == 200 and again.json == created.json
+    assert again.json["error"] == f"revoked: trigger repository {global_trigger_repo.repo_path}"
+
+
 # ---------------------------------------------------------------- PATCH /results/<id>
 
 
