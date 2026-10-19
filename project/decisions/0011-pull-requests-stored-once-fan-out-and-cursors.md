@@ -36,6 +36,7 @@ With one global trigger repository and several project links ([0006](0006-global
 - **Replay history on enable:** surprising for a link that never watched it; the optional project backfill covers the case that matters.
 - **An ignored trigger state for non-matching pull requests:** no row is cheaper and the cause is logged.
 - **A JSON array of paths on the pull request:** a table can be filtered in SQL and needs no JSON operators.
+- **One mirror (a Gitea organisation) per project:** repeats the polling and the copy per project; global repositories stored once make it unnecessary.
 
 ## Where it lives
 
@@ -47,3 +48,4 @@ With one global trigger repository and several project links ([0006](0006-global
 
 - Backfill for a link, a repository or a provider being switched back on.
 - `store_pull_request` absorbs a conflict on the number only. A repeated merge sha under a new number would hit the `(trigger_repository_id, merge_commit_sha)` constraint; how that surfaces to the caller is not checked.
+- A pull request merged just before a link is switched off, and not yet ingested, is also skipped when the link is switched on (`skip_gap` moves the cursor to now).

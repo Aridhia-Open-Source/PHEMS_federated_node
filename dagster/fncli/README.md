@@ -198,11 +198,11 @@ from `GITEA_TOKEN_NAME`), `DEFAULT_PROJECT_DATASET` and `TEST_PR_IMAGE`.
 
 The dataset defaults to a dummy stand-in. These env vars point it at a real database (all optional, defaults in brackets): `CLUSTER_DATASET_HOST` (`db-datasets.fn.svc`), `DATASET_PORT` (`5432`), `DATASET_TYPE` (`postgres`), `DATASET_SCHEMA` (`cdm`, the read schema), `DATASET_SCHEMA_WRITE` (`results`), `DATASET_USERNAME` and `DATASET_PASSWORD` (`dummy`, stored in the dataset's secret). They are the names `dev.db/.env` uses.
 
-## State and rules (for the end-to-end QA plan)
+## State and rules (for the end-to-end suites)
 
-`project/handover/e2e-qa-plan.md` uses these to look at the test project and to change the state the webserver's rules act on.
-Every write prints the HTTP status and body; `--expect STATUS` asserts the status (exit 1 if it differs), which is how the plan
-checks the 409 rules. `KIND` is `trigger`, `results`, `dataset` or `secret`; `--project NAME` picks another project.
+The suites in [tests/e2e](tests/e2e/README.md) use these to look at the test project and to change the state the webserver's rules act on.
+Every write prints the HTTP status and body; `--expect STATUS` asserts the status (exit 1 if it differs), which is how the suites
+check the 409 rules. `KIND` is `trigger`, `results`, `dataset` or `secret`; `--project NAME` picks another project.
 
 | Command | What it does |
 |---|---|

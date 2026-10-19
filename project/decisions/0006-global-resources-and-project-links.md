@@ -92,3 +92,4 @@ Datasets, secrets, trigger repositories and results repositories are all resourc
 - Whether `whitelisted_images` should follow the same pattern.
 - Dataset `PATCH` returns 200 and `/tasks` clamps `page` and `per_page` below 1 to 1; both are unconfirmed choices.
 - A task that needs a dataset whose link is inactive fails at launch; whether it should wait instead.
+- The cross-project loop check keys on `(provider_id, repo_path)`, so the same server under two host names is not seen.

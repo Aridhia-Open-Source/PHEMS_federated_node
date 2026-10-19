@@ -4,7 +4,7 @@ trigger repositories and two results repositories. Pull requests are merged in t
 the sensors do the rest, and the end state is checked per project and repository.
 
 Both providers are the cluster's one Gitea, under two names: the second is a Kubernetes ExternalName service (`gitea-b`)
-this module creates, so the providers' uris stay unique. Not run in the cloud session that wrote it (no cluster there).
+this module creates, so the providers' uris stay unique.
 
     fncli simulate-setup        # the alias service, Gitea repos, tokens, providers, repositories and projects
     fncli simulate-run          # start the sensors, merge the pull requests, wait for the sensors, check

@@ -21,23 +21,22 @@
 >   - e2e: `pytest dagster --e2e [success|failure] -v` from the repo root. The suites are granular (each fncli command and state change is its own test). The failure suite has never been run.
 > - **Not built yet:** auth (planned in `project/auth-mvp-plan.md`).
 > - **gitea-mirror is parked for the beta.** Post-beta it becomes a stateless mirror service with number-matched PR replay, which the node sees as a `gitea` GitProvider.
-> - **To do:** a full refresh of this document, and a narrow bug review (migrations 002-004, drain rules, sensors). See `.claude/handover.md`.
+> - **To do:** a full refresh of this document, and a narrow bug review (migrations 002-004, drain rules, sensors).
 
 
-- Written: 2026-10-17. Owner: codepint.
-- Purpose: the owner's source of truth. Use it to validate the work, confirm assumptions and brief the manager. A review agent will check both branches against it.
+- Purpose: the source of truth for the requirements. Use it to validate the work and confirm assumptions. A review checks both branches against it.
 - Built from the ADRs first, not from the code. The code was read only to see whether a decision was implemented.
 - Branches:
   - **shared-resources** (ADR 0006): `origin/moonshot/shared-resources`.
-  - **gitea-mirror** (the Gitea mirror plan): `origin/moonshot/gitea-mirror`.
-- Tags in validation cases: **[business]** is about what the owner wants. **[technical]** is about how it is built.
-- Notes: `Uncertain (Qn)` means sources conflict or I inferred it. `Assumption (Qn)` means no source at all. Every note is collected in section 5.
+  - **gitea-mirror** (the Gitea mirror service): `origin/moonshot/gitea-mirror`.
+- Tags in validation cases: **[business]** is about what is wanted. **[technical]** is about how it is built.
+- Notes: `Uncertain (Qn)` means sources conflict or it is inferred. `Assumption (Qn)` means no source at all. Every note is collected in section 5.
 
 Precedence when sources disagree:
 
-1. Decisions the owner made on 2026-10-17 ("decision 2026-10-17").
-2. ADR 0006 (and the Gitea mirror plan with its "Decisions changed by the 2026-10-17 review" section).
-3. Handovers, commit messages, READMEs.
+1. Decisions recorded on 2026-10-17 ("decision 2026-10-17").
+2. ADR 0006 (and the mirror documentation on `moonshot/gitea-mirror` with its "Decisions changed by the 2026-10-17 review" section).
+3. HANDOVER.md, commit messages, READMEs.
 4. The code (only proves what was built).
 
 ---
@@ -67,9 +66,9 @@ Precedence when sources disagree:
 
 **What is parked.** Narrowing Dagster's secret permissions. Restarting Dagster after credential rotation (dropped). Legacy models. The sensor redesign. Flask to FastAPI. Authorization rework. Guards on editing shared resources (replaced by pinning a task to its configuration, ADR 0006). Full list in section 4.
 
-**Known open risks (section 5 has the list).** Four trigger-loss and ingest bugs found in review are still unfixed in code. The owner needs to say which of them block the MVP.
+**Known open risks (section 5 has the list).** Four trigger-loss and ingest bugs found in review are still unfixed in code. Which of them block the MVP is open.
 
-**State of verification.** Webserver tests were green (606 passed) at handover. Dagster plus fncli tests are green: `cd dagster && ./run_tests.sh ci` gave 470 passed (346 Dagster + 124 fncli), per the owner. The end-to-end script has never been run. The mirror was verified in a sandbox (365 tests with a real Gitea) but not on a cluster.
+**State of verification.** Webserver tests were green (606 passed) at handover. Dagster plus fncli tests are green: `cd dagster && ./run_tests.sh ci` gave 470 passed (346 Dagster + 124 fncli). The end-to-end script has never been run. The mirror was verified in a sandbox (365 tests with a real Gitea) but not on a cluster.
 
 ---
 
@@ -171,7 +170,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 **Source:** ADR 0006. Status codes also confirmed in code.
 
-> **Uncertain (Q1):** ADR 0006 says creating global resources "requires the admin role for now". Code has `@auth(scope='can_do_admin')` on POST and DELETE, but `PATCH /global/secrets/<label>` has no admin check (known gap in the tests handover, not fixed). Is that acceptable for the MVP?
+> **Uncertain (Q1):** ADR 0006 says creating global resources "requires the admin role for now". Code has `@auth(scope='can_do_admin')` on POST and DELETE, but `PATCH /global/secrets/<label>` has no admin check (known gap in HANDOVER.md, not fixed). Is that acceptable for the MVP?
 
 ### SR-GLOB-02 Secrets are addressed by label; values are never returned
 
@@ -210,7 +209,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 **Source:** ADR 0006.
 
-> **Uncertain (Q2):** ADR 0006 marks "Dataset PATCH returns 200" and "`/tasks` clamps `page`/`per_page` below 1 to 1" with "(?)". Both are built as written. Owner to confirm. The duplicate-name 409 comes only from the handover's flagged-then-fixed list (round 1 of app fixes, "unique violations are 409").
+> **Uncertain (Q2):** ADR 0006 marks "Dataset PATCH returns 200" and "`/tasks` clamps `page`/`per_page` below 1 to 1" with "(?)". Both are built as written. The duplicate-name 409 comes only from the flagged-then-fixed list (round 1 of app fixes, "unique violations are 409").
 
 ### SR-GLOB-05 Trigger and results repositories are global and unique by URI
 
@@ -350,9 +349,9 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 **Source:** ADR 0006 and 0011.
 
-> **Uncertain (Q4):** The code's match rule is stricter than the ADR. It needs a file ending `.json` with status `added` under `watch_dir`. The ADR only says "its `watch_dir` against `pull_request_files.path`". The tests handover states the stricter rule. Confirm it is intended.
+> **Uncertain (Q4):** The code's match rule is stricter than the ADR. It needs a file ending `.json` with status `added` under `watch_dir`. The ADR only says "its `watch_dir` against `pull_request_files.path`". The HANDOVER.md states the stricter rule. Confirm it is intended.
 
-> **Uncertain (Q5):** Fan-out creates triggers for active links of **disabled projects**, while `?active_link=true` leaves disabled projects out (so ingest does not poll for them). Is a disabled project meant to collect triggers? (Handover lists this as "flagged, not changed".)
+> **Uncertain (Q5):** Fan-out creates triggers for active links of **disabled projects**, while `?active_link=true` leaves disabled projects out (so ingest does not poll for them). Is a disabled project meant to collect triggers? (HANDOVER.md lists this as "flagged, not changed".)
 
 ### SR-PR-04 Trigger states: UNKNOWN, YIELDED, REJECTED. No IGNORED.
 
@@ -420,7 +419,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 **Source:** decision 2026-10-17.
 
-> **Uncertain (Q7):** In code, `cancel`, `logs`, `results/approve` and `results/block` raise `NotImplementedException` (501). The decision says the routes "live" here. I wrote the requirement as "routes exist under the project", not "they work". Confirm that is the MVP intent.
+> **Uncertain (Q7):** In code, `cancel`, `logs`, `results/approve` and `results/block` raise `NotImplementedException` (501). The decision says the routes "live" here. The requirement is written as "routes exist under the project", not "they work". Confirm that is the MVP intent.
 
 ### SR-TASK-02 GET /tasks/service-info is deleted
 
@@ -468,7 +467,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 **Source:** ADR 0003.
 
-> **Uncertain (Q8):** The handover asks whether "retry on a SUCCESS task returns 400" is intended. ADR 0003 says only FAILED or CANCELED can retry, so I wrote 400. Confirm.
+> **Uncertain (Q8):** HANDOVER.md asks whether "retry on a SUCCESS task returns 400" is intended. ADR 0003 says only FAILED or CANCELED can retry, so the requirement says 400. Confirm.
 
 ### SR-TASK-06 Create and validate a task through the API
 
@@ -512,7 +511,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 **Source:** ADR 0006.
 
-> **Uncertain (Q10):** ADR 0006 marks the inactive-link 409 with "(?)" ("agreed for now"). Built as written. Owner to confirm.
+> **Uncertain (Q10):** ADR 0006 marks the inactive-link 409 with "(?)" ("agreed for now"). Built as written.
 
 ### SR-RES-03 Result progress only moves forward
 
@@ -524,7 +523,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. `PATCH` with an unknown field, a negative counter or a non-string `step` → 400. **[technical]**
 4. `PATCH /projects/:other/results/:id` → 404. **[technical]**
 
-**Source:** ADR 0004; confirmed in the tests handover (round 1 fixes).
+**Source:** ADR 0004; confirmed in HANDOVER.md (round 1 fixes).
 
 ### SR-RES-04 Delivery pushes a branch and opens a results PR
 
@@ -572,7 +571,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 **Source:** decision 2026-10-17.
 
-> **Uncertain (Q12):** Code now allows `DELETE /projects/:pid/repositories/results/:id` in any project state (a soft delete; a task in flight gets a `REVOKED` result). Revoke keeps the row, so the unpack does not fail. Is the comment now outdated, or does the owner want a stricter rule?
+> **Uncertain (Q12):** Code now allows `DELETE /projects/:pid/repositories/results/:id` in any project state (a soft delete; a task in flight gets a `REVOKED` result). Revoke keeps the row, so the unpack does not fail. Is the comment now outdated, or is a stricter rule wanted?
 
 ---
 
@@ -662,7 +661,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 **Source:** decision 2026-10-17.
 
-> **Uncertain (Q14):** The handover review says a **revoked project secret link** (`ProjectSecret.active`) is also not checked at use. The decision names only a disabled secret. I did not write a requirement for the link case. Is it needed?
+> **Uncertain (Q14):** The review notes a **revoked project secret link** (`ProjectSecret.active`) is also not checked at use. The decision names only a disabled secret. No requirement is written for the link case. Is it needed?
 
 ### SR-SENS-08 Launcher starts runs for PENDING tasks of enabled projects
 
@@ -714,9 +713,9 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. A secret missing from its store → 200, `status: "secret_missing"` with the missing keys, no values. **[business]**
 4. `GET /global/repositories/triggers/999/healthcheck` → 404. **[technical]**
 
-**Source:** `webserver/app/healthcheck_api.py` docstring and the tests handover. No ADR covers healthchecks.
+**Source:** `webserver/app/healthcheck_api.py` docstring and HANDOVER.md. No ADR covers healthchecks.
 
-> **Assumption (Q16):** Healthchecks have no ADR. I wrote the requirement from the code docstring and the handover. Owner to confirm the expected status values and that failure is 200.
+> **Assumption (Q16):** Healthchecks have no ADR. The requirement is written from the code docstring. The expected status values and that failure is 200 are unconfirmed.
 
 ### SR-HC-02 Project and link healthchecks
 
@@ -759,7 +758,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. A page past the end → 200 with empty items. On the task and PR lists, `page=0` or `per_page=0` is treated as 1 (200). **[technical]**
 4. Non-numeric `page` → 400. **[technical]**
 
-**Source:** tests handover (app fixes round 1); ADR 0006 (clamping, "(?)", see Q2).
+**Source:** HANDOVER.md (app fixes round 1); ADR 0006 (clamping, "(?)", see Q2).
 
 ### SR-API-03 The API exposes the real model; no flat compatibility layer
 
@@ -789,7 +788,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 **Source:** decision 2026-10-17; commit `ce017d7b`.
 
-> **Resolved (Q19):** `cd dagster && ./run_tests.sh ci` runs `app/tests` and `fncli/tests`: 470 passed (346 + 124), per the owner. The reviewer may re-run it.
+> **Resolved (Q19):** `cd dagster && ./run_tests.sh ci` runs `app/tests` and `fncli/tests`: 470 passed (346 + 124). The reviewer may re-run it.
 
 ### SR-DEV-02 Webserver tests
 
@@ -800,7 +799,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 2. Tests are black-box HTTP (status and body only), so they carry over to a later FastAPI move. **[technical]**
 3. Each test uses a fresh database. **[technical]**
 
-**Source:** tests handover.
+**Source:** HANDOVER.md.
 
 ### SR-DEV-03 fncli lives in dagster/fncli and shares app.* code
 
@@ -814,7 +813,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 **Source:** decision 2026-10-17; commits `ed10916f`, `5c0c0cbe`, `95d61117`.
 
-> **Resolved (Q20):** The move is done and committed (`ed10916f` move, `5c0c0cbe` copies deleted, `95d61117` tests fixed). No `scripts/fncli` and no `dagster/fncli/dagster/` remain, and nothing outside `project/handover/` points at `scripts/fncli`. What is left: the gitea-mirror branch still has `fncli mirror` under `scripts/fncli` (see Q28).
+> **Resolved (Q20):** The move is done and committed (`ed10916f` move, `5c0c0cbe` copies deleted, `95d61117` tests fixed). No `scripts/fncli` and no `dagster/fncli/dagster/` remain, and nothing points at `scripts/fncli`. What is left: the gitea-mirror branch still has `fncli mirror` under `scripts/fncli` (see Q28).
 
 ### SR-DEV-04 Schema: baseline migration edited in place
 
@@ -825,17 +824,17 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 2. Only one migration file for the webserver (no `002_*`). **[technical]**
 3. `ck_triggers_state_cause_for_rejected` exists: a REJECTED trigger needs a `state_cause`. **[technical]**
 
-**Source:** ADR 0006; tests handover ("checked before handoff").
+**Source:** ADR 0006; HANDOVER.md ("checked before handoff").
 
 ### SR-DEV-05 Dev cluster ownership guard
 
 **Happy path:** Only one worktree owns the dev cluster at a time. Deploy, upgrade and teardown check it.
 
 **Validation cases:**
-1. `make deploy-owner` shows the owner. **[technical]**
+1. `make deploy-owner` shows the worktree that owns the dev cluster. **[technical]**
 2. A deploy from another worktree is refused unless forced. **[technical]**
 
-**Source:** commit `c47e2044` (PR #552). Control board note.
+**Source:** commit `c47e2044` (PR #552).
 
 ### SR-DEV-06 End-to-end script
 
@@ -847,15 +846,15 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. Invalid PR → REJECTED, no task. **[business]**
 4. Teardown leaves nothing, and setting up again works. **[technical]**
 
-**Source:** `project/handover/e2e-qa-plan.md`, tests handover.
+**Source:** `dagster/fncli/tests/e2e/README.md`, HANDOVER.md.
 
-> **Uncertain (Q21):** The script "has never been run". The QA plan (`e2e-qa-plan.md`) names the branch `moonshot/fncli-e2e`, which no longer exists on origin. Is the plan still the one to run?
+> **Uncertain (Q21):** The script "has never been run". The scenarios are encoded in the suites under `dagster/fncli/tests/e2e/` (see its README).
 
 ---
 
 ### 3.10 Gitea mirror (GM)
 
-Precedence for this section: the Gitea mirror plan (with its "Decisions changed by the 2026-10-17 review"), then the README and the plan.
+Precedence for this section: the mirror documentation on `moonshot/gitea-mirror` (with its "Decisions changed by the 2026-10-17 review"), then the README and the plan.
 
 ### GM-01 The mirror is self-contained
 
@@ -865,9 +864,9 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 1. No import of `app.*` from the webserver or Dagster in `gitea-mirror/`; no call to the node's API. **[technical]**
 2. The node uses a mirror by registering the Gitea repository as an ordinary trigger repository (no node code change needed). **[business]**
 
-**Source:** the Gitea mirror plan "Decision".
+**Source:** the mirror documentation on `moonshot/gitea-mirror` "Decision".
 
-> **Uncertain (Q22):** The Gitea mirror plan describes the mirror as not built, but on its branch it is built and reviewed (2026-10-17). The control board says the mirror was un-parked on 2026-10-17 for an end-to-end plan. The branch descriptions still say "PARKED 2026-10-16". I treated it as built and in scope.
+> **Uncertain (Q22):** The mirror documentation on `moonshot/gitea-mirror` describes the mirror as not built, but on its branch it is built and reviewed (2026-10-17). The mirror was un-parked on 2026-10-17 for an end-to-end plan. The branch descriptions still say "PARKED 2026-10-16". I treated it as built and in scope.
 
 ### GM-02 Outbound only, GitHub.com upstream only
 
@@ -878,7 +877,7 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 2. `POST /mirrors` with userinfo, port, query or fragment in `upstream_uri` → 400. **[technical]**
 3. The GitHub token is only ever sent to github.com. **[technical]**
 
-**Source:** the Gitea mirror plan "Decisions changed by the 2026-10-17 review".
+**Source:** the mirror documentation on `moonshot/gitea-mirror` "Decisions changed by the 2026-10-17 review".
 
 ### GM-03 Merged PRs become Gitea PRs marked manually-merged
 
@@ -890,9 +889,9 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 3. Works for merge-commit, squash and fast-forward merges. **[technical]**
 4. The repository is created with `allow_manual_merge: true`; the default branch is set to the base branch after the first push. **[technical]**
 
-**Source:** the Gitea mirror plan "What it does"; SPIKE.md; README "Sync behaviour".
+**Source:** the mirror documentation on `moonshot/gitea-mirror` "What it does"; SPIKE.md; README "Sync behaviour".
 
-> **Uncertain (Q23):** A rebase merge with rewritten SHAs was never found upstream and is untested (the Gitea mirror plan, SPIKE, plan). I expect it to behave like squash. Not verified.
+> **Uncertain (Q23):** A rebase merge with rewritten SHAs was never found upstream and is untested (the mirror documentation on `moonshot/gitea-mirror`, SPIKE, plan). It is expected to behave like squash. Not verified.
 
 ### GM-04 PRs are replayed in merged order, with the base rewound
 
@@ -904,7 +903,7 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 3. A PR that keeps failing is quarantined (recorded as an error) and does not block the other PRs. **[technical]**
 4. A per-mirror lock stops two syncs of one mirror running together (`POST /mirrors/:id/resync` → 409 while locked). **[technical]**
 
-**Source:** the Gitea mirror plan "What it does"; SPIKE.md; README "Sync behaviour".
+**Source:** the mirror documentation on `moonshot/gitea-mirror` "What it does"; SPIKE.md; README "Sync behaviour".
 
 ### GM-05 Both PR numbers are stored and sent
 
@@ -915,7 +914,7 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 2. The webhook event has `number` (GitHub's) and `gitea_pr_number`. **[business]**
 3. The event `merged_at` is GitHub's time (Gitea's merged time is the sync time). **[business]**
 
-**Source:** the Gitea mirror plan "What it does" and "Webhooks".
+**Source:** the mirror documentation on `moonshot/gitea-mirror` "What it does" and "Webhooks".
 
 ### GM-06 Sync starts from now; no history backfill
 
@@ -926,7 +925,7 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 2. A PR merged before the mirror was created is not mirrored. **[business]**
 3. The cursor does not skip a PR with the same `updated_at` as another; it only moves past settled PRs. **[technical]**
 
-**Source:** the Gitea mirror plan; README "Sync behaviour".
+**Source:** the mirror documentation on `moonshot/gitea-mirror`; README "Sync behaviour".
 
 ### GM-07 Authors are shadow Gitea users
 
@@ -937,9 +936,9 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 2. `POST /mirrors` returns `users_sync` (ok, skipped or failed). **[technical]**
 3. A pre-existing non-shadow Gitea account with the same name → error, not reused. **[technical]**
 
-**Source:** the Gitea mirror plan "What it does"; README "Sync behaviour".
+**Source:** the mirror documentation on `moonshot/gitea-mirror` "What it does"; README "Sync behaviour".
 
-> **Uncertain (Q24):** The Gitea mirror plan says users are "named after the GitHub login". The README (written after the review) says shadow users get a `gh-` prefix. I follow the README (later) but the plan was not updated. Then the Gitea author name is `gh-alice`, and `raised_by` would not match upstream. Which is intended?
+> **Uncertain (Q24):** The mirror documentation on `moonshot/gitea-mirror` says users are "named after the GitHub login". The README (written after the review) says shadow users get a `gh-` prefix. The README is later, but the plan was not updated. Then the Gitea author name is `gh-alice`, and `raised_by` would not match upstream. Which is intended?
 
 ### GM-08 A PR is recorded before the cursor advances; repeats are harmless
 
@@ -949,7 +948,7 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 1. Sync twice with no new upstream PRs → the second run changes nothing (no new Gitea PRs, no new rows). **[business]**
 2. A failure after the Gitea PR was opened but before its row was recorded → the retry resumes from the merge step and opens no second PR. **[technical]**
 
-**Source:** the Gitea mirror plan; README "Sync behaviour" and "Known gaps"; plan finding 2.
+**Source:** the mirror documentation on `moonshot/gitea-mirror`; README "Sync behaviour" and "Known gaps"; plan finding 2.
 
 ### GM-09 Webhooks are generic subscriptions
 
@@ -961,7 +960,7 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 3. A disabled webhook receives nothing. **[technical]**
 4. `POST /webhooks/:id/test` sends a signed `ping`; a failure → 502 with the exception class. **[technical]**
 
-**Source:** the Gitea mirror plan "Webhooks".
+**Source:** the mirror documentation on `moonshot/gitea-mirror` "Webhooks".
 
 ### GM-10 Event body and signature
 
@@ -973,7 +972,7 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 3. `X-Gitea-Mirror-Delivery` equals `delivery_id` and is the same UUID on every retry. **[business]**
 4. `X-Gitea-Mirror-Timestamp` is sent but not signed (receivers must dedupe on the delivery id). **[technical]**
 
-**Source:** the Gitea mirror plan "Webhooks" and "Decisions changed by the 2026-10-17 review".
+**Source:** the mirror documentation on `moonshot/gitea-mirror` "Webhooks" and "Decisions changed by the 2026-10-17 review".
 
 > **Uncertain (Q25):** The README's example body still shows `"delivery_id": "17"` (a row id), while the ADR and the README text say it is a UUID. The README example is stale. Confirm the UUID wins.
 
@@ -988,7 +987,7 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 4. A webhook whose secret lacks `token` does not stop other deliveries. **[technical]**
 5. There is no redeliver route; an operator uses the in-pod helper `requeue_failed`. **[technical]**
 
-**Source:** the Gitea mirror plan "Webhooks" and review decisions; README.
+**Source:** the mirror documentation on `moonshot/gitea-mirror` "Webhooks" and review decisions; README.
 
 ### GM-12 Webhook URL policy
 
@@ -1000,7 +999,7 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 3. `POST /webhooks` with `http://svc.ns.svc.cluster.local/...` → accepted. **[business]**
 4. A URL with credentials → 400. **[technical]**
 
-**Source:** the Gitea mirror plan "Decisions changed by the 2026-10-17 review"; README "Input rules".
+**Source:** the mirror documentation on `moonshot/gitea-mirror` "Decisions changed by the 2026-10-17 review"; README "Input rules".
 
 > **Uncertain (Q26):** Hosts are only checked at registration, ping and patch. DNS rebinding at delivery time is a known gap (plan). Does this matter for the MVP?
 
@@ -1015,7 +1014,7 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 4. A duplicate upstream URI, or Gitea owner and repo → 409. **[technical]**
 5. `GET /mirrors/:id/status` returns `cursor`, `last_sync_at`, `last_success_at`, `last_error`, `prs_mirrored`, `token_expired`. **[business]**
 
-**Source:** the Gitea mirror plan "State and configuration"; README "API".
+**Source:** the mirror documentation on `moonshot/gitea-mirror` "State and configuration"; README "API".
 
 ### GM-14 Credentials are read by reference and passed safely
 
@@ -1026,7 +1025,7 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 2. Git credentials are passed through `GIT_CONFIG_COUNT` environment variables, not argv. **[technical]**
 3. An expired GitHub token gives a clear `token_expired` status, not a crash loop. **[business]**
 
-**Source:** the Gitea mirror plan; README "Sync behaviour"; plan finding 13.
+**Source:** the mirror documentation on `moonshot/gitea-mirror`; README "Sync behaviour"; plan finding 13.
 
 ### GM-15 Health and resilience
 
@@ -1049,7 +1048,7 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 3. Install without `helm --wait`; the pod starts once the init job has created `gitea-mirror-gitea-token`. **[technical]**
 4. The pod runs with a read-only root filesystem and has startup and liveness probes. **[technical]**
 
-**Source:** the Gitea mirror plan "Needed alongside it"; plan review table (findings 1, 17, 18).
+**Source:** the mirror documentation on `moonshot/gitea-mirror` "Needed alongside it"; plan review table (findings 1, 17, 18).
 
 > **Uncertain (Q27):** The chart and the install order were **not verified on a real cluster** (plan "Not verified"). The mirror was also never run against the real GitHub API, or over a real network for webhooks.
 
@@ -1061,7 +1060,7 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 1. `fncli mirror --help` lists those commands. **[technical]**
 2. `fncli mirror add` followed by `fncli mirror status` shows a mirror with a cursor. **[business]**
 
-**Source:** the Gitea mirror plan "Needed alongside it"; plan stage 8.
+**Source:** the mirror documentation on `moonshot/gitea-mirror` "Needed alongside it"; plan stage 8.
 
 > **Uncertain (Q28):** On the gitea-mirror branch these commands live in `scripts/fncli` and import `fncli.dagster.utils` and `fncli.dagster.config`. On shared-resources, fncli is now `dagster/fncli` and those modules are gone (it imports `app.*`). The mirror commands must be ported to `dagster/fncli/cmds/mirror.py`. Do that when the branches merge?
 
@@ -1076,7 +1075,7 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 
 **Source:** plan "Verified in a sandbox".
 
-> **Uncertain (Q29):** `gitea-mirror/e2e/PLAN.md` and the `e2e/` scripts (mentioned on the control board) are **not on `origin/moonshot/gitea-mirror`** and I did not read them. They are uncommitted in the mirror's worktree. I did not use that worktree, as instructed.
+> **Uncertain (Q29):** `gitea-mirror/e2e/PLAN.md` and the `e2e/` scripts are **not on `origin/moonshot/gitea-mirror`** and are not read here. They are uncommitted in the mirror's worktree.
 
 ### GM-19 The node-side webhook receiver is not part of this build
 
@@ -1086,7 +1085,7 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 1. No route in the webserver accepts mirror webhooks. **[business]**
 2. A Gitea repository registered as a trigger repository is polled by the normal ingest sensor. **[business]**
 
-**Source:** the Gitea mirror plan "Needed alongside it"; plan "Hooking the node up (later)".
+**Source:** the mirror documentation on `moonshot/gitea-mirror` "Needed alongside it"; plan "Hooking the node up (later)".
 
 ---
 
@@ -1098,29 +1097,29 @@ Precedence for this section: the Gitea mirror plan (with its "Decisions changed 
 | Credential rotation restarting Dagster | Dropped. Decision 2026-10-17. |
 | Legacy models: registries, whitelisted images, the `project-name` header, data access requests | Parked. Decision 2026-10-17. They only moved under `/global`. |
 | `/projects/:pid/users` | Comes later, not now. Users are node-level Keycloak users; project access is via data access requests (legacy). |
-| Sensor redesign (per-PR job, delivery as an op, mirror webhook replacing ingest polling) | Parked. Decision 2026-10-17; `dagster-sensors-plan.md`. |
+| Sensor redesign (per-PR job, delivery as an op, mirror webhook replacing ingest polling) | Parked. Decision 2026-10-17; open questions in ADR 0014. |
 | Flask to FastAPI | Parked after the MVP. |
-| Auth rework and normal-user permissions | Later full rewrite. Only the super user and the Dagster system user matter now (tests handover). |
+| Auth rework and normal-user permissions | Later full rewrite. Only the super user and the Dagster system user matter now (HANDOVER.md). |
 | Drain and enabled guards on editing, deleting or unlinking resources | Replaced by pinning a task to its configuration and by soft delete (ADR 0006). Worst case a project keeps failing or lacks a secret. |
 | Handling a project with no results link | Not for the MVP. Comment only (SR-RES-07). |
-| Mirror webhook receiver on the node, `mirror_uri` and `mirror_secret_id` on trigger repositories | Later, node-side (the Gitea mirror plan). |
-| Mirror: history backfill, open PRs, comments, reviews, branch deletion, other git hosts | Out of the mirror's scope (the Gitea mirror plan, README known gaps). |
+| Mirror webhook receiver on the node, `mirror_uri` and `mirror_secret_id` on trigger repositories | Later, node-side (the Gitea mirror service). |
+| Mirror: history backfill, open PRs, comments, reviews, branch deletion, other git hosts | Out of the mirror's scope (the mirror documentation on `moonshot/gitea-mirror`, README known gaps). |
 | Real-time updates | Never a requirement. |
-| Webhooks from GitHub straight into the node, Argo CD, one mirror per project, `disabled_reason` string, a flat compatibility API | Rejected in ADR 0006 and the Gitea mirror plan. |
-| Audit and `@auth`/`@audit` changes | Out of scope (tests handover). |
+| Webhooks from GitHub straight into the node, Argo CD, one mirror per project, `disabled_reason` string, a flat compatibility API | Rejected in ADRs 0006, 0008 and 0012. |
+| Audit and `@auth`/`@audit` changes | Out of scope (HANDOVER.md). |
 | `audit` details overflow on a 4096-char `url` | Known, not fixed, out of scope. |
 
 ---
 
-## 5. Open questions for the owner
+## 5. Open questions
 
 Block A is bugs from the review. Block B has one question per note in the text (same Q number). Block C is smaller items. The A bugs are also in the `moonshot/s*` branch descriptions.
 
 **A. Bugs found in review, still unfixed in code. Do they block the MVP?**
 
-These are not requirements. The review found them and I checked the code: they are still there.
+These are not requirements. The review found them and the code was checked: they are still there.
 
-- **B1. Duplicate path in one PR gives a 500 for the whole batch.** The `# Claude (issue 1)` comment in `pr_ingest.py` is still there. Fix: de-duplicate changed-file paths.
+- **B1. Duplicate path in one PR gives a 500 for the whole batch.** Fix: de-duplicate changed-file paths.
 - **B2. Fan-out racing a backfill can lose a trigger.** No row lock in `pull_request_fanout.py`. Fix: a per-repository lock.
 - **B3. A PR merged in the same second as the cursor can be lost.** The poll uses `merged_at >`. Fix: poll with `>=`.
 - **B4. A stale global cursor can replay a gap.** A link created with no stored PRs starts at the global cursor. Fix: start at `max(latest stored, now)`.
@@ -1148,8 +1147,8 @@ These are not requirements. The review found them and I checked the code: they a
 18. **Q18** (SR-API-03): The URL layout in ADR 0006 does not list every route yet. (ADR 0018 says fncli is in `dagster/fncli` with no copies.)
 19. **Q19** (SR-DEV-01): Resolved. Dagster plus fncli: 470 passed (346 + 124).
 20. **Q20** (SR-DEV-03): Resolved. The move is done and committed. Only the mirror branch's `scripts/fncli` edits remain (Q28).
-21. **Q21** (SR-DEV-06): The e2e script has never run. Is `e2e-qa-plan.md` still the plan (its branch `moonshot/fncli-e2e` is gone)?
-22. **Q22** (GM-01): The Gitea mirror plan says not built; branch descriptions say "PARKED"; the control board says un-parked for e2e. Treat the mirror as in scope and built?
+21. **Q21** (SR-DEV-06): The e2e script has never run. The scenarios are now the suites in `dagster/fncli/tests/e2e/`.
+22. **Q22** (GM-01): The mirror documentation on `moonshot/gitea-mirror` says not built; branch descriptions say "PARKED"; un-parked for e2e. Treat the mirror as in scope and built?
 23. **Q23** (GM-03): Rebase merges with rewritten SHAs are untested.
 24. **Q24** (GM-07): Shadow users: ADR says named after the login; README says `gh-` prefix. Which one?
 25. **Q25** (GM-10): The README example `delivery_id` is stale (`"17"`). UUID wins?

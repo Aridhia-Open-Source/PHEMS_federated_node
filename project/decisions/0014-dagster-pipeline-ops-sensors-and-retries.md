@@ -52,3 +52,5 @@ Pull requests are stored once per global repository ([0011](0011-pull-requests-s
 
 - The ingest sensor still calls the provider in `ready()`, so it is not thin in fact.
 - A delivery stays `FAILED` after `deliveryMaxAttempts` with no alert.
+- Whether the run-status sensors are worth replacing with run-status hooks on the job itself.
+- The Dagster service account's access to secrets is broader than the credentials it reads, and the code server is not restarted after a credential rotation.

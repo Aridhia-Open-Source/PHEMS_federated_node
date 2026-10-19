@@ -4,7 +4,7 @@ The architecture of the Federated Node's trigger, task and results pipeline, wri
 
 New records are numbered in sequence as `NNNN-short-title.md` and added to the table below and to the one in [../../docs/README.md](../../docs/README.md), the reviewer's guide, which also says what to check in each record.
 
-Plans and notes that are not decision records: [../handover/README.md](../handover/README.md).
+Open items and working notes: [../../HANDOVER.md](../../HANDOVER.md). The mirror service is developed on branch `moonshot/gitea-mirror`.
 
 ## Diagrams
 

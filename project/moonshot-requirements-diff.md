@@ -21,7 +21,7 @@
 >   - e2e: `pytest dagster --e2e [success|failure] -v` from the repo root. The suites are granular (each fncli command and state change is its own test). The failure suite has never been run.
 > - **Not built yet:** auth (planned in `project/auth-mvp-plan.md`).
 > - **gitea-mirror is parked for the beta.** Post-beta it becomes a stateless mirror service with number-matched PR replay, which the node sees as a `gitea` GitProvider.
-> - **To do:** a full refresh of this document, and a narrow bug review (the baseline migration, drain rules, sensors). See `.claude/handover.md`.
+> - **To do:** a full refresh of this document, and a narrow bug review (the baseline migration, drain rules, sensors).
 
 
 - Compared: `moonshot-requirements.md` (72 IDs) against `moonshot-as-built.md`.
@@ -41,7 +41,7 @@ Match + Differs + Missing = 72. "Untested" is a flag, not a separate bucket.
 - The shared-resources code does what the requirements say, apart from 11 small gaps. None of them blocks the beta.
 - The biggest risk is not a code gap. The end-to-end script has never run on a real cluster.
 - The mirror is built and unit-tested but is not part of the beta flow (the node-side receiver is not built, GM-19). It also cannot be merged as-is: its fncli commands use code that no longer exists.
-- Four known ingest and trigger-loss bugs (B1 to B5 below) are still in the code. They are rare. Owner decides if any block the beta.
+- Four known ingest and trigger-loss bugs (B1 to B5 below) are still in the code. They are rare. Whether any blocks the beta is open.
 
 ## Differs
 
@@ -54,7 +54,7 @@ Match + Differs + Missing = 72. "Untested" is a flag, not a separate bucket.
 | SR-API-01 Admin routes under /global | `/whitelisted_images` lives under `/global` | Blueprint has the prefix but is not registered (`webserver/app/__init__.py:84-87`). `GET /audit` and `PATCH /delivery-secret` stay at the root | Q17 | no. Legacy models are parked |
 | SR-API-02 Consistent lists | Lists paginate consistently; page or per_page 0 gives 1 | Not uniform. Task list key is `tasks`, link lists and global repo and secret lists are bare arrays, others use `items` (`tasks_api.py:94-116`, `secrets_api.py:126`). Project PR list passes `page` and `per_page` straight to the paginator (`project_trigger_repositories_api.py:248-266`). Unverified: what it returns for 0 | Q2 | no |
 | SR-API-03 Real model, no flat layer | No stale routes | `openapi.json` still lists `/task_requests*` and `/global/whitelisted_images*`. The routes are not served. No `/tasks` root, `IGNORED` or `service-info` there | Q18 | no. Docs only |
-| GM-07 Shadow users | Author named after the GitHub login | Named `gh-<login>` (`gitea-mirror/app/gitea.py:14-39`). Follows the README, not the mirror plan | Q24 | no |
+| GM-07 Shadow users | Author named after the GitHub login | Named `gh-<login>` (`gitea-mirror/app/gitea.py:14-39`). Follows the README, not the mirror plan document | Q24 | no |
 | GM-09 Webhooks | A disabled webhook receives nothing | New events skip it. A delivery already queued is still sent, `attempt_delivery` does not check `enabled` (`app/delivery.py:425-436`) | none | no |
 | GM-15 Health | DB down, dead thread or stale tick gives 503 | DB failure gives 500. 503 only for a dead or stale sync loop (`app/main.py:9-22`) | none | no |
 | GM-18 Mirror tests | `./run_gitea_tests.sh` passes (365) | Default target is only `tests/test_gitea_client.py` (`run_gitea_tests.sh:4`). CI skips `test_sync_robust_gitea.py` (`.github/workflows/build.yml`, mirror branch). Counts unverified | Q29 | no |

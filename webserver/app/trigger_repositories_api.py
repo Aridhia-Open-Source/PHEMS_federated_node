@@ -100,7 +100,7 @@ def post_pull_requests_batch(repo_id):
     body = (request.json or {}).get('pull_requests')
     if not isinstance(body, list):
         raise InvalidRequest("pull_requests must be a list of pull requests")
-    # Claude (issue 1): the cap is fine; the Dagster ingest sensor must chunk its posts.
+    # The cap is fine; the Dagster ingest sensor must chunk its posts.
     # One invalid PR (PullRequestRequest.parse) also refuses the whole batch.
     if len(body) > 100:
         raise InvalidRequest("Maximum 100 pull requests per batch")

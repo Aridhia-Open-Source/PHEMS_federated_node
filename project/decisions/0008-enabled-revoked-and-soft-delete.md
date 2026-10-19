@@ -67,3 +67,4 @@ The webserver owns the business record, the rules, audit and compliance; Dagster
 - `post_task` refusing a disabled project (409) and the check and `post_task` taking a row lock on the project would close the gap above.
 - `ProjectSecret` has the flags but nothing reads them.
 - A delivery that stays `FAILED` after the maximum attempts raises no alert ([0015](0015-run-keys-retries-and-results-pr-sync.md)).
+- A link's `active` ignores its secret; only the `pollable` filter uses the secret's flags.

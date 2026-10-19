@@ -6,7 +6,7 @@ Checks the backend state during scripts/e2e_shared_resources.sh. Run with the py
     e2e_check.py wait-prs [--timeout SECONDS] wait until the PRs the script opened are all evaluated, then check them
     e2e_check.py wait-tasks [--timeout SECONDS] wait until every task is finished (SUCCESS), warn if not
 
-NOT RUN in the cloud session that wrote it: there is no cluster there. It only reads (GET) from the backend.
+It only reads (GET) from the backend.
 """
 
 import argparse

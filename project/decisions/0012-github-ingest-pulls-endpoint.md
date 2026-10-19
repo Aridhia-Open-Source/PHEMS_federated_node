@@ -19,3 +19,8 @@ The ingest needs the pull requests merged after a cursor. GitHub offers the sear
 
 - **Search API (`is:merged merged:>cursor`):** the limit and lag above.
 - **Webhooks from the provider:** the node polls so that it needs no inbound route.
+- **Webhooks into the node:** rejected; the node stays outbound-only.
+- **Argo CD to mirror repositories:** it sees git refs and no pull request objects, so it cannot supply merged pull requests.
+- **Real-time updates:** never required; the poll interval is enough.
+
+The mirror service that copies pull requests into the node's Gitea is developed on branch `moonshot/gitea-mirror`; the node sees it as a `gitea` git provider.

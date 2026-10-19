@@ -9,7 +9,6 @@
 # Needs (see dagster/fncli/README.md and EXAMPLES.md): kubectl on context kind-fn, `make deploy` done, `tilt up` green
 # with the port-forwards running (backend :5000, Gitea :4000, Dagster :3000), fncli installed with pipx, .dev.env present.
 #
-# NOT RUN in the cloud session that wrote it (no cluster there), so expect to fix small things on the first run.
 # The webserver pytest suite is not run by this script.
 set -uo pipefail
 

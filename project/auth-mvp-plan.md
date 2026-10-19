@@ -83,7 +83,7 @@ Unauthenticated by design: `/`, `/ready_check`, `/health_check`, `/login`, `/ref
 - **Keep `scope=`** accepted during the change, then delete it once every route is moved.
 - **Blueprint hooks:** use `role=` too, `admin` on `/global/*` blueprints and `system` on `/dagster`. A route-level `@auth(role="system")` adds the stricter rule, and the strictest wins.
 - **Handlers:** set `g.caller_is_admin` to "role is admin or system" (fixes G6). Optionally cache the decoded token in `g` so `audit` reuses it (G11).
-- **Why not realm scopes:** a system-only scope means a new scope, policy and permission on the `global` client plus kc-init m003 (G1). It keeps the extra Keycloak round trips and the System bypass. Only worth it if the owner wants policy-driven auth later.
+- **Why not realm scopes:** a system-only scope means a new scope, policy and permission on the `global` client plus kc-init m003 (G1). It keeps the extra Keycloak round trips and the System bypass. Only worth it if policy-driven auth is wanted later.
 - **Optional realm tidy** (can wait): m003 making `System` a composite of `Administrator`. Not needed for the code approach.
 
 ## 4. Route to role table
@@ -156,7 +156,7 @@ Current = effective scope after hooks. All handlers on shared-resources (a `/` a
 
 **Wrong-role count (handlers):** 0 unauthenticated by mistake.
 - 6 Dagster-only writes open to admins.
-- 4 sensor routes (system by owner's list, today admin).
+- 4 sensor routes (system per the agreed list, today admin).
 - 2 `/global/datasets` GETs too loose.
 - 2 admin routes outside `/global`.
 - 12 project reads gated at admin, too strict for `user` (harmless in an admin-only beta): `GET /projects` and `/<id>`, project datasets (2), project results repos (2), project trigger assignments (2), PR reads (2), results list, tasks list.
@@ -177,7 +177,7 @@ Current = effective scope after hooks. All handlers on shared-resources (a `/` a
    - Replace `tasks_api.py:56-70` with plain role checks (Q7).
 4. **admin_api.py**: optionally move to `/global/audit` and `/global/delivery-secret` (Q5). Update `static/openapi.json` and fncli/Dagster callers.
 5. **users_api / keycloak.py:757**: accept `role` in the body, mapped to `Users` / `Administrator` (Q6).
-6. **kc-init / realm**: none for the code approach. Only if the owner wants Keycloak-side policy: m003 with a `system-only` scope, `system-policy` on every admin scope, and `System` composite of `Administrator`.
+6. **kc-init / realm**: none for the code approach. Only if Keycloak-side policy is wanted: m003 with a `system-only` scope, `system-policy` on every admin scope, and `System` composite of `Administrator`.
 7. **Credentials**: none. Dagster and fncli use `dagster-keycloak-creds`, which is the System user. Check after the change that the `dagster` user's token carries `System` in `realm_access.roles` (live check on the dev cluster). Test Dagster sensors and fncli end to end (`make` targets in the Tiltfile flow).
 8. **Tests** (`tests/test_auth_roles.py` plus `conftest.py:664-710`):
    - Extend the autouse mock: `decode_token` returns `realm_access.roles` by token string (`user_token`, `admin_token`, `system_token`). Add `system_token` header fixtures.
@@ -213,7 +213,7 @@ Current = effective scope after hooks. All handlers on shared-resources (a `/` a
 
 **Small to medium**: about 1 to 2 days. About 40 route edits, one decorator change, one test file, a conftest mock change, no realm migration. Main risk: the large existing test suite relies on the scope-based mock and user-token headers, so route moves will churn many tests.
 
-## Owner decisions
+## Decisions
 
 1. (2026-10-17) Project setup is **admin** for the beta: create/patch/delete projects, links and project secrets, and task retry/cancel/approve/block. **user** can read projects and run/read tasks only.
 2. (2026-10-17) The six Dagster write routes (PR batch ingest, PR PATCH, PR→task POST, task PATCH, result POST, result PATCH) are **system** only. Humans use retry/cancel/approve/block.

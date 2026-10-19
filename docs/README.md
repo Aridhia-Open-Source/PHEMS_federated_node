@@ -45,19 +45,16 @@ Requirements and as-built ([project](../project/)):
 - [moonshot-as-built.md](../project/moonshot-as-built.md): what is built; read the status block first.
 - [auth-mvp-plan.md](../project/auth-mvp-plan.md): research on user, admin and system tiers; not built.
 
-Flows and testing ([project/handover](../project/handover/README.md)):
+Testing and open items:
 
-- [review-guide-shared-resources.md](../project/handover/review-guide-shared-resources.md): a code reading order for the `shared-resources` diff.
-- [e2e-qa-plan.md](../project/handover/e2e-qa-plan.md), [e2e-results-2026-10-18.md](../project/handover/e2e-results-2026-10-18.md), [e2e-run1-fixes.md](../project/handover/e2e-run1-fixes.md): the live-cluster scenarios, the first run and its fixes.
-- [laptop-handover-2026-10-18.md](../project/handover/laptop-handover-2026-10-18.md): the review stack, open decisions and what is stale.
-- [gitea-mirror-plan.md](../project/handover/gitea-mirror-plan.md), [dagster-sensors-plan.md](../project/handover/dagster-sensors-plan.md), [split-plan.md](../project/handover/split-plan.md): plans for work not done yet.
+- [dagster/fncli/tests/e2e/README.md](../dagster/fncli/tests/e2e/README.md): how to run the live-cluster end-to-end suites.
+- [HANDOVER.md](../HANDOVER.md): open items and working notes.
+- The mirror service is developed on branch `moonshot/gitea-mirror`.
 
 Operations:
 
 - [DEPLOYMENT.md](../DEPLOYMENT.md), [k8s/federated-node/README.md](../k8s/federated-node/README.md): install and chart values.
 - [dagster/README.md](../dagster/README.md), [dagster/fncli/README.md](../dagster/fncli/README.md): the Dagster code location and the fncli tool.
-
-Session notes, not a design source: the other files in [project/handover](../project/handover/). The decision records win where they differ.
 
 ## Suggested reading order
 

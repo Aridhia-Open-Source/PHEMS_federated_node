@@ -52,3 +52,4 @@ The allowed moves are data, in tables next to the enums in `webserver/app/models
 - Should result `state` `DELIVERED` be final?
 - The `ResultState` docstring in the webserver says `FAILED` is a state "nothing retries"; the retry sensor does retry it unless the step is final or attempts run out. The docstring is out of date.
 - No test compares the Dagster enums with the webserver's; a drift would only show at runtime.
+- Retrying a task that cannot be retried is a 400, while the other refused moves are 409.

@@ -27,7 +27,12 @@ It does not hold credentials or secrets (a rotation must reach running work), th
 - Dataset and results edits need no coordination with work in flight, and no drain.
 - The disabled-project gap described in [0008](0008-enabled-revoked-and-soft-delete.md) is harmless for edits: a task created in the gap carries the old snapshot and fails, or its delivery gets a `REVOKED` result.
 
+
 ## Alternatives considered
 
 - **Refuse edits while work is in flight** (drain guards on every edit): about 25 guard calls and a state to maintain, and they block the controller.
 - **Pin the whole resource row:** would pin credentials and flags, which must be live.
+
+## Open questions
+
+- `config_hash` is stored and returned but never compared; the comparison uses the snapshot itself.
