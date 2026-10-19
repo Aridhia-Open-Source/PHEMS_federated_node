@@ -114,3 +114,22 @@ def test_a_failing_provider_fails_the_run():
 
 def test_the_job_runs_the_ingest_op():
     assert [node.name for node in ingest_pull_requests_job.graph.nodes] == ["ingest_pull_requests"]
+
+
+def test_a_failed_batch_stops_the_run_and_no_later_batch_is_posted():
+    numbers = list(range(1, 251))
+    git_api = fake_git_api(numbers)
+    git_api.get_pull_request.side_effect = lambda repo_path, number: git_pr(
+        number, merged_at=f"2026-06-26T10:{number // 60:02d}:{number % 60:02d}Z"
+    )
+    backend_api = MagicMock()
+    backend_api.create_pull_requests_batch.side_effect = [None, RuntimeError("500"), None]
+
+    with pytest.raises(RuntimeError, match="500"):
+        run(git_api, backend_api=backend_api)
+
+    posted = [[p["number"] for p in c.args[1]] for c in backend_api.create_pull_requests_batch.call_args_list]
+    # Batch 1 was stored, batch 2 was attempted and failed, batch 3 was never posted
+    assert [len(b) for b in posted] == [100, 100]
+    assert posted[0] == numbers[:100] and posted[1] == numbers[100:200]
+    assert not any(n in numbers[200:] for batch in posted for n in batch)

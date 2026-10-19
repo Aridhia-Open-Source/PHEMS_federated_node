@@ -2,7 +2,7 @@ import pytest
 
 from app.models import (
     Dataset, GitProvider, NewPullRequest, Project, ProjectTriggerRepository, PullRequest, PullRequestTrigger, Secret,
-    SecretProviderType, TriggerRepository,
+    SecretProviderType, Task, TaskSpec, TriggerRepository, PullRequestResult,
 )
 from app.models.pull_request import PROVIDER_FILES_CAP
 from app.tests.conftest import (
@@ -150,3 +150,43 @@ class TestRevokedOnTheGlobalSide:
         project = Project(id=1, name="p", enabled=True, revoked=True)
 
         assert (dataset.revoked, repo.revoked, repo.provider.revoked, project.revoked) == (True, True, True, True)
+
+
+class TestUnknownFieldsAreKept:
+    """The webserver may add fields to a response: every wire model keeps what it does not know."""
+
+    def test_a_task(self):
+        task = Task(
+            id=1, name="t", spec={"image": "i", "env": {}}, attempt=1, requested_by="u", project_id=1, trigger_id=2,
+            added_later="x",
+        )
+
+        assert task.added_later == "x"
+
+    def test_a_task_spec(self):
+        assert TaskSpec(image="i", env={}, added_later="x").added_later == "x"
+
+    def test_a_project(self):
+        assert Project(id=1, name="p", added_later="x").added_later == "x"
+
+    def test_a_git_provider(self):
+        assert GitProvider(**{**SAMPLE_TRIGGER_REPOSITORY["provider"], "added_later": "x"}).added_later == "x"
+
+    def test_a_trigger_repository(self):
+        assert TriggerRepository(**{**SAMPLE_TRIGGER_REPOSITORY, "added_later": "x"}).added_later == "x"
+
+    def test_a_pull_request_result(self):
+        result = PullRequestResult(
+            id=1, type="PR", task_id=2, project_id=3, results_repository_id=4, step="OPENED", state="DELIVERED",
+            attempts=1, added_later="x",
+        )
+
+        assert result.added_later == "x"
+
+    def test_a_nested_model_keeps_them_too(self):
+        repo = ProjectTriggerRepository(**{
+            **SAMPLE_REPOSITORY_OBJ,
+            "trigger_repository": {**SAMPLE_TRIGGER_REPOSITORY, "secret": {**SAMPLE_SECRET, "added_later": "x"}},
+        })
+
+        assert repo.trigger_repository.secret.added_later == "x"
