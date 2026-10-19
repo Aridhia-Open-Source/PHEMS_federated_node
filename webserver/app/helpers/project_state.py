@@ -10,3 +10,9 @@ def require_disabled(project: Project):
         raise InvalidRequest(
             f"Project {project.id} must be disabled to link a results repository", HTTPStatus.CONFLICT
         )
+
+
+def require_not_revoked(project: Project):
+    """Guards creating a task: a revoked project accepts no new task, a 409."""
+    if project.revoked:
+        raise InvalidRequest(f"Project {project.id} is revoked", HTTPStatus.CONFLICT)

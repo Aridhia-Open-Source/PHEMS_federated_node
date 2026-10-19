@@ -26,6 +26,7 @@ from app.helpers.exceptions import (
     UnauthorizedError
 )
 from app.helpers.keycloak import Keycloak
+from app.helpers.project_state import require_not_revoked
 from app.helpers.state_rules import transition
 from app.helpers.query_filters import arg_get
 from app.helpers.task_config import config_changes, revoked_resources
@@ -240,6 +241,7 @@ def post_tasks(project_id):
     project = Project.get_by_id(project_id)
     if not project.enabled:
         raise InvalidRequest(f"Project '{project.name}' is disabled", HTTPStatus.CONFLICT)
+    require_not_revoked(project)
 
     # The request is recorded before it is evaluated. A rejected one is kept, with
     # the reason and the raw body: no task is created from it, so nothing can launch.

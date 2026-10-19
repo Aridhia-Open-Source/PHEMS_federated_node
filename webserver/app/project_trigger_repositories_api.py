@@ -21,6 +21,7 @@ from app.dtos.task_spec import TaskSpecRequest
 from app.dtos.trigger_repository import ProjectTriggerRepositoryDTO, PullRequestTriggerDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
+from app.helpers.project_state import require_not_revoked
 from app.helpers.pull_request_fanout import skip_gap
 from app.helpers.query_filters import arg_get
 from app.helpers.repository_loop import check_no_loop, normalise_dir
@@ -303,6 +304,7 @@ def post_task(project_id: int, repo_id: int, number: int):
         return TaskDTO.from_model(pr.task).dump(), HTTPStatus.OK
     if pr.state != TriggerState.UNKNOWN.value:
         raise InvalidRequest(f"PR #{number} is {pr.state}, only an UNKNOWN pull request can create a task", HTTPStatus.CONFLICT)
+    require_not_revoked(Project.get_by_id(project_id))
     if not _assignment(project_id, repo_id).active:
         raise InvalidRequest(f"The link to trigger repository {repo_id} is not active", HTTPStatus.CONFLICT)
 

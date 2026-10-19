@@ -491,6 +491,19 @@ def test_create_task_yields_pr_and_is_idempotent(client, admin_headers, project,
     assert client.get(f"/projects/{project.id}/tasks", headers=admin_headers).json["total"] == 1
 
 
+def test_a_revoked_project_creates_no_task(client, admin_headers, project, pr_trigger, spec_raw):
+    project.revoked = True
+    db.session.commit()
+    refused = post_task(client, admin_headers, pr_trigger, spec_raw)
+    assert refused.status_code == 409 and refused.json["error"] == f"Project {project.id} is revoked"
+    assert Task.query.count() == 0
+    assert pr_state(client, admin_headers, pr_trigger)["state"] == "UNKNOWN"  # untouched, so a re-grant can yield it
+
+    project.revoked = False
+    db.session.commit()
+    assert post_task(client, admin_headers, pr_trigger, spec_raw).status_code == 201
+
+
 def test_spec_options_are_kept(client, admin_headers, pr_trigger):
     task = create_task(client, admin_headers, pr_trigger,
                        json.dumps({"note": "ignored", "spec": {"docker_image": "img:9", "name": "MyTask",
