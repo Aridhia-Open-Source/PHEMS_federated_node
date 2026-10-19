@@ -188,11 +188,12 @@ class TestPostTasks:
         assert api_request.spec_raw is None
         assert Task.query.count() == 0
 
-    def test_a_locked_project_rejects_the_task(
-            self, client, cr_client, registry_client, post_json_admin_header, task_body, lock_project
+    def test_a_disabled_project_rejects_the_task(
+            self, client, cr_client, registry_client, post_json_admin_header, task_body, disabled_project
         ):
-        response = self.post(client, post_json_admin_header, lock_project, task_body)
+        response = self.post(client, post_json_admin_header, disabled_project, task_body)
         assert response.status_code == 409
+        assert response.json["error"] == f"Project '{disabled_project.name}' is disabled"
         assert Task.query.count() == 0
         assert ApiRequestTrigger.query.count() == 0
 

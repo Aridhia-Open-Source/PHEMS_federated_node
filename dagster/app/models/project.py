@@ -9,7 +9,6 @@ class Project(BaseModel):
     name: str
     description: str | None = None
     enabled: bool = False
-    locked: bool = False
     default_dataset_id: int | None = None
     results_repository_id: int | None = None
     created_at: str | None = None

@@ -83,7 +83,7 @@ def put_project_trigger_repository(project_id: int, repo_id: int):
     repository to the project, 201, or replaces the project's settings if it is linked already,
     200: a change of
     watch_dir or base_branch applies at once. A new watcher does not touch work in
-    flight, so linking needs no lock. Fields left out take their defaults. The cursor is set when
+    flight. Fields left out take their defaults. The cursor is set when
     the link is created, after the latest pull request stored, and stays where it is.
     Body: {"watch_dir": "triggers", "base_branch": "main", "enabled": true}; watch_dir is
     required, the rest optional.

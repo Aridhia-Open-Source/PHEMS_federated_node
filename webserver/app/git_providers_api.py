@@ -1,6 +1,6 @@
 """
 Git provider endpoints, global: the trigger and results repositories refer to one by id. All
-admin only. No edit needs a lock. Deleting is a soft delete.
+admin only. Deleting is a soft delete.
 - GET /global/providers
 - GET /global/providers/<id>
 - POST /global/providers
@@ -84,8 +84,8 @@ def post_provider():
 @auth(scope='can_do_admin')
 def patch_provider(provider_id):
     """
-    PATCH /global/providers/<id> — update a provider. No edit needs a lock
-    (the tasks created before are pinned to the old setup and fail instead of running against the new one).
+    PATCH /global/providers/<id> — update a provider. The tasks created before
+    are pinned to the old setup and fail instead of running against the new one.
     """
     provider = GitProvider.get_by_id(provider_id)
 

@@ -1,4 +1,4 @@
-"""/projects API: CRUD, enabled/locked semantics, link gating (datasets, secrets), delete cascade."""
+"""/projects API: CRUD, enabled and backfill semantics, link gating (datasets, secrets), delete cascade."""
 import pytest
 
 from app.helpers.base_model import db
@@ -29,19 +29,13 @@ def test_create_and_get_shape_defaults(client, admin_headers):
     assert created.status_code == 201, created.json
     assert set(created.json) == {"id"}
     got = client.get(f"/projects/{created.json['id']}", headers=admin_headers).json
-    assert set(got) == {"id", "name", "description", "enabled", "locked", "default_dataset_id",
+    assert set(got) == {"id", "name", "description", "enabled", "default_dataset_id",
                         "created_at", "updated_at"}
-    assert (got["name"], got["description"], got["enabled"], got["locked"], got["default_dataset_id"]) == \
-        ("Alpha", "first", False, True, None)
+    assert (got["name"], got["description"], got["enabled"], got["default_dataset_id"]) == \
+        ("Alpha", "first", False, None)
     plain = create(client, admin_headers, name="Plain", enabled=True)
     plain_json = client.get(f"/projects/{plain.json['id']}", headers=admin_headers).json
-    assert plain_json["description"] is None and plain_json["enabled"] is True and plain_json["locked"] is True
-
-
-def test_create_cannot_set_locked(client, admin_headers):
-    response = create(client, admin_headers, name="Sneaky", locked=True)  # accepted but ignored
-    assert response.status_code == 201, response.json
-    assert client.get(f"/projects/{response.json['id']}", headers=admin_headers).json["locked"] is True
+    assert plain_json["description"] is None and plain_json["enabled"] is True
 
 
 def test_create_duplicate_name_is_409(client, admin_headers, project):
@@ -60,7 +54,7 @@ def test_create_invalid_is_400(client, admin_headers, body):
 
 def test_unknown_project_and_non_integer_id_are_404(client, admin_headers, global_secret):
     for pid in (9999, "abc"):
-        for method, body in (("get", None), ("delete", None), ("patch", {"locked": True})):
+        for method, body in (("get", None), ("delete", None), ("patch", {"enabled": True})):
             response = getattr(client, method)(f"/projects/{pid}", json=body, headers=admin_headers)
             assert response.status_code == 404 and "error" in response.json
     assert client.put("/projects/9999/secrets/test-creds", json={}, headers=admin_headers).status_code == 404
@@ -70,37 +64,54 @@ def test_unknown_project_and_non_integer_id_are_404(client, admin_headers, globa
 # ---------------------------------------------------------------- patch
 
 @pytest.mark.parametrize("body", [
-    {}, {"bogus": True}, {"name": "renamed"}, {"locked": True, "name": "x"},  # empty/unknown fields refused
-    {"enabled": "true"}, {"locked": 1}, {"locked": None},
+    {}, {"bogus": True}, {"name": "renamed"}, {"enabled": False, "name": "x"},  # empty/unknown fields refused
+    {"enabled": "true"}, {"enabled": 1}, {"enabled": None}, {"enabled": True, "backfill": 1},
 ])
 def test_patch_invalid_is_400_and_changes_nothing(client, admin_headers, project, body):
     response = client.patch(f"/projects/{project.id}", json=body, headers=admin_headers)
     assert response.status_code == 400 and "error" in response.json
-    assert refresh(project).locked is False
+    assert refresh(project).enabled is True
 
 
-def test_lock_and_unlock_always_allowed_even_with_tasks(client, admin_headers, project, make_task):
-    make_task()
-    for locked in (True, True, False):  # includes idempotent lock
-        response = patch(client, admin_headers, project.id, locked=locked)
-        assert response.status_code == 200 and response.json["locked"] is locked
-        assert client.get(f"/projects/{project.id}", headers=admin_headers).json["locked"] is locked
-
-
-def test_enable_and_disable_need_no_lock_and_ignore_tasks_in_flight(client, admin_headers, project, make_task):
-    make_task()  # pending, and the project is unlocked
+def test_enable_and_disable_ignore_tasks_in_flight(client, admin_headers, project, make_task):
+    make_task()  # pending
     off = patch(client, admin_headers, project.id, enabled=False)
     assert off.status_code == 200 and off.json["enabled"] is False
     on = patch(client, admin_headers, project.id, enabled=True)
     assert on.status_code == 200 and on.json["enabled"] is True
 
 
+@pytest.mark.parametrize("body", [
+    {"backfill": True},  # without enabled
+    {"backfill": False},
+    {"enabled": False, "backfill": True},
+    {"enabled": False, "backfill": False},
+])
+def test_backfill_without_enabling_is_400(client, admin_headers, project, body):
+    patch(client, admin_headers, project.id, enabled=False)
+    response = client.patch(f"/projects/{project.id}", json=body, headers=admin_headers)
+    assert response.status_code == 400 and "backfill" in response.json["error"]
+    assert refresh(project).enabled is False
+
+
+@pytest.mark.parametrize("backfill", [True, False])
+def test_backfill_on_an_enabled_project_is_400(client, admin_headers, project, backfill):
+    response = patch(client, admin_headers, project.id, enabled=True, backfill=backfill)
+    assert response.status_code == 400 and "backfill" in response.json["error"]
+    assert refresh(project).enabled is True
+
+
+def test_enable_with_backfill_is_200_and_stores_no_backfill_field(client, admin_headers, project):
+    patch(client, admin_headers, project.id, enabled=False)
+    response = patch(client, admin_headers, project.id, enabled=True, backfill=True)
+    assert response.status_code == 200 and response.json["enabled"] is True and "backfill" not in response.json
+    assert "backfill" not in client.get(f"/projects/{project.id}", headers=admin_headers).json
+
+
 def test_disable_keeps_links_and_the_repository_stays_pollable(
         client, admin_headers, enabled_project, linked_trigger_repo, linked_secret, linked_dataset,
         global_trigger_repo):
     pid = enabled_project.id
-    enabled_project.locked = True
-    db.session.commit()
     assert patch(client, admin_headers, pid, enabled=False).status_code == 200
     triggers = client.get(f"/projects/{pid}/repositories/triggers", headers=admin_headers).json
     assert triggers[0]["trigger_repository"]["id"] == global_trigger_repo.id
@@ -125,9 +136,9 @@ def test_secret_link_get_list_and_errors(client, admin_headers, project, other_p
     assert client.get(f"/projects/{other_project.id}/secrets/test-creds", headers=admin_headers).status_code == 404
 
 
-def test_link_changes_need_no_lock_and_ignore_tasks_in_flight(client, admin_headers, project, linked_secret, make_task):
+def test_link_changes_ignore_tasks_in_flight(client, admin_headers, project, linked_secret, make_task):
     url = f"/projects/{project.id}/secrets/test-creds"
-    make_task()  # in flight, and the project is unlocked
+    make_task()  # in flight
     assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 200
     assert client.put(url, json={"enabled": True}, headers=admin_headers).status_code == 200
     assert client.delete(url, headers=admin_headers).status_code == 204
@@ -135,7 +146,7 @@ def test_link_changes_need_no_lock_and_ignore_tasks_in_flight(client, admin_head
     assert client.get(f"/projects/{project.id}/secrets", headers=admin_headers).json == []
 
 
-def test_first_trigger_link_needs_no_lock(client, admin_headers, project, global_trigger_repo):
+def test_a_trigger_link_to_an_enabled_project_is_201(client, admin_headers, project, global_trigger_repo):
     response = client.put(f"/projects/{project.id}/repositories/triggers/{global_trigger_repo.id}",
                           json={"watch_dir": "triggers"}, headers=admin_headers)
     assert response.status_code == 201
@@ -172,11 +183,11 @@ def test_dataset_link_disable_unlink_and_default_dataset(
 # ---------------------------------------------------------------- delete
 
 def test_delete_is_soft_hides_the_project_and_frees_name(client, admin_headers, project, other_project):
-    deleted = client.delete(f"/projects/{project.id}", headers=admin_headers)  # no lock needed
+    deleted = client.delete(f"/projects/{project.id}", headers=admin_headers)
     assert deleted.status_code == 204 and deleted.data == b""
     assert client.get(f"/projects/{project.id}", headers=admin_headers).status_code == 404
     assert client.delete(f"/projects/{project.id}", headers=admin_headers).status_code == 404
-    assert client.patch(f"/projects/{project.id}", json={"locked": True}, headers=admin_headers).status_code == 404
+    assert client.patch(f"/projects/{project.id}", json={"enabled": True}, headers=admin_headers).status_code == 404
     assert client.get(f"/projects/{other_project.id}", headers=admin_headers).status_code == 200
     assert client.get("/projects", headers=admin_headers).json["total"] == 1
     assert create(client, admin_headers, name=project.name).status_code == 201

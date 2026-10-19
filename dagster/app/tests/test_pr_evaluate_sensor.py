@@ -9,8 +9,8 @@ from app.definitions.sensors.git.pr_evaluate import PullRequestEvaluateSensor
 from app.models import Project, TriggerState
 
 
-def project(id, enabled=True, locked=False):
-    return Project(id=id, name=f"proj{id}", enabled=enabled, locked=locked)
+def project(id, enabled=True):
+    return Project(id=id, name=f"proj{id}", enabled=enabled)
 
 
 def repo(id, project_id):
@@ -24,9 +24,7 @@ def unknown_prs(*numbers):
 def run(projects, repos, unknown=None, in_flight=()):
     backend_api = MagicMock()
     # The backend filters the projects
-    backend_api.get_projects.side_effect = lambda enabled, locked: [
-        p for p in projects if p.enabled == enabled and p.locked == locked
-    ]
+    backend_api.get_projects.side_effect = lambda enabled: [p for p in projects if p.enabled == enabled]
     backend_api.get_project_trigger_repositories.side_effect = lambda project_id, active: [
         r for r in repos if r.project_id == project_id
     ]
@@ -67,14 +65,6 @@ def test_a_newer_unknown_pr_gives_a_new_run_key():
     assert old[0].run_key != new[0].run_key
 
 
-def test_a_locked_project_is_not_evaluated():
-    result, _, _ = run(
-        [project(1, locked=True), project(2)], [repo(10, 1), repo(11, 2)], unknown={10: unknown_prs(1), 11: unknown_prs(1)}
-    )
-
-    assert [r.tags["repo_id"] for r in result] == ["11"]
-
-
 def test_only_enabled_projects_are_evaluated():
     result, _, _ = run(
         [project(1, enabled=False), project(2)], [repo(10, 1), repo(11, 2)], unknown={10: unknown_prs(1), 11: unknown_prs(1)}
@@ -83,10 +73,10 @@ def test_only_enabled_projects_are_evaluated():
     assert [r.tags["repo_id"] for r in result] == ["11"]
 
 
-def test_only_enabled_unlocked_projects_and_active_assignments_are_requested():
+def test_only_enabled_projects_and_active_assignments_are_requested():
     _, backend_api, _ = run([project(1)], [repo(10, 1)], unknown={10: unknown_prs(1)})
 
-    backend_api.get_projects.assert_called_once_with(enabled=True, locked=False)
+    backend_api.get_projects.assert_called_once_with(enabled=True)
     backend_api.get_project_trigger_repositories.assert_called_once_with(1, active=True)
 
 

@@ -11,9 +11,9 @@
 >   - `service-info` deleted
 >   - `/global/users`, `/global/registries`, `/global/whitelisted_images`
 >   - results under `/projects/:pid/results`
-> - **Integrity and locking:**
+> - **Integrity and project state:**
 >   - PRs unique by `(repo, merge_commit_sha)` as well as number (baseline migration)
->   - new projects start **locked** (baseline migration); fncli `setup-project` unlocks at the end, and teardown locks before deleting
+>   - new projects start **disabled** (baseline migration); fncli `setup-project` enables them at the end. There is no project lock (dropped 2026-10-19): a project is enabled or disabled, a results repository is linked while it is disabled, and enabling may ask for a backfill
 > - **Sensors:** one interval for all sensors, `fnDagster.sensors.minIntervalSeconds` (30s default, 2s in dev; PR #554, merged).
 > - **Tooling:**
 >   - fncli moved into `dagster/fncli` and shares `app.*`; install with `pipx install --force --editable './dagster[cli]'`
@@ -21,7 +21,7 @@
 >   - e2e: `pytest dagster --e2e [success|failure] -v` from the repo root. The suites are granular (each fncli command and state change is its own test). The failure suite has never been run.
 > - **Not built yet:** auth (planned in `project/auth-mvp-plan.md`).
 > - **gitea-mirror is parked for the beta.** Post-beta it becomes a stateless mirror service with number-matched PR replay, which the node sees as a `gitea` GitProvider.
-> - **To do:** a full refresh of this document, and a narrow bug review (the baseline migration, lock/drain rules, sensors). See `.claude/handover.md`.
+> - **To do:** a full refresh of this document, and a narrow bug review (the baseline migration, drain rules, sensors). See `.claude/handover.md`.
 
 
 - Compared: `moonshot-requirements.md` (72 IDs) against `moonshot-as-built.md`.
@@ -92,10 +92,10 @@ Match + Differs + Missing = 72. "Untested" is a flag, not a separate bucket.
 
 Shared-resources:
 
-- Project `PATCH`: only `enabled` and `locked`. Changing `enabled` needs locked and drained.
+- Project `PATCH`: `enabled` and `backfill`. `backfill` is valid only when enabling a disabled project.
 - `in_flight_task_ids` counts PENDING, QUEUED, RUNNING, SUCCESS with no result, and results IN_PROGRESS.
-- Task creation is refused (409) on a locked project. Evaluate skips locked projects. The launcher and ingest do not.
-- Fan-out ignores project `enabled` and `locked`.
+- Task creation is refused (409) on a disabled project. Evaluate and the launcher read enabled projects only. Ingest does not.
+- Fan-out skips a disabled project.
 - `/dagster/sensors` admin routes: list, get, start and stop sensors through Dagster GraphQL.
 - `PATCH /delivery-secret` and the task routes `cancel`, `logs`, `results/approve`, `results/block` return 501.
 - API tasks (`POST /projects/:pid/tasks`) as a second trigger kind (`ApiRequestTrigger`).

@@ -227,15 +227,14 @@ def reg_k8s_client(k8s_client):
 def project(client) -> Project:
     """The project datasets, tasks and whitelisted images belong to in tests."""
     project = Project(name="TestProject", enabled=True)
-    project.locked = False
     project.add()
     return project
 
 
 @fixture
-def lock_project(project) -> Project:
-    """The project locked and with nothing in flight, as changing its configuration needs."""
-    project.locked = True
+def disabled_project(project) -> Project:
+    """The project disabled, as linking its results repository needs."""
+    project.enabled = False
     db.session.commit()
     return project
 
@@ -271,7 +270,6 @@ def make_task(client, project):
 def other_project(client) -> Project:
     """A second project, for checking one project cannot reach another's rows."""
     project = Project(name="OtherProject", enabled=True)
-    project.locked = False
     project.add()
     return project
 
@@ -444,15 +442,15 @@ def linked_trigger_repo(client, admin_headers, project, global_trigger_repo) -> 
 @fixture
 def linked_results_repo(client, admin_headers, project, global_results_repo) -> dict:
     """PUT /projects/<pid>/repositories/results/<repo id>, target_dir "results"; the link as returned.
-    The route needs the project locked, so it is locked for the PUT and unlocked again."""
-    project.locked = True
+    The route needs the project disabled, so it is disabled for the PUT and enabled again."""
+    project.enabled = False
     db.session.commit()
     response = client.put(
         f"/projects/{project.id}/repositories/results/{global_results_repo.id}",
         json={"target_dir": "results"}, headers=admin_headers
     )
     assert response.status_code == 201, response.json
-    project.locked = False
+    project.enabled = True
     db.session.commit()
     return response.json
 

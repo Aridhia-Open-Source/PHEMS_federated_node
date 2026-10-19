@@ -1,5 +1,5 @@
-def test_full_flow(client, admin_headers, k8s_client, project, make_pr_batch, spec_raw):
-    pid = project.id
+def test_full_flow(client, admin_headers, k8s_client, disabled_project, make_pr_batch, spec_raw):
+    pid = disabled_project.id  # a new project is disabled
 
     def call(method, url, status, **kwargs):
         r = getattr(client, method)(url, headers=admin_headers, **kwargs)
@@ -18,18 +18,17 @@ def test_full_flow(client, admin_headers, k8s_client, project, make_pr_batch, sp
     D = call("post", "/global/datasets", 201,
              json={"name": "E2eDs", "host": "db", "port": 5432, "secret_label": "e2e-creds"})["id"]
 
-    # 5-7. Link secret, dataset and trigger repository (the first links need no lock)
+    # 5-7. Link secret, dataset and trigger repository (the project is still disabled)
     call("put", f"/projects/{pid}/secrets/e2e-creds", 201, json={})
     call("put", f"/projects/{pid}/datasets/{D}", 201, json={})
     call("put", f"/projects/{pid}/repositories/triggers/{T}", 201, json={"watch_dir": "triggers"})
 
-    # 8-9. Lock the project, link the results repository (needs the lock)
-    call("patch", f"/projects/{pid}", 200, json={"locked": True})
+    # 8. Link the results repository (the project must still be disabled)
     call("put", f"/projects/{pid}/repositories/results/{R}", 201, json={"target_dir": "results"})
 
-    # 10. Enable and unlock the project
-    body = call("patch", f"/projects/{pid}", 200, json={"enabled": True, "locked": False})
-    assert body["enabled"] is True and body["locked"] is False, body
+    # 9-10. Enable the project
+    body = call("patch", f"/projects/{pid}", 200, json={"enabled": True})
+    assert body["enabled"] is True, body
 
     # 11. Pollable trigger repositories
     assert [i["id"] for i in call("get", "/global/repositories/triggers?pollable=true", 200)] == [T]

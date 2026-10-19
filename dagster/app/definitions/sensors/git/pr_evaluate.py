@@ -11,7 +11,7 @@ from app.models import ProjectTriggerRepository, TriggerState
 
 class PullRequestEvaluateSensor(LaunchingSensor, GitSensor):
     """
-    Launches one evaluation run per trigger repository of an enabled, unlocked project that has
+    Launches one evaluation run per trigger repository of an enabled project that has
     UNKNOWN PRs, reading each project's links.
 
     The run key names the link and its newest UNKNOWN PR number, see run_key: a newly ingested
@@ -28,7 +28,7 @@ class PullRequestEvaluateSensor(LaunchingSensor, GitSensor):
         self.newest_unknown: dict[tuple[int, int], int] = {}
 
     def items(self):
-        for project in self.backend_api.get_projects(enabled=True, locked=False):
+        for project in self.backend_api.get_projects(enabled=True):
             yield from self.backend_api.get_project_trigger_repositories(project.id, active=True)
 
     def describe(self, item: ProjectTriggerRepository) -> str:

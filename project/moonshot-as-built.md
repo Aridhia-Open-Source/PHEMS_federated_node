@@ -11,9 +11,9 @@
 >   - `service-info` deleted
 >   - `/global/users`, `/global/registries`, `/global/whitelisted_images`
 >   - results under `/projects/:pid/results`
-> - **Integrity and locking:**
+> - **Integrity and project state:**
 >   - PRs unique by `(repo, merge_commit_sha)` as well as number (baseline migration)
->   - new projects start **locked** (baseline migration); fncli `setup-project` unlocks at the end, and teardown locks before deleting
+>   - new projects start **disabled** (baseline migration); fncli `setup-project` enables them at the end. There is no project lock (dropped 2026-10-19): a project is enabled or disabled, a results repository is linked while it is disabled, and enabling may ask for a backfill
 > - **Sensors:** one interval for all sensors, `fnDagster.sensors.minIntervalSeconds` (30s default, 2s in dev; PR #554, merged).
 > - **Tooling:**
 >   - fncli moved into `dagster/fncli` and shares `app.*`; install with `pipx install --force --editable './dagster[cli]'`
@@ -21,14 +21,14 @@
 >   - e2e: `pytest dagster --e2e [success|failure] -v` from the repo root. The suites are granular (each fncli command and state change is its own test). The failure suite has never been run.
 > - **Not built yet:** auth (planned in `project/auth-mvp-plan.md`).
 > - **gitea-mirror is parked for the beta.** Post-beta it becomes a stateless mirror service with number-matched PR replay, which the node sees as a `gitea` GitProvider.
-> - **To do:** a full refresh of this document, and a narrow bug review (the baseline migration, lock/drain rules, sensors). See `.claude/handover.md`.
+> - **To do:** a full refresh of this document, and a narrow bug review (the baseline migration, drain rules, sensors). See `.claude/handover.md`.
 
 
 - Describes commits: `moonshot/shared-resources` at **95d61117** (local, ahead of origin by 3 fncli commits; worktree `fn-worktrees/moonshot/shared-resources`) and `origin/moonshot/gitea-mirror` at **3b551cb7**.
 - Written blind from the code, without the ADRs. Mapped to the IDs in `moonshot-requirements.md`. Paths are relative to the repo root (gitea-mirror paths relative to `gitea-mirror/` as `app/...`).
 - The SR sections were first read from `origin/moonshot/shared-resources` (before the fncli move). The dev-tooling and fncli sections (SR-DEV-01, SR-DEV-03, "fncli" under built-but-not-mapped) were re-checked against the local worktree and corrected. Everything else in SR is unchanged by the 3 local commits (checked with `git diff`: only fncli, `scripts/e2e_shared_resources.sh`, `test_live_client_integration.py` and two handover docs differ).
 - Not run. Test counts (webserver 606, Dagster plus fncli 470 = 346 + 124, mirror 336/365) are as reported by the owner or the handovers.
-- Shorthand: "drained" = `require_drained(project)` (`webserver/app/helpers/project_lock.py:7`): project `locked` is true and `project.in_flight_task_ids()` is empty, else 409. "all drained" = `require_all_drained` (`project_lock.py:21`): the same for every project linked to a global resource. "active" (link) = global resource `enabled` and link `enabled` and not link `revoked`.
+- Shorthand: "drained" and "all drained" were rules that have since been removed (ADR 0019, "Switching off, revoking and deleting"). "active" (link) = global resource `enabled` and link `enabled` and not link `revoked`.
 
 ---
 
@@ -107,8 +107,8 @@
 - Trigger repos: `project_trigger_repositories_api.py:78-138` (201 at `:138`, 200 at `:117`); GET `:141`; PATCH `:151`; DELETE `:202`; list `:62`.
 - `_link` helper finds a link by the resource id; missing link is 404 (`projects_api.py:165-172`); trigger `_assignment` `:43-50`.
 - PUT bodies: datasets/secrets `{enabled}`; results `{target_dir, owned_by_federated_node, enabled}`; trigger `{watch_dir, base_branch, enabled}`. Unknown fields are 400.
-- Re-PUT on an existing link needs drained (dataset `:231`, secret `:335`, trigger `:105`); results PUT always needs drained, even the first link (`:442`). First link of dataset, secret or trigger repo needs no lock.
-**Tests:** `test_trigger_repositories_and_links.py::test_link_201_lists_and_active_filter`, `test_link_put_errors`, `test_relink_put_can_disable_link_and_needs_lock`, `test_link_lifecycle_gates`; `test_projects_api.py::test_secret_link_get_list_and_errors`, `test_dataset_link_get_list_and_errors`, `test_first_trigger_link_needs_no_lock`; `test_results_and_delivery.py::test_link_needs_lock_then_relink_replaces_settings`, `test_relink_needs_drained_project`.
+- Re-PUT on an existing link needs drained (dataset `:231`, secret `:335`, trigger `:105`); linking a results repository needs the project disabled (409 otherwise), even the first link. The first link of a dataset, secret or trigger repo has no such rule.
+**Tests:** `test_trigger_repositories_and_links.py::test_link_201_lists_and_active_filter`, `test_link_put_errors`, `test_relink_put_changes_settings_and_disables`, `test_link_lifecycle_gates`; `test_projects_api.py::test_secret_link_get_list_and_errors`, `test_dataset_link_get_list_and_errors`, `test_first_trigger_link_needs_no_lock`; `test_results_and_delivery.py::test_link_needs_lock_then_relink_replaces_settings`, `test_relink_needs_drained_project`.
 
 ### SR-LINK-02 `enabled`, `revoked` and `active` behave as defined
 **Actual behaviour:** Every link row has `enabled` (set by a person, default true) and `revoked` (set only by an admin, default false). `active` is computed, not stored: global `enabled` AND link `enabled` AND NOT `revoked`. DTOs expose `enabled`, `revoked`, `active`. PATCH of `enabled` needs the project drained. PATCH of `revoked` needs admin and no drain. A non-admin sending `revoked` gets 403.
@@ -120,16 +120,16 @@
 - `g.caller_is_admin` is set in `helpers/wrappers.py:32`.
 - DTOs: `ProjectDatasetDTO` `dtos/dataset.py:51-67`, `ProjectSecretDTO` `dtos/secret.py:19-35`, `ProjectTriggerRepositoryDTO` `dtos/trigger_repository.py:43-69`, `ProjectResultsRepositoryDTO`.
 - Project `enabled` is separate and not part of link `active` (`models/project.py:22`); see SR-SENS for where it is applied.
-**Tests:** `test_trigger_repositories_and_links.py::test_revoke_is_admin_only`, `test_revoke_and_unrevoke_semantics`, `test_active_link_filter_follows_every_flag`, `test_link_settings_patch_needs_lock_and_drained_project`; `test_projects_api.py::test_link_changes_are_gated_by_project_lock_and_tasks`; `test_results_and_delivery.py::test_revoked_link_listed_inactive_and_other_project_cannot_touch`.
+**Tests:** `test_trigger_repositories_and_links.py::test_revoke_is_admin_only`, `test_revoke_and_unrevoke_semantics`, `test_active_link_filter_follows_every_flag`, `test_link_settings_patch_with_a_task_in_flight`; `test_projects_api.py::test_link_changes_ignore_tasks_in_flight`; `test_results_and_delivery.py::test_revoked_link_listed_inactive_and_other_project_cannot_touch`.
 
 ### SR-LINK-03 Revoke takes effect immediately and only on that resource
-**Actual behaviour:** Revoking PATCHes `revoked: true` on one link. No lock or drain is needed. It changes only that link's `active`; `enabled` is untouched, so un-revoking restores the earlier state. For trigger links, un-revoking (or enabling) an active link runs a backfill of missed PRs. Results and dataset effects are read at the time of use (see SR-RES-06, SR-SENS-08).
+**Actual behaviour:** Revoking PATCHes `revoked: true` on one link. It changes only that link's `active`; `enabled` is untouched, so un-revoking restores the earlier state. For trigger links, un-revoking (or enabling) an active link runs a backfill of missed PRs. Results and dataset effects are read at the time of use (see SR-RES-06, SR-SENS-08).
 **Evidence:**
 - No `require_drained` when only `revoked` is in the body: `projects_api.py:257` (`if "enabled" in body`), `:482` (`set(body) - {"revoked"}`); `project_trigger_repositories_api.py:172`.
 - Column comment: "Never touches enabled, so a re-grant restores the previous state" (`models/project_dataset.py:19-20`).
 - Backfill after becoming active: `project_trigger_repositories_api.py:175,196-198`.
 - Revoked link stays listed with flags (`projects_api.py:190-195`).
-**Tests:** `test_trigger_repositories_and_links.py::test_revoke_and_unrevoke_semantics`; `test_pull_requests_and_tasks.py::test_unrevoke_backfills_what_was_missed`; `test_projects_api.py::test_link_changes_are_gated_by_project_lock_and_tasks`.
+**Tests:** `test_trigger_repositories_and_links.py::test_revoke_and_unrevoke_semantics`; `test_pull_requests_and_tasks.py::test_unrevoke_backfills_what_was_missed`; `test_projects_api.py::test_link_changes_ignore_tasks_in_flight`.
 
 ### SR-LINK-04 Link uniqueness
 **Actual behaviour:** Each link table has a unique constraint on (project, resource): datasets, secrets, trigger repos. The results link is unique on `project_id` alone, so a project has at most one results repository link. A second, different results repo on the same project is 409. The same results repo may be linked to many projects.
@@ -160,12 +160,12 @@
 **Tests:** `test_projects_api.py::test_dataset_link_disable_unlink_and_default_dataset`; `test_pull_requests_and_tasks.py::test_dataset_default_and_case_insensitive_override`, `test_unusable_dataset_rejects_the_pr`; `tasks/test_task_from_spec.py::TestNewTaskDTOFromSpec` (override, other project, inactive, disabled default, no dataset); `test_trigger_repositories_and_links.py::test_dataset_link_has_no_settings`, `test_dataset_unlink_by_task_status`.
 
 ### SR-LINK-07 Deleting a project removes links only
-**Actual behaviour:** `DELETE /projects/<id>` needs the project locked and drained. It deletes the project's tasks, dataset links, triggers (PR and API), trigger links, secret links and results links, then the project. Global datasets, secrets, repositories, their stored values and the shared `pull_requests` rows are left. On any failure it rolls back and returns 400. Returns 204.
+**Actual behaviour:** `DELETE /projects/<id>` works in any project state. It deletes the project's tasks, dataset links, triggers (PR and API), trigger links, secret links and results links, then the project. Global datasets, secrets, repositories, their stored values and the shared `pull_requests` rows are left. On any failure it rolls back and returns 400. Returns 204.
 **Evidence:**
 - `projects_api.py:120-162`: `require_drained` at `:133`; deletes in order `:139-156`; 204 at `:162`.
 - Comment: "Secrets, datasets and results repositories belong to no project: they, and their stored values, are left alone" (`:126-128`).
 - `models/project.py:56-58` `triggers` relationship with `cascade="all, delete"`, `passive_deletes=True`.
-**Tests:** `test_projects_api.py::test_delete_needs_lock_then_removes_project_and_frees_name`, `test_delete_blocked_by_task_in_flight`, `test_delete_cascades_links_but_keeps_global_resources`, `test_delete_removes_tasks_and_project_prs_but_keeps_global_prs`.
+**Tests:** `test_projects_api.py::test_delete_is_soft_hides_the_project_and_frees_name`, `test_delete_blocked_by_task_in_flight`, `test_delete_cascades_links_but_keeps_global_resources`, `test_delete_removes_tasks_and_project_prs_but_keeps_global_prs`.
 
 ---
 
@@ -191,7 +191,7 @@
 **Tests:** `test_pull_requests_and_tasks.py::test_two_projects_on_one_repo_are_independent`; `test_projects_api.py::test_delete_removes_tasks_and_project_prs_but_keeps_global_prs`; `test_pagination_and_filters.py::test_pr_list_shape_order_and_paging`.
 
 ### SR-PR-03 Fan-out creates one trigger per active, matching link
-**Actual behaviour:** After storing new PRs, the webserver creates a `pull_request_triggers` row (state UNKNOWN) for each active link of that repository where the PR matches: same `base_branch` as the link, and either `files_truncated` is true or the PR added a `.json` file under the link's `watch_dir`. Non-matching PRs get no trigger; the cause is logged at info level. Creation uses a savepoint, so a race on the unique constraint skips only that trigger. Fan-out does not check the project's `enabled` or `locked`.
+**Actual behaviour:** After storing new PRs, the webserver creates a `pull_request_triggers` row (state UNKNOWN) for each active link of that repository where the PR matches: same `base_branch` as the link, and either `files_truncated` is true or the PR added a `.json` file under the link's `watch_dir`. Non-matching PRs get no trigger; the cause is logged at info level. Creation uses a savepoint, so a race on the unique constraint skips only that trigger. Fan-out skips a disabled project (`accepts_triggers`).
 **Evidence:**
 - `helpers/pull_request_fanout.py:112-118` `active_assignments` (link enabled, not revoked, repository enabled); no project filter.
 - `unmatched_cause`: base branch mismatch; `files_truncated` returns "matches"; else needs a non-empty `spec_files` (`helpers/spec_files.py`: a file with `is_under_dir`, suffix `.json`, status `"added"`). The same helper fills `spec_files` on the PR trigger DTO, and Dagster's evaluate step trusts it instead of re-fetching the files.
@@ -225,7 +225,7 @@
 - `project_trigger_repositories_api.py:236-273` (list); `:254-262` state filter; `:264` ordering.
 - `:62-75` `?active=true` (filter done in Python over the link query in the webserver).
 - `trigger_repositories_api.py:46-61` `?active_link=true` (SQL: repo enabled AND any link enabled, not revoked, project enabled).
-- `projects_api.py:60` `GET /projects` filters through `parse_query_params` (e.g. `enabled=true&locked=false`).
+- `projects_api.py:60` `GET /projects` filters through `parse_query_params` (e.g. `enabled=true`).
 - `GET .../pull_requests/<number>` `:276-283`.
 **Tests:** `test_pagination_and_filters.py::test_pr_list_state_filter`, `test_pr_list_state_reflects_patch_and_is_scoped_to_link`, `test_pr_list_sorted_by_merge_time_desc`, `test_trigger_repos_active_link_filter`, `test_projects_filters`; `test_pull_requests_and_tasks.py::test_list_filter_pagination_and_unknown`, `test_trigger_of_other_project_is_404`.
 
@@ -238,7 +238,7 @@
 - `dtos/task.py:44-58` `NewTaskDTO.from_spec`: name = spec name or PR title; `requested_by` = PR raiser.
 - `models/task.py:33` `trigger_id` unique, so one task per trigger.
 - Dagster caller: `dagster/app/backend.py:138-151`; `evaluate_job.py:32-57`.
-**Tests:** `test_pull_requests_and_tasks.py::test_create_task_yields_pr_and_is_idempotent`, `test_spec_options_are_kept`, `test_bad_spec_rejects_the_pr`, `test_spec_raw_must_be_a_string_and_the_pr_is_not_judged`, `test_only_unknown_triggers_of_an_active_link_get_a_task`, `test_post_task_404s_and_locked_project`; `test_triggers.py::test_one_task_per_trigger`.
+**Tests:** `test_pull_requests_and_tasks.py::test_create_task_yields_pr_and_is_idempotent`, `test_spec_options_are_kept`, `test_bad_spec_rejects_the_pr`, `test_spec_raw_must_be_a_string_and_the_pr_is_not_judged`, `test_only_unknown_triggers_of_an_active_link_get_a_task`, `test_post_task_404s_and_disabled_project`; `test_triggers.py::test_one_task_per_trigger`.
 
 ---
 
@@ -282,13 +282,13 @@
 **Tests:** `test_pull_requests_and_tasks.py::test_retry_resets_a_failed_task_only`; dagster `test_task_launcher.py::test_the_run_key_includes_the_attempt`.
 
 ### SR-TASK-06 Create and validate a task through the API
-**Actual behaviour:** `POST /projects/<pid>/tasks` (scope `can_exec_task`) takes a TES-like body (`executors[0].image`/`env`, `name`, `tags.dataset_name`, `resources`, `repository`). A locked project is 409. The request is recorded first as an `ApiRequestTrigger` with the raw body. Validation errors mark it REJECTED with the cause, commit, and re-raise. On success it sets YIELDED and creates the task (201, returns `id`, `api_request_id`, `status`, `created_at`). `POST .../tasks/validate` runs the same validation without creating anything and returns `"Ok"`, 200; it does not check the project lock.
+**Actual behaviour:** `POST /projects/<pid>/tasks` (scope `can_exec_task`) takes a TES-like body (`executors[0].image`/`env`, `name`, `tags.dataset_name`, `resources`, `repository`). A disabled project is 409. The request is recorded first as an `ApiRequestTrigger` with the raw body. Validation errors mark it REJECTED with the cause, commit, and re-raise. On success it sets YIELDED and creates the task (201, returns `id`, `api_request_id`, `status`, `created_at`). `POST .../tasks/validate` runs the same validation without creating anything and returns `"Ok"`, 200; it does not check that the project is enabled.
 **Evidence:**
-- `tasks_api.py:224-277` create (lock check `:242-243`; record `:247-248`; reject `:261-264`; yield `:266-270`); `:280-294` validate.
+- `tasks_api.py:224-277` create (enabled check `:242-243`; record `:247-248`; reject `:261-264`; yield `:266-270`); `:280-294` validate.
 - `models/task.py:89-165` `Task.validate`: name required; project resolved; dataset via `resolve_dataset`; image format; optional whitelist (`ENABLE_IMAGE_WHITELIST`); image must exist on the registry (404); CPU/memory limits >= requests.
 - `models/api_request_trigger.py:7-29`; `dtos/task_spec.py:48-68` `from_api_body`; env key regex and size cap (`:29-39`).
 - If `repository` is given, validation looks for exactly one project link on that URI (`models/task.py:106-116`).
-**Tests:** `tasks/test_task_from_spec.py::TestPostTasks` (creates request and task once, invalid env/spec/name keep a rejected request, locked project, other project's dataset, no executors, unauthenticated); `tasks/test_resource_validators.py`; `test_dtos_task_spec.py`.
+**Tests:** `tasks/test_task_from_spec.py::TestPostTasks` (creates request and task once, invalid env/spec/name keep a rejected request, disabled project, other project's dataset, no executors, unauthenticated); `tasks/test_resource_validators.py`; `test_dtos_task_spec.py`.
 
 ---
 
@@ -368,7 +368,7 @@ All sensors are created with `default_status=DEFAULT_SENSOR_STATUS`, read once a
 - `trigger_repositories_api.py:46-61` the filter (repo enabled; any link enabled, not revoked, project enabled).
 - `dagster/app/definitions/sensors/git/base.py:40-48` client per repo from its own secret; providers `github`, `gitea`.
 - `dagster/app/github.py:34-62` polls closed PRs by `updated` desc, stops at `updated_at <= cursor`; `gitea.py:32-60` filters by `merged_at > cursor`.
-- A project's lock does not stop ingest (docstring `pr_ingest.py:15-16`); the filter uses project `enabled` only.
+- A disabled project does not stop ingest (docstring `pr_ingest.py:15-16`); it gets no evaluation or launch.
 **Tests:** dagster `test_pr_ingest_sensor.py::test_only_polls_active_repositories_of_enabled_projects`, `test_posts_one_batch_per_repository_with_new_prs`, `test_queries_the_provider_from_the_global_cursor_without_a_base_branch`; `test_github.py`, `test_gitea.py`, `test_git_api_factory.py`; webserver `test_trigger_repos_active_link_filter`.
 
 ### SR-SENS-02 Ingest posts at most 100 PRs per batch, oldest first
@@ -387,12 +387,12 @@ All sensors are created with `default_status=DEFAULT_SENSOR_STATUS`, read once a
 **Tests:** dagster `test_pr_ingest_sensor.py::test_a_failing_repository_does_not_stop_the_others_and_fails_the_tick_at_the_end`, `test_a_batch_the_backend_refuses_fails_only_its_repository`.
 
 ### SR-SENS-04 Evaluate reads each project's active links; filtering is in the webserver
-**Actual behaviour:** `git_pull_request_evaluate_sensor` asks for projects with `enabled=true&locked=false`, then for each project its trigger links with `?active=true`, then for each link the PR triggers with `?state=UNKNOWN`. All filtering is done by webserver query parameters. A link with an evaluate run in flight (same `project_id` and `repo_id` tags, status NOT_STARTED, QUEUED, STARTING or STARTED) is skipped.
+**Actual behaviour:** `git_pull_request_evaluate_sensor` asks for projects with `enabled=true`, then for each project its trigger links with `?active=true`, then for each link the PR triggers with `?state=UNKNOWN`. All filtering is done by webserver query parameters. A link with an evaluate run in flight (same `project_id` and `repo_id` tags, status NOT_STARTED, QUEUED, STARTING or STARTED) is skipped.
 **Evidence:**
 - `dagster/app/definitions/sensors/git/pr_evaluate.py:28-36`, `:41-50`.
 - `dagster/app/backend.py:33-45` (`get_projects(**filters)` becomes query params), `:56-61` (`active=true`), `:75-107` (`state=` plus pagination, 100 per page).
 - Webserver: `projects_api.py:60`; `project_trigger_repositories_api.py:73-74`, `:254-262`.
-**Tests:** dagster `test_pr_evaluate_sensor.py::test_only_enabled_unlocked_projects_and_active_assignments_are_requested`, `test_a_locked_project_is_not_evaluated`, `test_only_enabled_projects_are_evaluated`, `test_a_repository_with_a_run_in_flight_is_skipped`; `test_backend.py::test_the_state_is_sent_as_a_query_param`, `test_filters_are_sent_as_query_options`.
+**Tests:** dagster `test_pr_evaluate_sensor.py::test_only_enabled_projects_and_active_assignments_are_requested`, `test_only_enabled_projects_are_evaluated`, `test_a_repository_with_a_run_in_flight_is_skipped`; `test_backend.py::test_the_state_is_sent_as_a_query_param`, `test_filters_are_sent_as_query_options`.
 
 ### SR-SENS-05 Evaluate turns a PR into a task or REJECTED
 **Actual behaviour:** The run `evaluate_repository_pull_requests_job` loads the UNKNOWN PR triggers oldest first and maps `evaluate_pull_request` over them (max 3 concurrent; retry 3 times, 5 s exponential). For each it lists the PR's files from git, keeps `.json` files added under `watch_dir`. None: PATCH state REJECTED with cause "No new spec file under ...". More than one: REJECTED naming them. Exactly one: read at the merge commit and POST the raw text to the `/task` route, where the webserver parses it and either creates the task (YIELDED) or rejects the PR. A git or backend failure raises (PR stays UNKNOWN).
@@ -421,7 +421,7 @@ All sensors are created with `default_status=DEFAULT_SENSOR_STATUS`, read once a
 **Tests:** dagster `test_results_delivery.py::test_a_disabled_secret_fails_the_delivery_before_its_token_is_read`; `test_task_launcher.py::test_a_task_whose_dataset_secret_is_disabled_is_failed_with_the_cause`. `test_secrets.py` and `test_git_api_factory.py` have no disabled-secret test.
 
 ### SR-SENS-08 Launcher starts runs for PENDING tasks of enabled projects
-**Actual behaviour:** `task_launcher_sensor` asks for projects with `enabled=true` (no `locked` filter), then each project's tasks with `status=PENDING`, and yields a `RunRequest` for `k8s_pipes_job` per task with run key `task/<id>/<attempt>` and tags (`trigger=task`, `task_id`, `attempt`, `project_id`, `project`). If the task names a dataset it reads the project's link to it; if the link is not active, or the dataset secret is disabled, it PATCHes the task to FAILED with `state_cause` and does not launch. It does not move the task to QUEUED itself.
+**Actual behaviour:** `task_launcher_sensor` asks for projects with `enabled=true`, then each project's tasks with `status=PENDING`, and yields a `RunRequest` for `k8s_pipes_job` per task with run key `task/<id>/<attempt>` and tags (`trigger=task`, `task_id`, `attempt`, `project_id`, `project`). If the task names a dataset it reads the project's link to it; if the link is not active, or the dataset secret is disabled, it PATCHes the task to FAILED with `state_cause` and does not launch. It does not move the task to QUEUED itself.
 **Evidence:**
 - `launcher.py:16-34`, `:36-67`; patch to FAILED `:52-54`.
 - `dagster/app/backend.py:153-165` (`GET /projects/<id>/tasks?status=PENDING`, paginated).
@@ -439,7 +439,7 @@ All sensors are created with `default_status=DEFAULT_SENSOR_STATUS`, read once a
 **Tests:** dagster `test_task_run_status_sensor.py::test_the_run_status_maps_to_the_task_status`, `test_the_map_covers_exactly_the_statuses_the_sensors_monitor`, `test_registered_sensor_ignores_runs_of_other_triggers`; `test_results_delivery.py::test_the_sensor_ignores_runs_that_are_not_task_runs`. The launcher's FAILED write is covered by `test_task_launcher.py::test_a_task_whose_dataset_secret_is_disabled_is_failed_with_the_cause`.
 
 ### SR-SENS-10 Dagster never fetches lists to filter them in Python
-**Actual behaviour:** The sensors pass filters as query parameters: projects `enabled`/`locked`, links `active`, PRs `state`, tasks `status`, results `step`, repos `active_link`. Paging helpers walk all pages. Exceptions that remain Dagster-side: the evaluate job sorts UNKNOWN PRs by `merged_at`; the ingest sensor sorts fetched PRs; the sync sensor fetches all projects (no filter) then asks per project for results by step; `get_datasets` unwraps a page or a bare list.
+**Actual behaviour:** The sensors pass filters as query parameters: projects `enabled`, links `active`, PRs `state`, tasks `status`, results `step`, repos `active_link`. Paging helpers walk all pages. Exceptions that remain Dagster-side: the evaluate job sorts UNKNOWN PRs by `merged_at`; the ingest sensor sorts fetched PRs; the sync sensor fetches all projects (no filter) then asks per project for results by step; `get_datasets` unwraps a page or a bare list.
 **Evidence:**
 - `dagster/app/backend.py:33-61, 75-107, 153-165, 222-226`.
 - `pr_evaluate.py:28-33`; `launcher.py:25-26`; `pull_request_sync.py:25-31`.
@@ -480,7 +480,7 @@ All sensors are created with `default_status=DEFAULT_SENSOR_STATUS`, read once a
 **Tests:** `test_smoke.py::test_admin_routes_live_under_global`, `test_reset_password_needs_no_token`; `keycloak/test_keycloak_users.py`. None found for `/audit` path or `/dagster/sensors`.
 
 ### SR-API-02 Consistent errors, pagination and filters
-**Actual behaviour:** Errors are `{"error": "<message>"}` with the HTTP code; extra data goes in `details` (e.g. the in-flight task ids on a 409). Statuses used: 400 invalid, 401/403 auth, 404 not found, 409 conflict/lock, 501 not implemented, 502 Dagster unreachable. A DB integrity error is 409 "Record already exists". Any other exception is 500 "Internal Error". Every JSON body must be an object (400 otherwise). Pagination is not uniform: `page_of` (`items`, `page`, `per_page`, `total`, `pages`) for projects, datasets, registries, audit and the global PR list; tasks use the key `tasks`; link lists and global repo/secret lists are bare arrays; project PR list uses `items`. `/projects` and `/audit` use `parse_query_params` (field=value and `__ne/__eq/__lt/__gt/__lte/__gte`, `per_page` default 25, no clamp). Task and global PR lists clamp `page`/`per_page` to at least 1. Non-integer page values are 400.
+**Actual behaviour:** Errors are `{"error": "<message>"}` with the HTTP code; extra data goes in `details` (e.g. the in-flight task ids on a 409). Statuses used: 400 invalid, 401/403 auth, 404 not found, 409 conflict, 501 not implemented, 502 Dagster unreachable. A DB integrity error is 409 "Record already exists". Any other exception is 500 "Internal Error". Every JSON body must be an object (400 otherwise). Pagination is not uniform: `page_of` (`items`, `page`, `per_page`, `total`, `pages`) for projects, datasets, registries, audit and the global PR list; tasks use the key `tasks`; link lists and global repo/secret lists are bare arrays; project PR list uses `items`. `/projects` and `/audit` use `parse_query_params` (field=value and `__ne/__eq/__lt/__gt/__lte/__gte`, `per_page` default 25, no clamp). Task and global PR lists clamp `page`/`per_page` to at least 1. Non-integer page values are 400.
 **Evidence:**
 - `webserver/app/__init__.py:45-51` handler (`error`, `details`); `:55-59`; `:61-66`; `:68-72` JSON object check.
 - `helpers/exceptions.py:8-70` classes and codes (`DagsterError` 502).
@@ -907,12 +907,12 @@ Behaviour in the code that no requirement ID covers.
 
 ### Shared-resources (SR)
 
-**Project lock and enable**
-- `PATCH /projects/<id>` takes only `enabled` and `locked` (booleans). Lock/unlock is always allowed; changing `enabled` needs locked and drained (`projects_api.py:93-117`). `POST /projects` cannot set `locked`; name unique, 409 (`:76-90`).
+**Project enable and backfill**
+- `PATCH /projects/<id>` takes `enabled` and `backfill` (booleans). `backfill` is valid only with `"enabled": true` on a disabled project (400 otherwise) and is not stored. Turning a project on skips the gap, or with `backfill` creates the triggers of the pull requests stored while it was off. `POST /projects` creates a disabled project unless `enabled` is given; name unique, 409.
 - `Project.in_flight_task_ids` counts tasks PENDING/QUEUED/RUNNING, SUCCESS with no result, or with a result IN_PROGRESS (`models/project.py:65-84`).
-- `POST /projects/<pid>/tasks` is refused (409) while the project is locked (`tasks_api.py:242-243`).
-- Evaluate sensor skips locked projects; launcher and ingest do not (see SR-SENS-01, SR-SENS-08). Fan-out in the webserver ignores project `enabled` and `locked` (`pull_request_fanout.py:112-118`).
-- Link PATCH/PUT and global resource edits are gated by the lock (see SR-LINK).
+- `POST /projects/<pid>/tasks` is refused (409) while the project is disabled (`tasks_api.py:242-243`).
+- The evaluate sensor and the launcher read enabled projects only; ingest does not look at projects (see SR-SENS-01, SR-SENS-08). Fan-out in the webserver skips a disabled project (`accepts_triggers`).
+- Linking a results repository needs the project disabled (see SR-LINK). Other link changes and global resource edits are not gated.
 
 **Webserver**
 - API task trigger kind: `ApiRequestTrigger` with `user_id` and raw body (`models/api_request_trigger.py`). Triggers are polymorphic (`type` PR or API) with a table-level check on `state_cause` (`models/trigger.py`).
