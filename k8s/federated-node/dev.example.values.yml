@@ -85,7 +85,7 @@ fnDagster:
   tag: *devTag
   createDB: true               # run the dagster-db-init job
   sensors:
-    minIntervalSeconds: 2
+    minIntervalSeconds: 5
     retryIntervalSeconds: 10
   # Pipes pods can write results as any uid without help. Only pin identity if you
   # need to; fsGroup does nothing except on storage.local.

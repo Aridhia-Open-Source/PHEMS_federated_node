@@ -7,7 +7,7 @@ Not covered here, only by the webserver and Dagster unit tests: switching a trig
 off, a revoked project or results link, revoking a result that is already held, disabling a Secret, and
 enabling a project with backfill. The rules are in ../../../../docs/architecture/revoke-and-enabled.md.
 
-The "nothing happens" checks wait a few sensor ticks (5 ticks of the 1 s interval the suite sets; E2E_KEEP_INTERVAL=1 leaves the cluster's own). The project is cleared at the start of the run, and kept
+The "nothing happens" checks wait a few sensor ticks (5 ticks of the cluster's sensor interval; E2E_FAST_SENSORS=1 sets it to 1 s for the run). The project is cleared at the start of the run, and kept
 afterwards unless E2E_TEARDOWN=1.
 """
 

@@ -269,7 +269,7 @@ fnDagster:
     # Status every Dagster sensor starts in: STOPPED or RUNNING. Only applies to a sensor
     # Dagster has not seen before; a sensor started or stopped since keeps its status.
     initialStatus: STOPPED
-    # Minimum seconds between ticks of every Dagster sensor. Dev values use 2.
+    # Minimum seconds between ticks of every Dagster sensor. Dev values use 5.
     minIntervalSeconds: 30
     # Seconds a failed sensor run waits before its next try, when nothing it acts on changed.
     retryIntervalSeconds: 60

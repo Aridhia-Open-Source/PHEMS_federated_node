@@ -109,12 +109,14 @@ def teardown_step(fncli, command, options, final: bool = False):
 
 INTERVAL_KEY = "DAGSTER_SENSORS_MIN_INTERVAL_SECONDS"
 RETRY_INTERVAL_KEY = "DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS"
-_tick_seconds = {"value": float(os.environ.get(INTERVAL_KEY, 30))}
+APP_DEFAULT_INTERVAL = 30  # seconds: what the sensors use when the cluster's config does not set the interval
 
 
 def tick_seconds() -> float:
-    """The shortest interval of a sensor tick, as the sensors are configured (or as a test set it)."""
-    return _tick_seconds["value"]
+    """The shortest interval of a sensor tick, as the cluster has it configured."""
+    load_dotenv(find_dotenv(".dev.env", usecwd=True))
+    value = get_configmap_value(ENV_CONFIGMAP, GiteaConfig().namespace, INTERVAL_KEY)
+    return float(value) if value else APP_DEFAULT_INTERVAL
 
 
 def set_sensor_interval(seconds: int, retry_seconds: int) -> tuple[str | None, str | None]:
@@ -131,7 +133,6 @@ def set_sensor_interval(seconds: int, retry_seconds: int) -> tuple[str | None, s
     set_configmap_value(ENV_CONFIGMAP, namespace, INTERVAL_KEY, str(seconds))
     set_configmap_value(ENV_CONFIGMAP, namespace, RETRY_INTERVAL_KEY, str(retry_seconds))
     restart_code_server(namespace)
-    _tick_seconds["value"] = float(seconds)
     return previous, previous_retry
 
 
@@ -148,12 +149,13 @@ SENSOR_INTERVAL = 1  # seconds: the "nothing happens" checks then take a few of 
 
 @pytest.fixture(scope="module", autouse=True)
 def fast_sensors(request):
-    """Run every e2e module with a 1 s sensor interval, and put the cluster's interval back afterwards, even when a test failed.
+    """With E2E_FAST_SENSORS=1, run every e2e module with a 1 s sensor interval, and put the cluster's interval back afterwards,
+    even when a test failed. Otherwise the cluster's interval and code server are left alone.
 
-    Skipped when E2E_KEEP_INTERVAL=1. The code server restarts both times, which stops the sensors: each module's test_start_sensor
-    starts them again after setup, and the restore leaves them stopped, as a fresh install does.
+    The code server restarts both times, which stops the sensors: each module's test_start_sensor starts them again after setup,
+    and the restore leaves them stopped, as a fresh install does.
     """
-    if os.environ.get("E2E_KEEP_INTERVAL") == "1":
+    if os.environ.get("E2E_FAST_SENSORS") != "1":
         yield
         return
     previous, previous_retry = set_sensor_interval(SENSOR_INTERVAL, RETRY_INTERVAL)
@@ -178,7 +180,8 @@ def quiet_wait(ticks: int = 3, sensors: list[str] = QUIET_SENSORS):
         return all(count >= ticks for count in new.values()) or None
 
     # A tick can take several times the minimum interval when the daemon is busy
-    wait_for(ticked, max(60, ticks * tick_seconds() * 15), f"{ticks} new ticks of {sensors}", interval=max(1, tick_seconds()))
+    interval = tick_seconds()
+    wait_for(ticked, max(60, ticks * interval * 15), f"{ticks} new ticks of {sensors}", interval=max(1, interval))
 
 
 @pytest.fixture(autouse=True)
