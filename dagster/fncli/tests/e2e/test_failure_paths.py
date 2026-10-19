@@ -3,9 +3,10 @@ The failure paths of the GlobalResource flow. Same style as the happy path: one 
 expected state, in order, on one project, stopping at the first failure with the last snapshot. Each group of
 tests leaves the project as the next expects it: links active, tokens restored.
 
-Not covered here, only by the webserver and Dagster unit tests: switching a trigger link or a GlobalResource
-off, a revoked project or results link, revoking a result that is already held, disabling a Secret, and
-enabling a project with backfill. The rules are in ../../../../docs/architecture/revoke-and-enabled.md.
+Not covered here, but by test_failure_paths_2.py (--e2e failure2): switching a trigger link or a GlobalResource off, a revoked
+project, a revoked results link, a disabled Secret, enabling a project with backfill, and the results link, dataset and
+delivery changes made while a task is in flight. Only the webserver and Dagster unit tests cover revoking a result that is
+already held. The rules are in ../../../../docs/architecture/revoke-and-enabled.md.
 
 The "nothing happens" checks wait a few sensor ticks (5 ticks of the cluster's sensor interval; E2E_FAST_SENSORS=1 sets it to 1 s for the run). The project is cleared at the start of the run, and kept
 afterwards unless E2E_TEARDOWN=1.

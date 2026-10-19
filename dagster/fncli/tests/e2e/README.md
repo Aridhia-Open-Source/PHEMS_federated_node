@@ -6,7 +6,7 @@ The suites run the real stack (webserver, Keycloak, Postgres, Dagster and Gitea 
 |---|---|---|
 | `success` | `test_happy_path.py` | A PR in the trigger repository, through ingest, a task and delivery, to a merged results PR; `verify-project` and `verify-repo` pass |
 | `failure` | `test_failure_paths.py` | Invalid spec rejected, unwatched PR creates no trigger, ingest restart is idempotent, revoked link, second project on the same repository, lost token and recovery, failing task, results `target_dir` change, sensors restarted mid-flow |
-| `failure2` | `test_failure_paths_2.py` | Revoked project, disabled link, disabled and revoked global resource, disabled secret, backfill |
+| `failure2` | `test_failure_paths_2.py` | Revoked project, disabled link, disabled and revoked global resource, disabled secret, backfill; then work in flight: results link revoked after the task launched (result `REVOKED`, still not delivered once un-revoked), results `target_dir` changed after launch (`STALE`), results link switched off before delivery (held `FAILED`, delivered by the retry sensor once on), dataset link revoked and global dataset switched off while the task is `PENDING` (fails at launch naming the dataset) |
 
 Each test is one fncli command or one expected state, in order, on one project. The first failure stops the run and prints the last project snapshot. The "nothing happens" checks wait five sensor ticks.
 
@@ -37,6 +37,8 @@ dagster/.venv/bin/python -m pytest dagster --e2e failure2 -v -x -p no:cacheprovi
 ```
 
 `--e2e` alone runs all three in that order. The project is cleared at the start of each run and left in place afterwards for inspection; `E2E_TEARDOWN=1` tears it down at the end. `E2E_FAST_SENSORS=1` sets the sensor interval to 1 s for the run (it patches the Dagster config and restarts the code server, so the sensors are started again by the suite). `E2E_TASK_TIMEOUT` (default 600 s) bounds a task that has to start. Wrap a run in `timeout 3600` if `pytest-timeout` is not installed.
+
+The `failure2` work-in-flight scenarios stop and start the `delivery` and `launcher` sensors; they assume the delivery run-status sensor, once restarted, delivers a run that succeeded while it was stopped.
 
 The `failing task` scenario needs the run image to honour `PYPIPES_EXIT_CODE`, which the rebuilt `pypipes-fn` does.
 
