@@ -349,9 +349,11 @@ def test_disabling_a_secret_disables_what_uses_it_and_enabling_it_does_not_enabl
     assert [enabled(base, resource) for base, resource in own.items()] == [False, False, False]
     assert client.patch(f"{DS}/{global_dataset.id}", json={"enabled": True}, headers=admin_headers).status_code == 200
 
-    # off while it is off already changes nothing else
+    # off while it is off already changes nothing else. The API will not enable a resource on a disabled
+    # secret, so the dataset is switched on in the database to see that a repeated off leaves it alone.
     assert client.patch(f"{SEC}/test-creds", json={"enabled": False}, headers=admin_headers).status_code == 200
-    assert client.patch(f"{DS}/{global_dataset.id}", json={"enabled": True}, headers=admin_headers).status_code == 200
+    global_dataset.enabled = True
+    db.session.commit()
     assert client.patch(f"{SEC}/test-creds", json={"enabled": False}, headers=admin_headers).status_code == 200
     assert enabled(DS, global_dataset) is True
 

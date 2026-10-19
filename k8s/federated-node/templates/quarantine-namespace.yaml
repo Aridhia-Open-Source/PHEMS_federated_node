@@ -1,0 +1,31 @@
+{{- /* Where the backend moves the stored value of a disabled secret, so that it cannot be read from the
+       namespace the secret's row names. It needs its own Role: the backend creates, reads, patches (an
+       interrupted move is overwritten) and deletes secrets here. */}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "quarantine_namespace" . }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-quarantine-role
+  namespace: {{ include "quarantine_namespace" . }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "create", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-quarantine-role-binding
+  namespace: {{ include "quarantine_namespace" . }}
+subjects:
+  - kind: ServiceAccount
+    namespace: {{ .Release.Namespace }}
+    name: secret-backend-handler
+roleRef:
+  kind: Role
+  name: {{ .Release.Name }}-quarantine-role
+  apiGroup: rbac.authorization.k8s.io

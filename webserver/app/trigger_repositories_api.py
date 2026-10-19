@@ -166,7 +166,8 @@ def patch_repository(repo_id):
     """
     PATCH /global/repositories/triggers/<id> — update repository. The tasks created
     before are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be
-    named (400), unless it is the one already in use. `revoked` (a boolean) withdraws the repository from every
+    named (400), unless it is the one already in use. Enabling the repository is a 409 while its secret (the new one,
+    if secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the repository from every
     project at once, or restores it, and does not change `enabled`: see helpers/task_config.revoked_resources.
     """
     repo = TriggerRepository.get_by_id(repo_id)
@@ -181,8 +182,12 @@ def patch_repository(repo_id):
     if 'revoked' in body and not g.caller_is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a trigger repository")
 
+    secret = repo.secret
     if 'secret_label' in body:
-        repo.secret_id = Secret.get_enabled_by_label(req.secret_label, repo.secret_id).id
+        secret = Secret.get_enabled_by_label(req.secret_label, repo.secret_id)
+    if 'enabled' in body and req.enabled:
+        secret.require_usable()
+    repo.secret_id = secret.id
 
     if 'enabled' in body:
         # Switched back on: what was merged while it was off gets no trigger
