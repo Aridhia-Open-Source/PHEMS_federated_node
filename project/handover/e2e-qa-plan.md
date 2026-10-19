@@ -90,38 +90,23 @@ sleep 60; echo "unrevoked: $c0 -> $(count)"; snap S6
 ```
 **Pass:** while revoked the counts are unchanged (no trigger, no task); after un-revoking they stay unchanged: the missed PR is stored but gets no trigger (the link's cursor moves to now).
 
-### S7. Disabled link needs the lock, then behaves like revoked
+### S7. Disabled link: nothing new, and no replay after enabling
 ```bash
-fncli link-set trigger --enabled false --expect 409               # unlocked: refused
-fncli project-set --locked true --expect 200
-fncli link-set trigger --enabled false --expect 200               # needs no task in flight: wait for S6's task to finish first
-c0=$(count); t0=$(tasks); fncli open-pr --kind watched --merge; sleep 60; echo "disabled: $c0 -> $(count)"
-fncli link-set trigger --enabled true --expect 200; fncli project-set --locked false --expect 200
-wait_for ".tasks | length >= $((t0+1))" 180; echo "enabled: $c0 -> $(count)"; snap S7
+c0=$(count); t0=$(tasks); fncli link-set trigger --enabled false --expect 200
+fncli open-pr --kind watched --merge; sleep 60; echo "disabled: $c0 -> $(count)"
+fncli link-set trigger --enabled true --expect 200
+sleep 60; echo "enabled: $c0 -> $(count)"; snap S7
 ```
-**Pass:** the unlocked change is 409; while disabled the counts are unchanged; after enabling the missed PR is picked up (counts +1 each).
+**Pass:** while disabled the counts are unchanged (no trigger, no task); after enabling they stay unchanged: the missed PR is stored but gets no trigger (the gap is skipped).
 
-### S8. A task in flight blocks lock-gated changes (best effort, timing dependent)
-Open a watched PR; as soon as `.tasks` has a task that is not finished:
+### S9. Disabling a GlobalResource stops its ingest
 ```bash
-fncli open-pr --kind watched --merge
-wait_for '.tasks | any(.status=="PENDING" or .status=="QUEUED" or .status=="RUNNING")' 120
-fncli project-set --locked true --expect 200
-fncli link-set trigger --enabled false --expect 409               # the body lists the task id
-fncli project-set --locked false --expect 200
-```
-**Pass:** 409 naming the task. If the task finishes too fast to catch, mark BLOCKED, not FAIL.
-
-### S9. Disabling a global repository stops its ingest
-Wait until the project is drained: no unfinished task and the last result is OPENED or MERGED (a result still IN_PROGRESS makes the next call 409).
-```bash
-fncli project-set --locked true --expect 200
 fncli global-set trigger --enabled false --expect 200
 c0=$(count); fncli open-pr --kind watched --merge; sleep 60; echo "global off: $c0 -> $(count)"
-fncli global-set trigger --enabled true --expect 200; fncli project-set --locked false --expect 200
+fncli global-set trigger --enabled true --expect 200
 sleep 90; echo "global on: $c0 -> $(count)"; snap S9
 ```
-**Pass:** counts unchanged while off. After turning it on, **record** what happens to the PR merged in the gap. Expected: it appears (the cursor is the last stored PR), but the ADR says history is not replayed, so note the actual behaviour either way.
+**Pass:** counts unchanged while off. After turning it on, the PR merged in the gap is stored on catch-up but gets no trigger (the gap is skipped); **record** what actually happens.
 
 ### S10. A second project on the same repository
 ```bash
@@ -179,7 +164,7 @@ fncli setup-project && fncli project-healthcheck && fncli verify-project
 - **Delivery with no results link:** not testable from fncli; skip.
 
 ## Pass criteria
-Required: S0 to S7, S9 to S11, S13, S14. S8 is best effort. S12 should pass. S15 is informational.
+Required: S0 to S7, S9 to S11, S13, S14. S12 should pass. S15 is informational.
 
 ## Results template (`results.md`)
 

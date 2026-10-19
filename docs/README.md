@@ -36,6 +36,7 @@ Architecture ([docs/architecture](architecture/)):
 - [entities.md](architecture/entities.md): schema (ER), the two inheritance trees, trigger state, task status, result step.
 - [flows.md](architecture/flows.md): end to end flow, ingest and fan-out, component and network view, sensor and job inventory.
 - [revoke-and-enabled.md](architecture/revoke-and-enabled.md): the two flags, what each state does, soft delete, Secrets, known limits.
+- [sensors/README.md](architecture/sensors/README.md): one doc per Dagster sensor with a flow chart (the status mirrors are grouped), plus the shared sensor helpers.
 
 Requirements and as-built ([project](../project/)):
 
@@ -56,7 +57,7 @@ Operations:
 - [DEPLOYMENT.md](../DEPLOYMENT.md), [k8s/federated-node/README.md](../k8s/federated-node/README.md): install and chart values.
 - [dagster/README.md](../dagster/README.md), [dagster/fncli/README.md](../dagster/fncli/README.md): the Dagster code location and the fncli tool.
 
-Historical, not a design source: the other files in [project/handover](../project/handover/) (earlier session notes, the moonshot build plan and review). The decision records win where they differ.
+Historical, not a design source: the other files in [project/handover](../project/handover/) (earlier session notes). The decision records win where they differ.
 
 ## Suggested reading order
 
@@ -66,5 +67,5 @@ Historical, not a design source: the other files in [project/handover](../projec
 4. ADRs [0001](../project/decisions/0001-polymorphic-triggers.md), [0002](../project/decisions/0002-task-spec-and-derivation.md), [0008](../project/decisions/0008-polymorphic-result-and-forward-only-state.md), [0017](../project/decisions/0017-task-status-written-by-run-status-sensors.md): triggers, tasks, results and who writes which state.
 5. ADRs [0005](../project/decisions/0005-git-api-protocol-and-factory.md) to [0007](../project/decisions/0007-results-delivered-as-branch-and-pull-request.md): the git side and delivery.
 6. [flows.md](architecture/flows.md): the whole path from a merged pull request to a results pull request.
-7. ADR [0009](../project/decisions/0009-sync-reconciler-and-operational-rules.md) and the sensor and job inventory in [flows.md](architecture/flows.md#sensor-and-job-inventory): run keys, retries, the launcher rules. This is the sensors part and comes last.
+7. ADR [0009](../project/decisions/0009-sync-reconciler-and-operational-rules.md) and the sensor and job inventory in [flows.md](architecture/flows.md#sensor-and-job-inventory): run keys, retries, the launcher rules. Then the [sensors docs](architecture/sensors/README.md), one per sensor. This is the sensors part and comes last.
 8. The remaining ADRs (0010 to 0016) as needed; skip 0003, 0004 and 0018.

@@ -44,7 +44,7 @@ Written by the cloud session. Nothing here has been run on a cluster. Where the 
 
 ## Docs still stale
 
-- `project/handover/session-handover-2026-10-17.md`, `moonshot-plan.md` and `moonshot-as-built.md` still describe backfill, `IGNORED` and the drain rules; the decision records are the source of truth.
+- `project/handover/moonshot-as-built.md` still describes backfill, `IGNORED` and the drain rules; the decision records are the source of truth.
 - The Hypothesis rule set (`webserver/tests/test_stateful_rules.py`) was updated by the laptop controller for soft delete; its docstring is the place to check the model against ADR 0025.
 
 ## Housekeeping that needs the laptop

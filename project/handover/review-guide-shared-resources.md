@@ -6,7 +6,7 @@ were taken at `07f7f73d`. The 3,000 deletions are rewrites, so compare old with 
 `develop` has 51 commits that this branch does not have; merging them is a separate job.
 
 Not in this diff: `moonshot/e2e-failure-suite` (the `REVOKED` result step, `skip_gap`, the e2e failure suite, the simulation, the Hypothesis rule
-set). Review that branch separately (see `session-handover-2026-10-17.md`).
+set). Review that branch separately.
 
 ## Skip or skim
 - `webserver/app/static/openapi.json` (+6,201 / -1,855): check it matches the routes, do not read it line by line.
@@ -57,4 +57,4 @@ set). Review that branch separately (see `session-handover-2026-10-17.md`).
 - Delivery with no results link is not handled (comment in Dagster).
 - The ingest versus link-create race, and `get_or_assign_*` in fncli returning an existing link with different settings.
 - Auth, audit and normal-user permissions are out of scope (a rewrite later); only the super user and the Dagster system user matter now.
-- The open beta issues (#536, #537, #539, #500) are listed in `session-handover-2026-10-17.md`.
+- The open beta issues are #536, #537, #539 and #500 on GitHub.
