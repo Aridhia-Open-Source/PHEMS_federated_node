@@ -59,8 +59,6 @@ def restart_code_server(namespace: str, timeout: int = 180):
             and status.replicas == current.spec.replicas
             and status.available_replicas == current.spec.replicas
         ):
-            # Pod is ready; wait a moment for the location to load in Dagster before returning
-            time.sleep(5)
             return
         time.sleep(3)
     raise TimeoutError(f"The code server did not become ready within {timeout}s")
