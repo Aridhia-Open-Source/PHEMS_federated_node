@@ -515,7 +515,7 @@ def test_failing_task_task_failed(fncli, flow):
     def failed(snapshot):
         return next((t for t in snapshot["tasks"] if t["id"] == flow["failing_task"] and t["status"] == "FAILED"), None)
 
-    fncli.wait_for_state(f"task {flow['failing_task_task']} FAILED", TASK_TIMEOUT, failed)
+    fncli.wait_for_state(f"task {flow['failing_task']} FAILED", TASK_TIMEOUT, failed)
 
 
 def test_failing_task_no_result_and_stays_failed(fncli, flow):
