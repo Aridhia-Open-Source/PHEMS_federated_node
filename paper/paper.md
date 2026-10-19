@@ -135,18 +135,18 @@ collaboration aligned with international standards.
 By operationalizing existing specifications rather than creating proprietary approaches, the FN lowers adoption barriers while ensuring interoperability, as demonstrated by deployment across four European countries with heterogeneous infrastructure as described following.
 
 # Research Impact Statement
-The FN is deployed in production across multiple sites within the [PHEMS](https://phems.eu) (Pediatric Hospitals as European drivers for multi-party computation and synthetic data generation) consortium, enabling the first operational federated analytics network spanning currently four pediatric hospitals across Europe. The PHEMS deployment demonstrates impact, with participating institutions are now actively executing federated queries against real clinical dataset for clinical benchmarking.
+The FN is deployed in production across multiple sites within the [PHEMS](https://phems.eu) (Pediatric Hospitals as European drivers for multi-party computation and synthetic data generation) consortium, enabling the first operational federated analytics network spanning currently four pediatric hospitals across Europe. The PHEMS deployment demonstrates impact, with participating institutions actively executing federated queries against real clinical datasets for clinical benchmarking.
 
 The modular design of the FN has enabled integration with existing institutional infrastructure across different technology stacks, demonstrating practical interoperability rather than requiring platform homogeneity. 
 
 # Software Design
 The International Covid-19 Data Alliance ([ICODA](https://icoda-research.org/ICODA)) developed the [Federated Data Sharing Common API](https://github.com/federated-data-sharing/common-api) or "Common API" as an open standard for a federated data sharing API, as described elsewhere. The Common API is a constrained implementation of the Global Alliance for Genomics and Health [Task Execution Service](https://www.ga4gh.org/product/task-execution-service-tes/), containing components for meta-data browsing, remote data selection and federated computation.
 
-The Federated Node (FN) builds upons this open standard, and provides a
+The Federated Node (FN) builds upon this open standard, and provides a
 practical, working implementation of the standard that can be easily
-deployed and operated into federated research networks. The FN packages
-an implimention of the Common API with other opensource components
-including :
+deployed and operated within federated research networks. The FN packages
+an implemention of the Common API with other open-source components
+including:
 
 - The Common API
 - [Keycloak](https://www.keycloak.org/)
@@ -201,7 +201,7 @@ In this configuration instead of retrieving analytical code from an
 associated container registry the FN is deployed with an LLM or SLM
 hosted in the same environment as the federated data. Authenticated
 users can perform federated analysis by sending prompts to the remote
-SLM, as illustrated following in \autoref{fig:figure2}.
+SLM, as illustrated below in \autoref{fig:figure2}.
 
 ![AI Federated task processing.\label{fig:figure2}](image2.jpeg)
 
@@ -218,11 +218,11 @@ retains the design of the standard Federated Node detailed above.
 
 There are obvious benefits to this approach, primarily that it lowers
 the barrier to entry for users with limited coding skills. However, we
-accept that there are a significant issues that need to be resolved
+accept that there are significant issues that need to be resolved
 before this approach can be considered secure and scalable and that the
 issues around LLM security and reliability, particularly with regards to
 mathematical reasoning, are well established. This is not to mention the
-costs associated with running these models in the data owners
+costs associated with running these models in the data owners'
 infrastructure. Our underlying assumption is that these problems will be
 resolved by two developments:
 
