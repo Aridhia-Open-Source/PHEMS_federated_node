@@ -78,9 +78,18 @@ def summary(snapshot: dict) -> dict:
     }
 
 
-def start_sensor(sensor: str):
+def start_sensor(sensor: str, attempts: int = 5, wait: float = 5):
     # start-sensor takes a group, not a name, so the API call it makes for each sensor is made here
-    DagsterAPI(DagsterConfig().dagster_url).start_sensor(sensor)
+    api = DagsterAPI(DagsterConfig().dagster_url)
+    for attempt in range(attempts):
+        try:
+            return api.start_sensor(sensor)
+        except RuntimeError as error:
+            # Right after a code server restart the sensors are not loaded yet
+            if "SensorNotFoundError" not in str(error) or attempt == attempts - 1:
+                raise
+            logger.info(f"Sensor {sensor} not found yet, trying again in {wait}s")
+            time.sleep(wait)
 
 
 def teardown_step(fncli, command, options, final: bool = False):
