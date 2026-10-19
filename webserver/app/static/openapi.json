@@ -5481,6 +5481,90 @@
           }
         }
       }
+    },
+    "/projects/{project_id}/tasks/{task_id}/launch": {
+      "post": {
+        "operationId": "launch_task",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Decide a PENDING task's launch: fail it, or return what its run needs",
+        "description": "The launcher's one call per PENDING task. The webserver decides with the same rules as GET .../config (something it uses is revoked or deleted, its configuration changed, its dataset link is not active, its dataset's secret is disabled; the first that applies decides). On fail it moves the task to FAILED itself, its state_cause the cause cut to 1024 characters, and returns the outcome and cause. On launch it writes nothing and returns the task, spec included, and its dataset with the secret reference (null for a task without one): everything the run request is built from. A task that is no longer PENDING is a 409 and nothing changes, so the call is safe to repeat every tick. 404 if the task is not in the project.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "task_id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The decision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "launch",
+                        "fail"
+                      ],
+                      "example": "launch"
+                    },
+                    "cause": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Why the task failed, as stored; null when the outcome is launch.",
+                      "example": null
+                    },
+                    "task": {
+                      "$ref": "#/components/schemas/TaskById"
+                    },
+                    "dataset": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DatasetObject"
+                        }
+                      ],
+                      "nullable": true,
+                      "description": "The task's dataset with its secret reference; null on fail or for a task without a dataset."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The task is no longer PENDING; nothing changed. The error says its status."
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
     }
   },
   "security": [

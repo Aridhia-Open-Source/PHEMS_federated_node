@@ -13,6 +13,7 @@ tasks-related endpoints, under the project that owns the tasks. A task of anothe
 - GET /projects/<project_id>/tasks/<task_id>/logs
 - GET /projects/<project_id>/tasks/<task_id>/trigger (the pull request that yielded the task, 404 if none)
 - GET /projects/<project_id>/tasks/<task_id>/config (whether the configuration the task was created under still holds)
+- POST /projects/<project_id>/tasks/<task_id>/launch (the launcher's one call: decides, fails the task or returns the run inputs; a task not PENDING: 409)
 """
 from datetime import datetime as dt
 from http import HTTPStatus
@@ -21,6 +22,7 @@ from flask import Blueprint, request
 from sqlalchemy import text
 
 from app.helpers.base_model import db
+from app.helpers.const import TASK_CAUSE_MAX_LENGTH
 from app.helpers.exceptions import (
     DBRecordNotFoundError, InvalidDBEntry, InvalidRequest, NotImplementedException, TaskImageException,
     UnauthorizedError
@@ -32,6 +34,7 @@ from app.helpers.query_filters import arg_get
 from app.helpers.task_config import decide_launch
 from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.wrappers import audit, auth
+from app.dtos.dataset import DatasetDTO
 from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.trigger_repository import TaskTriggerDTO
 from app.dtos.result import dump_result
@@ -329,6 +332,39 @@ def get_task_config(project_id, task_id):
         "outcome": decision.outcome, "cause": decision.cause,
         "current": not decision.changes, "changes": decision.changes, "config_hash": task.config_hash,
         "config_snapshot": task.config_snapshot, "revoked": decision.revoked,
+    }, HTTPStatus.OK
+
+
+@bp.route('/<int:task_id>/launch', methods=['POST'])
+@audit
+@auth(scope='can_admin_dataset')
+def launch_task(project_id, task_id):
+    """
+    POST /projects/<project_id>/tasks/id/launch endpoint. The launcher's one call per PENDING task. It decides
+    with helpers/task_config.decide_launch, the same rules GET .../config reports, and answers:
+    - "fail": the task is moved to FAILED here, its state_cause the cause cut to TASK_CAUSE_MAX_LENGTH. Returns
+      outcome, cause (as stored) and the failed task.
+    - "launch": nothing is written. Returns outcome, the task (spec included) and its dataset, with the secret
+      reference, exactly what the run request needs; dataset is null for a task without one.
+    A task that is no longer PENDING is a 409 and nothing changes, so a repeated call is safe.
+    """
+    task = get_project_task(project_id, task_id)
+    does_user_own_task(task)
+    if task.status != TaskStatus.PENDING.value:
+        raise InvalidRequest(f"Task {task_id} is {task.status}, not {TaskStatus.PENDING.value}", HTTPStatus.CONFLICT)
+
+    decision = decide_launch(task)
+    if decision.outcome == "fail":
+        transition(TASK_MOVES, task.status, TaskStatus.FAILED.value)
+        task.status = TaskStatus.FAILED.value
+        task.state_cause = (decision.cause or "failed by the backend")[:TASK_CAUSE_MAX_LENGTH]
+        db.session.commit()
+        return {"outcome": "fail", "cause": task.state_cause, "task": TaskDTO.from_model(task).dump(), "dataset": None}, HTTPStatus.OK
+
+    dataset = task.spec.dataset if task.spec.dataset_id else None
+    return {
+        "outcome": "launch", "cause": None, "task": TaskDTO.from_model(task).dump(),
+        "dataset": DatasetDTO.from_model(dataset).dump() if dataset else None,
     }, HTTPStatus.OK
 
 
