@@ -25,6 +25,11 @@ from app.tasks_api import does_user_own_task
 
 bp = Blueprint('results', __name__, url_prefix='/projects')
 
+# A result at one of these steps is never delivered again or has been delivered already
+FINAL_STEPS = {
+    PullRequestResultStep.OPENED.value, PullRequestResultStep.MERGED.value, PullRequestResultStep.CLOSED.value,
+    PullRequestResultStep.REVOKED.value, PullRequestResultStep.STALE.value,
+}
 BASE_FIELDS = {"attempts", "error"}
 PULL_REQUEST_FIELDS = {
     "step", "state", "branch", "commit_sha", "number", "url", "merged_at", "merge_commit_sha"
@@ -96,7 +101,9 @@ def post_result(project_id: int):
     """
     POST /projects/<project_id>/results endpoint. Creates the delivery of a task's results to a results
     repository, by pull request. The repository is the global one's id, which the
-    project has to be linked to (a deleted link counts, as a revoked one), and the task has to be the project's. If it exists already, that one is returned.
+    project has to be linked to (a deleted link counts, as a revoked one), and the task has to be the project's. If it exists already, that one is returned,
+    after the revoked check below if it is not final yet (step UNKNOWN or PUSHED): when something the task uses is
+    revoked by now, it is moved to step REVOKED and state FAILED, with the same error.
     Otherwise 409 unless the task is SUCCESS. When anything the task uses is revoked or deleted (its project, trigger, dataset
     or results repository, see helpers/task_config.revoked_resources) the result is created as final,
     step REVOKED and state FAILED, with the revoked resources as its error, and nothing is ever delivered for it. When the link is inactive for another
@@ -126,6 +133,15 @@ def post_result(project_id: int):
 
     result = Result.query.filter_by(task_id=task.id, results_repository_id=assignment.id).first()
     if result:
+        # A result that is not final yet (recorded and held, or retried) is revoked here too, so the
+        # delivery that posts again before it runs sees REVOKED and stops
+        if result.step not in FINAL_STEPS:
+            revoked = revoked_resources(task, body['results_repository_id'])
+            if revoked:
+                result.set_step(PullRequestResultStep.REVOKED.value)
+                result.state = ResultState.FAILED.value
+                result.error = ("revoked: " + "; ".join(revoked))[:1024]
+                db.session.commit()
         return dump_result(result), HTTPStatus.OK
 
     if task.status != TaskStatus.SUCCESS.value:
