@@ -160,6 +160,29 @@ class TestPullRequests:
 
         session.get.assert_called_once_with("/projects/1/tasks/9/config")
 
+    def test_launch_task_posts_once_and_parses_the_decision(self, api, session):
+        session.post.return_value = make_response({
+            "outcome": "launch", "cause": None, "task": SAMPLE_TASK, "dataset": None,
+        })
+
+        decision = api.launch_task(1, 9)
+
+        assert session.post.call_args.args[0] == "/projects/1/tasks/9/launch"
+        assert (decision.outcome, decision.task.id, decision.dataset) == ("launch", SAMPLE_TASK["id"], None)
+
+    def test_launch_task_of_a_task_no_longer_pending_is_none(self, api, session):
+        session.post.return_value = MagicMock(status_code=409, text="not PENDING")
+
+        assert api.launch_task(1, 9) is None
+
+    def test_launch_task_raises_on_another_error(self, api, session):
+        response = MagicMock(status_code=500)
+        response.raise_for_status.side_effect = RuntimeError("boom")
+        session.post.return_value = response
+
+        with pytest.raises(RuntimeError):
+            api.launch_task(1, 9)
+
     def test_batch_creation(self, api, session):
         session.post.return_value = make_response({"created": [1], "existing": [2]})
 
