@@ -14,6 +14,8 @@ from app.models.project_dataset import ProjectDataset
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.project_secret import ProjectSecret
 from app.models.project_trigger_repository import ProjectTriggerRepository
+from app.models.pull_request_trigger import PullRequestTrigger
+from tests.helpers.pull_requests import add_pull_request_trigger
 
 BASE = "/global/repositories/triggers"
 KINDS = ["secret", "dataset", "trigger", "results"]
@@ -240,6 +242,19 @@ def test_unlinking_revokes_the_link_and_it_can_be_linked_again(ctx, client, admi
     link_project(client, admin_headers, ctx, project)  # a new, live link of the same pair
     assert get(client, admin_headers, url).json["revoked"] is False
     assert len(get(client, admin_headers, f"/projects/{project.id}/{ctx.list_tail}").json) == 1
+
+
+def test_unlinking_a_trigger_link_with_pull_requests_keeps_its_triggers(
+    client, admin_headers, project, linked_trigger_repo
+):
+    """The unlink is a soft delete, so the RESTRICT keys of the triggers never fire: 204, not an error."""
+    url = f"/projects/{project.id}/repositories/triggers/{linked_trigger_repo['trigger_repository']['id']}"
+    add_pull_request_trigger(ProjectTriggerRepository.query.one())
+    assert client.delete(url, headers=admin_headers).status_code == 204
+    (row,) = db.session.query(ProjectTriggerRepository).execution_options(include_deleted=True).all()
+    assert row.deleted_at is not None and row.revoked is True
+    assert PullRequestTrigger.query.filter_by(project_trigger_repository_id=row.id).count() == 1
+    assert get(client, admin_headers, url).status_code == 404
 
 
 @by_kind

@@ -10,9 +10,9 @@ Needs: the dev project, an administrator login, and the second project (`fncli s
 2. `DELETE /projects/<QaTwo pid>/repositories/triggers/<id>`.
 3. `fncli second-project-teardown QaTwo` when finished.
 
-- **Expected today:** this returns a raw foreign-key 400 rather than a 409. Record the status and the body. A link cannot be removed for real while triggers exist, so the link should stay.
-- **Rule:** a link cannot be removed for real while triggers exist (`RESTRICT`) ([Pull requests stored once per repository, fanned out to project links, with cursors]).
-- **Automated by:** Manual only. No test asserts the status for this case.
+- **Expected today:** 204. The unlink is a soft delete that also revokes the link, so the `RESTRICT` keys of the triggers never fire. The link is gone from the API (`GET` is 404), and its triggers and pull requests are kept. Record the status; a 400 or 409 is a fail.
+- **Rule:** a link is only ever soft deleted ([Enabled, revoked and soft delete]); `RESTRICT` stops a real row delete while triggers exist, and no route makes one ([Pull requests stored once per repository, fanned out to project links, with cursors]).
+- **Automated by:** `webserver/tests/test_trigger_repositories_and_links.py` (`test_unlinking_a_trigger_link_with_pull_requests_keeps_its_triggers`). This case can move out of the known issues.
 - [ ] Pass (matches the expected result above)
 - [ ] Fail (differs; note what you saw)
 
