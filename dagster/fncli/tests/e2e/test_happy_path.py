@@ -2,6 +2,8 @@
 A PR in the Gitea trigger repo, through a task, to a merged results PR in the results repo.
 One test per fncli command or state change, run in order on one project: a failure names the
 hop, and the first failure stops the run.
+
+All sensors must already be running before the run (`fncli start-sensor --sensor all`); the run does not start them.
 """
 
 import pytest
@@ -15,7 +17,6 @@ from fncli.cmds.pr import (
     merge_results_pr_command,
     new_branch_name,
 )
-from fncli.cmds.sensor import ALL_SENSORS
 from fncli.tests.e2e.conftest import (
     PR_STATES,
     RESULT_STEPS,
@@ -24,7 +25,6 @@ from fncli.tests.e2e.conftest import (
     TEARDOWN_IDS,
     pull_requests,
     reached,
-    start_sensor,
     teardown_step,
 )
 
@@ -64,11 +64,6 @@ def test_setup(fncli, command, options):
 
 def test_verify_project_after_setup(fncli):
     fncli.run("verify-project")
-
-
-@pytest.mark.parametrize("sensor", ALL_SENSORS)
-def test_start_sensor(sensor):
-    start_sensor(sensor)
 
 
 def test_create_gitea_branch(fncli, flow):

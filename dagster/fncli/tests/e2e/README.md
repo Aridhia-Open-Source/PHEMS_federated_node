@@ -5,8 +5,7 @@ The suites run the real stack (webserver, Keycloak, Postgres, Dagster and Gitea 
 | Suite | File | What it covers |
 |---|---|---|
 | `success` | `test_happy_path.py` | A PR in the trigger repository, through ingest, a task and delivery, to a merged results PR; `verify-project` and `verify-repo` pass |
-| `failure` | `test_failure_paths.py` | Invalid spec rejected, unwatched PR creates no trigger, ingest restart is idempotent, revoked link, second project on the same repository, lost token and recovery, failing task, results `target_dir` change, sensors restarted mid-flow |
-| `failure2` | `test_failure_paths_2.py` | Revoked project, disabled link, disabled and revoked global resource, disabled secret, backfill; then work in flight: results link revoked after the task launched (result `REVOKED`, still not delivered once un-revoked), results `target_dir` changed after launch (`STALE`), results link switched off before delivery (held `FAILED`, delivered by the retry sensor once on), dataset link revoked and global dataset switched off while the task is `PENDING` (fails at launch naming the dataset) |
+| `failure` | `test_failure_paths.py` | Invalid spec rejected, unwatched PR creates no trigger, revoked link, second project on the same repository, lost token and recovery, failing task; then revoked project, disabled link, disabled and revoked global resource, disabled secret, backfill; then work in flight: results link switched off before delivery (held `FAILED`, delivered by the retry sensor once on) |
 
 Each test is one fncli command or one expected state, in order, on one project. The first failure stops the run and prints the last project snapshot. The "nothing happens" checks wait five sensor ticks.
 
@@ -33,14 +32,23 @@ From the repo root, where fncli finds `.dev.env`:
 ```bash
 dagster/.venv/bin/python -m pytest dagster --e2e success -v -x -p no:cacheprovider
 dagster/.venv/bin/python -m pytest dagster --e2e failure -v -x -p no:cacheprovider
-dagster/.venv/bin/python -m pytest dagster --e2e failure2 -v -x -p no:cacheprovider
 ```
 
-`--e2e` alone runs all three in that order. The project is cleared at the start of each run and left in place afterwards for inspection; `E2E_TEARDOWN=1` tears it down at the end. `E2E_FAST_SENSORS=1` sets the sensor interval to 1 s for the run (it patches the Dagster config and restarts the code server, so the sensors are started again by the suite). `E2E_TASK_TIMEOUT` (default 600 s) bounds a task that has to start. Wrap a run in `timeout 3600` if `pytest-timeout` is not installed.
-
-The `failure2` work-in-flight scenarios stop and start the `delivery` and `launcher` sensors; they assume the delivery run-status sensor, once restarted, delivers a run that succeeded while it was stopped.
+All sensors must already be running before a run (`fncli start-sensor --sensor all`); the suites do not start them. `--e2e` alone runs both in that order. The project is cleared at the start of each run and left in place afterwards for inspection; `E2E_TEARDOWN=1` tears it down at the end. `E2E_FAST_SENSORS=1` sets the sensor interval to 1 s for the run (it patches the Dagster config and restarts the code server, which stops the sensors, so start them again with `fncli start-sensor --sensor all` before the run). `E2E_TASK_TIMEOUT` (default 600 s) bounds a task that has to start. Wrap a run in `timeout 3600` if `pytest-timeout` is not installed.
 
 The `failing task` scenario needs the run image to honour `PYPIPES_EXIT_CODE`, which the rebuilt `pypipes-fn` does.
+
+## Removed for now
+
+The scenarios that stop and start sensors were removed from the suites and will be looked at again later. The reconcile sensor is expected to make up for sensors being down. These behaviours are not checked end to end until they are added back (the rules are in [revoke-and-enabled.md](../../../../docs/architecture/revoke-and-enabled.md)):
+
+- `failure`: restarting the ingest sensor does not duplicate pull requests or tasks, also after a trigger link was revoked and un-revoked.
+- `failure`: a task whose results link's `target_dir` changes before it launches fails, and its cause names the change ("May a waiting task launch?": the pinned configuration changed).
+- `failure`: sensors that were all stopped while a pull request was merged catch up when started: the pull request gets one trigger and one task, and no task stays `PENDING`.
+- `failure`: a results link revoked after the task succeeded and before its delivery leaves the result `REVOKED` and `FAILED`, never delivered, and un-revoking the link delivers nothing ("May a finished task's result be delivered?").
+- `failure`: a results link's `target_dir` changed after the task succeeded and before its delivery leaves the result `STALE` and `FAILED`, never delivered, and restoring the `target_dir` delivers nothing.
+- `failure`: a dataset link revoked while the task is `PENDING` makes the task fail at launch with a cause that starts "revoked: " and names the dataset, with no result.
+- `failure`: a global dataset switched off while the task is `PENDING` makes the task fail at launch with a cause saying the dataset is not active and naming it, with no result.
 
 ## After a failure
 

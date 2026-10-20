@@ -4,7 +4,6 @@ Fixtures and helpers for the end-to-end tests. Run against a live dev cluster wi
     pytest dagster --e2e -v            # all of them
     pytest dagster --e2e success -v    # the happy path only
     pytest dagster --e2e failure -v    # the failure paths only
-    pytest dagster --e2e failure2 -v   # the failure paths that switch something off or revoke it only
 
 The project is cleared at the start of each run and left in place afterwards for inspection; E2E_TEARDOWN=1 also tears it
 down at the end. Nothing here runs at import time, so a normal test run
@@ -85,28 +84,6 @@ def summary(snapshot: dict) -> dict:
     }
 
 
-def start_sensor(sensor: str, timeout: float = 150):
-    # start-sensor takes a group, not a name, so the API call it makes for each sensor is made here.
-    # Poll until the sensor is available, since the location may still be loading after a code server restart.
-    api = DagsterAPI(DagsterConfig().dagster_url)
-    deadline = time.time() + timeout
-    last_error = None
-
-    while time.time() < deadline:
-        try:
-            return api.start_sensor(sensor)
-        except RuntimeError as error:
-            error_str = str(error)
-            # Right after a code server restart the sensors are not loaded yet
-            if "SensorNotFoundError" not in error_str:
-                raise
-            last_error = error_str
-            logger.info(f"Sensor {sensor} not found yet, waiting for location to load")
-            time.sleep(1)
-
-    raise RuntimeError(f"Sensor {sensor} did not load within {timeout}s. Last error: {last_error}")
-
-
 def teardown_step(fncli, command, options, final: bool = False):
     """One teardown step; the final teardown only runs with E2E_TEARDOWN=1."""
     if final and os.environ.get("E2E_TEARDOWN") != "1":
@@ -159,8 +136,8 @@ def fast_sensors(request):
     """With E2E_FAST_SENSORS=1, run every e2e module with a 1 s sensor interval, and put the cluster's interval back afterwards,
     even when a test failed. Otherwise the cluster's interval and code server are left alone.
 
-    The code server restarts both times, which stops the sensors: each module's test_start_sensor starts them again after setup,
-    and the restore leaves them stopped, as a fresh install does.
+    The code server restarts both times, which stops the sensors. With E2E_FAST_SENSORS=1 start them again before the run
+    (`fncli start-sensor --sensor all`); the restore leaves them stopped, as a fresh install does.
     """
     if os.environ.get("E2E_FAST_SENSORS") != "1":
         yield
