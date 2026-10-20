@@ -134,36 +134,43 @@ local_resource(
 # Expose the backend locally
 k8s_resource('backend', port_forwards=['5000:5000'])
 
+# kubectl port-forward exits when one of its connections breaks, and Tilt does not start
+# a serve_cmd again once it has exited. Loop, so a dead forward comes back after a second.
+def port_forward_cmd(service, namespace, ports):
+  return 'while true; do kubectl port-forward svc/{service} -n {namespace} {ports}; sleep 1; done'.format(
+    service=service, namespace=namespace, ports=ports,
+  )
+
 # Dagster webserver UI is deployed by Helm but not rebuilt by Tilt, so it has
 # no k8s_resource() of its own to attach a port_forward to -- forward it
 # directly via kubectl instead.
 local_resource(
   'dagster-ui-port-forward',
-  serve_cmd='kubectl port-forward svc/fn-dev-dagster-webserver -n {ns} 3000:80'.format(ns=NAMESPACE),
+  serve_cmd=port_forward_cmd('fn-dev-dagster-webserver', NAMESPACE, '3000:80'),
   labels=['infrastructure'],
 )
 
 local_resource(
   'db-internal-port-forward',
-  serve_cmd='kubectl port-forward svc/db -n {ns} 5432:5432'.format(ns=NAMESPACE),
+  serve_cmd=port_forward_cmd('db', NAMESPACE, '5432:5432'),
   labels=['infrastructure'],
 )
 
 local_resource(
   'gitea-port-forward',
-  serve_cmd='kubectl port-forward svc/gitea -n {ns} 4000:4000'.format(ns=NAMESPACE),
+  serve_cmd=port_forward_cmd('gitea', NAMESPACE, '4000:4000'),
   labels=['infrastructure'],
 )
 
 local_resource(
   'db-datasets-port-forward',
-  serve_cmd='kubectl port-forward svc/db-datasets -n {ns} 5433:5432'.format(ns=NAMESPACE),
+  serve_cmd=port_forward_cmd('db-datasets', NAMESPACE, '5433:5432'),
   labels=['infrastructure'],
 )
 
 local_resource(
   'keycloak-port-forward',
-  serve_cmd='kubectl port-forward svc/keycloak -n keycloak 8080:80',
+  serve_cmd=port_forward_cmd('keycloak', 'keycloak', '8080:80'),
   labels=['infrastructure'],
 )
 
