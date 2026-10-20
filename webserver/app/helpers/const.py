@@ -68,3 +68,6 @@ TASK_ENV_RESERVED_KEYS = {"CDM_SCHEMA", "WRITE_SCHEMA"}
 TASK_ENV_MAX_BYTES = 32 * 1024
 TASK_REVIEW = os.getenv("TASK_REVIEW")
 ENABLE_IMAGE_WHITELIST = os.getenv("ENABLE_IMAGE_WHITELIST", "false").lower() == "true"
+
+# The longest state_cause the launch endpoint stores when it fails a task
+TASK_CAUSE_MAX_LENGTH = 1024

@@ -284,7 +284,7 @@ stateDiagram-v2
     SUCCESS --> [*]
 ```
 
-The run-status sensors write the status, and the launcher writes `FAILED` for a task a rule stops (revoked, configuration changed, dataset not active); the backend refuses a move that is not in `TASK_MOVES` with a 409 (forward only, only a retry moves a final task back). A retry of a task that is not `FAILED` or `CANCELED` is a 400. Delivery never changes the status ([0003](../../project/decisions/0003-task-status-written-by-run-status-sensors.md), [0005](../../project/decisions/0005-state-transition-tables.md)).
+The run-status sensors write the status, the reconcile sensor repairs one they missed, and the launcher writes `FAILED` for a task a rule stops (revoked, configuration changed, dataset not active); the backend refuses a move that is not in `TASK_MOVES` with a 409 (forward only, only a retry moves a final task back). A retry of a task that is not `FAILED` or `CANCELED` is a 400. Delivery never changes the status ([0003](../../project/decisions/0003-task-status-written-by-run-status-sensors.md), [0005](../../project/decisions/0005-state-transition-tables.md)).
 
 ## PullRequestResult step
 

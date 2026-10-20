@@ -16,6 +16,7 @@ from app.definitions.sensors.task.pull_request_sync import (
     results_pull_request_sync_sensor,
     sync_results_pull_requests_job,
 )
+from app.definitions.sensors.task.reconcile import task_reconcile_sensor
 from app.definitions.sensors.task.run_status import TaskRunStatusSensor
 from app.utils import BackendAdapter, BackendSession
 
@@ -117,6 +118,7 @@ SENSORS = [
     task_success_sensor,
     task_failure_sensor,
     task_canceled_sensor,
+    task_reconcile_sensor,
     task_results_delivery_sensor,
     results_delivery_retry_sensor,
     results_pull_request_sync_sensor,

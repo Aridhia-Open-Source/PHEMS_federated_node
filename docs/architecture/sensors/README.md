@@ -8,7 +8,7 @@ A Dagster sensor is a function the Dagster daemon calls on a timer (a tick). It 
 
 A sensor keeps no state of its own. The state is in the backend (pull requests, tasks, results) and in Dagster (runs and run keys).
 
-All sensors are registered by `dagster/app/definitions/__init__.py`, which takes `SENSORS` and `JOBS` from `sensors/__init__.py`, which joins `sensors/git/__init__.py` and `sensors/task/__init__.py`. That is 11 sensors and 4 jobs of their own, plus `k8s_pipes_job`.
+All sensors are registered by `dagster/app/definitions/__init__.py`, which takes `SENSORS` and `JOBS` from `sensors/__init__.py`, which joins `sensors/git/__init__.py` and `sensors/task/__init__.py`. That is 12 sensors and 4 jobs of their own, plus `k8s_pipes_job`.
 
 | Sensor | Kind | Launches or writes | Document |
 |---|---|---|---|
@@ -16,6 +16,7 @@ All sensors are registered by `dagster/app/definitions/__init__.py`, which takes
 | `git_pull_request_evaluate_sensor` | interval | `evaluate_repository_pull_requests_job` | [pr-evaluate](pr-evaluate.md) |
 | `task_launcher_sensor` | interval | `k8s_pipes_job`, or fails a task | [task-launcher](task-launcher.md) |
 | `task_queued_sensor`, `task_started_sensor`, `task_success_sensor`, `task_failure_sensor`, `task_canceled_sensor` | run status | patches the task's status | [run-status](run-status.md) |
+| `task_reconcile_sensor` | interval | patches the task's status from its run's current status | [task-reconcile](task-reconcile.md) |
 | `task_results_delivery_sensor` | run status (`SUCCESS`) | `deliver_results_job` | [run-status](run-status.md) (the job: [results-delivery](results-delivery.md)) |
 | `results_delivery_retry_sensor` | interval | `deliver_results_job` | [results-delivery](results-delivery.md) |
 | `results_pull_request_sync_sensor` | interval | `sync_results_pull_requests_job` | [results-pr-sync](results-pr-sync.md) |
@@ -38,6 +39,7 @@ flowchart TD
     J -->|"a rule fails"| L(["Task FAILED with a state_cause"])
     J -->|"RunRequest task/id/attempt"| K["k8s_pipes_job: the task pod"]
     K --> M["Run-status sensors patch the task"]
+    K -.->|"a missed event"| T["task_reconcile_sensor patches the task"]
     K -->|"run SUCCESS"| N["task_results_delivery_sensor"]
     N -->|"RunRequest deliver/task/attempt"| O["deliver_results_job"]
     O -->|"branch pushed, pull request opened"| P["Result PUSHED, then OPENED"]
@@ -73,5 +75,6 @@ A GlobalResource (a `Dataset`, `TriggerRepository`, `ResultsRepository` or `GitP
 | evaluate | enabled projects (a revoked one is still listed) | links that are not active |
 | task launcher | enabled projects (a revoked one is still listed) | it fails a task that uses anything revoked, whose configuration changed, or whose dataset is not active or has a disabled secret |
 | run-status sensors | any | nothing: they follow runs |
+| task reconcile | enabled projects | tasks of a disabled project, and tasks that are finished |
 | delivery retry | all projects | results whose link is not active, and results at a final step |
 | results pull request sync | all projects | nothing |

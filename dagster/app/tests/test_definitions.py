@@ -60,10 +60,10 @@ class TestCodeLocation:
     def test_every_sensor_is_stopped_by_default(self):
         assert DEFAULT_SENSOR_STATUS == dg.DefaultSensorStatus.STOPPED
 
-    def test_there_are_exactly_eleven_sensors(self):
-        assert len(SENSORS) == 11
-        assert len(defs.sensors) == 11
-        assert len({sensor.name for sensor in defs.sensors}) == 11
+    def test_there_are_exactly_twelve_sensors(self):
+        assert len(SENSORS) == 12
+        assert len(defs.sensors) == 12
+        assert len({sensor.name for sensor in defs.sensors}) == 12
 
     def test_every_sensor_uses_the_configured_minimum_interval(self):
         assert all(s.minimum_interval_seconds == MIN_SENSOR_INTERVAL_SECONDS for s in SENSORS)

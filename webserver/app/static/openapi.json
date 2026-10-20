@@ -483,6 +483,63 @@
         "description": "A status move not in TASK_MOVES (webserver/app/models/task_status.py) is refused with 409: only forward, and nothing out of SUCCESS, FAILED or CANCELED. The same status again is allowed."
       }
     },
+    "/tasks": {
+      "get": {
+        "operationId": "get_all_tasks",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Get the tasks of all projects",
+        "description": "Ordered by id, in the shape of the project's list. Used by the Dagster sensors, which filter in the webserver.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "One or more task statuses, comma separated, e.g. PENDING,RUNNING. An unknown status is a 400 listing the valid ones."
+          },
+          {
+            "in": "query",
+            "name": "project_enabled",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "description": "true keeps the tasks of enabled projects, as GET /projects?enabled=true lists them. A revoked project is still listed."
+          },
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AllTasksList"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/projects/{project_id}/tasks": {
       "get": {
         "operationId": "get_tasks",
@@ -910,7 +967,7 @@
           "Tasks"
         ],
         "summary": "Whether the configuration a task was created under still holds",
-        "description": "A task is pinned to its results repository and target_dir and to its dataset as they were when it was created. current is false when any of them changed since, and changes lists what differs; such a task must not launch or publish. A task without a stored snapshot is current. 404 if the task is not in the project.",
+        "description": "A task is pinned to its results repository and target_dir and to its dataset as they were when it was created. current is false when any of them changed since, and changes lists what differs; such a task must not launch or publish. A task without a stored snapshot is current. outcome is the webserver's decision for a PENDING task: launch, or fail with cause. The first rule that applies decides, in this order: something it uses is revoked or deleted, its configuration changed, its dataset link is not active, its dataset's secret is disabled. Read-only, so it can be asked every tick. 404 if the task is not in the project.",
         "parameters": [
           {
             "in": "path",
@@ -938,6 +995,30 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "launch",
+                        "fail"
+                      ],
+                      "example": "fail"
+                    },
+                    "cause": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Why the task fails; null when the outcome is launch.",
+                      "example": "The secret of dataset cdm is disabled"
+                    },
+                    "revoked": {
+                      "type": "array",
+                      "description": "What the task uses that is revoked or deleted.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "dataset cdm"
+                      ]
+                    },
                     "current": {
                       "type": "boolean",
                       "example": false
@@ -5457,6 +5538,90 @@
           }
         }
       }
+    },
+    "/projects/{project_id}/tasks/{task_id}/launch": {
+      "post": {
+        "operationId": "launch_task",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Decide a PENDING task's launch: fail it, or return what its run needs",
+        "description": "The launcher's one call per PENDING task. The webserver decides with the same rules as GET .../config (something it uses is revoked or deleted, its configuration changed, its dataset link is not active, its dataset's secret is disabled; the first that applies decides). On fail it moves the task to FAILED itself, its state_cause the cause cut to 1024 characters, and returns the outcome and cause. On launch it writes nothing and returns the task, spec included, and its dataset with the secret reference (null for a task without one): everything the run request is built from. A task that is no longer PENDING is a 409 and nothing changes, so the call is safe to repeat every tick. 404 if the task is not in the project.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "task_id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The decision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "launch",
+                        "fail"
+                      ],
+                      "example": "launch"
+                    },
+                    "cause": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Why the task failed, as stored; null when the outcome is launch.",
+                      "example": null
+                    },
+                    "task": {
+                      "$ref": "#/components/schemas/TaskById"
+                    },
+                    "dataset": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DatasetObject"
+                        }
+                      ],
+                      "nullable": true,
+                      "description": "The task's dataset with its secret reference; null on fail or for a task without a dataset."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The task is no longer PENDING; nothing changed. The error says its status."
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
     }
   },
   "security": [
@@ -6193,6 +6358,40 @@
                 "error": {
                   "type": "string",
                   "example": "Dagster is unreachable: connection refused"
+                }
+              }
+            }
+          }
+        }
+      },
+      "AllTasksList": {
+        "description": "A page of tasks",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "tasks": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskById"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 10
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "pages": {
+                  "type": "integer",
+                  "example": 10
                 }
               }
             }

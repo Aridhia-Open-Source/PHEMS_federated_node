@@ -160,6 +160,29 @@ class TestPullRequests:
 
         session.get.assert_called_once_with("/projects/1/tasks/9/config")
 
+    def test_launch_task_posts_once_and_parses_the_decision(self, api, session):
+        session.post.return_value = make_response({
+            "outcome": "launch", "cause": None, "task": SAMPLE_TASK, "dataset": None,
+        })
+
+        decision = api.launch_task(1, 9)
+
+        assert session.post.call_args.args[0] == "/projects/1/tasks/9/launch"
+        assert (decision.outcome, decision.task.id, decision.dataset) == ("launch", SAMPLE_TASK["id"], None)
+
+    def test_launch_task_of_a_task_no_longer_pending_is_none(self, api, session):
+        session.post.return_value = MagicMock(status_code=409, text="not PENDING")
+
+        assert api.launch_task(1, 9) is None
+
+    def test_launch_task_raises_on_another_error(self, api, session):
+        response = MagicMock(status_code=500)
+        response.raise_for_status.side_effect = RuntimeError("boom")
+        session.post.return_value = response
+
+        with pytest.raises(RuntimeError):
+            api.launch_task(1, 9)
+
     def test_batch_creation(self, api, session):
         session.post.return_value = make_response({"created": [1], "existing": [2]})
 
@@ -271,20 +294,29 @@ class TestProjects:
 
 
 class TestTasks:
-    def test_get_tasks_filters_by_status_and_project(self, api, session):
+    def test_get_tasks_lists_all_projects_in_a_status(self, api, session):
         session.get.return_value = page([SAMPLE_TASK], 1, key="tasks")
 
-        tasks = api.get_tasks(status="PENDING", project_id=1)
+        tasks = api.get_tasks(status="PENDING")
 
         assert [t.id for t in tasks] == [9]
-        assert session.get.call_args.args == ("/projects/1/tasks",)
-        assert session.get.call_args.kwargs["params"]["status"] == "PENDING"
+        assert session.get.call_args.args == ("/tasks",)
+        assert session.get.call_args.kwargs["params"] == {
+            "status": "PENDING", "project_enabled": "true", "page": 1, "per_page": 100,
+        }
+
+    def test_get_tasks_takes_several_statuses_and_any_project(self, api, session):
+        session.get.return_value = page([SAMPLE_TASK], 1, key="tasks")
+
+        api.get_tasks(status=["PENDING", "RUNNING"], project_enabled=False)
+
+        assert session.get.call_args.kwargs["params"] == {"status": "PENDING,RUNNING", "page": 1, "per_page": 100}
 
     def test_get_tasks_follows_the_pages(self, api, session):
         second = {**SAMPLE_TASK, "id": 10}
         session.get.side_effect = [page([SAMPLE_TASK], 2, key="tasks"), page([second], 2, key="tasks")]
 
-        tasks = api.get_tasks(status="PENDING", project_id=1)
+        tasks = api.get_tasks(status="PENDING")
 
         assert [t.id for t in tasks] == [9, 10]
         assert session.get.call_args_list[1].kwargs["params"]["page"] == 2

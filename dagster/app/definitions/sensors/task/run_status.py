@@ -11,7 +11,7 @@ from app.models import TaskStatus
 
 
 class TaskRunStatusSensor(BaseSensor):
-    """Mirrors the status of a task's Dagster run onto the task. Nothing else writes Task.status."""
+    """Mirrors the status of a task's Dagster run onto the task. Besides the reconcile sensor and the launcher's rule failures, nothing else writes Task.status."""
 
     # Dagster statuses that share a name with a task status map onto it. The rest are renamed.
     STATUS_MAP = {
@@ -28,6 +28,27 @@ class TaskRunStatusSensor(BaseSensor):
         super().__init__(context)
         self.backend_api = backend_api
 
+    @classmethod
+    def task_fields(cls, run, instance) -> tuple[TaskStatus, dict]:
+        """The task status a run maps to, and the task fields to patch for it (see __call__)."""
+        task_status = cls.STATUS_MAP[run.status]
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        fields = {"status": task_status.value, "executor_run_id": run.run_id}
+        if run.status == dg.DagsterRunStatus.STARTED:
+            fields["started_at"] = now
+        elif task_status in cls.TERMINAL_STATUSES:
+            record = instance.get_run_record_by_id(run.run_id)
+            fields["completed_at"] = datetime.fromtimestamp(record.end_time, timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+            # A short run can go from STARTED to its end between two ticks, so the STARTED event was never seen:
+            # take the start from the run itself.
+            if record.start_time is not None:
+                fields["started_at"] = datetime.fromtimestamp(record.start_time, timezone.utc).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                )
+        return task_status, fields
+
     def __call__(self):
         """
         Execute the sensor. Patches the task to the status the run moved to.
@@ -39,25 +60,9 @@ class TaskRunStatusSensor(BaseSensor):
         A finished task refuses a status change with a 409, which is skipped.
         """
         run = self.context.dagster_run
-        task_status = self.STATUS_MAP[run.status]
+        task_status, fields = self.task_fields(run, self.context.instance)
         task_id = int(run.tags["task_id"])
         project_id = int(run.tags["project_id"])
-
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        fields = {"status": task_status.value, "executor_run_id": run.run_id}
-        if run.status == dg.DagsterRunStatus.STARTED:
-            fields["started_at"] = now
-        elif task_status in self.TERMINAL_STATUSES:
-            record = self.context.instance.get_run_record_by_id(run.run_id)
-            fields["completed_at"] = datetime.fromtimestamp(record.end_time, timezone.utc).strftime(
-                "%Y-%m-%dT%H:%M:%SZ"
-            )
-            # A short run can go from STARTED to its end between two ticks, so the STARTED event was never seen:
-            # take the start from the run itself.
-            if record.start_time is not None:
-                fields["started_at"] = datetime.fromtimestamp(record.start_time, timezone.utc).strftime(
-                    "%Y-%m-%dT%H:%M:%SZ"
-                )
 
         try:
             self.backend_api.patch_task(project_id, task_id, fields)

@@ -276,7 +276,7 @@ def simulate_setup_command():
 def simulate_run_command(seed, prs_per_repo, timeout):
     """Start the sensors, merge the planned pull requests in all trigger repositories at once, wait, and check."""
     dagster_api = DagsterAPI(DagsterConfig().dagster_url)
-    for name in ALL_SENSORS:  # run-status sensors before the launcher
+    for name in ALL_SENSORS:
         dagster_api.start_sensor(name)
     plan = simulation.make_plan(LAYOUT, seed, prs_per_repo)
     logger.info(f"Plan (seed {seed}): {plan}")

@@ -12,9 +12,7 @@ from fncli.sensors import DagsterAPI
 
 logger = logging.getLogger("sensor")
 
-# The run-status sensors move a task on as its run does, but only see events from the moment
-# they start. They must be running before the launcher, or a run that finishes first stays
-# PENDING on its task for good (its run key stops it being launched again).
+# The run-status sensors move a task on as its run does, from the moment they start.
 RUN_STATUS_SENSORS = [
     "task_queued_sensor",
     "task_started_sensor",
@@ -22,16 +20,18 @@ RUN_STATUS_SENSORS = [
     "task_failure_sensor",
     "task_canceled_sensor",
 ]
-# The delivery sensor is a run-status sensor too (it acts when a task's run succeeds), so it
-# starts before the launcher as well.
+# Safety net: every tick it sets each unfinished task to the current status of its run, so a missed
+# run-status event is repaired and the start order does not matter.
+RECONCILE_SENSOR = "task_reconcile_sensor"
 DELIVERY_SENSOR = "task_results_delivery_sensor"
 # Polls the pushed and opened results and copies their PR's state (opened, merged, closed) onto the result.
 RESULTS_PR_SYNC_SENSOR = "results_pull_request_sync_sensor"
 # Relaunches the deliveries that failed.
 DELIVERY_RETRY_SENSOR = "results_delivery_retry_sensor"
-# In start order; stopping goes the other way round.
+# Start order does not matter; stopping goes the other way round.
 ALL_SENSORS = [
     *RUN_STATUS_SENSORS,
+    RECONCILE_SENSOR,
     DELIVERY_SENSOR,
     RESULTS_PR_SYNC_SENSOR,
     DELIVERY_RETRY_SENSOR,
@@ -43,7 +43,7 @@ SENSORS = {
     "ingest": ["git_pull_request_ingest_sensor"],
     "evaluate": ["git_pull_request_evaluate_sensor"],
     "launcher": ["task_launcher_sensor"],
-    "status": RUN_STATUS_SENSORS,
+    "status": [*RUN_STATUS_SENSORS, RECONCILE_SENSOR],
     "delivery": [DELIVERY_SENSOR, RESULTS_PR_SYNC_SENSOR, DELIVERY_RETRY_SENSOR],
     "all": ALL_SENSORS,
 }
@@ -53,14 +53,14 @@ sensor_option = click.option(
     type=click.Choice(list(SENSORS)),
     default="ingest",
     show_default=True,
-    help="Which sensor to act on: one, 'status' (the run-status sensors), 'delivery' or 'all'.",
+    help="Which sensor to act on: one, 'status' (the run-status and reconcile sensors), 'delivery' or 'all'.",
 )
 
 
 @click.command("start-sensor")
 @sensor_option
 def start_sensor_command(sensor):
-    """Start Dagster sensors (no-op if running). 'all' starts the run-status sensors first."""
+    """Start Dagster sensors (no-op if running)."""
     api = DagsterAPI(DagsterConfig().dagster_url)
     for name in SENSORS[sensor]:
         logger.info(f"Started sensor {name} ({api.start_sensor(name)})")
@@ -69,7 +69,7 @@ def start_sensor_command(sensor):
 @click.command("stop-sensor")
 @sensor_option
 def stop_sensor_command(sensor):
-    """Stop Dagster sensors (no-op if stopped). 'all' stops the launcher first."""
+    """Stop Dagster sensors (no-op if stopped)."""
     api = DagsterAPI(DagsterConfig().dagster_url)
     for name in reversed(SENSORS[sensor]):
         logger.info(f"Stopped sensor {name} ({api.stop_sensor(name)})")

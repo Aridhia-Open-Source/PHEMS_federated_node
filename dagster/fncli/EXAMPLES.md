@@ -72,8 +72,8 @@ Optional, to set up one side only:
 ### 2. Start the sensors
 
 - `fncli start-sensor --sensor all`
-  - Dagster: starts the run-status sensors first, then the results delivery sensor (it also acts when a run succeeds, so it must be running before the launcher) and the results PR sync sensor.
-  - Dagster: starts the other sensors (ingest, evaluate, launcher).
+  - Dagster: starts the run-status sensors, the reconcile sensor, the results delivery sensor and the results PR sync sensor.
+  - Dagster: starts the other sensors (ingest, evaluate, launcher). The order does not matter.
   - Dagster: does nothing for a sensor that is already running.
 
 Optional: `--sensor ingest|evaluate|launcher|status|delivery` starts just one (`status` is the run-status sensors, `delivery` is `task_results_delivery_sensor`, `results_delivery_retry_sensor` and `results_pull_request_sync_sensor`, which records the results PR of a pushed result and keeps each results PR's state (OPENED, MERGED, CLOSED) up to date).

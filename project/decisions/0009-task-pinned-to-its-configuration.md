@@ -15,7 +15,7 @@ It does not hold credentials or secrets (a rotation must reach running work), th
 
 **Checks.** The webserver rebuilds the snapshot from the current state and compares it (`helpers/task_config.py`). Only keys present in the stored snapshot are compared, so a field added later, or a task without a snapshot, counts as unchanged.
 
-- *Before launch:* the Dagster launcher calls `GET /projects/<pid>/tasks/<id>/config` (`current`, `changes`, `config_hash`, `config_snapshot`). A task that is not current is not launched: it is set to `FAILED` with the changes as `state_cause`, and the launcher carries on with the next task. An error while checking one task leaves it `PENDING` for the next tick and never stops the others; only the rules fail a task.
+- *Before launch:* the Dagster launcher calls `POST /projects/<pid>/tasks/<id>/launch`, whose decision includes the pinned configuration (`GET .../config` shows `current`, `changes`, `config_hash`, `config_snapshot`). A task that is not current is not launched: the webserver sets it to `FAILED` with the changes as `state_cause`, and the launcher carries on with the next task. An error while checking one task leaves it `PENDING` for the next tick and never stops the others; only the rules fail a task.
 - *Before publishing:* `POST /projects/<pid>/results` for a `SUCCESS` task whose configuration changed creates the result as step `STALE`, state `FAILED`, with an error listing the changes. `STALE` is final, a sibling of `MERGED`, `CLOSED` and `REVOKED`: nothing is delivered.
 - *At delivery,* the results repository id and `target_dir` come from the snapshot, so a deleted or edited link does not redirect the push.
 

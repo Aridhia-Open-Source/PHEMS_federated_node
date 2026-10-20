@@ -13,7 +13,7 @@ Six sensors that react to a run of `k8s_pipes_job` reaching a status. Five mirro
 
 ## 1. Purpose
 
-Keep a task's status the same as its Dagster run, and start the delivery of the results when the run succeeds. Besides these sensors, only the [launcher](task-launcher.md) (it fails a task that must not run) and the backend's retry call (back to `PENDING`) change a task's status.
+Keep a task's status the same as its Dagster run, and start the delivery of the results when the run succeeds. Besides these sensors, only the [reconcile sensor](task-reconcile.md) (it repairs an event they missed), the [launcher](task-launcher.md) (it fails a task that must not run) and the backend's retry call (back to `PENDING`) change a task's status.
 
 ## 2. When it runs
 

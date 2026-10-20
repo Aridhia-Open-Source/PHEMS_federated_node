@@ -938,7 +938,7 @@ Behaviour in the code that no requirement ID covers.
 **fncli (`dagster/fncli`)**
 - Commands (by module): `setup-project`, `teardown-project`, `setup-backend`, `teardown-backend`, `setup-gitea`, `teardown-gitea`, `open-pr` (`--kind watched|unwatched|invalid`, `--merge`, `--watch`); project, repo, secret, dataset init/delete; `create-gitea-branch`, `commit-gitea-file`, `create-gitea-pr`, `merge-gitea-pr`, `merge-results-pr`; `start-sensor`, `stop-sensor`, `sensor-status`; state commands (`project-show`, `project-set`, `link-set`, `global-set`, second project setup/teardown, `--expect STATUS`); `verify-project`, `verify-repo`, `project-healthcheck`; `hello-world`.
 - `scripts/e2e_check.py` (wait-prs, wait-tasks, snapshot).
-- Sensor start order puts run-status sensors before the launcher (`fncli/tests/test_sensor.py`).
+- `start-sensor --sensor all` starts every sensor, the reconcile sensor included; the order does not matter (`fncli/tests/test_sensor.py`).
 - fncli ships inside the Dagster image (`dagster/.dockerignore` allows `fncli/**`).
 
 **Other tooling**

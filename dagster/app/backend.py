@@ -5,7 +5,7 @@ from app.utils import BackendSession
 from app.models import (
     ProjectTriggerRepository, TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository,
     ResultsRepository, Task,
-    TaskTrigger, PullRequestResult, Dataset, ProjectDataset
+    TaskTrigger, PullRequestResult, Dataset, ProjectDataset, LaunchDecision
 )
 
 default_logger = logging.getLogger(__name__)
@@ -157,14 +157,20 @@ class BackendAPI:
         )
         return Task(**response.json()), response.status_code == HTTPStatus.CREATED
 
-    def get_tasks(self, status: str, project_id: int) -> list[Task]:
-        """Get all tasks of a project in a status, automatically handling pagination"""
-        self.logger.info(f"Fetching {status} tasks of project {project_id}")
+    def get_tasks(self, status: str | list[str], project_enabled: bool = True) -> list[Task]:
+        """
+        Get the tasks of all projects in a status (or any of several), ordered by id, automatically handling
+        pagination. With project_enabled, only those of enabled projects, as get_projects(enabled=True) lists them.
+        """
+        statuses = [status] if isinstance(status, str) else status
+        self.logger.info(f"Fetching {','.join(statuses)} tasks")
+        query = {"status": ",".join(statuses)}
+        if project_enabled:
+            query["project_enabled"] = "true"
         tasks = []
         page = 1
         while True:
-            params = {"status": status, "page": page, "per_page": 100}
-            response = self.session.get(f"/projects/{project_id}/tasks", params=params)
+            response = self.session.get("/tasks", params={**query, "page": page, "per_page": 100})
             data = response.json()
             tasks.extend(Task(**task) for task in data["tasks"])
             if page >= data["pages"]:
@@ -184,10 +190,24 @@ class BackendAPI:
         return Task(**response.json())
 
     def get_task_config(self, project_id: int, task_id: int) -> dict:
-        """The configuration a task is pinned to and whether it is still current, and what it uses that is revoked or deleted: {"current", "changes", "config_hash", "config_snapshot", "revoked"}. 404 if the task is not in the project."""
+        """The backend's decision for a task and the facts behind it: {"outcome": "launch"|"fail", "cause", "current", "changes", "config_hash", "config_snapshot", "revoked"}. 404 if the task is not in the project."""
         self.logger.info(f"Fetching the configuration check of task {task_id}")
         response = self.session.get(f"/projects/{project_id}/tasks/{task_id}/config")
         return response.json()
+
+    def launch_task(self, project_id: int, task_id: int) -> LaunchDecision | None:
+        """
+        The launcher's one call for a PENDING task. The backend decides: on "fail" it has already moved the task
+        to FAILED with the cause; on "launch" it returns the task and its dataset, what the run request needs, and
+        changes nothing. None when the task is no longer PENDING (409). 404 if it is not in the project.
+        """
+        self.logger.info(f"Launching task {task_id}")
+        response = self.session.post(f"/projects/{project_id}/tasks/{task_id}/launch", raise_for_status=False)
+        if response.status_code == HTTPStatus.CONFLICT:
+            self.logger.info(f"Task {task_id} is no longer pending: {response.text}")
+            return None
+        response.raise_for_status()
+        return LaunchDecision(**response.json())
 
     def get_task_trigger(self, project_id: int, task_id: int) -> TaskTrigger:
         """Get the pull request that yielded a task, with its trigger repository. 404 if the task has none."""

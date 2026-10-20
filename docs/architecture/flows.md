@@ -31,7 +31,7 @@ flowchart TD
     O -->|open| M
 ```
 
-All sensors are STOPPED by default and started by the operator, `fncli start-sensor --sensor all`, run-status sensors first and the launcher last ([0014](../../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md), [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md)). The delivery job only runs after a task run succeeds; a failed delivery is relaunched by `results_delivery_retry_sensor`. Run keys carry a retry slot (`DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS`, default 60 s), so a failed run is retried at most once per interval; see [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md).
+All sensors are STOPPED by default and started by the operator, `fncli start-sensor --sensor all`, in any order (the reconcile sensor repairs a task status a run-status sensor missed; [0014](../../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md), [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md)). The delivery job only runs after a task run succeeds; a failed delivery is relaunched by `results_delivery_retry_sensor`. Run keys carry a retry slot (`DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS`, default 60 s), so a failed run is retried at most once per interval; see [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md).
 
 ## Global resources and assignments
 
@@ -84,7 +84,7 @@ sequenceDiagram
     DG->>BE: list each enabled project's links, then the UNKNOWN pull requests of each
     DG->>Git: spec file named by the trigger's spec_files, at the merge commit
     DG->>BE: POST pull request task (YIELDED) or PATCH REJECTED
-    DG->>BE: list PENDING tasks of enabled projects
+    DG->>BE: GET /tasks, the PENDING tasks of enabled projects
     DG->>BE: get the project's dataset assignment, must be active
     DG->>K8s: k8s_pipes_job starts the task pod
     DG->>BE: PATCH task QUEUED, RUNNING, SUCCESS
@@ -155,7 +155,7 @@ The run pod (not the daemon) delivers results because it mounts the artifacts vo
 
 ## Sensor and job inventory
 
-The 11 sensors have `default_status=STOPPED` (`fnDagster.sensors.initialStatus`) and one minimum interval, 30 s by default (`fnDagster.sensors.minIntervalSeconds`, env `DAGSTER_SENSORS_MIN_INTERVAL_SECONDS`; the dev values use 5). See [0014](../../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md).
+The 12 sensors have `default_status=STOPPED` (`fnDagster.sensors.initialStatus`) and one minimum interval, 30 s by default (`fnDagster.sensors.minIntervalSeconds`, env `DAGSTER_SENSORS_MIN_INTERVAL_SECONDS`; the dev values use 5). See [0014](../../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md).
 
 | Name | Kind | Watches / reads | Launches or writes | Defined in |
 |---|---|---|---|---|

@@ -2,6 +2,7 @@
 
 from app.models.dataset import Catalogue, Dataset, Dictionary, ProjectDataset
 from app.models.git_provider import GitProvider
+from app.models.launch_decision import LaunchDecision
 from app.models.project import Project
 from app.models.pull_request import ChangedFile, NewPullRequest, PullRequest
 from app.models.pull_request_result import PullRequestResult
@@ -12,6 +13,7 @@ from app.models.results_repository import ProjectResultsRepository, ResultsRepos
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 from app.models.task import Task
+from app.models.task_config import TaskConfig
 from app.models.task_spec import TaskSpec
 from app.models.task_status import TaskStatus
 from app.models.trigger_state import TriggerState
@@ -23,6 +25,7 @@ __all__ = [
     "Dataset",
     "Dictionary",
     "GitProvider",
+    "LaunchDecision",
     "NewPullRequest",
     "Project",
     "ProjectDataset",
@@ -37,6 +40,7 @@ __all__ = [
     "Secret",
     "SecretProviderType",
     "Task",
+    "TaskConfig",
     "TaskSpec",
     "TaskStatus",
     "TaskTrigger",

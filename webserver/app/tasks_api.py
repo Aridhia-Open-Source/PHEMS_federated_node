@@ -1,5 +1,6 @@
 """
 tasks-related endpoints, under the project that owns the tasks. A task of another project is a 404:
+- GET /tasks (the tasks of all projects; status, comma separated; project_enabled=true; page and per_page as below)
 - GET /projects/<project_id>/tasks (page and per_page below 1 are clamped to 1)
 - POST /projects/<project_id>/tasks
 - POST /projects/<project_id>/tasks/validate
@@ -13,6 +14,7 @@ tasks-related endpoints, under the project that owns the tasks. A task of anothe
 - GET /projects/<project_id>/tasks/<task_id>/logs
 - GET /projects/<project_id>/tasks/<task_id>/trigger (the pull request that yielded the task, 404 if none)
 - GET /projects/<project_id>/tasks/<task_id>/config (whether the configuration the task was created under still holds)
+- POST /projects/<project_id>/tasks/<task_id>/launch (the launcher's one call: decides, fails the task or returns the run inputs; a task not PENDING: 409)
 """
 from datetime import datetime as dt
 from http import HTTPStatus
@@ -21,6 +23,7 @@ from flask import Blueprint, request
 from sqlalchemy import text
 
 from app.helpers.base_model import db
+from app.helpers.const import TASK_CAUSE_MAX_LENGTH
 from app.helpers.exceptions import (
     DBRecordNotFoundError, InvalidDBEntry, InvalidRequest, NotImplementedException, TaskImageException,
     UnauthorizedError
@@ -29,9 +32,10 @@ from app.helpers.keycloak import Keycloak
 from app.helpers.project_state import require_accepts_tasks
 from app.helpers.state_rules import transition
 from app.helpers.query_filters import arg_get
-from app.helpers.task_config import config_changes, revoked_resources
+from app.helpers.task_config import decide_launch
 from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.wrappers import audit, auth
+from app.dtos.dataset import DatasetDTO
 from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.trigger_repository import TaskTriggerDTO
 from app.dtos.result import dump_result
@@ -43,6 +47,7 @@ from app.models.task_status import RETRYABLE, TASK_MOVES, TaskStatus
 from app.models.trigger_state import TriggerState
 
 bp = Blueprint('tasks', __name__, url_prefix='/projects/<int:project_id>/tasks')
+all_bp = Blueprint('all_tasks', __name__, url_prefix='/tasks')
 
 # What a task request that fails validation raises. Such a request is kept, as REJECTED.
 VALIDATION_ERRORS = (
@@ -93,29 +98,60 @@ def get_tasks(project_id):
         - per_page: items per page (default 10, below 1 is clamped to 1)
         - status: filter by task status (optional)
     """
-    page = max(arg_get('page', 1, type=int), 1)
-    per_page = max(arg_get('per_page', 10, type=int), 1)
-    status = request.args.get('status', None)
-
     Project.get_by_id(project_id)
     query = Task.query.filter(Task.project_id == project_id)
+    return task_page(query, parse_statuses(request.args.get('status', None))), HTTPStatus.OK
 
-    if status is not None:
-        if status not in [s.value for s in TaskStatus]:
-            valid = ', '.join([s.value for s in TaskStatus])
-            raise InvalidRequest(f"Invalid status: {status}. Must be one of: {valid}")
-        query = query.filter(Task.status == status)
 
+@all_bp.route('/', methods=['GET'])
+@all_bp.route('', methods=['GET'])
+@audit
+@auth(scope='can_admin_task')
+def get_all_tasks():
+    """
+    GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of
+    GET /projects/<project_id>/tasks. Query params:
+        - page, per_page: as the project's list
+        - status: one or more task statuses, comma separated (optional)
+        - project_enabled: "true" keeps the tasks of enabled projects, as GET /projects?enabled=true
+          lists them. A revoked project is still enabled, so its tasks stay.
+    """
+    query = Task.query
+    project_enabled = request.args.get('project_enabled', None)
+    if project_enabled is not None:
+        if project_enabled not in ('true', 'false'):
+            raise InvalidRequest("project_enabled should be true or false")
+        if project_enabled == 'true':
+            query = query.filter(Task.project_id.in_(Project.query.filter(Project.enabled.is_(True)).with_entities(Project.id)))
+    return task_page(query, parse_statuses(request.args.get('status', None))), HTTPStatus.OK
+
+
+def parse_statuses(raw: str | None) -> list[str] | None:
+    """The statuses of a comma separated `status` parameter, 400 listing the valid ones if one is not."""
+    if raw is None:
+        return None
+    valid = [s.value for s in TaskStatus]
+    statuses = [s.strip() for s in raw.split(',')]
+    for status in statuses:
+        if status not in valid:
+            raise InvalidRequest(f"Invalid status: {status}. Must be one of: {', '.join(valid)}")
+    return statuses
+
+
+def task_page(query, statuses: list[str] | None) -> dict:
+    """A page of the query's tasks, filtered by status and ordered by id, per the page and per_page parameters."""
+    page = max(arg_get('page', 1, type=int), 1)
+    per_page = max(arg_get('per_page', 10, type=int), 1)
+    if statuses is not None:
+        query = query.filter(Task.status.in_(statuses))
     pagination = query.order_by(Task.id).paginate(page=page, per_page=per_page, error_out=False)
-    tasks = [TaskDTO.from_model(t).dump() for t in pagination.items]
-
     return {
-        "tasks": tasks,
+        "tasks": [TaskDTO.from_model(t).dump() for t in pagination.items],
         "total": pagination.total,
         "page": pagination.page,
         "per_page": pagination.per_page,
         "pages": pagination.pages
-    }, HTTPStatus.OK
+    }
 
 
 @bp.route('/<int:task_id>', methods=['GET'])
@@ -319,13 +355,49 @@ def get_task_config(project_id, task_id):
     config_snapshot is the pinned configuration itself: delivery takes its target_dir from it, as the link may be deleted by then.
     revoked names what the task uses that is revoked or deleted (its project, trigger, dataset or results repository): such a
     task must not launch either, and its results are never delivered.
+    outcome is the decision for a PENDING task, "launch" or "fail", and cause says why when it fails: see
+    helpers/task_config.decide_launch for the rules and their order. Read-only, safe to call every tick.
     """
     task = get_project_task(project_id, task_id)
     does_user_own_task(task)
-    changes = config_changes(task)
+    decision = decide_launch(task)
     return {
-        "current": not changes, "changes": changes, "config_hash": task.config_hash,
-        "config_snapshot": task.config_snapshot, "revoked": revoked_resources(task),
+        "outcome": decision.outcome, "cause": decision.cause,
+        "current": not decision.changes, "changes": decision.changes, "config_hash": task.config_hash,
+        "config_snapshot": task.config_snapshot, "revoked": decision.revoked,
+    }, HTTPStatus.OK
+
+
+@bp.route('/<int:task_id>/launch', methods=['POST'])
+@audit
+@auth(scope='can_admin_dataset')
+def launch_task(project_id, task_id):
+    """
+    POST /projects/<project_id>/tasks/id/launch endpoint. The launcher's one call per PENDING task. It decides
+    with helpers/task_config.decide_launch, the same rules GET .../config reports, and answers:
+    - "fail": the task is moved to FAILED here, its state_cause the cause cut to TASK_CAUSE_MAX_LENGTH. Returns
+      outcome, cause (as stored) and the failed task.
+    - "launch": nothing is written. Returns outcome, the task (spec included) and its dataset, with the secret
+      reference, exactly what the run request needs; dataset is null for a task without one.
+    A task that is no longer PENDING is a 409 and nothing changes, so a repeated call is safe.
+    """
+    task = get_project_task(project_id, task_id)
+    does_user_own_task(task)
+    if task.status != TaskStatus.PENDING.value:
+        raise InvalidRequest(f"Task {task_id} is {task.status}, not {TaskStatus.PENDING.value}", HTTPStatus.CONFLICT)
+
+    decision = decide_launch(task)
+    if decision.outcome == "fail":
+        transition(TASK_MOVES, task.status, TaskStatus.FAILED.value)
+        task.status = TaskStatus.FAILED.value
+        task.state_cause = (decision.cause or "failed by the backend")[:TASK_CAUSE_MAX_LENGTH]
+        db.session.commit()
+        return {"outcome": "fail", "cause": task.state_cause, "task": TaskDTO.from_model(task).dump(), "dataset": None}, HTTPStatus.OK
+
+    dataset = task.spec.dataset if task.spec.dataset_id else None
+    return {
+        "outcome": "launch", "cause": None, "task": TaskDTO.from_model(task).dump(),
+        "dataset": DatasetDTO.from_model(dataset).dump() if dataset else None,
     }, HTTPStatus.OK
 
 

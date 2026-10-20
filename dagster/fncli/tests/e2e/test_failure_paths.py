@@ -623,7 +623,7 @@ def test_sensors_restarted_nothing_happens_while_stopped(fncli, flow):
     fncli.assert_counts(flow["sensors_restarted_before"], "all sensors stopped")
 
 
-@pytest.mark.parametrize("sensor", ALL_SENSORS)  # in start order: the run-status sensors before the launcher
+@pytest.mark.parametrize("sensor", ALL_SENSORS)
 def test_sensors_restarted_start_sensor(sensor):
     start_sensor(sensor)
 
