@@ -1,4 +1,7 @@
 """GET /tasks, the tasks of all projects."""
+import json
+from pathlib import Path
+
 import pytest
 
 from app.helpers.base_model import db
@@ -86,3 +89,20 @@ def test_the_system_user_is_allowed(client, system_headers, make_task):
 
 def test_unauthenticated_is_refused(client):
     assert client.get("/tasks").status_code in (401, 403)
+
+
+CONTRACT = Path(__file__).resolve().parents[2] / "dagster" / "app" / "tests" / "contract" / "tasks_response.json"
+
+
+def shape(value):
+    if isinstance(value, dict):
+        return {k: shape(v) for k, v in value.items()}
+    return None
+
+
+@pytest.mark.skipif(not CONTRACT.is_file(), reason="the Dagster source is not next to webserver/")
+def test_the_response_has_the_shape_dagsters_task_list_parses(client, admin_headers, make_task):
+    """dagster/app/tests/contract/tasks_response.json is a sample response; Dagster's tests parse it into Task."""
+    make_task(status="PENDING")
+    body = client.get("/tasks?status=PENDING", headers=admin_headers).json
+    assert shape(body) == shape(json.loads(CONTRACT.read_text()))
