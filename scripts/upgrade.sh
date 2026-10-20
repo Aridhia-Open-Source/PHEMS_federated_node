@@ -9,6 +9,8 @@ set -euo pipefail
 
 source .dev.env
 
+./scripts/deploy_owner.sh claim
+
 # Tilt injects a `command` the chart does not manage, so Helm's three-way merge keeps
 # it while resetting the image, and the pod then dies on a missing
 # /tilt-restart-wrapper. deploy.sh stops Tilt first for the same reason.
@@ -25,6 +27,7 @@ kubectl config set-context \
 helm upgrade \
   --install "$RELEASE_NAME" . \
   -f "$VALUES_FILE" \
+  --set "firstUserSecret.email=$KEYCLOAK_FIRST_USER_EMAIL" \
   --timeout 30m \
   --namespace "$NAMESPACE"
 

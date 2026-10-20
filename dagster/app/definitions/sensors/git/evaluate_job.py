@@ -15,37 +15,45 @@ MAX_CONCURRENT_EVALUATIONS = 3
 
 
 @dg.op(
-    config_schema={"repo_id": dg.Field(int)},
+    config_schema={"project_id": dg.Field(int), "repo_id": dg.Field(int)},
     required_resource_keys={"backend_api"},
     out=dg.DynamicOut(PullRequestTrigger),
 )
 def load_unknown_pull_requests(context: OpExecCtx):
     """Emit the UNKNOWN pull requests of the repository, oldest first."""
     backend_api = cast(BackendAPI, context.resources.backend_api)
-    pull_requests = backend_api.get_pull_requests(context.op_config["repo_id"], TriggerState.UNKNOWN.value)
+    pull_requests = backend_api.get_pull_requests(
+        context.op_config["project_id"], context.op_config["repo_id"], state=TriggerState.UNKNOWN.value
+    )
     for pr in sorted(pull_requests, key=lambda p: p.merged_at):
         yield dg.DynamicOutput(pr, mapping_key=str(pr.number))
 
 
 def record_outcome(backend_api: BackendAPI, pr: PullRequestTrigger, parsed: ParsedPullRequest, log):
     """
-    Write the outcome on the pull request: READY becomes its task (the backend marks it
-    YIELDED), IGNORED and REJECTED are stored with their state_cause. Backend failures raise.
+    Write the outcome on the pull request: READY sends the spec file to the backend, which
+    keeps it, parses it and either creates the task (marking the PR YIELDED) or rejects the
+    PR. REJECTED is stored with its state_cause. A 409 (the PR is no longer UNKNOWN, or its link
+    is inactive) skips the PR. Other backend failures raise.
     """
-    repo_id = pr.trigger_repository_id
+    project_id, repo_id = pr.project_id, pr.trigger_repository_id
     if parsed.outcome is PullRequestOutcome.READY:
         try:
-            backend_api.create_task_for_pull_request(repo_id, pr.number, parsed.spec.model_dump())
-            return
+            backend_api.create_task_for_pull_request(project_id, repo_id, pr.number, parsed.spec_raw)
         except requests.HTTPError as e:
-            # The backend validates the spec again and rejects one it cannot run
-            if e.response.status_code != HTTPStatus.BAD_REQUEST:
-                raise
-            log.error(f"PR #{pr.number} spec rejected by the backend: {e.response.text}")
-            parsed = ParsedPullRequest(outcome=PullRequestOutcome.REJECTED, state_cause=e.response.text)
+            match e.response.status_code:
+                case HTTPStatus.BAD_REQUEST:
+                    # The backend rejected the PR itself, with the cause
+                    log.error(f"PR #{pr.number} spec rejected by the backend: {e.response.text}")
+                case HTTPStatus.CONFLICT:
+                    # The PR is no longer UNKNOWN, or its link is no longer active: it makes no task now
+                    log.warning(f"PR #{pr.number} skipped, the backend refused a task for it: {e.response.text}")
+                case _:
+                    raise
+        return
 
     backend_api.patch_pull_request(
-        repo_id, pr.number, {"state": parsed.outcome.value, "state_cause": parsed.state_cause}
+        project_id, repo_id, pr.number, {"state": parsed.outcome.value, "state_cause": parsed.state_cause}
     )
 
 
@@ -60,8 +68,8 @@ def evaluate_pull_request(context: OpExecCtx, pr: PullRequestTrigger):
     """
     backend_api = cast(BackendAPI, context.resources.backend_api)
     git_apis = cast(GitAPIFactory, context.resources.git_apis)
-    repo = backend_api.get_repository(pr.trigger_repository_id)
-    parsed = PullRequestParser(git_apis.for_repository(repo), repo, context.log).parse(pr)
+    repo = backend_api.get_project_trigger_repository(pr.project_id, pr.trigger_repository_id)
+    parsed = PullRequestParser(git_apis.for_repository(repo.trigger_repository), repo, context.log).parse(pr)
     record_outcome(backend_api, pr, parsed, context.log)
 
 

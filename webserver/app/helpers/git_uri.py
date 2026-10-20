@@ -27,11 +27,37 @@ def normalise_repo_uri(uri: str) -> str:
     return (_netloc_without_default_port(parsed) + path).lower()
 
 
+def normalise_provider_uri(uri: str) -> str:
+    """
+    The one form a git provider's web address is kept in: scheme://host[:port][/path],
+    lowercase, with no default port or trailing slash.
+    Raises ValueError for anything that is not an http(s) address.
+    """
+    parsed = urlparse(uri.strip())
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"Provider uri {uri!r} must use http or https")
+    if not parsed.hostname or "@" in parsed.netloc:
+        raise ValueError(f"Provider uri {uri!r} must have a host and no credentials")
+    return f"{parsed.scheme}://{_netloc_without_default_port(parsed)}{parsed.path.rstrip('/')}".lower()
+
+
+def normalise_repo_path(repo_path: str) -> str:
+    """
+    The one form a repository's path on its provider is kept in: owner/name, lowercase,
+    with no slash around it or '.git' suffix. Raises ValueError for anything else.
+    """
+    path = repo_path.strip().strip("/").removesuffix(".git").lower()
+    segments = path.split("/")
+    if len(segments) != 2 or not all(segments):
+        raise ValueError(f"Repository path {repo_path!r} must be of the form owner/name")
+    return path
+
+
 def validate_api_uri(api_uri: str, uri: str) -> str:
     """
-    A repository's API base URL must be http(s), carry no credentials and be on the
-    repository's own host and port (api.github.com for github.com), as the repository
-    token is sent to it. The uri is the normalised repository uri.
+    A provider's API base URL must be http(s), carry no credentials and be on the
+    provider's own host and port (api.github.com for github.com), as the repository
+    tokens are sent to it. The uri is the normalised provider uri.
     Raises ValueError for any other api_uri.
     """
     parsed = urlparse(api_uri.strip())
@@ -39,8 +65,8 @@ def validate_api_uri(api_uri: str, uri: str) -> str:
         raise ValueError(f"api_uri {api_uri!r} must use http or https")
     if not parsed.hostname or "@" in parsed.netloc:
         raise ValueError(f"api_uri {api_uri!r} must have a host and no credentials")
-    repo_host = uri.split("/")[0]
-    expected = "api.github.com" if repo_host == "github.com" else repo_host
+    provider_host = urlparse(uri).netloc
+    expected = "api.github.com" if provider_host == "github.com" else provider_host
     if _netloc_without_default_port(parsed).lower() != expected:
         raise ValueError(f"api_uri {api_uri!r} must be on the host {expected}")
     return api_uri

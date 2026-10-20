@@ -1,0 +1,30 @@
+{
+  "page": 1,
+  "pages": 1,
+  "per_page": 10,
+  "tasks": [
+    {
+      "attempt": 1,
+      "completed_at": null,
+      "config_hash": null,
+      "created_at": "2026-10-19 21:33:02",
+      "executor_run_id": null,
+      "exit_code": null,
+      "id": 1,
+      "name": "task",
+      "project_id": 1,
+      "requested_by": "user",
+      "spec": {
+        "dataset_id": null,
+        "env": {},
+        "image": "img:1"
+      },
+      "started_at": null,
+      "state_cause": null,
+      "status": "PENDING",
+      "trigger_id": 1,
+      "updated_at": "2026-10-19 21:33:02"
+    }
+  ],
+  "total": 1
+}

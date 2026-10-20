@@ -1,0 +1,7 @@
+name: dagster_tests
+services:
+  app:
+    volumes:
+      - ./app:/opt/dagster/home/app
+      - ./fncli:/opt/dagster/home/fncli
+      - ./pyproject.toml:/opt/dagster/home/pyproject.toml

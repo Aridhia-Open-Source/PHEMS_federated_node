@@ -46,7 +46,7 @@
   {{ fail "Move `namespaces` under `global`: the chart reads global.namespaces, so a top-level copy would be ignored. Use:\n\n  global:\n    namespaces:\n      keycloak: ...\n      tasks: ...\n" }}
 {{- end }}
 {{- if and (not .Values.datasetDb.create) .Values.datasetDb.dbs }}
-  {{ fail "datasetDb.dbs is set but datasetDb.create is false. datasetDb is an in-cluster development fixture, and those roles are only ever created and read by the chart's own db-datasets-init job - nothing else consumes them. Register an external dataset database through the /datasets API instead, and remove datasetDb.dbs." }}
+  {{ fail "datasetDb.dbs is set but datasetDb.create is false. datasetDb is an in-cluster development fixture, and those roles are only ever created and read by the chart's own db-datasets-init job - nothing else consumes them. Register an external dataset database through the /global/datasets API instead, and remove datasetDb.dbs." }}
 {{- end }}
 
 {{- /* --- Cluster-state checks --- */ -}}
@@ -71,14 +71,6 @@
 {{- if not (index (($s).data | default dict) .Values.db.secret.key) }}
 {{- $missing = append $missing (dict "name" .Values.db.secret.name "key" .Values.db.secret.key
       "what" (printf "the administrator password for %s on db.host. create_db_deployment is false, so this Postgres is yours and the chart cannot generate or guess it" .Values.db.superuser)) }}
-{{- end }}
-{{- end }}
-
-{{- if .Values.dagster.enabled }}
-{{- $s := lookup "v1" "Secret" .Release.Namespace "github-token" }}
-{{- if not (index (($s).data | default dict) "GH_TOKEN") }}
-{{- $missing = append $missing (dict "name" "github-token" "key" "GH_TOKEN"
-      "what" "a GitHub PAT, read on the repositories you register and write on fnDagster.gh.delivery_repo") }}
 {{- end }}
 {{- end }}
 

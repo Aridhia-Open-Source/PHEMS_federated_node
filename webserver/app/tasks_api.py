@@ -1,19 +1,21 @@
 """
-tasks-related endpoints:
-- GET /tasks/service-info
-- GET /tasks
-- POST /tasks
-- POST /tasks/validate
-- GET /tasks/id
-- PATCH /tasks/id
-- POST /tasks/id/retry
-- POST /tasks/id/cancel
-- GET /tasks/id/results
-- POST /tasks/id/results/approve
-- POST /tasks/id/results/block
-- GET /tasks/id/logs
+tasks-related endpoints, under the project that owns the tasks. A task of another project is a 404:
+- GET /tasks (the tasks of all projects; status, comma separated; project_enabled=true; page and per_page as below)
+- GET /projects/<project_id>/tasks (page and per_page below 1 are clamped to 1)
+- POST /projects/<project_id>/tasks
+- POST /projects/<project_id>/tasks/validate
+- GET /projects/<project_id>/tasks/<task_id>
+- PATCH /projects/<project_id>/tasks/<task_id> (a finished task cannot change status: 409)
+- POST /projects/<project_id>/tasks/<task_id>/retry
+- POST /projects/<project_id>/tasks/<task_id>/cancel
+- GET /projects/<project_id>/tasks/<task_id>/results
+- POST /projects/<project_id>/tasks/<task_id>/results/approve
+- POST /projects/<project_id>/tasks/<task_id>/results/block
+- GET /projects/<project_id>/tasks/<task_id>/logs
+- GET /projects/<project_id>/tasks/<task_id>/trigger (the pull request that yielded the task, 404 if none)
+- GET /projects/<project_id>/tasks/<task_id>/config (whether the configuration the task was created under still holds)
+- POST /projects/<project_id>/tasks/<task_id>/launch (the launcher's one call: decides, fails the task or returns the run inputs; a task not PENDING: 409)
 """
-from copy import deepcopy
 from datetime import datetime as dt
 from http import HTTPStatus
 
@@ -21,22 +23,31 @@ from flask import Blueprint, request
 from sqlalchemy import text
 
 from app.helpers.base_model import db
+from app.helpers.const import TASK_CAUSE_MAX_LENGTH
 from app.helpers.exceptions import (
     DBRecordNotFoundError, InvalidDBEntry, InvalidRequest, NotImplementedException, TaskImageException,
     UnauthorizedError
 )
 from app.helpers.keycloak import Keycloak
-from app.dtos.task_spec import TaskSpec
+from app.helpers.project_state import require_accepts_tasks
+from app.helpers.state_rules import transition
+from app.helpers.query_filters import arg_get
+from app.helpers.task_config import decide_launch
+from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.wrappers import audit, auth
+from app.dtos.dataset import DatasetDTO
 from app.dtos.task import NewTaskDTO, TaskDTO
+from app.dtos.trigger_repository import TaskTriggerDTO
 from app.dtos.result import dump_result
 from app.models.api_request_trigger import ApiRequestTrigger
 from app.models.project import Project
+from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.task import Task
-from app.models.task_status import TaskStatus
+from app.models.task_status import RETRYABLE, TASK_MOVES, TaskStatus
 from app.models.trigger_state import TriggerState
 
-bp = Blueprint('tasks', __name__, url_prefix='/tasks')
+bp = Blueprint('tasks', __name__, url_prefix='/projects/<int:project_id>/tasks')
+all_bp = Blueprint('all_tasks', __name__, url_prefix='/tasks')
 
 # What a task request that fails validation raises. Such a request is kept, as REJECTED.
 VALIDATION_ERRORS = (
@@ -66,69 +77,93 @@ def does_user_own_task(task: Task):
         raise UnauthorizedError("User does not have enough permissions")
 
 
-@bp.route('/service-info', methods=['GET'])
-@audit
-@auth(scope='can_do_admin')
-def get_service_info():
-    """
-    GET /tasks/service-info endpoint. Gets the server info
-    """
-    return {
-        "name": "Federated Node",
-        "doc": "Part of the PHEMS network"
-    }, HTTPStatus.OK
+def get_project_task(project_id: int, task_id: int) -> Task:
+    """The task, which is a 404 if it belongs to another project or the project is deleted."""
+    Project.get_by_id(project_id)
+    task = Task.get_by_id(task_id)
+    if task.project_id != project_id:
+        raise DBRecordNotFoundError(f"Task with id {task_id} does not exist in project {project_id}")
+    return task
 
 
 @bp.route('/', methods=['GET'])
 @bp.route('', methods=['GET'])
 @audit
 @auth(scope='can_admin_task')
-def get_tasks():
+def get_tasks(project_id):
     """
-    GET /tasks/ endpoint. Gets the list of tasks with pagination
+    GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination
     Query params:
-        - page: page number (default 1)
-        - per_page: items per page (default 10)
+        - page: page number (default 1, below 1 is clamped to 1)
+        - per_page: items per page (default 10, below 1 is clamped to 1)
         - status: filter by task status (optional)
-        - project_id: filter by project (optional)
     """
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 10, type=int)
-    status = request.args.get('status', None)
-    project_id = request.args.get('project_id', None, type=int)
+    Project.get_by_id(project_id)
+    query = Task.query.filter(Task.project_id == project_id)
+    return task_page(query, parse_statuses(request.args.get('status', None))), HTTPStatus.OK
 
+
+@all_bp.route('/', methods=['GET'])
+@all_bp.route('', methods=['GET'])
+@audit
+@auth(scope='can_admin_task')
+def get_all_tasks():
+    """
+    GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of
+    GET /projects/<project_id>/tasks. Query params:
+        - page, per_page: as the project's list
+        - status: one or more task statuses, comma separated (optional)
+        - project_enabled: "true" keeps the tasks of enabled projects, as GET /projects?enabled=true
+          lists them. A revoked project is still enabled, so its tasks stay.
+    """
     query = Task.query
+    project_enabled = request.args.get('project_enabled', None)
+    if project_enabled is not None:
+        if project_enabled not in ('true', 'false'):
+            raise InvalidRequest("project_enabled should be true or false")
+        if project_enabled == 'true':
+            query = query.filter(Task.project_id.in_(Project.query.filter(Project.enabled.is_(True)).with_entities(Project.id)))
+    return task_page(query, parse_statuses(request.args.get('status', None))), HTTPStatus.OK
 
-    if status is not None:
-        if status not in [s.value for s in TaskStatus]:
-            valid = ', '.join([s.value for s in TaskStatus])
-            raise InvalidRequest(f"Invalid status: {status}. Must be one of: {valid}")
-        query = query.filter(Task.status == status)
 
-    if project_id is not None:
-        query = query.filter(Task.project_id == project_id)
+def parse_statuses(raw: str | None) -> list[str] | None:
+    """The statuses of a comma separated `status` parameter, 400 listing the valid ones if one is not."""
+    if raw is None:
+        return None
+    valid = [s.value for s in TaskStatus]
+    statuses = [s.strip() for s in raw.split(',')]
+    for status in statuses:
+        if status not in valid:
+            raise InvalidRequest(f"Invalid status: {status}. Must be one of: {', '.join(valid)}")
+    return statuses
 
-    pagination = query.order_by(Task.id).paginate(page=page, per_page=per_page)
-    tasks = [TaskDTO.from_model(t).dump() for t in pagination.items]
 
+def task_page(query, statuses: list[str] | None) -> dict:
+    """A page of the query's tasks, filtered by status and ordered by id, per the page and per_page parameters."""
+    page = max(arg_get('page', 1, type=int), 1)
+    per_page = max(arg_get('per_page', 10, type=int), 1)
+    if statuses is not None:
+        query = query.filter(Task.status.in_(statuses))
+    pagination = query.order_by(Task.id).paginate(page=page, per_page=per_page, error_out=False)
     return {
-        "tasks": tasks,
+        "tasks": [TaskDTO.from_model(t).dump() for t in pagination.items],
         "total": pagination.total,
-        "page": page,
-        "per_page": per_page,
+        "page": pagination.page,
+        "per_page": pagination.per_page,
         "pages": pagination.pages
-    }, HTTPStatus.OK
+    }
 
 
 @bp.route('/<int:task_id>', methods=['GET'])
 @audit
 @auth(scope='can_exec_task')
-def get_task_id(task_id):
+def get_task_id(project_id, task_id):
     """
-    GET /tasks/id endpoint. Gets a single task with status
+    GET /projects/<project_id>/tasks/id endpoint. Gets a single task with status
     """
+    Project.get_by_id(project_id)
     task = Task.query.get(task_id)
-    if not task:
+    if not task or task.project_id != project_id:
         return {"error": "Task not found"}, HTTPStatus.NOT_FOUND
 
     does_user_own_task(task)
@@ -139,17 +174,19 @@ def get_task_id(task_id):
 @bp.route('/<int:task_id>', methods=['PATCH'])
 @audit
 @auth(scope='can_admin_dataset')
-def patch_task(task_id):
+def patch_task(project_id, task_id):
     """
-    PATCH /tasks/id endpoint. Records the progress of a task's run
+    PATCH /projects/<project_id>/tasks/id endpoint. Records the progress of a task's run.
+    A move not in TASK_MOVES is a 409, e.g. out of SUCCESS, FAILED or CANCELED; setting the same
+    status again is allowed. Only POST /projects/<project_id>/tasks/id/retry moves it back to PENDING.
     """
-    task = Task.get_by_id(task_id)
+    task = get_project_task(project_id, task_id)
 
     body = request.json or {}
     if not body:
         raise InvalidRequest("No fields provided to update")
 
-    unknown = set(body) - {"status", "dagster_run_id", "exit_code", "started_at", "completed_at"}
+    unknown = set(body) - {"status", "executor_run_id", "exit_code", "state_cause", "started_at", "completed_at"}
     if unknown:
         raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
 
@@ -157,12 +194,18 @@ def patch_task(task_id):
         if body['status'] not in [s.value for s in TaskStatus]:
             valid = ', '.join([s.value for s in TaskStatus])
             raise InvalidRequest(f"Invalid status: {body['status']}. Must be one of: {valid}")
+        transition(TASK_MOVES, task.status, body['status'])
         task.status = body['status']
 
-    if 'dagster_run_id' in body:
-        if not isinstance(body['dagster_run_id'], str):
-            raise InvalidRequest("dagster_run_id must be a string")
-        task.dagster_run_id = body['dagster_run_id']
+    if 'executor_run_id' in body:
+        if not isinstance(body['executor_run_id'], str):
+            raise InvalidRequest("executor_run_id must be a string")
+        task.executor_run_id = body['executor_run_id']
+
+    if 'state_cause' in body:
+        if not isinstance(body['state_cause'], str):
+            raise InvalidRequest("state_cause must be a string")
+        task.state_cause = body['state_cause']
 
     if 'exit_code' in body:
         if not isinstance(body['exit_code'], int) or isinstance(body['exit_code'], bool):
@@ -183,21 +226,22 @@ def patch_task(task_id):
 @bp.route('/<int:task_id>/retry', methods=['POST'])
 @audit
 @auth(scope='can_admin_task')
-def retry_task(task_id):
+def retry_task(project_id, task_id):
     """
-    POST /tasks/id/retry endpoint. Queues a failed or canceled task for another attempt
+    POST /projects/<project_id>/tasks/id/retry endpoint. Queues a failed or canceled task for another attempt
     """
-    task = Task.get_by_id(task_id)
+    task = get_project_task(project_id, task_id)
 
-    if task.status not in (TaskStatus.FAILED.value, TaskStatus.CANCELED.value):
+    if task.status not in RETRYABLE:
         raise InvalidRequest(f"Only a {TaskStatus.FAILED} or {TaskStatus.CANCELED} task can be retried")
 
     task.status = TaskStatus.PENDING.value
     task.attempt += 1
-    task.dagster_run_id = None
+    task.executor_run_id = None
     task.started_at = None
     task.completed_at = None
     task.exit_code = None
+    task.state_cause = None
 
     db.session.commit()
     return TaskDTO.from_model(task).dump(), HTTPStatus.OK
@@ -206,9 +250,9 @@ def retry_task(task_id):
 @bp.route('/<task_id>/cancel', methods=['POST'])
 @audit
 @auth(scope='can_admin_task')
-def cancel_tasks(task_id):
+def cancel_tasks(project_id, task_id):
     """
-    POST /tasks/id/cancel endpoint. Cancels a task either scheduled or running one
+    POST /projects/<project_id>/tasks/id/cancel endpoint. Cancels a task either scheduled or running one
     """
     raise NotImplementedException()
 
@@ -217,37 +261,37 @@ def cancel_tasks(task_id):
 @bp.route('', methods=['POST'])
 @audit
 @auth(scope='can_exec_task')
-def post_tasks():
+def post_tasks(project_id):
     """
-    POST /tasks/ endpoint. Creates a new task from API request
+    POST /projects/<project_id>/tasks endpoint. Creates a new task from API request
     """
+    raw_body = request.get_data(as_text=True)
     req_body = request.json or {}
-    raw_body = deepcopy(req_body)
-    project_name = request.headers.get("project-name")
-    req_body["project_name"] = project_name
+    req_body["project_id"] = project_id
 
     kc_client = Keycloak()
     token = kc_client.get_token_from_headers()
     dec_token = kc_client.decode_token(token)
     user_id = kc_client.get_user_by_email(dec_token["email"])["id"]
 
-    project = Project.query.filter_by(name=project_name).first()
-    if not project:
-        return {"error": f"Project '{project_name}' not found"}, HTTPStatus.NOT_FOUND
+    project = Project.get_by_id(project_id)
+    require_accepts_tasks(project)
 
     # The request is recorded before it is evaluated. A rejected one is kept, with
-    # the reason: no task is created from it, so nothing can launch.
-    api_request = ApiRequestTrigger(project_id=project.id, user_id=user_id, payload=raw_body)
-    api_request.add()
+    # the reason and the raw body: no task is created from it, so nothing can launch.
+    api_request = ApiRequestTrigger(project_id=project.id, user_id=user_id)
+    api_request.add(commit=False)
 
     session = db.session
     try:
+        api_request.set_spec_raw(raw_body)
+        session.commit()
         # Validate the task spec, and normalise it. The dataset it was validated
-        # against is the one the task runs on.
-        spec = TaskSpec.from_api_body(req_body)
+        # against, if any, is the one the task runs on.
+        spec = TaskSpecRequest.from_api_body(req_body)
         req_body["docker_image"] = spec.image
         validated = Task.validate(req_body)
-        spec.dataset = validated["dataset"].name
+        spec.dataset = validated["dataset"].name if validated["dataset"] else None
         new_task = NewTaskDTO.from_spec(spec, api_request)
     except VALIDATION_ERRORS as error:
         api_request.set_state(TriggerState.REJECTED.value, str(error.description)[:1024])
@@ -270,29 +314,102 @@ def post_tasks():
 
 @bp.route('/validate', methods=['POST'])
 @audit
-@auth(scope='can_exec_task', check_dataset=False)
-def post_tasks_validate():
+@auth(scope='can_exec_task')
+def post_tasks_validate(project_id):
     """
-    POST /tasks/validate endpoint.
+    POST /projects/<project_id>/tasks/validate endpoint.
         Allows task definition validation without creating the task
     """
+    Project.get_by_id(project_id)
     req_body = request.json
-    req_body["project_name"] = request.headers.get("project-name")
-    spec = TaskSpec.from_api_body(req_body)
+    req_body["project_id"] = project_id
+    spec = TaskSpecRequest.from_api_body(req_body)
     req_body["docker_image"] = spec.image
     Task.validate(req_body)
     return "Ok", 200
 
 
+@bp.route('/<int:task_id>/trigger', methods=['GET'])
+@audit
+@auth(scope='can_exec_task')
+def get_task_trigger(project_id, task_id):
+    """
+    GET /projects/<project_id>/tasks/id/trigger endpoint. The pull request that yielded the task,
+    with its trigger repository. A task created by hand has none: 404
+    """
+    task = get_project_task(project_id, task_id)
+    does_user_own_task(task)
+    if not isinstance(task.trigger, PullRequestTrigger):
+        raise DBRecordNotFoundError(f"Task with id {task_id} has no pull request trigger")
+    return TaskTriggerDTO.from_model(task.trigger).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:task_id>/config', methods=['GET'])
+@audit
+@auth(scope='can_exec_task')
+def get_task_config(project_id, task_id):
+    """
+    GET /projects/<project_id>/tasks/id/config endpoint. Whether the configuration the task was created
+    under (its results repository and target_dir, its dataset) is still the current one. If not, the task
+    must not launch or publish, and changes lists what differs. A task without a stored snapshot is current.
+    config_snapshot is the pinned configuration itself: delivery takes its target_dir from it, as the link may be deleted by then.
+    revoked names what the task uses that is revoked or deleted (its project, trigger, dataset or results repository): such a
+    task must not launch either, and its results are never delivered.
+    outcome is the decision for a PENDING task, "launch" or "fail", and cause says why when it fails: see
+    helpers/task_config.decide_launch for the rules and their order. Read-only, safe to call every tick.
+    """
+    task = get_project_task(project_id, task_id)
+    does_user_own_task(task)
+    decision = decide_launch(task)
+    return {
+        "outcome": decision.outcome, "cause": decision.cause,
+        "current": not decision.changes, "changes": decision.changes, "config_hash": task.config_hash,
+        "config_snapshot": task.config_snapshot, "revoked": decision.revoked,
+    }, HTTPStatus.OK
+
+
+@bp.route('/<int:task_id>/launch', methods=['POST'])
+@audit
+@auth(scope='can_admin_dataset')
+def launch_task(project_id, task_id):
+    """
+    POST /projects/<project_id>/tasks/id/launch endpoint. The launcher's one call per PENDING task. It decides
+    with helpers/task_config.decide_launch, the same rules GET .../config reports, and answers:
+    - "fail": the task is moved to FAILED here, its state_cause the cause cut to TASK_CAUSE_MAX_LENGTH. Returns
+      outcome, cause (as stored) and the failed task.
+    - "launch": nothing is written. Returns outcome, the task (spec included) and its dataset, with the secret
+      reference, exactly what the run request needs; dataset is null for a task without one.
+    A task that is no longer PENDING is a 409 and nothing changes, so a repeated call is safe.
+    """
+    task = get_project_task(project_id, task_id)
+    does_user_own_task(task)
+    if task.status != TaskStatus.PENDING.value:
+        raise InvalidRequest(f"Task {task_id} is {task.status}, not {TaskStatus.PENDING.value}", HTTPStatus.CONFLICT)
+
+    decision = decide_launch(task)
+    if decision.outcome == "fail":
+        transition(TASK_MOVES, task.status, TaskStatus.FAILED.value)
+        task.status = TaskStatus.FAILED.value
+        task.state_cause = (decision.cause or "failed by the backend")[:TASK_CAUSE_MAX_LENGTH]
+        db.session.commit()
+        return {"outcome": "fail", "cause": task.state_cause, "task": TaskDTO.from_model(task).dump(), "dataset": None}, HTTPStatus.OK
+
+    dataset = task.spec.dataset if task.spec.dataset_id else None
+    return {
+        "outcome": "launch", "cause": None, "task": TaskDTO.from_model(task).dump(),
+        "dataset": DatasetDTO.from_model(dataset).dump() if dataset else None,
+    }, HTTPStatus.OK
+
+
 @bp.route('/<int:task_id>/results', methods=['GET'])
 @audit
 @auth(scope='can_exec_task')
-def get_task_results(task_id):
+def get_task_results(project_id, task_id):
     """
-    GET /tasks/id/results endpoint. Lists the delivery of the task's results
+    GET /projects/<project_id>/tasks/id/results endpoint. Lists the delivery of the task's results
     to each of its destinations
     """
-    task = Task.get_by_id(task_id)
+    task = get_project_task(project_id, task_id)
     does_user_own_task(task)
     return [dump_result(r) for r in task.results], HTTPStatus.OK
 
@@ -300,7 +417,7 @@ def get_task_results(task_id):
 @bp.route('/<task_id>/logs', methods=['GET'])
 @audit
 @auth(scope='can_exec_task')
-def get_tasks_logs(task_id: int):
+def get_tasks_logs(project_id: int, task_id: int):
     """
     From a given task, return its logs
     """
@@ -310,9 +427,9 @@ def get_tasks_logs(task_id: int):
 @bp.route('/<task_id>/results/approve', methods=['POST'])
 @audit
 @auth(scope='can_admin_task')
-def approve_results(task_id):
+def approve_results(project_id, task_id):
     """
-    POST /tasks/id/results/approve endpoint.
+    POST /projects/<project_id>/tasks/id/results/approve endpoint.
         Approves the release (automatic or manual) of
         a task's results
     """
@@ -322,9 +439,9 @@ def approve_results(task_id):
 @bp.route('/<task_id>/results/block', methods=['POST'])
 @audit
 @auth(scope='can_admin_task')
-def block_results(task_id):
+def block_results(project_id, task_id):
     """
-    POST /tasks/id/results/block endpoint.
+    POST /projects/<project_id>/tasks/id/results/block endpoint.
         Blocks the release (automatic or manual) of
         a task's results
     """

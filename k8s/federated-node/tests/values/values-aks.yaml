@@ -8,11 +8,9 @@ certs:
     secretName: test-azure
 db:
   host: postgres.postgres.database.azure.com
-  name: federated_node_db
   secret:
     key: value
     name: local-db
-  user: user
 host: test.aridhiatest.net
 traefik:
   enabled: true

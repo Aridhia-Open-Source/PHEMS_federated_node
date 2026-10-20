@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from app.models import Dataset, SecretProviderType
+from app.models import Dataset, SecretProviderType, TaskSpec
 
 
 class PipesSecretConfig(BaseModel):
@@ -28,22 +28,18 @@ class K8sPipesOpConfig(BaseModel):
 
     env: dict
     docker_image: str
-    dataset: PipesDatasetConfig
+    dataset: PipesDatasetConfig | None = None
 
 
-def build_run_config(spec: dict, dataset: Dataset) -> dict:
+def build_run_config(spec: TaskSpec, dataset: Dataset | None) -> dict:
     """
-    The run config for k8s_pipes_job, from a task spec and the dataset it runs against.
-    The spec names its image as `image`, or `docker_image` as pull request specs may.
+    The run config for k8s_pipes_job, from a task spec and the dataset it runs against, if
+    any. Without one the config has no dataset key.
     """
-    image = spec.get("image") or spec.get("docker_image")
-    if not image:
-        raise ValueError("spec missing 'image'")
-
     op_config = K8sPipesOpConfig(
-        env=spec.get("env") or {},
-        docker_image=image,
-        dataset=PipesDatasetConfig.model_validate(dataset.model_dump()),
+        env=spec.env,
+        docker_image=spec.image,
+        dataset=PipesDatasetConfig.model_validate(dataset.model_dump()) if dataset else None,
     )
 
-    return {"ops": {"k8s_pipes_op": {"config": op_config.model_dump(mode="json")}}}
+    return {"ops": {"k8s_pipes_op": {"config": op_config.model_dump(mode="json", exclude=None if dataset else {"dataset"})}}}

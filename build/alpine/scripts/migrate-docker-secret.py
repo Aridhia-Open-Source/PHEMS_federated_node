@@ -50,7 +50,7 @@ bearer_token = login_resp.json()["token"]
 
 # Get list of registries
 reg_resp = requests.get(
-  f"{BACKEND_URL}/registries",
+  f"{BACKEND_URL}/global/registries",
   headers={"Content-Type": "application/x-www-form-urlencoded", "Authorization": f"Bearer {bearer_token}"}
 )
 if not reg_resp.ok:

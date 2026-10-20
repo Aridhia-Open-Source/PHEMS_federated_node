@@ -2,6 +2,13 @@
 
 cd opt/keycloak/bin/
 
+# The server must run the baked build. Without --optimized, start re-runs the build and discards the
+# baked options (features and db come back unset), so it is always added here and callers need not pass it.
+case " $* " in
+    *" --optimized "*) ;;
+    *) set -- "$@" --optimized ;;
+esac
+
 # --optimized is required: without it this command re-runs the build and silently discards the baked
 # build options, so the server then starts with features=<unset>.
 bootstrap=$(./kc.sh bootstrap-admin user --optimized \

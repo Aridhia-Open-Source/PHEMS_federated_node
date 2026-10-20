@@ -1,6 +1,7 @@
 from pydantic import BaseModel, ConfigDict
 
-from app.models.pull_request_result_state import PullRequestResultState
+from app.models.pull_request_result_step import PullRequestResultStep
+from app.models.result_state import ResultState
 
 
 class PullRequestResult(BaseModel):
@@ -13,8 +14,11 @@ class PullRequestResult(BaseModel):
     id: int
     type: str
     task_id: int
+    project_id: int
+    # The id of the global results repository, which the task's project is linked to
     results_repository_id: int
-    state: PullRequestResultState
+    step: PullRequestResultStep
+    state: ResultState
     attempts: int
     error: str | None = None
     created_at: str | None = None

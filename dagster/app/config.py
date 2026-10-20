@@ -1,3 +1,4 @@
+import dagster as dg
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,35 +24,25 @@ class BackendConfig(EnvConfig):
     password: str = Field(default="", alias="DAGSTER_KC_PASSWORD")
 
 
-class SensorConfig(EnvConfig):
-    artifact_mount_path: str = Field(default="", alias="DAGSTER_ARTIFACT_MOUNT_PATH")
-    results_dir: str = Field(default="", alias="GH_RESULTS_DIR")
-    token: str = Field(default="", alias="GH_TOKEN")
+class SensorStatusConfig(EnvConfig):
+    initial_status: dg.DefaultSensorStatus = Field(
+        default=dg.DefaultSensorStatus.STOPPED, alias="DAGSTER_SENSORS_INITIAL_STATUS"
+    )
+    min_interval_seconds: int = Field(default=30, alias="DAGSTER_SENSORS_MIN_INTERVAL_SECONDS")
+    retry_interval_seconds: int = Field(default=60, alias="DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS")
+    delivery_max_attempts: int = Field(default=5, alias="DAGSTER_DELIVERY_MAX_ATTEMPTS")
+
+
+# Read once, at import: every sensor's default_status and minimum_interval_seconds.
+DEFAULT_SENSOR_STATUS = SensorStatusConfig().initial_status
+MIN_SENSOR_INTERVAL_SECONDS = SensorStatusConfig().min_interval_seconds
+SENSOR_RETRY_INTERVAL_SECONDS = SensorStatusConfig().retry_interval_seconds
+DELIVERY_MAX_ATTEMPTS = SensorStatusConfig().delivery_max_attempts
 
 
 class ResultsDeliveryConfig(EnvConfig):
     artifact_mount_path: str = Field(default="", alias="DAGSTER_ARTIFACT_MOUNT_PATH")
     max_zip_bytes: int = Field(default=10485760, alias="RESULTS_MAX_ZIP_BYTES")
-
-
-class GithubConfig(EnvConfig):
-    token: str = Field(default="", alias="GH_TOKEN")
-    base_uri: str = Field(
-        default="https://api.github.com",
-        alias="GH_API_URI",
-    )
-
-
-class GiteaConfig(EnvConfig):
-    token: str = Field(default="", alias="GITEA_TOKEN")
-    base_uri: str = Field(
-        default="http://gitea.fn.svc:4000/api/v1",
-        alias="GITEA_API_URI",
-    )
-
-
-class KubernetesConfig(EnvConfig):
-    namespace: str = Field(default="", alias="DAGSTER_DEPLOYMENT_NAMESPACE")
 
 
 class PipesSecurityContextConfig(BaseSettings):

@@ -50,6 +50,7 @@ class DAR(db.Model, BaseModel):
         self,
         title: str,
         project_name: str,
+        project_id: int,
         dataset: Dataset,
         requested_by: str,
         proj_start: dt,
@@ -62,9 +63,8 @@ class DAR(db.Model, BaseModel):
         self.project_name = project_name
         # Not sure how to track the dataset yet, as DAR provider will have different IDs from the internal ones
         self.dataset = dataset
-        # The project comes from the dataset, never from the submitted string, so a DAR
-        # cannot name one project while granting access to another project's dataset.
-        self.project_id = dataset.project_id if dataset is not None else None
+        # A dataset belongs to no project, so the request names the one it is for
+        self.project_id = project_id
         self.requested_by = requested_by
         self.proj_start = proj_start
         self.proj_end = proj_end

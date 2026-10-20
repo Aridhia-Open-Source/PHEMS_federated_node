@@ -5,7 +5,7 @@ from kubernetes import client
 from kubernetes.client import V1Secret
 from kubernetes.config import load_incluster_config
 
-from app.models import SecretProviderType
+from app.models import Secret, SecretProviderType
 
 
 class K8sSecretProvider:
@@ -32,3 +32,10 @@ class SecretProvider:
     def get(self, key: str, namespace: str, value_key: str) -> str:
         """The value stored under value_key in the secret that the store knows as key."""
         return self.provider.get(key, namespace, value_key)
+
+
+def read_secret_value(secret: Secret, value_key: str) -> str:
+    """The value under value_key of a secret the node has not disabled; a disabled secret is never read."""
+    if not secret.enabled:
+        raise PermissionError(f"Secret {secret.id} is disabled")
+    return SecretProvider(secret.provider).get(secret.key, secret.namespace, value_key)

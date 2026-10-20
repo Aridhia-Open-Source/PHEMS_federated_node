@@ -73,14 +73,6 @@ kubernetesProvider:
         HOSTED_ZONE: uksouth
         TENANT_ID: as13151cv18a1ca651ac
     # The role passwords, as a DBA-run install would have them. No superuser.
-    - apiVersion: v1
-      kind: Secret
-      metadata:
-        name: github-token
-        namespace: federatednode
-      type: Opaque
-      data:
-        GH_TOKEN: dGVzdA==
 tests:
   - it: names every role secret it needs, and the DDL to create them
     template: requirements-check.yaml

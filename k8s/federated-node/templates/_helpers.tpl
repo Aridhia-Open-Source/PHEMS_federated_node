@@ -174,6 +174,9 @@ securityContext:
 {{- define "tasks_namespace" -}}
 {{ ((.Values.global).namespaces).tasks | default "tasks" }}
 {{- end -}}
+{{- define "quarantine_namespace" -}}
+{{ ((.Values.global).namespaces).quarantine | default "fn-quarantine" }}
+{{- end -}}
 {{- define "testsBaseUrl" }}
 {{- if not .Values.local_development -}}
 https://{{ .Values.host }}
@@ -192,6 +195,19 @@ set backend.uri explicitly to override (e.g. an external hostname).
 {{ .Values.backend.uri }}
 {{- else -}}
 http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
+{{- end -}}
+{{- end }}
+
+{{/*
+The in-cluster URL of the Dagster webserver, which serves the GraphQL API the FN API uses
+to read and toggle sensors. Defaults to the dagster subchart's service in the release
+namespace; set fnDagster.webserver.uri explicitly to override.
+*/}}
+{{- define "dagsterWebserverUri" -}}
+{{- if .Values.fnDagster.webserver.uri -}}
+{{ .Values.fnDagster.webserver.uri }}
+{{- else -}}
+http://{{ .Release.Name }}-dagster-webserver.{{ .Release.Namespace }}.svc:80
 {{- end -}}
 {{- end }}
 

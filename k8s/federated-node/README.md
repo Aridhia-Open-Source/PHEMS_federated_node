@@ -44,7 +44,6 @@ kubectl get secret -l federatednode.com/generated-password=true
 
 What you have to create yourself, in the release namespace:
 - `postgres-superuser` — only when PostgreSQL is external **and** `db.manageRolesAndDatabases` is true
-- `github-token` (key `GH_TOKEN`) — when Dagster is enabled
 - the `firstUserSecret` secret, if you want to choose the initial admin password
 - azure storage credentials, and the tls cert, where those apply
 

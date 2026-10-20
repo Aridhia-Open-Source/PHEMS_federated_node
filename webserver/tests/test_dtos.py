@@ -21,7 +21,7 @@ WIRE_DATETIME = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
 class TestProjectDTO:
     def test_fields(self, project):
         assert set(ProjectDTO.from_model(project).dump()) == {
-            "id", "name", "description", "default_dataset_id", "enabled",
+            "id", "name", "description", "default_dataset_id", "enabled", "revoked",
             "created_at", "updated_at",
         }
 
@@ -40,8 +40,9 @@ class TestProjectDTO:
 class TestDatasetDTO:
     def test_fields(self, dataset):
         assert set(DatasetDTO.from_model(dataset).dump()) == {
-            "id", "project_id", "secret", "name", "host", "port", "read_schema", "write_schema", "type",
-            "extra_connection_args", "created_at", "updated_at", "slug", "url",
+            "id", "secret", "name", "host", "port", "read_schema", "write_schema", "type",
+            "extra_connection_args", "created_at", "updated_at", "slug", "url", "enabled",
+            "revoked",
         }
 
     def test_never_exposes_credentials(self, dataset):
@@ -52,7 +53,7 @@ class TestDatasetDTO:
     def test_slug_and_url_are_derived(self, dataset):
         dumped = DatasetDTO.from_model(dataset).dump()
         assert dumped["slug"] == dataset.slugify_name()
-        assert dumped["url"].endswith(f"/datasets/{dumped['slug']}")
+        assert dumped["url"].endswith(f"/global/datasets/{dataset.id}")
 
     def test_datetimes_use_the_wire_format(self, dataset):
         dumped = DatasetDTO.from_model(dataset).dump()
@@ -119,19 +120,19 @@ class TestAuditDTO:
 class TestTaskDTO:
     def test_fields(self):
         task = Task(
-            name="task", docker_image="alpine:latest", requested_by="user", dataset_id=None, project_id=1,
-            trigger_id=1, spec={"image": "alpine:latest"}
+            name="task", requested_by="user", project_id=1, trigger_id=1,
+            spec={"image": "alpine:latest", "dataset_id": None, "env": {"K": "v"}}
         )
         task.id = 1
         dumped = TaskDTO.from_model(task).dump()
         assert set(dumped) == {
-            "id", "name", "docker_image", "spec", "attempt", "status", "created_at", "updated_at",
-            "requested_by", "dataset_id", "project_id", "trigger_id",
-            "dagster_run_id", "exit_code", "started_at", "completed_at",
+            "id", "name", "spec", "attempt", "status", "created_at", "updated_at",
+            "requested_by", "project_id", "trigger_id",
+            "executor_run_id", "exit_code", "started_at", "completed_at", "state_cause", "config_hash",
         }
         assert dumped["status"] == "PENDING"
         assert dumped["attempt"] == 1
-        assert dumped["spec"] == {"image": "alpine:latest"}
+        assert dumped["spec"] == {"image": "alpine:latest", "dataset_id": None, "env": {"K": "v"}}
         assert dumped["trigger_id"] == 1
         assert WIRE_DATETIME.match(dumped["created_at"])
 

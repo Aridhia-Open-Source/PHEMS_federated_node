@@ -3,8 +3,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.models import SecretProviderType
-from app.secrets import K8sSecretProvider, SecretProvider
+from app.models import Secret, SecretProviderType
+from app.secrets import K8sSecretProvider, SecretProvider, read_secret_value
+from app.tests.conftest import SAMPLE_SECRET
 
 
 def encoded(value):
@@ -57,3 +58,19 @@ class TestSecretProvider:
     def test_an_unknown_provider_raises(self):
         with pytest.raises(KeyError):
             SecretProvider("VAULT")
+
+
+class TestReadSecretValue:
+    def test_the_secret_is_read_from_the_namespace_of_its_row(self, core_api):
+        core_api.read_namespaced_secret.return_value = MagicMock(data={"TOKEN": encoded("s3cret")})
+        secret = Secret(**{**SAMPLE_SECRET, "namespace": "other-ns"})
+
+        assert read_secret_value(secret, "TOKEN") == "s3cret"
+        core_api.read_namespaced_secret.assert_called_once_with("git-token-abc", "other-ns")
+
+    def test_a_disabled_secret_is_never_read(self, core_api):
+        secret = Secret(**{**SAMPLE_SECRET, "enabled": False})
+
+        with pytest.raises(PermissionError):
+            read_secret_value(secret, "TOKEN")
+        core_api.read_namespaced_secret.assert_not_called()

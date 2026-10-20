@@ -1,27 +1,29 @@
 """
-results repository endpoints:
-- GET /results_repositories
-- GET /results_repositories/<id>
-- POST /results_repositories
-- PATCH /results_repositories/<id>
-- DELETE /results_repositories/<id>
+results repository endpoints, global: a project is linked to one under
+/projects/<id>/repositories/results (see projects_api.py). Create, edit and delete are admin
+only. Deleting one is a soft delete, refused with a 409 naming the projects it is linked to unless ?force=true. A secret_label naming a disabled secret is a 400 on POST and PATCH.
+- GET /global/repositories/results
+- GET /global/repositories/results/<id>
+- POST /global/repositories/results
+- PATCH /global/repositories/results/<id>
+- DELETE /global/repositories/results/<id>
+- GET /global/repositories/results/<id>/healthcheck, see healthcheck_api.py
 """
 from http import HTTPStatus
 
-from flask import Blueprint, request
+from flask import Blueprint, g, request
 
-from app.dtos.repository_uri import RepositoryUriRequest
+from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
 from app.dtos.results_repository import ResultsRepositoryDTO
 from app.helpers.base_model import db
-from app.helpers.exceptions import InvalidRequest
-from app.helpers.repository_loop import check_no_loop, normalise_dir
+from app.helpers.exceptions import InvalidRequest, UnauthorizedError
+from app.helpers.soft_delete import delete_global
 from app.helpers.wrappers import auth
 from app.models.git_provider import GitProvider
-from app.models.secret import Secret
-from app.models.project import Project
 from app.models.results_repository import ResultsRepository
+from app.models.secret import Secret
 
-bp = Blueprint('results_repositories', __name__, url_prefix='/results_repositories')
+bp = Blueprint('results_repositories', __name__, url_prefix='/global/repositories/results')
 session = db.session
 
 
@@ -35,127 +37,111 @@ def auth_before():
 @bp.route('', methods=['GET'])
 def get_repositories():
     """
-    GET /results_repositories/ — list repositories, optionally of one project (?project_id=)
+    GET /global/repositories/results/ — list the repositories
     """
-    query = ResultsRepository.query
-    project_id = request.args.get('project_id', type=int)
-    if project_id is not None:
-        query = query.filter_by(project_id=project_id)
-    return [ResultsRepositoryDTO.from_model(r).dump() for r in query.all()], HTTPStatus.OK
+    return [ResultsRepositoryDTO.from_model(r).dump() for r in ResultsRepository.query.order_by(ResultsRepository.id)], HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['GET'])
 def get_repository(repo_id):
     """
-    GET /results_repositories/<id> — get a single repository
+    GET /global/repositories/results/<id> — get a single repository
     """
     repo = ResultsRepository.get_by_id(repo_id)
     return ResultsRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK
 
 
 @bp.route('/<int:repo_id>', methods=['DELETE'])
+@auth(scope='can_do_admin')
 def delete_repository(repo_id):
     """
-    DELETE /results_repositories/<id> — delete a single repository
+    DELETE /global/repositories/%s/<id> — soft delete the repository. A 409 names the projects it is linked to, unless ?force=true, which also revokes and deletes their links.
     """
     repo = ResultsRepository.get_by_id(repo_id)
-    repo.delete()
+    delete_global(repo, repo.project_assignments)
     return '', HTTPStatus.NO_CONTENT
 
 
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
+@auth(scope='can_do_admin')
 def post_repository():
     """
-    POST /results_repositories/ — create a new repository. A project has one.
+    POST /global/repositories/results/ — create a new repository, linked to no project yet.
     """
     body = request.json or {}
-    for field in ('uri', 'project_id', 'provider', 'secret_label', 'target_dir'):
-        if not body.get(field):
-            raise InvalidRequest(f"{field} is required")
-    target_dir = normalise_dir(body['target_dir'])
-    if not target_dir:
-        raise InvalidRequest("target_dir is required")
-
-    uri = RepositoryUriRequest.normalised(body['uri'])
-
-    # Validate project and secret exist
-    Project.get_by_id(body['project_id'])
-    secret = Secret.get_in_project(body['project_id'], body['secret_label'])
-
-    if ResultsRepository.query.filter_by(project_id=body['project_id']).first():
+    if "project_id" in body or "target_dir" in body:
         raise InvalidRequest(
-            f"Project {body['project_id']} already has a results repository",
-            code=HTTPStatus.CONFLICT
+            "project_id and target_dir are not accepted, results repositories are global. "
+            "Link one with PUT /projects/<id>/repositories/results/<repository id>"
         )
+    req = RepositoryRequest.parse(body)
+
+    provider = GitProvider.get_by_request_id(req.provider_id)
+    secret = Secret.get_enabled_by_label(req.secret_label)
 
     try:
         repo = ResultsRepository(
-            uri=uri,
-            provider=body['provider'],
-            api_uri=body.get('api_uri') or GitProvider(body['provider']).default_api_uri(uri),
+            provider_id=provider.id,
+            repo_path=req.repo_path,
             secret_id=secret.id,
-            target_dir=target_dir,
-            project_id=body['project_id'],
-            owned_by_federated_node=body.get('owned_by_federated_node', True),
+            enabled=req.enabled,
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
-    repo.add(commit=False)
-    try:
-        check_no_loop(repo.project_id, repo.uri)
-    except InvalidRequest:
-        session.rollback()
-        raise
-    session.commit()
+    if ResultsRepository.query.filter_by(provider_id=provider.id, repo_path=repo.repo_path).first():
+        raise InvalidRequest(
+            f"Results repository {provider.uri}/{repo.repo_path} already exists", code=HTTPStatus.CONFLICT
+        )
+    repo.add()
 
     return ResultsRepositoryDTO.from_model(repo).dump(), HTTPStatus.CREATED
 
 
 @bp.route('/<int:repo_id>', methods=['PATCH'])
+@auth(scope='can_do_admin')
 def patch_repository(repo_id):
     """
-    PATCH /results_repositories/<id> — update repository
+    PATCH /global/repositories/results/<id> — update repository. The tasks created
+    before are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be
+    named (400), unless it is the one already in use. Enabling the repository is a 409 while its secret (the new one,
+    if secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the repository from every
+    project at once, or restores it, and does not change `enabled`: see helpers/task_config.revoked_resources.
     """
     repo = ResultsRepository.get_by_id(repo_id)
 
     body = request.json or {}
     if not body:
         raise InvalidRequest("No fields provided to update")
+    unknown = set(body) - {'provider_id', 'secret_label', 'enabled', 'revoked'}
+    if unknown:
+        raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
+    req = RepositoryPatchRequest.parse(body)
+    if 'revoked' in body and not g.caller_is_admin:
+        raise UnauthorizedError("Only an admin can revoke or re-grant a results repository")
 
-    if 'project_id' in body:
-        Project.get_by_id(body['project_id'])
-        if body['project_id'] != repo.project_id:
-            raise InvalidRequest("A repository can't be moved to another project; create it in the new project instead")
-
-    if 'target_dir' in body:
-        target_dir = normalise_dir(body['target_dir'])
-        if not target_dir:
-            raise InvalidRequest("target_dir cannot be empty")
-        repo.target_dir = target_dir
-
+    secret = repo.secret
     if 'secret_label' in body:
-        if not body['secret_label']:
-            raise InvalidRequest("secret_label cannot be empty")
-        repo.secret_id = Secret.get_in_project(repo.project_id, body['secret_label']).id
+        secret = Secret.get_enabled_by_label(req.secret_label, repo.secret_id)
+    if 'enabled' in body and req.enabled:
+        secret.require_usable()
+    repo.secret_id = secret.id
 
-    if 'owned_by_federated_node' in body:
-        repo.owned_by_federated_node = body['owned_by_federated_node']
+    if 'enabled' in body:
+        repo.enabled = req.enabled
 
-    for field in ('provider', 'api_uri'):
-        if field in body:
-            if not body[field]:
-                raise InvalidRequest(f"{field} cannot be empty")
-            try:
-                setattr(repo, field, body[field])
-            except ValueError as e:
-                raise InvalidRequest(str(e))
+    if 'revoked' in body:
+        repo.revoked = req.revoked
 
-    session.flush()
-    try:
-        check_no_loop(repo.project_id, repo.uri)
-    except InvalidRequest:
-        session.rollback()
-        raise
+    if 'provider_id' in body:
+        provider = GitProvider.get_by_request_id(req.provider_id)
+        if ResultsRepository.query.filter(
+            ResultsRepository.provider_id == provider.id, ResultsRepository.repo_path == repo.repo_path, ResultsRepository.id != repo.id
+        ).first():
+            raise InvalidRequest(
+                f"Results repository {provider.uri}/{repo.repo_path} already exists", code=HTTPStatus.CONFLICT
+            )
+        repo.provider_id = provider.id
+
     session.commit()
     return ResultsRepositoryDTO.from_model(repo).dump(), HTTPStatus.OK

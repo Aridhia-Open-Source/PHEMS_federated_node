@@ -1,9 +1,9 @@
 """
 containers endpoints:
-- GET /registries
-- GET /registries/<registry_id>
-- POST /registries
-- PATCH /registries/<registry_id>
+- GET /global/registries
+- GET /global/registries/<registry_id>
+- POST /global/registries
+- PATCH /global/registries/<registry_id>
 """
 
 from http import HTTPStatus
@@ -16,7 +16,7 @@ from app.dtos.registry import RegistryDTO
 from app.models.extras.registry import Registry
 
 
-bp = Blueprint('registries', __name__, url_prefix='/registries')
+bp = Blueprint('registries', __name__, url_prefix='/global/registries')
 
 
 @bp.route('/', methods=['GET'])
@@ -25,7 +25,7 @@ bp = Blueprint('registries', __name__, url_prefix='/registries')
 @auth(scope='can_admin_dataset')
 def list_registries():
     """
-    GET /registries endpoint.
+    GET /global/registries endpoint.
     """
     return page_of(Registry.get_all(), RegistryDTO), HTTPStatus.OK
 
@@ -35,7 +35,7 @@ def list_registries():
 @auth(scope='can_admin_dataset')
 def registry_by_id(registry_id: int):
     """
-    GET /registries endpoint.
+    GET /global/registries endpoint.
     """
     registry = Registry.query.filter_by(id=registry_id).one_or_none()
     if registry is None:
@@ -48,7 +48,7 @@ def registry_by_id(registry_id: int):
 @auth(scope='can_admin_dataset')
 def delete_registry_by_id(registry_id: int):
     """
-    GET /registries endpoint.
+    GET /global/registries endpoint.
     """
     registry: Registry = Registry.query.filter_by(id=registry_id).one_or_none()
     if registry is None:
@@ -64,7 +64,7 @@ def delete_registry_by_id(registry_id: int):
 @auth(scope='can_admin_dataset')
 def add_registry():
     """
-    POST /registries endpoint.
+    POST /global/registries endpoint.
     """
     body = Registry.validate(request.json)
     if Registry.query.filter_by(url=body['url']).one_or_none():
@@ -80,7 +80,7 @@ def add_registry():
 @auth(scope='can_admin_dataset')
 def patch_registry(registry_id: int):
     """
-    PATCH /registries/<registry_id> endpoint.
+    PATCH /global/registries/<registry_id> endpoint.
     """
     registry = Registry.query.filter(Registry.id == registry_id).one_or_none()
     if registry is None:
