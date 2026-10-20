@@ -1,5 +1,9 @@
 """Dagster GraphQL calls to start, stop and inspect sensors. The webserver needs no auth."""
 
+from requests import Session
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
+
 from app.utils import HttpClient
 
 LOCATION = "dagster-fn"
@@ -68,7 +72,18 @@ query TaskRun($filter: RunsFilter!) {
 """
 
 
+# The port-forward or the server can close a kept-alive connection just as the next call reuses it. The request then never
+# reaches Dagster, so it is safe to send again, the POSTs included: every call here can be repeated.
+RETRY_DROPPED_CONNECTION = Retry(total=3, backoff_factor=0.5, allowed_methods=None)
+
+
 class DagsterAPI(HttpClient):
+    def __init__(self, base_uri: str):
+        session = Session()
+        session.mount("http://", HTTPAdapter(max_retries=RETRY_DROPPED_CONNECTION))
+        session.mount("https://", HTTPAdapter(max_retries=RETRY_DROPPED_CONNECTION))
+        super().__init__(base_uri, session=session)
+
     def graphql(self, query: str, variables: dict) -> dict:
         body = self.post("/graphql", json={"query": query, "variables": variables}).json()
         if body.get("errors"):
