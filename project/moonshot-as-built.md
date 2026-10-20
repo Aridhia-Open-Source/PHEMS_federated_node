@@ -26,7 +26,7 @@
 
 - Describes commits: `moonshot/shared-resources` at **95d61117** (local, ahead of origin by 3 fncli commits; worktree `fn-worktrees/moonshot/shared-resources`) and `origin/moonshot/gitea-mirror` at **3b551cb7**.
 - Written blind from the code, without the ADRs. Mapped to the IDs in `moonshot-requirements.md`. Paths are relative to the repo root (gitea-mirror paths relative to `gitea-mirror/` as `app/...`).
-- The SR sections were first read from `origin/moonshot/shared-resources` (before the fncli move). The dev-tooling and fncli sections (SR-DEV-01, SR-DEV-03, "fncli" under built-but-not-mapped) were re-checked against the local worktree and corrected. Everything else in SR is unchanged by the 3 local commits (checked with `git diff`: only fncli, `scripts/e2e_shared_resources.sh`, `test_live_client_integration.py` and two handover docs differ).
+- The SR sections were first read from `origin/moonshot/shared-resources` (before the fncli move). The dev-tooling and fncli sections (SR-DEV-01, SR-DEV-03, "fncli" under built-but-not-mapped) were re-checked against the local worktree and corrected. Everything else in SR is unchanged by the 3 local commits (checked with `git diff`: only fncli, `scripts/e2e_shared_resources.sh`, `test_live_client_integration.py` and two documents differ).
 - Not run. Test counts (webserver 606, Dagster plus fncli 470 = 346 + 124, mirror 336/365) are as reported, not re-run.
 - Shorthand: "drained" and "all drained" were rules that have since been removed (ADR 0008). "active" (link) = global resource `enabled` and link `enabled` and not link `revoked`.
 

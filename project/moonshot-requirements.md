@@ -36,7 +36,7 @@ Precedence when sources disagree:
 
 1. Decisions recorded on 2026-10-17 ("decision 2026-10-17").
 2. ADR 0006 (and the mirror documentation on `moonshot/gitea-mirror` with its "Decisions changed by the 2026-10-17 review" section).
-3. HANDOVER.md, commit messages, READMEs.
+3. Commit messages, READMEs.
 4. The code (only proves what was built).
 
 ---
@@ -68,7 +68,7 @@ Precedence when sources disagree:
 
 **Known open risks (section 5 has the list).** Four trigger-loss and ingest bugs found in review are still unfixed in code. Which of them block the MVP is open.
 
-**State of verification.** Webserver tests were green (606 passed) at handover. Dagster plus fncli tests are green: `cd dagster && ./run_tests.sh ci` gave 470 passed (346 Dagster + 124 fncli). The end-to-end script has never been run. The mirror was verified in a sandbox (365 tests with a real Gitea) but not on a cluster.
+**State of verification.** Webserver tests were green (606 passed) when this was written. Dagster plus fncli tests are green: `cd dagster && ./run_tests.sh ci` gave 470 passed (346 Dagster + 124 fncli). The end-to-end script has never been run. The mirror was verified in a sandbox (365 tests with a real Gitea) but not on a cluster.
 
 ---
 
@@ -170,7 +170,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 **Source:** ADR 0006. Status codes also confirmed in code.
 
-> **Uncertain (Q1):** ADR 0006 says creating global resources "requires the admin role for now". Code has `@auth(scope='can_do_admin')` on POST and DELETE, but `PATCH /global/secrets/<label>` has no admin check (known gap in HANDOVER.md, not fixed). Is that acceptable for the MVP?
+> **Uncertain (Q1):** ADR 0006 says creating global resources "requires the admin role for now". Code has `@auth(scope='can_do_admin')` on POST and DELETE, but `PATCH /global/secrets/<label>` has no admin check (a known gap, not fixed). Is that acceptable for the MVP?
 
 ### SR-GLOB-02 Secrets are addressed by label; values are never returned
 
@@ -349,9 +349,9 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 **Source:** ADR 0006 and 0011.
 
-> **Uncertain (Q4):** The code's match rule is stricter than the ADR. It needs a file ending `.json` with status `added` under `watch_dir`. The ADR only says "its `watch_dir` against `pull_request_files.path`". The HANDOVER.md states the stricter rule. Confirm it is intended.
+> **Uncertain (Q4):** The code's match rule is stricter than the ADR. It needs a file ending `.json` with status `added` under `watch_dir`. The ADR only says "its `watch_dir` against `pull_request_files.path`". Confirm it is intended.
 
-> **Uncertain (Q5):** Fan-out creates triggers for active links of **disabled projects**, while `?active_link=true` leaves disabled projects out (so ingest does not poll for them). Is a disabled project meant to collect triggers? (HANDOVER.md lists this as "flagged, not changed".)
+> **Uncertain (Q5):** Fan-out creates triggers for active links of **disabled projects**, while `?active_link=true` leaves disabled projects out (so ingest does not poll for them). Is a disabled project meant to collect triggers?
 
 ### SR-PR-04 Trigger states: UNKNOWN, YIELDED, REJECTED. No IGNORED.
 
@@ -467,7 +467,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 
 **Source:** ADR 0003.
 
-> **Uncertain (Q8):** HANDOVER.md asks whether "retry on a SUCCESS task returns 400" is intended. ADR 0003 says only FAILED or CANCELED can retry, so the requirement says 400. Confirm.
+> **Uncertain (Q8):** It is open whether "retry on a SUCCESS task returns 400" is intended. ADR 0003 says only FAILED or CANCELED can retry, so the requirement says 400. Confirm.
 
 ### SR-TASK-06 Create and validate a task through the API
 
@@ -523,7 +523,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. `PATCH` with an unknown field, a negative counter or a non-string `step` → 400. **[technical]**
 4. `PATCH /projects/:other/results/:id` → 404. **[technical]**
 
-**Source:** ADR 0004; confirmed in HANDOVER.md (round 1 fixes).
+**Source:** ADR 0004.
 
 ### SR-RES-04 Delivery pushes a branch and opens a results PR
 
@@ -713,7 +713,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. A secret missing from its store → 200, `status: "secret_missing"` with the missing keys, no values. **[business]**
 4. `GET /global/repositories/triggers/999/healthcheck` → 404. **[technical]**
 
-**Source:** `webserver/app/healthcheck_api.py` docstring and HANDOVER.md. No ADR covers healthchecks.
+**Source:** `webserver/app/healthcheck_api.py` docstring. No ADR covers healthchecks.
 
 > **Assumption (Q16):** Healthchecks have no ADR. The requirement is written from the code docstring. The expected status values and that failure is 200 are unconfirmed.
 
@@ -758,7 +758,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. A page past the end → 200 with empty items. On the task and PR lists, `page=0` or `per_page=0` is treated as 1 (200). **[technical]**
 4. Non-numeric `page` → 400. **[technical]**
 
-**Source:** HANDOVER.md (app fixes round 1); ADR 0006 (clamping, "(?)", see Q2).
+**Source:** ADR 0006 (clamping, "(?)", see Q2).
 
 ### SR-API-03 The API exposes the real model; no flat compatibility layer
 
@@ -799,7 +799,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 2. Tests are black-box HTTP (status and body only), so they carry over to a later FastAPI move. **[technical]**
 3. Each test uses a fresh database. **[technical]**
 
-**Source:** HANDOVER.md.
+**Source:** none recorded.
 
 ### SR-DEV-03 fncli lives in dagster/fncli and shares app.* code
 
@@ -824,7 +824,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 2. Only one migration file for the webserver (no `002_*`). **[technical]**
 3. `ck_triggers_state_cause_for_rejected` exists: a REJECTED trigger needs a `state_cause`. **[technical]**
 
-**Source:** ADR 0006; HANDOVER.md ("checked before handoff").
+**Source:** ADR 0006.
 
 ### SR-DEV-05 Dev cluster ownership guard
 
@@ -846,7 +846,7 @@ Rules: `POST` only under `/global`. Project paths use the global id, never the l
 3. Invalid PR → REJECTED, no task. **[business]**
 4. Teardown leaves nothing, and setting up again works. **[technical]**
 
-**Source:** `dagster/fncli/tests/e2e/README.md`, HANDOVER.md.
+**Source:** `dagster/fncli/tests/e2e/README.md`.
 
 > **Uncertain (Q21):** The script "has never been run". The scenarios are encoded in the suites under `dagster/fncli/tests/e2e/` (see its README).
 
@@ -1099,14 +1099,14 @@ Precedence for this section: the mirror documentation on `moonshot/gitea-mirror`
 | `/projects/:pid/users` | Comes later, not now. Users are node-level Keycloak users; project access is via data access requests (legacy). |
 | Sensor redesign (per-PR job, delivery as an op, mirror webhook replacing ingest polling) | Parked. Decision 2026-10-17; open questions in ADR 0014. |
 | Flask to FastAPI | Parked after the MVP. |
-| Auth rework and normal-user permissions | Later full rewrite. Only the super user and the Dagster system user matter now (HANDOVER.md). |
+| Auth rework and normal-user permissions | Later full rewrite. Only the super user and the Dagster system user matter now. |
 | Drain and enabled guards on editing, deleting or unlinking resources | Replaced by pinning a task to its configuration and by soft delete (ADR 0006). Worst case a project keeps failing or lacks a secret. |
 | Handling a project with no results link | Not for the MVP. Comment only (SR-RES-07). |
 | Mirror webhook receiver on the node, `mirror_uri` and `mirror_secret_id` on trigger repositories | Later, node-side (the Gitea mirror service). |
 | Mirror: history backfill, open PRs, comments, reviews, branch deletion, other git hosts | Out of the mirror's scope (the mirror documentation on `moonshot/gitea-mirror`, README known gaps). |
 | Real-time updates | Never a requirement. |
 | Webhooks from GitHub straight into the node, Argo CD, one mirror per project, `disabled_reason` string, a flat compatibility API | Rejected in ADRs 0006, 0008 and 0012. |
-| Audit and `@auth`/`@audit` changes | Out of scope (HANDOVER.md). |
+| Audit and `@auth`/`@audit` changes | Out of scope. |
 | `audit` details overflow on a 4096-char `url` | Known, not fixed, out of scope. |
 
 ---
