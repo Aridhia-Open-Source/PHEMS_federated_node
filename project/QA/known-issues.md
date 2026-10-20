@@ -16,14 +16,14 @@ Needs: the dev project, an administrator login, and the second project (`fncli s
 - [ ] Pass (matches the expected result above)
 - [ ] Fail (differs; note what you saw)
 
-## `PATCH /global/secrets/<label>` has no admin-only check and uses local time
+## `PATCH /global/secrets/<label>` sets `updated_at` from local time
 
-1. With a non-admin token (skip if there is none): `PATCH /global/secrets/<scratch label>` with a changed `description`.
+1. `PATCH /global/secrets/<scratch label>` with a changed `description`, as an administrator.
 2. Compare the Secret's `updated_at` with `date -u`.
 
-- **Expected today:** the route has no admin-only check and sets `updated_at` from local time. Record whether the PATCH is accepted and the time offset.
+- **Expected today:** `updated_at` is set from local time, not UTC. Record the time offset. The route is admin-only (`can_do_admin`), so a non-admin token gets a 403.
 - **Rule:** global writes need the admin scope ([Global resources, linked to projects]).
-- **Automated by:** Partly automated: `webserver/tests/test_global_resources.py` (`test_a_non_admin_is_refused_on_the_write_routes_of_the_global_resources`); check whether it covers the Secret `PATCH`. It may not cover the Secret `PATCH` or the time zone.
+- **Automated by:** `webserver/tests/test_global_resources.py` (`test_a_non_admin_is_refused_on_the_write_routes_of_the_global_resources`) covers the 403 for the Secret `PATCH`; `test_system_user_routes.py` covers the System user. Nothing covers the time zone.
 - [ ] Pass (matches the expected result above)
 - [ ] Fail (differs; note what you saw)
 
