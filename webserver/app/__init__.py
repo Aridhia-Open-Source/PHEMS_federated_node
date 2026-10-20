@@ -79,6 +79,7 @@ def create_app():
     app.register_blueprint(projects_api.bp)
     app.register_blueprint(datasets_api.bp)
     app.register_blueprint(tasks_api.bp)
+    app.register_blueprint(tasks_api.all_bp)
     app.register_blueprint(results_api.bp)
     app.register_blueprint(admin_api.bp)
     # TODO(whitelisted_images): disconnected for now, revisit with the authorization rework.

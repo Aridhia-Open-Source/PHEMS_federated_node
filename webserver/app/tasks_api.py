@@ -1,5 +1,6 @@
 """
 tasks-related endpoints, under the project that owns the tasks. A task of another project is a 404:
+- GET /tasks (the tasks of all projects; status, comma separated; project_enabled=true; page and per_page as below)
 - GET /projects/<project_id>/tasks (page and per_page below 1 are clamped to 1)
 - POST /projects/<project_id>/tasks
 - POST /projects/<project_id>/tasks/validate
@@ -46,6 +47,7 @@ from app.models.task_status import RETRYABLE, TASK_MOVES, TaskStatus
 from app.models.trigger_state import TriggerState
 
 bp = Blueprint('tasks', __name__, url_prefix='/projects/<int:project_id>/tasks')
+all_bp = Blueprint('all_tasks', __name__, url_prefix='/tasks')
 
 # What a task request that fails validation raises. Such a request is kept, as REJECTED.
 VALIDATION_ERRORS = (
@@ -96,29 +98,60 @@ def get_tasks(project_id):
         - per_page: items per page (default 10, below 1 is clamped to 1)
         - status: filter by task status (optional)
     """
-    page = max(arg_get('page', 1, type=int), 1)
-    per_page = max(arg_get('per_page', 10, type=int), 1)
-    status = request.args.get('status', None)
-
     Project.get_by_id(project_id)
     query = Task.query.filter(Task.project_id == project_id)
+    return task_page(query, parse_statuses(request.args.get('status', None))), HTTPStatus.OK
 
-    if status is not None:
-        if status not in [s.value for s in TaskStatus]:
-            valid = ', '.join([s.value for s in TaskStatus])
-            raise InvalidRequest(f"Invalid status: {status}. Must be one of: {valid}")
-        query = query.filter(Task.status == status)
 
+@all_bp.route('/', methods=['GET'])
+@all_bp.route('', methods=['GET'])
+@audit
+@auth(scope='can_admin_task')
+def get_all_tasks():
+    """
+    GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of
+    GET /projects/<project_id>/tasks. Query params:
+        - page, per_page: as the project's list
+        - status: one or more task statuses, comma separated (optional)
+        - project_enabled: "true" keeps the tasks of enabled projects, as GET /projects?enabled=true
+          lists them. A revoked project is still enabled, so its tasks stay.
+    """
+    query = Task.query
+    project_enabled = request.args.get('project_enabled', None)
+    if project_enabled is not None:
+        if project_enabled not in ('true', 'false'):
+            raise InvalidRequest("project_enabled should be true or false")
+        if project_enabled == 'true':
+            query = query.filter(Task.project_id.in_(Project.query.filter(Project.enabled.is_(True)).with_entities(Project.id)))
+    return task_page(query, parse_statuses(request.args.get('status', None))), HTTPStatus.OK
+
+
+def parse_statuses(raw: str | None) -> list[str] | None:
+    """The statuses of a comma separated `status` parameter, 400 listing the valid ones if one is not."""
+    if raw is None:
+        return None
+    valid = [s.value for s in TaskStatus]
+    statuses = [s.strip() for s in raw.split(',')]
+    for status in statuses:
+        if status not in valid:
+            raise InvalidRequest(f"Invalid status: {status}. Must be one of: {', '.join(valid)}")
+    return statuses
+
+
+def task_page(query, statuses: list[str] | None) -> dict:
+    """A page of the query's tasks, filtered by status and ordered by id, per the page and per_page parameters."""
+    page = max(arg_get('page', 1, type=int), 1)
+    per_page = max(arg_get('per_page', 10, type=int), 1)
+    if statuses is not None:
+        query = query.filter(Task.status.in_(statuses))
     pagination = query.order_by(Task.id).paginate(page=page, per_page=per_page, error_out=False)
-    tasks = [TaskDTO.from_model(t).dump() for t in pagination.items]
-
     return {
-        "tasks": tasks,
+        "tasks": [TaskDTO.from_model(t).dump() for t in pagination.items],
         "total": pagination.total,
         "page": pagination.page,
         "per_page": pagination.per_page,
         "pages": pagination.pages
-    }, HTTPStatus.OK
+    }
 
 
 @bp.route('/<int:task_id>', methods=['GET'])

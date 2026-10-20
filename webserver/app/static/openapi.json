@@ -483,6 +483,63 @@
         "description": "A status move not in TASK_MOVES (webserver/app/models/task_status.py) is refused with 409: only forward, and nothing out of SUCCESS, FAILED or CANCELED. The same status again is allowed."
       }
     },
+    "/tasks": {
+      "get": {
+        "operationId": "get_all_tasks",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Get the tasks of all projects",
+        "description": "Ordered by id, in the shape of the project's list. Used by the Dagster sensors, which filter in the webserver.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "One or more task statuses, comma separated, e.g. PENDING,RUNNING. An unknown status is a 400 listing the valid ones."
+          },
+          {
+            "in": "query",
+            "name": "project_enabled",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "description": "true keeps the tasks of enabled projects, as GET /projects?enabled=true lists them. A revoked project is still listed."
+          },
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AllTasksList"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/projects/{project_id}/tasks": {
       "get": {
         "operationId": "get_tasks",
@@ -6301,6 +6358,40 @@
                 "error": {
                   "type": "string",
                   "example": "Dagster is unreachable: connection refused"
+                }
+              }
+            }
+          }
+        }
+      },
+      "AllTasksList": {
+        "description": "A page of tasks",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "tasks": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskById"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 10
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "pages": {
+                  "type": "integer",
+                  "example": 10
                 }
               }
             }
