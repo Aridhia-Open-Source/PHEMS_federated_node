@@ -13,7 +13,7 @@ Needs: the dev project set up (`fncli setup-project`) with all sensors running, 
 
 - **Expected:** every step above, in that order; the states only move forward. The task is `SUCCESS` whether or not the results are delivered. Both verify commands exit 0.
 - **Rule:** the end-to-end flow in [docs/architecture/flows.md#end-to-end]; the result's step only moves forward ([Polymorphic Result, PullRequestResult, a forward-only step and a separate state]).
-- **Automated by:** Partly automated: the end-to-end success suite (`dagster/fncli/tests/e2e/test_happy_path.py`). The as-built notes in [project/moonshot-as-built.md] record it passing on the dev cluster, before the launch endpoint and the reconcile sensor landed; [HANDOVER.md] lists it as not run since. Gitea only; it misses GitHub, the zip's contents and the results pull request's closing or deletion.
+- **Automated by:** Partly automated: the end-to-end success suite (`dagster/fncli/tests/e2e/test_happy_path.py`). The as-built notes in [project/moonshot-as-built.md] record it passing on the dev cluster, before the launch endpoint and the reconcile sensor landed; [TESTING.md](../TESTING.md#checks-that-have-never-run-on-a-cluster) lists it as not run since. Gitea only; it misses GitHub, the zip's contents and the results pull request's closing or deletion.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -111,7 +111,6 @@ Out of scope for the beta; check only so the behaviour is recorded.
 [docs/architecture/flows.md#end-to-end]: ../../docs/architecture/flows.md#end-to-end
 
 <!-- link definitions -->
-[HANDOVER.md]: ../../HANDOVER.md
 [Polymorphic Result, PullRequestResult, a forward-only step and a separate state]: ../decisions/0004-polymorphic-result-and-forward-only-state.md
 [Results delivered as a pushed branch plus a results pull request]: ../decisions/0013-results-delivered-as-branch-and-pull-request.md
 [Run keys, retries and the results pull request sync]: ../decisions/0015-run-keys-retries-and-results-pr-sync.md

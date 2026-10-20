@@ -6,15 +6,15 @@ For the beta only two identities matter: the administrator (the first Keycloak u
 
 Do not test these as pass or fail. If you notice behaviour, write it down for the follow-up work.
 
-- **Authentication, audit and normal-user permissions.** DAR and whitelisted images are disconnected until the authorization rework; every caller takes the plain path (admin scope or the endpoint's scope) ([Authorization detached from DAR, Keycloak and whitelisted images]; [HANDOVER.md]). The mocked Keycloak in the unit tests cannot tell you what a normal user may do.
-- **Isolation.** NetworkPolicy, RBAC and per-task Secrets are tracked on GitHub ([HANDOVER.md]).
+- **Authentication, audit and normal-user permissions.** DAR and whitelisted images are disconnected until the authorization rework; every caller takes the plain path (admin scope or the endpoint's scope) ([Authorization detached from DAR, Keycloak and whitelisted images]). The mocked Keycloak in the unit tests cannot tell you what a normal user may do.
+- **Isolation.** NetworkPolicy, RBAC and per-task Secrets are tracked on GitHub ([Task isolation: storage, secrets, namespace and network]).
 - **The Gitea mirror.** It is developed on a separate branch as a stateless service that the node would see as a Gitea GitProvider; no end-to-end test covers it ([dagster/fncli/tests/e2e/README.md]).
-- **Retrying a task.** Task retry is on hold until after the beta. A task failed by a rule, by a changed configuration or by its run stays failed, and there is no stale-task retry; the pull request has to be re-run another way ([HANDOVER.md], "Decisions pending"; [A task is pinned to its configuration]).
+- **Retrying a task.** Task retry is on hold until after the beta. A task failed by a rule, by a changed configuration or by its run stays failed, and there is no stale-task retry; the pull request has to be re-run another way ([A task is pinned to its configuration]).
 - **Tasks requested through the API.** They are created, and run, but their results are not delivered: delivery needs a task that came from a pull request ([Results delivered as a pushed branch plus a results pull request]).
 - **Backfill for anything but a project being enabled.** There is none for a link, a repository or a GitProvider switched back on ([Pull requests stored once per repository, fanned out to project links, with cursors]).
 - **ProjectSecret.** The flags exist and nothing reads them ([docs/architecture/revoke-and-enabled.md#known-limits]).
 - **Cancelling a task through the webserver.** The route is not implemented; cancelling a run in Dagster is mirrored onto the task ([task and result state machines](task-and-result-state-machines.md)).
-- **After the beta:** a delivery decision endpoint like the launch one, generating the Dagster models from `openapi.json`, replacing the five run-status sensors with the reconcile sensor ([HANDOVER.md]).
+- **After the beta:** a delivery decision endpoint like the launch one (an open question in [Responsibility: the webserver owns the record and the rules; Dagster carries out decisions]), generating the Dagster models from `openapi.json`, replacing the five run-status sensors with the reconcile sensor.
 
 ## What a normal (non-admin) user can do: observe only
 
@@ -68,10 +68,11 @@ Retry is on hold; this only records the refusal.
 [A task is pinned to its configuration]: ../decisions/0009-task-pinned-to-its-configuration.md
 [Authorization detached from DAR, Keycloak and whitelisted images]: ../decisions/0017-authorization-detached-from-dar-and-keycloak.md
 [Global resources, linked to projects]: ../decisions/0006-global-resources-and-project-links.md
-[HANDOVER.md]: ../../HANDOVER.md
 [Pull requests stored once per repository, fanned out to project links, with cursors]: ../decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md
+[Responsibility: the webserver owns the record and the rules; Dagster carries out decisions]: ../decisions/0021-webserver-owns-the-record-and-the-rules.md
 [Results delivered as a pushed branch plus a results pull request]: ../decisions/0013-results-delivered-as-branch-and-pull-request.md
 [State transition tables for triggers, tasks and result steps; 409 on a refused move]: ../decisions/0005-state-transition-tables.md
+[Task isolation: storage, secrets, namespace and network]: ../decisions/0022-task-isolation.md
 [dagster/fncli/tests/e2e/README.md]: ../../dagster/fncli/tests/e2e/README.md
 [docs/architecture/revoke-and-enabled.md#known-limits]: ../../docs/architecture/revoke-and-enabled.md#known-limits
 [docs/architecture/revoke-and-enabled.md#who-may-do-what]: ../../docs/architecture/revoke-and-enabled.md#who-may-do-what

@@ -65,7 +65,7 @@ Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, a
 2. For one dataset, Secret, GitProvider, TriggerRepository and ResultsRepository: `GET /global/datasets/<id>/healthcheck`, `/global/secrets/<label>/healthcheck`, `/global/providers/<id>/healthcheck`, `/global/repositories/triggers/<id>/healthcheck`, `/global/repositories/results/<id>/healthcheck`.
 
 - **Expected:** `ok` when everything is reachable. A failure (a wrong token, an unreachable database or git host) shows in the body with a 200, never a 500, and the global check reports an error when any one fails. No response contains a Secret value.
-- **Rule:** the healthcheck routes are listed in [HANDOVER.md] ("Routes").
+- **Rule:** the healthcheck routes are defined in `webserver/app/healthcheck_api.py`.
 - **Automated by:** Partly automated: `webserver/tests/test_healthchecks_all.py` mocks the connections; it misses real reachability, real tokens and the real datasets database.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -76,7 +76,7 @@ Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, a
 2. `fncli verify-project`.
 
 - **Expected:** both exit 0. On a node that is not set up with fncli, use `GET /projects/<pid>/healthcheck` and the project's link healthchecks (`/projects/<pid>/repositories/triggers/<id>/healthcheck`, `.../results/<id>/healthcheck`, `/projects/<pid>/datasets/<id>/healthcheck`, `/projects/<pid>/secrets/<label>/healthcheck`).
-- **Rule:** a project reports its links' health ([HANDOVER.md], "Routes").
+- **Rule:** a project reports its links' health (`project_healthcheck` in `webserver/app/healthcheck_api.py`).
 - **Automated by:** Partly automated: both fncli commands run in the setup steps of every end-to-end suite (dev cluster, Gitea only); `webserver/tests/test_healthchecks_all.py` covers the shapes. Neither covers a deployed node with GitHub.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -85,6 +85,5 @@ Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, a
 
 <!-- link definitions -->
 [Global resources, linked to projects]: ../decisions/0006-global-resources-and-project-links.md
-[HANDOVER.md]: ../../HANDOVER.md
 [The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]: ../decisions/0014-dagster-pipeline-ops-sensors-and-retries.md
 [dagster/fncli/tests/e2e/README.md]: ../../dagster/fncli/tests/e2e/README.md

@@ -166,7 +166,7 @@ Needs: the dev project with all sensors running, an administrator login for `--r
 
 - **Expected:** the task is `SUCCESS`. The result is recorded with step `UNKNOWN`, state `FAILED` and an error saying the results link is switched off; nothing is pushed and it stays that way for as long as the link is off. After step 3 the delivery retry sensor delivers it: step `OPENED`, state `DELIVERED`, with a `number` and `url`.
 - **Rule:** a switched-off results link holds the result; the retry sensor delivers it once the link is active ([Enabled, revoked and soft delete]; [Run keys, retries and the results pull request sync]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "work in flight: a results link switched off before delivery is held FAILED, delivered once the link is on" (`dagster/fncli/tests/e2e/test_failure_paths.py`), which switches the link off before the task starts, not while it runs; written, never run on a cluster. `webserver/tests/test_results_and_delivery.py` (`test_post_result_through_a_switched_off_link_is_failed_and_waits`). HANDOVER lists its assumptions as unchecked ([HANDOVER.md], "Run on a full environment").
+- **Automated by:** Partly automated: the end-to-end failure suite, group "work in flight: a results link switched off before delivery is held FAILED, delivered once the link is on" (`dagster/fncli/tests/e2e/test_failure_paths.py`), which switches the link off before the task starts, not while it runs; written, never run on a cluster. `webserver/tests/test_results_and_delivery.py` (`test_post_result_through_a_switched_off_link_is_failed_and_waits`). [TESTING.md](../TESTING.md#checks-that-have-never-run-on-a-cluster) lists its assumptions as unchecked.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -243,7 +243,6 @@ Use scratch GlobalResources or the second project. Destructive: not on the main 
 
 <!-- link definitions -->
 [Enabled, revoked and soft delete]: ../decisions/0008-enabled-revoked-and-soft-delete.md
-[HANDOVER.md]: ../../HANDOVER.md
 [Responsibility: the webserver owns the record and the rules; Dagster carries out decisions]: ../decisions/0021-webserver-owns-the-record-and-the-rules.md
 [Run keys, retries and the results pull request sync]: ../decisions/0015-run-keys-retries-and-results-pr-sync.md
 [docs/architecture/revoke-and-enabled.md#known-limits]: ../../docs/architecture/revoke-and-enabled.md#known-limits

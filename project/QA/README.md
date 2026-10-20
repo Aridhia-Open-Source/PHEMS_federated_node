@@ -2,7 +2,7 @@
 
 A plan for a person to run by hand against a deployed node. It starts where the automated tests stop: [../TESTING.md](../TESTING.md) says what the unit, integration and end-to-end tests cover and what they cannot show; this plan covers the rest, and repeats a few automated paths on a real node.
 
-It is written against the code at commit `6c46e803` (branch `moonshot/shared-resources`). Where this plan and the node disagree, record it as a finding. The decisions in [../decisions/README.md](../decisions/README.md) win over any text here, and open items are in [../../HANDOVER.md](../../HANDOVER.md).
+It is written against the code at commit `6c46e803` (branch `moonshot/shared-resources`). Where this plan and the node disagree, record it as a finding. The decisions in [../decisions/README.md](../decisions/README.md) win over any text here, and the known issues are in [known-issues.md](known-issues.md).
 
 ## How to use the plan
 
@@ -12,7 +12,7 @@ It is written against the code at commit `6c46e803` (branch `moonshot/shared-res
   - **Automated:** a test already checks the rule at the level the case works at.
   - **Partly automated:** a test covers part of it (named), and the case adds what the test cannot show: a live cluster, real timing, a real git host, several projects.
   - **Manual only:** no test covers it. Cases that were removed from the end-to-end suites say so in the title.
-- "The end-to-end failure suite" is written but, per the handover, has never run on a cluster. Do not read "Partly automated: end-to-end failure suite" as "proven".
+- "The end-to-end failure suite" is written but has never run on a cluster ([TESTING.md](../TESTING.md#checks-that-have-never-run-on-a-cluster)). Do not read "Partly automated: end-to-end failure suite" as "proven".
 - Where the sources do not say what should happen, the case says **check** or "the sources do not say", and asks you to write down what you saw.
 
 ## What to have ready

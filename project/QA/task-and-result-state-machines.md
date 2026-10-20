@@ -54,7 +54,7 @@ fncli stops the reconcile sensor together with the run-status sensors (`--sensor
 
 - **Expected:** the task still reaches `QUEUED`/`RUNNING` and `SUCCESS` (written by the reconcile sensor from the run's current status, with `executor_run_id`, `started_at` and `completed_at` from the run record), and delivery still starts. The reconcile sensor's ticks show a skip reason that counts the tasks it patched. No tick fails. Check how long the status lags; it should be about one interval.
 - **Rule:** the reconcile sensor sets every unfinished task to the status of its run each tick, so a missed event is repaired ([Task status is written by the run-status sensors and the reconcile sensor]; [docs/architecture/sensors/task-reconcile.md]).
-- **Automated by:** Partly automated: `dagster/app/tests/test_task_reconcile_sensor.py` (a fake instance and one real instance); HANDOVER says it has never run against a live Dagster with real runs ([HANDOVER.md], "Run on a full environment"). No end-to-end test.
+- **Automated by:** Partly automated: `dagster/app/tests/test_task_reconcile_sensor.py` (a fake instance and one real instance); it has never run against a live Dagster with real runs ([TESTING.md](../TESTING.md#checks-that-have-never-run-on-a-cluster)). No end-to-end test.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -129,7 +129,6 @@ Takes several retry intervals (60 seconds each by default; five attempts by defa
 
 <!-- link definitions -->
 [Enabled, revoked and soft delete]: ../decisions/0008-enabled-revoked-and-soft-delete.md
-[HANDOVER.md]: ../../HANDOVER.md
 [Polymorphic Result, PullRequestResult, a forward-only step and a separate state]: ../decisions/0004-polymorphic-result-and-forward-only-state.md
 [Results delivered as a pushed branch plus a results pull request]: ../decisions/0013-results-delivered-as-branch-and-pull-request.md
 [Run keys, retries and the results pull request sync]: ../decisions/0015-run-keys-retries-and-results-pr-sync.md

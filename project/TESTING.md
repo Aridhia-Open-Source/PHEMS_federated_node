@@ -10,7 +10,7 @@ What each kind of test in this repository covers, what it does not, and how to r
 
 A by-hand plan for a deployed node, which takes over where these stop, is in [QA/README.md](QA/README.md).
 
-Read first: the decisions are in [decisions/README.md](decisions/README.md) and win over this file. Open items are in [HANDOVER.md](../HANDOVER.md).
+Read first: the decisions are in [decisions/README.md](decisions/README.md) and win over this file. Checks that have never run on a cluster are listed [below](#checks-that-have-never-run-on-a-cluster).
 
 ## Webserver tests
 
@@ -19,7 +19,17 @@ Black-box tests of the Flask app: an HTTP request through the test client, then 
 ### How to run
 
 - The normal route is [webserver/run_tests.sh](../webserver/run_tests.sh). It uses Docker Compose, builds the test image, starts a Postgres and runs pytest (`-x -v`). The first argument `ci` runs the CI variant; the second is the pytest argument (default `.`). It sets the database and Keycloak environment variables itself.
-- For quicker runs of a single file, start a Postgres, set the same variables with `PGHOST` and `PGPORT` pointing at it, and run `pytest tests/<file>.py -q -p no:cacheprovider --no-cov -W ignore` from `webserver/` in a virtualenv built from `requirements-dev.txt`. The commands are in [HANDOVER.md](../HANDOVER.md), "Running the webserver tests". `--no-cov` skips the coverage that `setup.cfg` turns on.
+- For quicker runs of a single file, start a Postgres, set the same variables with `PGHOST` and `PGPORT` pointing at it, and run pytest from `webserver/` in a virtualenv built from `requirements-dev.txt`:
+
+  ```bash
+  docker run -d --name fn-routes-test-db -e POSTGRES_DB=test_app -e POSTGRES_USER=admin \
+    -e POSTGRES_PASSWORD=test_app -p 127.0.0.1:55432:5432 postgres:17-alpine
+  cd webserver
+  python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+  .venv/bin/pytest tests/<file>.py -q -p no:cacheprovider --no-cov -W ignore
+  ```
+
+  `--no-cov` skips the coverage that `setup.cfg` turns on.
 - Two tests that compare a response with a sample from the Dagster tree skip themselves when `dagster/` is not beside `webserver/` (the CI container mounts only the webserver). `test_live_client_integration.py` skips for the same reason.
 
 ### What they cover, by area
@@ -93,7 +103,7 @@ Counts are `def test_` lines; a parametrised test counts once.
 
 ### What the Dagster tests cannot show
 
-- A real Dagster instance with real runs, a real daemon, restarts, or sensor ticks in the Dagster UI. The reconcile sensor was tested against a fake instance and one real instance, never a live Dagster with real runs ([HANDOVER.md](../HANDOVER.md), "Run on a full environment").
+- A real Dagster instance with real runs, a real daemon, restarts, or sensor ticks in the Dagster UI. The reconcile sensor was tested against a fake instance and one real instance, never a live Dagster with real runs ([checks that have never run on a cluster](#checks-that-have-never-run-on-a-cluster)).
 - A real git host's behaviour (rate limits, paging, errors); Gitea and GitHub responses are canned.
 - That the task pod runs, that artifacts exist on the volume, that the run image honours its settings.
 - The rules themselves: Dagster holds none ([Responsibility: the webserver owns the record and the rules; Dagster carries out decisions](decisions/0021-webserver-owns-the-record-and-the-rules.md)); these tests only check that it follows the answer.
@@ -127,7 +137,7 @@ They cannot show that a command works against the real cluster; that is what the
 - The backend (`:5000`), Gitea (`:4000`), Dagster (`:3000`) and Keycloak (`:8080`) answering on localhost (the Tilt port-forwards).
 - All sensors already running: `fncli start-sensor --sensor all`. The suites do not start or stop them.
 - `.dev.env` in the repo root, with the `TEST_*` values from `.dev.env.example`.
-- An admin login: revoking is admin only, so fncli logs in as the first Keycloak user, whose credentials `deploy.sh` stores in the `keycloak-first-user` secret from `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD` in `.dev.env`. (The end-to-end README and [HANDOVER.md](../HANDOVER.md) call these `FNCLI_ADMIN_USER` and `FNCLI_ADMIN_PASSWORD`; the code reads the secret. Check.) The failure suite checks the login first and fails with the cause.
+- An admin login: revoking is admin only, so fncli logs in as the first Keycloak user, whose credentials `deploy.sh` stores in the `keycloak-first-user` secret from `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD` in `.dev.env`. (The end-to-end README calls these `FNCLI_ADMIN_USER` and `FNCLI_ADMIN_PASSWORD`; the code reads the secret. Check.) The failure suite checks the login first and fails with the cause.
 - Images built from the branch under test (`make deploy`), including `pypipes-fn`: the failing-task group needs the run image to honour `PYPIPES_EXIT_CODE`.
 
 ### How to run
@@ -190,9 +200,16 @@ Probes the end-to-end README lists as worth a manual check, not a pass or fail:
 - More than 100 merged pull requests behind one cursor: stop ingest, merge 101 watched pull requests, start ingest. Ingest posts them in batches of 100, so all are stored.
 - A revoked Secret link: `fncli link-set secret --revoked true`, then open a pull request. Revoked Secret links are not checked when a token is read.
 
-### Status
+### Checks that have never run on a cluster
 
-[HANDOVER.md](../HANDOVER.md) ("Run on a full environment") says the failure suite, and the success and failure suites against the launch endpoint and the reconcile sensor, have never run against a cluster, and its list of branches awaiting review may be out of date against this tree (the launch endpoint and reconcile sensor tests are present). Treat the failure suite as written but not proven on a cluster until a run is recorded; check the handover before relying on this.
+These have not been run against a cluster. When one is run and the result recorded, remove it from this list.
+
+- The failure suite (`pytest dagster --e2e failure`), including the group where a results link is switched off and the result is delivered once the link is switched back on. Two assumptions in it are unchecked: a task can be created and launched while its results link is switched off, and the watched task uses the project's default dataset.
+- The success and failure suites with the launch endpoint and the reconcile sensor in place.
+- `dagster/app/tests/test_enum_drift.py`, from a full checkout: it skips when `webserver/` is not beside `dagster/`.
+- The reconcile sensor catching up: stop the sensors, let a task run to the end, then start them. The reconcile sensor should bring the task to its final status. It finds the run by its `trigger`, `task_id` and `attempt` tags. It was tested against a fake instance and one real instance, never a live Dagster with real runs; check that its ticks show in the Dagster UI.
+
+Treat the failure suite as written but not proven on a cluster until a run is recorded.
 
 ## Which kind of test proves which kind of rule
 

@@ -1,6 +1,6 @@
 # Failure paths
 
-What the node does when the input is bad, a token is lost or a task fails. Each case is in the end-to-end failure suite, but that suite is written and has never been run on a cluster ([HANDOVER.md], "Run on a full environment"), so run them here. The cases that switch something off or revoke it are in the two enabled and revoked sections.
+What the node does when the input is bad, a token is lost or a task fails. Each case is in the end-to-end failure suite, but that suite is written and has never been run on a cluster ([TESTING.md](../TESTING.md#checks-that-have-never-run-on-a-cluster)), so run them here. The cases that switch something off or revoke it are in the two enabled and revoked sections.
 
 Needs: the dev project with all sensors running, and a finished happy path ([run a task and deliver the result](run-a-task-and-deliver-the-result.md)). Wait for any earlier task to finish before taking counts, or it will show up as new. "Counts" and "wait five intervals" are defined in [the index](README.md).
 
@@ -39,7 +39,7 @@ Needs: the dev project with all sensors running, and a finished happy path ([run
 
 - **Expected:** step 3: the counts do not change. Step 4: the ingest sensor's ticks fail, naming the repository with an authentication error, while the evaluate and launcher sensors keep ticking. Step 5: exit code is not 0. Step 7: the pull request merged during the outage gets a trigger and a task (this is not a gap: the global cursor did not move because nothing was stored), and the healthcheck is `ok` again.
 - **Rule:** the cursor moves only when a batch is stored, so a failed poll loses nothing ([Pull requests stored once per repository, fanned out to project links, with cursors]; [The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "a lost token fails clearly, then recovers" (written, never run on a cluster). Its check that the failed tick's error text contains "Ingest failed" reads the tick error's stack and causes, and it is unconfirmed that Dagster puts that text there ([HANDOVER.md], known issues). `dagster/app/tests/test_pr_ingest_sensor.py` covers a failing repository. A lost results-repository token is in [failures mid-flow and limits](failures-mid-flow-and-limits.md).
+- **Automated by:** Partly automated: the end-to-end failure suite, group "a lost token fails clearly, then recovers" (written, never run on a cluster). Its check that the failed tick's error text contains "Ingest failed" reads the tick error's stack and causes, and it is unconfirmed that Dagster puts that text there ([known issues](known-issues.md)). `dagster/app/tests/test_pr_ingest_sensor.py` covers a failing repository. A lost results-repository token is in [failures mid-flow and limits](failures-mid-flow-and-limits.md).
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -69,7 +69,6 @@ Needs a spec with an image name that does not exist (commit it by hand under `wa
 - [ ] Fail — notes:
 
 <!-- link definitions -->
-[HANDOVER.md]: ../../HANDOVER.md
 [Pull requests stored once per repository, fanned out to project links, with cursors]: ../decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md
 [Run keys, retries and the results pull request sync]: ../decisions/0015-run-keys-retries-and-results-pr-sync.md
 [State transition tables for triggers, tasks and result steps; 409 on a refused move]: ../decisions/0005-state-transition-tables.md

@@ -74,7 +74,7 @@ Needs: the dev project with sensors running, `fncli`, `kubectl`, the Dagster UI.
 
 ## A task that finished while the run-status sensors were stopped gets its final status when they start
 
-This is the check HANDOVER lists as never run on a live Dagster.
+This is one of the [checks that have never run on a cluster](../TESTING.md#checks-that-have-never-run-on-a-cluster).
 
 1. In the Dagster UI switch off the five run-status sensors and `task_reconcile_sensor` (`fncli stop-sensor --sensor status` stops all six). Leave ingest, evaluate and launcher on.
 2. Merge a watched pull request. Let the task's run finish in the Dagster UI. Look at the task: it is not `SUCCESS` yet (it may be `PENDING`).
@@ -82,7 +82,7 @@ This is the check HANDOVER lists as never run on a live Dagster.
 
 - **Expected:** within about an interval of starting, the task is `SUCCESS` (or `FAILED`), with `executor_run_id`, `started_at` and `completed_at`. The reconcile sensor's tick shows how many tasks it patched. No duplicate patches on the next tick.
 - **Rule:** the reconcile sensor sets every unfinished task to the status of its run each tick ([Task status is written by the run-status sensors and the reconcile sensor]; [docs/architecture/sensors/task-reconcile.md]).
-- **Automated by:** Manual only for the live behaviour. `dagster/app/tests/test_task_reconcile_sensor.py` tests a fake instance and one real instance, never real runs ([HANDOVER.md], "Run on a full environment").
+- **Automated by:** Manual only for the live behaviour. `dagster/app/tests/test_task_reconcile_sensor.py` tests a fake instance and one real instance, never real runs ([TESTING.md](../TESTING.md#checks-that-have-never-run-on-a-cluster)).
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -147,7 +147,6 @@ Check, and record the outcome as a finding if the result never appears.
 - [ ] Fail — notes:
 
 <!-- link definitions -->
-[HANDOVER.md]: ../../HANDOVER.md
 [Polymorphic Trigger with PullRequestTrigger and ApiRequestTrigger]: ../decisions/0001-polymorphic-triggers.md
 [Pull requests stored once per repository, fanned out to project links, with cursors]: ../decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md
 [Run keys, retries and the results pull request sync]: ../decisions/0015-run-keys-retries-and-results-pr-sync.md

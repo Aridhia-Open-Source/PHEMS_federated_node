@@ -4,7 +4,7 @@ The architecture of the Federated Node's trigger, task and results pipeline, wri
 
 New records are numbered in sequence as `NNNN-short-title.md` and added to the table below and to the one in [../../docs/README.md](../../docs/README.md), the reviewer's guide, which also says what to check in each record.
 
-Open items and working notes: [../../HANDOVER.md](../../HANDOVER.md). The mirror service is developed on branch `moonshot/gitea-mirror`.
+The mirror service is developed on branch `moonshot/gitea-mirror`.
 
 ## Diagrams
 
@@ -36,3 +36,4 @@ Open items and working notes: [../../HANDOVER.md](../../HANDOVER.md). The mirror
 | [0019](0019-gitea-port-4000-and-localhost-forward.md) | Gitea on port 4000 in-cluster, localhost forward, fncli host translation | One stored URL works for pods and host tooling. |
 | [0020](0020-tilt-dev-loop.md) | Tilt dev loop, with the tilt-run image for run pods | Live update for the code servers and a rebuilt run image for run pods. |
 | [0021](0021-webserver-owns-the-record-and-the-rules.md) | Responsibility: the webserver owns the record and the rules; Dagster carries out decisions | Dagster asks and acts; decisions come back as typed outcomes; the launcher follows it. |
+| [0022](0022-task-isolation.md) | Task isolation: storage, secrets, namespace and network | A task sees its own run's folder, one dataset's credentials, a dedicated tasks namespace and, by NetworkPolicy, only the database; what is built and what is not. |

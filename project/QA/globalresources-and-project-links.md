@@ -50,7 +50,7 @@ Needs: an administrator token. On the dev cluster `fncli setup-project` creates 
 
 - **Expected:** 201 and the name is stored in lower case. Step 2 is 409 (case-insensitive). Step 3 is 400: credentials go through a Secret.
 - **Rule:** a dataset is global and refers to its credentials by Secret ([Global resources, linked to projects]).
-- **Automated by:** Partly automated: `webserver/tests/test_global_resources.py` expects 409 for a duplicate name, but [HANDOVER.md] lists a duplicate dataset name as returning 500. Check which is true and record it.
+- **Automated by:** Automated: `webserver/tests/test_global_resources.py` (`test_dataset_duplicate_name_is_409_case_insensitive`, `test_dataset_create_invalid`). It misses the live node (mocked Keycloak and Kubernetes).
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -168,5 +168,4 @@ Needs: an administrator token. On the dev cluster `fncli setup-project` creates 
 [Enabled, revoked and soft delete]: ../decisions/0008-enabled-revoked-and-soft-delete.md
 [Generic Secret model and SecretProvider; per-repository tokens]: ../decisions/0007-secrets-and-secret-providers.md
 [Global resources, linked to projects]: ../decisions/0006-global-resources-and-project-links.md
-[HANDOVER.md]: ../../HANDOVER.md
 [The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]: ../decisions/0014-dagster-pipeline-ops-sensors-and-retries.md
