@@ -294,20 +294,29 @@ class TestProjects:
 
 
 class TestTasks:
-    def test_get_tasks_filters_by_status_and_project(self, api, session):
+    def test_get_tasks_lists_all_projects_in_a_status(self, api, session):
         session.get.return_value = page([SAMPLE_TASK], 1, key="tasks")
 
-        tasks = api.get_tasks(status="PENDING", project_id=1)
+        tasks = api.get_tasks(status="PENDING")
 
         assert [t.id for t in tasks] == [9]
-        assert session.get.call_args.args == ("/projects/1/tasks",)
-        assert session.get.call_args.kwargs["params"]["status"] == "PENDING"
+        assert session.get.call_args.args == ("/tasks",)
+        assert session.get.call_args.kwargs["params"] == {
+            "status": "PENDING", "project_enabled": "true", "page": 1, "per_page": 100,
+        }
+
+    def test_get_tasks_takes_several_statuses_and_any_project(self, api, session):
+        session.get.return_value = page([SAMPLE_TASK], 1, key="tasks")
+
+        api.get_tasks(status=["PENDING", "RUNNING"], project_enabled=False)
+
+        assert session.get.call_args.kwargs["params"] == {"status": "PENDING,RUNNING", "page": 1, "per_page": 100}
 
     def test_get_tasks_follows_the_pages(self, api, session):
         second = {**SAMPLE_TASK, "id": 10}
         session.get.side_effect = [page([SAMPLE_TASK], 2, key="tasks"), page([second], 2, key="tasks")]
 
-        tasks = api.get_tasks(status="PENDING", project_id=1)
+        tasks = api.get_tasks(status="PENDING")
 
         assert [t.id for t in tasks] == [9, 10]
         assert session.get.call_args_list[1].kwargs["params"]["page"] == 2

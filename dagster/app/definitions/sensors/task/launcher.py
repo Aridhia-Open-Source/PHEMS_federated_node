@@ -3,7 +3,7 @@ import dagster as dg
 from app.backend import BackendAPI
 from app.definitions.run_config import build_run_config
 from app.definitions.sensors.base import BaseSensor
-from app.models import Project, Task, TaskStatus
+from app.models import Task, TaskStatus
 
 
 class TaskLauncherSensor(BaseSensor):
@@ -26,29 +26,28 @@ class TaskLauncherSensor(BaseSensor):
         run key is unused. One bad task must not stop the others from launching.
         """
         launched = 0
-        for project in self.backend_api.get_projects(enabled=True):
-            for task in self.backend_api.get_tasks(status=TaskStatus.PENDING.value, project_id=project.id):
-                try:
-                    run_request = self._launch(project, task)
-                except Exception as e:
-                    self.log.exception(f"Task {task.id} not launched, retried on the next tick: {e!r}")
-                    continue
-                if run_request is None:
-                    continue
-                yield run_request
-                launched += 1
+        for task in self.backend_api.get_tasks(status=TaskStatus.PENDING.value, project_enabled=True):
+            try:
+                run_request = self._launch(task)
+            except Exception as e:
+                self.log.exception(f"Task {task.id} not launched, retried on the next tick: {e!r}")
+                continue
+            if run_request is None:
+                continue
+            yield run_request
+            launched += 1
 
         if not launched:
             yield dg.SkipReason("No pending tasks found.")
 
-    def _launch(self, project: Project, task: Task) -> dg.RunRequest | None:
+    def _launch(self, task: Task) -> dg.RunRequest | None:
         """
         Asks the backend to launch the task, one call. On "launch" it returns the run, built from the task and dataset
         the backend sends. On "fail" the backend has already moved the task to FAILED with the cause, so it returns
         None, as it does for a task that is no longer PENDING. The rules are the backend's (see its decide_launch);
         none are checked here. A manual retry launches a failed task once the cause is gone. Any error is raised.
         """
-        decision = self.backend_api.launch_task(project.id, task.id)
+        decision = self.backend_api.launch_task(task.project_id, task.id)
         if decision is None:
             self.log.info(f"Task {task.id} is no longer pending, skipped")
             return None
@@ -61,8 +60,7 @@ class TaskLauncherSensor(BaseSensor):
                 "trigger": "task",
                 "task_id": str(decision.task.id),
                 "attempt": str(decision.task.attempt),
-                "project_id": str(project.id),
-                "project": project.name,
+                "project_id": str(task.project_id),
             },
             run_config=build_run_config(decision.task.spec, decision.dataset),
         )

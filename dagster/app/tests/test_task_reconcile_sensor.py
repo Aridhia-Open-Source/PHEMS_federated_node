@@ -23,11 +23,8 @@ class World:
         self.patches = []
         self.refuse = {}  # task id -> exception raised by patch_task
         self.backend_api = MagicMock()
-        self.backend_api.get_projects.side_effect = lambda enabled=None: [
-            SimpleNamespace(id=pid) for pid, on in self.projects.items() if enabled is None or on == enabled
-        ]
-        self.backend_api.get_tasks.side_effect = lambda status, project_id: [
-            t for t in self.tasks.values() if t.status == status and t.project_id == project_id
+        self.backend_api.get_tasks.side_effect = lambda status, project_enabled: [
+            t for t in self.tasks.values() if t.status in status and self.projects[t.project_id]
         ]
         self.backend_api.patch_task.side_effect = self.patch_task
         self.instance = MagicMock()
@@ -166,7 +163,17 @@ def test_a_task_of_a_disabled_project_is_not_touched(world):
     world.tick()
 
     assert not world.patches
-    world.backend_api.get_projects.assert_called_with(enabled=True)
+    world.backend_api.get_tasks.assert_called_once_with(status=["PENDING", "QUEUED", "RUNNING"], project_enabled=True)
+
+
+def test_tasks_of_two_projects_are_patched_under_their_own_project(world):
+    world.projects[2] = True
+    world.add_task(1, "RUNNING", project_id=1, run_status=S.SUCCESS)
+    world.add_task(2, "RUNNING", project_id=2, run_status=S.SUCCESS)
+
+    world.tick()
+
+    assert [(p[0], p[1]) for p in world.patches] == [(1, 1), (2, 2)]
 
 
 def test_a_second_tick_makes_no_further_patches(world):

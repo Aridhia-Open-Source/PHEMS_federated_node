@@ -38,16 +38,14 @@ class TaskReconcileSensor(BaseSensor):
         status. A 409 (the task moved on) is skipped; an error on one task is logged and the others go on.
         """
         patched = 0
-        for project in self.backend_api.get_projects(enabled=True):
-            for status in UNFINISHED:
-                for task in self.backend_api.get_tasks(status=status.value, project_id=project.id):
-                    try:
-                        patched += self._reconcile(project.id, task)
-                    except Exception as e:  # pylint: disable=broad-exception-caught  # one task must not stop the others
-                        self.log.exception(f"Task {task.id} not reconciled: {e!r}")
+        for task in self.backend_api.get_tasks(status=[status.value for status in UNFINISHED], project_enabled=True):
+            try:
+                patched += self._reconcile(task)
+            except Exception as e:  # pylint: disable=broad-exception-caught  # one task must not stop the others
+                self.log.exception(f"Task {task.id} not reconciled: {e!r}")
         yield dg.SkipReason(f"Reconciled {patched} tasks.")
 
-    def _reconcile(self, project_id: int, task: Task) -> int:
+    def _reconcile(self, task: Task) -> int:
         """Patches the task to its run's status. Returns 1 if it was patched, else 0."""
         runs = self.context.instance.get_runs(
             filters=dg.RunsFilter(
@@ -62,7 +60,7 @@ class TaskReconcileSensor(BaseSensor):
         if task_status.value == task.status:
             return 0
         try:
-            self.backend_api.patch_task(project_id, task.id, fields)
+            self.backend_api.patch_task(task.project_id, task.id, fields)
         except requests.HTTPError as e:
             if e.response.status_code != HTTPStatus.CONFLICT:
                 raise

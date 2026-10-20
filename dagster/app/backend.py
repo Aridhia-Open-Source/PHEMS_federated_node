@@ -157,14 +157,20 @@ class BackendAPI:
         )
         return Task(**response.json()), response.status_code == HTTPStatus.CREATED
 
-    def get_tasks(self, status: str, project_id: int) -> list[Task]:
-        """Get all tasks of a project in a status, automatically handling pagination"""
-        self.logger.info(f"Fetching {status} tasks of project {project_id}")
+    def get_tasks(self, status: str | list[str], project_enabled: bool = True) -> list[Task]:
+        """
+        Get the tasks of all projects in a status (or any of several), ordered by id, automatically handling
+        pagination. With project_enabled, only those of enabled projects, as get_projects(enabled=True) lists them.
+        """
+        statuses = [status] if isinstance(status, str) else status
+        self.logger.info(f"Fetching {','.join(statuses)} tasks")
+        query = {"status": ",".join(statuses)}
+        if project_enabled:
+            query["project_enabled"] = "true"
         tasks = []
         page = 1
         while True:
-            params = {"status": status, "page": page, "per_page": 100}
-            response = self.session.get(f"/projects/{project_id}/tasks", params=params)
+            response = self.session.get("/tasks", params={**query, "page": page, "per_page": 100})
             data = response.json()
             tasks.extend(Task(**task) for task in data["tasks"])
             if page >= data["pages"]:

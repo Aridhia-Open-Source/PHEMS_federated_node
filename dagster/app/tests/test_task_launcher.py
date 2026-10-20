@@ -41,9 +41,11 @@ def task(id=9, project_id=1, attempt=1, dataset_id=7):
 
 def make_backend(projects, tasks_by_project):
     backend_api = MagicMock()
-    # The backend filters the projects
-    backend_api.get_projects.side_effect = lambda enabled: [p for p in projects if p.enabled == enabled]
-    backend_api.get_tasks.side_effect = lambda status, project_id: tasks_by_project[project_id]
+    # The backend filters the tasks by their project's enabled flag, and lists them by id
+    enabled = {p.id for p in projects if p.enabled}
+    backend_api.get_tasks.side_effect = lambda status, project_enabled: sorted(
+        (t for ts in tasks_by_project.values() for t in ts if t.project_id in enabled), key=lambda t: t.id
+    )
     tasks = {t.id: t for ts in tasks_by_project.values() for t in ts}
     backend_api.launch_task.side_effect = lambda project_id, task_id: decision(tasks[task_id])
     return backend_api
@@ -67,14 +69,14 @@ def test_launches_a_pending_task_with_one_call():
     assert len(result) == 1 and isinstance(result[0], RunRequest)
     assert result[0].run_key == "task/9/1"
     assert result[0].tags == {
-        "trigger": "task", "task_id": "9", "attempt": "1", "project_id": "1", "project": "proj1",
+        "trigger": "task", "task_id": "9", "attempt": "1", "project_id": "1",
     }
     config = result[0].run_config["ops"]["k8s_pipes_op"]["config"]
     assert config["docker_image"] == "ghcr.io/o/i:1"
     assert config["env"] == {"K": "v"}
     assert config["dataset"]["name"] == "cdm"
     backend_api.launch_task.assert_called_once_with(1, 9)
-    backend_api.get_tasks.assert_called_once_with(status="PENDING", project_id=1)
+    backend_api.get_tasks.assert_called_once_with(status="PENDING", project_enabled=True)
     backend_api.get_task_config.assert_not_called()
     backend_api.get_project_dataset.assert_not_called()
     backend_api.patch_task.assert_not_called()
@@ -158,9 +160,18 @@ def test_only_enabled_projects_are_acted_on():
     result = run(backend_api)
 
     assert [r.run_key for r in result] == ["task/4/1"]
-    backend_api.get_projects.assert_called_once_with(enabled=True)
-    backend_api.get_tasks.assert_called_once_with(status="PENDING", project_id=2)
+    backend_api.get_tasks.assert_called_once_with(status="PENDING", project_enabled=True)
     backend_api.launch_task.assert_called_once_with(2, 4)
+
+
+def test_tasks_of_two_projects_are_launched_each_with_its_own_project_id():
+    backend_api = make_backend([project(1), project(2)], {1: [task(3, 1)], 2: [task(4, 2)]})
+
+    result = run(backend_api)
+
+    assert [(r.run_key, r.tags["project_id"]) for r in result] == [("task/3/1", "1"), ("task/4/1", "2")]
+    assert [c.args for c in backend_api.launch_task.call_args_list] == [(1, 3), (2, 4)]
+    backend_api.get_tasks.assert_called_once_with(status="PENDING", project_enabled=True)
 
 
 def test_every_pending_task_of_every_page_is_launched():
@@ -214,8 +225,7 @@ def test_a_disabled_project_keeps_its_task_pending_until_it_is_enabled_then_the_
     first = run(backend_api)
 
     assert len(first) == 1 and isinstance(first[0], SkipReason)
-    backend_api.get_projects.assert_called_once_with(enabled=True)
-    backend_api.get_tasks.assert_not_called()
+    backend_api.get_tasks.assert_called_once_with(status="PENDING", project_enabled=True)
     backend_api.launch_task.assert_not_called()
 
     # Enabled while revoked: the backend fails the task; the launcher yields no run
@@ -240,3 +250,12 @@ def test_a_sample_launch_response_of_the_backend_parses_and_builds_a_run_config(
     config = build_run_config(parsed.task.spec, parsed.dataset)["ops"]["k8s_pipes_op"]["config"]
     assert config["docker_image"] == "img:1"
     assert config["dataset"]["secret"]["key"] == "fn-secret-test-creds"
+
+
+def test_a_sample_task_list_response_of_the_backend_parses_into_tasks():
+    """The sample is checked against the real response by the webserver's tests/test_all_tasks_list.py."""
+    sample = json.loads((Path(__file__).parent / "contract" / "tasks_response.json").read_text())
+
+    tasks = [Task(**t) for t in sample["tasks"]]
+
+    assert [(t.id, t.project_id, t.status) for t in tasks] == [(1, 1, "PENDING")]
