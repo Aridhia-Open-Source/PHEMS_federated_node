@@ -3,7 +3,7 @@ A PR in the Gitea trigger repo, through a task, to a merged results PR in the re
 One test per fncli command or state change, run in order on one project: a failure names the
 hop, and the first failure stops the run.
 
-All sensors must already be running before the run (`fncli start-sensor --sensor all`); the run does not start them.
+All sensors must already be running before the run (`fncli start-sensor --group all`); the run does not start them.
 """
 
 import pytest

@@ -204,10 +204,10 @@ No fncli command changes a GitProvider: use `PATCH /global/providers/<id>` with 
 
 This is a known limit; the case records what the node does.
 
-1. `fncli stop-sensor --sensor ingest`.
+1. `fncli stop-sensor --group ingest`.
 2. Merge. Do not let ingest run.
 3. `fncli link-set trigger --enabled false`, then `fncli link-set trigger --enabled true`.
-4. `fncli start-sensor --sensor ingest`. Wait five intervals. Counts.
+4. `fncli start-sensor --group ingest`. Wait five intervals. Counts.
 
 - **Expected:** the pull request is stored (stored up by one) and gets no trigger, because switching the link on moved its cursor to now. If the beta needs such a pull request to be processed, record it as a finding.
 - **Rule:** the open question in [Pull requests stored once per repository, fanned out to project links, with cursors]: a pull request merged just before a link is switched off, and not yet ingested, is skipped when it is switched on.

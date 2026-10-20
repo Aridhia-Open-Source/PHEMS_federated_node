@@ -39,7 +39,7 @@ Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, a
 ## Every sensor starts stopped, and starts together
 
 1. Before starting anything: `fncli sensor-status` (or Dagster UI, Automation).
-2. `fncli start-sensor --sensor all`.
+2. `fncli start-sensor --group all`.
 3. Wait three sensor intervals. `fncli sensor-status` again.
 
 - **Expected:** step 1 shows twelve sensors, all `STOPPED` on a fresh install. After step 3 all twelve are running and their last ticks are skipped (with a reason) or successful. No `FAILURE` tick.
