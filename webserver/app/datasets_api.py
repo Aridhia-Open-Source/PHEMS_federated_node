@@ -1,23 +1,26 @@
 """
-datasets-related endpoints:
-- GET /datasets
-- POST /datasets
-- GET /datasets/id
-- DELETE /datasets/id
-- GET /datasets/id/catalogues
-- GET /datasets/id/dictionaries
-- GET /datasets/id/dictionaries/table_name
+datasets-related endpoints. Datasets are global: a project reaches one through its
+link, see projects_api (/projects/<id>/datasets). Creating, editing and deleting are
+admin-only. Deleting a dataset is a soft delete, refused with a 409 naming the projects it is linked to unless
+?force=true:
+- GET /global/datasets
+- POST /global/datasets
+- GET /global/datasets/id
+- PATCH /global/datasets/id (200 like every other PATCH (?) assumed by the implementer, owner to confirm)
+- DELETE /global/datasets/id
+- GET /global/datasets/id/healthcheck, see healthcheck_api.py
 """
 import logging
 from http import HTTPStatus
 
-from flask import Blueprint, request
+from flask import Blueprint, g, request
 
 from .dtos.base import page_of
-from .dtos.dataset import CatalogueDTO, DatasetDTO, DictionaryDTO
+from .dtos.dataset import DatasetDTO, DatasetPatchRequest, DatasetRequest
 from .helpers.base_model import db
-from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest
+from .helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
 from .helpers.query_validator import validate
+from .helpers.soft_delete import delete_global
 from .helpers.wrappers import audit, auth
 from .models.dataset import Dataset
 from .models.extras.catalogue import Catalogue
@@ -25,7 +28,7 @@ from .models.secret import Secret
 from .models.extras.dictionary import Dictionary
 
 
-bp = Blueprint('datasets', __name__, url_prefix='/datasets')
+bp = Blueprint('datasets', __name__, url_prefix='/global/datasets')
 session = db.session
 
 logger = logging.getLogger("dataset_api")
@@ -38,55 +41,63 @@ logger.setLevel(logging.INFO)
 @auth(scope='can_access_dataset')
 def get_datasets():
     """
-    GET /datasets/ endpoint. Returns a list of all datasets
+    GET /global/datasets/ endpoint. Returns a list of all datasets
     """
     return page_of(Dataset.get_all(), DatasetDTO), HTTPStatus.OK
 
 
+def _reject_project(body: dict | None):
+    """A dataset belongs to no project, so naming one is a mistake, not something to ignore."""
+    if isinstance(body, dict) and "project_id" in body:
+        raise InvalidRequest(
+            "project_id is not accepted, datasets are global. Link one with "
+            "PUT /projects/<id>/datasets/<dataset id>"
+        )
+
+
 def _reject_credentials(body: dict | None):
     """Credentials live in a k8s secret, so sending them here is a mistake, not something to ignore."""
-    if body and ("username" in body or "password" in body):
+    if isinstance(body, dict) and ("username" in body or "password" in body):
         raise InvalidRequest(
-            "username and password are not accepted. Create a secret with POST /secrets "
+            "username and password are not accepted. Create a secret with POST /global/secrets "
             "(values USERNAME and PASSWORD) and pass its label as secret_label"
         )
 
 
-def _resolve_secret(body: dict, project_id: int) -> dict:
-    """Swaps the project-local secret_label a request carries for the secret's id."""
-    if not body.get("secret_label"):
-        raise InvalidRequest("secret_label is required")
-    body["secret_id"] = Secret.get_in_project(project_id, body.pop("secret_label")).id
-    return body
+def _reject_taken_name(name: str, own_id: int | None = None):
+    """Dataset names are unique. The name is already lowercased, as it is stored."""
+    taken = Dataset.query.filter(Dataset.name == name)
+    if own_id is not None:
+        taken = taken.filter(Dataset.id != own_id)
+    if taken.first():
+        raise InvalidRequest(f"Dataset {name} already exists", HTTPStatus.CONFLICT)
 
 
 @bp.route('/', methods=['POST'])
 @bp.route('', methods=['POST'])
 @audit
-@auth(scope='can_admin_dataset')
+@auth(scope='can_do_admin')
 def post_datasets():
     """
-    POST /datasets/ endpoint. Creates a new dataset
+    POST /global/datasets/ endpoint. Creates a new global dataset. Admin only. A name
+    already taken (case-insensitive) is a 409. A disabled secret_label is a 400
     """
     try:
         _reject_credentials(request.json)
-        if not request.json.get("project_id"):
-            raise InvalidRequest("project_id is required")
-        body = Dataset.validate(_resolve_secret(dict(request.json), request.json["project_id"]))
-        cata_body = body.pop("catalogue", {})
-        dict_body = body.pop("dictionaries", [])
-        dataset = Dataset(**body)
+        _reject_project(request.json)
+        req = DatasetRequest.parse(request.json)
+        _reject_taken_name(req.name)
+        secret = Secret.get_enabled_by_label(req.secret_label)
+        body = req.model_dump(exclude={"secret_label", "catalogue", "dictionaries"})
+        cata_body = req.catalogue
+        dict_body = req.dictionaries
+        dataset = Dataset(secret_id=secret.id, **body)
 
         dataset.add(commit=False)
         if cata_body:
             cata_data = Catalogue.validate(cata_body)
             catalogue = Catalogue(dataset=dataset, **cata_data)
             catalogue.add(commit=False)
-
-        # Dictionary should be a list of dict. If not raise an error and revert changes
-        if not isinstance(dict_body, list):
-            session.rollback()
-            raise InvalidRequest("dictionaries should be a list.")
 
         for d in dict_body:
             dict_data = Dictionary.validate(d)
@@ -104,72 +115,61 @@ def post_datasets():
 
 # @audit
 @bp.route('/<int:dataset_id>', methods=['GET'])
-@bp.route('/<dataset_name>', methods=['GET'])
 @auth(scope='can_access_dataset')
 @audit
-def get_datasets_by_id_or_name(
-    dataset_id: int | None = None,
-    dataset_name: str | None = None
-):
+def get_dataset(dataset_id: int):
     """
-    GET /datasets/id endpoint. Gets dataset with a give id
+    GET /global/datasets/id endpoint. Gets dataset with a give id
     """
-    ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
+    ds = Dataset.get_by_id(dataset_id)
     return DatasetDTO.from_model(ds).dump(), HTTPStatus.OK
 
 
 @bp.route('/<int:dataset_id>', methods=['DELETE'])
-@bp.route('/<dataset_name>', methods=['DELETE'])
 @audit
-@auth(scope='can_admin_dataset')
-def delete_datasets_by_id_or_name(
-    dataset_id: int | None = None,
-    dataset_name: str | None = None
-):
+@auth(scope='can_do_admin')
+def delete_dataset(dataset_id: int):
     """
-    DELETE /datasets/id endpoint. Deletes the dataset. Its k8s secret is left alone: it
-        has its own lifecycle (/secrets) and other datasets may share it.
+    DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is linked to,
+        unless ?force=true, which also revokes and deletes their links. Its k8s secret is left alone: it has its own lifecycle (/global/secrets) and
+        other datasets may share it. Admin only.
     """
-    logger.error(f"deleting ({dataset_id or dataset_name})")
-    ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
-    try:
-        ds.delete()
-    except Exception as exc:
-        session.rollback()
-        raise InvalidRequest("Error while deleting the record") from exc
+    ds = Dataset.get_by_id(dataset_id)
+    delete_global(ds, ds.project_assignments)
     return {}, 204
 
 
 @bp.route('/<int:dataset_id>', methods=['PATCH'])
-@bp.route('/<dataset_name>', methods=['PATCH'])
 # @audit
-@auth(scope='can_admin_dataset')
-def patch_datasets_by_id_or_name(
-    dataset_id: int | None = None,
-    dataset_name: str | None = None
-):
+@auth(scope='can_do_admin')
+def patch_dataset(dataset_id: int):
     """
-    PATCH /datasets/id endpoint. Edits an existing dataset with a given id
+    PATCH /global/datasets/id endpoint. Edits an existing dataset with a given id. The tasks created before
+    are pinned to the old setup and fail instead of running against the new one. Admin only. Returns 200. A disabled secret_label is a 400, unless it is the
+    one already in use. Enabling the dataset is a 409 while its secret (the new one, if secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the dataset from every project at once, or restores it:
+    the tasks that use it fail and nothing of theirs is delivered while it is revoked. It does not change `enabled`.
     """
-    ds = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
+    ds = Dataset.get_by_id(dataset_id)
 
-    # Update validation doesn't have required fields
     body = request.json
-    body.pop("id", None)
-    cata_body = body.pop("catalogue", {})
-    dict_body = body.pop("dictionaries", [])
-
-    # Dictionary should be a list of dict. If not raise an error and revert changes
-    if not isinstance(dict_body, list):
-        session.rollback()
-        raise InvalidRequest("dictionaries should be a list.")
-
-    if "secret_label" in body:
-        _resolve_secret(body, body.get("project_id", ds.project_id))
-
-    for k in body:
-        if not hasattr(ds, k):
-            raise InvalidRequest(f"Field {k} is not a valid one")
+    _reject_project(body)
+    _reject_credentials(body)
+    req = DatasetPatchRequest.parse(body)
+    if not req.model_fields_set:
+        raise InvalidRequest("No field to update")
+    if req.revoked is not None and not g.caller_is_admin:
+        raise UnauthorizedError("Only an admin can revoke or re-grant a dataset")
+    body = req.model_dump(exclude_unset=True, exclude={"catalogue", "dictionaries", "secret_label"})
+    cata_body = req.catalogue
+    dict_body = req.dictionaries or []
+    if req.name is not None:
+        _reject_taken_name(req.name, ds.id)
+    secret = ds.secret
+    if req.secret_label is not None:
+        secret = Secret.get_enabled_by_label(req.secret_label, ds.secret_id)
+        body["secret_id"] = secret.id
+    if req.enabled:
+        secret.require_usable()
 
     try:
         ds.update(**body)
@@ -186,74 +186,5 @@ def patch_datasets_by_id_or_name(
         raise
 
     session.commit()
-    return DatasetDTO.from_model(ds).dump(), HTTPStatus.ACCEPTED
+    return DatasetDTO.from_model(ds).dump(), HTTPStatus.OK
 
-
-@bp.route('/<dataset_name>/catalogue', methods=['GET'])
-@bp.route('/<int:dataset_id>/catalogue', methods=['GET'])
-@audit
-@auth(scope='can_access_dataset')
-def get_datasets_catalogue_by_id_or_name(
-    dataset_id: int | None = None,
-    dataset_name: str | None = None
-):
-    """
-    GET /datasets/dataset_name/catalogue endpoint. Gets dataset's catalogue
-    GET /datasets/id/catalogue endpoint. Gets dataset's catalogue
-    """
-    dataset = Dataset.get_dataset_by_name_or_id(name=dataset_name, id=dataset_id)
-
-    cata = Catalogue.query.filter(Catalogue.dataset_id == dataset.id).one_or_none()
-    if not cata:
-        raise DBRecordNotFoundError(f"Dataset {dataset.name} has no catalogue.")
-    return CatalogueDTO.from_model(cata).dump(), HTTPStatus.OK
-
-
-@bp.route('/<dataset_name>/dictionaries', methods=['GET'])
-@bp.route('/<int:dataset_id>/dictionaries', methods=['GET'])
-@audit
-@auth(scope='can_access_dataset')
-def get_datasets_dictionaries_by_id_or_name(
-    dataset_id: int | None = None,
-    dataset_name: str | None = None
-):
-    """
-    GET /datasets/dataset_name/dictionaries endpoint.
-    GET /datasets/id/dictionaries endpoint.
-        Gets the dataset's list of dictionaries
-    """
-    dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id, name=dataset_name)
-
-    dictionary = Dictionary.query.filter(Dictionary.dataset_id == dataset.id).all()
-    if not dictionary:
-        raise DBRecordNotFoundError(f"Dataset {dataset.name} has no dictionaries.")
-
-    return [DictionaryDTO.from_model(dc).dump() for dc in dictionary], HTTPStatus.OK
-
-
-@bp.route('/<dataset_name>/dictionaries/<table_name>', methods=['GET'])
-@bp.route('/<int:dataset_id>/dictionaries/<table_name>', methods=['GET'])
-@audit
-@auth(scope='can_access_dataset')
-def get_datasets_dictionaries_table_by_id_or_name(
-    table_name: str,
-    dataset_id: int | None = None,
-    dataset_name: str | None = None
-):
-    """
-    GET /datasets/dataset_name/dictionaries/table_name endpoint.
-    GET /datasets/id/dictionaries/table_name endpoint.
-        Gets the dataset's table within its dictionaries
-    """
-    dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id, name=dataset_name)
-
-    dictionary = Dictionary.query.filter(
-        Dictionary.dataset_id == dataset.id,
-        Dictionary.table_name == table_name
-    ).all()
-    if not dictionary:
-        raise DBRecordNotFoundError(
-            f"Dataset {dataset.name} has no dictionaries with table {table_name}."
-        )
-
-    return [DictionaryDTO.from_model(dc).dump() for dc in dictionary], HTTPStatus.OK

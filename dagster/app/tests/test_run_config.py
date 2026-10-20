@@ -1,14 +1,11 @@
-import pytest
-
 from app.definitions.run_config import build_run_config
-from app.models import Dataset
+from app.models import Dataset, TaskSpec
 
 DATASET = Dataset(
     id=1,
-    project_id=1,
     secret={
         "id": 3, "project_id": 1, "label": "cdm-creds", "provider": "K8S",
-        "key": "cdm-creds-abc", "namespace": "fn",
+        "key": "cdm-creds-abc", "namespace": "fn", "enabled": True,
     },
     name="cdm",
     host="db.host",
@@ -16,6 +13,7 @@ DATASET = Dataset(
     read_schema="cdm",
     write_schema="results",
     type="postgres",
+    enabled=True,
     slug="cdm",
     url="https://db.host/cdm",
 )
@@ -36,24 +34,15 @@ def expected(**op_config):
     return {"ops": {"k8s_pipes_op": {"config": {**DATASET_FIELDS, **op_config}}}}
 
 
-@pytest.mark.parametrize(
-    "spec, config",
-    [
-        ({"image": "ghcr.io/o/i:1"}, expected(env={}, docker_image="ghcr.io/o/i:1")),
-        ({"docker_image": "ghcr.io/o/i:1"}, expected(env={}, docker_image="ghcr.io/o/i:1")),
-        ({"image": "a/b:1", "docker_image": "c/d:1"}, expected(env={}, docker_image="a/b:1")),
-        ({"image": "a/b:1", "env": None}, expected(env={}, docker_image="a/b:1")),
-        (
-            {"image": "a/b:1", "env": {"K": "v"}, "name": "ignored", "dataset": "other"},
-            expected(env={"K": "v"}, docker_image="a/b:1"),
-        ),
-    ],
-)
-def test_build_run_config(spec, config):
-    assert build_run_config(spec, DATASET) == config
+def test_build_run_config():
+    spec = TaskSpec(image="a/b:1", dataset_id=1, env={"K": "v"})
+
+    assert build_run_config(spec, DATASET) == expected(env={"K": "v"}, docker_image="a/b:1")
 
 
-@pytest.mark.parametrize("spec", [{}, {"env": {"K": "v"}}, {"image": ""}])
-def test_a_spec_without_an_image_raises(spec):
-    with pytest.raises(ValueError, match="missing 'image'"):
-        build_run_config(spec, DATASET)
+def test_a_task_without_a_dataset_has_no_dataset_in_its_run_config():
+    spec = TaskSpec(image="a/b:1", env={})
+
+    config = build_run_config(spec, None)
+
+    assert config == {"ops": {"k8s_pipes_op": {"config": {"env": {}, "docker_image": "a/b:1"}}}}

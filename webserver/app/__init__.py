@@ -6,19 +6,20 @@ All general configs are taken care in here:
     - pre and post request handlers
 """
 import logging
+from http import HTTPStatus
 import traceback
-from flask import Flask
+from flask import Flask, request
 from flask_swagger_ui import get_swaggerui_blueprint
 from sqlalchemy import exc
 from werkzeug.exceptions import HTTPException
 
 from app import (
     main, admin_api, datasets_api, tasks_api, projects_api,
-    registries_api, users_api, trigger_repositories_api,
-    secrets_api, results_repositories_api, results_api
+    registries_api, users_api, trigger_repositories_api, project_trigger_repositories_api,
+    secrets_api, git_providers_api, results_repositories_api, results_api, dagster_api, healthcheck_api
 )
 from app.helpers.base_model import build_sql_uri, db
-from app.helpers.exceptions import LogAndException
+from app.helpers.exceptions import InvalidRequest, LogAndException
 
 
 logging.basicConfig(level=logging.WARN)
@@ -55,7 +56,7 @@ def create_app():
     def handle_db_exceptions(error):
         logging.error(error)
         db.session.rollback()
-        return {"error": "Record already exists"}, 500
+        return {"error": "Record already exists"}, HTTPStatus.CONFLICT
 
     @app.errorhandler(Exception)
     # Special case, just so we won't return stacktraces
@@ -63,6 +64,12 @@ def create_app():
         logger.error("\n".join(traceback.format_exception(e)))
         db.session.rollback()
         return {"error": "Internal Error"}, 500
+
+    @app.before_request
+    def json_body_is_an_object():
+        """Handlers index into the body, so every JSON body this API takes is an object."""
+        if request.is_json and request.data and not isinstance(request.get_json(silent=True), dict):
+            raise InvalidRequest("The request body must be a JSON object")
 
     app.register_blueprint(swagger_ui_blueprint, url_prefix="/docs")
     app.config["PROPAGATE_EXCEPTIONS"] = True
@@ -72,6 +79,7 @@ def create_app():
     app.register_blueprint(projects_api.bp)
     app.register_blueprint(datasets_api.bp)
     app.register_blueprint(tasks_api.bp)
+    app.register_blueprint(tasks_api.all_bp)
     app.register_blueprint(results_api.bp)
     app.register_blueprint(admin_api.bp)
     # TODO(whitelisted_images): disconnected for now, revisit with the authorization rework.
@@ -79,8 +87,12 @@ def create_app():
     app.register_blueprint(registries_api.bp)
     app.register_blueprint(users_api.bp)
     app.register_blueprint(trigger_repositories_api.bp)
+    app.register_blueprint(project_trigger_repositories_api.bp)
     app.register_blueprint(secrets_api.bp)
+    app.register_blueprint(git_providers_api.bp)
     app.register_blueprint(results_repositories_api.bp)
+    app.register_blueprint(dagster_api.bp)
+    app.register_blueprint(healthcheck_api.bp)
 
     @app.teardown_appcontext
     # pylint: disable=unused-argument

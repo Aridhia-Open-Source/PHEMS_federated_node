@@ -73,6 +73,8 @@ global:
   namespaces:
     keycloak: keycloak
     tasks: tasks
+    # Where the backend keeps the value of a disabled secret, moved out of its own namespace
+    quarantine: fn-quarantine
 
 token:
   # 8 hours. Was 2592000 (30 days), the same order as the rotation period -- which meant sessions
@@ -123,7 +125,7 @@ db:
     #   uc1:
 
 # A second, in-cluster Postgres holding dataset data - a development fixture. Real
-# datasets are registered through the /datasets API. `create` covers deploying the
+# datasets are registered through the /global/datasets API. `create` covers deploying the
 # server and creating the roles in `dbs`, so `dbs` without it is rejected.
 datasetDb:
   create: false
@@ -160,6 +162,13 @@ taskReview: false
 federatedNode:
   enable_image_whitelist: false
   port: 5000
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
 
 storage:
   capacity: 10Gi
@@ -256,6 +265,22 @@ fnDagster:
   results:
     maxZipBytes: 10485760
   createDB: false
+  sensors:
+    # Status every Dagster sensor starts in: STOPPED or RUNNING. Only applies to a sensor
+    # Dagster has not seen before; a sensor started or stopped since keeps its status.
+    initialStatus: STOPPED
+    # Minimum seconds between ticks of every Dagster sensor. Dev values use 5.
+    minIntervalSeconds: 30
+    # Seconds a failed sensor run waits before its next try, when nothing it acts on changed.
+    retryIntervalSeconds: 60
+    # Failed delivery runs of one result after which the retry sensor gives up. It then stays
+    # FAILED until relaunched by hand.
+    deliveryMaxAttempts: 5
+  webserver:
+    # In-cluster URL the Federated Node API uses to reach the Dagster webserver's GraphQL
+    # API. Leave empty to derive it from the release name and namespace
+    # (http://<release>-dagster-webserver.<namespace>.svc:80).
+    uri:
   # The code location (gRPC) server, owned by this chart rather than the
   # dagster-user-deployments subchart. `name` is the gRPC host in the workspace file.
   codeServer:
@@ -263,7 +288,13 @@ fnDagster:
     port: 3030
     replicas: 1
     module: app.definitions
-    # resources: {}
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
   # Permissions on the artifacts volume that analytical (pipes) pods write results to.
   # See the dagsterArtifactsMountOptions helper.
   artifacts:
@@ -281,9 +312,6 @@ fnDagster:
       # runAsUser: 1001
       # runAsGroup: 1001
       # supplementalGroups: [1001]
-  gh: {}
-    # delivery_repo: owner/repo
-    # resultsDir: "mgmt/results"
   # No db block here: Dagster's database name and user come from
   # dagster.postgresql.*, its host from db.host, and its password secret from
   # global.postgresqlSecretName. See templates/_db.tpl.
@@ -346,7 +374,6 @@ dagster:
           - name: dagster-env-config
 
         envSecrets:
-          - name: github-token
           - name: dagster-keycloak-creds
 
         # Add volumes and volume mounts for artifacts-pvc
@@ -383,7 +410,7 @@ gitea:
   replicaCount: 1
   image:
     repository: gitea/gitea
-    tag: latest
+    tag: 28.1.0
     pullPolicy: IfNotPresent
 
   service:
@@ -391,14 +418,11 @@ gitea:
       type: ClusterIP
       port: 4000
     ssh:
-      type: ClusterIP
       port: 22
 
   persistence:
-    enabled: true
     storageClass: local-path
     size: 10Gi
-    mountPath: /data
 
   # Uses shared Postgres database (db.host, db.port, db.secret)
   # Gitea role/database created by gitea-db-init Job

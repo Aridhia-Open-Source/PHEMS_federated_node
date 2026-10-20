@@ -6,7 +6,6 @@ create_db_deployment: true
 keycloak:
   replicas: 1
 db:
-  user: admin
   host: db.default.svc
   port: 5432
   secret:
@@ -17,9 +16,6 @@ storage:
   local:
     dbpath: /data/db/
 
-certs:
-  frequency: 65
-
 integrations:
   domains:
     - http://localhost:8088
@@ -28,16 +24,9 @@ integrations:
 smoketests: true
 taskReview: true
 
-host: &host phems-federatednode.net
-whitelist:
-  enabled: false
-blacklist:
-  enabled: false
+host: phems-federatednode.net
 tls:
   secretName: &tls my-tls-secret
-
-global:
-  host: *host
 
 cert-manager:
   enabled: true

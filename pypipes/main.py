@@ -89,6 +89,10 @@ def dump_secrets(artifact_path, secrets_path):
 def main():
     logger.info(f"main")
     prepare_artifact_dir(ARTIFACT_PATH)
+    exit_code = int(os.environ.get("PYPIPES_EXIT_CODE", "0"))
+    if exit_code:
+        logger.error(f"PYPIPES_EXIT_CODE is {exit_code}: failing on purpose")
+        return exit_code
     dump_secrets(ARTIFACT_PATH, SECRETS_PATH)
     mock_results(ARTIFACT_PATH, count=10)
     return 0

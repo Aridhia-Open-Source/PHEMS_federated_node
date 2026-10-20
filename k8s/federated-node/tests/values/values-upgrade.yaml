@@ -10,7 +10,6 @@ federatedNode:
 autoscaling:
   enabled: false
 db:
-  user: admin
   host: db.federatednode.svc
   port: 5432
   secret:
@@ -35,10 +34,9 @@ certs:
 
 smoketests: false
 
-host: &host phems-federatednode.net
+host: phems-federatednode.net
 
 global:
-  host: *host
   namespaces:
     keycloak: keycloak
     tasks: tasks

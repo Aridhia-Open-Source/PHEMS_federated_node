@@ -48,6 +48,10 @@
                 "tasks": {
                     "type": "string",
                     "default": "tasks"
+                },
+                "quarantine": {
+                    "type": "string",
+                    "default": "fn-quarantine"
                 }
             }
         },
@@ -163,12 +167,6 @@
                 "namespaces": {
                     "$ref": "#/definitions/namespaces",
                     "description": "Namespaces this chart uses"
-                },
-                "host": {
-                    "$ref": "#/definitions/host"
-                },
-                "taskReview": {
-                    "$ref": "#/definitions/taskReview"
                 },
                 "postgresqlSecretName": {
                     "type": "string",
@@ -685,23 +683,48 @@
                         }
                     }
                 },
+                "sensors": {
+                    "type": "object",
+                    "properties": {
+                        "initialStatus": {
+                            "type": "string",
+                            "enum": ["STOPPED", "RUNNING"],
+                            "default": "STOPPED",
+                            "description": "Status every Dagster sensor starts in. Only applies to a sensor Dagster has not seen before"
+                        },
+                        "minIntervalSeconds": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 30,
+                            "description": "Minimum seconds between ticks of every Dagster sensor"
+                        },
+                        "retryIntervalSeconds": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 60,
+                            "description": "Seconds a failed sensor run waits before its next try, when nothing it acts on changed"
+                        },
+                        "deliveryMaxAttempts": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 5,
+                            "description": "Failed delivery attempts of one result after which the retry sensor gives up"
+                        }
+                    }
+                },
+                "webserver": {
+                    "type": "object",
+                    "properties": {
+                        "uri": {
+                            "type": ["string", "null"],
+                            "description": "In-cluster URL of the Dagster webserver, used by the API to read and toggle sensors. Empty derives it from the release name and namespace"
+                        }
+                    }
+                },
                 "createDB": {
                     "type": "boolean",
                     "default": false,
                     "description": "Run the dagster-db-init job to create the dagster database and role. Needs a reachable superuser login, see db.superuser"
-                },
-                "gh": {
-                    "type": "object",
-                    "properties": {
-                        "delivery_repo": {
-                            "type": "string",
-                            "description": "Repository results are delivered to"
-                        },
-                        "resultsDir": {
-                            "type": "string",
-                            "description": "Path within the delivery repo where results are written"
-                        }
-                    }
                 },
                 "image": {
                     "type": "string",
@@ -756,7 +779,7 @@
         },
         "datasetDb": {
             "type": "object",
-            "description": "A second, in-cluster PostgreSQL holding dataset data. A development fixture: real datasets are registered through the /datasets API, which stores their credentials separately. `create` covers both deploying the server and creating the roles in `dbs`, so `dbs` without `create` is rejected",
+            "description": "A second, in-cluster PostgreSQL holding dataset data. A development fixture: real datasets are registered through the /global/datasets API, which stores their credentials separately. `create` covers both deploying the server and creating the roles in `dbs`, so `dbs` without `create` is rejected",
             "properties": {
                 "create": {
                     "type": "boolean",

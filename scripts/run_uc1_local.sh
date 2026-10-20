@@ -11,7 +11,8 @@ set -euo pipefail
 #   WRITE_SCHEMA       write schema
 #   ARTIFACT_PATH      where results are written
 #
-# Requires ./scripts/portfwd.sh (or tilt) for the db-datasets forward on 5433.
+# Requires ./scripts/portfwd.sh (or tilt) for the db-datasets forward on 5433, and the UC1
+# data loaded by `make uc1-seed`.
 #
 # Usage: ./scripts/run_uc1_local.sh [tag]        (default tag: v41)
 ###############################################################################
@@ -25,8 +26,6 @@ set -a
 source "$ROOT_DIR/dev.db/.env"
 set +a
 source "$ROOT_DIR/dev.db/dataset_password.sh"
-set -a
-set +a
 
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/uc1-local-results}"
 mkdir -p "$OUT_DIR"

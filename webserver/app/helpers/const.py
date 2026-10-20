@@ -34,7 +34,10 @@ PASS_GENERATOR_SET = string.ascii_letters + string.digits + "!$@#.-_"
 PUBLIC_URL = os.getenv("PUBLIC_URL")
 
 DEFAULT_NAMESPACE = os.getenv("DEFAULT_NAMESPACE")
+# Where a disabled secret's value is kept, out of reach of everything that reads the secrets' own namespace
+QUARANTINE_NAMESPACE = os.getenv("QUARANTINE_NAMESPACE", "fn-quarantine")
 TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
+DAGSTER_WEBSERVER_URI = os.getenv("DAGSTER_WEBSERVER_URI")
 
 # Pod resource validation constants
 CPU_RESOURCE_REGEX = r'^\d*(m|\.\d+){0,1}$'
@@ -54,5 +57,17 @@ MEMORY_UNITS = {
     "k": 10**3,
     "m": 1000
 }
+
+# Task spec limits. Sizes are in bytes: the spec exactly as received, and the env as JSON.
+SPEC_RAW_MAX_BYTES = 64 * 1024
+TASK_NAME_MAX_LENGTH = 256
+TASK_IMAGE_MAX_LENGTH = 256
+TASK_ENV_KEY_REGEX = r'^[A-Za-z_][A-Za-z0-9_]*$'
+# Set by the run itself from the dataset
+TASK_ENV_RESERVED_KEYS = {"CDM_SCHEMA", "WRITE_SCHEMA"}
+TASK_ENV_MAX_BYTES = 32 * 1024
 TASK_REVIEW = os.getenv("TASK_REVIEW")
 ENABLE_IMAGE_WHITELIST = os.getenv("ENABLE_IMAGE_WHITELIST", "false").lower() == "true"
+
+# The longest state_cause the launch endpoint stores when it fails a task
+TASK_CAUSE_MAX_LENGTH = 1024

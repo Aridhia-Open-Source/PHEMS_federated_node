@@ -39,7 +39,7 @@ echo
 echo "=== Releasing PVCs held by leftover pods ======================================"
 # The Dagster K8sRunLauncher and Pipes create Jobs the release never owned, so
 # `helm uninstall` leaves them behind. Their pods keep the kubernetes.io/pvc-protection
-# finalizer on every PVC they mount even once Completed or Failed, so the PVC sits in
+# finalizer on every PVC they mount even once Completed osow r Failed, so the PVC sits in
 # Terminating, its PV stays Bound instead of going Released, and the claimRef clearing at
 # the end of this script never sees it - which is what leaves the next install with a PV
 # bound to a claim that no longer exists.
@@ -226,3 +226,5 @@ echo "Run './scripts/cluster.sh down' to delete the cluster."
 echo "Run './scripts/cluster.sh up' to create the cluster."
 echo "Run './scripts/deploy.sh' to deploy the helm project"
 echo
+
+./scripts/deploy_owner.sh release

@@ -7,7 +7,7 @@ from http import HTTPStatus
 import requests
 from flask import Blueprint, redirect, url_for, request
 from .helpers.keycloak import Keycloak, URLS
-from .helpers.exceptions import AuthenticationError
+from .helpers.exceptions import AuthenticationError, InvalidRequest
 
 bp = Blueprint('main', __name__, url_prefix='/')
 
@@ -58,9 +58,12 @@ def login():
     POST /login endpoint.
         Given a form, logs the user in, returning a refresh_token from Keycloak
     """
-    credentials = request.form.to_dict()
+    username = request.form.get("username")
+    password = request.form.get("password")
+    if not username or not password:
+        raise InvalidRequest("username and password are required")
     return {
-        "token": Keycloak().get_token(**credentials)
+        "token": Keycloak().get_token(username=username, password=password)
     }, HTTPStatus.OK
 
 

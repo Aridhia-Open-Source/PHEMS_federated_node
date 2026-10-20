@@ -29,7 +29,7 @@ class GiteaAPI:
         )
         return response.json()
 
-    def get_new_merged_pulls(self, repo_path: str, base_branch: str, merged_after: str) -> list[dict]:
+    def get_new_merged_pulls(self, repo_path: str, merged_after: str) -> list[dict]:
         """Fetch merged PRs since merged_after timestamp. Gitea doesn't have search API, so fetch and filter."""
         self.logger.info(f"Fetching merged PRs for {repo_path}, after {merged_after}")
 
@@ -38,7 +38,7 @@ class GiteaAPI:
 
         merged_after_dt = dt.fromisoformat(merged_after.replace('Z', '+00:00')) if merged_after else None
 
-        # Gitea pages with limit/page (it ignores per_page) and has no base filter. Its page cap
+        # Gitea pages with limit/page (it ignores per_page). Its page cap
         # is configurable, so only an empty page ends the loop.
         while True:
             response = self.client.request(
@@ -49,8 +49,6 @@ class GiteaAPI:
             self.logger.info(f"Fetched {len(items)} closed PRs from Gitea for repository {repo_path} (page {page})")
 
             for item in items:
-                if item["base"]["ref"] != base_branch:
-                    continue
                 if item.get("merged_at"):
                     merged_at = item["merged_at"]
                     if isinstance(merged_at, str):

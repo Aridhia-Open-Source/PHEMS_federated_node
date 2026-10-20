@@ -17,6 +17,7 @@ SAMPLE_SECRET = {
     "description": None,
     "provider": "K8S",
     "key": "git-token-abc",
+    "enabled": True,
     "namespace": "fn",
     "created_at": "2026-01-01T00:00:00Z",
     "updated_at": "2026-01-01T00:00:00Z",
@@ -24,7 +25,6 @@ SAMPLE_SECRET = {
 
 SAMPLE_DATASET = {
     "id": 1,
-    "project_id": 1,
     "secret": SAMPLE_SECRET,
     "name": "cdm",
     "host": "db.host",
@@ -35,39 +35,51 @@ SAMPLE_DATASET = {
     "extra_connection_args": None,
     "created_at": "2026-01-01T00:00:00Z",
     "updated_at": "2026-01-01T00:00:00Z",
+    "enabled": True,
     "slug": "cdm",
     "url": "https://db.host/cdm",
 }
 
-SAMPLE_REPO = {
+SAMPLE_PROVIDER = {
     "id": 1,
-    "uri": "github.com/org/repo",
-    "provider": "github",
+    "name": "github-github.com",
+    "type": "github",
+    "uri": "https://github.com",
     "api_uri": "https://api.github.com",
+    "enabled": True,
+}
+
+SAMPLE_TRIGGER_REPOSITORY = {
+    "id": 1,
+    "uri": "https://github.com/org/repo",
+    "repo_path": "org/repo",
+    "provider": SAMPLE_PROVIDER,
     "secret": SAMPLE_SECRET,
-    "base_branch": "main",
-    "watch_dir": "specs/",
-    "project_id": 1,
-    "dataset_id": 1,
+    "enabled": True,
     "pr_cursor": "2026-01-01T00:00:00Z",
 }
 
-SAMPLE_REPOSITORY_OBJ = {
+SAMPLE_REPO = {
     "id": 1,
-    "uri": "github.com/org/repo",
-    "provider": "github",
-    "api_uri": "https://api.github.com",
-    "secret": SAMPLE_SECRET,
+    "project_id": 1,
+    "trigger_repository": SAMPLE_TRIGGER_REPOSITORY,
     "base_branch": "main",
     "watch_dir": "specs/",
-    "project_id": 1,
     "dataset_id": 1,
-    "initial_cursor": "2026-01-01T00:00:00Z",
     "pr_cursor": "2026-01-01T00:00:00Z",
+    "enabled": True,
+    "revoked": False,
+    "active": True,
+}
+
+SAMPLE_REPOSITORY_OBJ = {
+    **SAMPLE_REPO,
+    "initial_cursor": "2026-01-01T00:00:00Z",
     "pull_requests": [],
 }
 
 SAMPLE_PR = {
+    "project_id": 1,
     "trigger_repository_id": 1,
     "number": 5,
     "title": "Add experiment spec",
@@ -75,13 +87,11 @@ SAMPLE_PR = {
     "merged_at": "2026-06-26T10:00:00Z",
     "merge_commit_sha": "abc123def456",
     "state": "UNKNOWN",
-    "payload": {
-        "docker_image": "ghcr.io/org/experiment:latest",
-        "env": {"KEY": "value"},
-    },
+    "spec_files": [],
 }
 
 SAMPLE_INVALID_PR = {
+    "project_id": 1,
     "trigger_repository_id": 1,
     "number": 6,
     "title": "Invalid spec",
@@ -89,10 +99,11 @@ SAMPLE_INVALID_PR = {
     "merged_at": "2026-06-27T10:00:00Z",
     "merge_commit_sha": "xyz789abc123",
     "state": "UNKNOWN",
-    "payload": {},
+    "spec_files": [],
 }
 
 SAMPLE_IN_PROGRESS_PR = {
+    "project_id": 1,
     "trigger_repository_id": 1,
     "number": 7,
     "title": "Currently processing",
@@ -100,10 +111,7 @@ SAMPLE_IN_PROGRESS_PR = {
     "merged_at": "2026-06-28T10:00:00Z",
     "merge_commit_sha": "pqr456xyz789",
     "state": "UNKNOWN",
-    "payload": {
-        "docker_image": "ghcr.io/org/experiment:v2",
-        "env": {"KEY": "value2"},
-    },
+    "spec_files": [],
 }
 
 
@@ -125,7 +133,6 @@ def sensor_context():
     """Build a sensor context with mocked resources."""
     context = build_sensor_context()
     context.resources.backend_api = MagicMock()
-    context.resources.github_api = MagicMock()
     return context
 
 
@@ -185,7 +192,7 @@ def mock_pr_files():
 
 @pytest.fixture
 def mock_spec_content():
-    return json.dumps(SAMPLE_PR["payload"])
+    return json.dumps({"spec": {"docker_image": "ghcr.io/org/experiment:latest", "env": {"KEY": "value"}}})
 
 
 def make_github_search_response(prs):

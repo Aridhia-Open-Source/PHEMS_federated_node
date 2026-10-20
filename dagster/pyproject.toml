@@ -15,7 +15,14 @@ dependencies = [
     "kubernetes~=35.0",
 ]
 
+[project.scripts]
+fncli = "fncli.cli:cli"
+
 [project.optional-dependencies]
+cli = [
+    "click~=8.1",
+    "python-dotenv~=1.0",
+]
 dev = [
     "pytest~=8.3",
     "pytest-mock~=3.14",
@@ -26,8 +33,12 @@ dev = [
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
+# fncli is the dev CLI, installed with the `cli` extra. Its tests run in the Dagster test image.
+[tool.setuptools.packages.find]
+include = ["app*", "fncli*"]
+
 [tool.pytest.ini_options]
-testpaths = ["app/tests"]
+testpaths = ["app/tests", "fncli/tests"]
 
 [tool.dagster]
 module_name = "app.definitions"

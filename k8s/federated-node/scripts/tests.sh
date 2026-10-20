@@ -8,6 +8,7 @@ NEW_PASS=$(tr -dc 'A-Za-z0-9!#$%&' </dev/urandom | head -c 12; echo)
 TEST_USER_EMAIL="testuser${HASH_RAND}@phems.com"
 TEST_USER_EMAIL_URL_SAFE=$(printf "%s" "${TEST_USER_EMAIL}" | jq -sRr @uri)
 TEST_DB_NAME="testing${HASH_RAND}"
+TEST_SECRET_LABEL="testing-${HASH_RAND}"
 echo "Dataset Test: ${TEST_DB_NAME}"
 echo "Test User email: ${TEST_USER_EMAIL}"
 
@@ -21,7 +22,7 @@ TOKEN=$(curl "${BACKEND_URL}/login" \
 
 test_dataset_list(){
     printf "[test]\t### Test Fetch Dataset list ###\n\n"
-    curl "${BACKEND_URL}/datasets" \
+    curl "${BACKEND_URL}/global/datasets" \
         --silent \
         --fail-with-body \
         --header "Authorization: Bearer ${TOKEN}" > /dev/null 2>&1
@@ -29,7 +30,7 @@ test_dataset_list(){
 
 test_whitelisted_images_list() {
     printf "[test]\t### Test Fetch Whitelisted Images list ###\n\n"
-    curl "${BACKEND_URL}/whitelisted_images" \
+    curl "${BACKEND_URL}/global/whitelisted_images" \
         --silent \
         --fail-with-body \
         --header "Authorization: Bearer ${TOKEN}" > /dev/null 2>&1
@@ -37,7 +38,7 @@ test_whitelisted_images_list() {
 
 test_create_user() {
     printf "[test]\t### Test Create User ###\n\n"
-    USER_TEMP=$(curl "${BACKEND_URL}/users" \
+    USER_TEMP=$(curl "${BACKEND_URL}/global/users" \
         --silent \
         --fail-with-body \
         --header "Content-Type: application/json" \
@@ -48,7 +49,7 @@ test_create_user() {
         }"| jq -r -e '.tempPassword')
 
     printf "[test]\t\tResetting pass\n"
-    curl --request PUT "${BACKEND_URL}/users/reset-password" \
+    curl --request PUT "${BACKEND_URL}/global/users/reset-password" \
         --silent \
         --fail-with-body \
         --header "Content-Type: application/json" \
@@ -72,7 +73,18 @@ test_create_user() {
 test_create_dataset() {
     printf "[test]\t### Test create Dataset ###\n\n"
 
-    DS_ID=$(curl "${BACKEND_URL}/datasets/" \
+    curl "${BACKEND_URL}/global/secrets" \
+        --silent \
+        --fail-with-body \
+        --header "Content-Type: application/json" \
+        --header "Authorization: Bearer ${TOKEN}" \
+        --data "{
+            \"label\": \"${TEST_SECRET_LABEL}\",
+            \"provider\": \"K8S\",
+            \"values\": {\"USERNAME\": \"user\", \"PASSWORD\": \"password1\"}
+        }" > /dev/null 2>&1
+
+    DS_ID=$(curl "${BACKEND_URL}/global/datasets/" \
         --silent \
         --fail-with-body \
         --header "Content-Type: application/json" \
@@ -81,8 +93,7 @@ test_create_dataset() {
             \"name\": \"${TEST_DB_NAME}\",
             \"host\": \"testdb\",
             \"port\": 5432,
-            \"username\": \"user\",
-            \"password\": \"password1\",
+            \"secret_label\": \"${TEST_SECRET_LABEL}\",
             \"extra_connection_args\": \";TrustServerCertificate=Yes\"
         }" | jq -e -r '.id')
 }
@@ -108,7 +119,7 @@ test_dar() {
         }" | jq -r -e '.token')
 
     printf "[test]\t\ttry access dataset info\n"
-    curl "${BACKEND_URL}/datasets/${TEST_DB_NAME}" \
+    curl "${BACKEND_URL}/global/datasets/${DS_ID}" \
         --silent \
         --fail-with-body \
         --header "project-name: project" \
@@ -177,7 +188,7 @@ printf "[cleanup]\tRemoving test db entry\n"
 # This used to hardcode `-h db` and read PGUSER/PGDATABASE, which nothing exports - so
 # with `set -e` above, the whole test pod died here before it could report success.
 psql -h "$PGHOST" -p "$PGPORT" -U "$BACKEND_DB_USER" -d "$BACKEND_DB_NAME" \
-  -c "DELETE FROM datasets WHERE name = '${TEST_DB_NAME}';" > /dev/null 2>&1
+  -c "DELETE FROM datasets WHERE name = '${TEST_DB_NAME}'; DELETE FROM secrets WHERE label = '${TEST_SECRET_LABEL}';" > /dev/null 2>&1
 
 if [ $exit_code -gt 0 ]; then
     exit $exit_code

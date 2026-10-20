@@ -73,6 +73,27 @@ class TestKeycloakTokens(TestKeycloakMixin):
         )
         assert Keycloak().is_token_valid("token", "can_admin_dataset", "resource")
 
+    def test_is_token_valid_passes_a_system_user_on_an_admin_scope(self, keycloak_login_request_mock, mocker):
+        # The System role (Dagster, fncli) skips the permission check, so it passes can_do_admin, which the
+        # realm gives to administrators only; is_user_admin, which `revoked` is gated on, is still False for it.
+        mocker.patch.object(Keycloak, "decode_token", return_value={"realm_access": {"roles": ["System"]}})
+        check = mocker.patch.object(
+            Keycloak, "check_permissions", side_effect=UnauthorizedError("User is not authorized")
+        )
+        keycloak_login_request_mock.add(responses.POST, URLS["get_token"])
+        keycloak_login_request_mock.add(responses.POST, URLS["validate"], json={"realm_access": {"roles": ["System"]}})
+        kc = Keycloak()
+        assert kc.is_token_valid("token", "can_do_admin", "resource")
+        check.assert_not_called()
+        assert not kc.is_user_admin("token")
+
+    def test_is_token_valid_refuses_a_user_without_the_permission(self, keycloak_login_request_mock, mocker):
+        mocker.patch.object(Keycloak, "decode_token", return_value={"realm_access": {"roles": ["Users"]}})
+        mocker.patch.object(Keycloak, "check_permissions", side_effect=UnauthorizedError("User is not authorized"))
+        keycloak_login_request_mock.add(responses.POST, URLS["get_token"])
+        with pytest.raises(UnauthorizedError):
+            Keycloak().is_token_valid("token", "can_do_admin", "resource")
+
     def test_is_token_valid_without_permission_check(self, keycloak_login_request_mock, mocker):
         keycloak_login_request_mock.add(
             responses.POST,

@@ -107,13 +107,18 @@ spec:
             - configMapRef:
                 name: dagster-env-config
             - secretRef:
-                name: github-token
-            - secretRef:
                 name: dagster-keycloak-creds
           {{- with ((.Values.fnDagster).codeServer).resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          livenessProbe:
+            exec:
+              command: ["dagster", "api", "grpc-health-check", "-p", {{ $port | quote }}]
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
           readinessProbe:
             exec:
               command: ["dagster", "api", "grpc-health-check", "-p", {{ $port | quote }}]

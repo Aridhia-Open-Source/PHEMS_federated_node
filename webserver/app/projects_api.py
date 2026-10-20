@@ -5,30 +5,45 @@ project endpoints:
 - POST /projects
 - PATCH /projects/<project_id>
 - DELETE /projects/<project_id>
-- GET /projects/<project_id>/healthcheck
+- GET /projects/<project_id>/healthcheck, see healthcheck_api.py
+
+A project's links to the global resources (datasets, secrets, results repositories; the
+trigger repositories are in project_trigger_repositories_api.py). A link is addressed by the
+global resource's id (a secret's label), never by the link row's. Projects create no resource:
+PUT links one that exists, 201 the first time and 200 after, replacing the project's settings,
+PATCH changes some of them, DELETE unlinks. `revoked` is the controller's, so only PATCH sets
+it, admin only.
+- GET /projects/<project_id>/datasets
+- GET|PUT|PATCH|DELETE /projects/<project_id>/datasets/<dataset_id>
+- GET /projects/<project_id>/secrets
+- GET|PUT|PATCH|DELETE /projects/<project_id>/secrets/<label>
+- GET /projects/<project_id>/repositories/results
+- GET|PUT|PATCH|DELETE /projects/<project_id>/repositories/results/<repository_id>
 """
 
-from concurrent.futures import ThreadPoolExecutor
 from http import HTTPStatus
-from flask import Blueprint, request
+from flask import Blueprint, g, request
 
 from app.helpers.base_model import db
-from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
+from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
 from app.dtos.base import page_of
-from app.dtos.project import (
-    HealthCheckDTO, ProjectDTO, ProjectHealthDTO, RepositoryHealthDTO, ResultsRepositoryHealthDTO
-)
+from app.dtos.dataset import ProjectDatasetDTO
+from app.dtos.results_repository import ProjectResultsRepositoryDTO
+from app.dtos.secret import ProjectSecretDTO
+from app.dtos.project import ProjectDTO, ProjectRequest
+from app.helpers.project_state import require_disabled
+from app.helpers.pull_request_fanout import backfill, skip_gap
+from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.query_filters import parse_query_params
 from app.helpers.wrappers import audit, auth
-from app.models.git_provider import ConnectionStatus
+from app.models.dataset import Dataset
 from app.models.project import Project
-from app.models.pull_request_trigger import PullRequestTrigger
+from app.models.project_dataset import ProjectDataset
+from app.models.project_results_repository import ProjectResultsRepository
+from app.models.project_secret import ProjectSecret
+from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
-from app.models.task import Task
-from app.secrets_api import SecretProvider
 
-
-HEALTHCHECK_MAX_WORKERS = 8
 
 bp = Blueprint('projects', __name__, url_prefix='/projects')
 
@@ -65,12 +80,9 @@ def create_project():
     """
     POST /projects endpoint.
     """
-    body = Project.validate(request.json)
+    body = ProjectRequest.parse(request.json).model_dump(exclude_unset=True)
     if Project.query.filter(Project.name == body["name"]).one_or_none():
         raise InvalidRequest(f"Project {body["name"]} already exists", HTTPStatus.CONFLICT)
-
-    if not isinstance(body.get("enabled", False), bool):
-        raise InvalidRequest("enabled must be a boolean")
 
     project = Project(**body)
     project.add()
@@ -82,17 +94,42 @@ def create_project():
 @auth(scope='can_admin_dataset')
 def patch_project(project_id: int):
     """
-    PATCH /projects/<project_id> endpoint. Enables or disables the project.
+    PATCH /projects/<project_id> endpoint. Enables or disables the project. Turning the project
+    on again skips the gap: what was merged while it was off gets no trigger. With
+    `"backfill": true` it creates those triggers instead. `backfill` is only for enabling a
+    disabled project (`"enabled": true`), otherwise a 400, and is not stored.
+    `revoked` (a boolean, admin only) withdraws the project, or restores it, and does not change `enabled`:
+    while it is revoked its tasks fail, nothing is delivered and no pull request gets a trigger
+    (see helpers/task_config.revoked_resources). Restoring it skips the gap like enabling does.
     """
     project = Project.get_by_id(project_id)
 
     body = request.json or {}
-    if "enabled" not in body:
-        raise InvalidRequest("No fields provided to update")
-    if not isinstance(body["enabled"], bool):
-        raise InvalidRequest("enabled must be a boolean")
+    fields = {"enabled", "backfill", "revoked"}
+    if not body or not set(body) <= fields:
+        raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
+    for field in body:
+        if not isinstance(body[field], bool):
+            raise InvalidRequest(f"{field} must be a boolean")
+    if "revoked" in body and not g.caller_is_admin:
+        raise UnauthorizedError("Only an admin can revoke or re-grant a project")
+    if "backfill" in body and (body.get("enabled") is not True or project.enabled):
+        raise InvalidRequest("backfill is only valid with enabled: true on a disabled project")
 
-    project.enabled = body["enabled"]
+    was_revoked = project.revoked
+    if "revoked" in body:
+        project.revoked = body["revoked"]
+    if body.get("enabled") and not project.enabled:
+        project.enabled = True
+        if body.get("backfill"):
+            backfill(project.trigger_repository_assignments)
+        else:
+            skip_gap(project.trigger_repository_assignments)
+    else:
+        if "enabled" in body:
+            project.enabled = body["enabled"]
+        if was_revoked and not project.revoked:
+            skip_gap(project.trigger_repository_assignments)
     db.session.commit()
     return ProjectDTO.from_model(project).dump(), HTTPStatus.OK
 
@@ -102,111 +139,355 @@ def patch_project(project_id: int):
 @auth(scope='can_admin_dataset')
 def delete_project(project_id: int):
     """
-    DELETE /projects/<project_id> endpoint. Deletes the project and everything under it:
-    tasks, datasets, repositories and secrets. The stored secret values go before
-    the database commit, so a failed store delete leaves the project in place to retry.
+    DELETE /projects/<project_id> endpoint. Soft deletes the project and revokes and deletes
+    every link under it: datasets, secrets, results repository and trigger repositories. Its tasks
+    and triggers stay. Secrets, datasets and results repositories belong to no project: they, and
+    their stored values, are left alone.
     """
-    # Hard delete for now, a soft delete option can come later. Keycloak entries of the
-    # datasets are left behind, as with DELETE /datasets.
     project = Project.get_by_id(project_id)
-    project_secrets = Secret.query.filter_by(project_id=project.id).all()
-    secrets = [(s.provider, s.key, s.namespace) for s in project_secrets]
-
-    # Dependency order: most of these foreign keys to the project are RESTRICT. The
-    # triggers left after the repositories' pull requests (the API ones) go with the
-    # project, through the database's ON DELETE CASCADE.
-    try:
-        for task in Task.query.filter_by(project_id=project.id):
-            task.delete(False)
-        # The project's default dataset points into the datasets being deleted.
-        project.default_dataset_id = None
-        db.session.flush()
-        for dataset in project.datasets:
-            dataset.delete(False)
-        for repo in project.trigger_repositories:
-            repo.delete(False)
-        for repo in project.results_repositories:
-            repo.delete(False)
-        for secret in project_secrets:
-            secret.delete(False)
-        project.delete(False)
-    except Exception as exc:
-        db.session.rollback()
-        raise InvalidRequest("Error while deleting the record") from exc
-
-    # The rows are staged, not committed: if the store delete fails the project has to
-    # stay so a retry can finish the cleanup, and a rollback after a commit is a no-op.
-    try:
-        for provider, key, namespace in secrets:
-            SecretProvider(provider).delete(key, namespace)
-    except InvalidRequest:
-        db.session.rollback()
-        raise
-
+    for link in (
+        *project.dataset_assignments, *project.secret_assignments,
+        *project.trigger_repository_assignments, *project.results_repository_assignments,
+    ):
+        link.soft_delete()
+    project.soft_delete()
     db.session.commit()
     return '', HTTPStatus.NO_CONTENT
 
 
-@bp.route('/<int:project_id>/healthcheck', methods=['GET'])
+def _link(model, project_id: int, resource_id: int, what: str):
+    """The project's link to a global resource, found by the resource's id."""
+    column = {ProjectDataset: ProjectDataset.dataset_id, ProjectSecret: ProjectSecret.secret_id,
+              ProjectResultsRepository: ProjectResultsRepository.results_repository_id}[model]
+    link = model.query.filter(model.project_id == project_id, column == resource_id).one_or_none()
+    if link is None:
+        raise DBRecordNotFoundError(f"{what} is not linked to project {project_id}")
+    return link
+
+
+def _enabled(body: dict) -> bool:
+    if not isinstance(body.get("enabled", True), bool):
+        raise InvalidRequest("enabled must be a boolean")
+    return body.get("enabled", True)
+
+
+def _dataset_link(project_id: int, dataset_id: int) -> ProjectDataset:
+    return _link(ProjectDataset, project_id, dataset_id, f"Dataset {dataset_id}")
+
+
+@bp.route('/<int:project_id>/datasets', methods=['GET'])
 @audit
 @auth(scope='can_admin_dataset')
-def project_healthcheck(project_id: int):
+def list_project_datasets(project_id: int):
     """
-    GET /projects/<project_id>/healthcheck endpoint. Checks each trigger repository can be
-    reached with its token, and reports its pull request count and the project's results
-    repository. A failed check is reported in the body, still with a 200.
+    GET /projects/<project_id>/datasets endpoint. The project's dataset links, inactive
+    ones included with their flags.
+    """
+    Project.get_by_id(project_id)
+    links = ProjectDataset.query.filter_by(project_id=project_id).order_by(ProjectDataset.id)
+    return [ProjectDatasetDTO.from_model(a).dump() for a in links], HTTPStatus.OK
+
+
+@bp.route('/<int:project_id>/datasets/<int:dataset_id>', methods=['GET'])
+@audit
+@auth(scope='can_admin_dataset')
+def get_project_dataset(project_id: int, dataset_id: int):
+    """
+    GET /projects/<project_id>/datasets/<dataset_id> endpoint. The dataset is the global one's id.
+    """
+    return ProjectDatasetDTO.from_model(_dataset_link(project_id, dataset_id)).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:project_id>/datasets/<int:dataset_id>', methods=['PUT'])
+@audit
+@auth(scope='can_admin_dataset')
+def put_project_dataset(project_id: int, dataset_id: int):
+    """
+    PUT /projects/<project_id>/datasets/<dataset_id> endpoint. Links a global dataset to the
+    project, 201, and replaces the project's settings if it is linked already, 200. The first one linked becomes the project's default.
+    Body: {"enabled": true}, optional.
     """
     project = Project.get_by_id(project_id)
+    body = request.json or {}
+    if not set(body) <= {"enabled"}:
+        raise InvalidRequest("Provide, optionally, enabled")
+    enabled = _enabled(body)
+    dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id)
 
-    # Tokens are read here, in the request; only the network calls run in the threads.
-    trigger_repos = list(project.trigger_repositories)
-    results_repo = project.get_results_repository()
-    checks = [repo.prepare_connection_check() for repo in trigger_repos]
-    if results_repo:
-        checks.append(results_repo.prepare_connection_check())
-    with ThreadPoolExecutor(max_workers=HEALTHCHECK_MAX_WORKERS) as executor:
-        results = list(executor.map(lambda check: check(), checks))
+    link = ProjectDataset.query.filter_by(project_id=project.id, dataset_id=dataset.id).one_or_none()
+    if link is None:
+        link = ProjectDataset(project.id, dataset.id, enabled=enabled)
+        link.add()
+        return ProjectDatasetDTO.from_model(link).dump(), HTTPStatus.CREATED
 
-    repositories = []
-    for repo, check in zip(trigger_repos, results):
-        repositories.append(RepositoryHealthDTO(
-            id=repo.id,
-            uri=repo.uri,
-            provider=repo.provider,
-            pr_count=PullRequestTrigger.query.filter_by(trigger_repository_id=repo.id).count(),
-            status=check.status.value,
-            health_check=HealthCheckDTO(
-                message=check.message,
-                status_code=check.status_code,
-                latency_ms=check.latency_ms,
-            ),
-        ))
+    link.enabled = enabled
+    db.session.commit()
+    return ProjectDatasetDTO.from_model(link).dump(), HTTPStatus.OK
 
-    results_health = None
-    if results_repo:
-        check = results[-1]
-        results_health = ResultsRepositoryHealthDTO(
-            id=results_repo.id,
-            uri=results_repo.uri,
-            owned_by_federated_node=results_repo.owned_by_federated_node,
-            target_dir=results_repo.target_dir,
-            status=check.status.value,
-            health_check=HealthCheckDTO(
-                message=check.message,
-                status_code=check.status_code,
-                latency_ms=check.latency_ms,
-            ),
-        )
 
-    healthy = repositories and all(r.status == ConnectionStatus.OK for r in repositories) and (
-        results_health is None or results_health.status == ConnectionStatus.OK
-    )
-    health = ProjectHealthDTO(
-        id=project.id,
-        name=project.name,
-        enabled=project.enabled,
-        status="ok" if healthy else "error",
-        results_repository=results_health,
-        trigger_repositories=repositories,
-    )
-    return health.dump(), HTTPStatus.OK
+@bp.route('/<int:project_id>/datasets/<int:dataset_id>', methods=['PATCH'])
+@audit
+@auth(scope='can_admin_dataset')
+def patch_project_dataset(project_id: int, dataset_id: int):
+    """
+    PATCH /projects/<project_id>/datasets/<dataset_id> endpoint. Turns the link on or
+    off (enabled), or revokes and re-grants it (revoked), which is admin only and takes effect at once.
+    """
+    link = _dataset_link(project_id, dataset_id)
+    body = request.json or {}
+    fields = {"enabled", "revoked"}
+    if not body or not set(body) <= fields:
+        raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
+    for field in body:
+        if not isinstance(body[field], bool):
+            raise InvalidRequest(f"{field} must be a boolean")
+    if "revoked" in body and not g.caller_is_admin:
+        raise UnauthorizedError("Only an admin can revoke or re-grant a dataset")
+
+    for field in body:
+        setattr(link, field, body[field])
+    db.session.commit()
+    return ProjectDatasetDTO.from_model(link).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:project_id>/datasets/<int:dataset_id>', methods=['DELETE'])
+@audit
+@auth(scope='can_admin_dataset')
+def delete_project_dataset(project_id: int, dataset_id: int):
+    """
+    DELETE /projects/<project_id>/datasets/<dataset_id> endpoint. Unlinks the dataset, not the
+    dataset itself: a soft delete that also revokes the link. If it was the project's default,
+    the project has none afterwards.
+    """
+    link = _dataset_link(project_id, dataset_id)
+    link.soft_delete()
+    db.session.commit()
+    return '', HTTPStatus.NO_CONTENT
+
+
+def _secret_link(project_id: int, label: str) -> ProjectSecret:
+    secret = Secret.query.filter_by(label=label).one_or_none()
+    if secret is None:
+        raise DBRecordNotFoundError(f"Secret {label} does not exist")
+    return _link(ProjectSecret, project_id, secret.id, f"Secret {label}")
+
+
+@bp.route('/<int:project_id>/secrets', methods=['GET'])
+@audit
+@auth(scope='can_admin_dataset')
+def list_project_secrets(project_id: int):
+    """
+    GET /projects/<project_id>/secrets endpoint. The project's secret links, inactive ones
+    included with their flags. References only, never the values.
+    """
+    Project.get_by_id(project_id)
+    links = ProjectSecret.query.filter_by(project_id=project_id).order_by(ProjectSecret.id)
+    return [ProjectSecretDTO.from_model(a).dump() for a in links], HTTPStatus.OK
+
+
+@bp.route('/<int:project_id>/secrets/<label>', methods=['GET'])
+@audit
+@auth(scope='can_admin_dataset')
+def get_project_secret(project_id: int, label: str):
+    """
+    GET /projects/<project_id>/secrets/<label> endpoint.
+    """
+    return ProjectSecretDTO.from_model(_secret_link(project_id, label)).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:project_id>/secrets/<label>', methods=['PUT'])
+@audit
+@auth(scope='can_admin_dataset')
+def put_project_secret(project_id: int, label: str):
+    """
+    PUT /projects/<project_id>/secrets/<label> endpoint. Links a global secret to the project,
+    201, and replaces the project's settings if it is linked already, 200.
+    Body: {"enabled": true}, optional.
+    """
+    project = Project.get_by_id(project_id)
+    body = request.json or {}
+    if not set(body) <= {"enabled"}:
+        raise InvalidRequest("Provide, optionally, enabled")
+    enabled = _enabled(body)
+    secret = Secret.query.filter_by(label=label).one_or_none()
+    if secret is None:
+        raise DBRecordNotFoundError(f"Secret {label} does not exist")
+
+    link = ProjectSecret.query.filter_by(project_id=project.id, secret_id=secret.id).one_or_none()
+    if link is None:
+        link = ProjectSecret(project.id, secret.id, enabled=enabled)
+        link.add()
+        return ProjectSecretDTO.from_model(link).dump(), HTTPStatus.CREATED
+
+    link.enabled = enabled
+    db.session.commit()
+    return ProjectSecretDTO.from_model(link).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:project_id>/secrets/<label>', methods=['PATCH'])
+@audit
+@auth(scope='can_admin_dataset')
+def patch_project_secret(project_id: int, label: str):
+    """
+    PATCH /projects/<project_id>/secrets/<label> endpoint. Turns the link on or off (enabled),
+    or revokes and re-grants it (revoked), which is admin only and takes effect at once.
+    """
+    link = _secret_link(project_id, label)
+    body = request.json or {}
+    fields = {"enabled", "revoked"}
+    if not body or not set(body) <= fields:
+        raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
+    for field in body:
+        if not isinstance(body[field], bool):
+            raise InvalidRequest(f"{field} must be a boolean")
+    if "revoked" in body and not g.caller_is_admin:
+        raise UnauthorizedError("Only an admin can revoke or re-grant a secret")
+
+    for field in body:
+        setattr(link, field, body[field])
+    db.session.commit()
+    return ProjectSecretDTO.from_model(link).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:project_id>/secrets/<label>', methods=['DELETE'])
+@audit
+@auth(scope='can_admin_dataset')
+def delete_project_secret(project_id: int, label: str):
+    """
+    DELETE /projects/<project_id>/secrets/<label> endpoint. Unlinks the secret, not the secret
+    itself: a soft delete that also revokes the link.
+    """
+    link = _secret_link(project_id, label)
+    link.soft_delete()
+    db.session.commit()
+    return '', HTTPStatus.NO_CONTENT
+
+
+def _results_link(project_id: int, repository_id: int) -> ProjectResultsRepository:
+    return _link(ProjectResultsRepository, project_id, repository_id, f"Results repository {repository_id}")
+
+
+def _check_results_loop(assignment: ProjectResultsRepository):
+    """Refuses the change, rolling it back, if the results would land where a trigger watches."""
+    try:
+        check_no_loop(assignment.results_repository.provider_id, assignment.results_repository.repo_path)
+    except InvalidRequest:
+        db.session.rollback()
+        raise
+
+
+@bp.route('/<int:project_id>/repositories/results', methods=['GET'])
+@audit
+@auth(scope='can_admin_dataset')
+def list_project_results_repositories(project_id: int):
+    """
+    GET /projects/<project_id>/repositories/results endpoint. The project's results repository
+    link, an inactive one included with its flags, so a project always lists exactly one.
+    """
+    Project.get_by_id(project_id)
+    links = ProjectResultsRepository.query.filter_by(project_id=project_id).order_by(ProjectResultsRepository.id)
+    return [ProjectResultsRepositoryDTO.from_model(a).dump() for a in links], HTTPStatus.OK
+
+
+@bp.route('/<int:project_id>/repositories/results/<int:repository_id>', methods=['GET'])
+@audit
+@auth(scope='can_admin_dataset')
+def get_project_results_repository(project_id: int, repository_id: int):
+    """
+    GET /projects/<project_id>/repositories/results/<repository_id> endpoint. The repository is the global one's id.
+    """
+    return ProjectResultsRepositoryDTO.from_model(_results_link(project_id, repository_id)).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:project_id>/repositories/results/<int:repository_id>', methods=['PUT'])
+@audit
+@auth(scope='can_admin_dataset')
+def put_project_results_repository(project_id: int, repository_id: int):
+    """
+    PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Links a global
+    results repository to the project, which has one, 201, and replaces the project's settings
+    if it is linked already, 200. Linking needs the project disabled. A change of target_dir
+    is caught by the configuration snapshot of the tasks created before, which then fail
+    instead of delivering there.
+    Body: {"target_dir": "results", "owned_by_federated_node": true, "enabled": true}, the last
+    two are optional.
+    """
+    project = Project.get_by_id(project_id)
+    body = request.json or {}
+    if not set(body) <= {"target_dir", "owned_by_federated_node", "enabled"} or not body.get("target_dir"):
+        raise InvalidRequest("Provide target_dir and, optionally, owned_by_federated_node and enabled")
+    for field in ("owned_by_federated_node", "enabled"):
+        if not isinstance(body.get(field, True), bool):
+            raise InvalidRequest(f"{field} must be a boolean")
+    target_dir = normalise_dir(body["target_dir"])
+    if not target_dir:
+        raise InvalidRequest("target_dir is required")
+
+    repo = ResultsRepository.get_by_id(repository_id)
+    link = ProjectResultsRepository.query.filter_by(project_id=project.id).first()
+    if link and link.results_repository_id != repo.id:
+        raise InvalidRequest(f"Project {project.id} already has a results repository", HTTPStatus.CONFLICT)
+    if link is None:
+        require_disabled(project)
+
+    created = link is None
+    if created:
+        link = ProjectResultsRepository(project.id, repo.id, target_dir)
+        link.add(commit=False)
+    link.target_dir = target_dir
+    link.owned_by_federated_node = body.get("owned_by_federated_node", True)
+    link.enabled = body.get("enabled", True)
+    db.session.flush()
+    _check_results_loop(link)
+    db.session.commit()
+    return ProjectResultsRepositoryDTO.from_model(link).dump(), HTTPStatus.CREATED if created else HTTPStatus.OK
+
+
+@bp.route('/<int:project_id>/repositories/results/<int:repository_id>', methods=['PATCH'])
+@audit
+@auth(scope='can_admin_dataset')
+def patch_project_results_repository(project_id: int, repository_id: int):
+    """
+    PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where
+    the project's results go (target_dir, owned_by_federated_node), at any time (the tasks created
+    before fail instead of delivering to the new place), or turns the link on or
+    off (enabled), or revokes and re-grants it
+    (revoked), which is admin only and takes effect at once.
+    """
+    link = _results_link(project_id, repository_id)
+    body = request.json or {}
+    fields = {"target_dir", "owned_by_federated_node", "enabled", "revoked"}
+    if not body or not set(body) <= fields:
+        raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
+    for field in body.keys() - {"target_dir"}:
+        if not isinstance(body[field], bool):
+            raise InvalidRequest(f"{field} must be a boolean")
+    if "revoked" in body and not g.caller_is_admin:
+        raise UnauthorizedError("Only an admin can revoke or re-grant a results repository")
+
+    if "target_dir" in body:
+        target_dir = normalise_dir(body["target_dir"] or "")
+        if not target_dir:
+            raise InvalidRequest("target_dir cannot be empty")
+        body["target_dir"] = target_dir
+    for field in body:
+        setattr(link, field, body[field])
+    db.session.flush()
+    _check_results_loop(link)
+    db.session.commit()
+    return ProjectResultsRepositoryDTO.from_model(link).dump(), HTTPStatus.OK
+
+
+@bp.route('/<int:project_id>/repositories/results/<int:repository_id>', methods=['DELETE'])
+@audit
+@auth(scope='can_admin_dataset')
+def delete_project_results_repository(project_id: int, repository_id: int):
+    """
+    DELETE /projects/<project_id>/repositories/results/<repository_id> endpoint. Unlinks the
+    repository, not the repository itself: a soft delete that also revokes the link. A task of the
+    project still in flight gets a REVOKED result.
+    """
+    link = _results_link(project_id, repository_id)
+    link.soft_delete()
+    db.session.commit()
+    return '', HTTPStatus.NO_CONTENT

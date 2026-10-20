@@ -2,9 +2,11 @@ import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
 from app.helpers.base_model import BaseModel, db
+from app.helpers.const import SPEC_RAW_MAX_BYTES
 from app.helpers.exceptions import InvalidRequest
+from app.helpers.state_rules import transition
 from app.models import sqla_column
-from app.models.trigger_state import TriggerState
+from app.models.trigger_state import TRIGGER_MOVES, TriggerState
 
 
 class Trigger(db.Model, BaseModel):
@@ -30,7 +32,7 @@ class Trigger(db.Model, BaseModel):
         default=TriggerState.UNKNOWN.value,
         server_default=TriggerState.UNKNOWN.value,
     )
-    # Why the trigger is IGNORED or REJECTED. Set for those two states only.
+    # Why the trigger is REJECTED. Set for that state only.
     state_cause = sa.Column(sa.String(1024), nullable=True)
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
@@ -40,8 +42,8 @@ class Trigger(db.Model, BaseModel):
 
     __table_args__ = (
         sa.CheckConstraint(
-            "(state IN ('IGNORED', 'REJECTED')) = (state_cause IS NOT NULL)",
-            name='ck_triggers_state_cause_for_ignored_rejected',
+            "(state = 'REJECTED') = (state_cause IS NOT NULL)",
+            name='ck_triggers_state_cause_for_rejected',
         ),
         sa.Index('ix_triggers_state', 'state'),
     )
@@ -58,18 +60,28 @@ class Trigger(db.Model, BaseModel):
     def task_id(self) -> int | None:
         return self.task.id if self.task else None
 
+    def set_spec_raw(self, spec_raw: str):
+        """
+        Keep the spec exactly as received, before it is parsed. Over the cap it is
+        refused and not kept.
+        """
+        if len(spec_raw.encode()) > SPEC_RAW_MAX_BYTES:
+            raise InvalidRequest(f"The task spec is over the {SPEC_RAW_MAX_BYTES} bytes limit")
+        self.spec_raw = spec_raw
+
     def set_state(self, state: str, state_cause: str | None):
         """
-        Set the state with its state_cause, which is required for IGNORED and REJECTED and
-        not allowed otherwise.
+        Set the state with its state_cause, which is required for REJECTED and
+        not allowed otherwise. A move not in TRIGGER_MOVES is a 409.
         """
         if state not in [s.value for s in TriggerState]:
             valid = ', '.join([s.value for s in TriggerState])
             raise InvalidRequest(f"Invalid state: {state}. Must be one of: {valid}")
-        needs_reason = state in (TriggerState.IGNORED.value, TriggerState.REJECTED.value)
+        needs_reason = state == TriggerState.REJECTED.value
         if needs_reason and not state_cause:
             raise InvalidRequest(f"state_cause is required when state is {state}")
         if not needs_reason and state_cause is not None:
             raise InvalidRequest(f"state_cause is not allowed when state is {state}")
+        transition(TRIGGER_MOVES, self.state, state)
         self.state = state
         self.state_cause = state_cause
