@@ -4,23 +4,26 @@ import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
 from app.backend import BackendAPI
-from app.config import BackendConfig
+from app.config import DEFAULT_SENSOR_STATUS, MIN_SENSOR_INTERVAL_SECONDS, BackendConfig
 from app.definitions.jobs import k8s_pipes_job
-from app.definitions.sensors.task.delivery import deliver_results_job, task_results_delivery_sensor
+from app.definitions.sensors.task.delivery import (
+    deliver_results_job,
+    results_delivery_retry_sensor,
+    task_results_delivery_sensor,
+)
 from app.definitions.sensors.task.launcher import TaskLauncherSensor
 from app.definitions.sensors.task.pull_request_sync import (
     results_pull_request_sync_sensor,
     sync_results_pull_requests_job,
 )
+from app.definitions.sensors.task.reconcile import task_reconcile_sensor
 from app.definitions.sensors.task.run_status import TaskRunStatusSensor
 from app.utils import BackendAdapter, BackendSession
-
-MIN_SENSOR_INTERVAL_SECONDS = 10
 
 
 @dg.sensor(
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
-    default_status=dg.DefaultSensorStatus.STOPPED,
+    default_status=DEFAULT_SENSOR_STATUS,
     required_resource_keys={"backend_api"},
     job_name="k8s_pipes_job",
 )
@@ -55,7 +58,7 @@ def _record_run_status(context: RunStatusSensorContext):
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.QUEUED,
-    default_status=dg.DefaultSensorStatus.STOPPED,
+    default_status=DEFAULT_SENSOR_STATUS,
     monitored_jobs=[k8s_pipes_job],
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )
@@ -66,7 +69,7 @@ def task_queued_sensor(context: RunStatusSensorContext):
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.STARTED,
-    default_status=dg.DefaultSensorStatus.STOPPED,
+    default_status=DEFAULT_SENSOR_STATUS,
     monitored_jobs=[k8s_pipes_job],
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )
@@ -77,7 +80,7 @@ def task_started_sensor(context: RunStatusSensorContext):
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.SUCCESS,
-    default_status=dg.DefaultSensorStatus.STOPPED,
+    default_status=DEFAULT_SENSOR_STATUS,
     monitored_jobs=[k8s_pipes_job],
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )
@@ -88,7 +91,7 @@ def task_success_sensor(context: RunStatusSensorContext):
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.FAILURE,
-    default_status=dg.DefaultSensorStatus.STOPPED,
+    default_status=DEFAULT_SENSOR_STATUS,
     monitored_jobs=[k8s_pipes_job],
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )
@@ -99,7 +102,7 @@ def task_failure_sensor(context: RunStatusSensorContext):
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.CANCELED,
-    default_status=dg.DefaultSensorStatus.STOPPED,
+    default_status=DEFAULT_SENSOR_STATUS,
     monitored_jobs=[k8s_pipes_job],
     minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
 )
@@ -115,7 +118,9 @@ SENSORS = [
     task_success_sensor,
     task_failure_sensor,
     task_canceled_sensor,
+    task_reconcile_sensor,
     task_results_delivery_sensor,
+    results_delivery_retry_sensor,
     results_pull_request_sync_sensor,
 ]
 

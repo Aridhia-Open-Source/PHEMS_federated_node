@@ -1,0 +1,70 @@
+suite: Backend and code server resources and probes
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-local.yaml
+set:
+  dagster:
+    enabled: true
+    postgresql:
+      postgresqlHost: db.default.svc
+  fnDagster:
+    createDB: true
+    gh:
+      delivery_repo: https://github.com/org/repo
+      resultsDir: mgmt/results
+tests:
+  - it: sets backend resources from values
+    template: backend-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 512Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 1000m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi
+
+  - it: lets backend resources be overridden
+    template: backend-deployment.yaml
+    set:
+      federatedNode:
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 2Gi
+
+  - it: sets code server resources from values
+    template: dagster-code-server.yaml
+    documentIndex: 3
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 250m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi
+
+  - it: gives the code server a gRPC health-check liveness probe on its port
+    template: dagster-code-server.yaml
+    documentIndex: 3
+    set:
+      fnDagster:
+        codeServer:
+          port: 4040
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command
+          value: ["dagster", "api", "grpc-health-check", "-p", "4040"]
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.initialDelaySeconds
+          value: 60

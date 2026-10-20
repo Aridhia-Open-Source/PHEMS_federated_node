@@ -1,105 +1,66 @@
-from datetime import datetime as dt
-from datetime import timezone as tz
-from typing import cast
-
+"""Trigger repository model, global: projects are assigned to it."""
 import sqlalchemy as sa
-from sqlalchemy.orm import relationship, validates
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.helpers.base_model import BaseModel, db
+from app.helpers.soft_delete import SoftDeleteMixin
 from app.models import Models, sqla_column
 from app.models.git_repository import GitRepositoryMixin
 
 
-def now_ts():
-    return dt.now(tz=tz.utc)
-
-
-class TriggerRepository(GitRepositoryMixin, db.Model, BaseModel):
+class TriggerRepository(SoftDeleteMixin, GitRepositoryMixin, db.Model, BaseModel):
     __tablename__ = 'trigger_repositories'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    watch_dir = sa.Column(sa.String(4096), nullable=False)
-    base_branch = sa.Column(sa.String(256), nullable=False, default='main')
-    initial_cursor = sa.Column(
-        sa.DateTime, nullable=False, server_default=func.now(), default=now_ts
-    )
+
+    # Turned on or off for the whole node, whatever the projects' links say
+    enabled = sa.Column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
+    # The controller withdrew the repository from the whole node: every project's use of it is blocked.
+    # Never touches enabled, so a re-grant restores the previous state.
+    revoked = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
 
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()
 
     __table_args__ = (
-        sa.UniqueConstraint('project_id', 'uri', name='uq_trigger_repositories_project_uri'),
-        sa.ForeignKeyConstraint(
-            ['project_id', 'secret_id'], ['secrets.project_id', 'secrets.id'],
-            ondelete='RESTRICT'
+        sa.Index(
+            'uq_trigger_repositories_provider_repo_path', 'provider_id', 'repo_path',
+            unique=True, postgresql_where=sa.text('deleted_at IS NULL')
         ),
     )
 
-    project = relationship("Project", back_populates="trigger_repositories")
+    project_assignments = relationship("ProjectTriggerRepository", back_populates="trigger_repository")
+    provider = relationship("GitProvider", back_populates="trigger_repositories")
     secret = relationship(
-        "Secret", back_populates="trigger_repositories", overlaps="trigger_repositories,project"
-    )
-    pull_request_triggers = relationship(
-        "PullRequestTrigger", back_populates="trigger_repository", cascade="all, delete"
+        "Secret", back_populates="trigger_repositories"
     )
 
-    @validates('initial_cursor')
-    def validate_initial_cursor(self, key, value):
-        """Convert ISO 8601 string to datetime if needed."""
-        if isinstance(value, str):
-            try:
-                value = dt.fromisoformat(value.rstrip('Z'))
-            except (ValueError, TypeError):
-                raise ValueError("initial_cursor must be a valid ISO 8601 datetime string")
-
-        if self.id is not None and self.pull_request_triggers:
-            raise ValueError(
-                "Cannot change initial_cursor while pull requests exist. "
-                "Delete all pull requests first if you want to adjust the cursor."
-            )
-
-        return value
-
-    @property
-    def dataset(self):
-        """
-        Which dataset a PR from this repository runs against by default
-        """
-        return self.project.default_dataset
-
-    def get_pull_request_cursor(self) -> str:
-        """
-        Get latest PR merge time from all ingested pull requests.
-        If no pull requests exist, use initial_cursor as the starting point.
-        """
-        pr_cursor = db.session.query(func.max(Models.PullRequestTrigger.merged_at))\
+    def get_pull_request_cursor(self) -> str | None:
+        """The latest merge among the stored pull requests, None when there are none."""
+        merged_at = db.session.query(func.max(Models.PullRequest.merged_at))\
             .filter_by(trigger_repository_id=self.id)\
             .scalar()
+        return merged_at.strftime("%Y-%m-%dT%H:%M:%SZ") if merged_at else None
 
-        initial_cursor = cast(dt, self.initial_cursor)
-
-        return (pr_cursor or initial_cursor).strftime("%Y-%m-%dT%H:%M:%SZ")
+    def get_ingest_cursor(self) -> str:
+        """
+        Where polling the provider resumes: the latest stored merge, or, with no pull request
+        stored yet, the repository's creation.
+        """
+        return self.get_pull_request_cursor() or self.created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def __init__(
         self,
-        uri: str,
-        provider: str,
-        api_uri: str,
+        provider_id: int,
+        repo_path: str,
         secret_id: int,
-        watch_dir: str,
-        project_id: int,
-        base_branch: str = 'main',
-        initial_cursor: dt | None = None,
+        enabled: bool = True,
     ):
-        self.uri = uri
-        self.provider = provider
-        self.api_uri = api_uri
+        self.provider_id = provider_id
+        self.repo_path = repo_path
         self.secret_id = secret_id
-        self.watch_dir = watch_dir
-        self.project_id = project_id
-        self.base_branch = base_branch
-        self.initial_cursor = initial_cursor
+        self.enabled = enabled
 
     def __repr__(self):
         return f'<TriggerRepository ({self.uri})>'

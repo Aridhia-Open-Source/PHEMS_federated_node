@@ -23,6 +23,11 @@ class ModelRegistry:
         return Dataset
 
     @cached_property
+    def ProjectDataset(self):
+        from app.models.project_dataset import ProjectDataset
+        return ProjectDataset
+
+    @cached_property
     def Dictionary(self):
         from app.models.extras.dictionary import Dictionary
         return Dictionary
@@ -36,6 +41,11 @@ class ModelRegistry:
     def PullRequestTrigger(self):
         from app.models.pull_request_trigger import PullRequestTrigger
         return PullRequestTrigger
+
+    @cached_property
+    def PullRequest(self):
+        from app.models.pull_request import PullRequest
+        return PullRequest
 
     @cached_property
     def PullRequestResult(self):
@@ -53,9 +63,19 @@ class ModelRegistry:
         return Task
 
     @cached_property
+    def TaskSpec(self):
+        from app.models.task_spec import TaskSpec
+        return TaskSpec
+
+    @cached_property
     def WhitelistedImage(self):
         from app.models.extras.whitelisted_image import WhitelistedImage
         return WhitelistedImage
+
+    @cached_property
+    def GitProvider(self):
+        from app.models.git_provider import GitProvider
+        return GitProvider
 
     @cached_property
     def TriggerRepository(self):
@@ -63,9 +83,19 @@ class ModelRegistry:
         return TriggerRepository
 
     @cached_property
+    def ProjectTriggerRepository(self):
+        from app.models.project_trigger_repository import ProjectTriggerRepository
+        return ProjectTriggerRepository
+
+    @cached_property
     def ResultsRepository(self):
         from app.models.results_repository import ResultsRepository
         return ResultsRepository
+
+    @cached_property
+    def ProjectResultsRepository(self):
+        from app.models.project_results_repository import ProjectResultsRepository
+        return ProjectResultsRepository
 
     @cached_property
     def ResultsBackend(self):
@@ -86,6 +116,11 @@ class ModelRegistry:
     def Result(self):
         from app.models.result import Result
         return Result
+
+    @cached_property
+    def ProjectSecret(self):
+        from app.models.project_secret import ProjectSecret
+        return ProjectSecret
 
     @cached_property
     def Secret(self):
@@ -125,18 +160,24 @@ _ = (
     Models.Audit,
     Models.Catalogue,
     Models.Dataset,
+    Models.ProjectDataset,
     Models.Dictionary,
     Models.Project,
+    Models.PullRequest,
     Models.PullRequestTrigger,
     Models.Registry,
     Models.Task,
     Models.WhitelistedImage,
+    Models.GitProvider,
     Models.TriggerRepository,
+    Models.ProjectTriggerRepository,
     Models.ResultsRepository,
+    Models.ProjectResultsRepository,
     Models.ResultsBackend,
     Models.ApiRequestTrigger,
     Models.Trigger,
     Models.Secret,
+    Models.ProjectSecret,
     Models.Result,
     Models.PullRequestResult,
 )

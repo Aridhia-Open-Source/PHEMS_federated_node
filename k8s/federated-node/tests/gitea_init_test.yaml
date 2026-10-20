@@ -1,0 +1,31 @@
+suite: gitea admin init job
+templates:
+  - templates/gitea-init-job.yaml
+values:
+  - values/values-local.yaml
+set:
+  gitea:
+    enabled: true
+    admin:
+      user: gitea_admin
+      email: admin@example.com
+      secret:
+        name: gitea-admin
+        key: password
+tests:
+  - it: uses the pinned gitea image, not latest
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: gitea/gitea:28.1.0
+  - it: skips an existing admin and fails the job on a real error
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "set -e"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "admin user list"
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "\\|\\| true"

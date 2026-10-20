@@ -1,11 +1,12 @@
+import dagster as dg
 import pytest
 from pydantic import ValidationError
 
 from app.config import (
     BackendConfig,
-    GithubConfig,
     PipesSecurityContextConfig,
-    SensorConfig,
+    ResultsDeliveryConfig,
+    SensorStatusConfig,
 )
 
 
@@ -17,6 +18,8 @@ def clean_env(monkeypatch):
         "GH_API_URI", "GH_DELIVERY_REPO", "GH_DELIVERY_BASE_BRANCH",
         "DAGSTER_PIPES_FS_GROUP", "DAGSTER_PIPES_RUN_AS_USER",
         "DAGSTER_PIPES_RUN_AS_GROUP", "DAGSTER_PIPES_SUPPLEMENTAL_GROUPS",
+        "DAGSTER_SENSORS_INITIAL_STATUS", "DAGSTER_SENSORS_MIN_INTERVAL_SECONDS",
+        "DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS", "DAGSTER_DELIVERY_MAX_ATTEMPTS", "RESULTS_MAX_ZIP_BYTES",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -44,17 +47,43 @@ class TestEnvConfig:
         with pytest.raises(ValidationError):
             BackendConfig()
 
-    def test_github_api_uri_has_a_default(self, monkeypatch):
-        monkeypatch.setenv("GH_TOKEN", "abc")
 
-        assert GithubConfig().base_uri == "https://api.github.com"
+class TestSensorStatusConfig:
+    def test_stopped_by_default(self):
+        assert SensorStatusConfig().initial_status == dg.DefaultSensorStatus.STOPPED
 
-    def test_sensor_config_requires_its_paths(self, monkeypatch):
-        monkeypatch.setenv("GH_TOKEN", "abc")
-        monkeypatch.setenv("GH_RESULTS_DIR", "results")
+    def test_running_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_SENSORS_INITIAL_STATUS", "RUNNING")
+
+        assert SensorStatusConfig().initial_status == dg.DefaultSensorStatus.RUNNING
+
+    def test_any_other_status_fails_loudly(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_SENSORS_INITIAL_STATUS", "PAUSED")
 
         with pytest.raises(ValidationError):
-            SensorConfig()
+            SensorStatusConfig()
+
+    def test_min_interval_is_30_seconds_by_default(self):
+        assert SensorStatusConfig().min_interval_seconds == 30
+
+    def test_min_interval_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_SENSORS_MIN_INTERVAL_SECONDS", "2")
+
+        assert SensorStatusConfig().min_interval_seconds == 2
+
+    def test_retry_interval_is_60_seconds_by_default(self):
+        assert SensorStatusConfig().retry_interval_seconds == 60
+
+    def test_delivery_max_attempts_is_5_by_default_and_from_the_environment(self, monkeypatch):
+        assert SensorStatusConfig().delivery_max_attempts == 5
+        monkeypatch.setenv("DAGSTER_DELIVERY_MAX_ATTEMPTS", "2")
+
+        assert SensorStatusConfig().delivery_max_attempts == 2
+
+    def test_retry_interval_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS", "5")
+
+        assert SensorStatusConfig().retry_interval_seconds == 5
 
 
 class TestPipesSecurityContext:
@@ -91,3 +120,16 @@ class TestPipesSecurityContext:
         monkeypatch.setenv("DAGSTER_PIPES_SUPPLEMENTAL_GROUPS", "")
 
         assert "supplementalGroups" not in PipesSecurityContextConfig().to_pod_security_context()
+
+
+class TestResultsDeliveryConfig:
+    def test_the_zip_cap_is_10_mib_by_default(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/artifacts")
+
+        assert ResultsDeliveryConfig().max_zip_bytes == 10 * 1024 * 1024
+
+    def test_the_zip_cap_comes_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/artifacts")
+        monkeypatch.setenv("RESULTS_MAX_ZIP_BYTES", "2048")
+
+        assert ResultsDeliveryConfig().max_zip_bytes == 2048

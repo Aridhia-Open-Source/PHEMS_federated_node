@@ -55,6 +55,8 @@ def post_requests():
         if body["dataset"] is None:
             raise DBRecordNotFoundError(f"Dataset {ds_id} not found")
 
+        if not isinstance(body.get("project_id"), int):
+            raise InvalidRequest("project_id is required")
         req_attributes = DAR.validate(body)
         req = DAR(**req_attributes)
         req.add()

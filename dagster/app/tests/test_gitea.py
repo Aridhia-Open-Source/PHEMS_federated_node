@@ -48,14 +48,14 @@ class TestNewMergedPulls:
             pr(3, "2026-03-01T00:00:00Z"),
         ]), response([])]
 
-        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-15T00:00:00Z")
+        result = api.get_new_merged_pulls("org/repo", "2026-01-15T00:00:00Z")
 
         assert [p["number"] for p in result] == [2, 3]
 
     def test_a_pr_merged_exactly_at_the_cursor_is_not_new(self, api, client):
         client.request.side_effect = [response([pr(1, "2026-01-01T00:00:00Z")]), response([])]
 
-        assert api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z") == []
+        assert api.get_new_merged_pulls("org/repo", "2026-01-01T00:00:00Z") == []
 
     def test_offsets_are_compared_as_instants(self, api, client):
         client.request.side_effect = [response([
@@ -63,7 +63,7 @@ class TestNewMergedPulls:
             pr(2, "2026-01-01T10:00:00-02:00"),  # 12:00Z, after it
         ]), response([])]
 
-        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T09:00:00Z")
+        result = api.get_new_merged_pulls("org/repo", "2026-01-01T09:00:00Z")
 
         assert [p["number"] for p in result] == [2]
 
@@ -73,38 +73,38 @@ class TestNewMergedPulls:
             response([]),
         ]
 
-        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+        result = api.get_new_merged_pulls("org/repo", "2026-01-01T00:00:00Z")
 
         assert [p["number"] for p in result] == [3]
 
     def test_an_empty_cursor_returns_every_merged_pr(self, api, client):
         client.request.side_effect = [response([pr(1, "2020-01-01T00:00:00Z")]), response([])]
 
-        assert len(api.get_new_merged_pulls("org/repo", "main", "")) == 1
+        assert len(api.get_new_merged_pulls("org/repo", "")) == 1
 
     def test_the_closed_prs_are_requested_with_limit(self, api, client):
         client.request.return_value = response([])
 
-        api.get_new_merged_pulls("org/repo", "dev", "2026-01-01T00:00:00Z")
+        api.get_new_merged_pulls("org/repo", "2026-01-01T00:00:00Z")
 
         assert client.request.call_args.args == ("GET", "repos/org/repo/pulls")
         assert client.request.call_args.kwargs["params"] == {"state": "closed", "limit": 50, "page": 1}
 
-    def test_prs_of_other_base_branches_are_dropped(self, api, client):
+    def test_prs_of_every_base_branch_are_returned(self, api, client):
         client.request.side_effect = [
             response([pr(1, "2026-02-01T00:00:00Z", base="dev"), pr(2, "2026-02-01T00:00:00Z")]),
             response([]),
         ]
 
-        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+        result = api.get_new_merged_pulls("org/repo", "2026-01-01T00:00:00Z")
 
-        assert [p["number"] for p in result] == [2]
+        assert [p["number"] for p in result] == [1, 2]
 
     def test_pages_are_fetched_until_an_empty_one(self, api, client):
         short = [pr(1, "2026-02-01T00:00:00Z")]
         client.request.side_effect = [response(short), response([pr(2, "2026-02-01T00:00:00Z")]), response([])]
 
-        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+        result = api.get_new_merged_pulls("org/repo", "2026-01-01T00:00:00Z")
 
         assert len(result) == 2
         assert client.request.call_count == 3

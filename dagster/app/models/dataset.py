@@ -8,7 +8,6 @@ class Dataset(BaseModel):
     Dataset data from backend API.
 
     - id: the dataset's id.
-    - project_id: the project the dataset belongs to.
     - secret: the secret holding the database credentials (USERNAME and PASSWORD).
     - name: the database name.
     - host: the database host.
@@ -17,6 +16,7 @@ class Dataset(BaseModel):
     - write_schema: the schema the task writes its results to, if set.
     - type: the database engine, e.g. postgres.
     - extra_connection_args: extra arguments for the connection string, if any.
+    - enabled: turned on or off for the whole node.
     - created_at: when the dataset was created.
     - updated_at: when the dataset was last updated.
     - slug: the dataset name as used in URLs.
@@ -25,7 +25,6 @@ class Dataset(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: int
-    project_id: int
     secret: Secret
     name: str
     host: str
@@ -34,10 +33,31 @@ class Dataset(BaseModel):
     write_schema: str | None = None
     type: str
     extra_connection_args: str | None = None
+    enabled: bool
     created_at: str | None = None
     updated_at: str | None = None
     slug: str
     url: str
+
+
+class ProjectDataset(BaseModel):
+    """
+    A project's link to a global dataset, from backend API. Addressed by the dataset's id,
+    dataset.id.
+
+    - project_id: the project the dataset is linked to.
+    - dataset: the global dataset.
+    - enabled: a person turned the dataset on for the project.
+    - revoked: the controller withdrew the project's access.
+    - active: the global dataset is enabled, and the link is enabled and not revoked, the only state a task may run in.
+    """
+    model_config = ConfigDict(extra="allow")
+
+    project_id: int
+    dataset: Dataset
+    enabled: bool
+    revoked: bool
+    active: bool
 
 
 class Catalogue(BaseModel):

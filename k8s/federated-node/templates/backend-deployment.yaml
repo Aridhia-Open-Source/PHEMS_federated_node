@@ -53,9 +53,7 @@ spec:
           imagePullPolicy: {{ .Values.pullPolicy }}
           {{- include "nonRootSC" . | nindent 10 }}
           resources:
-            limits:
-              memory: 200Mi
-              cpu: 100m
+            {{- toYaml .Values.federatedNode.resources | nindent 12 }}
           ports:
             - name: http
               containerPort: {{ .Values.federatedNode.port }}

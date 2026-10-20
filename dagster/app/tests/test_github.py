@@ -55,14 +55,14 @@ class TestPullRequests:
         assert api.get_pull_request("org/repo", 5) == {"number": 5}
         assert client.request.call_args.args == ("GET", "repos/org/repo/pulls/5")
 
-    def test_closed_prs_of_the_base_branch_are_listed_newest_update_first(self, api, client):
+    def test_closed_prs_of_any_base_branch_are_listed_newest_update_first(self, api, client):
         client.request.return_value = response([])
 
-        api.get_new_merged_pulls("org/repo", "dev", "2026-01-01T00:00:00Z")
+        api.get_new_merged_pulls("org/repo", "2026-01-01T00:00:00Z")
 
         assert client.request.call_args.args == ("GET", "repos/org/repo/pulls")
         assert client.request.call_args.kwargs["params"] == {
-            "state": "closed", "base": "dev", "sort": "updated", "direction": "desc",
+            "state": "closed", "sort": "updated", "direction": "desc",
             "per_page": 100, "page": 1,
         }
 
@@ -74,7 +74,7 @@ class TestPullRequests:
             merged_pr(1, "2026-01-01T00:00:00Z", updated_at="2026-04-01T00:00:00Z"),
         ])
 
-        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-15T00:00:00Z")
+        result = api.get_new_merged_pulls("org/repo", "2026-01-15T00:00:00Z")
 
         assert [p["number"] for p in result] == [3, 2]
 
@@ -83,7 +83,7 @@ class TestPullRequests:
             merged_pr(1, "2026-01-01T00:00:00Z", updated_at="2026-02-01T00:00:00Z"),
         ])
 
-        assert api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z") == []
+        assert api.get_new_merged_pulls("org/repo", "2026-01-01T00:00:00Z") == []
 
     def test_closed_but_unmerged_prs_are_dropped(self, api, client):
         client.request.return_value = response([
@@ -91,7 +91,7 @@ class TestPullRequests:
             merged_pr(1, "2026-02-01T00:00:00Z"),
         ])
 
-        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+        result = api.get_new_merged_pulls("org/repo", "2026-01-01T00:00:00Z")
 
         assert [p["number"] for p in result] == [1]
 
@@ -100,7 +100,7 @@ class TestPullRequests:
         full.append(merged_pr(99, "2025-12-01T00:00:00Z"))
         client.request.return_value = response(full)
 
-        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+        result = api.get_new_merged_pulls("org/repo", "2026-01-01T00:00:00Z")
 
         assert len(result) == 99
         assert client.request.call_count == 1
@@ -109,7 +109,7 @@ class TestPullRequests:
         full = [merged_pr(i, "2026-02-01T00:00:00Z") for i in range(100)]
         client.request.side_effect = [response(full), response([merged_pr(200, "2026-02-01T00:00:00Z")])]
 
-        result = api.get_new_merged_pulls("org/repo", "main", "2026-01-01T00:00:00Z")
+        result = api.get_new_merged_pulls("org/repo", "2026-01-01T00:00:00Z")
 
         assert len(result) == 101
         assert client.request.call_count == 2
