@@ -40,11 +40,8 @@ Architecture ([docs/architecture](architecture/)):
 - [revoke-and-enabled.md](architecture/revoke-and-enabled.md): the two flags, what each state does, soft delete, Secrets, known limits.
 - [sensors/README.md](architecture/sensors/README.md): one doc per Dagster sensor with a flow chart (the status mirrors are grouped), plus the shared sensor helpers.
 
-Requirements and as-built ([project](../project/)):
+Research ([project](../project/)):
 
-- [moonshot-requirements.md](../project/moonshot-requirements.md): the requirements; its status block at the top says what has changed since.
-- [moonshot-requirements-diff.md](../project/moonshot-requirements-diff.md): where the code differs from the requirements.
-- [moonshot-as-built.md](../project/moonshot-as-built.md): what is built; read the status block first.
 - [auth-mvp-plan.md](../project/auth-mvp-plan.md): research on user, admin and system tiers; not built.
 
 Testing and open items:

@@ -13,7 +13,7 @@ Needs: the dev project set up (`fncli setup-project`) with all sensors running, 
 
 - **Expected:** every step above, in that order; the states only move forward. The task is `SUCCESS` whether or not the results are delivered. Both verify commands exit 0.
 - **Rule:** the end-to-end flow in [docs/architecture/flows.md#end-to-end]; the result's step only moves forward ([Polymorphic Result, PullRequestResult, a forward-only step and a separate state]).
-- **Automated by:** Partly automated: the end-to-end success suite (`dagster/fncli/tests/e2e/test_happy_path.py`). The as-built notes in [project/moonshot-as-built.md] record it passing on the dev cluster, before the launch endpoint and the reconcile sensor landed; [TESTING.md](../TESTING.md#checks-that-have-never-run-on-a-cluster) lists it as not run since. Gitea only; it misses GitHub, the zip's contents and the results pull request's closing or deletion.
+- **Automated by:** Partly automated: the end-to-end success suite (`dagster/fncli/tests/e2e/test_happy_path.py`). It passed on the dev cluster before the launch endpoint and the reconcile sensor landed; [TESTING.md](../TESTING.md#checks-that-have-never-run-on-a-cluster) lists it as not run since. Gitea only; it misses GitHub, the zip's contents and the results pull request's closing or deletion.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -116,4 +116,3 @@ Out of scope for the beta; check only so the behaviour is recorded.
 [Run keys, retries and the results pull request sync]: ../decisions/0015-run-keys-retries-and-results-pr-sync.md
 [State transition tables for triggers, tasks and result steps; 409 on a refused move]: ../decisions/0005-state-transition-tables.md
 [Task status is written by the run-status sensors and the reconcile sensor]: ../decisions/0003-task-status-written-by-run-status-sensors.md
-[project/moonshot-as-built.md]: ../../project/moonshot-as-built.md
