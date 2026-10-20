@@ -18,7 +18,7 @@ The task launcher follows it, with one call per pending task: `POST /projects/<i
 
 - A rule changes in one place, with its tests next to the data it reads.
 - The launcher's tests mock the answer and check that it does what the outcome says.
-- The launcher makes one request per pending task, for the decision, the transition and the run inputs alike.
+- The launcher makes one request per pending task, for the decision, the transition and the run inputs alike, after one `GET /tasks` that lists the tasks of all enabled projects: the webserver filters by status and by the project's `enabled` flag, so a tick makes one list request instead of one per project.
 - Each tick costs the webserver the rule queries for every pending task. A task stays pending for a few ticks, so at the expected number of projects and tasks this is small.
 - The decision and the transition are one call, but state can still change before the run is created. This is the design: the pipeline is event-driven and reconciling, and every actor acts on a view of the state that may already be stale. What keeps it safe is that every write goes through the state tables, which refuse an invalid move; delivery checks again before publishing, so a run started just after a revoke publishes nothing; and a retry re-evaluates from the current state. At worst a task runs against a setup that has just changed and fails or is not delivered, or fails when it could have run. No lock is planned, because one would narrow the window without closing it.
 - A task failed by a rule stays failed until it is retried; there is no automatic re-evaluation.

@@ -16,8 +16,7 @@ Keep every unfinished task at the status of its Dagster run, whatever the run-st
 
 | Source | What |
 |---|---|
-| `GET /projects` | `enabled=true`, all pages of 100. |
-| `GET /projects/{id}/tasks` | One list per status `PENDING`, `QUEUED`, `RUNNING`, all pages of 100. The webserver filters; nothing is filtered in Python. |
+| `GET /tasks` | `status=PENDING,QUEUED,RUNNING&project_enabled=true`, all pages of 100: one list per tick for all enabled projects, by id. The webserver filters; nothing is filtered in Python. Each task carries its `project_id`, which the patch uses. |
 | The Dagster instance | The newest run of `k8s_pipes_job` tagged `trigger=task`, `task_id` and `attempt` of the task (the tags the [launcher](task-launcher.md) sets, with the run key `task/<task id>/<attempt>`), and its run record for the start and end time. |
 
 A task is matched to its run by task id and attempt, so the run of an earlier attempt is never used for a retried task.
@@ -26,8 +25,8 @@ A task is matched to its run by task id and attempt, so the run of an earlier at
 
 ```mermaid
 flowchart TD
-    A([Tick]) --> B["GET /projects?enabled=true"]
-    B --> C["For each project: GET its PENDING, QUEUED and RUNNING tasks"]
+    A([Tick]) --> B["GET /tasks of enabled projects, status PENDING, QUEUED, RUNNING"]
+    B --> C["Tasks of all enabled projects"]
     C --> D{"Next task?"}
     D -->|"none left"| Z(["Skip reason: tasks patched"])
     D -->|yes| E["Find the run by trigger, task_id and attempt"]

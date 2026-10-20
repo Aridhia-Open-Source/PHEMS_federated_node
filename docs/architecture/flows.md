@@ -84,7 +84,7 @@ sequenceDiagram
     DG->>BE: list each enabled project's links, then the UNKNOWN pull requests of each
     DG->>Git: spec file named by the trigger's spec_files, at the merge commit
     DG->>BE: POST pull request task (YIELDED) or PATCH REJECTED
-    DG->>BE: list PENDING tasks of enabled projects
+    DG->>BE: GET /tasks, the PENDING tasks of enabled projects
     DG->>BE: get the project's dataset assignment, must be active
     DG->>K8s: k8s_pipes_job starts the task pod
     DG->>BE: PATCH task QUEUED, RUNNING, SUCCESS

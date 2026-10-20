@@ -16,18 +16,17 @@ Launches a run of `k8s_pipes_job` for each PENDING task of an enabled project, w
 
 | Call | Filter or note |
 |---|---|
-| `GET /projects` | `enabled=true`, all pages of 100. A revoked project is still listed. |
-| `GET /projects/{id}/tasks` | `status=PENDING`, all pages of 100. |
+| `GET /tasks` | `status=PENDING&project_enabled=true`, all pages of 100: the PENDING tasks of all enabled projects, by id, one list per tick whatever the number of projects. A revoked project is still enabled, so its tasks are listed. Each task carries its `project_id`, which the launch call uses. |
 | `POST /projects/{id}/tasks/{task}/launch` | One per task. The decision: `outcome` (`launch` or `fail`) and `cause`. On `fail` the webserver has moved the task to `FAILED` itself. On `launch` it writes nothing and returns the task (spec included) and its dataset with the secret reference, which the run config is built from. A task no longer `PENDING` is a 409: skipped. |
 
-It considers enabled projects and their PENDING tasks. Through the webserver's decision it covers everything a task uses: the project, the TriggerRepository (the link, the GlobalResource, its GitProvider), the Dataset (the ProjectDataset and the GlobalResource) and the ResultsRepository (the same three levels). It does not call the git provider.
+It considers the PENDING tasks of enabled projects; the webserver filters them. Through the webserver's decision it covers everything a task uses: the project, the TriggerRepository (the link, the GlobalResource, its GitProvider), the Dataset (the ProjectDataset and the GlobalResource) and the ResultsRepository (the same three levels). It does not call the git provider.
 
 ## 4. Flow chart
 
 ```mermaid
 flowchart TD
-    A([Tick]) --> B["GET /projects?enabled=true"]
-    B --> C["For each project: GET PENDING tasks"]
+    A([Tick]) --> B["GET /tasks?status=PENDING&project_enabled=true"]
+    B --> C["Tasks of all enabled projects"]
     C --> D{"Next task?"}
     D -->|"none left"| Z{"Anything launched?"}
     D -->|yes| E["POST the task's launch"]
