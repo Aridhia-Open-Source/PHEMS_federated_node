@@ -10,20 +10,20 @@ Needs: the dev project, an administrator login, and the second project (`fncli s
 2. `DELETE /projects/<QaTwo pid>/repositories/triggers/<id>`.
 3. `fncli second-project-teardown QaTwo` when finished.
 
-- **Expected today:** this returns a raw foreign-key 400 rather than a 409. Record the status and the body. A link cannot be removed for real while triggers exist, so the link should stay.
-- **Rule:** a link cannot be removed for real while triggers exist (`RESTRICT`) ([Pull requests stored once per repository, fanned out to project links, with cursors]).
-- **Automated by:** Manual only. No test asserts the status for this case.
+- **Expected today:** 204. The unlink is a soft delete that also revokes the link, so the `RESTRICT` keys of the triggers never fire. The link is gone from the API (`GET` is 404), and its triggers and pull requests are kept. Record the status; a 400 or 409 is a fail.
+- **Rule:** a link is only ever soft deleted ([Enabled, revoked and soft delete]); `RESTRICT` stops a real row delete while triggers exist, and no route makes one ([Pull requests stored once per repository, fanned out to project links, with cursors]).
+- **Automated by:** `webserver/tests/test_trigger_repositories_and_links.py` (`test_unlinking_a_trigger_link_with_pull_requests_keeps_its_triggers`). This case can move out of the known issues.
 - [ ] Pass (matches the expected result above)
 - [ ] Fail (differs; note what you saw)
 
-## `PATCH /global/secrets/<label>` has no admin-only check and uses local time
+## `PATCH /global/secrets/<label>` sets `updated_at` from local time
 
-1. With a non-admin token (skip if there is none): `PATCH /global/secrets/<scratch label>` with a changed `description`.
+1. `PATCH /global/secrets/<scratch label>` with a changed `description`, as an administrator.
 2. Compare the Secret's `updated_at` with `date -u`.
 
-- **Expected today:** the route has no admin-only check and sets `updated_at` from local time. Record whether the PATCH is accepted and the time offset.
+- **Expected today:** `updated_at` is set from local time, not UTC. Record the time offset. The route is admin-only (`can_do_admin`), so a non-admin token gets a 403.
 - **Rule:** global writes need the admin scope ([Global resources, linked to projects]).
-- **Automated by:** Partly automated: `webserver/tests/test_global_resources.py` (`test_a_non_admin_is_refused_on_the_write_routes_of_the_global_resources`); check whether it covers the Secret `PATCH`. It may not cover the Secret `PATCH` or the time zone.
+- **Automated by:** `webserver/tests/test_global_resources.py` (`test_a_non_admin_is_refused_on_the_write_routes_of_the_global_resources`) covers the 403 for the Secret `PATCH`; `test_system_user_routes.py` covers the System user. Nothing covers the time zone.
 - [ ] Pass (matches the expected result above)
 - [ ] Fail (differs; note what you saw)
 

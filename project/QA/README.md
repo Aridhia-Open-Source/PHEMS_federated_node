@@ -50,7 +50,7 @@ fncli project-show | jq -c '{prs: .trigger_links[0].pr_count, stored: .trigger_l
 
 `prs` are the pull requests that have a trigger in the project; `stored` is how many the repository has stored, with or without a trigger for this project.
 
-**Keep the project small.** `fncli project-show` lists at most 100 pull requests (the newest) and 100 tasks (the oldest, by id), so `tasks` in both commands, and the lists in the state command, stop growing at 100 and every "up by one" check is then silently wrong. `prs` and `stored` are totals and stay right. Before the project nears 90 tasks, recreate it: `fncli teardown-project -y`, then `fncli setup-project` (test project only), and start `fncli start-sensor --sensor all` again if the sensors stopped.
+**Keep the project small.** `fncli project-show` lists at most 100 pull requests (the newest) and 100 tasks (the oldest, by id), so `tasks` in both commands, and the lists in the state command, stop growing at 100 and every "up by one" check is then silently wrong. `prs` and `stored` are totals and stay right. Before the project nears 90 tasks, recreate it: `fncli teardown-project -y`, then `fncli setup-project` (test project only), and start `fncli start-sensor --group all` again if the sensors stopped.
 
 **State.** The states a case watches:
 
@@ -66,17 +66,17 @@ Add `--project QaTwo` to look at the second project.
 
 **Make a change while a task is still PENDING.** Used by [task pinning](task-pinning.md) and [enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md).
 
-1. `fncli stop-sensor --sensor launcher`.
+1. `fncli stop-sensor --group launcher`.
 2. Merge a watched pull request. Repeat the state command until the task exists and is `PENDING` (ingest and evaluate are still running).
 3. Make the change the case asks for.
-4. `fncli start-sensor --sensor launcher` and watch the task.
+4. `fncli start-sensor --group launcher` and watch the task.
 
 This is sound because the launcher reads the pending tasks again every tick and the webserver decides at launch.
 
 **Make a change while a task is RUNNING or before delivery.** Used by the same two sections.
 
 - Preferred: poll the state command and make the change as soon as the task is `RUNNING`. The checks that decide a result run when the result is created, after the task has succeeded, so a change made while the task runs has the same effect as one made after `SUCCESS` and before delivery.
-- If the run is too short: `fncli stop-sensor --sensor delivery` before merging, make the change after the task is `SUCCESS`, then `fncli start-sensor --sensor delivery`. Caution: the sensor that launches the first delivery sees runs that finish after it starts, and the retry sensor only handles results that already exist as `FAILED`. A task that succeeded while the delivery sensors were stopped may never get a result. If no result appears after you start them, record it as a finding (see the delivery case in [sensors, restarts and catch-up](sensors-restarts-and-catch-up.md)).
+- If the run is too short: `fncli stop-sensor --group delivery` before merging, make the change after the task is `SUCCESS`, then `fncli start-sensor --group delivery`. Caution: the sensor that launches the first delivery sees runs that finish after it starts, and the retry sensor only handles results that already exist as `FAILED`. A task that succeeded while the delivery sensors were stopped may never get a result. If no result appears after you start them, record it as a finding (see the delivery case in [sensors, restarts and catch-up](sensors-restarts-and-catch-up.md)).
 
 ## How to record a result
 

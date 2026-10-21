@@ -2779,7 +2779,7 @@
           "Secrets"
         ],
         "summary": "Set keys on a secret",
-        "description": "Writes the given keys to the stored secret, e.g. to rotate a token. Every repository or dataset that references the secret, in any project, picks the new values up. Keys not in the request are left as they are. Requires the can_admin_dataset scope.",
+        "description": "Writes the given keys to the stored secret, e.g. to rotate a token. Every repository or dataset that references the secret, in any project, picks the new values up. Keys not in the request are left as they are. Admin only (can_do_admin scope).",
         "parameters": [
           {
             "in": "path",

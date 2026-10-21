@@ -54,10 +54,10 @@ Needs: the dev project with all sensors running, and a way to create a branch, a
 
 ## Editing the spec file after the merge changes nothing
 
-1. `fncli stop-sensor --sensor evaluate`.
+1. `fncli stop-sensor --group evaluate`.
 2. `fncli open-pr --kind watched --merge`, and wait until the pull request is stored (`stored_pr_count` up by one, its trigger `UNKNOWN`).
 3. In Gitea edit the spec file on the default branch (change the image to another value).
-4. `fncli start-sensor --sensor evaluate`. When the task exists, `GET /projects/<pid>/tasks/<id>`.
+4. `fncli start-sensor --group evaluate`. When the task exists, `GET /projects/<pid>/tasks/<id>`.
 
 - **Expected:** the task's spec is the one at the merge commit, not the edited one.
 - **Rule:** the spec is read at the merge commit; editing the file after the merge changes nothing ([TaskSpec, and a Task derived from spec and trigger]).
@@ -83,9 +83,9 @@ Needs: the dev project with all sensors running, and a way to create a branch, a
 
 This is a probe listed in the end-to-end README, not a pass or fail there.
 
-1. `fncli stop-sensor --sensor ingest`. Note the stored count.
+1. `fncli stop-sensor --group ingest`. Note the stored count.
 2. Merge 101 pull requests. Use `--kind unwatched` to avoid running 101 tasks (the batching is the same). With `--kind watched` the task count in `fncli project-show` stops at 100 and only `stored` stays reliable; recreate the project afterwards.
-3. `fncli start-sensor --sensor ingest`. Wait.
+3. `fncli start-sensor --group ingest`. Wait.
 
 - **Expected:** the stored count goes up by 101 (the run posts batches of at most 100, oldest first). No pull request is skipped or stored twice.
 - **Rule:** ingest posts in batches of 100 and the cursor moves only when a batch is stored ([The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]).
