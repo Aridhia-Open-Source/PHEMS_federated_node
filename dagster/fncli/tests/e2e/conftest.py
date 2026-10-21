@@ -1,9 +1,10 @@
 """
 Fixtures and helpers for the end-to-end tests. Run against a live dev cluster with `.dev.env` present:
 
-    pytest dagster --e2e -v            # all of them
-    pytest dagster --e2e success -v    # the happy path only
-    pytest dagster --e2e failure -v    # the failure paths only
+    pytest dagster --e2e -v               # all of them: the happy path, the failure paths, the long failure paths
+    pytest dagster --e2e success -v       # the happy path only
+    pytest dagster --e2e failure -v       # the quick failure paths only
+    pytest dagster --e2e failure_long -v  # the long-running failure paths only
 
 The project is cleared at the start of each run and left in place afterwards for inspection; E2E_TEARDOWN=1 also tears it
 down at the end. Nothing here runs at import time, so a normal test run
@@ -22,6 +23,13 @@ from dotenv import find_dotenv, load_dotenv
 from fncli.cli import cli
 from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
 from fncli.cmds.common import DagsterConfig, GiteaConfig, ProjectConfig, build_backend_api
+from fncli.cmds.pr import (
+    commit_gitea_file_command,
+    create_gitea_branch_command,
+    create_gitea_pr_command,
+    merge_gitea_pr_command,
+    new_branch_name,
+)
 from fncli.cmds.state import snapshot
 from fncli.k8s import (
     ENV_CONFIGMAP,
@@ -248,3 +256,123 @@ class Fncli:
 @pytest.fixture(scope="module")
 def fncli():
     return Fncli()
+
+
+# --- Shared by the failure-path suites (test_failure_paths.py and test_failure_paths_long.py) ---------------
+
+QUIET_TICKS = 5
+TASK_TIMEOUT = int(os.environ.get("E2E_TASK_TIMEOUT", 600))  # a task that fails to start can sit in a pull back-off
+STEP_TIMEOUT = 300
+# A task that has not finished, and a result that is still being delivered, are work in flight
+UNFINISHED_TASK = ["PENDING", "QUEUED", "RUNNING"]
+SECOND_PROJECT = "QaTwo"
+# Every step a result can end at: a revoked result stays at REVOKED and is never delivered
+SETTLED_STEPS = ["OPENED", "MERGED", "CLOSED", "REVOKED", "STALE"]
+# The steps of a result that has been delivered
+DELIVERED_STEPS = ["OPENED", "MERGED"]
+
+
+def create_branch(fncli, flow, key):
+    flow[f"{key}_branch"] = new_branch_name()
+    fncli.call(create_gitea_branch_command, branch=flow[f"{key}_branch"])
+
+
+def commit_file(fncli, flow, key, kind):
+    fncli.call(commit_gitea_file_command, branch=flow[f"{key}_branch"], kind=kind)
+
+
+def create_pr(fncli, flow, key, kind):
+    flow[f"{key}_pr"] = fncli.call(create_gitea_pr_command, branch=flow[f"{key}_branch"], kind=kind)["number"]
+
+
+def merge_pr(fncli, flow, key):
+    fncli.call(merge_gitea_pr_command, number=flow[f"{key}_pr"], watch=False, timeout=0)
+
+
+def pr_of(snapshot, flow, key):
+    return next((pr for pr in pull_requests(snapshot) if pr["number"] == flow[f"{key}_pr"]), None)
+
+
+def trigger_link(snapshot):
+    return snapshot["trigger_links"][0]
+
+
+def tasks_finished(snapshot):
+    return all(task["status"] not in UNFINISHED_TASK for task in snapshot["tasks"])
+
+
+def drained(snapshot):
+    return tasks_finished(snapshot) and all(r["step"] in SETTLED_STEPS for r in snapshot["results"])
+
+
+def record_counts(fncli, flow, key):
+    flow[key] = counts(fncli.snapshot())
+    logger.info(f"{key}: (PRs, tasks) = {flow[key]}")
+
+
+def grew_by_one(flow, key):
+    prs, tasks = flow[key]
+    return lambda snapshot: counts(snapshot) == (prs + 1, tasks + 1)
+
+
+def merge_watched_pr(fncli, flow, key):
+    create_branch(fncli, flow, key)
+    commit_file(fncli, flow, key, "watched")
+    create_pr(fncli, flow, key, "watched")
+    merge_pr(fncli, flow, key)
+
+
+def assert_no_new_task(fncli, flow, key, what):
+    """After a few sensor ticks the project still has the tasks it had when the counts were taken."""
+    quiet_wait(QUIET_TICKS)
+    snapshot = fncli.snapshot()
+    assert len(snapshot["tasks"]) == flow[key][1], f"{what}: a task was created\n{json.dumps(summary(snapshot), indent=2)}"
+
+
+def record_stored(fncli, flow, key):
+    """Records the counts and, for the link that gets no trigger, how many pull requests the repository has stored."""
+    record_counts(fncli, flow, key)
+    flow[f"{key}_stored"] = stored_count(fncli.snapshot())
+
+
+def stored_without_a_trigger(flow, key):
+    """The pull request is stored (+1, read from the repository: the link gets no trigger for it) and has no task."""
+    return lambda snapshot: stored_count(snapshot) == flow[f"{key}_stored"] + 1 and counts(snapshot) == flow[key]
+
+
+def results_of(snapshot, task_id):
+    return [r for r in snapshot["results"] if r["task_id"] == task_id]
+
+
+def task_has_status(flow, key, status):
+    """The task of the group once it has the status. Failing at once if it FAILED when something else was waited for."""
+
+    def check(snapshot):
+        task = next((t for t in snapshot["tasks"] if t["id"] == flow[key]), None)
+        if task and task["status"] == "FAILED" and status != "FAILED":
+            pytest.fail(f"task {flow[key]} FAILED while waiting for {status}: {task}")
+        return task if task and task["status"] == status else None
+
+    return check
+
+
+def result_with(flow, key, step, state=None):
+    """The task's result once it is at the step (and in the state, when given)."""
+    return lambda snapshot: next(
+        (r for r in results_of(snapshot, flow[key]) if r["step"] == step and (state is None or r["state"] == state)), None
+    )
+
+
+def yielded_with_task(flow, key):
+    def check(snapshot):
+        pr = pr_of(snapshot, flow, key)
+        return pr if pr and pr["state"] == "YIELDED" and pr["task_id"] else None
+
+    return check
+
+
+def merge_pr_with_task(fncli, flow, key):
+    """A watched PR merged, its task created: the task id goes to flow[f"{key}_task"]."""
+    merge_watched_pr(fncli, flow, key)
+    pr = fncli.wait_for_state(f"PR #{flow[f'{key}_pr']} YIELDED with a task_id", STEP_TIMEOUT, yielded_with_task(flow, key))
+    flow[f"{key}_task"] = pr["task_id"]
