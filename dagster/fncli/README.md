@@ -77,9 +77,10 @@ Run commands from anywhere inside the repo: `.dev.env` is found by searching up 
 
 ```bash
 fncli setup-project                 # build a whole dev project
-fncli start-sensor --sensor all     # ingest -> evaluate -> launcher, plus the run-status sensors (fncli sensor-status to watch)
+fncli start-sensor --group all     # ingest -> evaluate -> launcher, plus the run-status sensors (fncli sensor-status to watch)
 fncli open-pr [--kind watched|unwatched|invalid] [--merge]
 fncli teardown-project -y           # delete it all again, last
+fncli demo [-y] [--from N]          # the same, one confirmed step at a time (see Demo)
 
 fncli setup-backend                 # or the two halves separately:
 fncli setup-gitea [--project NAME]
@@ -173,14 +174,14 @@ whose spec has an unknown field, so the PR is rejected.
 
 | Command | What it does |
 |---|---|
-| `start-sensor [--sensor]` | Starts Dagster sensors; `--sensor` is `ingest` (default, `git_pull_request_ingest_sensor`), `evaluate` (`git_pull_request_evaluate_sensor`), `launcher` (`task_launcher_sensor`), `status` (the five run-status sensors), `delivery` (`task_results_delivery_sensor`, `results_pull_request_sync_sensor`, `results_delivery_retry_sensor`) or `all` |
-| `stop-sensor [--sensor]` | Stops them; `all` stops the launcher first |
+| `start-sensor (--group G \| --name N)` | Starts Dagster sensors. Give one of the two. `--group` is `ingest` (`git_pull_request_ingest_sensor`), `evaluate` (`git_pull_request_evaluate_sensor`), `launcher` (`task_launcher_sensor`), `status` (the five run-status sensors and `task_reconcile_sensor`), `delivery` (`task_results_delivery_sensor`, `results_pull_request_sync_sensor`, `results_delivery_retry_sensor`) or `all` (the twelve). `--name` is one sensor by its Dagster name, e.g. `task_reconcile_sensor` |
+| `stop-sensor (--group G \| --name N)` | Stops them, the same choices; a group stops in reverse order, so `all` stops the launcher first |
 | `sensor-status` | Prints every sensor's status and last 3 ticks (status, skip reason or error) |
 
 Everything is STOPPED in Dagster by default. The whole path from a merged PR is: `ingest` polls the repository once and stores the PR, which the backend fans out to every project assigned to the repository (a trigger per assignment, UNKNOWN), `evaluate` turns each into a task (YIELDED, or REJECTED with a cause), `launcher`
 starts a Dagster run for each PENDING task, and the run-status sensors copy the run's status onto the
 task. The reconcile sensor sets every unfinished task to the current status of its run on each tick,
-so the start order of the sensors does not matter. `start-sensor --sensor all` starts them all.
+so the start order of the sensors does not matter. `start-sensor --group all` starts them all.
 
 `hello-world` prints a greeting, to check the CLI is installed.
 
@@ -213,6 +214,19 @@ check the 409 rules. `KIND` is `trigger`, `results`, `dataset` or `secret`; `--p
 | `second-project-setup NAME` | Creates a second project linked to the same global resources (secrets, dataset, trigger and results repositories), enabled |
 | `second-project-teardown NAME` | Deletes that project. The global resources stay |
 
+## Demo
+
+`fncli demo` walks through setting up everything needed to watch a Gitea repo, then proves it works: the two Gitea repos, the secrets, the project and its links, a merged pull request and its results. Before each step it says what the step creates, shows the equivalent fncli command and asks: Enter runs it, `s` skips it, `q` quits. Steps are separated by a line of dashes. After each step it lists the webserver calls it made (`METHOD /path -> status`, repeats counted) and shows what the step made: links to open in the browser (`Open:` lines) and the backend objects as JSON. A step that changes the project waits for the change to show in the project's state, polling every second, and prints it when it changes. A last, optional step tears the demo down (it asks again, default No).
+
+```bash
+cp .demo.env.example .demo.env   # once, in the repo root
+fncli demo                       # step by step
+fncli demo -y                    # every step without asking (no teardown)
+fncli demo --from 8              # start at step 8, e.g. after a step failed
+```
+
+It needs the dev cluster with Tilt running and the Dagster sensors already running. The secrets, git provider, repository records and dataset are global (they belong to no project) and only the links to them belong to the project, while the Gitea repos live only in Gitea; each step says which it touches. The demo's own project, repos and dataset names are in `.demo.env`, which overrides `.dev.env`, so it never touches the e2e project; the steps are idempotent, so it can be rerun.
+
 ## UC1 seed
 
 `make uc1-seed` (`dev.db/uc1_make_seed.sh`) loads the UC1 OMOP data into the dataset database, then runs `fncli setup-project` with the `DATASET_*` values from `dev.db/.env` and `DEFAULT_PROJECT_DATASET` set to the database name. It needs `fncli` on PATH and `.dev.env` at the repo root. It only touches the project `TEST_PROJECT_NAME` names, so it is safe to re-run and never deletes other datasets or repositories. To remove what it registered, use `fncli teardown-project`.
@@ -222,7 +236,10 @@ check the 409 rules. `KIND` is `trigger`, `results`, `dataset` or `secret`; `--p
 ```bash
 pipx list                          # see what pipx has installed
 pipx reinstall phems                # after changing dependencies in pyproject.toml
+pipx install --force --editable './dagster[cli]'   # from the repo root: a new command is missing, or "No module named 'fncli'"
 ```
+
+The editable install points at the checkout it was run from. If you installed it from a worktree that was since removed (or you switch to another checkout), `fncli` fails with `No module named 'fncli'` or lacks the newer commands: run the last command again from the checkout you want.
 
 fncli's dependencies are the `cli` extra in `dagster/pyproject.toml`; its Dagster code is
 `dagster/app`, shared with the code location.

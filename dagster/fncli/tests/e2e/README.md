@@ -34,7 +34,7 @@ dagster/.venv/bin/python -m pytest dagster --e2e success -v -x -p no:cacheprovid
 dagster/.venv/bin/python -m pytest dagster --e2e failure -v -x -p no:cacheprovider
 ```
 
-All sensors must already be running before a run (`fncli start-sensor --sensor all`); the suites do not start them. `--e2e` alone runs both in that order. The project is cleared at the start of each run and left in place afterwards for inspection; `E2E_TEARDOWN=1` tears it down at the end. `E2E_FAST_SENSORS=1` sets the sensor interval to 1 s for the run (it patches the Dagster config and restarts the code server, which stops the sensors, so start them again with `fncli start-sensor --sensor all` before the run). `E2E_TASK_TIMEOUT` (default 600 s) bounds a task that has to start. Wrap a run in `timeout 3600` if `pytest-timeout` is not installed.
+All sensors must already be running before a run (`fncli start-sensor --group all`); the suites do not start them. `--e2e` alone runs both in that order. The project is cleared at the start of each run and left in place afterwards for inspection; `E2E_TEARDOWN=1` tears it down at the end. `E2E_FAST_SENSORS=1` sets the sensor interval to 1 s for the run (it patches the Dagster config and restarts the code server, which stops the sensors, so start them again with `fncli start-sensor --group all` before the run). `E2E_TASK_TIMEOUT` (default 600 s) bounds a task that has to start. Wrap a run in `timeout 3600` if `pytest-timeout` is not installed.
 
 The `failing task` scenario needs the run image to honour `PYPIPES_EXIT_CODE`, which the rebuilt `pypipes-fn` does.
 

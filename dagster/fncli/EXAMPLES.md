@@ -26,11 +26,13 @@ fncli logs in first with `POST /login` on the backend, then makes its backend ca
 
 ### Quick happy-path check
 
+To walk through the same flow one confirmed step at a time, run `fncli demo` (see Demo in [README.md](README.md)).
+
 A PR in the Gitea trigger repo, through a task, to a merged results PR in the Gitea results repo:
 
 ```bash
 fncli setup-project && fncli verify-project
-fncli start-sensor --sensor all
+fncli start-sensor --group all
 fncli open-pr --kind watched --merge --watch --timeout 300
 
 # Every minute or so:
@@ -71,12 +73,12 @@ Optional, to set up one side only:
 
 ### 2. Start the sensors
 
-- `fncli start-sensor --sensor all`
+- `fncli start-sensor --group all`
   - Dagster: starts the run-status sensors, the reconcile sensor, the results delivery sensor and the results PR sync sensor.
   - Dagster: starts the other sensors (ingest, evaluate, launcher). The order does not matter.
   - Dagster: does nothing for a sensor that is already running.
 
-Optional: `--sensor ingest|evaluate|launcher|status|delivery` starts just one (`status` is the run-status sensors, `delivery` is `task_results_delivery_sensor`, `results_delivery_retry_sensor` and `results_pull_request_sync_sensor`, which records the results PR of a pushed result and keeps each results PR's state (OPENED, MERGED, CLOSED) up to date).
+Optional: `--group ingest|evaluate|launcher|status|delivery` starts just one group, or `--name <sensor>` just one sensor (`status` is the run-status sensors and `task_reconcile_sensor`, `delivery` is `task_results_delivery_sensor`, `results_delivery_retry_sensor` and `results_pull_request_sync_sensor`, which records the results PR of a pushed result and keeps each results PR's state (OPENED, MERGED, CLOSED) up to date).
 
 ### 3. Open pull requests in the trigger repo
 
