@@ -35,7 +35,7 @@ rules are in revoke-and-enabled.md, "May a waiting task launch?" and "May a fini
 The "nothing happens" checks wait a few sensor ticks (5 ticks of the cluster's sensor interval; E2E_FAST_SENSORS=1 sets it to 1 s for the run). The project is cleared at the start of the run, and kept
 afterwards unless E2E_TEARDOWN=1.
 
-All sensors must already be running before the run (`fncli start-sensor --sensor all`); the run does not start them.
+All sensors must already be running before the run (`fncli start-sensor --group all`); the run does not start them.
 """
 
 import pytest

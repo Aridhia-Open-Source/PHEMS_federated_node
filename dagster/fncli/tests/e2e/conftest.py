@@ -145,7 +145,7 @@ def fast_sensors(request):
     even when a test failed. Otherwise the cluster's interval and code server are left alone.
 
     The code server restarts both times, which stops the sensors. With E2E_FAST_SENSORS=1 start them again before the run
-    (`fncli start-sensor --sensor all`); the restore leaves them stopped, as a fresh install does.
+    (`fncli start-sensor --group all`); the restore leaves them stopped, as a fresh install does.
     """
     if os.environ.get("E2E_FAST_SENSORS") != "1":
         yield

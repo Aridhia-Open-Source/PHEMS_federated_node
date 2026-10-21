@@ -15,6 +15,10 @@ container_name="pylint_${PROJECT}_${BUILD_ID}"
 report_name=$([[ "${PROJECT}" == "webserver" ]] && echo "pylint.txt" || echo "pylint-${PROJECT}.txt")
 
 set +e
+# The dagster lint image is built FROM the local Dagster image, so build that first
+if [[ "${PROJECT}" == "dagster" ]]; then
+  docker compose -f dagster/docker-compose-tests-ci.yaml build base || exit 1
+fi
 docker build "${PROJECT}" -f "${PROJECT}/build/test.Dockerfile" -t "${PROJECT}_lint"
 docker run \
   --volume "$(pwd)":/app:ro \

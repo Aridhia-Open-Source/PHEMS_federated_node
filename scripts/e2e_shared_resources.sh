@@ -32,11 +32,11 @@ curl -sS -o /dev/null localhost:3000 || { echo "Dagster not on :3000"; exit 2; }
 
 cleanup() {
   if [[ "${KEEP:-0}" == "1" ]]; then
-    echo; echo "KEEP=1: leaving the project and sensors in place. Clean up with: fncli stop-sensor --sensor all; fncli teardown-project -y"
+    echo; echo "KEEP=1: leaving the project and sensors in place. Clean up with: fncli stop-sensor --group all; fncli teardown-project -y"
     return
   fi
   step "Teardown"
-  fncli stop-sensor --sensor all || true
+  fncli stop-sensor --group all || true
   fncli teardown-project -y || echo "teardown reported problems (check by hand)"
 }
 trap cleanup EXIT
@@ -46,7 +46,7 @@ fncli setup-project || { fail "setup-project"; exit 1; }
 fncli project-healthcheck || fail "project-healthcheck is not ok"
 
 step "2. start sensors (run-status sensors first, then the rest)"
-fncli start-sensor --sensor all || { fail "start-sensor"; exit 1; }
+fncli start-sensor --group all || { fail "start-sensor"; exit 1; }
 
 step "3. open and merge three PRs: watched, unwatched, invalid"
 fncli open-pr --kind watched --merge || fail "open-pr watched"

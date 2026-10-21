@@ -48,31 +48,44 @@ SENSORS = {
     "all": ALL_SENSORS,
 }
 
-sensor_option = click.option(
-    "--sensor",
-    type=click.Choice(list(SENSORS)),
-    default="ingest",
-    show_default=True,
-    help="Which sensor to act on: one, 'status' (the run-status and reconcile sensors), 'delivery' or 'all'.",
-)
+def sensor_options(command):
+    command = click.option(
+        "--name",
+        type=click.Choice(ALL_SENSORS),
+        default=None,
+        help="One sensor, by its name.",
+    )(command)
+    return click.option(
+        "--group",
+        type=click.Choice(list(SENSORS)),
+        default=None,
+        help="A group of sensors: 'ingest', 'evaluate', 'launcher', 'status' (the run-status and "
+        "reconcile sensors), 'delivery', or 'all'.",
+    )(command)
+
+
+def selected_sensors(group: str | None, name: str | None) -> list[str]:
+    if (group is None) == (name is None):
+        raise click.UsageError("Give --group or --name, one of them.")
+    return [name] if name else SENSORS[group]
 
 
 @click.command("start-sensor")
-@sensor_option
-def start_sensor_command(sensor):
-    """Start Dagster sensors (no-op if running)."""
+@sensor_options
+def start_sensor_command(group, name):
+    """Start a group of Dagster sensors, or one by name (no-op if running)."""
     api = DagsterAPI(DagsterConfig().dagster_url)
-    for name in SENSORS[sensor]:
-        logger.info(f"Started sensor {name} ({api.start_sensor(name)})")
+    for sensor in selected_sensors(group, name):
+        logger.info(f"Started sensor {sensor} ({api.start_sensor(sensor)})")
 
 
 @click.command("stop-sensor")
-@sensor_option
-def stop_sensor_command(sensor):
-    """Stop Dagster sensors (no-op if stopped)."""
+@sensor_options
+def stop_sensor_command(group, name):
+    """Stop a group of Dagster sensors, or one by name (no-op if stopped). A group stops in reverse order."""
     api = DagsterAPI(DagsterConfig().dagster_url)
-    for name in reversed(SENSORS[sensor]):
-        logger.info(f"Stopped sensor {name} ({api.stop_sensor(name)})")
+    for sensor in reversed(selected_sensors(group, name)):
+        logger.info(f"Stopped sensor {sensor} ({api.stop_sensor(sensor)})")
 
 
 @click.command("sensor-status")

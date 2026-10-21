@@ -46,7 +46,7 @@ Needs: the dev project with sensors running; an administrator token for the API 
 
 ## The reconcile sensor repairs a task status that the run-status sensors missed
 
-fncli stops the reconcile sensor together with the run-status sensors (`--sensor status`), so use the Dagster UI.
+fncli stops the reconcile sensor together with the run-status sensors (`--group status`), so use the Dagster UI.
 
 1. In the Dagster UI, Automation, switch off `task_queued_sensor`, `task_started_sensor`, `task_success_sensor`, `task_failure_sensor` and `task_canceled_sensor`. Leave `task_reconcile_sensor` and `task_results_delivery_sensor` on.
 2. `fncli open-pr --kind watched --merge`. Watch the task.

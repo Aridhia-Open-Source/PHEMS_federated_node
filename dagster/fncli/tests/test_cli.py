@@ -4,7 +4,7 @@ from fncli.cli import cli
 from fncli.cmds import common
 
 EXPECTED_COMMANDS = {
-    "hello-world",
+    "hello-world", "demo",
     "setup-project", "open-pr", "teardown-project", "setup-backend", "teardown-backend",
     "setup-gitea", "teardown-gitea", "verify-project", "verify-repo",
     "init-backend-project", "delete-backend-project", "project-healthcheck",
@@ -21,8 +21,8 @@ def test_every_expected_command_is_registered():
     assert EXPECTED_COMMANDS <= set(cli.commands)
 
 
-def test_there_are_47_commands():
-    assert len(cli.commands) == 47
+def test_there_are_48_commands():
+    assert len(cli.commands) == 48
 
 
 def test_every_command_has_help_text():
