@@ -55,7 +55,7 @@ fncli project-show | jq -c '{prs: .trigger_links[0].pr_count, stored: .trigger_l
 **State.** The states a case watches:
 
 ```bash
-fncli project-show | jq -c '{project: (.project | {enabled, revoked}), trigger: (.trigger_links[0] | {enabled, revoked, active, global_enabled}), results_link: (.results_links[0] | {target_dir, enabled, revoked, active}), prs: [.trigger_links[0].pull_requests[] | {number, state, task_id}], tasks: [.tasks[] | {id, status, state_cause}], results: [.results[] | {task_id, step, state, number}]}'
+fncli project-show | jq -c '{project: (.project | {enabled, revoked}), trigger: (.trigger_links[0] | {enabled, revoked, active, global_enabled}), result: (.results_links[0] | {target_dir, enabled, revoked, active}), prs: [.trigger_links[0].pull_requests[] | {number, state, task_id}], tasks: [.tasks[] | {id, status, state_cause}], results: [.results[] | {task_id, step, state, number}]}'
 ```
 
 Add `--project QaTwo` to look at the second project.

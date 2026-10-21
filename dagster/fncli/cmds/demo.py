@@ -105,10 +105,10 @@ def show_project(api, state):
     return as_json("project", state["project"])
 
 
-def show_links(kind, config_class=None):
-    """The project's links of that kind, with the global repository, provider or dataset in each."""
+def show_links(kind, name, config_class=None):
+    """The project's links of that kind, shown under the name of what they link to, with the global repository, provider or dataset in each."""
     def show(api, state):
-        links = as_json(f"{kind}_links", project_links(api, state["project"]["id"])[kind])
+        links = as_json(name, project_links(api, state["project"]["id"])[kind])
         return f"Open: {gitea_repo_url(config_class())}\n{links}" if config_class else links
 
     return show
@@ -239,7 +239,7 @@ STEPS = [
         init_backend_trigger_repo_command,
         {},
         wait_for=Wait("the trigger repository link", lambda state: bool(state["trigger_links"])),
-        show=show_links("trigger", TriggerRepoConfig),
+        show=show_links("trigger", "trigger_repositories", TriggerRepoConfig),
     ),
     Step(
         "Results repository and the project's link",
@@ -249,7 +249,7 @@ STEPS = [
         init_backend_results_repo_command,
         {},
         wait_for=Wait("the results repository link", lambda state: bool(state["results_links"])),
-        show=show_links("results", ResultsRepoConfig),
+        show=show_links("results", "results_repositories", ResultsRepoConfig),
     ),
     Step(
         "Dataset and the project's link",
@@ -259,7 +259,7 @@ STEPS = [
         init_backend_dataset_command,
         {},
         wait_for=Wait("the dataset link", lambda state: bool(state["dataset_links"])),
-        show=show_links("dataset"),
+        show=show_links("dataset", "datasets"),
     ),
     Step(
         "Check Gitea accepts the trigger token",
