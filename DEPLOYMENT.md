@@ -172,7 +172,7 @@ helm repo update
 helm search repo federated-node --devel --versions
 ```
 
-The 2.x line is published as pre-releases (`2.0.0-dagster-beta.N` and so on), so it only shows with `--devel`. Pick one and pin it with `--version` in step 6.
+The 2.x line is published as pre-releases, so it only shows with `--devel`. Pick the newest `2.0.0-...` entry the search lists and pin it with `--version` in step 6. At the time of writing the index lists `2.0.0-dagster-alpha.1`; the `dagster-main` branch builds `2.0.0-dagster-beta.N` ([Where versions come from](#where-versions-come-from)), which appears once that build is published.
 
 Leave `default_image_tag` unset. Every image tag then follows the chart's `appVersion`, so the chart and the images always move together. Set it only to hold the images at an older build.
 
