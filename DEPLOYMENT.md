@@ -322,7 +322,7 @@ customCA:
   secretName: corp-ca     # or customCA.pem: | the PEM, to have the chart render the Secret
 ```
 
-The CA is added to the system CAs of the backend, the Dagster code server, every Dagster run pod and Keycloak, and certificates are always verified: there is no way to skip verification. The pods restart when the CA changes on `helm upgrade`. A Secret changed outside Helm needs `kubectl rollout restart` on the backend and code server deployments and the Keycloak StatefulSet, or a reloader controller. The chart cannot give the nodes' containerd the CA: if the container registry is behind a private CA, install it on each node. Details, and what is not covered, are in the [chart README](k8s/federated-node/README.md#custom-ca) and [ADR 0023](project/decisions/0023-outbound-tls-custom-ca-bundle.md).
+The CA is added to the system CAs of the backend, the Dagster code server, every Dagster run pod and Keycloak, and certificates are always verified: there is no way to skip verification. The pods restart when the CA changes on `helm upgrade`. A Secret changed outside Helm needs `kubectl rollout restart` on the backend and code server deployments and the Keycloak StatefulSet, or a reloader controller. The chart cannot give the nodes' containerd the CA: if the container registry is behind a private CA, install it on each node. For a dev kind cluster, `CUSTOM_CA_FILE` does this when the cluster is created (`scripts/cluster.sh`). Details, and what is not covered, are in the [chart README](k8s/federated-node/README.md#custom-ca).
 
 #### Databases
 
