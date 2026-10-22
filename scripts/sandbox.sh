@@ -35,6 +35,15 @@ set -euo pipefail
 # SANDBOX_HOST_NETWORK_DOCKER_BUILD=1 builds the sandbox image on the host's network and
 # passes this shell's proxy variables to it, for a host whose only way out is a proxy on
 # its own localhost. Only the image build uses it, not the running sandbox.
+#
+# SANDBOX_CA_FILE=/path/ca.pem (dev tooling, best effort) is for a network that intercepts
+# TLS. The CA is installed into the image's system trust (the image build switches apt to
+# https and trusts the file for its first run), and the sandbox's shells get
+# CURL_CA_BUNDLE, SSL_CERT_FILE, REQUESTS_CA_BUNDLE and GIT_SSL_CAINFO pointing at the
+# system bundle, so install-dev.sh's curl, pipx and helm downloads verify against it. The
+# inner Docker daemon reads the system trust for registry pulls. Verification is never
+# switched off. Not covered: the kind node's own containerd, and images' own RUN steps. Fixed
+# when the image is built and the sandbox created: down, then up. Unset, nothing changes.
 ####################################################################################
 
 cd "$(dirname "$0")/.."
@@ -50,9 +59,20 @@ DEV_PATH=/home/dev/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:
 TTY=(-i)
 [ -t 0 ] && [ -t 1 ] && TTY=(-it)
 
+SANDBOX_CA_INSTALLED=/usr/local/share/ca-certificates/sandbox-ca.crt
+SANDBOX_CA_STAGE=scripts/sandbox/ca/sandbox-ca.crt
+
 as_dev() {
+  # Whether the image carries a SANDBOX_CA_FILE decides this, not the caller's environment,
+  # so `shell` and commands trust it too.
+  local var ca_env=()
+  if docker exec "$NAME" test -f "$SANDBOX_CA_INSTALLED" 2> /dev/null; then
+    for var in CURL_CA_BUNDLE SSL_CERT_FILE REQUESTS_CA_BUNDLE GIT_SSL_CAINFO; do
+      ca_env+=(-e "$var=/etc/ssl/certs/ca-certificates.crt")
+    done
+  fi
   docker exec "${TTY[@]}" -u dev -w "$REPO" \
-    -e USER=dev -e HOME=/home/dev -e PATH="$DEV_PATH" "$NAME" "$@"
+    -e USER=dev -e HOME=/home/dev -e PATH="$DEV_PATH" ${ca_env[@]+"${ca_env[@]}"} "$NAME" "$@"
 }
 
 # A host mirror's address on the host's kind network, empty if it is not running there.
@@ -88,7 +108,18 @@ case "${1:-}" in
         for var in NO_PROXY no_proxy; do build_args+=(--build-arg "$var=$no_proxy_list"); done
       fi
     fi
+    # SANDBOX_CA_FILE: stage the CA in the build context (gitignored by *.crt), for the Dockerfile.
+    rm -f "$SANDBOX_CA_STAGE"
+    if [ -n "${SANDBOX_CA_FILE:-}" ]; then
+      [ -s "$SANDBOX_CA_FILE" ] || { echo "SANDBOX_CA_FILE=$SANDBOX_CA_FILE is missing or empty" >&2; exit 1; }
+      grep -q -e '-----BEGIN CERTIFICATE-----' "$SANDBOX_CA_FILE" \
+        || { echo "SANDBOX_CA_FILE=$SANDBOX_CA_FILE holds no PEM certificate" >&2; exit 1; }
+      cp "$SANDBOX_CA_FILE" "$SANDBOX_CA_STAGE"
+      trap 'rm -f "$SANDBOX_CA_STAGE"' EXIT
+      echo "Installing $SANDBOX_CA_FILE into the sandbox's system trust."
+    fi
     docker build "${build_args[@]}" -t "$IMAGE" -f scripts/sandbox/Dockerfile scripts
+    rm -f "$SANDBOX_CA_STAGE"
     if [ "$(docker inspect -f '{{.State.Running}}' "$NAME" 2> /dev/null || true)" != "true" ]; then
       docker rm -f "$NAME" > /dev/null 2>&1 || true
       mounts=()

@@ -6,9 +6,25 @@ FROM docker:dind AS dind
 FROM debian:13
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Dev tooling for a network that intercepts TLS (SANDBOX_CA_FILE in scripts/sandbox.sh).
+# sandbox/ca/ holds the CA only when that is set; otherwise this layer is empty and nothing
+# below changes. With a CA, apt switches to https and trusts the file for its first run,
+# since ca-certificates is not installed yet; the CA then joins the system trust, which is
+# what curl, pipx, helm and the inner dockerd's registry pulls read.
+COPY sandbox/ca/ /tmp/sandbox-ca/
+RUN APT_OPTS=""; \
+    if [ -s /tmp/sandbox-ca/sandbox-ca.crt ]; then \
+      sed -i 's|^URIs: http://|URIs: https://|' /etc/apt/sources.list.d/debian.sources; \
+      APT_OPTS="-o Acquire::https::CaInfo=/tmp/sandbox-ca/sandbox-ca.crt"; \
+    fi; \
+    apt-get $APT_OPTS update && apt-get $APT_OPTS install -y --no-install-recommends \
       ca-certificates curl gnupg sudo git \
       iptables iproute2 pigz xz-utils kmod procps xfsprogs e2fsprogs \
+ && if [ -s /tmp/sandbox-ca/sandbox-ca.crt ]; then \
+      cp /tmp/sandbox-ca/sandbox-ca.crt /usr/local/share/ca-certificates/sandbox-ca.crt \
+      && update-ca-certificates; \
+    fi \
+ && rm -rf /tmp/sandbox-ca \
  && install -m 0755 -d /etc/apt/keyrings \
  && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian trixie stable" \

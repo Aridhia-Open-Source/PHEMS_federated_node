@@ -97,6 +97,10 @@ if [ "${POSTGRES_EXTERNAL:-false}" = "true" ]; then
     --dry-run=client -o yaml -n "$NAMESPACE" | kubectl apply -f - -n "$NAMESPACE"
 fi
 
+# CUSTOM_CA_FILE (optional): a CA the release trusts for outbound TLS. See custom_ca.sh.
+source ./scripts/custom_ca.sh
+custom_ca_prepare
+
 echo
 echo "=== Deploying Helm Release =============================================="
 
@@ -110,6 +114,7 @@ helm install "$RELEASE_NAME" . \
   -f "$VALUES_FILE" \
   --timeout 10m \
   --set "firstUserSecret.email=$KEYCLOAK_FIRST_USER_EMAIL" \
+  ${CUSTOM_CA_HELM_ARGS[@]+"${CUSTOM_CA_HELM_ARGS[@]}"} \
   --namespace "$NAMESPACE" \
   --debug
 
