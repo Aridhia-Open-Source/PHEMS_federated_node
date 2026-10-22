@@ -11,7 +11,8 @@ set -euo pipefail
 #
 #   ./scripts/sandbox.sh up          # create it if needed, copy the working tree in, run
 #                                    #   the installer (again: syncs and reinstalls)
-#   ./scripts/sandbox.sh down        # remove it and its volumes
+#   ./scripts/sandbox.sh down        # remove it; keeps its images and build cache
+#                                    #   (NO_CACHE=1: remove those too)
 #   ./scripts/sandbox.sh shell       # a shell in the repo copy
 #   ./scripts/sandbox.sh <cmd...>    # run any command there, e.g. fncli project-show
 #
@@ -24,8 +25,12 @@ set -euo pipefail
 #
 # Image pulls go through the host's pull-through mirrors (make cluster up on the host
 # starts them), so a new sandbox does not download everything again. The sandbox joins
-# the host's kind network; its Docker uses the host's Docker Hub mirror, and its own
-# mirrors fetch from the host's. NO_CACHE=1 make sandbox up for a cold start (also fixed
+# the host's kind network; its Docker uses the host's Docker Hub mirror, its own
+# mirrors fetch from the host's, and make deploy copies an image from the host's kind
+# registry (localhost:5001 there) instead of building it when the sandbox's has none
+# (UPSTREAM_REGISTRY in build_image.sh). Tilt still builds webserver and dagster.
+# The host's pip cache (~/.cache/pip) is mounted too, for the fncli install.
+# NO_CACHE=1 make sandbox up for a cold start (also fixed
 # at creation: down, then up).
 ####################################################################################
 
@@ -74,14 +79,18 @@ case "${1:-}" in
       dockerd_args=()
       hub="$(host_mirror proxy-docker-hub-registry)"
       ghcr="$(host_mirror proxy-ghcr-registry)"
+      images="$(host_mirror kind-registry)"
       if [ -n "${NO_CACHE:-}" ]; then
         echo "NO_CACHE set: pulling everything from the internet."
-      elif [ -n "$hub" ] && [ -n "$ghcr" ]; then
-        echo "Using the host's registry mirrors: Docker Hub $hub, GHCR $ghcr"
-        cache=(--network kind -e "DOCKERHUB_UPSTREAM=http://$hub" -e "GHCR_UPSTREAM=http://$ghcr")
-        dockerd_args=(--registry-mirror "http://$hub" --insecure-registry "$hub" --insecure-registry "$ghcr")
+      elif [ -n "$hub" ] && [ -n "$ghcr" ] && [ -n "$images" ]; then
+        echo "Using the host's registries: Docker Hub $hub, GHCR $ghcr, images $images"
+        cache=(--network kind -e "DOCKERHUB_UPSTREAM=http://$hub" -e "GHCR_UPSTREAM=http://$ghcr"
+          -e "UPSTREAM_REGISTRY=$images")
+        [ -d "$HOME/.cache/pip" ] && cache+=(-v "$HOME/.cache/pip:/home/dev/.cache/pip")
+        dockerd_args=(--registry-mirror "http://$hub"
+          --insecure-registry "$hub" --insecure-registry "$ghcr" --insecure-registry "$images")
       else
-        echo "No host registry mirrors running (make cluster up on the host): pulling from the internet."
+        echo "Host registries not running (make cluster up on the host): pulling and building everything."
       fi
 
       docker run -d --init --privileged --name "$NAME" --hostname "$NAME" \
@@ -95,6 +104,9 @@ case "${1:-}" in
         sleep 1
       done
       docker exec "$NAME" docker info > /dev/null
+      # The Docker volumes outlive `down` to keep images and build cache. Clear what an
+      # earlier sandbox left in them (kind node, registries, their data) so this starts fresh.
+      docker exec "$NAME" sh -c 'docker rm -f $(docker ps -aq) 2>/dev/null; docker volume prune -af; docker network prune -f' > /dev/null
     fi
 
     echo "Copying the working tree to $REPO in the sandbox..."
@@ -112,8 +124,12 @@ case "${1:-}" in
 
   down)
     docker rm -f "$NAME" > /dev/null 2>&1 || true
-    docker volume rm "${VOLUMES[@]}" > /dev/null 2>&1 || true
-    echo "Sandbox removed."
+    if [ -n "${NO_CACHE:-}" ]; then
+      docker volume rm "${VOLUMES[@]}" > /dev/null 2>&1 || true
+      echo "Sandbox removed, with its images and build cache."
+    else
+      echo "Sandbox removed. Its images and build cache are kept (NO_CACHE=1 to remove them)."
+    fi
     ;;
 
   shell)
