@@ -32,6 +32,9 @@ set -euo pipefail
 # The host's pip cache (~/.cache/pip) is mounted too, for the fncli install.
 # NO_CACHE=1 make sandbox up for a cold start (also fixed
 # at creation: down, then up).
+# SANDBOX_HOST_NETWORK_DOCKER_BUILD=1 builds the sandbox image on the host's network and
+# passes this shell's proxy variables to it, for a host whose only way out is a proxy on
+# its own localhost. Only the image build uses it, not the running sandbox.
 ####################################################################################
 
 cd "$(dirname "$0")/.."
@@ -68,7 +71,24 @@ require_running() {
 
 case "${1:-}" in
   up)
-    docker build -t "$IMAGE" -f scripts/sandbox/Dockerfile scripts
+    # SANDBOX_HOST_NETWORK_DOCKER_BUILD=1: the build's RUN steps use the host's network, for a host that
+    # reaches the internet only through a proxy on its own localhost (a container cannot see that). The
+    # proxy from this shell's environment replaces the one the Docker client config injects.
+    build_args=()
+    if [ -n "${SANDBOX_HOST_NETWORK_DOCKER_BUILD:-}" ]; then
+      build_args=(--network host)
+      # apt fetches over plain http, so HTTP_PROXY defaults to the HTTPS one (the Docker client config
+      # would otherwise inject its own).
+      https_proxy_url="${HTTPS_PROXY:-${https_proxy:-}}"
+      http_proxy_url="${HTTP_PROXY:-${http_proxy:-$https_proxy_url}}"
+      no_proxy_list="${NO_PROXY:-${no_proxy:-localhost,127.0.0.1}}"
+      if [ -n "$https_proxy_url" ]; then
+        for var in HTTPS_PROXY https_proxy; do build_args+=(--build-arg "$var=$https_proxy_url"); done
+        for var in HTTP_PROXY http_proxy; do build_args+=(--build-arg "$var=$http_proxy_url"); done
+        for var in NO_PROXY no_proxy; do build_args+=(--build-arg "$var=$no_proxy_list"); done
+      fi
+    fi
+    docker build "${build_args[@]}" -t "$IMAGE" -f scripts/sandbox/Dockerfile scripts
     if [ "$(docker inspect -f '{{.State.Running}}' "$NAME" 2> /dev/null || true)" != "true" ]; then
       docker rm -f "$NAME" > /dev/null 2>&1 || true
       mounts=()
