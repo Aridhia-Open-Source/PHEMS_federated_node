@@ -50,6 +50,8 @@ RUN_DONE = ["SUCCESS", "FAILURE", "CANCELED"]
 
 class PrConfig(TriggerRepoConfig):
     pr_image: str = Field(default="localhost:5001/pypipes-fn:latest", alias="TEST_PR_IMAGE")
+    # Extra env for the task, as JSON, e.g. '{"UC1_DEV": "1"}' (experiments/experiments.sh run)
+    pr_env: dict[str, str] = Field(default={}, alias="TEST_PR_ENV", validate_default=False)
 
     @property
     def repo_path(self) -> str:
@@ -77,8 +79,10 @@ def file_for(config: PrConfig, branch: str, kind: str) -> tuple[str, str]:
     if kind == "unwatched":
         return f"docs/{branch}.md", f"# {branch}\n\nNot a spec: outside the watch_dir.\n"
     spec = {"name": branch, "image": config.pr_image}
+    if config.pr_env:
+        spec["env"] = dict(config.pr_env)
     if kind == "failing":
-        spec["env"] = {"PYPIPES_EXIT_CODE": "1"}
+        spec["env"] = {**spec.get("env", {}), "PYPIPES_EXIT_CODE": "1"}
     if kind == "invalid":
         # The backend's TaskSpecRequest forbids unknown fields
         spec["unknown_field"] = True

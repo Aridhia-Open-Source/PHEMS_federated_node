@@ -1,0 +1,97 @@
+{{/* Copied from db-datasets-{pv,deployment,service}.yaml in the federated-node chart, local storage only. */}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Release.Name }}-db-datasets-pv
+spec:
+  storageClassName: {{ .Release.Name }}-db-datasets-storage
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 1Gi
+  local:
+    path: {{ .Values.storagePath }}
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/os
+          operator: In
+          values:
+          - linux
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: db-datasets-volclaim
+  namespace: {{ .Release.Namespace }}
+spec:
+  storageClassName: {{ .Release.Name }}-db-datasets-storage
+  volumeName: {{ .Release.Name }}-db-datasets-pv
+  resources:
+    requests:
+      storage: 100Mi
+  accessModes:
+    - ReadWriteOnce
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-datasets
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: experiments-postgres
+spec:
+  # Two Postgres on one data directory corrupt it.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: experiments-postgres
+  template:
+    metadata:
+      labels:
+        app: experiments-postgres
+    spec:
+      containers:
+        - image: {{ .Values.postgres.image }}
+          name: db-datasets
+          env:
+            - name: POSTGRES_DB
+              value: postgres
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.superuser }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.secret.name }}
+                  key: {{ .Values.postgres.secret.key }}
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            exec:
+              command: [pg_isready, -d, postgres, -U, {{ .Values.postgres.superuser }}]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: db-datasets-volclaim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-datasets
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+    - port: {{ .Values.postgres.port }}
+      name: pgport
+      targetPort: 5432
+      protocol: TCP
+  selector:
+    app: experiments-postgres

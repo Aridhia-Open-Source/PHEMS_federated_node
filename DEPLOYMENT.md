@@ -87,7 +87,7 @@ Run these from the repo root.
    | Dagster UI | http://localhost:3000 |
    | Gitea | http://localhost:4000 |
    | Keycloak | http://localhost:8080 |
-   | Postgres / datasets Postgres | `localhost:5432` / `localhost:5433` |
+   | Postgres | `localhost:5432` |
    | Tilt dashboard | http://localhost:10350 |
 
 7. Check it works. Log in with the first user. `/login` takes form fields, not JSON, and returns a bearer token.
@@ -134,12 +134,12 @@ There is one dev cluster and one worktree owns it. `make deploy` and `make upgra
 The chart generates every database password and reuses it on each upgrade, so `.dev.env` holds none. Read them with `make show-db-passwords`, or one at a time:
 
 ```bash
-kubectl get secret db-datasets-uc1 -n fn -o jsonpath='{.data.password}' | base64 -d
+kubectl get secret backend-db -n fn -o jsonpath='{.data.password}' | base64 -d
 ```
 
 ### Loading real sample data
 
-`make uc1-seed` loads the UC1 OMOP data into the dataset database and registers it as the dev project's dataset. See [dagster/fncli/README.md](dagster/fncli/README.md#uc1-seed).
+Real experiments (UC1 and its seeded OMOP database) run from their own release in the `experiments` namespace. See [experiments/README.md](experiments/README.md).
 
 ## Deploy to production
 

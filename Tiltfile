@@ -163,12 +163,6 @@ local_resource(
 )
 
 local_resource(
-  'db-datasets-port-forward',
-  serve_cmd=port_forward_cmd('db-datasets', NAMESPACE, '5433:5432'),
-  labels=['infrastructure'],
-)
-
-local_resource(
   'keycloak-port-forward',
   serve_cmd=port_forward_cmd('keycloak', 'keycloak', '8080:80'),
   labels=['infrastructure'],
