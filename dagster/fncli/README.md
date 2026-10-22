@@ -223,9 +223,13 @@ cp .demo.env.example .demo.env   # once, in the repo root
 fncli demo                       # step by step
 fncli demo -y                    # every step without asking (no teardown)
 fncli demo --from 8              # start at step 8, e.g. after a step failed
+cp .demo-github.env.example .demo-github.env
+fncli demo -y --env-file .demo-github.env   # the same on GitHub (phems-sandbox)
 ```
 
 It needs the dev cluster with Tilt running and the Dagster sensors already running. The secrets, git provider, repository records and dataset are global (they belong to no project) and only the links to them belong to the project, while the Gitea repos live only in Gitea; each step says which it touches. The demo's own project, repos and dataset names are in `.demo.env`, which overrides `.dev.env`, so it never touches the e2e project; the steps are idempotent, so it can be rerun.
+
+On GitHub (`TEST_GIT_PROVIDER=github`, see `.demo-github.env.example`) the repo must already exist and `GH_TOKEN` in `.dev.env` is stored as both repos' secret; fncli never creates or deletes GitHub repos or tokens. It uses the sensors' own client, `app/github.py`. `GIT_PROVIDER` is not the switch: `.dev.env` sets that for other tools.
 
 ## Real experiments
 

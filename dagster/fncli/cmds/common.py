@@ -12,6 +12,7 @@ from pydantic import Field
 from fncli.backend import FncliBackendAPI
 from app.config import EnvConfig
 from app.git_uri import normalise_repo_uri
+from app.github import GH_API_BASE_URL, GithubAPI, GithubClient
 from fncli.gitea import GiteaAdminAPI, GiteaAdminClient
 from fncli.k8s import get_k8s_secret
 from app.utils import BackendAdapter, BackendSession
@@ -65,7 +66,37 @@ class RepoConfig(GiteaConfig, ProjectConfig):
     gitea_api_uri: str = Field(default="", alias="GITEA_API_URI")
     # Set when the repo comes from a backend record: the label that record's secret has.
     backend_secret_label: str = Field(default="", validate_default=False)
+    # gitea, or github for an existing GitHub repo. Not GIT_PROVIDER, which .dev.env sets for
+    # other tools.
+    git_provider: str = Field(default="gitea", alias="TEST_GIT_PROVIDER")
+    # GitHub only: fncli cannot mint a token there, so both repos use this one.
+    github_token: str = Field(default="", alias="GH_TOKEN", validate_default=False)
     token_scope: ClassVar[str]
+
+    @property
+    def is_github(self) -> bool:
+        return self.git_provider == "github"
+
+    @property
+    def repo_path(self) -> str:
+        """owner/repo: a Gitea repo is under the admin user, a GitHub one wherever its uri says."""
+        if self.is_github:
+            return "/".join(normalise_repo_uri(self.repo_uri).split("/")[-2:])
+        return f"{self.gitea_admin_user}/{self.repo}"
+
+    @property
+    def web_url(self) -> str:
+        """Where the repos' pages open from the host."""
+        return "https://github.com" if self.is_github else self.gitea_url
+
+    @property
+    def pulls_page(self) -> str:
+        return "pull" if self.is_github else "pulls"
+
+    @property
+    def provider_api_uri(self) -> str:
+        """The provider's API as the sensor reaches it."""
+        return GH_API_BASE_URL if self.is_github else self.gitea_api_uri
 
     @property
     def secret_label(self) -> str:
@@ -74,7 +105,7 @@ class RepoConfig(GiteaConfig, ProjectConfig):
     @property
     def provider_uri(self) -> str:
         """The backend's git provider for the repo's host: the scheme the sensor reaches it by, and the host."""
-        return f"{urlparse(self.gitea_api_uri).scheme}://{normalise_repo_uri(self.repo_uri).split('/')[0]}"
+        return f"{urlparse(self.provider_api_uri).scheme}://{normalise_repo_uri(self.repo_uri).split('/')[0]}"
 
 
 class TriggerRepoConfig(RepoConfig):
@@ -132,6 +163,13 @@ def build_gitea_api(config: GiteaConfig) -> GiteaAdminAPI:
         base_uri=config.gitea_host_api_uri,
     )
     return GiteaAdminAPI(client, config.gitea_admin_user)
+
+
+def build_git_api(config: RepoConfig) -> GiteaAdminAPI | GithubAPI:
+    """What makes the repo's branches, files and pull requests: Gitea as its admin user, or GitHub with GH_TOKEN."""
+    if config.is_github:
+        return GithubAPI(GithubClient(config.github_token))
+    return build_gitea_api(config)
 
 
 def build_backend_api(config: BackendConfig) -> FncliBackendAPI:

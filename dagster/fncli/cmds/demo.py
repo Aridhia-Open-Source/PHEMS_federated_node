@@ -89,7 +89,7 @@ def as_json(name: str, value) -> str:
 
 
 def gitea_repo_url(config: RepoConfig, page: str = "") -> str:
-    return to_host_url(f"{config.gitea_url}/{config.gitea_admin_user}/{config.repo}{page}")
+    return to_host_url(f"{config.web_url}/{config.repo_path}{page}")
 
 
 def show_repo(config_class):
@@ -118,7 +118,9 @@ def result_lines(result: dict) -> list[str]:
     """A result's branch and pull request in Gitea, then the record."""
     lines = []
     if result["branch"]:
-        lines.append(f"Open: {gitea_repo_url(ResultsRepoConfig(), '/src/branch/' + result['branch'])}")
+        config = ResultsRepoConfig()
+        branch_page = "/tree/" if config.is_github else "/src/branch/"
+        lines.append(f"Open: {gitea_repo_url(config, branch_page + result['branch'])}")
     if result["url"]:
         lines.append(f"Open: {to_host_url(result['url'])}")
     return [*lines, as_json("result", result)]
@@ -127,7 +129,7 @@ def result_lines(result: dict) -> list[str]:
 def show_pull_request(api, state):
     """The newest trigger pull request, its task and run, and the task's results: a link, then the record."""
     config = TriggerRepoConfig()
-    links = Links(config.gitea_url, DagsterConfig().dagster_url, f"{config.gitea_admin_user}/{config.repo}")
+    links = Links(config.web_url, DagsterConfig().dagster_url, config.repo_path, config.pulls_page)
     project_id = state["project"]["id"]
     pull_requests = [pr for link in state["trigger_links"] for pr in link["pull_requests"]]
     pr = max(pull_requests, key=lambda pr: pr["number"])
@@ -407,8 +409,12 @@ def run_step(ctx: click.Context, config: ProjectConfig, step: Step):
     "--from", "from_step", type=click.IntRange(min=1), default=1, show_default=True,
     help="Start at this step.",
 )
+@click.option(
+    "--env-file", default=".demo.env", show_default=True,
+    help="The demo's names, found from the current directory up. .demo-github.env runs it on GitHub.",
+)
 @click.pass_context
-def demo_command(ctx, yes_to_all, from_step):
+def demo_command(ctx, yes_to_all, from_step, env_file):
     """
     Set up everything needed to watch a Gitea repo with fncli, then prove it works, one step
     at a time. Before each step it says what the step creates (a global object, a project
@@ -422,10 +428,10 @@ def demo_command(ctx, yes_to_all, from_step):
 
     Needs the dev cluster with Tilt running and the Dagster sensors already running.
     """
-    path = find_dotenv(".demo.env", usecwd=True)
+    path = find_dotenv(env_file, usecwd=True)
     if not path:
         raise click.ClickException(
-            ".demo.env not found. From the repo root: cp .demo.env.example .demo.env"
+            f"{env_file} not found. From the repo root: cp {env_file}.example {env_file}"
         )
     # The group has loaded .dev.env without overriding what is set: the demo's names must win.
     load_dotenv(path, override=True)

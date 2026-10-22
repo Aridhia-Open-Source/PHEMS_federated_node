@@ -13,12 +13,13 @@ from fncli.cmds.common import (
     DatasetConfig,
     RepoConfig,
     build_backend_api,
-    build_gitea_api,
+    build_git_api,
     entity_option,
 )
 from fncli.cmds.repository import backend_source_options, init_gitea_repo, load_repo_config
 from fncli.backend import FncliBackendAPI
 from app.gitea import GiteaAPI, GiteaClient
+from app.github import GithubAPI, GithubClient
 from fncli.gitea import GiteaAdminAPI
 from fncli.k8s import get_k8s_secret
 
@@ -28,9 +29,12 @@ logger = logging.getLogger("secret")
 GIT_PLACEHOLDER = {"TOKEN": "unset"}
 
 
-def init_git_secret(config: RepoConfig, gitea_api: GiteaAdminAPI, backend_api: FncliBackendAPI) -> str:
-    """Store a fresh Gitea token where the backend reads it."""
-    token = gitea_api.replace_token(config.token_name, [config.token_scope])
+def init_git_secret(config: RepoConfig, gitea_api: GiteaAdminAPI | GithubAPI, backend_api: FncliBackendAPI) -> str:
+    """Store a fresh Gitea token where the backend reads it. On GitHub it is GH_TOKEN."""
+    if config.is_github:
+        token = config.github_token
+    else:
+        token = gitea_api.replace_token(config.token_name, [config.token_scope])
     secret = backend_api.upsert_secret(config.secret_label, {"TOKEN": token})
     stored = get_k8s_secret(
         secret_name=secret["key"], namespace=secret["namespace"], key="TOKEN"
@@ -49,6 +53,10 @@ def init_git_secret(config: RepoConfig, gitea_api: GiteaAdminAPI, backend_api: F
 
 def verify_gitea_accepts_bearer_token(config: RepoConfig, token: str, gitea_repo: dict):
     """Raises if Gitea rejects the token, as the sensor would when it polls."""
+    if config.is_github:
+        branch = GithubAPI(GithubClient(token)).get_default_branch(gitea_repo["full_name"])
+        logger.info(f"GitHub accepted the token: {gitea_repo['full_name']} (default branch {branch})")
+        return
     # base_uri is keyword-only in practice: the second positional parameter is a session.
     sensor_api = GiteaAPI(GiteaClient(token, base_uri=config.gitea_host_api_uri))
     merged_pulls = sensor_api.get_new_merged_pulls(
@@ -79,7 +87,7 @@ def init_git_secret_command(entity, from_backend, project):
     config = load_repo_config(entity, from_backend, project)
     init_git_secret(
         config=config,
-        gitea_api=build_gitea_api(config),
+        gitea_api=build_git_api(config),
         backend_api=build_backend_api(config),
     )
 
@@ -122,7 +130,7 @@ def init_backend_secret_command(entity):
 def verify_git_secret_command(entity, from_backend, project):
     """Check Gitea accepts the token currently stored in a repo's secret."""
     config = load_repo_config(entity, from_backend, project)
-    gitea_repo = init_gitea_repo(config, build_gitea_api(config))
+    gitea_repo = init_gitea_repo(config, build_git_api(config))
     secret = build_backend_api(config).get_secret(config.secret_label)
     token = get_k8s_secret(
         secret_name=secret["key"], namespace=secret["namespace"], key="TOKEN"
@@ -154,7 +162,10 @@ def delete_secret_command(entity):
 def delete_gitea_token_command(entity, from_backend, project):
     """Delete the Gitea token that init-git-secret created for a repo."""
     config = load_repo_config(entity, from_backend, project)
-    if build_gitea_api(config).delete_token(config.token_name):
+    if config.is_github:
+        logger.info("Not deleting the GitHub token: it is GH_TOKEN, not one fncli minted")
+        return
+    if build_git_api(config).delete_token(config.token_name):
         logger.info(f"Deleted Gitea token {config.token_name!r}")
     else:
         logger.info(f"Gitea token {config.token_name!r} does not exist")

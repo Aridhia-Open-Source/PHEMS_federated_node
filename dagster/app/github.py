@@ -1,5 +1,6 @@
 import logging
 import base64
+import time
 from datetime import datetime as dt
 
 import requests as req
@@ -114,3 +115,47 @@ class GithubAPI:
             json={"title": title, "body": body, "head": head_branch, "base": base_branch},
         )
         return response.json()
+
+    # fncli's GitHub mode (TEST_GIT_PROVIDER=github) opens and merges pull requests with these,
+    # with the same signatures as fncli.gitea.GiteaAdminAPI.
+
+    def get_repo(self, repo_path: str) -> dict:
+        """The repository: full_name, html_url, default_branch."""
+        return self.client.request("GET", f"repos/{repo_path}").json()
+
+    def create_branch(self, repo_path: str, new_branch: str, old_branch: str) -> None:
+        """Create new_branch from the head of old_branch."""
+        self.logger.info(f"Creating branch {new_branch} from {old_branch} in {repo_path}")
+        ref = self.client.request("GET", f"repos/{repo_path}/git/ref/heads/{old_branch}").json()
+        self.client.request(
+            "POST", f"repos/{repo_path}/git/refs",
+            json={"ref": f"refs/heads/{new_branch}", "sha": ref["object"]["sha"]},
+        )
+
+    def create_file(self, repo_path: str, file_path: str, content: str, message: str, branch: str):
+        """Commit a NEW file to branch. Fails if the file exists: modifying needs its sha."""
+        self.logger.info(f"Committing {file_path} to {branch} in {repo_path}")
+        self.client.request(
+            "PUT", f"repos/{repo_path}/contents/{file_path}",
+            json={
+                "content": base64.b64encode(content.encode()).decode(),
+                "message": message,
+                "branch": branch,
+            },
+        )
+
+    def merge_pull_request(self, repo_path: str, pr_number: int) -> None:
+        """Merge the pull request with a merge commit. Retries on 405 (mergeability computing)."""
+        self.logger.info(f"Merging PR #{pr_number} in {repo_path}")
+        max_attempts = 10
+        for attempt in range(1, max_attempts + 1):
+            try:
+                self.client.request(
+                    "PUT", f"repos/{repo_path}/pulls/{pr_number}/merge", json={"merge_method": "merge"}
+                )
+                return
+            except req.HTTPError as e:
+                if e.response.status_code != 405 or attempt == max_attempts:
+                    raise
+                self.logger.info(f"Merge returned 405, retrying (attempt {attempt}/{max_attempts})")
+                time.sleep(3)
