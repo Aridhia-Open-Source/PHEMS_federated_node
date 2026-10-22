@@ -137,6 +137,10 @@ Tilt watches the code and updates the running pods. You do not redeploy for code
 
 More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 
+### Behind a TLS-intercepting proxy
+
+Both are optional dev tooling and do nothing when unset. `CUSTOM_CA_FILE=/path/ca.pem` in `.dev.env` makes `make deploy` and `make upgrade` put the CA in a Secret and set `customCA.secretName` for your release, so the pods trust it for outbound TLS. For the sandbox, `SANDBOX_CA_FILE=/path/ca.pem make sandbox up` installs the CA into the sandbox's system trust (apt switches to https for the image build) and points its curl, pip and git at it, so `install-dev.sh`'s downloads and the inner Docker daemon's registry pulls verify against it. Set it when the sandbox is created: `make sandbox down` first if it exists. The kind node's own containerd is not covered.
+
 ### One owner at a time
 
 There is one dev cluster and one worktree owns it. `make deploy` and `make upgrade` claim it, `make teardown` releases it. A deploy from another worktree fails while it is owned: tear down from the owner, or rerun with `FORCE_OWNER=1` to take over. `make deploy-owner` shows who owns it.
@@ -304,6 +308,21 @@ Set `storage.nfs.provisioner` (for example `nfs.csi.k8s.io`) even without that d
 #### TLS
 
 Either create the `tls` secret yourself (step 4), or let cert-manager renew it: `cert-manager.enabled: true` plus `certs.azure.*` or `certs.aws` for DNS-01. For another CA, run cert-manager yourself and point `tls.secretName` at the secret it produces.
+
+#### Custom CA
+
+For outbound TLS to a git host, identity provider or registry signed by a private CA, or behind a TLS-intercepting proxy, put the CA in a Secret and name it:
+
+```bash
+kubectl create secret generic corp-ca -n "$NAMESPACE" --from-file=ca.crt=corp-ca.pem
+```
+
+```yaml
+customCA:
+  secretName: corp-ca     # or customCA.pem: | the PEM, to have the chart render the Secret
+```
+
+The CA is added to the system CAs of the backend, the Dagster code server, every Dagster run pod and Keycloak, and certificates are always verified: there is no way to skip verification. The pods restart when the CA changes on `helm upgrade`. A Secret changed outside Helm needs `kubectl rollout restart` on the backend and code server deployments and the Keycloak StatefulSet, or a reloader controller. The chart cannot give the nodes' containerd the CA: if the container registry is behind a private CA, install it on each node. Details, and what is not covered, are in the [chart README](k8s/federated-node/README.md#custom-ca) and [ADR 0023](project/decisions/0023-outbound-tls-custom-ca-bundle.md).
 
 #### Databases
 

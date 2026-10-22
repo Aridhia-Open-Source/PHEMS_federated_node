@@ -30,6 +30,7 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0020](../project/decisions/0020-tilt-dev-loop.md) | Tilt dev loop | Dev only; the chart does not depend on it. |
 | [0021](../project/decisions/0021-webserver-owns-the-record-and-the-rules.md) | Webserver owns the record and the rules | Dagster asks and acts; the launcher fails or launches as the config answer says. |
 | [0022](../project/decisions/0022-task-isolation.md) | Task isolation: storage, secrets, namespace and network | Each part separates what is built from what is decided and not built (#536); NetworkPolicy is not built. |
+| [0023](../project/decisions/0023-outbound-tls-custom-ca-bundle.md) | Outbound TLS trust: a custom CA bundle added to the system CAs, verified, restarted on change | The CA is added to the system CAs, never replacing them; task pods do not get it; node-level registry trust is not the chart's; no option skips verification. |
 
 ## Other docs by topic
 
@@ -62,4 +63,4 @@ Operations:
 4. ADRs [0010](../project/decisions/0010-git-api-protocol-and-factory.md) to [0013](../project/decisions/0013-results-delivered-as-branch-and-pull-request.md): the git side, pull requests and cursors, and delivery.
 5. [flows.md](architecture/flows.md): the whole path from a merged pull request to a results pull request.
 6. ADRs [0014](../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md) and [0015](../project/decisions/0015-run-keys-retries-and-results-pr-sync.md) and the sensor and job inventory in [flows.md](architecture/flows.md#sensor-and-job-inventory): run keys, retries, the launcher rules. Then the [sensors docs](architecture/sensors/README.md), one per sensor.
-7. ADRs [0016](../project/decisions/0016-pydantic-dto-layer.md) to [0020](../project/decisions/0020-tilt-dev-loop.md) as needed: DTOs, the detached authorization, and the tooling (fncli, Gitea, Tilt). [0021](../project/decisions/0021-webserver-owns-the-record-and-the-rules.md): who owns the rules. [0022](../project/decisions/0022-task-isolation.md): how a task is isolated, and what is still to build.
+7. ADRs [0016](../project/decisions/0016-pydantic-dto-layer.md) to [0020](../project/decisions/0020-tilt-dev-loop.md) as needed: DTOs, the detached authorization, and the tooling (fncli, Gitea, Tilt). [0021](../project/decisions/0021-webserver-owns-the-record-and-the-rules.md): who owns the rules. [0022](../project/decisions/0022-task-isolation.md): how a task is isolated, and what is still to build. [0023](../project/decisions/0023-outbound-tls-custom-ca-bundle.md): how outbound TLS trusts a private CA.
