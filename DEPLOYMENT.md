@@ -34,6 +34,18 @@ The components and the network between them are drawn in [docs/architecture/flow
 
 The local setup is a [kind](https://kind.sigs.k8s.io/) cluster, a local image registry, the chart installed with development values, and [Tilt](https://tilt.dev/) for live reload.
 
+### One step
+
+On Debian 13 or Ubuntu 24.04 and later, with Docker working (`docker info` without sudo):
+
+```bash
+./scripts/install-dev.sh      # or: make dev-install
+```
+
+It installs everything below, creates the config files with a generated first-user password, and runs every step of [First time](#first-time) up to Tilt. It ends with a healthcheck that lists each service's address. You can rerun it safely: anything already done is skipped. The log is in `~/.fn/install.log`.
+
+To try it without touching your machine, `make sandbox up` runs it in a throwaway Debian container with its own Docker. `make sandbox shell` opens a shell in there, `SANDBOX=1 make <target>` runs any make target in there, and `make sandbox down` removes it. Edits to `webserver/` and `dagster/` live-reload in the sandbox too. See `scripts/sandbox.sh`.
+
 ### You need
 
 - Docker

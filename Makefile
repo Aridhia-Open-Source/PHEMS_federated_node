@@ -1,6 +1,18 @@
 SHELL=/bin/bash
 TAG := $(or $(TAG), 1.0)
 
+# SANDBOX=1 make <targets> runs the whole command line once inside the dev sandbox
+# (scripts/sandbox.sh), e.g. SANDBOX=1 make cluster up, SANDBOX=1 make deploy.
+ifeq ($(SANDBOX),1)
+
+$(or $(firstword $(MAKECMDGOALS)),sandbox-default):
+	@./scripts/sandbox.sh make $(MAKECMDGOALS) $(filter-out SANDBOX=%,$(MAKEOVERRIDES))
+
+%:
+	@:
+
+else
+
 hadolint:
 	./scripts/run_hadolint.sh
 
@@ -83,6 +95,36 @@ teardown:
 portfwd:
 	./scripts/portfwd.sh
 
+# Corporate MITM proxy simulation (see scripts/proxy-sim.sh). A fake hospital laptop behind a
+# TLS-intercepting proxy. Walk through in order:
+# up -> pull (fails, no route) -> proxy -> pull (fails, x509) -> trust -> pull (works) -> flow -> down.
+# DIRECT=1 make proxy-sim-up    control run: normal internet, no proxy
+# make proxy-sim-flow           the first-time steps; resume with FROM=N
+# make proxy-sim-pull IMAGE=ghcr.io/org/name:tag
+proxy-sim-build:
+	./scripts/proxy-sim.sh build
+
+proxy-sim-up:
+	./scripts/proxy-sim.sh up
+
+proxy-sim-proxy:
+	./scripts/proxy-sim.sh proxy
+
+proxy-sim-trust:
+	./scripts/proxy-sim.sh trust
+
+proxy-sim-pull:
+	./scripts/proxy-sim.sh pull $(IMAGE)
+
+proxy-sim-flow:
+	./scripts/proxy-sim.sh flow $(if $(FROM),--from $(FROM))
+
+proxy-sim-shell:
+	./scripts/proxy-sim.sh shell
+
+proxy-sim-down:
+	./scripts/proxy-sim.sh down
+
 deploy-owner:
 	./scripts/deploy_owner.sh show
 
@@ -102,12 +144,24 @@ tilt-open:
 	tilt open
 
 # Real experiments against the node, see experiments/README.md
-# make experiments-up | experiments-seed EXP=uc1 | experiments-build EXP=uc1 | experiments-run EXP=uc1
-experiments-%:
-	./experiments/experiments.sh $* $(EXP)
+# make experiments up | down | seed uc1 | build uc1 | run uc1 | run-local uc1
+.PHONY: experiments
+experiments:
+	@./experiments/experiments.sh $(filter-out $@,$(MAKECMDGOALS))
+
+# One-step dev install for a fresh clone (Debian 13 / Ubuntu 24.04+, Docker required)
+dev-install:
+	./scripts/install-dev.sh
+
+# Throwaway Debian laptop in Docker for testing the installer, see scripts/sandbox.sh
+# make sandbox up | down | shell; ./scripts/sandbox.sh <cmd> for anything else
+sandbox:
+	@./scripts/sandbox.sh $(filter-out $@,$(MAKECMDGOALS))
 
 nuke:
 	./scripts/nuke.sh
 
 %:
 	@:
+
+endif

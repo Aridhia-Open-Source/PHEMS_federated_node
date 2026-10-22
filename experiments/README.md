@@ -27,18 +27,18 @@ Needs the dev cluster up with Tilt (port-forwards for backend 5000, Gitea 4000 a
 `sources/uc1`. Dev mode (`UC1_DEV`) needs its R changes for that, which are not merged there yet.
 
 ```bash
-make experiments-up                   # release + uc1-omop database
-make experiments-seed EXP=uc1         # dummy OMOP data + fncli setup-project (project "uc1")
-make experiments-build EXP=uc1        # localhost:5001/uc1-fn:latest (slow: renv restore)
-make experiments-run-local EXP=uc1    # optional: image straight against the DB, no node
-make experiments-run EXP=uc1          # trigger PR -> task -> results PR in uc1-results-repo
+make experiments up               # release + uc1-omop database
+make experiments seed uc1          # dummy OMOP data + fncli setup-project (project "uc1")
+make experiments build uc1         # localhost:5001/uc1-fn:latest (slow: renv restore)
+make experiments run-local uc1     # optional: image straight against the DB, no node
+make experiments run uc1           # trigger PR -> task -> results PR in uc1-results-repo
 ```
 
 Or call `experiments/experiments.sh` directly with the same arguments.
 
 `run` and `run-local` pass the project's `DEV_ENV` (JSON, from `project.env`) to the task.
-For UC1 that is `UC1_DEV=1`, a quick run with fewer cohorts. `FULL=1 make experiments-run
-EXP=uc1` runs the whole study.
+For UC1 that is `UC1_DEV=1`, a quick run with fewer cohorts. `FULL=1 make experiments run
+uc1` runs the whole study.
 
 ## Add an experiment
 
@@ -46,13 +46,13 @@ EXP=uc1` runs the whole study.
    (`server=;database=;port=;uid=;pwd=;`), `CDM_SCHEMA`, `WRITE_SCHEMA`, and writes results
    to `ARTIFACT_PATH`.
 2. Copy `projects/uc1` to `projects/NAME`, then change the names and the seed.
-3. Run `make experiments-up`, then `seed`, `build` and `run`. `up` is an upgrade, so this
-   works on a running cluster.
+3. Run `make experiments up`, then `make experiments seed NAME`, `build NAME` and
+   `run NAME`. `up` is an upgrade, so this works on a running cluster.
 
 ## Clean up
 
 - `fncli teardown-project`, with the project's env, removes what `seed` registered in the node.
-- `make experiments-down` uninstalls the release. The secrets and database files stay, so a
+- `make experiments down` uninstalls the release. The secrets and database files stay, so a
   later `up` gets the same data back.
 - Start from empty: `kubectl delete ns experiments`, then delete
   `~/.fn/data/experiments` (Postgres owns it, so you need root or the kind node).
