@@ -1,0 +1,325 @@
+## Custom CA for outbound TLS (customCA).
+##
+## Properties under test: off means nothing changes anywhere; on means every workload that
+## makes outbound HTTPS calls trusts the system CAs plus the custom one, the Secret is
+## mounted without subPath so it refreshes, and a changed CA changes the pod template.
+suite: Custom CA bundle for outbound TLS
+release:
+  namespace: federatednode
+  name: federatednode
+templates:
+  - templates/backend-deployment.yaml
+  - templates/dagster-code-server.yaml
+  - templates/keycloak-statefulset.yaml
+  - templates/keycloak-configmap.yaml
+  - templates/custom-ca-secret.yaml
+  - templates/requirements-check.yaml
+values:
+  - values/values-local.yaml
+set:
+  dagster:
+    enabled: true
+    postgresql:
+      postgresqlHost: db.default.svc
+  fnDagster:
+    createDB: true
+
+tests:
+  - it: adds nothing to the backend by default
+    template: templates/backend-deployment.yaml
+    asserts:
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/custom-ca"]
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: custom-ca
+      - equal:
+          path: spec.template.spec.containers[0].env
+          value:
+            - name: BACKEND_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backend-db
+                  key: password
+
+  - it: adds nothing to Keycloak by default
+    template: templates/keycloak-statefulset.yaml
+    asserts:
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/custom-ca"]
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: custom-ca
+
+  - it: renders no Secret by default
+    template: templates/custom-ca-secret.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not set DAGSTER_CONTAINER_CONTEXT by default
+    template: templates/dagster-code-server.yaml
+    documentIndex: 3
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DAGSTER_CLI_API_GRPC_CONTAINER_CONTEXT
+          any: true
+      - notExists:
+          path: spec.template.spec.initContainers
+
+  - it: renders its own Secret in the release and Keycloak namespaces from inline PEM
+    template: templates/custom-ca-secret.yaml
+    set:
+      customCA:
+        pem: &pem |
+          -----BEGIN CERTIFICATE-----
+          AAAA
+          -----END CERTIFICATE-----
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: fn-custom-ca
+        documentIndex: 0
+      - equal:
+          path: metadata.namespace
+          value: federatednode
+        documentIndex: 0
+      - equal:
+          path: metadata.namespace
+          value: keycloak
+        documentIndex: 1
+      - equal:
+          path: stringData["ca.crt"]
+          value: |
+            -----BEGIN CERTIFICATE-----
+            AAAA
+            -----END CERTIFICATE-----
+
+  - it: gives the backend the init container, volume, env and checksum
+    template: templates/backend-deployment.yaml
+    set:
+      customCA:
+        secretName: corp-ca
+        key: root.pem
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/custom-ca"]
+          pattern: '^[0-9a-f]{16}$'
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: build-ca-bundle
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: custom-ca
+            secret:
+              secretName: corp-ca
+              items:
+                - key: root.pem
+                  path: ca.crt
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: ca-bundle
+            emptyDir: {}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REQUESTS_CA_BUNDLE
+            value: /etc/fn-ca/ca-bundle.crt
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/fn-ca/ca-bundle.crt
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CURL_CA_BUNDLE
+            value: /etc/fn-ca/ca-bundle.crt
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GIT_SSL_CAINFO
+            value: /etc/fn-ca/ca-bundle.crt
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: ca-bundle
+            mountPath: /etc/fn-ca
+            readOnly: true
+
+  - it: never mounts the CA Secret through subPath
+    template: templates/backend-deployment.yaml
+    set:
+      customCA:
+        secretName: corp-ca
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers[1].volumeMounts[0].subPath
+      - contains:
+          path: spec.template.spec.initContainers[1].volumeMounts
+          content:
+            name: custom-ca
+            mountPath: /custom-ca
+            readOnly: true
+
+  - it: builds the bundle from the system CAs plus the custom one, never the custom one alone
+    template: templates/backend-deployment.yaml
+    set:
+      customCA:
+        secretName: corp-ca
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: 'cat "\$sys"; echo; cat /custom-ca/ca.crt'
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: 'refusing to build a bundle of the custom CA alone'
+
+  - it: runs the backend's own image in the init container, non-root
+    template: templates/backend-deployment.yaml
+    set:
+      customCA:
+        secretName: corp-ca
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].image
+          value: ghcr.io/aridhia-open-source/federated_node_run:2.0.0
+      - equal:
+          path: spec.template.spec.initContainers[1].securityContext.runAsNonRoot
+          value: true
+
+  - it: gives the Dagster code server the init container, env and checksum
+    template: templates/dagster-code-server.yaml
+    documentIndex: 3
+    set:
+      customCA:
+        secretName: corp-ca
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/custom-ca"]
+          pattern: '^[0-9a-f]{16}$'
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: build-ca-bundle
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: ghcr.io/aridhia-open-source/dagster_fn:2.0.0
+      - notExists:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GIT_SSL_CAINFO
+            value: /etc/fn-ca/ca-bundle.crt
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: custom-ca
+            secret:
+              secretName: corp-ca
+              items:
+                - key: ca.crt
+                  path: ca.crt
+
+  - it: hands the same volumes, init container and env to every Dagster run pod
+    template: templates/dagster-code-server.yaml
+    documentIndex: 3
+    set:
+      customCA:
+        secretName: corp-ca
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name == "DAGSTER_CLI_API_GRPC_CONTAINER_CONTEXT")].value
+          pattern: '"init_containers":\[\{"command"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name == "DAGSTER_CLI_API_GRPC_CONTAINER_CONTEXT")].value
+          pattern: '"name":"GIT_SSL_CAINFO","value":"/etc/fn-ca/ca-bundle.crt"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name == "DAGSTER_CLI_API_GRPC_CONTAINER_CONTEXT")].value
+          pattern: '"secretName":"corp-ca"'
+
+  - it: points Keycloak at the PEM through its truststore, which adds to the system CAs
+    template: templates/keycloak-statefulset.yaml
+    set:
+      customCA:
+        secretName: corp-ca
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/custom-ca"]
+          pattern: '^[0-9a-f]{16}$'
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_TRUSTSTORE_PATHS
+            value: /opt/keycloak/conf/custom-ca/ca.crt
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: custom-ca
+            mountPath: /opt/keycloak/conf/custom-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: custom-ca
+            secret:
+              secretName: corp-ca
+              items:
+                - key: ca.crt
+                  path: ca.crt
+
+  - it: changes the checksum when the CA changes, and only then
+    template: templates/backend-deployment.yaml
+    set:
+      customCA:
+        pem: |
+          -----BEGIN CERTIFICATE-----
+          AAAA
+          -----END CERTIFICATE-----
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["checksum/custom-ca"]
+          value: "7cc358aa45100f42"
+
+  - it: changes the checksum when the CA changes (second CA)
+    template: templates/backend-deployment.yaml
+    set:
+      customCA:
+        pem: |
+          -----BEGIN CERTIFICATE-----
+          BBBB
+          -----END CERTIFICATE-----
+    asserts:
+      - notEqual:
+          path: spec.template.metadata.annotations["checksum/custom-ca"]
+          value: "7cc358aa45100f42"
+
+  - it: refuses both a Secret name and inline PEM
+    template: templates/requirements-check.yaml
+    set:
+      customCA:
+        secretName: corp-ca
+        pem: |
+          -----BEGIN CERTIFICATE-----
+          AAAA
+          -----END CERTIFICATE-----
+    asserts:
+      - failedTemplate:
+          errorPattern: 'customCA.secretName and customCA.pem are both set'
+
+  - it: refuses inline text that is not a PEM certificate
+    template: templates/requirements-check.yaml
+    set:
+      customCA:
+        pem: not a certificate
+    asserts:
+      - failedTemplate:
+          errorPattern: 'holds no PEM certificate'
