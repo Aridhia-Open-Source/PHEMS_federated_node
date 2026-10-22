@@ -19,9 +19,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
 
 # A normal user with sudo and docker access, like a developer's account.
+# .cache is created here: sandbox.sh mounts the host pip cache into it, and Docker would
+# otherwise create it as root.
 RUN useradd -m -s /bin/bash -G sudo,docker dev \
  && echo 'dev ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/dev \
- && install -d -o dev -g dev /home/dev/fn
+ && install -d -o dev -g dev /home/dev/fn /home/dev/.cache /home/dev/.cache/pip
 
 # Sets up the cgroups a nested Docker needs, then runs dockerd (same as the docker:dind image).
 COPY --from=dind /usr/local/bin/dind /usr/local/bin/dind
