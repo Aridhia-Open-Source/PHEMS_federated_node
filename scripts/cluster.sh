@@ -23,6 +23,11 @@ KIND_CONFIG_FILE=".kind/kind-config.yaml"
 # Under $HOME so nothing here needs sudo.
 FN_DATA_DIR="${FN_DATA_DIR:-$HOME/.fn/data}"
 
+# Where the pull-through mirrors fetch from. scripts/sandbox.sh points them at the host's
+# mirrors, so a sandbox reuses the host's cache instead of downloading everything again.
+DOCKERHUB_UPSTREAM="${DOCKERHUB_UPSTREAM:-https://registry-1.docker.io}"
+GHCR_UPSTREAM="${GHCR_UPSTREAM:-https://ghcr.io}"
+
 # Show usage if no command
 if [ -z "$COMMAND" ] || [ "$COMMAND" != "up" ] && [ "$COMMAND" != "down" ]; then
   echo "Usage: $0 <up|down> [--remove-registries]"
@@ -59,7 +64,7 @@ if [ "$COMMAND" = "up" ]; then
     docker run \
       -d --restart=always \
       -p "127.0.0.1:5002:5000" \
-      -e REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io \
+      -e REGISTRY_PROXY_REMOTEURL="$DOCKERHUB_UPSTREAM" \
       --name proxy-docker-hub-registry \
       registry:2
   else
@@ -72,7 +77,7 @@ if [ "$COMMAND" = "up" ]; then
     docker run \
       -d --restart=always \
       -p "127.0.0.1:5003:5000" \
-      -e REGISTRY_PROXY_REMOTEURL=https://ghcr.io \
+      -e REGISTRY_PROXY_REMOTEURL="$GHCR_UPSTREAM" \
       --name proxy-ghcr-registry \
       registry:2
   else

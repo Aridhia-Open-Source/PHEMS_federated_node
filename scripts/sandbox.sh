@@ -21,6 +21,12 @@ set -euo pipefail
 # and charts/ start missing, as in a clone. The code Tilt watches (LIVE_DIRS) is
 # bind-mounted instead, so host edits live-reload in the sandbox. Anything else reaches
 # it on the next `up`. The mounts are fixed when the sandbox is created: down, then up.
+#
+# Image pulls go through the host's pull-through mirrors (make cluster up on the host
+# starts them), so a new sandbox does not download everything again. The sandbox joins
+# the host's kind network; its Docker uses the host's Docker Hub mirror, and its own
+# mirrors fetch from the host's. NO_CACHE=1 make sandbox up for a cold start (also fixed
+# at creation: down, then up).
 ####################################################################################
 
 cd "$(dirname "$0")/.."
@@ -41,6 +47,13 @@ as_dev() {
     -e USER=dev -e HOME=/home/dev -e PATH="$DEV_PATH" "$NAME" "$@"
 }
 
+# A host mirror's address on the host's kind network, empty if it is not running there.
+host_mirror() {
+  local ip
+  ip="$(docker inspect -f '{{if .State.Running}}{{with index .NetworkSettings.Networks "kind"}}{{.IPAddress}}{{end}}{{end}}' "$1" 2> /dev/null || true)"
+  [ -z "$ip" ] || echo "$ip:5000"
+}
+
 require_running() {
   [ "$(docker inspect -f '{{.State.Running}}' "$NAME" 2> /dev/null || true)" = "true" ] || {
     echo "No sandbox running. Start it with: make sandbox up" >&2
@@ -55,11 +68,27 @@ case "${1:-}" in
       docker rm -f "$NAME" > /dev/null 2>&1 || true
       mounts=()
       for dir in "${LIVE_DIRS[@]}"; do mounts+=(-v "$PWD/$dir:$REPO/$dir"); done
+
+      # By IP: containers nested in the sandbox do not get Docker's DNS for the kind network.
+      cache=()
+      dockerd_args=()
+      hub="$(host_mirror proxy-docker-hub-registry)"
+      ghcr="$(host_mirror proxy-ghcr-registry)"
+      if [ -n "${NO_CACHE:-}" ]; then
+        echo "NO_CACHE set: pulling everything from the internet."
+      elif [ -n "$hub" ] && [ -n "$ghcr" ]; then
+        echo "Using the host's registry mirrors: Docker Hub $hub, GHCR $ghcr"
+        cache=(--network kind -e "DOCKERHUB_UPSTREAM=http://$hub" -e "GHCR_UPSTREAM=http://$ghcr")
+        dockerd_args=(--registry-mirror "http://$hub" --insecure-registry "$hub" --insecure-registry "$ghcr")
+      else
+        echo "No host registry mirrors running (make cluster up on the host): pulling from the internet."
+      fi
+
       docker run -d --init --privileged --name "$NAME" --hostname "$NAME" \
         -v fn-sandbox-docker:/var/lib/docker \
         -v fn-sandbox-containerd:/var/lib/containerd \
-        "${mounts[@]}" \
-        "$IMAGE" > /dev/null
+        "${mounts[@]}" "${cache[@]}" \
+        "$IMAGE" "${dockerd_args[@]}" > /dev/null
       echo "Waiting for the sandbox's Docker daemon..."
       for _ in $(seq 1 90); do
         docker exec "$NAME" docker info > /dev/null 2>&1 && break
