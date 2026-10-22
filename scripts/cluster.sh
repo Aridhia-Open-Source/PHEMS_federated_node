@@ -99,7 +99,22 @@ if [ "$COMMAND" = "up" ]; then
     RENDERED_CONFIG="$(mktemp)"
     trap 'rm -f "$RENDERED_CONFIG"' EXIT
     sed "s|__FN_DATA_DIR__|$FN_DATA_DIR|" "$KIND_CONFIG_FILE" > "$RENDERED_CONFIG"
+    # CUSTOM_CA_FILE (optional, dev tooling): mount the CA into the node so containerd trusts it
+    # for image pulls (a TLS-intercepting proxy, a registry with a private CA). Unset, the
+    # rendered config is exactly the one above.
+    NODE_CA=/usr/local/share/ca-certificates/fn-custom-ca.crt
+    if [ -n "${CUSTOM_CA_FILE:-}" ]; then
+      [ -s "$CUSTOM_CA_FILE" ] || { echo "CUSTOM_CA_FILE=$CUSTOM_CA_FILE is missing or empty" >&2; exit 1; }
+      CA_ABS="$(cd "$(dirname "$CUSTOM_CA_FILE")" && pwd)/$(basename "$CUSTOM_CA_FILE")"
+      awk -v host="$CA_ABS" -v node="$NODE_CA" '{ print } /containerPath: \/data$/ { print "  - hostPath: " host; print "    containerPath: " node; print "    readOnly: true" }' \
+        "$RENDERED_CONFIG" > "$RENDERED_CONFIG.ca" && mv "$RENDERED_CONFIG.ca" "$RENDERED_CONFIG"
+    fi
     kind create cluster --name "$CLUSTER_NAME" --config "$RENDERED_CONFIG"
+    if [ -n "${CUSTOM_CA_FILE:-}" ]; then
+      # Added to the node's system trust, which containerd reads for every registry; the
+      # node's own CAs stay. Verification is not switched off.
+      docker exec "$CLUSTER_NAME-control-plane" sh -c 'update-ca-certificates && systemctl restart containerd'
+    fi
   fi
 
   # Ensure registries are connected to kind network

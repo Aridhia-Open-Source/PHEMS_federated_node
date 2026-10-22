@@ -70,6 +70,8 @@ as_dev() {
     for var in CURL_CA_BUNDLE SSL_CERT_FILE REQUESTS_CA_BUNDLE GIT_SSL_CAINFO; do
       ca_env+=(-e "$var=/etc/ssl/certs/ca-certificates.crt")
     done
+    # The sandbox's own kind node and release trust it too (cluster.sh, custom_ca.sh).
+    ca_env+=(-e "CUSTOM_CA_FILE=$SANDBOX_CA_INSTALLED")
   fi
   docker exec "${TTY[@]}" -u dev -w "$REPO" \
     -e USER=dev -e HOME=/home/dev -e PATH="$DEV_PATH" ${ca_env[@]+"${ca_env[@]}"} "$NAME" "$@"
