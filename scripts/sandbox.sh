@@ -76,7 +76,8 @@ case "${1:-}" in
 
       # By IP: containers nested in the sandbox do not get Docker's DNS for the kind network.
       cache=()
-      dockerd_args=()
+      # Google's Docker Hub mirror is the fallback when Docker Hub rate-limits (429).
+      dockerd_args=(--registry-mirror https://mirror.gcr.io)
       hub="$(host_mirror proxy-docker-hub-registry)"
       ghcr="$(host_mirror proxy-ghcr-registry)"
       images="$(host_mirror kind-registry)"
@@ -87,7 +88,7 @@ case "${1:-}" in
         cache=(--network kind -e "DOCKERHUB_UPSTREAM=http://$hub" -e "GHCR_UPSTREAM=http://$ghcr"
           -e "UPSTREAM_REGISTRY=$images")
         [ -d "$HOME/.cache/pip" ] && cache+=(-v "$HOME/.cache/pip:/home/dev/.cache/pip")
-        dockerd_args=(--registry-mirror "http://$hub"
+        dockerd_args=(--registry-mirror "http://$hub" --registry-mirror https://mirror.gcr.io
           --insecure-registry "$hub" --insecure-registry "$ghcr" --insecure-registry "$images")
       else
         echo "Host registries not running (make cluster up on the host): pulling and building everything."
