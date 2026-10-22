@@ -2152,13 +2152,13 @@
           },
           "host": {
             "type": "string",
-            "description": "Url where the database is hosted at",
+            "description": "Url where the database is hosted at. Server engines only",
             "example": "http://somewhere",
             "maxLength": 256
           },
           "port": {
             "type": "number",
-            "description": "Port for the host field",
+            "description": "Port for the host field. Server engines only",
             "example": 5432
           },
           "username": {
@@ -2183,24 +2183,37 @@
           },
           "schema": {
             "type": "string",
-            "description": "Read from DB schema"
+            "description": "Read from DB schema. Defaults to main for duckdb and sqlite"
           },
           "schema_write": {
             "type": "string",
-            "description": "DB schema to write to in case is needed"
+            "description": "DB schema to write to in case is needed. Server engines only"
           },
           "type": {
-            "description": "Type of DB engine",
-            "oneOf": [
-              {
-                "type": "string",
-                "example": "postgres"
-              },
-              {
-                "type": "string",
-                "example": "mssql"
-              }
-            ]
+            "description": "Type of DB engine. duckdb and sqlite are file based, and need a volume_claim and path",
+            "type": "string",
+            "enum": [
+              "postgres",
+              "mssql",
+              "mysql",
+              "oracle",
+              "mariadb",
+              "duckdb",
+              "sqlite"
+            ],
+            "example": "postgres"
+          },
+          "volume_claim": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "PVC name in the task namespace holding the file, for duckdb and sqlite",
+            "example": "clinic-files"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "Relative path of the file inside the volume, for duckdb and sqlite",
+            "example": "clinic.duckdb"
           },
           "catalogue": {
             "$ref": "#/components/schemas/CataloguePostBody"
@@ -2210,10 +2223,7 @@
           }
         },
         "required": [
-          "name",
-          "username",
-          "password",
-          "host"
+          "name"
         ]
       },
       "DatasetById": {
@@ -2262,6 +2272,14 @@
           "extra_connection_args": {
             "type": "string",
             "example": "TrustServerCertificate=Yes"
+          },
+          "volume_claim": {
+            "type": "string",
+            "example": "clinic-files"
+          },
+          "path": {
+            "type": "string",
+            "example": "clinic.duckdb"
           }
         }
       },

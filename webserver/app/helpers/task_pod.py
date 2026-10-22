@@ -12,7 +12,7 @@ from kubernetes.client import (
     V1CSIPersistentVolumeSource, V1NFSVolumeSource, V1PodSecurityContext
 )
 from app.helpers.const import (
-    ALPINE_IMAGE, RESULTS_PATH, STORAGE_CLASS, TASK_NAMESPACE, MOUNT_OPTIONS,
+    ALPINE_IMAGE, RESULTS_PATH, STORAGE_CLASS, TASK_NAMESPACE, MOUNT_OPTIONS, DATASET_MOUNT_PATH,
     DB_LIVENESS_ENABLED, DB_LIVENESS_RETRIES, DB_LIVENESS_BACKOFF, DB_LIVENESS_TIMEOUT
 )
 from app.helpers.kubernetes import KubernetesClient
@@ -186,7 +186,8 @@ class TaskPod:
         )
         init_containers = [dir_init]
 
-        if DB_LIVENESS_ENABLED:
+        # File based datasets have no server to wait for
+        if DB_LIVENESS_ENABLED and not self.dataset.is_file_based:
             db_liveness = V1Container(
                 name="db-liveness",
                 image=f"ghcr.io/aridhia-open-source/db_liveness:{IMAGE_TAG}",
@@ -251,10 +252,30 @@ class TaskPod:
             self.env_init.append(V1EnvVar(name="FROM_DIALECT", value=self.db_query["dialect"]))
             self.env_init.append(V1EnvVar(name="TO_DIALECT", value=self.dataset.type))
 
-        self.env.append(V1EnvVar(name="CONNECTION_STRING", value=self.dataset.get_connection_string()))
-        self.env.append(V1EnvVar(name="CDM_SCHEMA", value=self.dataset.schema))
-        self.env.append(V1EnvVar(name="WRITE_SCHEMA", value=self.dataset.schema_write))
-        self.env.append(V1EnvVar(name="ORACLE_SID", value=self.dataset.name))
+        volumes = [V1Volume(name="data", persistent_volume_claim=pvc)]
+        if self.dataset.is_file_based:
+            # Mounted read-only, so any number of tasks can open it at once
+            volumes.append(V1Volume(
+                name="dataset",
+                persistent_volume_claim=V1PersistentVolumeClaimVolumeSource(
+                    claim_name=self.dataset.volume_claim,
+                    read_only=True
+                )
+            ))
+            vol_mounts.append(V1VolumeMount(
+                name="dataset",
+                mount_path=DATASET_MOUNT_PATH,
+                read_only=True
+            ))
+            self.env.append(V1EnvVar(name="DATASET_TYPE", value=self.dataset.type.lower()))
+            self.env.append(V1EnvVar(name="DATASET_PATH", value=self.dataset.dataset_path()))
+            self.env.append(V1EnvVar(name="CONNECTION_STRING", value=self.dataset.get_connection_string()))
+            self.env.append(V1EnvVar(name="CDM_SCHEMA", value=self.dataset.schema))
+        else:
+            self.env.append(V1EnvVar(name="CONNECTION_STRING", value=self.dataset.get_connection_string()))
+            self.env.append(V1EnvVar(name="CDM_SCHEMA", value=self.dataset.schema))
+            self.env.append(V1EnvVar(name="WRITE_SCHEMA", value=self.dataset.schema_write))
+            self.env.append(V1EnvVar(name="ORACLE_SID", value=self.dataset.name))
         container = V1Container(
             name=self.name,
             image=self.image,
@@ -283,9 +304,7 @@ class TaskPod:
             restart_policy="Never",
             automount_service_account_token=False,
             security_context=security_context,
-            volumes=[
-                V1Volume(name="data", persistent_volume_claim=pvc)
-            ]
+            volumes=volumes
         )
         metadata = V1ObjectMeta(
             name=self.name,

@@ -3,11 +3,13 @@
 # but this way we can also test keycloak's configuration
 import requests
 
-from app.helpers.keycloak import Keycloak, URLS
+from app.helpers.keycloak import KEYCLOAK_SERVICE_USER, Keycloak, URLS
+
+PROTECTED_USERNAMES = {"admin", KEYCLOAK_SERVICE_USER}
 
 def clean_kc():
     """
-    Removes all users but admin
+    Removes all users except the platform's own accounts
     """
     token = Keycloak().get_admin_token_global()
     response = requests.get(
@@ -15,7 +17,7 @@ def clean_kc():
         headers={"Authorization": f"Bearer {token}"}
     )
     for user in response.json():
-        if user["username"] != "admin":
+        if user["username"] not in PROTECTED_USERNAMES:
             requests.delete(
                 URLS["user"] + f"/{user["id"]}",
                 headers={"Authorization": f"Bearer {token}"}

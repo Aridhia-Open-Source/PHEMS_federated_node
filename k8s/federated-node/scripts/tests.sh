@@ -15,8 +15,8 @@ TOKEN=$(curl "${BACKEND_URL}/login" \
     --silent \
     --fail-with-body \
     --header "Content-Type: application/x-www-form-urlencoded" \
-    --data-urlencode "username=${KEYCLOAK_ADMIN}" \
-    --data-urlencode "password=${KEYCLOAK_ADMIN_PASSWORD}" | jq -r -e '.token'
+    --data-urlencode "username=${KEYCLOAK_SERVICE_USER}" \
+    --data-urlencode "password=${KEYCLOAK_SERVICE_PASSWORD}" | jq -r -e '.token'
 )
 
 test_dataset_list(){
@@ -143,8 +143,8 @@ TOKEN=$(curl "http://keycloak.${KEYCLOAK_NAMESPACE}.svc/realms/FederatedNode/pro
     --silent \
     --header "Content-Type: application/x-www-form-urlencoded" \
     --data-urlencode "grant_type=password" \
-    --data-urlencode "username=${KEYCLOAK_ADMIN}" \
-    --data-urlencode "password=${KEYCLOAK_ADMIN_PASSWORD}" \
+    --data-urlencode "username=${KEYCLOAK_SERVICE_USER}" \
+    --data-urlencode "password=${KEYCLOAK_SERVICE_PASSWORD}" \
     --data-urlencode "client_id=admin-cli" | jq -r '.access_token')
 
 printf "[cleanup]\tRemoving test user\n"

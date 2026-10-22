@@ -75,12 +75,52 @@
         "keycloak": {
             "type": "object",
             "properties": {
+                "image": {
+                    "type": "string",
+                    "default": "ghcr.io/aridhia-open-source/federated_keycloak",
+                    "description": "Keycloak server image repository. Must be built from build/keycloak in this repo: features, --db and --health-enabled are baked in at build time, so an unrelated Keycloak image falls back to H2 and exposes no management port."
+                },
                 "replicas": {
                     "type": "integer",
                     "default": 2
                 },
                 "tag": {
                     "$ref": "#/definitions/tag"
+                },
+                "credentialGeneration": {
+                    "type": "integer",
+                    "default": 1,
+                    "description": "Increment to deliberately rotate the platform-managed Keycloak credentials. Credentials are otherwise stable across upgrades. Safe to leave committed: rotation only happens when this differs from the generation recorded in kc-secrets."
+                },
+                "tokenCacheSeconds": {
+                    "type": "integer",
+                    "default": 30,
+                    "description": "Seconds a service-account token may be cached by the backend. 0 disables caching."
+                },
+                "credentialRotation": {
+                    "type": "object",
+                    "description": "Automatic rotation of platform-managed Keycloak credentials. Requires volume-mounted credentials; never rotates the operator-owned admin password.",
+                    "properties": {
+                        "enabled": {"type": "boolean", "default": false},
+                        "schedule": {"type": "string", "default": "0 3 1 * *", "description": "Cron schedule. Cron cannot express exactly 30 days; monthly is the closest equivalent."},
+                        "rotate": {
+                            "type": "object",
+                            "properties": {
+                                "clientSecret": {"type": "boolean", "default": true},
+                                "servicePassword": {"type": "boolean", "default": true}
+                            }
+                        }
+                    }
+                },
+                "manageRealm": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether keycloak-realm-init applies the realms.json partial import and realm migrations. Set false to hand realm management entirely to the operator."
+                },
+                "recreateMissingSecrets": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Allow an upgrade to regenerate kc-secrets when it is absent. Normally that is a hard error, since it usually means Helm's lookup cannot reach the cluster and credentials would be silently regenerated on every sync."
                 }
             }
         },
@@ -289,6 +329,133 @@
                 { "required": ["nfs"] },
                 { "required": ["gcp"] }
             ]
+        },
+        "datasetVolumes": {
+            "type": "array",
+            "description": "Read only volumes holding file based datasets (duckdb, sqlite), one PV and PVC each in the tasks namespace",
+            "default": [],
+            "items": {
+                "type": "object",
+                "required": [
+                    "name"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "PVC name, used as the dataset's volume_claim"
+                    },
+                    "capacity": {
+                        "type": "string",
+                        "default": "10Gi"
+                    },
+                    "mountOptions": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "local": {
+                        "type": "object",
+                        "description": "Local path on the node",
+                        "required": [
+                            "path"
+                        ],
+                        "properties": {
+                            "path": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "azure": {
+                        "type": "object",
+                        "description": "Azure file share",
+                        "required": [
+                            "shareName"
+                        ],
+                        "properties": {
+                            "shareName": {
+                                "type": "string"
+                            },
+                            "secretName": {
+                                "type": "string"
+                            },
+                            "secretNamespace": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "aws": {
+                        "type": "object",
+                        "description": "EFS file system",
+                        "required": [
+                            "fileSystemId"
+                        ],
+                        "properties": {
+                            "fileSystemId": {
+                                "type": "string"
+                            },
+                            "accessPointId": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "gcp": {
+                        "type": "object",
+                        "description": "GCS bucket mounted with GCS FUSE",
+                        "required": [
+                            "bucketName"
+                        ],
+                        "properties": {
+                            "bucketName": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "nfs": {
+                        "type": "object",
+                        "description": "NFS export",
+                        "required": [
+                            "url",
+                            "path"
+                        ],
+                        "properties": {
+                            "url": {
+                                "type": "string"
+                            },
+                            "path": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "oneOf": [
+                    {
+                        "required": [
+                            "local"
+                        ]
+                    },
+                    {
+                        "required": [
+                            "azure"
+                        ]
+                    },
+                    {
+                        "required": [
+                            "aws"
+                        ]
+                    },
+                    {
+                        "required": [
+                            "gcp"
+                        ]
+                    },
+                    {
+                        "required": [
+                            "nfs"
+                        ]
+                    }
+                ]
+            }
         },
         "pullPolicy": {
             "type": "string",

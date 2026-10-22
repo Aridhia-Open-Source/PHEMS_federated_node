@@ -1,0 +1,132 @@
+suite: Dataset volumes for file based datasets
+release:
+  namespace: federatednode
+  name: fn
+templates:
+  - dataset-volumes.yaml
+values:
+  - values/values-local.yaml
+tests:
+  - it: renders nothing by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: creates a read only PV and PVC in the tasks namespace
+    set:
+      datasetVolumes:
+        - name: clinic-files
+          capacity: 5Gi
+          local:
+            path: /data/datasets
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: fn-dataset-clinic-files
+        documentIndex: 0
+      - equal:
+          path: spec.accessModes
+          value: [ReadOnlyMany]
+        documentIndex: 0
+      - equal:
+          path: spec.local.path
+          value: /data/datasets
+        documentIndex: 0
+      - equal:
+          path: spec.claimRef
+          value:
+            name: clinic-files
+            namespace: tasks
+        documentIndex: 0
+      - equal:
+          path: spec.capacity.storage
+          value: 5Gi
+        documentIndex: 0
+      - isKind:
+          of: PersistentVolumeClaim
+        documentIndex: 1
+      - equal:
+          path: metadata.namespace
+          value: tasks
+        documentIndex: 1
+      - equal:
+          path: spec.volumeName
+          value: fn-dataset-clinic-files
+        documentIndex: 1
+      - equal:
+          path: spec.storageClassName
+          value: ""
+        documentIndex: 1
+      - notExists:
+          path: metadata.annotations
+        documentIndex: 1
+  - it: uses an azure file share read only
+    set:
+      datasetVolumes:
+        - name: az
+          azure:
+            shareName: datasets
+    asserts:
+      - equal:
+          path: spec.azureFile
+          value:
+            shareName: datasets
+            secretName: azure-storage-secret
+            readOnly: true
+        documentIndex: 0
+  - it: uses EFS with an access point
+    set:
+      datasetVolumes:
+        - name: efs
+          aws:
+            fileSystemId: fs-123
+            accessPointId: fsap-456
+    asserts:
+      - equal:
+          path: spec.csi
+          value:
+            driver: efs.csi.aws.com
+            volumeHandle: fs-123::fsap-456
+            readOnly: true
+        documentIndex: 0
+  - it: uses GCS FUSE read only
+    set:
+      datasetVolumes:
+        - name: gcs
+          mountOptions: [implicit-dirs]
+          gcp:
+            bucketName: my-datasets
+    asserts:
+      - equal:
+          path: spec.csi
+          value:
+            driver: gcsfuse.csi.storage.gke.io
+            volumeHandle: my-datasets
+            readOnly: true
+        documentIndex: 0
+      - equal:
+          path: spec.mountOptions
+          value: [implicit-dirs]
+        documentIndex: 0
+  - it: uses an NFS export read only
+    set:
+      datasetVolumes:
+        - name: onprem
+          nfs:
+            url: nfs.example.com
+            path: /exports/datasets
+    asserts:
+      - equal:
+          path: spec.nfs
+          value:
+            server: nfs.example.com
+            path: /exports/datasets
+            readOnly: true
+        documentIndex: 0
+  - it: fails without a backend
+    set:
+      datasetVolumes:
+        - name: nothing
+    asserts:
+      - failedTemplate: {}
