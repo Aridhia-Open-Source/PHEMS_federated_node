@@ -34,6 +34,18 @@ The components and the network between them are drawn in [docs/architecture/flow
 
 The local setup is a [kind](https://kind.sigs.k8s.io/) cluster, a local image registry, the chart installed with development values, and [Tilt](https://tilt.dev/) for live reload.
 
+### One step
+
+On Debian 13 or Ubuntu 24.04 and later, with Docker working (`docker info` without sudo):
+
+```bash
+./scripts/install-dev.sh      # or: make dev-install
+```
+
+It installs everything below, creates the config files with a generated first-user password, and runs every step of [First time](#first-time) up to Tilt. It ends with a healthcheck that lists each service's address. You can rerun it safely: anything already done is skipped. The log is in `~/.fn/install.log`.
+
+To try it without touching your machine, `./scripts/sandbox/sandbox.sh up` runs it in a throwaway Debian container with its own Docker. `shell` opens a shell in there, `exec <command>` runs a command, any other word runs that make target (`sandbox.sh deploy`), and `down` removes it. Edits to `webserver/` and `dagster/` live-reload in the sandbox too. The options and details are at the top of `scripts/sandbox/sandbox.sh`.
+
 ### You need
 
 - Docker
@@ -124,6 +136,15 @@ Tilt watches the code and updates the running pods. You do not redeploy for code
 | Delete the cluster, keep the registries | `make cluster down` |
 
 More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
+
+### Behind a TLS-intercepting proxy
+
+Start with [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md): `./scripts/setup-proxy-ca.sh --ca-file PATH --proxy URL` sets up the machine side. The two settings below are optional dev tooling and do nothing when unset.
+
+- `CUSTOM_CA_FILE=/path/ca.pem` in `.dev.env`, set before `make cluster up`: the kind node trusts the CA for image pulls, and `make deploy` and `make upgrade` put it in a Secret and set `customCA.secretName`, so the pods trust it for outbound TLS.
+- `./scripts/sandbox/sandbox.sh --ca-file /path/ca.pem up`: the sandbox trusts the CA, so the installer's downloads and its Docker's registry pulls verify against it. Set it when the sandbox is created: `down` first if it exists.
+
+Image builds receive `CUSTOM_CA_FILE` as the BuildKit secret `proxy_ca` (Docker 23 or later). Not covered: the registry mirrors that `make cluster up` starts.
 
 ### One owner at a time
 
@@ -292,6 +313,21 @@ Set `storage.nfs.provisioner` (for example `nfs.csi.k8s.io`) even without that d
 #### TLS
 
 Either create the `tls` secret yourself (step 4), or let cert-manager renew it: `cert-manager.enabled: true` plus `certs.azure.*` or `certs.aws` for DNS-01. For another CA, run cert-manager yourself and point `tls.secretName` at the secret it produces.
+
+#### Custom CA
+
+For outbound TLS to a git host, identity provider or registry signed by a private CA, or behind a TLS-intercepting proxy, put the CA in a Secret and name it:
+
+```bash
+kubectl create secret generic corp-ca -n "$NAMESPACE" --from-file=ca.crt=corp-ca.pem
+```
+
+```yaml
+customCA:
+  secretName: corp-ca     # or customCA.pem: | the PEM, to have the chart render the Secret
+```
+
+The CA is added to the system CAs of the backend, the Dagster code server, every Dagster run pod and Keycloak, and certificates are always verified: there is no way to skip verification. The pods restart when the CA changes on `helm upgrade`. A Secret changed outside Helm needs `kubectl rollout restart` on the backend and code server deployments and the Keycloak StatefulSet, or a reloader controller. The chart cannot give the nodes' containerd the CA: if the container registry is behind a private CA, install it on each node. For a dev kind cluster, `CUSTOM_CA_FILE` does this when the cluster is created (`scripts/cluster.sh`). Details, and what is not covered, are in the [chart README](k8s/federated-node/README.md#custom-ca).
 
 #### Databases
 

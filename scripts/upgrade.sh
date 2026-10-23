@@ -19,6 +19,10 @@ if command -v tilt &> /dev/null && pgrep -f "tilt up" > /dev/null; then
   tilt down
 fi
 
+# CUSTOM_CA_FILE (optional): a CA the release trusts for outbound TLS. See custom_ca.sh.
+source ./scripts/custom_ca.sh
+custom_ca_prepare
+
 cd k8s/federated-node
 
 kubectl config set-context \
@@ -28,6 +32,7 @@ helm upgrade \
   --install "$RELEASE_NAME" . \
   -f "$VALUES_FILE" \
   --set "firstUserSecret.email=$KEYCLOAK_FIRST_USER_EMAIL" \
+  ${CUSTOM_CA_HELM_ARGS[@]+"${CUSTOM_CA_HELM_ARGS[@]}"} \
   --timeout 30m \
   --namespace "$NAMESPACE"
 

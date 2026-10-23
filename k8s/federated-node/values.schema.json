@@ -448,6 +448,26 @@
                 }
             }
         },
+        "customCA": {
+            "type": "object",
+            "description": "Extra certificate authority for outbound TLS, added to each image's system CAs. Off unless secretName or pem is set.",
+            "additionalProperties": false,
+            "properties": {
+                "secretName": {
+                    "type": "string",
+                    "description": "An existing Secret in the release namespace holding the PEM. Mutually exclusive with pem."
+                },
+                "key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The key in the Secret holding the PEM bundle. Defaults to ca.crt."
+                },
+                "pem": {
+                    "type": "string",
+                    "description": "The PEM itself; the chart renders a Secret called fn-custom-ca from it. Mutually exclusive with secretName."
+                }
+            }
+        },
         "on_aks": {
             "type": "boolean",
             "description": "Deploying on Azure?",
