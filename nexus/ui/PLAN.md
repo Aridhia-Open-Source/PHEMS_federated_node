@@ -1,21 +1,21 @@
-# admin-ui: React admin frontend
+# nexus/ui: React admin frontend
 
 ## Context
 - **What it is:** a functional admin UI (not polished) for calling the federated node's API. Admins set up global resources and the projects that use them.
-- **Backend:** it targets **nexus**, the FastAPI port of `webserver/` being built on branch `feat/nexus-fastapi` (`nexus/PLAN.md`).
+- **Backend:** it targets **nexus**, the FastAPI port of `webserver/` being built on branch `nexus/api` (`nexus/api/PLAN.md`).
 - **Any backend works:** nexus keeps the webserver's wire contract (the same paths, `{"error"}` bodies and pagination keys), so the UI also works against today's Flask webserver.
 
 ## Rules
 - **Stack:** Vite, React, TypeScript, openapi-typescript plus openapi-fetch for a typed client, TanStack Query and React Router. No component library unless it saves real time. Plain CSS is fine.
 - **Audience:** admin users only for the first cut. Logins for non-admin project users come later.
 - **Out of scope:** anything under the webserver's `models/extras/` (audit, registries, whitelisted images, DAR).
-- **Base and branch:** base is `dagster-develop`. Work on `feat/nexus-react`. Don't merge or open a PR unless asked.
+- **Base and branch:** base is `dagster-develop`. Work on `nexus/ui`. Don't merge or open a PR unless asked.
 
 ## Working arrangement
-- **Handover:** `admin-ui/HANDOVER.md`, with sections for done / in progress / next / gotchas / how to resume / **Needs from nexus**.
+- **Handover:** `nexus/ui/HANDOVER.md`, with sections for done / in progress / next / gotchas / how to resume / **Needs from nexus**.
   - Update it after every milestone (one page done, a build green) and before you stop. Commit it and push it.
   - A fresh session reads `HANDOVER.md`, then nexus's contract, then this file.
-- **Contract with nexus:** `nexus/CONTRACT.md` on `origin/feat/nexus-fastapi` (`git fetch origin feat/nexus-fastapi && git show origin/feat/nexus-fastapi:nexus/CONTRACT.md`).
+- **Contract with nexus:** `nexus/api/CONTRACT.md` on `origin/nexus/api` (`git fetch origin nexus/api && git show origin/nexus/api:nexus/api/CONTRACT.md`).
   - Read it when you start, and again before each wave.
   - Anything the UI needs from the API goes under "Needs from nexus" in your handover.
 - **Agents:** one strong agent (Opus) does the skeleton, auth, the API client, shared components and two example pages. Sonnet agents then build the remaining pages in parallel, one page folder each.
@@ -23,11 +23,11 @@
 
 ## API types
 - **First:** generate from `webserver/app/static/openapi.json`, which is hand-written and may be a bit wrong.
-- **Then:** switch to `nexus/openapi.json` once `CONTRACT.md` says it has landed (copy it in or fetch it from the nexus branch).
+- **Then:** switch to `nexus/api/openapi.json` once `CONTRACT.md` says it has landed (copy it in or fetch it from the nexus branch).
 - **How:** `npm run gen:api` regenerates `src/api/schema.d.ts`.
 
 ## Skeleton (Opus)
-- **Project:** `admin-ui/` with Vite and TypeScript.
+- **Project:** `nexus/ui/` with Vite and TypeScript.
   - In dev, a Vite proxy sends `/api/*` to the backend (`VITE_BACKEND_URL`, default `http://localhost:5001` for nexus).
   - In the cluster, nginx does the same proxying, so the backend needs no CORS.
 - **Auth:**
@@ -43,8 +43,8 @@
 - **Example pages:** Secrets (list, create, edit, delete under `/global/secrets`) and the Projects list.
 - **Write-up:** a "how to add a page" checklist in `HANDOVER.md`.
 - **Helm:**
-  - `admin-ui/Dockerfile`: a Node build stage, then nginx serving `dist/` and proxying `/api` to the nexus service.
-  - `k8s/federated-node/templates/admin-ui-{deployment,service,http-route}.yaml` behind `adminUi.enabled`, modelled on `backend-*.yaml`.
+  - `nexus/ui/Dockerfile`: a Node build stage, then nginx serving `dist/` and proxying `/api` to the nexus service.
+  - `k8s/federated-node/templates/nexus-ui-{deployment,service,http-route}.yaml` behind `nexus.ui.enabled`, modelled on `backend-*.yaml`.
 - **Tilt:** an entry running the Vite dev server, with live update of `src/` and a port-forward (for example 5173).
 
 ## Pages (Sonnet fan-out, in the fncli demo's order)
@@ -74,5 +74,5 @@ These are the most-used setup paths. See `dagster/fncli/cmds/demo.py` and `MANAG
 
 ## Verification
 - `tsc` and `npm run build` are clean, and the Vitest tests pass.
-- `helm template` renders with `adminUi.enabled=true`.
+- `helm template` renders with `nexus.ui.enabled=true`.
 - The user does a manual pass locally, against Tilt or a cluster: secret → provider → trigger repo → results repo → dataset → project → links → enable → healthcheck.
