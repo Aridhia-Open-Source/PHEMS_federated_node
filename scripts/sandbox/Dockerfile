@@ -34,11 +34,14 @@ RUN APT_OPTS=""; \
  && apt-get purge -y curl gnupg && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/*
 
-# A normal user with sudo and docker access, like a developer's account.
+# A normal user with sudo and docker access, like a developer's account. sudo keeps the proxy and CA
+# variables, so the installer's `sudo apt-get` uses the proxy the sandbox was started with.
 # .cache is created here: sandbox.sh mounts the host pip cache into it, and Docker would
 # otherwise create it as root.
 RUN useradd -m -s /bin/bash -G sudo,docker dev \
  && echo 'dev ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/dev \
+ && echo 'Defaults env_keep += "http_proxy https_proxy no_proxy HTTP_PROXY HTTPS_PROXY NO_PROXY SSL_CERT_FILE CURL_CA_BUNDLE REQUESTS_CA_BUNDLE GIT_SSL_CAINFO"' > /etc/sudoers.d/proxy \
+ && chmod 0440 /etc/sudoers.d/proxy \
  && install -d -o dev -g dev /home/dev/fn /home/dev/.cache /home/dev/.cache/pip
 
 # Sets up the cgroups a nested Docker needs, then runs dockerd (same as the docker:dind image).

@@ -32,9 +32,10 @@ set -euo pipefail
 # The host's pip cache (~/.cache/pip) is mounted too, for the fncli install.
 # NO_CACHE=1 make sandbox up for a cold start (also fixed
 # at creation: down, then up).
-# SANDBOX_HOST_NETWORK_DOCKER_BUILD=1 builds the sandbox image on the host's network and
-# passes this shell's proxy variables to it, for a host whose only way out is a proxy on
-# its own localhost. Only the image build uses it, not the running sandbox.
+# SANDBOX_HOST_NETWORK_DOCKER_BUILD=1 builds the sandbox image on the host's network, runs the
+# sandbox on it too, and passes this shell's proxy variables, for a host whose only way out is
+# a proxy on its own localhost. The sandbox's Docker then shares the host's network namespace
+# (no default bridge, its own address pools).
 #
 # SANDBOX_CA_FILE=/path/ca.pem (dev tooling, best effort) is for a network that intercepts
 # TLS. The CA is installed into the image's system trust (the image build switches apt to
@@ -147,7 +148,29 @@ case "${1:-}" in
         echo "Host registries not running (make cluster up on the host): pulling and building everything."
       fi
 
-      docker run -d --init --privileged --name "$NAME" --hostname "$NAME" \
+      # SANDBOX_HOST_NETWORK_DOCKER_BUILD=1 also runs the sandbox on the host's network, so its proxy
+      # variables (the shell's, or the Docker client config's stale ones otherwise) reach the host's
+      # localhost proxy. The sandbox's Docker then shares the host's network namespace with the host's own
+      # Docker: it has no default bridge (so it cannot take over the host Docker's docker0) and address pools of its own, so the two do not collide, and the host's
+      # registries (which need the host's kind network) are not used.
+      net_args=(--hostname "$NAME")
+      if [ -n "${SANDBOX_HOST_NETWORK_DOCKER_BUILD:-}" ]; then
+        cache=()
+        dockerd_args=(--registry-mirror https://mirror.gcr.io --bridge none
+          --default-address-pool base=10.202.0.0/16,size=24)
+        net_args=(--network host)
+        https_proxy_url="${HTTPS_PROXY:-${https_proxy:-}}"
+        if [ -n "$https_proxy_url" ]; then
+          http_proxy_url="${HTTP_PROXY:-${http_proxy:-$https_proxy_url}}"
+          no_proxy_list="${NO_PROXY:-${no_proxy:-localhost,127.0.0.1}}"
+          for var in HTTPS_PROXY https_proxy; do net_args+=(-e "$var=$https_proxy_url"); done
+          for var in HTTP_PROXY http_proxy; do net_args+=(-e "$var=$http_proxy_url"); done
+          for var in NO_PROXY no_proxy; do net_args+=(-e "$var=$no_proxy_list"); done
+        fi
+        echo "Running the sandbox on the host's network."
+      fi
+
+      docker run -d --init --privileged --name "$NAME" "${net_args[@]}" \
         -v fn-sandbox-docker:/var/lib/docker \
         -v fn-sandbox-containerd:/var/lib/containerd \
         "${mounts[@]}" "${cache[@]}" \
