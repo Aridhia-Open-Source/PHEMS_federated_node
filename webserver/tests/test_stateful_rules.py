@@ -96,6 +96,7 @@ class TriggerLinkMachine(RuleBasedStateMachine):
         self.clock = clock
         self.client = self.app.test_client()
         self.headers = {"Content-Type": "application/json", "Authorization": "Bearer admin_token"}
+        self.system_headers = {"Content-Type": "application/json", "Authorization": "Bearer system_token"}
 
         secret = Secret(label="stateful-creds", provider=SecretProviderType.K8S)
         secret.add()
@@ -136,6 +137,10 @@ class TriggerLinkMachine(RuleBasedStateMachine):
     def call(self, method: str, url: str, body: dict | None = None):
         return getattr(self.client, method)(url, json=body, headers=self.headers)
 
+    def call_as_system(self, method: str, url: str, body: dict):
+        """The state-machine writes (ingest, task creation, task status) are the system user's."""
+        return getattr(self.client, method)(url, json=body, headers=self.system_headers)
+
     @property
     def global_active(self) -> bool:
         return self.global_enabled and not self.global_revoked
@@ -167,8 +172,9 @@ class TriggerLinkMachine(RuleBasedStateMachine):
     def ingest(self):
         cursor = max(self.stored, default=0)
         batch = [p for p in self.provider if p["number"] > cursor][:100]
-        response = self.call("post", f"/global/repositories/triggers/{self.repo_id}/pull_requests",
-                             {"pull_requests": [pr_body(p["number"], p["matching"], p["merged_at"]) for p in batch]})
+        response = self.call_as_system(
+            "post", f"/global/repositories/triggers/{self.repo_id}/pull_requests",
+            {"pull_requests": [pr_body(p["number"], p["matching"], p["merged_at"]) for p in batch]})
         assert response.status_code == 201, response.json
         assert sorted(response.json["created"]) == [p["number"] for p in batch]
         assert response.json["existing"] == []
@@ -180,15 +186,16 @@ class TriggerLinkMachine(RuleBasedStateMachine):
     @precondition(lambda self: not self.global_active)
     @rule()
     def ingest_when_inactive(self):
-        response = self.call("post", f"/global/repositories/triggers/{self.repo_id}/pull_requests",
-                             {"pull_requests": [pr_body(p["number"], p["matching"], p["merged_at"]) for p in self.provider[:1]]})
+        response = self.call_as_system(
+            "post", f"/global/repositories/triggers/{self.repo_id}/pull_requests",
+            {"pull_requests": [pr_body(p["number"], p["matching"], p["merged_at"]) for p in self.provider[:1]]})
         assert response.status_code == 400, response.json
 
     @precondition(lambda self: "UNKNOWN" in self.triggers.values())
     @rule(data=st.data())
     def evaluate_one(self, data):
         number = data.draw(st.sampled_from(sorted(n for n, s in self.triggers.items() if s == "UNKNOWN")))
-        response = self.call("post", f"{self.link_url}/pull_requests/{number}/task", {"spec_raw": SPEC_RAW})
+        response = self.call_as_system("post", f"{self.link_url}/pull_requests/{number}/task", {"spec_raw": SPEC_RAW})
         if self.link_active and self.project_accepts:
             assert response.status_code == 201, response.json
             self.triggers[number] = "YIELDED"
@@ -201,7 +208,7 @@ class TriggerLinkMachine(RuleBasedStateMachine):
     def progress_task(self, data):
         task_id = data.draw(st.sampled_from(sorted(t for t, s in self.tasks.items() if s in UNFINISHED)))
         status = data.draw(st.sampled_from(sorted(TASK_MOVES[self.tasks[task_id]])))  # forward only
-        response = self.call("patch", f"/projects/{self.project_id}/tasks/{task_id}", {"status": status})
+        response = self.call_as_system("patch", f"/projects/{self.project_id}/tasks/{task_id}", {"status": status})
         assert response.status_code == 200, response.json
         self.tasks[task_id] = status
 
@@ -209,7 +216,7 @@ class TriggerLinkMachine(RuleBasedStateMachine):
     @rule(data=st.data(), status=st.sampled_from(["PENDING", "QUEUED", "RUNNING", "SUCCESS", "FAILED"]))
     def finished_task_is_final(self, data, status):
         task_id = data.draw(st.sampled_from(sorted(t for t, s in self.tasks.items() if s in FINAL)))
-        response = self.call("patch", f"/projects/{self.project_id}/tasks/{task_id}", {"status": status})
+        response = self.call_as_system("patch", f"/projects/{self.project_id}/tasks/{task_id}", {"status": status})
         # The same status again is allowed, a different one is refused
         assert response.status_code == (200 if status == self.tasks[task_id] else 409), response.json
 

@@ -480,7 +480,7 @@
             "description": "The status move is not allowed"
           }
         },
-        "description": "A status move not in TASK_MOVES (webserver/app/models/task_status.py) is refused with 409: only forward, and nothing out of SUCCESS, FAILED or CANCELED. The same status again is allowed."
+        "description": "Called by Dagster. System user only: 403 for any other caller, admins included. A status move not in TASK_MOVES (webserver/app/models/task_status.py) is refused with 409: only forward, and nothing out of SUCCESS, FAILED or CANCELED. The same status again is allowed."
       }
     },
     "/tasks": {
@@ -2320,6 +2320,7 @@
           "Tasks"
         ],
         "summary": "Record the progress of a task's delivery. A pull request result's step only moves forward: UNKNOWN, PUSHED, OPENED, then MERGED, CLOSED, REVOKED or STALE, all terminal. A move to the same or a lower rank is a 409, see RESULT_ORDER in webserver/app/models/pull_request_result_step.py",
+        "description": "Called by Dagster. System user only: 403 for any other caller, admins included.",
         "requestBody": {
           "required": true,
           "content": {
@@ -2456,6 +2457,7 @@
           "Tasks"
         ],
         "summary": "Create the delivery of a task's results to a results repository. If it exists already, it is returned. If the task's configuration changed since it was created, the new result is final: step STALE, state FAILED, nothing is delivered. If the link is switched off (disabled, or its repository or provider is), the new result is step UNKNOWN, state FAILED, error \"results link switched off\", and the delivery retry sensor delivers it once the link is active",
+        "description": "Called by Dagster. System user only: 403 for any other caller, admins included.",
         "requestBody": {
           "required": true,
           "content": {
@@ -3645,7 +3647,7 @@
           "Pull Requests"
         ],
         "summary": "Store pull requests and fan them out",
-        "description": "Called by Dagster. Stores up to 100 pull requests of the repository and creates their triggers for every active link of it, each respecting the link's cursor, watch_dir and base_branch. Idempotent: a number already stored keeps its first facts. Requires the can_admin_dataset scope.",
+        "description": "Called by Dagster. System user only: 403 for any other caller, admins included. Stores up to 100 pull requests of the repository and creates their triggers for every active link of it, each respecting the link's cursor, watch_dir and base_branch. Idempotent: a number already stored keeps its first facts.",
         "parameters": [
           {
             "in": "path",
@@ -5115,7 +5117,7 @@
           "Pull Requests"
         ],
         "summary": "Set a pull request's state",
-        "description": "Called by Dagster. Requires the can_admin_dataset scope. A state move not in TRIGGER_MOVES (webserver/app/models/trigger_state.py) is refused with 409: REJECTED and YIELDED are final.",
+        "description": "Called by Dagster. System user only: 403 for any other caller, admins included. A state move not in TRIGGER_MOVES (webserver/app/models/trigger_state.py) is refused with 409: REJECTED and YIELDED are final.",
         "parameters": [
           {
             "in": "path",
@@ -5187,7 +5189,7 @@
           "Pull Requests"
         ],
         "summary": "Validate the spec and create the task",
-        "description": "Called by Dagster. In one transaction marks the pull request YIELDED and creates its task in the link's project. The dataset must be actively linked to the project. Idempotent. Requires the can_admin_dataset scope.",
+        "description": "Called by Dagster. System user only: 403 for any other caller, admins included. In one transaction marks the pull request YIELDED and creates its task in the link's project. The dataset must be actively linked to the project. Idempotent.",
         "parameters": [
           {
             "in": "path",
@@ -5546,7 +5548,7 @@
           "Tasks"
         ],
         "summary": "Decide a PENDING task's launch: fail it, or return what its run needs",
-        "description": "The launcher's one call per PENDING task. The webserver decides with the same rules as GET .../config (something it uses is revoked or deleted, its configuration changed, its dataset link is not active, its dataset's secret is disabled; the first that applies decides). On fail it moves the task to FAILED itself, its state_cause the cause cut to 1024 characters, and returns the outcome and cause. On launch it writes nothing and returns the task, spec included, and its dataset with the secret reference (null for a task without one): everything the run request is built from. A task that is no longer PENDING is a 409 and nothing changes, so the call is safe to repeat every tick. 404 if the task is not in the project.",
+        "description": "System user only: 403 for any other caller, admins included. The launcher's one call per PENDING task. The webserver decides with the same rules as GET .../config (something it uses is revoked or deleted, its configuration changed, its dataset link is not active, its dataset's secret is disabled; the first that applies decides). On fail it moves the task to FAILED itself, its state_cause the cause cut to 1024 characters, and returns the outcome and cause. On launch it writes nothing and returns the task, spec included, and its dataset with the secret reference (null for a task without one): everything the run request is built from. A task that is no longer PENDING is a 409 and nothing changes, so the call is safe to repeat every tick. 404 if the task is not in the project.",
         "parameters": [
           {
             "in": "path",

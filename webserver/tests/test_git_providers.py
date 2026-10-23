@@ -152,7 +152,7 @@ def test_delete_is_409_while_a_repository_is_on_it(client, admin_headers, reques
 # ---------------------------------------------------------------- a disabled provider
 
 def test_disabled_provider_makes_its_repositories_inactive(
-        client, admin_headers, project, git_provider, linked_trigger_repo, linked_results_repo, global_trigger_repo,
+        client, admin_headers, system_headers, project, git_provider, linked_trigger_repo, linked_results_repo, global_trigger_repo,
         make_provider, make_trigger_repo):
     project.enabled = True
     T = global_trigger_repo.id
@@ -179,7 +179,7 @@ def test_disabled_provider_makes_its_repositories_inactive(
     assert repo["enabled"] is True and repo["provider"]["enabled"] is False
 
     # no pull requests are taken for it, and none of its links can be used
-    refused = client.post(f"{TRIG}/{T}/pull_requests", json={"pull_requests": []}, headers=admin_headers)
+    refused = client.post(f"{TRIG}/{T}/pull_requests", json={"pull_requests": []}, headers=system_headers)
     assert_error(refused, 400)
 
     client.patch(f"{PROV}/{git_provider.id}", json={"enabled": True}, headers=admin_headers)
@@ -191,7 +191,7 @@ def test_disabled_provider_makes_its_repositories_inactive(
     ({"revoked": True}, {"revoked": False}),
 ])
 def test_switching_a_provider_back_on_skips_the_gap(
-        client, admin_headers, project, git_provider, linked_trigger_repo, global_trigger_repo, off, on):
+        client, admin_headers, system_headers, project, git_provider, linked_trigger_repo, global_trigger_repo, off, on):
     """Pull requests merged before the provider was switched back on (or restored) are stored but get no trigger; later ones do."""
     T = global_trigger_repo.id
     # Start the link's cursor far back, so the first pull request is in its scope but for the re-enable
@@ -210,7 +210,7 @@ def test_switching_a_provider_back_on_skips_the_gap(
     for change in (off, on):
         assert client.patch(f"{PROV}/{git_provider.id}", json=change, headers=admin_headers).status_code == 200
 
-    r = client.post(f"{TRIG}/{T}/pull_requests", headers=admin_headers, json={"pull_requests": [
+    r = client.post(f"{TRIG}/{T}/pull_requests", headers=system_headers, json={"pull_requests": [
         pull_request(1, datetime.utcnow() - timedelta(hours=1)), pull_request(2, datetime.utcnow() + timedelta(days=1)),
     ]})
     assert r.status_code == 201, r.json
@@ -251,7 +251,7 @@ def test_patch_revoked_is_admin_only_shows_in_the_dtos_and_leaves_enabled_alone(
 
 
 def test_a_revoked_provider_makes_its_repositories_inactive_unpollable_and_refuses_pull_requests(
-        client, admin_headers, project, git_provider, linked_trigger_repo, linked_results_repo, global_trigger_repo,
+        client, admin_headers, system_headers, project, git_provider, linked_trigger_repo, linked_results_repo, global_trigger_repo,
         make_trigger_repo):
     T = global_trigger_repo.id
     elsewhere = make_trigger_repo(uri="git.example.com/org/elsewhere")  # a repository on another provider
@@ -275,7 +275,7 @@ def test_a_revoked_provider_makes_its_repositories_inactive_unpollable_and_refus
     assert (repo["enabled"], repo["revoked"], repo["provider"]["revoked"]) == (True, False, True)
     link = client.get(f"{trigger_links}/{T}", headers=admin_headers).json
     assert (link["enabled"], link["revoked"], link["active"]) == (True, False, False)
-    assert_error(client.post(f"{TRIG}/{T}/pull_requests", json={"pull_requests": []}, headers=admin_headers), 400)
+    assert_error(client.post(f"{TRIG}/{T}/pull_requests", json={"pull_requests": []}, headers=system_headers), 400)
 
     client.patch(f"{PROV}/{git_provider.id}", json={"revoked": False}, headers=admin_headers)
     assert active(trigger_links) == [True, True] and active(results_links) == [True]

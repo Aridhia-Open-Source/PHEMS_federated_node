@@ -30,6 +30,7 @@ def auth(scope: str):
             # Handlers that scope by project read these rather than repeating the token
             # decode.
             g.caller_is_admin = kc_client.is_user_admin(token)
+            g.caller_is_system = kc_client.is_system_user(token)
             g.caller_project_id = None
 
             # TODO(DAR): DAR checking is disconnected for now. A non-admin caller used to
@@ -43,6 +44,19 @@ def auth(scope: str):
                 raise UnauthorizedError("Token is not valid, or the user has not enough permissions.")
         return _auth
     return auth_wrapper
+
+
+def system_only(func):
+    """
+    Under @auth (or a before_request running it): only the system user (Dagster) may call it, whatever
+    scope the caller holds. Admins hold the scopes of the state-machine routes to manage datasets.
+    """
+    @wraps(func)
+    def _system_only(*args, **kwargs):
+        if not g.caller_is_system:
+            raise UnauthorizedError("Only the system user can change this state.")
+        return func(*args, **kwargs)
+    return _system_only
 
 
 def audit(func):

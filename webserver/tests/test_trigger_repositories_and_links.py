@@ -386,7 +386,7 @@ def test_two_projects_link_one_repo_independently(client, admin_headers, project
     ({"enabled": False}, {"enabled": True}),
     ({"revoked": True}, {"revoked": False}),
 ])
-def test_switching_a_repository_back_on_skips_the_gap(client, admin_headers, project, global_trigger_repo, off, on):
+def test_switching_a_repository_back_on_skips_the_gap(client, admin_headers, system_headers, project, global_trigger_repo, off, on):
     """Pull requests merged before the repository was switched back on (or restored) are stored but get no trigger; later ones do."""
     T = global_trigger_repo.id
     link = f"/projects/{project.id}/repositories/triggers/{T}"
@@ -409,7 +409,7 @@ def test_switching_a_repository_back_on_skips_the_gap(client, admin_headers, pro
 
     merged_before = datetime.utcnow() - timedelta(hours=1)
     merged_after = datetime.utcnow() + timedelta(days=1)
-    r = client.post(f"{BASE}/{T}/pull_requests", headers=admin_headers, json={
+    r = client.post(f"{BASE}/{T}/pull_requests", headers=system_headers, json={
         "pull_requests": [pull_request(1, merged_before), pull_request(2, merged_after)]
     })
     assert r.status_code == 201, r.json
@@ -471,7 +471,7 @@ def test_a_revoked_global_resource_makes_its_links_inactive_one_created_later_to
 
 
 def test_a_revoked_trigger_repository_is_not_polled_and_takes_no_pull_requests(
-        client, admin_headers, project, global_trigger_repo, make_trigger_repo, make_pr_batch):
+        client, admin_headers, system_headers, project, global_trigger_repo, make_trigger_repo, make_pr_batch):
     T = global_trigger_repo.id
     ids = lambda q="": [r["id"] for r in get(client, admin_headers, f"{BASE}{q}").json]  # noqa: E731
     unlinked = make_trigger_repo(uri="github.com/org/unlinked")
@@ -480,10 +480,10 @@ def test_a_revoked_trigger_repository_is_not_polled_and_takes_no_pull_requests(
     assert patch(client, admin_headers, f"{BASE}/{T}", {"revoked": True}).status_code == 200
     assert ids("?pollable=true") == [unlinked.id]
     assert ids() == [T, unlinked.id]  # still listed
-    refused = client.post(f"{BASE}/{T}/pull_requests", json=make_pr_batch(1), headers=admin_headers)
+    refused = client.post(f"{BASE}/{T}/pull_requests", json=make_pr_batch(1), headers=system_headers)
     assert refused.status_code == 400 and "revoked" in refused.json["error"]
     assert get(client, admin_headers, f"{BASE}/{T}/pull_requests").json["total"] == 0  # nothing stored
 
     assert patch(client, admin_headers, f"{BASE}/{T}", {"revoked": False}).status_code == 200
     assert ids("?pollable=true") == [T, unlinked.id]
-    assert client.post(f"{BASE}/{T}/pull_requests", json=make_pr_batch(1), headers=admin_headers).status_code == 201
+    assert client.post(f"{BASE}/{T}/pull_requests", json=make_pr_batch(1), headers=system_headers).status_code == 201

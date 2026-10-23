@@ -185,13 +185,13 @@ def test_trigger_repos_pollable_filter(client, admin_headers, global_trigger_rep
     assert len(get(client, admin_headers, url).json) == 2
 
 
-def test_trigger_repo_cursor_is_the_latest_merge_or_the_creation(client, admin_headers, global_trigger_repo):
+def test_trigger_repo_cursor_is_the_latest_merge_or_the_creation(client, admin_headers, system_headers, global_trigger_repo):
     url = f"/global/repositories/triggers/{global_trigger_repo.id}"
     created = global_trigger_repo.created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
     assert get(client, admin_headers, url).json["pr_cursor"] == created
     pr = {"number": 1, "title": "t", "raised_by": "dev", "merged_at": "2031-01-02T03:04:05Z",
           "merge_commit_sha": "abc", "base_branch": "main", "files_truncated": False, "changed_files": []}
-    assert client.post(f"{url}/pull_requests", json={"pull_requests": [pr]}, headers=admin_headers).status_code == 201
+    assert client.post(f"{url}/pull_requests", json={"pull_requests": [pr]}, headers=system_headers).status_code == 201
     assert get(client, admin_headers, url).json["pr_cursor"] == "2031-01-02T03:04:05Z"
 
 
@@ -223,14 +223,14 @@ def test_pr_list_shape_order_and_paging(client, admin_headers, project, linked_t
     assert glob.json["pages"] == 3 and [i["number"] for i in glob.json["items"]] == [5, 4]
 
 
-def test_pr_list_sorted_by_merge_time_desc(client, admin_headers, project, linked_trigger_repo, global_trigger_repo,
+def test_pr_list_sorted_by_merge_time_desc(client, admin_headers, system_headers, project, linked_trigger_repo, global_trigger_repo,
                                            make_pr_batch):
     body = make_pr_batch(1)
     body["pull_requests"] = []
     for number, merged in ((1, "2030-01-01T10:00:00Z"), (2, "2030-03-01T10:00:00Z"), (3, "2030-02-01T10:00:00Z")):
         body["pull_requests"] += make_pr_batch(number, merged_at=merged)["pull_requests"]
     posted = client.post(f"/global/repositories/triggers/{global_trigger_repo.id}/pull_requests",
-                         json=body, headers=admin_headers)
+                         json=body, headers=system_headers)
     assert posted.status_code == 201, posted.json
     listed = get(client, admin_headers, pr_list_url(project, global_trigger_repo))
     assert [i["number"] for i in listed.json["items"]] == [2, 3, 1]
@@ -251,9 +251,9 @@ def test_pr_list_state_filter(client, admin_headers, project, linked_trigger_rep
         assert state(bad).status_code == 400, bad
 
 
-def test_pr_list_state_reflects_patch_and_is_scoped_to_link(client, admin_headers, project, other_project, pr_trigger,
+def test_pr_list_state_reflects_patch_and_is_scoped_to_link(client, admin_headers, system_headers, project, other_project, pr_trigger,
                                                             global_trigger_repo):
-    patched = client.patch(pr_trigger, json={"state": "REJECTED", "state_cause": "bad"}, headers=admin_headers)
+    patched = client.patch(pr_trigger, json={"state": "REJECTED", "state_cause": "bad"}, headers=system_headers)
     assert patched.status_code == 200
     listing = pr_trigger.rsplit("/", 1)[0]
     assert get(client, admin_headers, listing + "?state=REJECTED").json["total"] == 1
@@ -265,25 +265,25 @@ def test_pr_list_state_reflects_patch_and_is_scoped_to_link(client, admin_header
 
 # ---------------------------------------------------------------- results ?step=
 
-def make_result(client, admin_headers, project, make_task, repo_id, step=None):
+def make_result(client, headers, project, make_task, repo_id, step=None):
     task = make_task(status="SUCCESS")
     created = client.post(f"/projects/{project.id}/results",
-                          json={"task_id": task.id, "results_repository_id": repo_id}, headers=admin_headers)
+                          json={"task_id": task.id, "results_repository_id": repo_id}, headers=headers)
     assert created.status_code == 201, created.json
     if step:
         body = {"step": step}
         if step == "OPENED":
             body.update({"number": 5, "url": "https://x/pull/5"})
-        patched = client.patch(f"/projects/{project.id}/results/{created.json['id']}", json=body, headers=admin_headers)
+        patched = client.patch(f"/projects/{project.id}/results/{created.json['id']}", json=body, headers=headers)
         assert patched.status_code == 200, patched.json
     return created.json["id"]
 
 
-def test_results_step_filter(client, admin_headers, project, other_project, linked_results_repo, global_results_repo,
+def test_results_step_filter(client, admin_headers, system_headers, project, other_project, linked_results_repo, global_results_repo,
                              make_task):
-    pushed = make_result(client, admin_headers, project, make_task, global_results_repo.id, "PUSHED")
-    opened = make_result(client, admin_headers, project, make_task, global_results_repo.id, "OPENED")
-    fresh = make_result(client, admin_headers, project, make_task, global_results_repo.id)
+    pushed = make_result(client, system_headers, project, make_task, global_results_repo.id, "PUSHED")
+    opened = make_result(client, system_headers, project, make_task, global_results_repo.id, "OPENED")
+    fresh = make_result(client, system_headers, project, make_task, global_results_repo.id)
     url = f"/projects/{project.id}/results"
     assert ids(get(client, admin_headers, url).json) == [pushed, opened, fresh]
     assert ids(get(client, admin_headers, url + "?step=PUSHED&step=OPENED").json) == [pushed, opened]  # repeatable
