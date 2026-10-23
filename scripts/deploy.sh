@@ -6,6 +6,7 @@ set -euo pipefail
 ###############################################################################
 
 source .dev.env
+export CUSTOM_CA_FILE   # build_image.sh passes it to image builds
 
 ./scripts/deploy_owner.sh claim
 

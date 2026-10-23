@@ -139,12 +139,12 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 
 ### Behind a TLS-intercepting proxy
 
-Both are optional dev tooling and do nothing when unset.
+Start with [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md): `./scripts/setup-proxy-ca.sh --ca-file PATH --proxy URL` sets up the machine side. The two settings below are optional dev tooling and do nothing when unset.
 
 - `CUSTOM_CA_FILE=/path/ca.pem` in `.dev.env`, set before `make cluster up`: the kind node trusts the CA for image pulls, and `make deploy` and `make upgrade` put it in a Secret and set `customCA.secretName`, so the pods trust it for outbound TLS.
 - `./scripts/sandbox/sandbox.sh --ca-file /path/ca.pem up`: the sandbox trusts the CA, so the installer's downloads and its Docker's registry pulls verify against it. Set it when the sandbox is created: `down` first if it exists.
 
-Not covered: the registry mirrors that `make cluster up` starts, and the `RUN` steps of image builds.
+Image builds receive `CUSTOM_CA_FILE` as the BuildKit secret `proxy_ca` (Docker 23 or later). Not covered: the registry mirrors that `make cluster up` starts.
 
 ### One owner at a time
 

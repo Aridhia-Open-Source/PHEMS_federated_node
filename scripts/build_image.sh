@@ -37,12 +37,20 @@ if [[ -n "${UPSTREAM_REGISTRY:-}" ]]; then
   fi
 fi
 
+# CUSTOM_CA_FILE (optional, exported by deploy.sh from .dev.env): given to the Dockerfiles as the
+# BuildKit secret proxy_ca, for builds behind a TLS-inspecting proxy.
+secret_args=()
+if [[ -n "${CUSTOM_CA_FILE:-}" ]]; then
+  secret_args=(--secret "id=proxy_ca,src=$(realpath "$CUSTOM_CA_FILE")")
+fi
+
 cd "$DIR"
 
 echo "Building $IMAGE_REF:$TAG"
 
 # Always build latest
 docker build --progress=plain \
+  ${secret_args[@]+"${secret_args[@]}"} \
   -t "$IMAGE_REF:latest" \
   -t "$IMAGE_REF:$TAG" \
   .

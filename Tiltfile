@@ -17,6 +17,10 @@ load('ext://dotenv', 'dotenv')
 dotenv('.dev.env')
 
 DOCKER_REGISTRY = 'localhost:5001'
+
+# CUSTOM_CA_FILE (optional): given to image builds as the BuildKit secret proxy_ca.
+CA_FILE = os.getenv('CUSTOM_CA_FILE', '')
+BUILD_SECRET = ['--secret', 'id=proxy_ca,src=' + os.path.abspath(CA_FILE)] if CA_FILE else []
 NAMESPACE = os.getenv('NAMESPACE', 'fn')
 RELEASE_NAME = os.getenv('RELEASE_NAME', 'fn-dev')
 # The code server is part of the Federated Node chart (templates/dagster-code-server.yaml),
@@ -46,6 +50,7 @@ k8s_yaml(local(
 docker_build_with_restart(
   '{}/webserver-fn'.format(DOCKER_REGISTRY),
   'webserver',
+  extra_flags=BUILD_SECRET,
   entrypoint=[
     'python', '-m', 'flask', 'run',
     '--host=0.0.0.0', '--port=5000',
@@ -79,6 +84,7 @@ docker_build_with_restart(
 docker_build_with_restart(
   '{}/dagster-fn'.format(DOCKER_REGISTRY),
   'dagster',
+  extra_flags=BUILD_SECRET,
   entrypoint=[],
   only=[
     'app',
@@ -105,7 +111,8 @@ docker_build_with_restart(
 # Run pods always pull, so the next run picks it up.
 local_resource(
   'dagster-run-image',
-  cmd='docker build dagster -t {img} && docker push {img}'.format(
+  cmd='docker build dagster {secret} -t {img} && docker push {img}'.format(
+    secret=' '.join(BUILD_SECRET),
     img='{}/dagster-fn:tilt-run'.format(DOCKER_REGISTRY),
   ),
   deps=['dagster'],
