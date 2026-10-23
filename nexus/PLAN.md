@@ -4,7 +4,7 @@
 
 ## Context
 - **Today:** `webserver/` is Flask, with about 105 live handlers and a hand-written `webserver/app/static/openapi.json` that has drifted from the code.
-- **What nexus is:** a FastAPI version of it, built **next to** `webserver/`. That gives a generated, accurate spec, which the React admin UI (branch `feat/admin-ui`, `admin-ui/PLAN.md`) is typed from.
+- **What nexus is:** a FastAPI version of it, built **next to** `webserver/`. That gives a generated, accurate spec, which the React admin UI (branch `feat/nexus-react`, `admin-ui/PLAN.md`) is typed from.
 - **`webserver/` and its Helm deployment stay untouched.**
 
 ### Rules
@@ -12,7 +12,7 @@
 - **Shared database:** nexus uses the webserver's Postgres. `webserver/` owns the alembic migrations, and nexus never migrates.
 - **Out of scope:** everything under `webserver/app/models/extras/` (audit, catalogue, dar, dictionary, registry, whitelisted_image) and the routes on them: `registries_api`, `whitelisted_images_api`, `dar_api` and `admin_api` (audit). Don't port `@audit`.
 - **No new features or DTOs during the port.** Copy the existing patterns.
-- **Base:** `dagster-develop`. Work on `feat/nexus`. Don't merge into `dagster-develop` or open a PR unless asked.
+- **Base:** `dagster-develop`. Work on `feat/nexus-fastapi`. Don't merge into `dagster-develop` or open a PR unless asked.
 
 ## Working arrangement
 - **Handover:** `nexus/HANDOVER.md`, with sections for done / in progress / next / gotchas / how to resume.
@@ -20,7 +20,7 @@
   - A fresh session reads `HANDOVER.md`, then `CONTRACT.md`, then this file.
 - **Contract with the UI:** `nexus/CONTRACT.md` records the error shape, the auth flow (`POST /login`, `Authorization: Bearer`), the pagination keys and where the generated spec lives.
   - Update it whenever any of these is settled or changes.
-  - The UI team reads it from `origin/feat/nexus`. Their requests are in `admin-ui/HANDOVER.md` under "Needs from nexus" on `origin/feat/admin-ui`, so check that when you start.
+  - The UI team reads it from `origin/feat/nexus-fastapi`. Their requests are in `admin-ui/HANDOVER.md` under "Needs from nexus" on `origin/feat/nexus-react`, so check that when you start.
 - **Agents:** one strong agent (Opus) does the skeleton, auth, error handling and the example routers. Sonnet agents then port the remaining routers in parallel, one router (plus its tests) each.
 - **Tests:** run only the test files for what you changed, in the foreground with a timeout. **Never run e2e tests** (`pytest --e2e`, `dagster/fncli/tests/e2e`). If a run crashes or fails in a way you can't fix, write it in the handover and stop.
 - **Code style:** top-level imports only (tests excepted). No defensive code or fallback defaults: fail fast. Keep comments sparse, like the surrounding code.
