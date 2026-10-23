@@ -1,0 +1,20 @@
+# Where the database files live inside the kind node. cluster.sh bind-mounts $FN_DATA_DIR
+# (~/.fn/data) there as /data, and experiments.sh up creates the host side.
+storagePath: /data/experiments/datasets
+
+postgres:
+  image: postgres:17-alpine
+  port: 5432
+  superuser: postgres
+  secret:
+    name: db-datasets-superuser
+    key: password
+
+# One entry per experiment, from experiments/projects/<name>/values.yaml:
+#   uc1:
+#     name: uc1-omop          database, and the dataset's name in the node
+#     user: uc1_omop_user
+#     secret:
+#       name: db-datasets-uc1
+#       key: password
+dbs: {}

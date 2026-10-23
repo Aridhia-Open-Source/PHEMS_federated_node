@@ -77,13 +77,16 @@ class Report:
 @dataclass
 class Links:
     """Builds the URLs the reports print, as they open from the host."""
+    # The git host's web address
     gitea_url: str
     dagster_url: str
     # owner/repo of the trigger repo, from its stored uri
     repo_path: str
+    # A pull request's page: pulls/N on Gitea, pull/N on GitHub
+    pulls_page: str = "pulls"
 
     def trigger_pr(self, number: int) -> str:
-        return to_host_url(f"{self.gitea_url}/{self.repo_path}/pulls/{number}")
+        return to_host_url(f"{self.gitea_url}/{self.repo_path}/{self.pulls_page}/{number}")
 
     def run(self, run_id: str) -> str:
         return to_host_url(f"{self.dagster_url}/runs/{run_id}")
@@ -297,7 +300,7 @@ def verify_repo_command(tail):
     project = find_project(config, backend_api)
     repo = backend_api.find_repository(config.repo_uri, project.id)
     dagster_url = DagsterConfig().dagster_url
-    links = Links(config.gitea_url, dagster_url, repo.repo_path)
+    links = Links(config.web_url, dagster_url, repo.repo_path, config.pulls_page)
     if verify_repo(backend_api, DagsterAPI(dagster_url), links, project.id, repo.trigger_repository.id, tail):
         raise click.exceptions.Exit(1)
 

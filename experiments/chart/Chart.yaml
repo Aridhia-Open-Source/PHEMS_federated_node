@@ -1,0 +1,8 @@
+apiVersion: v2
+name: experiments
+description: >-
+  Dev only. A datasets Postgres with one database per experiment, seeded with dummy data,
+  for running real experiment images against the federated node. Its own release in its
+  own namespace; nothing here refers to the federated-node chart.
+type: application
+version: 0.1.0
