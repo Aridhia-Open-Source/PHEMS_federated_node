@@ -197,6 +197,17 @@ host: &host
 tls:
   secretName: &tls tls
 
+# An extra CA for outbound TLS, added to each image's system CAs. Off unless secretName or
+# pem is set. Not tls.secretName, which is the certificate the node serves. See "Custom CA"
+# in the README.
+customCA:
+  # An existing Secret in the release namespace holding the PEM. Not together with pem.
+  secretName: ""
+  # The key in that Secret holding the PEM.
+  key: ca.crt
+  # Or the PEM itself; the chart renders a Secret called fn-custom-ca from it.
+  pem: ""
+
 # Running on azure?
 on_aks: false
 # Running on AWS?
