@@ -42,6 +42,9 @@ The necessary values are:
 |host|The URL where the FN will be hosted at|
 |nodeId|Required. Names this node (hospital) in the results it delivers (`run.json`, `node.id`)|
 |tls|secretName|Secret name where the SSL certificate is. Defaults to `tls` if the `tls` section is set|
+|customCA|secretName|Optional. An existing Secret holding a CA the node trusts for OUTBOUND TLS, in addition to the system CAs. See [Custom CA](#custom-ca)|
+|customCA|key|The key in that Secret holding the PEM, default `ca.crt`|
+|customCA|pem|Optional. The PEM itself; the chart renders a Secret `fn-custom-ca` from it. Not together with `secretName`|
 
 ### Existing secrets
 Most secrets are created by the chart: the per-service database passwords are generated on first
@@ -85,6 +88,39 @@ this change cannot be enabled, rotated or deleted, and its health check errors. 
 
 On a dev cluster, run `fncli experiment setup` (or tear down and deploy) instead. Then delete the old
 copy: `kubectl delete secret fn-secret-<label> -n <release namespace>`.
+
+## Custom CA
+
+Set `customCA` when the node calls out to something signed by a private or self-signed CA, or sits behind a TLS-intercepting proxy: a git host, an identity provider, a container registry. The CA is added to each workload's system CAs and certificates are still verified. There is no option to skip verification. This is separate from `tls.secretName`, the certificate the node serves.
+
+```yaml
+customCA:
+  secretName: corp-ca   # an existing Secret in the release namespace; key `ca.crt` unless customCA.key says otherwise
+  # or, instead, the PEM itself (one CA or a bundle), from which the chart renders a Secret `fn-custom-ca`:
+  # pem: |
+  #   -----BEGIN CERTIFICATE-----
+  #   ...
+```
+
+```bash
+kubectl create secret generic corp-ca -n <namespace> --from-file=ca.crt=corp-ca.pem
+helm upgrade --install ... --set customCA.secretName=corp-ca
+```
+
+Setting both `secretName` and `pem` is an error. A Secret you name is copied into the Keycloak namespace by the chart; an inline `pem` is rendered into both.
+
+What gets it:
+
+| Workload | How |
+|---|---|
+| nexus-api | An init container builds `system CAs + custom CA` into an `emptyDir`; `REQUESTS_CA_BUNDLE`, `SSL_CERT_FILE`, `CURL_CA_BUNDLE` and `GIT_SSL_CAINFO` point at it |
+| Dagster code server | The same |
+| Dagster run pods (clone, push, deliver results) | The code server hands the same volumes, init container and env to the Dagster launcher as a container context, so each run pod gets them |
+| Keycloak | `KC_TRUSTSTORE_PATHS` points at the PEM mounted from the Secret; Keycloak keeps trusting its system CAs |
+
+Not covered, on purpose or because the chart cannot: task (pipes) pods run partner code with no outbound access and are not given it; the Dagster webserver and daemon belong to the Dagster subchart, whose values the chart cannot template, and make no outbound HTTPS calls; the kubelet and containerd pull images with the node's own trust store, so a registry behind a private CA needs that CA on every node, which the cluster operator sets up.
+
+Rotation: the bundle is built when a pod starts, so the pods restart when the CA changes. With `pem`, or a Secret that Helm can read, `helm upgrade` does it through a `checksum/custom-ca` pod annotation. A Secret managed outside Helm and changed in place is not noticed: run `kubectl rollout restart deployment/nexus-api deployment/<release>-dagster-fn -n <namespace>` and `kubectl rollout restart statefulset/keycloak -n <keycloak namespace>`, or use a reloader controller. New Dagster run pods read the current Secret when they start. Where the chart cannot read the cluster (`helm template`, `helm diff`) the annotation hashes the Secret's name and key only.
 
 ## Gateway API CRD update
 ```sh

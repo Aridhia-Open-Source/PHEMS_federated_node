@@ -11,7 +11,7 @@ __pycache__/
 
 .env
 *.env
-.envrc
+.envrc.local
 k8s/*/*.values.yaml
 k8s/*/*.values.yml
 *.crt
