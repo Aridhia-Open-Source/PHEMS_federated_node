@@ -1,10 +1,10 @@
-# nexus: FastAPI port of the webserver
+# nexus/api: FastAPI port of the webserver
 
 `nexus` is a working name. It may be renamed later, so keep the name in as few places as you can (the directory, the image, the Helm template names and the Tilt resource).
 
 ## Context
 - **Today:** `webserver/` is Flask, with about 105 live handlers and a hand-written `webserver/app/static/openapi.json` that has drifted from the code.
-- **What nexus is:** a FastAPI version of it, built **next to** `webserver/`. That gives a generated, accurate spec, which the React admin UI (branch `feat/nexus-react`, `admin-ui/PLAN.md`) is typed from.
+- **What nexus is:** a FastAPI version of it, built **next to** `webserver/`. That gives a generated, accurate spec, which the React admin UI (branch `nexus/ui`, `nexus/ui/PLAN.md`) is typed from.
 - **`webserver/` and its Helm deployment stay untouched.**
 
 ### Rules
@@ -12,21 +12,21 @@
 - **Shared database:** nexus uses the webserver's Postgres. `webserver/` owns the alembic migrations, and nexus never migrates.
 - **Out of scope:** everything under `webserver/app/models/extras/` (audit, catalogue, dar, dictionary, registry, whitelisted_image) and the routes on them: `registries_api`, `whitelisted_images_api`, `dar_api` and `admin_api` (audit). Don't port `@audit`.
 - **No new features or DTOs during the port.** Copy the existing patterns.
-- **Base:** `dagster-develop`. Work on `feat/nexus-fastapi`. Don't merge into `dagster-develop` or open a PR unless asked.
+- **Base:** `dagster-develop`. Work on `nexus/api`. Don't merge into `dagster-develop` or open a PR unless asked.
 
 ## Working arrangement
-- **Handover:** `nexus/HANDOVER.md`, with sections for done / in progress / next / gotchas / how to resume.
+- **Handover:** `nexus/api/HANDOVER.md`, with sections for done / in progress / next / gotchas / how to resume.
   - Update it after every milestone (one router ported, one test file green) and before you stop. Commit it and push it.
   - A fresh session reads `HANDOVER.md`, then `CONTRACT.md`, then this file.
-- **Contract with the UI:** `nexus/CONTRACT.md` records the error shape, the auth flow (`POST /login`, `Authorization: Bearer`), the pagination keys and where the generated spec lives.
+- **Contract with the UI:** `nexus/api/CONTRACT.md` records the error shape, the auth flow (`POST /login`, `Authorization: Bearer`), the pagination keys and where the generated spec lives.
   - Update it whenever any of these is settled or changes.
-  - The UI team reads it from `origin/feat/nexus-fastapi`. Their requests are in `admin-ui/HANDOVER.md` under "Needs from nexus" on `origin/feat/nexus-react`, so check that when you start.
+  - The UI team reads it from `origin/nexus/api`. Their requests are in `nexus/ui/HANDOVER.md` under "Needs from nexus" on `origin/nexus/ui`, so check that when you start.
 - **Agents:** one strong agent (Opus) does the skeleton, auth, error handling and the example routers. Sonnet agents then port the remaining routers in parallel, one router (plus its tests) each.
 - **Tests:** run only the test files for what you changed, in the foreground with a timeout. **Never run e2e tests** (`pytest --e2e`, `dagster/fncli/tests/e2e`). If a run crashes or fails in a way you can't fix, write it in the handover and stop.
 - **Code style:** top-level imports only (tests excepted). No defensive code or fallback defaults: fail fast. Keep comments sparse, like the surrounding code.
 
 ## Shape
-- `nexus/` is a new top-level directory: `nexus/app`, `nexus/tests`, `nexus/Dockerfile`, `nexus/pyproject.toml` and `requirements*.txt`.
+- `nexus/api/` is a new directory (its sibling `nexus/ui/` is the React UI): `nexus/api/app`, `nexus/api/tests`, `nexus/api/Dockerfile`, `nexus/api/pyproject.toml` and `requirements*.txt`.
 - **Start by copying** `webserver/app` (models, DTOs, helpers, without `extras/`) and the matching `webserver/tests`, then convert them. The DTOs in `webserver/app/dtos/` are already Pydantic v2 (`DTO` with `from_attributes`, `dump()`).
 - **Server:** uvicorn on port 5000. Handlers are sync `def`, because Keycloak, k8s and requests are all blocking.
 - **Probes:** keep `/ready_check` and `/health_check`.
@@ -75,11 +75,11 @@ These are async and run in order:
 `redirect_slashes=False`, and register both `""` and `"/"` on collection routes, the same as Flask. Behind Traefik a 307 redirect can point at `http://` and break the clients.
 
 ### 7. OpenAPI
-Served at `/openapi.json`, with docs at `/docs`. A test (or a `make` target) dumps the spec to `nexus/openapi.json` and commits it, so the UI can generate types from it.
+Served at `/openapi.json`, with docs at `/docs`. A test (or a `make` target) dumps the spec to `nexus/api/openapi.json` and commits it, so the UI can generate types from it.
 
 ## Helm and Tilt
 - **Helm:**
-  - New `k8s/federated-node/templates/nexus-{deployment,service,http-route,configmap,roles}.yaml`, modelled on `backend-*.yaml`, behind a `nexus.enabled` value.
+  - New `k8s/federated-node/templates/nexus-api-{deployment,service,http-route,configmap,roles}.yaml`, modelled on `backend-*.yaml`, behind a `nexus.api.enabled` value.
   - Give it its own route prefix or host, so both servers run at once.
   - No alembic init container.
   - Check it with `helm lint` / `helm template` if they are available.
@@ -125,5 +125,5 @@ Run in parallel. Each agent ports one router plus its tests.
 - The per-router tests pass, then the full nexus unit suite.
 - `tests/test_live_client_integration.py` passes (the real Dagster and fncli clients against nexus).
 - The spec path diff is clean.
-- `helm template` renders with `nexus.enabled=true`.
+- `helm template` renders with `nexus.api.enabled=true`.
 - Tilt and the cluster run are checked locally by the user, not here.
