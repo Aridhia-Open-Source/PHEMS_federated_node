@@ -53,6 +53,9 @@ These are async and run in order:
 - **Admin-only writes:** these add `require_scope("can_do_admin")`.
 - **Unauthenticated routes stay unauthenticated:** `/login`, the health and ready routes, and `PUT /global/users/reset-password`.
 - **Keycloak:** reuse `helpers/keycloak.py` as is, and cache the decoded user per request. Keep the manual `Bearer ` parsing so the 401 body keeps its shape.
+- **System-user-only writes:** `Caller` also carries `is_system` (from `keycloak.py:is_system_user`). A `system_only` dependency gives a 403 to any caller who isn't the system user. It goes on the state-machine writes (listed under "Two deployments" below).
+  - The same fix is going into the Flask webserver in its own PR (`fix/system-only-state-writes`, plan in `.claude/docs/pr-plans/system-only-state-writes.md`). Port its behaviour and its tests across.
+  - The human admin actions stay `can_admin_task`: task retry and cancel, and results approve and block.
 
 ### 4. Validation and DTOs
 - **Request DTOs** (`ProjectRequest`, `DatasetRequest`, ...) become typed body params, and **response DTOs** become `response_model=`.
@@ -84,6 +87,34 @@ Served at `/openapi.json`, with docs at `/docs`. A test (or a `make` target) dum
   - No alembic init container.
   - Check it with `helm lint` / `helm template` if they are available.
 - **Tilt:** a `docker_build_with_restart` entry for nexus that runs `uvicorn --reload`, modelled on the webserver entry at `Tiltfile:~45`, plus a port-forward next to the backend's 5000 (for example 5001).
+
+## Two deployments: `nexus-api` and `nexus-system` (after the port)
+**Decision:** one codebase and one image, deployed twice. **Don't** split the routers or the code by deployment. The routers stay grouped by resource.
+
+| Deployment | Who calls it | Exposure |
+|---|---|---|
+| `nexus-api` | the UI, admins, fncli, users | Traefik http route, as planned above |
+| `nexus-system` | Dagster only (its `BACKEND_API_URI` points here) | ClusterIP only, no http route. A NetworkPolicy allows traffic only from the Dagster namespace. |
+
+- **Why:** Dagster polls every 30s, so that load stays off the admin side, and each deployment scales and restarts on its own. For security, the state-machine routes are not reachable from outside the cluster at all.
+- **`NEXUS_ROLE` env var** (`api` or `system`, set by Helm, required with no default):
+  - **On `api`:** the system-only routes are not mounted, or they return 404.
+  - **On `system`:** every route requires the system user. It's a router-level dependency on the whole app, so there's no per-route bookkeeping.
+- **The system-only routes:** each gets one `system_only` dependency or tag:
+
+| Route | What it is |
+|---|---|
+| `POST /global/repositories/triggers/{id}/pull_requests` | pull request ingest |
+| `PATCH /projects/{id}/repositories/triggers/{rid}/pull_requests/{n}` | pull request state |
+| `POST /projects/{id}/repositories/triggers/{rid}/pull_requests/{n}/task` | creates a task from a pull request |
+| `PATCH /projects/{id}/tasks/{tid}` and `POST .../launch` | task state and launch |
+| `POST /projects/{id}/results` and `PATCH /projects/{id}/results/{rid}` | result state |
+
+- **Reads Dagster also uses** (projects, trigger and results repos, task config and trigger) stay on both deployments, untouched.
+- **Helm:**
+  - A second Deployment and Service (`nexus-system-*`) from the same templates, with a values toggle `nexus.system.enabled`.
+  - Point Dagster's `BACKEND_API_URI` at it when it's enabled.
+- **Not in the first cut:** do the port first. This step is Helm plus one dependency.
 
 ## Steps
 
@@ -120,6 +151,9 @@ Run in parallel. Each agent ports one router plus its tests.
 ### Last
 - Run the whole nexus unit suite once.
 - Diff the generated spec's paths against `webserver/app/static/openapi.json` (minus the out-of-scope routes) to catch missed routes.
+
+### After the port
+- Do the two-deployment step (`nexus-api` and `nexus-system`, above) as its own change.
 
 ## Verification
 - The per-router tests pass, then the full nexus unit suite.
