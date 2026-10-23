@@ -109,12 +109,8 @@ run() {
   local env
   env="$(task_env)"
   echo "Task env: $env"
-  if [ "$env" = "{}" ]; then
-    TEST_PR_IMAGE="$IMAGE" fncli open-pr --kind watched --merge --watch --timeout "$RUN_TIMEOUT"
-  else
-    TEST_PR_IMAGE="$IMAGE" TEST_PR_ENV="$env" \
-      fncli open-pr --kind watched --merge --watch --timeout "$RUN_TIMEOUT"
-  fi
+  [ "$env" = "{}" ] || export TEST_PR_ENV="$env"
+  TEST_PR_IMAGE="$IMAGE" fncli open-pr --kind watched --merge --watch --timeout "$RUN_TIMEOUT"
 }
 
 # The contract app/definitions/pipes.py gives a task pod, against a port-forward.

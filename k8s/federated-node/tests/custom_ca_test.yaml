@@ -1,8 +1,6 @@
-## Custom CA for outbound TLS (customCA).
-##
-## Properties under test: off means nothing changes anywhere; on means every workload that
-## makes outbound HTTPS calls trusts the system CAs plus the custom one, the Secret is
-## mounted without subPath so it refreshes, and a changed CA changes the pod template.
+## customCA: off changes nothing. On, every workload that makes outbound HTTPS calls trusts
+## the system CAs plus the custom one, the Secret is never mounted through subPath, and a
+## changed CA changes the pod template.
 suite: Custom CA bundle for outbound TLS
 release:
   namespace: federatednode
@@ -276,7 +274,7 @@ tests:
                 - key: ca.crt
                   path: ca.crt
 
-  - it: changes the checksum when the CA changes, and only then
+  - it: gives a fixed checksum for a given CA
     template: templates/backend-deployment.yaml
     set:
       customCA:
@@ -289,7 +287,7 @@ tests:
           path: spec.template.metadata.annotations["checksum/custom-ca"]
           value: "7cc358aa45100f42"
 
-  - it: changes the checksum when the CA changes (second CA)
+  - it: gives a different checksum for a different CA
     template: templates/backend-deployment.yaml
     set:
       customCA:

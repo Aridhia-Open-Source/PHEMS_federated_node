@@ -197,19 +197,15 @@ host: &host
 tls:
   secretName: &tls tls
 
-# Extra certificate authority for OUTBOUND TLS, for a git host, registry, identity
-# provider or TLS-intercepting proxy signed by a private CA. It is added to each
-# image's system CAs and certificates are always verified; there is no way to switch
-# verification off. Unrelated to tls.secretName, which is the certificate the node
-# serves. Off unless secretName or pem is set. See "Custom CA" in the README.
+# An extra CA for outbound TLS, added to each image's system CAs. Off unless secretName or
+# pem is set. Not tls.secretName, which is the certificate the node serves. See "Custom CA"
+# in the README.
 customCA:
-  # An existing Secret in the release namespace holding the PEM. It is copied into the
-  # Keycloak namespace when that differs. Changing it needs a rollout restart.
+  # An existing Secret in the release namespace holding the PEM. Not together with pem.
   secretName: ""
-  # The key in that Secret holding the PEM (one or more certificates).
+  # The key in that Secret holding the PEM.
   key: ca.crt
-  # Or the PEM itself, from which the chart renders a Secret called fn-custom-ca.
-  # Ignored by the chart if secretName is also set: setting both is an error.
+  # Or the PEM itself; the chart renders a Secret called fn-custom-ca from it.
   pem: ""
 
 # Running on azure?

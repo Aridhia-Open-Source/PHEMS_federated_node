@@ -3,7 +3,7 @@
 # CUSTOM_CA_FILE=/path/to/ca.pem (set it in .dev.env) puts that PEM, a CA or a bundle of
 # them, in a Secret in $NAMESPACE and fills CUSTOM_CA_HELM_ARGS with the Helm arguments
 # that make the release trust it for outbound TLS. Unset, CUSTOM_CA_HELM_ARGS stays empty
-# and nothing is created. Certificates are always verified.
+# and nothing is created.
 CUSTOM_CA_SECRET=fn-custom-ca-dev
 
 custom_ca_prepare() {

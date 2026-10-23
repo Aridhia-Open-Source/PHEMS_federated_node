@@ -2,45 +2,38 @@
 set -euo pipefail
 
 ###################################################################################
-# Federated Node - Corporate proxy simulation
+# Federated Node - corporate proxy simulation
 #
-# Reproduces a hospital network where the only way out is a TLS-intercepting
-# (MITM) proxy, and runs a colleague's first-time setup on it (make cluster up,
-# make deploy, tilt up, fncli demo) to see what breaks.
+# A hospital network where the only way out is a TLS-intercepting (MITM) proxy, to run a
+# colleague's first-time setup on (make cluster up, make deploy, tilt up, fncli demo) and
+# see what breaks. Your own Docker daemon, kind cluster and registries are never touched,
+# and no host ports are published.
 #
-#   laptop  - proxysim-laptop (scripts/proxy-sim/Dockerfile): Ubuntu with its own
-#             Docker daemon, kind, helm, tilt, pipx. Its network has no route out.
-#   mitm    - mitmproxy, the only container with a route out. It re-signs every
-#             HTTPS connection with its own CA, like a corporate proxy does.
+#   laptop  proxysim-laptop (scripts/proxy-sim/Dockerfile): Ubuntu with its own Docker,
+#           kind, helm, tilt and pipx, on a network with no route out.
+#   mitm    mitmproxy, the only container with a route out. It re-signs every HTTPS
+#           connection with its own CA, as a corporate proxy does.
 #
-# Your own Docker daemon, kind cluster and registries are never touched. No host
-# ports are published.
+# The laptop at each stage (each one recreates it, keeping its volumes):
+#   up      no proxy configured anywhere
+#   proxy   proxy variables set machine-wide, as on a managed laptop; its CA not yet trusted
+#   trust   the proxy's CA in the OS trust store, as IT pushes to managed machines. Tools
+#           with their own CA bundle (pip, certifi) still do not see it.
 #
-# What the laptop is at each stage (each recreates it, keeping its volumes):
-#   up      a locked-down machine: no proxy configured anywhere
-#   proxy   proxy env (HTTP(S)_PROXY, NO_PROXY=localhost,127.0.0.1) set machine-wide,
-#           as on a managed laptop, but the proxy's CA is not trusted yet
-#   trust   the proxy CA is in the OS trust store (what IT pushes to managed machines).
-#           Tools that bring their own CA bundle (pip, certifi) still don't see it.
-#
-# Usage:
-#   ./scripts/proxy-sim.sh up               # stage 1; DIRECT=1 for a control run with
-#                                           #   normal internet and no proxy
+#   ./scripts/proxy-sim.sh up               # DIRECT=1: normal internet, no proxy (a control run)
 #   ./scripts/proxy-sim.sh pull [image]     # docker pull inside the laptop
-#   ./scripts/proxy-sim.sh proxy            # stage 2
-#   ./scripts/proxy-sim.sh trust            # stage 3
+#   ./scripts/proxy-sim.sh proxy
+#   ./scripts/proxy-sim.sh trust
 #   ./scripts/proxy-sim.sh flow [--from N]  # copy the working tree in, run the first-time
 #                                           #   steps, stop at the first failure
-#   ./scripts/proxy-sim.sh shell            # a shell in the repo copy, to poke around
-#   ./scripts/proxy-sim.sh build            # rebuild the laptop image
-#   ./scripts/proxy-sim.sh down             # remove everything, including the volumes
+#   ./scripts/proxy-sim.sh shell | build | down
 #
 # Via make: proxy-sim-up, -pull, -proxy, -trust, -flow, -shell, -build, -down.
+# CUSTOM_CA_FILE=<path in the laptop> on `flow` puts that CA in .dev.env, to test customCA.
 #
-# dind has no systemd, so the proxy is set as environment variables on the whole
-# container, dockerd included: the same thing the docker.service.d/http-proxy.conf
-# drop-in does on a real host. The flow keeps each step's output in /work/logs inside the
-# laptop.
+# dind has no systemd, so the proxy is set as environment variables on the whole container,
+# dockerd included. That is what docker.service.d/http-proxy.conf does on a real host. The
+# flow keeps each step's output in /work/logs in the laptop.
 ####################################################################################
 
 cd "$(dirname "$0")/.."
@@ -59,6 +52,10 @@ LAPTOP_IMAGE="proxysim-laptop:latest"
 CA_VOLUME="proxysim-mitm-ca"
 CA_FILE="/home/mitmproxy/.mitmproxy/mitmproxy-ca-cert.pem"
 PROXY_URL="http://${MITM_IP}:8080"
+# kind copies the shell's proxy variables into the node, so containerd would send requests to
+# the registry containers (plain http, by name) through the proxy, which cannot reach them. A
+# hospital user has to list these names in NO_PROXY too.
+NO_PROXY_LIST="localhost,127.0.0.1,kind-registry,proxy-docker-hub-registry,proxy-ghcr-registry"
 VOLUMES=(proxysim-docker proxysim-containerd proxysim-work)
 
 wait_for() {
@@ -123,8 +120,8 @@ case "$COMMAND" in
   proxy)
     require_proxy_network
     start_laptop "$NETWORK" \
-      -e "HTTP_PROXY=${PROXY_URL}" -e "HTTPS_PROXY=${PROXY_URL}" -e "NO_PROXY=localhost,127.0.0.1" \
-      -e "http_proxy=${PROXY_URL}" -e "https_proxy=${PROXY_URL}" -e "no_proxy=localhost,127.0.0.1"
+      -e "HTTP_PROXY=${PROXY_URL}" -e "HTTPS_PROXY=${PROXY_URL}" -e "NO_PROXY=${NO_PROXY_LIST}" \
+      -e "http_proxy=${PROXY_URL}" -e "https_proxy=${PROXY_URL}" -e "no_proxy=${NO_PROXY_LIST}"
     echo "Laptop restarted with ${PROXY_URL} as its proxy. Try: $0 pull"
     ;;
 
@@ -164,7 +161,11 @@ case "$COMMAND" in
   flow)
     # Resuming with --from keeps the copy (and the config the earlier steps wrote).
     if [ "${2:-}" != "--from" ]; then "$0" sync; fi
-    docker exec -w /work/fn "$LAPTOP" bash scripts/proxy-sim/flow.sh "${@:2}"
+    # CUSTOM_CA_FILE (a path inside the laptop, e.g. /usr/local/share/ca-certificates/mitm.crt
+    # once `trust` has run) is written to .dev.env by flow.sh, to test the chart's customCA.
+    ca_env=()
+    [ -z "${CUSTOM_CA_FILE:-}" ] || ca_env=(-e "CUSTOM_CA_FILE=${CUSTOM_CA_FILE}")
+    docker exec -w /work/fn ${ca_env[@]+"${ca_env[@]}"} "$LAPTOP" bash scripts/proxy-sim/flow.sh "${@:2}"
     ;;
 
   shell)

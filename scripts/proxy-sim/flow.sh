@@ -44,9 +44,11 @@ step_configure() {
   # proxy-sim.sh sync copies the host's dev.values.yaml in when there is one: the example has no Gitea.
   [ -f k8s/federated-node/dev.values.yaml ] || cp k8s/federated-node/dev.example.values.yml k8s/federated-node/dev.values.yaml
   cp .demo.env.example .demo.env
-  # DOCKER_TAG has to match the image tag in the values file (DEPLOYMENT.md, first time, step 2).
+  # DOCKER_TAG has to match the image tag in the values file (see First time in DEPLOYMENT.md).
   tag="$(grep -m1 -oE '(tag:|&devTag) *"?v[0-9]+' k8s/federated-node/dev.values.yaml | grep -oE 'v[0-9]+' || true)"
   [ -z "$tag" ] || sed -i "s/^DOCKER_TAG=.*/DOCKER_TAG=$tag/" .dev.env
+  # A CA for the cluster and release to trust, see .dev.env.example.
+  [ -z "${CUSTOM_CA_FILE:-}" ] || echo "CUSTOM_CA_FILE=$CUSTOM_CA_FILE" >> .dev.env
 }
 
 step_helm_deps() { set -e; make helm_deps; }
@@ -74,7 +76,18 @@ step_install_fncli() {
   fncli hello-world
 }
 
-step_start_sensors() { set -e; fncli start-sensor --group all; }
+# Tilt replaces the code server right after it starts, and the Dagster webserver then keeps
+# showing "could not reach user code server" until the location is reloaded (the UI's Reload).
+step_start_sensors() {
+  curl -s -m 60 localhost:3000/graphql -H 'content-type: application/json' \
+    -d '{"query":"mutation { reloadRepositoryLocation(repositoryLocationName: \"dagster-fn\") { __typename } }"}' >/dev/null || true
+  for i in $(seq 1 18); do
+    fncli start-sensor --group all && return 0
+    echo "sensors not loaded yet (try $i), waiting"
+    sleep 10
+  done
+  return 1
+}
 
 step_demo() { set -e; fncli demo -y; }
 
