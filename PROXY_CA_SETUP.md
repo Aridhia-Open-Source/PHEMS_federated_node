@@ -37,6 +37,8 @@ Docker has to restart for the proxy setting to apply. **That stops every running
 
 Then open a new shell, or run `direnv allow`, so the new variables load. Continue with `./scripts/install-dev.sh` or `make cluster up`.
 
+On a fresh machine you can do both in one go: `./scripts/install-dev.sh --ca-file /path/to/ca.pem --proxy http://proxy.example.org:8080`. It runs this script first, before it downloads anything.
+
 ## What it changes
 
 | What | Where |

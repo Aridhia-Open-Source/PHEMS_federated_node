@@ -13,6 +13,9 @@ set -euo pipefail
 # ~/.local/bin, fncli with pipx (editable), direnv for .envrc. Then the config
 # files, the kind cluster, the Helm release and Tilt, and a healthcheck at the end.
 #
+# Behind a TLS-inspecting proxy: add --ca-file PATH [--proxy URL] [--yes]. That runs
+# scripts/setup-proxy-ca.sh first (see PROXY_CA_SETUP.md), before anything is downloaded.
+#
 # Safe to rerun: every step checks first and skips what is already done. A release
 # that is already deployed is left alone; a failed one is upgraded.
 #
@@ -20,6 +23,19 @@ set -euo pipefail
 ####################################################################################
 
 cd "$(dirname "$0")/.."
+
+CA_ARGS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --ca-file|--proxy) CA_ARGS+=("$1" "${2:?$1 needs a value}"); shift 2 ;;
+    --yes) CA_ARGS+=(--yes); shift ;;
+    -h|--help) sed -n '5,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "unknown option: $1 (see --help)" >&2; exit 1 ;;
+  esac
+done
+if [ "${#CA_ARGS[@]}" -gt 0 ] && [[ " ${CA_ARGS[*]} " != *" --ca-file "* ]]; then
+  echo "--proxy and --yes only go with --ca-file PATH" >&2; exit 1
+fi
 
 # kind v0.31.0 rejects the registry mirror patches in .kind/kind-config.yaml, so pin
 # v0.30.0 (same as scripts/proxy-sim/Dockerfile).
@@ -39,6 +55,7 @@ export USER="${USER:-$(id -un)}"
 exec > >(tee -a "$FN_DIR/install.log") 2>&1
 
 STEPS=9
+[ "${#CA_ARGS[@]}" -eq 0 ] || STEPS=10
 N=0
 step() { N=$((N + 1)); echo; echo "=== [$N/$STEPS] $1 $(printf '=%.0s' $(seq 1 $((60 - ${#1}))))"; }
 ok()   { echo "  ok    $*"; }
@@ -64,6 +81,22 @@ case "$(dpkg --print-architecture)" in
   *) die "unsupported architecture $(dpkg --print-architecture)" ;;
 esac
 
+if [ "${#CA_ARGS[@]}" -gt 0 ]; then
+  ###############################################################################
+  step "Proxy and CA (scripts/setup-proxy-ca.sh)"
+  ###############################################################################
+  ./scripts/setup-proxy-ca.sh "${CA_ARGS[@]}"
+  # It wrote the proxy and CA variables to .dev.env: use them for the rest of this run.
+  set -a
+  # shellcheck source=/dev/null
+  . ./.dev.env
+  set +a
+fi
+
+# sudo drops the proxy variables and apt does not read them, so hand apt the proxy.
+APT_OPTS=()
+[ -z "${HTTPS_PROXY:-}" ] || APT_OPTS=(-o "Acquire::http::Proxy=$HTTPS_PROXY" -o "Acquire::https::Proxy=$HTTPS_PROXY")
+
 ###############################################################################
 step "System packages (apt)"
 ###############################################################################
@@ -75,8 +108,8 @@ if [ "${#missing[@]}" -eq 0 ]; then
   skip "all installed: ${APT_PACKAGES[*]}"
 else
   echo "  installing: ${missing[*]}"
-  sudo apt-get update -q
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q "${missing[@]}"
+  sudo apt-get ${APT_OPTS[@]+"${APT_OPTS[@]}"} update -q
+  sudo DEBIAN_FRONTEND=noninteractive apt-get ${APT_OPTS[@]+"${APT_OPTS[@]}"} install -y -q "${missing[@]}"
   ok "installed ${missing[*]}"
 fi
 python3 -c 'import sys; sys.exit(sys.version_info < (3, 12))' \
