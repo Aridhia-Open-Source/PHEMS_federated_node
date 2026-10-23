@@ -101,8 +101,11 @@ tilt-logs:
 tilt-open:
 	tilt open
 
-uc1-seed:
-	./dev.db/uc1_make_seed.sh
+# Real experiments against the node, see experiments/README.md
+# make experiments up | down | seed uc1 | build uc1 | run uc1 | run-local uc1
+.PHONY: experiments
+experiments:
+	@./experiments/experiments.sh $(filter-out $@,$(MAKECMDGOALS))
 
 nuke:
 	./scripts/nuke.sh

@@ -19,7 +19,7 @@ from fncli.cmds.common import (
     ResultsRepoConfig,
     TriggerRepoConfig,
     build_backend_api,
-    build_gitea_api,
+    build_git_api,
 )
 from fncli.cmds.project import find_project
 from fncli.cmds.repository import init_gitea_repo
@@ -50,16 +50,8 @@ RUN_DONE = ["SUCCESS", "FAILURE", "CANCELED"]
 
 class PrConfig(TriggerRepoConfig):
     pr_image: str = Field(default="localhost:5001/pypipes-fn:latest", alias="TEST_PR_IMAGE")
-
-    @property
-    def repo_path(self) -> str:
-        return f"{self.gitea_admin_user}/{self.repo}"
-
-
-class ResultsPrConfig(ResultsRepoConfig):
-    @property
-    def repo_path(self) -> str:
-        return f"{self.gitea_admin_user}/{self.repo}"
+    # Extra env for the task, as JSON, e.g. '{"UC1_DEV": "1"}' (experiments/experiments.sh run)
+    pr_env: dict[str, str] = Field(default={}, alias="TEST_PR_ENV", validate_default=False)
 
 
 branch_option = click.option(
@@ -77,8 +69,10 @@ def file_for(config: PrConfig, branch: str, kind: str) -> tuple[str, str]:
     if kind == "unwatched":
         return f"docs/{branch}.md", f"# {branch}\n\nNot a spec: outside the watch_dir.\n"
     spec = {"name": branch, "image": config.pr_image}
+    if config.pr_env:
+        spec["env"] = dict(config.pr_env)
     if kind == "failing":
-        spec["env"] = {"PYPIPES_EXIT_CODE": "1"}
+        spec["env"] = {**spec.get("env", {}), "PYPIPES_EXIT_CODE": "1"}
     if kind == "invalid":
         # The backend's TaskSpecRequest forbids unknown fields
         spec["unknown_field"] = True
@@ -91,7 +85,7 @@ def create_gitea_branch_command(branch):
     """Create a branch off the trigger repo's default branch."""
     config = PrConfig()
     branch = branch or new_branch_name()
-    gitea_api = build_gitea_api(config)
+    gitea_api = build_git_api(config)
     gitea_repo = init_gitea_repo(config, gitea_api)
     gitea_api.create_branch(config.repo_path, branch, gitea_repo["default_branch"])
     logger.info(f"Created branch {branch}")
@@ -104,7 +98,7 @@ def commit_gitea_file_command(branch, kind):
     """Commit one new file to the branch, of a kind that decides what the sensor does."""
     config = PrConfig()
     file_path, content = file_for(config, branch, kind)
-    build_gitea_api(config).create_file(
+    build_git_api(config).create_file(
         config.repo_path, file_path, content, message=f"Add {file_path}", branch=branch
     )
     logger.info(f"Committed {kind} file {file_path} to {branch}")
@@ -116,7 +110,7 @@ def commit_gitea_file_command(branch, kind):
 def create_gitea_pr_command(branch, kind):
     """Open a PR from the branch into the trigger repo's default branch."""
     config = PrConfig()
-    gitea_api = build_gitea_api(config)
+    gitea_api = build_git_api(config)
     gitea_repo = init_gitea_repo(config, gitea_api)
     pr = gitea_api.create_pull_request(
         config.repo_path,
@@ -172,7 +166,7 @@ def watch_pr(config: PrConfig, number: int, timeout: int):
     dagster_api = DagsterAPI(dagster_url)
     project = find_project(config, backend_api)
     repo = backend_api.find_repository(config.repo_uri, project.id)
-    links = Links(config.gitea_url, dagster_url, repo.repo_path)
+    links = Links(config.web_url, dagster_url, repo.repo_path, config.pulls_page)
     seen = {}
     stage = "ingest"
     deadline = time.monotonic() + timeout
@@ -251,7 +245,7 @@ timeout_option = click.option(
 def merge_gitea_pr_command(number, watch, timeout):
     """Merge a PR in the trigger repo, which is what makes the sensor pick it up."""
     config = PrConfig()
-    build_gitea_api(config).merge_pull_request(config.repo_path, number)
+    build_git_api(config).merge_pull_request(config.repo_path, number)
     logger.info(f"Merged PR #{number}")
     if watch:
         watch_pr(config, number, timeout)
@@ -261,8 +255,8 @@ def merge_gitea_pr_command(number, watch, timeout):
 @click.option("--number", required=True, type=int, help="The results PR's number.")
 def merge_results_pr_command(number):
     """Merge a results PR in the results repo, which the sync sensor then records as MERGED."""
-    config = ResultsPrConfig()
-    build_gitea_api(config).merge_pull_request(config.repo_path, number)
+    config = ResultsRepoConfig()
+    build_git_api(config).merge_pull_request(config.repo_path, number)
     logger.info(f"Merged results PR #{number}")
 
 

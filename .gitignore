@@ -35,11 +35,11 @@ debug.yaml
 # Ignore local model files
 .models/
 
-# temp
-uc1
-
-# Local UC1 runs (scripts/run_uc1_local.sh)
-uc1-local-results/
+# Local experiment sources and run-local results (experiments/README.md)
+experiments/sources/
+experiments/results/
+# Committed: holds no secrets, the passwords come from the chart
+!experiments/projects/*/project.env
 
 # worktree include files
 .worktreeinclude
