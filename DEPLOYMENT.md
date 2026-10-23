@@ -44,7 +44,7 @@ On Debian 13 or Ubuntu 24.04 and later, with Docker working (`docker info` witho
 
 It installs everything below, creates the config files with a generated first-user password, and runs every step of [First time](#first-time) up to Tilt. It ends with a healthcheck that lists each service's address. You can rerun it safely: anything already done is skipped. The log is in `~/.fn/install.log`.
 
-To try it without touching your machine, `make sandbox up` runs it in a throwaway Debian container with its own Docker. `make sandbox shell` opens a shell in there, `SANDBOX=1 make <target>` runs any make target in there, and `make sandbox down` removes it. Edits to `webserver/` and `dagster/` live-reload in the sandbox too. See `scripts/sandbox.sh`.
+To try it without touching your machine, `./scripts/sandbox/sandbox.sh up` runs it in a throwaway Debian container with its own Docker. `shell` opens a shell in there, `exec <command>` runs a command, any other word runs that make target (`sandbox.sh deploy`), and `down` removes it. Edits to `webserver/` and `dagster/` live-reload in the sandbox too. The options and details are at the top of `scripts/sandbox/sandbox.sh`.
 
 ### You need
 
@@ -139,7 +139,12 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 
 ### Behind a TLS-intercepting proxy
 
-Both are optional dev tooling and do nothing when unset. `CUSTOM_CA_FILE=/path/ca.pem` in `.dev.env` makes `make deploy` and `make upgrade` put the CA in a Secret and set `customCA.secretName` for your release, so the pods trust it for outbound TLS. For the sandbox, `SANDBOX_CA_FILE=/path/ca.pem make sandbox up` installs the CA into the sandbox's system trust (apt switches to https for the image build) and points its curl, pip and git at it, so `install-dev.sh`'s downloads and the inner Docker daemon's registry pulls verify against it. Set it when the sandbox is created: `make sandbox down` first if it exists. The kind node's own containerd is not covered.
+Both are optional dev tooling and do nothing when unset.
+
+- `CUSTOM_CA_FILE=/path/ca.pem` in `.dev.env`, set before `make cluster up`: the kind node trusts the CA for image pulls, and `make deploy` and `make upgrade` put it in a Secret and set `customCA.secretName`, so the pods trust it for outbound TLS.
+- `./scripts/sandbox/sandbox.sh --ca-file /path/ca.pem up`: the sandbox trusts the CA, so the installer's downloads and its Docker's registry pulls verify against it. Set it when the sandbox is created: `down` first if it exists.
+
+Not covered: the registry mirrors that `make cluster up` starts, and the `RUN` steps of image builds.
 
 ### One owner at a time
 

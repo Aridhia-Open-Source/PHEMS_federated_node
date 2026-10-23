@@ -9,19 +9,25 @@ set -euo pipefail
 # Your own Docker, kind cluster, registries and ports are never touched; the services
 # are only reachable inside the sandbox.
 #
-#   ./scripts/sandbox.sh up          # create it if needed, copy the working tree in, run
-#                                    #   the installer (again: syncs and reinstalls)
-#   ./scripts/sandbox.sh down        # remove it; keeps its images and build cache
-#                                    #   (NO_CACHE=1: remove those too)
-#   ./scripts/sandbox.sh shell       # a shell in the repo copy
-#   ./scripts/sandbox.sh <cmd...>    # run any command there, e.g. fncli project-show
+#   ./scripts/sandbox/sandbox.sh [options] up   # create it if needed, copy the working tree
+#                                               #   in, run the installer (again: re-syncs)
+#   ./scripts/sandbox/sandbox.sh down           # remove it; keeps its images and build cache
+#   ./scripts/sandbox/sandbox.sh shell          # a shell in the repo copy
+#   ./scripts/sandbox/sandbox.sh exec <cmd...>  # any command there, e.g. exec fncli project-show
+#   ./scripts/sandbox/sandbox.sh <target...>    # make <target...> there, e.g. deploy, cluster up
 #
-# Via make: make sandbox up|down|shell, and SANDBOX=1 make <target> for any target.
+# Options, before the verb. Each can also be set as the environment variable shown:
+#   --ca-file PATH   (SANDBOX_CA_FILE)  trust this CA, for a network that intercepts TLS
+#   --host-network   (SANDBOX_HOST_NETWORK_DOCKER_BUILD=1)  build and run on the host's
+#                    network, for a host whose only way out is a proxy on its own localhost
+#   --no-cache       (NO_CACHE=1)  pull and build everything; with `down`, also delete the
+#                    sandbox's images and build cache
+# The options are fixed when the sandbox is created: down, then up.
 #
 # The copy is the working tree minus gitignored files, so .dev.env, dev.values.yaml
 # and charts/ start missing, as in a clone. The code Tilt watches (LIVE_DIRS) is
 # bind-mounted instead, so host edits live-reload in the sandbox. Anything else reaches
-# it on the next `up`. The mounts are fixed when the sandbox is created: down, then up.
+# it on the next `up`.
 #
 # Image pulls go through the host's pull-through mirrors (make cluster up on the host
 # starts them), so a new sandbox does not download everything again. The sandbox joins
@@ -30,24 +36,35 @@ set -euo pipefail
 # registry (localhost:5001 there) instead of building it when the sandbox's has none
 # (UPSTREAM_REGISTRY in build_image.sh). Tilt still builds webserver and dagster.
 # The host's pip cache (~/.cache/pip) is mounted too, for the fncli install.
-# NO_CACHE=1 make sandbox up for a cold start (also fixed
-# at creation: down, then up).
-# SANDBOX_HOST_NETWORK_DOCKER_BUILD=1 builds the sandbox image on the host's network, runs the
-# sandbox on it too, and passes this shell's proxy variables, for a host whose only way out is
-# a proxy on its own localhost. The sandbox's Docker then shares the host's network namespace
-# (no default bridge, its own address pools).
 #
-# SANDBOX_CA_FILE=/path/ca.pem (dev tooling, best effort) is for a network that intercepts
-# TLS. The CA is installed into the image's system trust (the image build switches apt to
-# https and trusts the file for its first run), and the sandbox's shells get
+# --host-network passes this shell's proxy variables in. The sandbox's Docker then shares
+# the host's network namespace (no default bridge, its own address pools), and the host's
+# registries are not used.
+#
+# --ca-file is best effort. The CA goes into the image's system trust (the image build
+# switches apt to https and trusts the file for its first run), and the sandbox's shells get
 # CURL_CA_BUNDLE, SSL_CERT_FILE, REQUESTS_CA_BUNDLE and GIT_SSL_CAINFO pointing at the
 # system bundle, so install-dev.sh's curl, pipx and helm downloads verify against it. The
 # inner Docker daemon reads the system trust for registry pulls. Verification is never
-# switched off. Not covered: the kind node's own containerd, and images' own RUN steps. Fixed
-# when the image is built and the sandbox created: down, then up. Unset, nothing changes.
+# switched off. Not covered: images' own RUN steps.
 ####################################################################################
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
+
+usage() {
+  sed -n '/^#   [-a-z.]/s/^#   //p' "$0" >&2
+  exit 1
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --ca-file) SANDBOX_CA_FILE="${2:?--ca-file needs a path}"; shift 2 ;;
+    --host-network) SANDBOX_HOST_NETWORK_DOCKER_BUILD=1; shift ;;
+    --no-cache) NO_CACHE=1; shift ;;
+    -*) echo "Unknown option: $1" >&2; usage ;;
+    *) break ;;
+  esac
+done
 
 NAME=fn-sandbox
 IMAGE=fn-sandbox:latest
@@ -64,8 +81,8 @@ SANDBOX_CA_INSTALLED=/usr/local/share/ca-certificates/sandbox-ca.crt
 SANDBOX_CA_STAGE=scripts/sandbox/ca/sandbox-ca.crt
 
 as_dev() {
-  # Whether the image carries a SANDBOX_CA_FILE decides this, not the caller's environment,
-  # so `shell` and commands trust it too.
+  # Whether the image carries a CA decides this, not the caller's environment, so `shell`
+  # and commands trust it too.
   local var ca_env=()
   if docker exec "$NAME" test -f "$SANDBOX_CA_INSTALLED" 2> /dev/null; then
     for var in CURL_CA_BUNDLE SSL_CERT_FILE REQUESTS_CA_BUNDLE GIT_SSL_CAINFO; do
@@ -85,33 +102,34 @@ host_mirror() {
   [ -z "$ip" ] || echo "$ip:5000"
 }
 
+# This shell's proxy settings as NAME=value lines, none if no HTTPS proxy is set. HTTP_PROXY
+# defaults to the HTTPS one, since apt fetches over plain http.
+proxy_vars() {
+  local https="${HTTPS_PROXY:-${https_proxy:-}}"
+  [ -n "$https" ] || return 0
+  local http="${HTTP_PROXY:-${http_proxy:-$https}}"
+  local no="${NO_PROXY:-${no_proxy:-localhost,127.0.0.1}}"
+  printf '%s\n' "HTTPS_PROXY=$https" "https_proxy=$https" "HTTP_PROXY=$http" "http_proxy=$http" \
+    "NO_PROXY=$no" "no_proxy=$no"
+}
+
 require_running() {
   [ "$(docker inspect -f '{{.State.Running}}' "$NAME" 2> /dev/null || true)" = "true" ] || {
-    echo "No sandbox running. Start it with: make sandbox up" >&2
+    echo "No sandbox running. Start it with: $0 up" >&2
     exit 1
   }
 }
 
 case "${1:-}" in
   up)
-    # SANDBOX_HOST_NETWORK_DOCKER_BUILD=1: the build's RUN steps use the host's network, for a host that
-    # reaches the internet only through a proxy on its own localhost (a container cannot see that). The
-    # proxy from this shell's environment replaces the one the Docker client config injects.
+    # The build's RUN steps use the host's network, with this shell's proxy instead of the one
+    # the Docker client config injects.
     build_args=()
     if [ -n "${SANDBOX_HOST_NETWORK_DOCKER_BUILD:-}" ]; then
       build_args=(--network host)
-      # apt fetches over plain http, so HTTP_PROXY defaults to the HTTPS one (the Docker client config
-      # would otherwise inject its own).
-      https_proxy_url="${HTTPS_PROXY:-${https_proxy:-}}"
-      http_proxy_url="${HTTP_PROXY:-${http_proxy:-$https_proxy_url}}"
-      no_proxy_list="${NO_PROXY:-${no_proxy:-localhost,127.0.0.1}}"
-      if [ -n "$https_proxy_url" ]; then
-        for var in HTTPS_PROXY https_proxy; do build_args+=(--build-arg "$var=$https_proxy_url"); done
-        for var in HTTP_PROXY http_proxy; do build_args+=(--build-arg "$var=$http_proxy_url"); done
-        for var in NO_PROXY no_proxy; do build_args+=(--build-arg "$var=$no_proxy_list"); done
-      fi
+      while IFS= read -r var; do build_args+=(--build-arg "$var"); done < <(proxy_vars)
     fi
-    # SANDBOX_CA_FILE: stage the CA in the build context (gitignored by *.crt), for the Dockerfile.
+    # Stage the CA in the build context (gitignored by *.crt), for the Dockerfile.
     rm -f "$SANDBOX_CA_STAGE"
     if [ -n "${SANDBOX_CA_FILE:-}" ]; then
       [ -s "$SANDBOX_CA_FILE" ] || { echo "SANDBOX_CA_FILE=$SANDBOX_CA_FILE is missing or empty" >&2; exit 1; }
@@ -148,25 +166,15 @@ case "${1:-}" in
         echo "Host registries not running (make cluster up on the host): pulling and building everything."
       fi
 
-      # SANDBOX_HOST_NETWORK_DOCKER_BUILD=1 also runs the sandbox on the host's network, so its proxy
-      # variables (the shell's, or the Docker client config's stale ones otherwise) reach the host's
-      # localhost proxy. The sandbox's Docker then shares the host's network namespace with the host's own
-      # Docker: it has no default bridge (so it cannot take over the host Docker's docker0) and address pools of its own, so the two do not collide, and the host's
-      # registries (which need the host's kind network) are not used.
+      # On the host's network the sandbox's Docker has no default bridge, so it cannot take over
+      # the host Docker's docker0, and its address pools do not collide with the host's.
       net_args=(--hostname "$NAME")
       if [ -n "${SANDBOX_HOST_NETWORK_DOCKER_BUILD:-}" ]; then
         cache=()
         dockerd_args=(--registry-mirror https://mirror.gcr.io --bridge none
           --default-address-pool base=10.202.0.0/16,size=24)
         net_args=(--network host)
-        https_proxy_url="${HTTPS_PROXY:-${https_proxy:-}}"
-        if [ -n "$https_proxy_url" ]; then
-          http_proxy_url="${HTTP_PROXY:-${http_proxy:-$https_proxy_url}}"
-          no_proxy_list="${NO_PROXY:-${no_proxy:-localhost,127.0.0.1}}"
-          for var in HTTPS_PROXY https_proxy; do net_args+=(-e "$var=$https_proxy_url"); done
-          for var in HTTP_PROXY http_proxy; do net_args+=(-e "$var=$http_proxy_url"); done
-          for var in NO_PROXY no_proxy; do net_args+=(-e "$var=$no_proxy_list"); done
-        fi
+        while IFS= read -r var; do net_args+=(-e "$var"); done < <(proxy_vars)
         echo "Running the sandbox on the host's network."
       fi
 
@@ -205,7 +213,7 @@ case "${1:-}" in
       docker volume rm "${VOLUMES[@]}" > /dev/null 2>&1 || true
       echo "Sandbox removed, with its images and build cache."
     else
-      echo "Sandbox removed. Its images and build cache are kept (NO_CACHE=1 to remove them)."
+      echo "Sandbox removed. Its images and build cache are kept (--no-cache to remove them)."
     fi
     ;;
 
@@ -215,13 +223,19 @@ case "${1:-}" in
     as_dev bash -l
     ;;
 
+  exec)
+    shift
+    [ $# -gt 0 ] || usage
+    require_running
+    as_dev "$@"
+    ;;
+
   "")
-    echo "Usage: $0 <up|down|shell|cmd...>"
-    exit 1
+    usage
     ;;
 
   *)
     require_running
-    as_dev "$@"
+    as_dev make "$@"
     ;;
 esac

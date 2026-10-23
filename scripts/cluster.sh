@@ -23,7 +23,7 @@ KIND_CONFIG_FILE=".kind/kind-config.yaml"
 # Under $HOME so nothing here needs sudo.
 FN_DATA_DIR="${FN_DATA_DIR:-$HOME/.fn/data}"
 
-# Where the pull-through mirrors fetch from. scripts/sandbox.sh points them at the host's
+# Where the pull-through mirrors fetch from. scripts/sandbox/sandbox.sh points them at the host's
 # mirrors, so a sandbox reuses the host's cache instead of downloading everything again.
 DOCKERHUB_UPSTREAM="${DOCKERHUB_UPSTREAM:-https://registry-1.docker.io}"
 GHCR_UPSTREAM="${GHCR_UPSTREAM:-https://ghcr.io}"
@@ -99,9 +99,7 @@ if [ "$COMMAND" = "up" ]; then
     RENDERED_CONFIG="$(mktemp)"
     trap 'rm -f "$RENDERED_CONFIG"' EXIT
     sed "s|__FN_DATA_DIR__|$FN_DATA_DIR|" "$KIND_CONFIG_FILE" > "$RENDERED_CONFIG"
-    # CUSTOM_CA_FILE (optional, dev tooling): mount the CA into the node so containerd trusts it
-    # for image pulls (a TLS-intercepting proxy, a registry with a private CA). Unset, the
-    # rendered config is exactly the one above.
+    # CUSTOM_CA_FILE (optional): mount the CA into the node so containerd trusts it for image pulls.
     NODE_CA=/usr/local/share/ca-certificates/fn-custom-ca.crt
     if [ -n "${CUSTOM_CA_FILE:-}" ]; then
       [ -s "$CUSTOM_CA_FILE" ] || { echo "CUSTOM_CA_FILE=$CUSTOM_CA_FILE is missing or empty" >&2; exit 1; }
@@ -111,8 +109,7 @@ if [ "$COMMAND" = "up" ]; then
     fi
     kind create cluster --name "$CLUSTER_NAME" --config "$RENDERED_CONFIG"
     if [ -n "${CUSTOM_CA_FILE:-}" ]; then
-      # Added to the node's system trust, which containerd reads for every registry; the
-      # node's own CAs stay. Verification is not switched off.
+      # Added to the node's system trust, which containerd reads for every registry.
       docker exec "$CLUSTER_NAME-control-plane" sh -c 'update-ca-certificates && systemctl restart containerd'
     fi
   fi

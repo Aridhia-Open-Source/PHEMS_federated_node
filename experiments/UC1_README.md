@@ -60,4 +60,4 @@ Open:
 
 - `SOURCE_REF`: MVP-Code's `main`, or a branch carrying the dev-mode R changes (needs the
   MVP-Code owners' agreement).
-- Proving it in the sandbox (`make sandbox up`, then `SANDBOX=1 make experiments all uc1`).
+- Proving it in the sandbox (`./scripts/sandbox/sandbox.sh up`, then `./scripts/sandbox/sandbox.sh experiments all uc1`).

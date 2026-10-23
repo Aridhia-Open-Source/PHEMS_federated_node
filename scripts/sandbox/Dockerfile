@@ -1,12 +1,12 @@
-# A bare Debian laptop for scripts/sandbox.sh: Docker (the installer's one prerequisite),
-# sudo and git, nothing else. scripts/install-dev.sh installs the rest.
+# A bare Debian laptop for scripts/sandbox/sandbox.sh: Docker (the installer's one
+# prerequisite), sudo and git, nothing else. scripts/install-dev.sh installs the rest.
 # Build context is scripts/, to share the dind start script with proxy-sim.
 FROM docker:dind AS dind
 
 FROM debian:13
 
 ENV DEBIAN_FRONTEND=noninteractive
-# Dev tooling for a network that intercepts TLS (SANDBOX_CA_FILE in scripts/sandbox.sh).
+# Dev tooling for a network that intercepts TLS (--ca-file in scripts/sandbox/sandbox.sh).
 # sandbox/ca/ holds the CA only when that is set; otherwise this layer is empty and nothing
 # below changes. With a CA, apt switches to https and trusts the file for its first run,
 # since ca-certificates is not installed yet; the CA then joins the system trust, which is
@@ -36,7 +36,7 @@ RUN APT_OPTS=""; \
 
 # A normal user with sudo and docker access, like a developer's account. sudo keeps the proxy and CA
 # variables, so the installer's `sudo apt-get` uses the proxy the sandbox was started with.
-# .cache is created here: sandbox.sh mounts the host pip cache into it, and Docker would
+# .cache is created here: scripts/sandbox/sandbox.sh mounts the host pip cache into it, and Docker would
 # otherwise create it as root.
 RUN useradd -m -s /bin/bash -G sudo,docker dev \
  && echo 'dev ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/dev \

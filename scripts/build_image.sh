@@ -14,7 +14,7 @@ BASENAME="$(basename "$DIR")"
 IMAGE_NAME="${BASENAME}-fn"
 IMAGE_REF="$REGISTRY/$IMAGE_NAME"
 
-# UPSTREAM_REGISTRY (scripts/sandbox.sh sets it to the host's kind registry): reuse an
+# UPSTREAM_REGISTRY (scripts/sandbox/sandbox.sh sets it to the host's kind registry): reuse an
 # image instead of building it. Ours with this tag first, then the upstream's latest.
 if [[ -n "${UPSTREAM_REGISTRY:-}" ]]; then
   has_image() {
