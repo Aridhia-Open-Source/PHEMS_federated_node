@@ -74,9 +74,16 @@ spec:
         component: dagster-code-server
       annotations:
         checksum/image: {{ $image | sha256sum | trunc 8 }}
+        {{- if include "fn.customCA.enabled" . }}
+        {{- include "fn.customCA.annotations" (dict "ctx" . "namespace" .Release.Namespace) | nindent 8 }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "dagsterCodeServerServiceAccount" . }}
       automountServiceAccountToken: true
+      {{- if include "fn.customCA.enabled" . }}
+      initContainers:
+        {{- include "fn.customCA.initContainer" (dict "ctx" . "image" $image) | nindent 8 }}
+      {{- end }}
       containers:
         - name: dagster-code-server
           image: {{ $image | quote }}
@@ -103,11 +110,26 @@ spec:
                 secretKeyRef:
                   name: {{ include "dagsterDbSecretName" . }}
                   key: {{ include "dagsterDbSecretKey" . }}
+            {{- if include "fn.customCA.enabled" . }}
+            {{- include "fn.customCA.env" . | nindent 12 }}
+            {{- /* What the K8sRunLauncher applies to every run pod launched from this
+                   code location. DAGSTER_CLI_API_GRPC_CONTAINER_CONTEXT is how the
+                   dagster-user-deployments chart sets `dagster api grpc --container-context`;
+                   newer dagster reads DAGSTER_CONTAINER_CONTEXT. */}}
+            - name: DAGSTER_CLI_API_GRPC_CONTAINER_CONTEXT
+              value: {{ include "fn.customCA.runContainerContext" (dict "ctx" . "image" $image) | quote }}
+            - name: DAGSTER_CONTAINER_CONTEXT
+              value: {{ include "fn.customCA.runContainerContext" (dict "ctx" . "image" $image) | quote }}
+            {{- end }}
           envFrom:
             - configMapRef:
                 name: dagster-env-config
             - secretRef:
                 name: dagster-keycloak-creds
+          {{- if include "fn.customCA.enabled" . }}
+          volumeMounts:
+            {{- include "fn.customCA.volumeMounts" . | nindent 12 }}
+          {{- end }}
           {{- with ((.Values.fnDagster).codeServer).resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -126,4 +148,8 @@ spec:
             timeoutSeconds: 10
             successThreshold: 1
             failureThreshold: 15
+      {{- if include "fn.customCA.enabled" . }}
+      volumes:
+        {{- include "fn.customCA.volumes" . | nindent 8 }}
+      {{- end }}
 {{- end }}
