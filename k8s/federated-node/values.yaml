@@ -21,6 +21,17 @@ backend:
       name: backend-db
       key: password
 
+# nexus: the FastAPI port of the backend (nexus/api), deployed next to it on the same database.
+nexus:
+  image: ghcr.io/aridhia-open-source/nexus_api
+  tag:
+  port: 5000
+  api:
+    enabled: false
+    replicas: 1
+    # Served on the backend's host under this prefix, stripped before it reaches nexus
+    pathPrefix: /nexus
+
 keycloak:
   image: ghcr.io/aridhia-open-source/federated_keycloak
   replicas: 1

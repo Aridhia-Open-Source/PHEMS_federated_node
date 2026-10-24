@@ -39,7 +39,7 @@ def real_repo_check(mock_connection_checks):
 
 def fake_response(status_code, body=None, reason="Reason"):
     response = MagicMock(status_code=status_code, ok=status_code < 400, reason=reason)
-    response.json().return_value = body
+    response.json.return_value = body
     return response
 
 
@@ -136,7 +136,7 @@ def test_secret_absent_from_store_and_values_never_exposed(
 ):
     set_secret_data(k8s_client, {"TOKEN": "c3VwZXJzZWNyZXQ="})
     r = get(client, admin_headers, "/global/secrets/test-creds/healthcheck")
-    assert "c3VwZXJzZWNyZXQ=" not in r.get_data(as_text=True) and "supersecret" not in r.get_data(as_text=True)
+    assert "c3VwZXJzZWNyZXQ=" not in r.text and "supersecret" not in r.text
 
     k8s_client["read_namespaced_secret_mock"].side_effect = ApiException(status=404)
     r = get(client, admin_headers, "/global/secrets/test-creds/healthcheck")
@@ -180,7 +180,7 @@ def test_repository_http_status_and_exceptions_map_to_status(
         assert r.json()["health_check"]["status_code"] == code and r.json()["health_check"]["message"] == "Bad credentials"
 
     response = fake_response(502, reason="Bad Gateway")  # an error body that is not JSON falls back to the reason
-    response.json().side_effect = ValueError("no json")
+    response.json.side_effect = ValueError("no json")
     mocker.patch("app.models.git_provider.requests.get", return_value=response)
     assert get(client, admin_headers, url).json()["health_check"]["message"] == "Bad Gateway"
 

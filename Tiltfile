@@ -31,9 +31,10 @@ allow_k8s_contexts('kind-fn')
 # K8s resources are managed by Helm via `make deploy`. Tilt needs to know about
 # them to inject the restart wrapper.
 k8s_yaml(local(
-  'python3 scripts/tilt_manifests.py {ns} backend {dagster}'.format(
+  'python3 scripts/tilt_manifests.py {ns} backend {dagster}{nexus}'.format(
     ns=NAMESPACE,
     dagster=DAGSTER_DEPLOYMENT,
+    nexus=' nexus-api' if os.getenv('NEXUS_API_ENABLED', 'false') == 'true' else '',
   ),
   quiet=True,
 ))
@@ -67,6 +68,26 @@ docker_build_with_restart(
     sync('webserver/app', '/webserver/app'),
   ],
 )
+
+# ==============================================================================
+# NEXUS API (FastAPI port of the backend, nexus/api)
+# ==============================================================================
+# Only when the chart runs it (nexus.api.enabled). uvicorn --reload picks up synced code itself.
+NEXUS_ENABLED = os.getenv('NEXUS_API_ENABLED', 'false') == 'true'
+if NEXUS_ENABLED:
+  docker_build_with_restart(
+    '{}/nexus-api'.format(DOCKER_REGISTRY),
+    'nexus/api',
+    entrypoint=[
+      'uvicorn', '--factory', 'app:create_app', '--reload',
+      '--host=0.0.0.0', '--port=5000',
+    ],
+    only=['app', 'requirements.txt'],
+    live_update=[
+      fall_back_on(['nexus/api/requirements.txt']),
+      sync('nexus/api/app', '/nexus/app'),
+    ],
+  )
 
 # ==============================================================================
 # DAGSTER USER CODE DEPLOYMENT
@@ -133,6 +154,9 @@ local_resource(
 
 # Expose the backend locally
 k8s_resource('backend', port_forwards=['5000:5000'])
+if NEXUS_ENABLED:
+  # 5001 is the local image registry
+  k8s_resource('nexus-api', port_forwards=['5002:5000'])
 
 # kubectl port-forward exits when one of its connections breaks, and Tilt does not start
 # a serve_cmd again once it has exited. Loop, so a dead forward comes back after a second.

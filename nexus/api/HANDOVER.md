@@ -161,4 +161,20 @@ Wave B: `users_api` (`keycloak/test_keycloak_users.py`, `test_smoke.py`), `dagst
 `test_live_client_integration.py` (see Next 4) as a whole-suite pass (Haiku).
 
 ## Status of Helm/Tilt
-See the section appended below by the lead (Dockerfile, chart templates, Tiltfile).
+- Done: `nexus/api/Dockerfile` (uvicorn `--factory app:create_app` on 5000, no alembic),
+  `pyproject.toml` (Flask/alembic/waitress out; fastapi, uvicorn, python-multipart, httpx in),
+  `requirements.txt` / `requirements-dev.txt` recompiled with hashes.
+- Chart: `k8s/federated-node/templates/nexus-api-{deployment,service,configmap,http-route,roles}.yaml`
+  behind `nexus.api.enabled` (default false). Values under `nexus:` (image, tag, port, `api.replicas`,
+  `api.pathPrefix: /nexus`). Same host as the backend under `/nexus`, prefix stripped by a URLRewrite
+  filter. Own service account `nexus-api` bound to the backend's secrets ClusterRole. Reuses
+  `backend-configmap` + `keycloak-config`; `nexus-api-configmap` sets `NEXUS_ROLE=api` (not read by
+  the code yet; the two-deployment step uses it).
+- Checked: `helm lint` and `helm template --set nexus.api.enabled=true` (with `traefik.enabled=true`
+  for the route) render clean. The chart needs its `charts/` deps: I copied them from the main
+  checkout into a temp copy of the chart to render.
+- Tilt: `NEXUS_API_ENABLED=true tilt up` builds `localhost:5001/nexus-api` with `uvicorn --reload`,
+  syncs `nexus/api/app`, forwards `5002:5000` (5001 is the local registry).
+  `scripts/tilt_manifests.py` takes the extra deployment. Not run here (no cluster).
+  For Tilt to swap the image, dev values must set `nexus.image: localhost:5001/nexus-api` (the backend
+  does the same for `webserver-fn`) and `nexus.api.enabled: true`.

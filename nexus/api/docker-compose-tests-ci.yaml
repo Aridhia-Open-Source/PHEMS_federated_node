@@ -43,6 +43,6 @@ services:
       TASK_NAMESPACE:
       PUBLIC_URL:
       KEYCLOAK_NAMESPACE:
-      FLASK_APP: .
+      NEXUS_ROLE: api
 volumes:
   federated_node_tests_data:
