@@ -5,6 +5,7 @@ API returns, and the Dagster wire models in dagster/app/models.py depend on them
 import re
 
 from app.dtos.base import page_of
+from app.helpers.base_model import paginate
 from app.dtos.dataset import CatalogueDTO, DatasetDTO, DictionaryDTO
 from app.dtos.project import ProjectDTO
 from app.dtos.task import TaskDTO
@@ -106,7 +107,7 @@ class TestTaskDTO:
 
 class TestPageOf:
     def test_envelope(self, project):
-        page = page_of(Project.query.paginate(page=1, per_page=10), ProjectDTO)
+        page = page_of(paginate(Project.query, 1, 10), ProjectDTO)
         assert set(page) == {"items", "page", "per_page", "total", "pages"}
         assert page["page"] == 1
         assert page["per_page"] == 10
@@ -114,10 +115,10 @@ class TestPageOf:
         assert page["pages"] == 1
 
     def test_items_are_dumped_dtos(self, project):
-        page = page_of(Project.query.paginate(page=1, per_page=10), ProjectDTO)
+        page = page_of(paginate(Project.query, 1, 10), ProjectDTO)
         assert page["items"] == [ProjectDTO.from_model(project).dump()]
 
     def test_empty(self, client):
-        page = page_of(Project.query.paginate(page=1, per_page=10), ProjectDTO)
+        page = page_of(paginate(Project.query, 1, 10), ProjectDTO)
         assert page["items"] == []
         assert page["total"] == 0

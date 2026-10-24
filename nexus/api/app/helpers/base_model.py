@@ -40,7 +40,10 @@ class Page:
 
 
 def paginate(query: Query, page: int, per_page: int) -> Page:
-    """Replaces Flask-SQLAlchemy's .paginate(error_out=False)."""
+    """Replaces Flask-SQLAlchemy's .paginate(error_out=False), which clamps a page below 1 to 1 and a
+    per_page below 1 to 20."""
+    page = max(page, 1)
+    per_page = per_page if per_page >= 1 else 20
     return Page(
         items=query.limit(per_page).offset((page - 1) * per_page).all(),
         page=page, per_page=per_page, total=query.order_by(None).count(),

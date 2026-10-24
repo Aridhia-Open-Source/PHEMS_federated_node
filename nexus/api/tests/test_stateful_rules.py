@@ -52,8 +52,10 @@ from hypothesis import HealthCheck, settings, strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, invariant, precondition, rule
 from sqlalchemy.orm.session import close_all_sessions
 
+from fastapi.testclient import TestClient
+
 from app import create_app
-from app.helpers.base_model import db
+from app.helpers.base_model import Base, db, engine, request_scope
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 from app.models.task_status import TASK_MOVES
@@ -84,17 +86,14 @@ def pr_body(number: int, matching: bool, merged_at: datetime) -> dict:
 class TriggerLinkMachine(RuleBasedStateMachine):
     def __init__(self):
         super().__init__()
-        self.app = create_app()
-        self.app.testing = True
-        self.context = self.app.app_context()
-        self.context.push()
-        db.drop_all()  # Hypothesis can build a machine it never tears down: start from empty tables
-        db.create_all()
+        self.scope = request_scope.set("stateful")
+        Base.metadata.drop_all(engine)  # Hypothesis can build a machine it never tears down: start from empty tables
+        Base.metadata.create_all(engine)
         self.tick = 0
         clock = mock.patch("app.helpers.pull_request_fanout.now_ts", lambda: CLOCK_START + timedelta(minutes=self.tick))
         clock.start()
         self.clock = clock
-        self.client = self.app.test_client()
+        self.client = TestClient(create_app(), raise_server_exceptions=False)
         self.headers = {"Content-Type": "application/json", "Authorization": "Bearer admin_token"}
         self.system_headers = {"Content-Type": "application/json", "Authorization": "Bearer system_token"}
 
@@ -124,9 +123,10 @@ class TriggerLinkMachine(RuleBasedStateMachine):
 
     def teardown(self):
         self.clock.stop()
+        db.session.remove()
         close_all_sessions()
-        db.drop_all()
-        self.context.pop()
+        Base.metadata.drop_all(engine)
+        request_scope.reset(self.scope)
 
     # ----------------------------------------------------------------------------- helpers
 
