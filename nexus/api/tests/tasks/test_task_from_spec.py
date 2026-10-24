@@ -17,7 +17,6 @@ from tests.helpers.pull_requests import add_pull_request_trigger
 from app.models.task import Task
 from app.models.task_spec import TaskSpec
 from app.models.trigger_state import TriggerState
-from tests.fixtures.azure_cr_fixtures import *
 from tests.fixtures.tasks_fixtures import *
 
 SPEC = {"name": "TestTask", "image": "img:1", "env": {"K": "v"}, "params": {"p": 1}}
@@ -108,7 +107,7 @@ class TestPostTasks:
         return client.post(f'/projects/{project.id}/tasks', json=body, headers=headers)
 
     def test_creates_request_and_task_once(
-            self, client, cr_client, registry_client, post_json_admin_header, task_body, project, dataset
+            self, client, post_json_admin_header, task_body, project, dataset
         ):
         response = self.post(client, post_json_admin_header, project, task_body)
         assert response.status_code == 201, response.json()
@@ -132,7 +131,7 @@ class TestPostTasks:
         assert response.json().keys().isdisjoint({"spec_raw", "payload"})
 
     def test_task_is_pinned_to_its_configuration(
-            self, client, cr_client, registry_client, post_json_admin_header, task_body, project, dataset
+            self, client, post_json_admin_header, task_body, project, dataset
         ):
         response = self.post(client, post_json_admin_header, project, task_body)
         assert response.status_code == 201, response.json()
@@ -142,7 +141,7 @@ class TestPostTasks:
         assert task.config_hash and len(task.config_hash) == 64
 
     def test_response_of_the_task_has_its_spec_and_not_the_raw_body(
-            self, client, cr_client, registry_client, post_json_admin_header, task_body, project, dataset
+            self, client, post_json_admin_header, task_body, project, dataset
         ):
         created = self.post(client, post_json_admin_header, project, task_body)
         response = client.get(f"/projects/{project.id}/tasks/{created.json()['id']}", headers=post_json_admin_header)
@@ -154,7 +153,7 @@ class TestPostTasks:
         assert "spec_raw" not in response.json()
 
     def test_a_task_without_a_dataset_is_created(
-            self, client, cr_client, registry_client, post_json_admin_header, task_body, other_project
+            self, client, post_json_admin_header, task_body, other_project
         ):
         task_body["tags"].pop("dataset_id")
         task_body["project_id"] = other_project.id
@@ -164,7 +163,7 @@ class TestPostTasks:
 
     @pytest.mark.parametrize("env", [{"1BAD": "x"}, {"CDM_SCHEMA": "x"}, {"WRITE_SCHEMA": "x"}])
     def test_invalid_env_keeps_a_rejected_request_with_the_raw_body(
-            self, client, cr_client, registry_client, post_json_admin_header, task_body, project, env
+            self, client, post_json_admin_header, task_body, project, env
         ):
         task_body["executors"][0]["env"] = env
         response = self.post(client, post_json_admin_header, project, task_body)
@@ -177,7 +176,7 @@ class TestPostTasks:
         assert json.loads(api_request.spec_raw) == task_body
 
     def test_body_over_the_cap_is_rejected_without_keeping_it(
-            self, client, cr_client, registry_client, post_json_admin_header, task_body, project
+            self, client, post_json_admin_header, task_body, project
         ):
         task_body["tags"]["padding"] = "x" * SPEC_RAW_MAX_BYTES
         response = self.post(client, post_json_admin_header, project, task_body)
@@ -189,7 +188,7 @@ class TestPostTasks:
         assert Task.query.count() == 0
 
     def test_a_disabled_project_rejects_the_task(
-            self, client, cr_client, registry_client, post_json_admin_header, task_body, disabled_project
+            self, client, post_json_admin_header, task_body, disabled_project
         ):
         response = self.post(client, post_json_admin_header, disabled_project, task_body)
         assert response.status_code == 409
@@ -198,7 +197,7 @@ class TestPostTasks:
         assert ApiRequestTrigger.query.count() == 0
 
     def test_a_revoked_project_rejects_the_task(
-            self, client, cr_client, registry_client, post_json_admin_header, task_body, project
+            self, client, post_json_admin_header, task_body, project
         ):
         project.revoked = True
         db.session.commit()
@@ -209,7 +208,7 @@ class TestPostTasks:
         assert ApiRequestTrigger.query.count() == 0
 
     def test_a_disabled_and_revoked_project_is_refused_as_disabled(
-            self, client, cr_client, registry_client, post_json_admin_header, task_body, disabled_project
+            self, client, post_json_admin_header, task_body, disabled_project
         ):
         disabled_project.revoked = True
         db.session.commit()
@@ -218,7 +217,7 @@ class TestPostTasks:
         assert response.json()["error"] == f"Project '{disabled_project.name}' is disabled"
 
     def test_invalid_spec_keeps_a_rejected_request(
-            self, client, cr_client, registry_client, post_json_admin_header, task_body, project
+            self, client, post_json_admin_header, task_body, project
         ):
         task_body["resources"] = {"limits": {"cpu": "abc"}}
         response = self.post(client, post_json_admin_header, project, task_body)
@@ -230,7 +229,7 @@ class TestPostTasks:
         assert json.loads(api_request.spec_raw)["resources"] == {"limits": {"cpu": "abc"}}
 
     def test_name_over_the_limit_keeps_a_rejected_request(
-            self, client, cr_client, registry_client, post_json_admin_header, task_body, project
+            self, client, post_json_admin_header, task_body, project
         ):
         task_body["name"] = "a" * (TASK_NAME_MAX_LENGTH + 1)
         response = self.post(client, post_json_admin_header, project, task_body)
@@ -239,7 +238,7 @@ class TestPostTasks:
         assert ApiRequestTrigger.query.one().state == TriggerState.REJECTED.value
 
     def test_dataset_of_another_project_keeps_a_rejected_request(
-            self, client, cr_client, registry_client, post_json_admin_header, task_body, project,
+            self, client, post_json_admin_header, task_body, project,
             other_project
         ):
         # The body's project owns the dataset, the header's project does not
@@ -265,7 +264,7 @@ class TestPostTasks:
         assert ApiRequestTrigger.query.one().state == TriggerState.REJECTED.value
 
     def test_unknown_project_records_nothing(
-            self, client, cr_client, registry_client, post_json_admin_header, task_body
+            self, client, post_json_admin_header, task_body
         ):
         response = client.post('/projects/99999/tasks', json=task_body, headers=post_json_admin_header)
         assert response.status_code == 404

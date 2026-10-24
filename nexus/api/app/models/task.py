@@ -1,19 +1,18 @@
 import logging
 import re
 from datetime import datetime as dt
-from http import HTTPStatus
 
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
 from app.dtos.repository_uri import RepositoryUriRequest
 from app.helpers.const import (
-    MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX, ENABLE_IMAGE_WHITELIST
+    MEMORY_RESOURCE_REGEX, MEMORY_UNITS, CPU_RESOURCE_REGEX
 )
 from app.helpers.base_model import BaseModel, db
 from app.helpers.git_uri import normalise_repo_uri
 from app.helpers.keycloak import Keycloak
-from app.helpers.exceptions import InvalidRequest, NotImplementedException, TaskImageException
+from app.helpers.exceptions import InvalidRequest, NotImplementedException
 from app.models import Models, sqla_column
 from app.models.task_spec import TaskSpec
 from app.models.task_status import TaskStatus
@@ -96,14 +95,12 @@ class Task(db.Model, BaseModel):
         return [f for f in super()._get_required_fields() if f not in ("trigger_id", "task_spec_id")]
 
     @classmethod
-    def validate(cls, data:dict):
+    def validate(cls, data:dict, user_token:str):
         data["name"] = (data.get("name") or "").replace(" ", "")
         if not data["name"]:
             raise InvalidRequest("name is a mandatory field")
 
         kc_client = Keycloak()
-        user_token = Keycloak.get_token_from_headers()
-
         decoded_token = kc_client.decode_token(user_token)
         data["requested_by"] = kc_client.get_user_by_email(decoded_token["email"])["id"]
         repository = data.get("repository")
@@ -149,20 +146,7 @@ class Task(db.Model, BaseModel):
         data["dataset"] = project.resolve_dataset(requested_ds.name if requested_ds else None)
 
         # Docker image validation
-        Models.WhitelistedImage.validate_image_format(data["docker_image"], data["docker_image"])
-
-        # Validate that the image is whitelisted for this project
-        if ENABLE_IMAGE_WHITELIST:
-            if not Models.WhitelistedImage.validate_image_whitelisted(
-                data["docker_image"], project.id
-            ):
-                raise TaskImageException(f"Image {data['docker_image']} is not whitelisted", code=HTTPStatus.FORBIDDEN)
-
-        # Validate that the image exists on the registry
-        if not Models.Registry.validate_image_exist(data["docker_image"]):
-            raise TaskImageException(
-                f"Image {data['docker_image']} not found on our repository", code=HTTPStatus.NOT_FOUND
-            )
+        cls.validate_image_format(data["docker_image"])
 
         # Validate resource values
         if "resources" in data:
@@ -175,6 +159,16 @@ class Task(db.Model, BaseModel):
                 data["resources"].get("requests", {}).get("memory")
             )
         return data
+
+    @classmethod
+    def validate_image_format(cls, image: str):
+        tag_ok = re.match(r'^\w[\w\.\-/]+\w:[\w\.\-]+$', image)
+        sha_ok = re.match(r'^\w[\w\.\-/]+\w@(sha256:)?[a-fA-F0-9]{7,64}$', image)
+        if not (tag_ok or sha_ok):
+            raise InvalidRequest(
+                f"{image} does not have a tag or is malformed. Please provide one in "
+                "the format <registry>/<image>:<tag> or <registry>/<image>@sha256.."
+            )
 
     @classmethod
     def validate_cpu_resources(cls, limit_value:str, request_value:str):
