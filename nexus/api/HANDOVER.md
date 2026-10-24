@@ -68,6 +68,44 @@ cd nexus/api && NEXUS_TEST_DB=nexus_mine ./run_local_tests.sh tests/test_project
 ```
 Never run e2e tests. Run only the test files for what you changed, foreground, with a timeout.
 
+## How to run
+**Local uvicorn** (against the dev cluster's Postgres and Keycloak, forwarded by Tilt on 5432 and 8080):
+```bash
+cd nexus/api
+export PGHOST=localhost PGPORT=5432 BACKEND_DB_USER=<backend db user> BACKEND_DB_PASSWORD=<pw> BACKEND_DB_NAME=<db>
+export KEYCLOAK_URL=http://localhost:8080 KEYCLOAK_REALM=FederatedNode KEYCLOAK_CLIENT=global \
+  KEYCLOAK_SECRET=<global client secret> DEFAULT_NAMESPACE=<ns> TASK_NAMESPACE=<tasks ns> PUBLIC_URL=localhost:5002
+/tmp/nexus-venv/bin/uvicorn --factory app:create_app --reload --port 5002
+```
+Same env vars as the backend pod (`kubectl get cm backend-configmap keycloak-config -o yaml`). Docs at
+`http://localhost:5002/docs`, spec at `/openapi.json`. nexus never migrates: the webserver's alembic owns the schema.
+
+**Unit tests**: see "How to resume" (`run_local_tests.sh`, venv + `nexus-test-db` container). CI-style:
+`./run_tests.sh` (docker compose, as the webserver's).
+
+**Tilt**: `NEXUS_API_ENABLED=true tilt up` with the chart deployed with nexus on (next item). Builds
+`localhost:5001/nexus-api`, runs `uvicorn --reload`, syncs `nexus/api/app`, forwards `localhost:5002`.
+
+**Helm values** to turn nexus-api on (in `dev.values.yaml` or `--set`):
+```yaml
+nexus:
+  image: localhost:5001/nexus-api   # dev only, so Tilt can swap it; default ghcr.io/aridhia-open-source/nexus_api
+  api:
+    enabled: true                   # pathPrefix /nexus on the backend host (traefik.enabled), replicas 1
+```
+Then `make deploy` (the user's call; the dev cluster wasn't touched here). Check with
+`helm template t k8s/federated-node -f <values> --set nexus.api.enabled=true` (needs `charts/` deps).
+Merge note: `nexus/ui` also adds a `nexus:` block (`nexus.ui.*`) to `values.yaml`; merge the two blocks
+when the branches meet (`nexus.image`/`nexus.tag`/`nexus.port` are the API's; consider moving them under
+`nexus.api` then).
+
+**Pointing the UI (nexus/ui) at nexus**:
+- Vite dev server (5173, UI at `http://localhost:5173/nexus-ui/`):
+  `cd nexus/ui && VITE_BACKEND_URL=http://localhost:5002 npm run dev` (5002 = nexus via Tilt or local
+  uvicorn; the UI's default 5001 is the local registry, so always set it).
+- In the cluster: `nexus.ui.backendUri: http://nexus-api.<namespace>.svc:5000` (the nexus-api Service).
+- Types: switch the UI's `gen:api` to `nexus/api/openapi.json` (regenerate with `python dump_openapi.py`).
+
 ## Gotchas
 - Decisions made by Wave A agents, to review:
   - `tasks_api`/`models/task.py`: `Task.validate(data, user_token)` takes the token; the image whitelist
