@@ -10,17 +10,21 @@ Read this, then `nexus/api/CONTRACT.md` on `origin/nexus/api`, then `PLAN.md`.
 - Shared components in `src/shared/`: `ResourceTable` (array or page), `DtoForm` (fields list), `DeleteButton` (optional force checkbox), `EnabledToggle`, `Json`, `toast`.
 - Example pages: `src/pages/secrets` (list, create, set values, enable toggle, delete, healthcheck) and `src/pages/projects` (list, create, delete, enable toggle, detail shell with tabs).
 - Routing/nav: `src/routes.tsx` registers every page; stubs exist for all fan-out pages.
-- Pages built by the fan-out: providers, trigger-repos (with PR view), results-repos, datasets, project-health, project-results.
+- All planned pages built (Sonnet fan-out): providers, trigger-repos (with PR view), results-repos, datasets, project-links, project-health, project-activity (PRs + task detail), project-results. Type-checked, not yet clicked through in a browser.
+- `gen:api` uses `--default-non-nullable false`, so fields with a spec default (e.g. `enabled` on PATCH bodies) stay optional.
+- `tsc`, `vite build` and `vitest` clean at the last push.
 - `Dockerfile` (node build, then `nginx-unprivileged` on 8080) with `nginx/default.conf.template`: serves `/nexus-ui/`, proxies `/nexus-ui/api/` to `$BACKEND_URL`.
 - Helm: `k8s/federated-node/templates/nexus-ui-{deployment,service,http-route}.yaml` behind `nexus.ui.enabled` (values under `nexus.ui`, image helper `nexus-ui-image` in `_helpers.tpl`). `BACKEND_URL` defaults to `backendUri` (Flask) until nexus has a service; override with `nexus.ui.backendUri`.
 - Tilt: `nexus-ui` local_resource runs the Vite dev server (hot reload) on 5173 against the backend forward on 5000.
 - 4 Vitest tests in `src/shared/shared.test.tsx` pass.
 
 ## In progress
-- project-links and project-activity agents were running at last update; check whether their folders still hold the stub.
+- Nothing running.
 
 ## Next
-- Fan-out pages (instructions below).
+- Manual pass against Tilt or a cluster: secret → provider → trigger repo → results repo → dataset → project → links → enable → healthcheck. Fix what breaks.
+- Small cleanups the agents flagged: DtoForm selects hold strings, so repo pages encode provider as "id: name" and parse it back (a `{value,label}` option type in DtoForm would remove that); project-links global pickers don't hide already-linked items.
+- CI workflow to build and push the nexus-ui image.
 - Later: users, Dagster sensors view (`/dagster/sensors`).
 
 ## How to resume
@@ -60,9 +64,14 @@ Read this, then `nexus/api/CONTRACT.md` on `origin/nexus/api`, then `PLAN.md`.
 | `project-results` | Results (read-only) | `GET /projects/{id}/results` |
 
 ## Tests
-- Kept minimal on purpose (time). See `src/shared/*.test.tsx`.
+- Kept minimal on purpose (time): 4 tests in `src/shared/shared.test.tsx` (DeleteButton force, ResourceTable paging, DtoForm parsing, errorText). No page tests.
 
 ## Needs from nexus
+- PATCH bodies: `GitProviderPatchBody`, `GitRepositoryPatchBody` and `PATCH /global/datasets/{id}` (typed as the full `DatasetPostBody`) should be partial bodies, matching "any of the fields".
+- `GET /projects/{id}/tasks/{task_id}` is typed as `TaskById[]`; Flask returns one object. `TaskById.status` is `{running, terminated, waiting}`, unlike the status enum elsewhere.
+- Page schemas (`PullRequestFactsPage`, `PullRequestTriggerPage`, `DatasetList`) have all-optional fields; pages cast to `Page<T>`. Mark `items/total/page/per_page` required.
+- `GET /projects/{id}/results` is a plain array (not paged).
+- Project link DELETE is a soft revoke (rows stay as revoked); linking a results repo needs the project disabled (409 otherwise).
 - `CONTRACT.md` was absent on `origin/nexus/api` at start (2026-10-24). The UI was built against `webserver/app/static/openapi.json`. Switch to `nexus/api/openapi.json` when it lands (edit `gen:api`).
 - Default backend port 5001 collides with Tilt's local registry (`localhost:5001`). Please pick another port for nexus; the Tilt entry points the UI at the Flask forward on 5000 meanwhile.
 - Keep: list responses for secrets/projects as plain arrays (or tell us when they become pages), `/login` as multipart form, `{"error", "details"}` error bodies.

@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "gen:api": "openapi-typescript ../../webserver/app/static/openapi.json -o src/api/schema.d.ts"
+    "gen:api": "openapi-typescript ../../webserver/app/static/openapi.json -o src/api/schema.d.ts --default-non-nullable false"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.5",

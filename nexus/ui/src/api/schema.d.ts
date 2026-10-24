@@ -2093,7 +2093,7 @@ export interface components {
              * @description Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked
              * @default true
              */
-            enabled: boolean;
+            enabled?: boolean;
             /** @description Read from DB schema */
             read_schema?: string;
             /** @description DB schema to write to in case is needed */
@@ -2678,7 +2678,7 @@ export interface components {
              * @description Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked
              * @default true
              */
-            enabled: boolean;
+            enabled?: boolean;
             /**
              * @description Secret keys and their values. Keys use letters, digits, '-', '_' or '.'; values are non-empty strings
              * @example {
@@ -2706,7 +2706,7 @@ export interface components {
              * @description Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked
              * @default true
              */
-            enabled: boolean;
+            enabled?: boolean;
         };
         Sensor: {
             /** @example task_launcher_sensor */
@@ -2870,7 +2870,7 @@ export interface components {
              * @description Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked
              * @default true
              */
-            enabled: boolean;
+            enabled?: boolean;
         };
         /** @description Any of the fields. The repo_path cannot be edited */
         GitRepositoryPatchBody: {
@@ -2882,7 +2882,7 @@ export interface components {
              * @description Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked
              * @default true
              */
-            enabled: boolean;
+            enabled?: boolean;
         };
         /** @description A results repository linked to a project. A project has one. Addressed by the global repository's id */
         ProjectResultsRepositoryObject: {
@@ -3409,7 +3409,7 @@ export interface components {
             /** @example https://api.github.com */
             api_uri: string;
             /** @default true */
-            enabled: boolean;
+            enabled?: boolean;
         };
         /** @description Any of the fields. None can be null */
         GitProviderPatchBody: {
@@ -3431,7 +3431,7 @@ export interface components {
             /** @example https://api.github.com */
             api_uri?: string;
             /** @default true */
-            enabled: boolean;
+            enabled?: boolean;
         };
         /** @description A global git provider and whether its API answers */
         GitProviderHealthObject: {
