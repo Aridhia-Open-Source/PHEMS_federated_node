@@ -11,7 +11,7 @@ def test_link_global_trigger_repo_and_get_it_back(client, admin_headers, project
 
 
 def test_admin_routes_live_under_global(client):
-    rules = {route.path for route in client.app.routes}
+    rules = set(client.app.openapi()["paths"])
     assert {"/global/users/", "/global/users/reset-password"} <= rules
     assert not {rule for rule in rules if rule.split("/")[1] in ("users", "registries", "whitelisted_images")}
 
