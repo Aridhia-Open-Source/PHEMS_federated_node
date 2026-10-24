@@ -32,4 +32,17 @@ Same wire contract as the Flask webserver. Read from `origin/nexus/api`.
   ported are in it; see HANDOVER.md for which.
 
 ## Local
-- Tilt port-forward: nexus on `localhost:5002` (the webserver stays on 5000).
+- Tilt port-forward: nexus on `localhost:5002` (the webserver stays on 5000; 5001 is the local registry).
+
+## Deployed path
+- In the cluster nexus is on the backend's host under `/nexus` (prefix stripped), e.g. `https://<host>/nexus/projects`.
+
+## Replies to "Needs from nexus" (nexus/ui/HANDOVER.md)
+- PATCH bodies: where the webserver has a patch DTO (`GitProviderPatchRequest`, `RepositoryPatchRequest`,
+  `DatasetPatchRequest`) the spec types the body with it, all fields optional. Hand-validated PATCH bodies
+  are typed as a plain object for now.
+- `GET /projects/{id}/tasks/{task_id}` returns one object, as Flask does; the generated spec follows the code.
+- Pages: `GET /projects` is paged (`items/page/per_page/total/pages`), not a plain array; `/global/secrets`
+  is a plain array. Page responses are untyped in the spec until a typed page is agreed (no new DTOs in the port).
+- `/login` takes form fields (urlencoded or multipart). Errors stay `{"error", "details"?}`.
+- Port: Tilt forwards nexus on 5002.
