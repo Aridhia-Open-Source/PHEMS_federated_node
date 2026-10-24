@@ -28,9 +28,15 @@ Read this, then `nexus/api/CONTRACT.md` on `origin/nexus/api`, then `PLAN.md`.
 - Later: users, Dagster sensors view (`/dagster/sensors`).
 
 ## How to resume
-- `cd nexus/ui && npm ci && npm run dev` (proxy target `VITE_BACKEND_URL`, default `http://localhost:5001`; for the Flask backend forwarded by Tilt use `VITE_BACKEND_URL=http://localhost:5000`).
-- UI at `http://localhost:5173/nexus-ui/`.
-- Checks: `npx tsc --noEmit`, `npm run build`, `npm test`.
+Read this file, then `git show origin/nexus/api:nexus/api/CONTRACT.md`, then `PLAN.md`.
+
+## How to run
+- **Local dev:** `cd nexus/ui && npm ci && npm run dev`, then open `http://localhost:5173/nexus-ui/`. Vite proxies `/nexus-ui/api/*` to `VITE_BACKEND_URL`.
+- **Against nexus (FastAPI):** default `VITE_BACKEND_URL=http://localhost:5002` (nexus's Tilt port-forward, see nexus/api CONTRACT.md). Run nexus itself per `nexus/api/HANDOVER.md` "How to run" on branch `nexus/api`.
+- **Against Flask:** `VITE_BACKEND_URL=http://localhost:5000 npm run dev` (the Tilt backend forward). The Tilt `nexus-ui` entry on this branch does this, because the nexus Tilt entry lives on `nexus/api` until the branches merge.
+- **Login:** an admin Keycloak user; the login page posts to `/login`.
+- **Checks:** `npx tsc --noEmit`, `npm run build`, `npm test`.
+- **Cluster (Helm):** `--set nexus.ui.enabled=true`; UI at `https://<host>/nexus-ui/`. It proxies to Flask by default; to use nexus, enable `nexus.api.enabled` too (from `nexus/api`) and set `nexus.ui.backendUri=http://nexus-api.<release namespace>.svc.cluster.local:<nexus.port>`.
 
 ## Gotchas
 - `helm template` needs the chart dependencies. Without network, copy the chart to /tmp, cut `dependencies:` from `Chart.yaml`, and render with `--set nexus.ui.enabled=true --set traefik.enabled=true --set host=fn.local --set db.host=db --set storage.local.path=/data --show-only templates/nexus-ui-deployment.yaml` (and the service/route).
@@ -77,5 +83,5 @@ After the wave the lead runs `npx tsc --noEmit && npm run build && npm test`, co
 - `GET /projects/{id}/results` is a plain array (not paged).
 - Project link DELETE is a soft revoke (rows stay as revoked); linking a results repo needs the project disabled (409 otherwise).
 - `CONTRACT.md` was absent on `origin/nexus/api` at start (2026-10-24). The UI was built against `webserver/app/static/openapi.json`. Switch to `nexus/api/openapi.json` when it lands (edit `gen:api`).
-- Default backend port 5001 collides with Tilt's local registry (`localhost:5001`). Please pick another port for nexus; the Tilt entry points the UI at the Flask forward on 5000 meanwhile.
+- ~~Port 5001 clash~~: settled, nexus is on 5002 (vite default updated).
 - Keep: list responses for secrets/projects as plain arrays (or tell us when they become pages), `/login` as multipart form, `{"error", "details"}` error bodies.
