@@ -10,11 +10,14 @@ Read this, then `nexus/api/CONTRACT.md` on `origin/nexus/api`, then `PLAN.md`.
 - Shared components in `src/shared/`: `ResourceTable` (array or page), `DtoForm` (fields list), `DeleteButton` (optional force checkbox), `EnabledToggle`, `Json`, `toast`.
 - Example pages: `src/pages/secrets` (list, create, set values, enable toggle, delete, healthcheck) and `src/pages/projects` (list, create, delete, enable toggle, detail shell with tabs).
 - Routing/nav: `src/routes.tsx` registers every page; stubs exist for all fan-out pages.
-- `tsc` and `vite build` clean.
+- Pages built by the fan-out: providers, trigger-repos (with PR view), results-repos, datasets, project-health, project-results.
+- `Dockerfile` (node build, then `nginx-unprivileged` on 8080) with `nginx/default.conf.template`: serves `/nexus-ui/`, proxies `/nexus-ui/api/` to `$BACKEND_URL`.
+- Helm: `k8s/federated-node/templates/nexus-ui-{deployment,service,http-route}.yaml` behind `nexus.ui.enabled` (values under `nexus.ui`, image helper `nexus-ui-image` in `_helpers.tpl`). `BACKEND_URL` defaults to `backendUri` (Flask) until nexus has a service; override with `nexus.ui.backendUri`.
+- Tilt: `nexus-ui` local_resource runs the Vite dev server (hot reload) on 5173 against the backend forward on 5000.
+- 4 Vitest tests in `src/shared/shared.test.tsx` pass.
 
 ## In progress
-- Helm templates, Dockerfile, Tilt entry (see Next).
-- Page fan-out (see below).
+- project-links and project-activity agents were running at last update; check whether their folders still hold the stub.
 
 ## Next
 - Fan-out pages (instructions below).
@@ -26,6 +29,8 @@ Read this, then `nexus/api/CONTRACT.md` on `origin/nexus/api`, then `PLAN.md`.
 - Checks: `npx tsc --noEmit`, `npm run build`, `npm test`.
 
 ## Gotchas
+- `helm template` needs the chart dependencies. Without network, copy the chart to /tmp, cut `dependencies:` from `Chart.yaml`, and render with `--set nexus.ui.enabled=true --set traefik.enabled=true --set host=fn.local --set db.host=db --set storage.local.path=/data --show-only templates/nexus-ui-deployment.yaml` (and the service/route).
+- The image `ghcr.io/aridhia-open-source/federated_node_nexus_ui` is not built by CI yet; no workflow added.
 - UI is served under `/nexus-ui/` (not `/admin`, which Keycloak's admin console uses). Router basename, client base and proxy all derive from `import.meta.env.BASE_URL`.
 - TanStack Query has `retry: false` and no focus refetch: errors toast from the fetch middleware, so retries would duplicate toasts and loop on 401.
 - Secrets and Projects lists are plain arrays. Only datasets, task requests and pull requests are paged (`items/total/page/per_page`). `ResourceTable` takes either.
