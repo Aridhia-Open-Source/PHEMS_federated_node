@@ -25,8 +25,8 @@ Read this, then `CONTRACT.md`, then `PLAN.md`. Branch `nexus/api`, worktree
     `tasks_api.all_router`). Agents never touch it.
 - Ported routers: `main`, `secrets_api`, `projects_api` (lead); Wave A: `project_trigger_repositories_api`,
   `tasks_api`, `results_api`, `results_repositories_api`, `datasets_api`, `git_providers_api`,
-  `healthcheck_api` (each agent reported its own test files green). `trigger_repositories_api`: see
-  "In progress". Wave B (`users_api`, `dagster_api`): one agent running at the last update.
+  `healthcheck_api` (each agent reported its own test files green). `trigger_repositories_api` (it also fixed 3 test bugs copied from the webserver tests in
+  `test_pull_requests_and_tasks.py`: missing `system_headers` fixture args). Wave B (`users_api`, `dagster_api`): one agent running at the last update.
 - Tests: all converted mechanically (`response.json` -> `response.json()`, `query_string=` -> `params=`,
   `data=` -> `content=`). `conftest.py` `client` is a `TestClient` subclass that also takes `json=` on
   get/delete. Registry/audit/DAR tests and fixtures removed.
@@ -35,8 +35,7 @@ Read this, then `CONTRACT.md`, then `PLAN.md`. Branch `nexus/api`, worktree
   compose, as the webserver's).
 
 ## In progress / Next
-1. Fan-out: Wave A done except `trigger_repositories_api` (agent was still running at the last
-   update; if the file is still the stub or uncommitted, port it with the checklist). Wave B running.
+1. Fan-out: Wave A done (all eight routers committed). Wave B running at the last update.
 2. Helm/Tilt/Dockerfile: see "Status of Helm/Tilt" at the bottom.
 3. Last: whole nexus unit suite once; `python dump_openapi.py`; diff its paths against
    `webserver/app/static/openapi.json` minus registries/whitelisted_images/dar/audit.

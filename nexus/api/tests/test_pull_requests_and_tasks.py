@@ -291,7 +291,7 @@ def test_enabling_with_backfill_creates_the_triggers_stored_while_it_was_off(
     assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN", 2: "UNKNOWN", 3: "UNKNOWN"}
 
 
-def test_enabling_with_backfill_false_or_without_it_skips_the_gap(client, admin_headers, project, global_trigger_repo):
+def test_enabling_with_backfill_false_or_without_it_skips_the_gap(client, admin_headers, system_headers, project, global_trigger_repo):
     T = global_trigger_repo.id
     disabled_project_with_a_stored_pull_request(client, admin_headers, system_headers, project, T)
 
@@ -301,7 +301,7 @@ def test_enabling_with_backfill_false_or_without_it_skips_the_gap(client, admin_
     assert states(client, admin_headers, project.id, T) == {}
 
 
-def test_enabling_with_backfill_twice_creates_no_duplicates(client, admin_headers, project, global_trigger_repo):
+def test_enabling_with_backfill_twice_creates_no_duplicates(client, admin_headers, system_headers, project, global_trigger_repo):
     T = global_trigger_repo.id
     disabled_project_with_a_stored_pull_request(client, admin_headers, system_headers, project, T)
     patch_project = lambda **body: client.patch(f"/projects/{project.id}", json=body, headers=admin_headers)
@@ -757,7 +757,7 @@ def test_cancel_is_not_implemented_and_leaves_the_task_alone(client, admin_heade
 
 
 def test_one_merge_commit_on_two_base_branches_is_stored_twice_and_fans_out_to_each(
-    client, admin_headers, project, other_project, global_trigger_repo
+    client, admin_headers, system_headers, project, other_project, global_trigger_repo
 ):
     """A fast-forward or rebase merge gives a release branch and main the same commit under two numbers."""
     T = global_trigger_repo.id
@@ -766,7 +766,7 @@ def test_one_merge_commit_on_two_base_branches_is_stored_twice_and_fans_out_to_e
     sha = f"{9:040x}"
 
     response = post_prs(
-        client, admin_headers, T,
+        client, system_headers, T,
         pr(1, merge_commit_sha=sha, base_branch="main"), pr(2, merge_commit_sha=sha, base_branch="release"),
     )
 
