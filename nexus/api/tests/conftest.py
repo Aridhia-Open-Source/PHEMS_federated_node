@@ -171,13 +171,23 @@ def post_form_admin_header(login_admin):
     }
 
 
+class Client(TestClient):
+    """Flask's test client took a body on every method; httpx's get and delete don't."""
+
+    def get(self, url, **kwargs):
+        return self.request("GET", url, **kwargs)
+
+    def delete(self, url, **kwargs):
+        return self.request("DELETE", url, **kwargs)
+
+
 # Starlette client to perform requests. The test runs in one DB session scope, which its requests join
 # (app/middleware.py), so fixtures and handlers share a session as they did under Flask's app context.
 @fixture
 def client():
     token = request_scope.set("test")
     Base.metadata.create_all(engine)
-    with TestClient(create_app(), raise_server_exceptions=False) as tclient:
+    with Client(create_app(), raise_server_exceptions=False) as tclient:
         yield tclient
     db.session.remove()
     close_all_sessions()

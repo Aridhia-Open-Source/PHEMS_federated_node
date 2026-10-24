@@ -1,0 +1,1989 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Federated Node",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/ready_check": {
+      "get": {
+        "tags": [
+          "main"
+        ],
+        "summary": "Ready Check",
+        "description": "GET /ready_check endpoint\n    Mostly to tell k8s the server has started",
+        "operationId": "ready_check_ready_check_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Ready Check Ready Check Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health_check": {
+      "get": {
+        "tags": [
+          "main"
+        ],
+        "summary": "Health Check",
+        "description": "GET /health_check endpoint\n    Checks the connection to keycloak and returns a jsonized summary",
+        "operationId": "health_check_health_check_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/login": {
+      "post": {
+        "tags": [
+          "main"
+        ],
+        "summary": "Login",
+        "description": "POST /login endpoint.\n    Given a form, logs the user in, returning a refresh_token from Keycloak",
+        "operationId": "login_login_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_login_login_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Login Login Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/refresh_token": {
+      "post": {
+        "tags": [
+          "main"
+        ],
+        "summary": "Refresh Token",
+        "description": "POST /refresh_token endpoint.\n    Given a token, exchanges it for a new one. Returns the same\n    response as /login",
+        "operationId": "refresh_token_refresh_token_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Refresh Token Refresh Token Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List Projects",
+        "description": "GET /projects endpoint.",
+        "operationId": "list_projects_projects_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Create Project",
+        "description": "POST /projects endpoint.",
+        "operationId": "create_project_projects_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List Projects",
+        "description": "GET /projects endpoint.",
+        "operationId": "list_projects_projects__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Create Project",
+        "description": "POST /projects endpoint.",
+        "operationId": "create_project_projects__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Project By Id",
+        "description": "GET /projects/<project_id> endpoint.",
+        "operationId": "project_by_id_projects__project_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Patch Project",
+        "description": "PATCH /projects/<project_id> endpoint. Enables or disables the project. Turning the project\non again skips the gap: what was merged while it was off gets no trigger. With\n`\"backfill\": true` it creates those triggers instead. `backfill` is only for enabling a\ndisabled project (`\"enabled\": true`), otherwise a 400, and is not stored.\n`revoked` (a boolean, admin only) withdraws the project, or restores it, and does not change `enabled`:\nwhile it is revoked its tasks fail, nothing is delivered and no pull request gets a trigger\n(see helpers/task_config.revoked_resources). Restoring it skips the gap like enabling does.",
+        "operationId": "patch_project_projects__project_id__patch",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Delete Project",
+        "description": "DELETE /projects/<project_id> endpoint. Soft deletes the project and revokes and deletes\nevery link under it: datasets, secrets, results repository and trigger repositories. Its tasks\nand triggers stay. Secrets, datasets and results repositories belong to no project: they, and\ntheir stored values, are left alone.",
+        "operationId": "delete_project_projects__project_id__delete",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/datasets": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List Project Datasets",
+        "description": "GET /projects/<project_id>/datasets endpoint. The project's dataset links, inactive\nones included with their flags.",
+        "operationId": "list_project_datasets_projects__project_id__datasets_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectDatasetDTO"
+                  },
+                  "title": "Response List Project Datasets Projects  Project Id  Datasets Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/datasets/{dataset_id}": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Get Project Dataset",
+        "description": "GET /projects/<project_id>/datasets/<dataset_id> endpoint. The dataset is the global one's id.",
+        "operationId": "get_project_dataset_projects__project_id__datasets__dataset_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDatasetDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Put Project Dataset",
+        "description": "PUT /projects/<project_id>/datasets/<dataset_id> endpoint. Links a global dataset to the\nproject, 201, and replaces the project's settings if it is linked already, 200. The first one linked becomes the project's default.\nBody: {\"enabled\": true}, optional.",
+        "operationId": "put_project_dataset_projects__project_id__datasets__dataset_id__put",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDatasetDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Patch Project Dataset",
+        "description": "PATCH /projects/<project_id>/datasets/<dataset_id> endpoint. Turns the link on or\noff (enabled), or revokes and re-grants it (revoked), which is admin only and takes effect at once.",
+        "operationId": "patch_project_dataset_projects__project_id__datasets__dataset_id__patch",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDatasetDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Delete Project Dataset",
+        "description": "DELETE /projects/<project_id>/datasets/<dataset_id> endpoint. Unlinks the dataset, not the\ndataset itself: a soft delete that also revokes the link. If it was the project's default,\nthe project has none afterwards.",
+        "operationId": "delete_project_dataset_projects__project_id__datasets__dataset_id__delete",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/secrets": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List Project Secrets",
+        "description": "GET /projects/<project_id>/secrets endpoint. The project's secret links, inactive ones\nincluded with their flags. References only, never the values.",
+        "operationId": "list_project_secrets_projects__project_id__secrets_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectSecretDTO"
+                  },
+                  "title": "Response List Project Secrets Projects  Project Id  Secrets Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/secrets/{label}": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Get Project Secret",
+        "description": "GET /projects/<project_id>/secrets/{label} endpoint.",
+        "operationId": "get_project_secret_projects__project_id__secrets__label__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSecretDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Put Project Secret",
+        "description": "PUT /projects/<project_id>/secrets/{label} endpoint. Links a global secret to the project,\n201, and replaces the project's settings if it is linked already, 200.\nBody: {\"enabled\": true}, optional.",
+        "operationId": "put_project_secret_projects__project_id__secrets__label__put",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSecretDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Patch Project Secret",
+        "description": "PATCH /projects/<project_id>/secrets/{label} endpoint. Turns the link on or off (enabled),\nor revokes and re-grants it (revoked), which is admin only and takes effect at once.",
+        "operationId": "patch_project_secret_projects__project_id__secrets__label__patch",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSecretDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Delete Project Secret",
+        "description": "DELETE /projects/<project_id>/secrets/{label} endpoint. Unlinks the secret, not the secret\nitself: a soft delete that also revokes the link.",
+        "operationId": "delete_project_secret_projects__project_id__secrets__label__delete",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/repositories/results": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List Project Results Repositories",
+        "description": "GET /projects/<project_id>/repositories/results endpoint. The project's results repository\nlink, an inactive one included with its flags, so a project always lists exactly one.",
+        "operationId": "list_project_results_repositories_projects__project_id__repositories_results_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectResultsRepositoryDTO"
+                  },
+                  "title": "Response List Project Results Repositories Projects  Project Id  Repositories Results Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/repositories/results/{repository_id}": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Get Project Results Repository",
+        "description": "GET /projects/<project_id>/repositories/results/<repository_id> endpoint. The repository is the global one's id.",
+        "operationId": "get_project_results_repository_projects__project_id__repositories_results__repository_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "repository_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repository Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResultsRepositoryDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Put Project Results Repository",
+        "description": "PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Links a global\nresults repository to the project, which has one, 201, and replaces the project's settings\nif it is linked already, 200. Linking needs the project disabled. A change of target_dir\nis caught by the configuration snapshot of the tasks created before, which then fail\ninstead of delivering there.\nBody: {\"target_dir\": \"results\", \"owned_by_federated_node\": true, \"enabled\": true}, the last\ntwo are optional.",
+        "operationId": "put_project_results_repository_projects__project_id__repositories_results__repository_id__put",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "repository_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repository Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResultsRepositoryDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Patch Project Results Repository",
+        "description": "PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where\nthe project's results go (target_dir, owned_by_federated_node), at any time (the tasks created\nbefore fail instead of delivering to the new place), or turns the link on or\noff (enabled), or revokes and re-grants it\n(revoked), which is admin only and takes effect at once.",
+        "operationId": "patch_project_results_repository_projects__project_id__repositories_results__repository_id__patch",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "repository_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repository Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResultsRepositoryDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Delete Project Results Repository",
+        "description": "DELETE /projects/<project_id>/repositories/results/<repository_id> endpoint. Unlinks the\nrepository, not the repository itself: a soft delete that also revokes the link. A task of the\nproject still in flight gets a REVOKED result.",
+        "operationId": "delete_project_results_repository_projects__project_id__repositories_results__repository_id__delete",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "repository_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repository Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/secrets": {
+      "get": {
+        "tags": [
+          "secrets"
+        ],
+        "summary": "Get Secrets",
+        "description": "GET /global/secrets \u2014 list the secrets. The values are never returned.",
+        "operationId": "get_secrets_global_secrets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SecretDTO"
+                  },
+                  "type": "array",
+                  "title": "Response Get Secrets Global Secrets Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "secrets"
+        ],
+        "summary": "Post Secret",
+        "description": "POST /global/secrets \u2014 create the secret in its store and the reference to it. The label is\nunique across the node; the secret is stored under the generated key\n\"fn-secret-<label>\", which is fixed from then on. Admin only.\nBody: {\"label\": \"...\", \"description\": \"...\", \"provider\": \"K8S\", \"values\": {\"KEY\": \"value\", ...}, \"enabled\": true}\nThe description and enabled are optional.",
+        "operationId": "post_secret_global_secrets_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/secrets/": {
+      "get": {
+        "tags": [
+          "secrets"
+        ],
+        "summary": "Get Secrets",
+        "description": "GET /global/secrets \u2014 list the secrets. The values are never returned.",
+        "operationId": "get_secrets_global_secrets__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SecretDTO"
+                  },
+                  "type": "array",
+                  "title": "Response Get Secrets Global Secrets  Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "secrets"
+        ],
+        "summary": "Post Secret",
+        "description": "POST /global/secrets \u2014 create the secret in its store and the reference to it. The label is\nunique across the node; the secret is stored under the generated key\n\"fn-secret-<label>\", which is fixed from then on. Admin only.\nBody: {\"label\": \"...\", \"description\": \"...\", \"provider\": \"K8S\", \"values\": {\"KEY\": \"value\", ...}, \"enabled\": true}\nThe description and enabled are optional.",
+        "operationId": "post_secret_global_secrets__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/secrets/{label}": {
+      "get": {
+        "tags": [
+          "secrets"
+        ],
+        "summary": "Get Secret",
+        "description": "GET /global/secrets/<label> \u2014 get a single secret. The values are never returned.",
+        "operationId": "get_secret_global_secrets__label__get",
+        "parameters": [
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "secrets"
+        ],
+        "summary": "Patch Secret",
+        "description": "PATCH /global/secrets/<label> \u2014 set keys on the stored secret, e.g. to rotate a token, and/or turn\nit on or off (enabled). Every repository and dataset that references it, in any project, picks\nthe new values up. Admin only. Turning it off also disables every dataset, trigger repository and\nresults repository that uses it, in the same commit; turning it on changes only the secret, those\nstay disabled until each is enabled. Turning off a secret that is off already changes nothing else.\nTurning it off moves its stored value to the quarantine namespace and turning it on moves it back,\nbefore anything is committed: if the move fails so does the request, and nothing has changed. The\nrow keeps the secret's own namespace, which is what makes it unreadable there meanwhile. A disabled\nsecret cannot be rotated (409), unless the same request turns it on. Rotation comes before the move\nwhen both are asked for.\nBody: {\"values\": {\"KEY\": \"value\", ...}, \"enabled\": true}, any of them.",
+        "operationId": "patch_secret_global_secrets__label__patch",
+        "parameters": [
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "secrets"
+        ],
+        "summary": "Delete Secret",
+        "description": "DELETE /global/secrets/<label> \u2014 soft delete the reference and revoke and delete its project\nlinks, and delete the stored secret, from its namespace and from quarantine. Admin only. Refused\nwith a 409 naming the enabled datasets and repositories that still use it: they have to be\ndisabled first, unless ?force=true, which disables them and goes on. Disabled ones may stay\npointing at it, and can be repointed with their secret_label.",
+        "operationId": "delete_secret_global_secrets__label__delete",
+        "parameters": [
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Force"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_login_login_post": {
+        "properties": {
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "title": "Body_login_login_post"
+      },
+      "DatasetDTO": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "secret": {
+            "$ref": "#/components/schemas/SecretDTO"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host"
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port"
+          },
+          "read_schema": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read Schema"
+          },
+          "write_schema": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Write Schema"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "extra_connection_args": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Connection Args"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "secret",
+          "name",
+          "host",
+          "port",
+          "read_schema",
+          "write_schema",
+          "type",
+          "extra_connection_args",
+          "enabled",
+          "revoked",
+          "created_at",
+          "updated_at",
+          "slug",
+          "url"
+        ],
+        "title": "DatasetDTO"
+      },
+      "GitProviderRefDTO": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "$ref": "#/components/schemas/GitProviderType"
+          },
+          "uri": {
+            "type": "string",
+            "title": "Uri"
+          },
+          "api_uri": {
+            "type": "string",
+            "title": "Api Uri"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "uri",
+          "api_uri",
+          "enabled",
+          "revoked"
+        ],
+        "title": "GitProviderRefDTO",
+        "description": "A git provider as nested in a repository."
+      },
+      "GitProviderType": {
+        "type": "string",
+        "enum": [
+          "github",
+          "gitea"
+        ],
+        "title": "GitProviderType",
+        "description": "Which kind of git host a provider is, so the sensors know which API client to build.\nEach value is a type the Dagster side has an API client for."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ProjectDTO": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked"
+          },
+          "default_dataset_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Dataset Id"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "enabled",
+          "revoked",
+          "default_dataset_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProjectDTO"
+      },
+      "ProjectDatasetDTO": {
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "title": "Project Id"
+          },
+          "dataset": {
+            "$ref": "#/components/schemas/DatasetDTO"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "dataset",
+          "enabled",
+          "revoked",
+          "active"
+        ],
+        "title": "ProjectDatasetDTO",
+        "description": "A project's link to a global dataset, the dataset nested. Addressed by the dataset's id."
+      },
+      "ProjectRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProjectRequest",
+        "description": "A project as created. Fields it does not name are ignored."
+      },
+      "ProjectResultsRepositoryDTO": {
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "title": "Project Id"
+          },
+          "results_repository": {
+            "$ref": "#/components/schemas/ResultsRepositoryDTO"
+          },
+          "target_dir": {
+            "type": "string",
+            "title": "Target Dir"
+          },
+          "owned_by_federated_node": {
+            "type": "boolean",
+            "title": "Owned By Federated Node"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "results_repository",
+          "target_dir",
+          "owned_by_federated_node",
+          "enabled",
+          "revoked",
+          "active"
+        ],
+        "title": "ProjectResultsRepositoryDTO",
+        "description": "A project's link to a global results repository, the repository nested. Addressed by the repository's id."
+      },
+      "ProjectSecretDTO": {
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "title": "Project Id"
+          },
+          "secret": {
+            "$ref": "#/components/schemas/SecretDTO"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "secret",
+          "enabled",
+          "revoked",
+          "active"
+        ],
+        "title": "ProjectSecretDTO",
+        "description": "A project's link to a global secret, the reference nested. Addressed by the secret's label. Never carries values."
+      },
+      "ResultsRepositoryDTO": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "uri": {
+            "type": "string",
+            "title": "Uri"
+          },
+          "repo_path": {
+            "type": "string",
+            "title": "Repo Path"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/GitProviderRefDTO"
+          },
+          "secret": {
+            "$ref": "#/components/schemas/SecretDTO"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "uri",
+          "repo_path",
+          "provider",
+          "secret",
+          "enabled",
+          "revoked"
+        ],
+        "title": "ResultsRepositoryDTO"
+      },
+      "SecretDTO": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/SecretProviderType"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "namespace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Namespace"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "description",
+          "provider",
+          "key",
+          "namespace",
+          "enabled",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SecretDTO"
+      },
+      "SecretProviderType": {
+        "type": "string",
+        "enum": [
+          "K8S"
+        ],
+        "title": "SecretProviderType",
+        "description": "Which secret store holds the value of a secret."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
