@@ -1,7 +1,7 @@
 """
-The real clients against the real Flask app over HTTP, no Kubernetes.
+The real clients against the real nexus app over HTTP, no Kubernetes.
 
-The app of the `client` fixture is served by werkzeug on 127.0.0.1 in a thread, with the same
+The app of the `client` fixture is served by uvicorn on 127.0.0.1 in a thread, with the same
 process-wide Keycloak/k8s mocks, and the fncli backend client (dagster/fncli/backend.py) and the
 Dagster code location's BackendAPI (dagster/app/backend.py) are pointed at it with the Dagster system user's token
 (the identity they log in as), and `admin_api` with the admin token, which revoking needs.
@@ -12,6 +12,7 @@ import importlib
 import importlib.util
 import sys
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -26,7 +27,7 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 if not (DAGSTER_DIR / "fncli" / "backend.py").is_file():
     pytest.skip("dagster/fncli is not available", allow_module_level=True)
 
-from werkzeug.serving import make_server  # noqa: E402
+import uvicorn  # noqa: E402
 
 
 def _load_dagster_client():
@@ -67,15 +68,18 @@ DagsterBackendAPI, _utils, fn_models, FnBackendAPI, state, e2e = _dagster
 
 @pytest.fixture
 def live_url(client, k8s_client, mock_connection_checks, responses):
-    """The app of `client` served at http://127.0.0.1:<port> by a werkzeug server in a thread."""
+    """The app of `client` served at http://127.0.0.1:<port> by uvicorn in a thread. Its requests set no
+    session scope of their own beforehand, so each gets a fresh session, as in production."""
     responses.add_passthru("http://127.0.0.1")  # pytest-responses blocks real HTTP otherwise
-    server = make_server("127.0.0.1", 0, client.application, threaded=True)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server = uvicorn.Server(uvicorn.Config(client.app, host="127.0.0.1", port=0, log_level="warning"))
+    thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
+    while not server.started:
+        time.sleep(0.05)
     try:
-        yield f"http://127.0.0.1:{server.server_port}"
+        yield f"http://127.0.0.1:{server.servers[0].sockets[0].getsockname()[1]}"
     finally:
-        server.shutdown()
+        server.should_exit = True
         thread.join(timeout=5)
 
 
