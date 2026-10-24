@@ -30,7 +30,7 @@ def assert_error(response, status):
 
 def fake_response(status_code, body=None, reason="Reason"):
     response = MagicMock(status_code=status_code, ok=status_code < 400, reason=reason)
-    response.json().return_value = body
+    response.json.return_value = body
     return response
 
 
