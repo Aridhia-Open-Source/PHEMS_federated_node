@@ -3,6 +3,7 @@ set -euo pipefail
 
 # Load env
 source .dev.env
+export CUSTOM_CA_FILE   # build_image.sh passes it to image builds
 
 echo "=== Building Dagster image ==="
 ./scripts/build_image.sh dagster "$DOCKER_TAG"

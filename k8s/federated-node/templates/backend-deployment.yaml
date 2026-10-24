@@ -16,6 +16,9 @@ spec:
     metadata:
       annotations:
         rollme: {{ template "rollMe" . }}
+        {{- if include "fn.customCA.enabled" . }}
+        {{- include "fn.customCA.annotations" (dict "ctx" . "namespace" .Release.Namespace) | nindent 8 }}
+        {{- end }}
       labels:
         app: flask
     spec:
@@ -26,6 +29,9 @@ spec:
                of this release and its hook runs post-install. */}}
         {{- if .Values.create_db_deployment }}
         {{- include "pgWaitContainer" (dict "ctx" . "host" (include "dbHost" .) "port" (include "dbPort" .)) | nindent 8 }}
+        {{- end }}
+        {{- if include "fn.customCA.enabled" . }}
+        {{- include "fn.customCA.initContainer" (dict "ctx" . "image" (include "backend-image" .) "nonRoot" true) | nindent 8 }}
         {{- end }}
         - name: db-migrations
           image: {{ template "backend-image" . }}
@@ -85,11 +91,20 @@ spec:
               secretKeyRef:
                 name: {{ .Values.backend.db.secret.name }}
                 key: {{ .Values.backend.db.secret.key }}
+          {{- if include "fn.customCA.enabled" . }}
+          {{- include "fn.customCA.env" . | nindent 10 }}
+          {{- end }}
           volumeMounts:
             - name: kc-secrets
               mountPath: {{ include "kcSecretsMountPath" . }}
               readOnly: true
+            {{- if include "fn.customCA.enabled" . }}
+            {{- include "fn.customCA.volumeMounts" . | nindent 12 }}
+            {{- end }}
       volumes:
         - name: kc-secrets
           secret:
             secretName: kc-secrets
+        {{- if include "fn.customCA.enabled" . }}
+        {{- include "fn.customCA.volumes" . | nindent 8 }}
+        {{- end }}

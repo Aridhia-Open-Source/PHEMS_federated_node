@@ -42,6 +42,12 @@
   {{ fail "fnDagster.createDB is true but db.manageRolesAndDatabases is false. Dagster's database is on the same server as the others, so it cannot be managed while they are not. Either set db.manageRolesAndDatabases: true, or create the dagster role and database yourself along with the rest and drop fnDagster.createDB." }}
 {{- end }}
 {{- end }}
+{{- if and .Values.customCA.secretName .Values.customCA.pem }}
+  {{ fail "customCA.secretName and customCA.pem are both set. Use one: secretName for a Secret you manage, pem to have the chart render one." }}
+{{- end }}
+{{- if and .Values.customCA.pem (not (contains "-----BEGIN CERTIFICATE-----" .Values.customCA.pem)) }}
+  {{ fail "customCA.pem holds no PEM certificate (no -----BEGIN CERTIFICATE----- line). Give the CA certificate, or a bundle of them, in PEM form." }}
+{{- end }}
 {{- if .Values.namespaces }}
   {{ fail "Move `namespaces` under `global`: the chart reads global.namespaces, so a top-level copy would be ignored. Use:\n\n  global:\n    namespaces:\n      keycloak: ...\n      tasks: ...\n" }}
 {{- end }}

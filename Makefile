@@ -83,6 +83,38 @@ teardown:
 portfwd:
 	./scripts/portfwd.sh
 
+# A fake hospital laptop behind a TLS-intercepting proxy, see scripts/proxy-sim.sh.
+# In order: up, pull (fails), proxy, pull (fails, x509), trust, pull (works), flow, down.
+# DIRECT=1 make proxy-sim-up: no proxy. FROM=N make proxy-sim-flow: resume at step N.
+# make proxy-sim-pull IMAGE=ghcr.io/org/name:tag
+proxy-sim-build:
+	./scripts/proxy-sim.sh build
+
+proxy-sim-up:
+	./scripts/proxy-sim.sh up
+
+proxy-sim-proxy:
+	./scripts/proxy-sim.sh proxy
+
+proxy-sim-trust:
+	./scripts/proxy-sim.sh trust
+
+proxy-sim-pull:
+	./scripts/proxy-sim.sh pull $(IMAGE)
+
+proxy-sim-flow:
+	./scripts/proxy-sim.sh flow $(if $(FROM),--from $(FROM))
+
+proxy-sim-shell:
+	./scripts/proxy-sim.sh shell
+
+proxy-sim-down:
+	./scripts/proxy-sim.sh down
+
+# One-step dev install for a fresh clone (Debian 13 / Ubuntu 24.04+, Docker required)
+dev-install:
+	./scripts/install-dev.sh
+
 deploy-owner:
 	./scripts/deploy_owner.sh show
 

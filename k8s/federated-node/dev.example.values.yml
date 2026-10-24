@@ -56,6 +56,19 @@ integrations:
     - http://localhost:8088
     - https://phems-federatednode.net
 
+# In-cluster git host for fncli and the demo (development only). Its data lives in
+# storage.local.gitea, /data/gitea by default.
+gitea:
+  enabled: true
+  image:
+    tag: "1.27.0"              # the chart default 28.1.0 is not a Gitea release
+  admin:                       # its password is generated, like the database ones
+    user: gitea_admin
+    email: admin@example.com
+    secret:
+      name: gitea-admin
+      key: password
+
 # First admin user. Its email and password come from KEYCLOAK_FIRST_USER_EMAIL and
 # KEYCLOAK_FIRST_USER_PASSWORD in .dev.env (deploy.sh overrides the email below).
 firstUserSecret:
