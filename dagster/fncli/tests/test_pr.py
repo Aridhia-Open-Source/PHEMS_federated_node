@@ -32,6 +32,13 @@ def test_watched_file_is_under_the_watch_dir_with_a_valid_spec(config):
     assert spec_of(content) == {"name": "pr-1", "image": "busybox:1"}
 
 
+def test_watched_file_carries_the_extra_env_from_test_pr_env(monkeypatch):
+    monkeypatch.setenv("TEST_PR_ENV", '{"UC1_DEV": "1"}')
+    _, content = file_for(PrConfig(pr_image="busybox:1"), "pr-1", "watched")
+
+    assert spec_of(content)["env"] == {"UC1_DEV": "1"}
+
+
 def test_invalid_file_is_watched_but_has_a_field_the_spec_forbids(config):
     path, content = file_for(config, "pr-1", "invalid")
 
@@ -259,7 +266,7 @@ def test_merge_results_pr_merges_in_the_results_repo(monkeypatch):
         def merge_pull_request(self, repo_path, number):
             merged.append((repo_path, number))
 
-    monkeypatch.setattr(pr, "build_gitea_api", lambda config: FakeGitea())
+    monkeypatch.setattr(pr, "build_git_api", lambda config: FakeGitea())
     monkeypatch.setenv("TEST_RESULTS_REPO", "results-demo-repo")
     result = CliRunner().invoke(pr.merge_results_pr_command, ["--number", "3"])
     assert result.exit_code == 0

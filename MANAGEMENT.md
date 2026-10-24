@@ -316,7 +316,7 @@ These act on the project named by `TEST_PROJECT_NAME`, or `--project NAME`, and 
 
 - **On a real node, set up the git provider, repositories and secrets with the API.** fncli only creates `gitea`-type providers, and it mints Gitea tokens: for GitHub it would create the records with placeholder tokens (`setup-backend`) that you then have to replace by hand.
 - **Never run `teardown-project`, `teardown-backend` or `teardown-gitea` against a node you care about.** They delete the project, its global dataset, repositories and secrets, and (Gitea) the repositories with all their pull requests.
-- fncli's dataset defaults to a dummy. To register a real database set `CLUSTER_DATASET_HOST`, `DATASET_PORT`, `DATASET_TYPE`, `DATASET_SCHEMA`, `DATASET_SCHEMA_WRITE`, `DATASET_USERNAME` and `DATASET_PASSWORD`. `make uc1-seed` does this for the UC1 data.
+- fncli's dataset defaults to a dummy. To register a real database set `CLUSTER_DATASET_HOST`, `DATASET_PORT`, `DATASET_TYPE`, `DATASET_SCHEMA`, `DATASET_SCHEMA_WRITE`, `DATASET_USERNAME` and `DATASET_PASSWORD`. `experiments/experiments.sh seed uc1` does this for the UC1 data.
 
 ## Switch things on and off
 

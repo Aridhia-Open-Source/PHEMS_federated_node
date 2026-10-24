@@ -196,7 +196,7 @@ all documented in `.dev.env.example`: the existing ones, plus `TEST_RESULTS_REPO
 `TEST_RESULTS_REPO_URI`, `TEST_RESULTS_TARGET_DIR`, `GITEA_RESULTS_TOKEN_NAME` (must differ
 from `GITEA_TOKEN_NAME`), `DEFAULT_PROJECT_DATASET` and `TEST_PR_IMAGE`.
 
-The dataset defaults to a dummy stand-in. These env vars point it at a real database (all optional, defaults in brackets): `CLUSTER_DATASET_HOST` (`db-datasets.fn.svc`), `DATASET_PORT` (`5432`), `DATASET_TYPE` (`postgres`), `DATASET_SCHEMA` (`cdm`, the read schema), `DATASET_SCHEMA_WRITE` (`results`), `DATASET_USERNAME` and `DATASET_PASSWORD` (`dummy`, stored in the dataset's secret). They are the names `dev.db/.env` uses.
+The dataset defaults to a dummy stand-in. These env vars point it at a real database (all optional, defaults in brackets): `CLUSTER_DATASET_HOST` (`db-datasets.fn.svc`), `DATASET_PORT` (`5432`), `DATASET_TYPE` (`postgres`), `DATASET_SCHEMA` (`cdm`, the read schema), `DATASET_SCHEMA_WRITE` (`results`), `DATASET_USERNAME` and `DATASET_PASSWORD` (`dummy`, stored in the dataset's secret). `experiments/experiments.sh seed` sets them for a real experiment.
 
 ## State and rules (for the end-to-end suites)
 
@@ -223,13 +223,17 @@ cp .demo.env.example .demo.env   # once, in the repo root
 fncli demo                       # step by step
 fncli demo -y                    # every step without asking (no teardown)
 fncli demo --from 8              # start at step 8, e.g. after a step failed
+cp .demo-github.env.example .demo-github.env
+fncli demo -y --env-file .demo-github.env   # the same on GitHub (phems-sandbox)
 ```
 
 It needs the dev cluster with Tilt running and the Dagster sensors already running. The secrets, git provider, repository records and dataset are global (they belong to no project) and only the links to them belong to the project, while the Gitea repos live only in Gitea; each step says which it touches. The demo's own project, repos and dataset names are in `.demo.env`, which overrides `.dev.env`, so it never touches the e2e project; the steps are idempotent, so it can be rerun.
 
-## UC1 seed
+On GitHub (`TEST_GIT_PROVIDER=github`, see `.demo-github.env.example`) the repo must already exist and `GH_TOKEN` in `.dev.env` is stored as both repos' secret; fncli never creates or deletes GitHub repos or tokens. It uses the sensors' own client, `app/github.py`. `GIT_PROVIDER` is not the switch: `.dev.env` sets that for other tools.
 
-`make uc1-seed` (`dev.db/uc1_make_seed.sh`) loads the UC1 OMOP data into the dataset database, then runs `fncli setup-project` with the `DATASET_*` values from `dev.db/.env` and `DEFAULT_PROJECT_DATASET` set to the database name. It needs `fncli` on PATH and `.dev.env` at the repo root. It only touches the project `TEST_PROJECT_NAME` names, so it is safe to re-run and never deletes other datasets or repositories. To remove what it registered, use `fncli teardown-project`.
+## Real experiments
+
+`experiments/experiments.sh seed NAME` loads an experiment's dummy data, then runs `fncli setup-project` with the experiment's own project, repos, tokens and `DATASET_*` values from `experiments/projects/NAME/project.env`. See [experiments/README.md](../../experiments/README.md).
 
 ## Maintenance
 
