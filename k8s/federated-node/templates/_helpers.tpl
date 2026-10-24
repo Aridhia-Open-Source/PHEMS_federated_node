@@ -264,3 +264,7 @@ affect how ownership is reported.
 {{- define "kcSecretsMountPath" -}}
 /etc/secrets/kc
 {{- end -}}
+
+{{- define "nexus-ui-image" -}}
+{{ printf "%s:%s" (.Values.nexus.ui.image) ((.Values.nexus.ui.tag) | default (include "image-tag" . | trim)) }}
+{{- end }}

@@ -1,0 +1,42 @@
+{{- if .Values.nexus.ui.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexus-ui
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: nexus-ui
+spec:
+  replicas: {{ .Values.nexus.ui.replicas }}
+  selector:
+    matchLabels:
+      app: nexus-ui
+  template:
+    metadata:
+      labels:
+        app: nexus-ui
+    spec:
+      containers:
+        - name: nexus-ui
+          image: {{ template "nexus-ui-image" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            # Where nginx proxies /nexus-ui/api. Defaults to the Flask backend until nexus has a service.
+            - name: BACKEND_URL
+              value: {{ .Values.nexus.ui.backendUri | default (include "backendUri" .) | quote }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            {{- toYaml .Values.nexus.ui.resources | nindent 12 }}
+{{- end }}
