@@ -37,11 +37,16 @@ Read this, then `CONTRACT.md`, then `PLAN.md`. Branch `nexus/api`, worktree
 ## In progress / Next
 1. Fan-out: Wave A done (all eight routers committed). Wave B running at the last update.
 2. Helm/Tilt/Dockerfile: see "Status of Helm/Tilt" at the bottom.
-3. Last: whole nexus unit suite once; `python dump_openapi.py`; diff its paths against
-   `webserver/app/static/openapi.json` minus registries/whitelisted_images/dar/audit.
-4. `tests/test_live_client_integration.py`: switch the werkzeug `make_server` to uvicorn in a thread
-   (`uvicorn.Server(uvicorn.Config(client.app, host="127.0.0.1", port=0))`, wait for `server.started`,
-   read the port from `server.servers[0].sockets[0].getsockname()[1]`). Not done.
+3. Spec path diff: done, clean. `openapi.json` regenerated with every router. Against
+   `webserver/app/static/openapi.json` (minus registries/whitelisted_images/dar/audit) the only
+   missing paths are ones the Flask code doesn't have either (the hand-written spec drifted:
+   `/task_requests*`, `/global/datasets/by-name/*`, `*/revoke`), plus `PATCH /delivery-secret`, which is
+   in `admin_api` (out of scope with it). nexus adds `/ready_check` and `.../tasks/{id}/retry`, both real.
+   Whole-suite run: see "Test status".
+4. `tests/test_live_client_integration.py` serves the app with uvicorn in a thread (done), but it
+   skips locally: the Dagster client modules need the `dagster` package, which isn't in
+   `/tmp/nexus-venv`. To run it: `pip install dagster` into the venv (match `dagster/` deps), then
+   `./run_local_tests.sh tests/test_live_client_integration.py`. Not run yet.
 5. After the port: the `nexus-api` / `nexus-system` two-deployment step (PLAN.md).
 
 ## Test status (last run)
