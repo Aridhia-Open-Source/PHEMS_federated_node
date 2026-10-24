@@ -3,15 +3,15 @@ from copy import deepcopy
 
 
 @fixture(scope='function')
-def task_body(dataset, container, project):
+def task_body(dataset, image_name, project):
     return deepcopy({
         "name": "Test Task",
         "requested_by": "das9908-as098080c-9a80s9",
-        "docker_image": container.full_image_name(),
+        "docker_image": image_name,
         "project_id": project.id,
         "executors": [
             {
-                "image": container.full_image_name(),
+                "image": image_name,
                 "command": ["R", "-e", "df <- as.data.frame(installed.packages())[,c('Package', 'Version')];write.csv(df, file='/mnt/data/packages.csv', row.names=FALSE);Sys.sleep(10000)\""],
                 "env": {
                     "VARIABLE_UNIQUE": 123,
