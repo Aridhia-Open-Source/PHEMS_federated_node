@@ -23,7 +23,10 @@ Read this, then `CONTRACT.md`, then `PLAN.md`. Branch `nexus/api`, worktree
   - `app/helpers/exceptions.py`: `LogAndException` is a plain `Exception` (no werkzeug).
   - `app/__init__.py`: `create_app()`, every router registered up front (`module.router`, plus
     `tasks_api.all_router`). Agents never touch it.
-- Ported routers: `main`, `secrets_api`, `projects_api`.
+- Ported routers: `main`, `secrets_api`, `projects_api` (lead); Wave A: `project_trigger_repositories_api`,
+  `tasks_api`, `results_api`, `results_repositories_api`, `datasets_api`, `git_providers_api`,
+  `healthcheck_api` (each agent reported its own test files green). `trigger_repositories_api`: see
+  "In progress". Wave B (`users_api`, `dagster_api`): one agent running at the last update.
 - Tests: all converted mechanically (`response.json` -> `response.json()`, `query_string=` -> `params=`,
   `data=` -> `content=`). `conftest.py` `client` is a `TestClient` subclass that also takes `json=` on
   get/delete. Registry/audit/DAR tests and fixtures removed.
@@ -32,7 +35,8 @@ Read this, then `CONTRACT.md`, then `PLAN.md`. Branch `nexus/api`, worktree
   compose, as the webserver's).
 
 ## In progress / Next
-1. Fan-out (below): Wave A then Wave B.
+1. Fan-out: Wave A done except `trigger_repositories_api` (agent was still running at the last
+   update; if the file is still the stub or uncommitted, port it with the checklist). Wave B running.
 2. Helm/Tilt/Dockerfile: see "Status of Helm/Tilt" at the bottom.
 3. Last: whole nexus unit suite once; `python dump_openapi.py`; diff its paths against
    `webserver/app/static/openapi.json` minus registries/whitelisted_images/dar/audit.
@@ -61,6 +65,18 @@ cd nexus/api && NEXUS_TEST_DB=nexus_mine ./run_local_tests.sh tests/test_project
 Never run e2e tests. Run only the test files for what you changed, foreground, with a timeout.
 
 ## Gotchas
+- Decisions made by Wave A agents, to review:
+  - `tasks_api`/`models/task.py`: `Task.validate(data, user_token)` takes the token; the image whitelist
+    and "image exists on the registry" checks are removed (their models are out of scope), only the image
+    format check is left (`Task.validate_image_format`). So a task with a missing image is now a 201,
+    where the webserver gave 404. `ENABLE_IMAGE_WHITELIST` in `helpers/const.py` is unused.
+  - `tasks_api.does_user_own_task(task, caller)` uses the caller (no own Keycloak); `results_api` imports it.
+  - `datasets_api` POST/PATCH keep `body: dict` + `.parse(body)`: the credential/project_id rejections
+    need the raw body (`DatasetRequest` ignores extras), and the `Invalid dataset: ...` message stays.
+  - Typed-body routes (git providers, repositories) answer a bad body with 400 before a 404 for a missing id.
+  - `healthcheck_api` has a local `_trigger_link` in place of importing `_assignment` from
+    `project_trigger_repositories_api` (it was a stub then); can be swapped back now.
+- `run_local_tests.sh`: if `createdb` says the database already exists, rerun (race with a parallel run).
 - Tests are cross-cutting: one test file often hits several routers, so a failure can be another,
   unported router (a 404 `{"error": "Not Found"}` on its route). Don't chase those.
 - The session is per request in production, but a test and its requests share one session (scope
