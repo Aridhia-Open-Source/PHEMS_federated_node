@@ -3,7 +3,8 @@ The real clients against the real Flask app over HTTP, no Kubernetes.
 
 The app of the `client` fixture is served by werkzeug on 127.0.0.1 in a thread, with the same
 process-wide Keycloak/k8s mocks, and the fncli backend client (dagster/fncli/backend.py) and the
-Dagster code location's BackendAPI (dagster/app/backend.py) are pointed at it with the admin bearer token.
+Dagster code location's BackendAPI (dagster/app/backend.py) are pointed at it with the Dagster system user's token
+(the identity they log in as), and `admin_api` with the admin token, which revoking needs.
 
 Skipped when ../dagster is not there (the CI container mounts only webserver/tests and webserver/app).
 """
@@ -15,6 +16,8 @@ from pathlib import Path
 
 import pytest
 import requests
+
+from tests.conftest import SYSTEM_TOKEN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DAGSTER_DIR = REPO_ROOT / "dagster"
@@ -77,24 +80,31 @@ def live_url(client, k8s_client, mock_connection_checks, responses):
 
 
 @pytest.fixture
-def api(live_url, login_admin):
+def api(live_url):
+    adapter = _utils.BackendAdapter(live_url, "dagster", "pw")
+    adapter.access_token = SYSTEM_TOKEN
+    return FnBackendAPI(_utils.BackendSession(adapter))
+
+
+@pytest.fixture
+def admin_api(live_url, login_admin):
     adapter = _utils.BackendAdapter(live_url, "admin", "pw")
     adapter.access_token = login_admin
     return FnBackendAPI(_utils.BackendSession(adapter))
 
 
 @pytest.fixture
-def dagster_api(live_url, login_admin):
-    adapter = _utils.BackendAdapter(live_url, "admin", "pw")
-    adapter.access_token = login_admin
+def dagster_api(live_url):
+    adapter = _utils.BackendAdapter(live_url, "dagster", "pw")
+    adapter.access_token = SYSTEM_TOKEN
     return DagsterBackendAPI(_utils.BackendSession(adapter))
 
 
 @pytest.fixture
-def raw(live_url, login_admin):
-    """requests session for what the clients have no method for."""
+def raw(live_url):
+    """requests session, as the system user, for what the clients have no method for."""
     session = requests.Session()
-    session.headers["Authorization"] = f"Bearer {login_admin}"
+    session.headers["Authorization"] = f"Bearer {SYSTEM_TOKEN}"
 
     class Raw:
         def call(self, method, path, **kw):
@@ -421,7 +431,7 @@ def test_e2e_check_script_reads_the_real_routes(api, raw, world):
     assert e2e.command_wait_tasks(api, config, args) == 0
 
 
-def test_fncli_state_commands_against_the_real_routes(api, raw, world):
+def test_fncli_state_commands_against_the_real_routes(api, admin_api, raw, world):
     """fncli/cmds/state.py (the QA plan's commands for rule scenarios) against the real routes and response shapes."""
     from types import SimpleNamespace
     w = world
@@ -444,9 +454,9 @@ def test_fncli_state_commands_against_the_real_routes(api, raw, world):
     assert snap["results_links"][0]["target_dir"] == "results" and snap["secret_links"][0]["secret"] == "live-creds"
 
     # revoke and un-revoke a link: immediate
-    assert state.set_link(api, name, "trigger", None, "true", 200) == 0
+    assert state.set_link(api, name, "trigger", None, "true", 200, admin_api=admin_api) == 0
     assert state.snapshot(api, name)["trigger_links"][0]["active"] is False
-    assert state.set_link(api, name, "trigger", None, "false", 200) == 0
+    assert state.set_link(api, name, "trigger", None, "false", 200, admin_api=admin_api) == 0
     assert state.snapshot(api, name)["trigger_links"][0]["active"] is True
 
     # a global resource can be disabled and enabled at once

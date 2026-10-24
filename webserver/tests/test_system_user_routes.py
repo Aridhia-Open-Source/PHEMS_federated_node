@@ -1,8 +1,9 @@
 """
 The Dagster System user (role System, not an admin) writes the global resources Dagster and fncli manage, and
 can never revoke: `revoked` is admin only. Keycloak.is_token_valid skips the permission check for a System
-token (tests/keycloak/test_tokens.py runs that for real), which the conftest mock mirrors, so no route needs to
-opt in. A caller who is neither admin nor System is refused on all of them.
+token (tests/keycloak/test_tokens.py runs that for real), which the conftest mock mirrors, so the global write
+routes need no opt in. A caller who is neither admin nor System is refused on all of them. The state-machine writes
+(@system_only) are the System user's alone: an admin is refused too.
 """
 import pytest
 
@@ -38,6 +39,23 @@ SYSTEM_ROUTES = [
 @pytest.mark.parametrize("method,url,body", SYSTEM_ROUTES, ids=[f"{m} {u}" for m, u, _ in SYSTEM_ROUTES])
 def test_a_caller_who_is_neither_admin_nor_system_is_refused(client, post_json_user_header, method, url, body):
     assert getattr(client, method)(url, json=body, headers=post_json_user_header).status_code == 403
+
+
+# (method, url, body) for the pull request, task and result writes Dagster makes; the check runs before any lookup
+STATE_ROUTES = [
+    ("post", "/global/repositories/triggers/1/pull_requests", {"pull_requests": []}),
+    ("patch", "/projects/1/repositories/triggers/1/pull_requests/1", {"state": "REJECTED", "state_cause": "x"}),
+    ("post", "/projects/1/repositories/triggers/1/pull_requests/1/task", {"spec_raw": "{}"}),
+    ("patch", "/projects/1/tasks/1", {"status": "RUNNING"}),
+    ("post", "/projects/1/tasks/1/launch", None),
+    ("post", "/projects/1/results", {"task_id": 1, "results_repository_id": 1}),
+    ("patch", "/projects/1/results/1", {"step": "PUSHED"}),
+]
+
+
+@pytest.mark.parametrize("method,url,body", STATE_ROUTES, ids=[f"{m} {u}" for m, u, _ in STATE_ROUTES])
+def test_an_admin_cannot_write_the_state_machines(client, admin_headers, method, url, body):
+    assert getattr(client, method)(url, json=body, headers=admin_headers).status_code == 403
 
 
 def test_system_manages_datasets(client, system_headers, global_secret):

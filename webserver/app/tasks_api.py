@@ -34,7 +34,7 @@ from app.helpers.state_rules import transition
 from app.helpers.query_filters import arg_get
 from app.helpers.task_config import decide_launch
 from app.dtos.task_spec import TaskSpecRequest
-from app.helpers.wrappers import audit, auth
+from app.helpers.wrappers import audit, auth, system_only
 from app.dtos.dataset import DatasetDTO
 from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.trigger_repository import TaskTriggerDTO
@@ -174,6 +174,7 @@ def get_task_id(project_id, task_id):
 @bp.route('/<int:task_id>', methods=['PATCH'])
 @audit
 @auth(scope='can_admin_dataset')
+@system_only
 def patch_task(project_id, task_id):
     """
     PATCH /projects/<project_id>/tasks/id endpoint. Records the progress of a task's run.
@@ -371,6 +372,7 @@ def get_task_config(project_id, task_id):
 @bp.route('/<int:task_id>/launch', methods=['POST'])
 @audit
 @auth(scope='can_admin_dataset')
+@system_only
 def launch_task(project_id, task_id):
     """
     POST /projects/<project_id>/tasks/id/launch endpoint. The launcher's one call per PENDING task. It decides

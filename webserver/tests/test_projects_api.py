@@ -250,8 +250,8 @@ def test_delete_cascades_links_but_keeps_global_resources(
 
 
 def test_delete_hides_the_projects_pr_triggers_but_keeps_global_prs(
-        client, admin_headers, project, pr_trigger, global_trigger_repo, spec_raw):
-    yielded = client.post(pr_trigger + "/task", json={"spec_raw": spec_raw}, headers=admin_headers)  # task from a PR
+        client, admin_headers, system_headers, project, pr_trigger, global_trigger_repo, spec_raw):
+    yielded = client.post(pr_trigger + "/task", json={"spec_raw": spec_raw}, headers=system_headers)  # task from a PR
     assert yielded.status_code == 201, yielded.json
     assert client.delete(f"/projects/{project.id}", headers=admin_headers).status_code == 204
     assert client.get(f"/projects/{project.id}/tasks/{yielded.json['id']}", headers=admin_headers).status_code == 404

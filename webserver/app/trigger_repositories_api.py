@@ -23,7 +23,7 @@ from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.helpers.query_filters import arg_get
 from app.helpers.pull_request_fanout import ingest_pull_requests, skip_gap
 from app.helpers.soft_delete import delete_global
-from app.helpers.wrappers import auth
+from app.helpers.wrappers import auth, system_only
 from app.models.git_provider import GitProvider
 from app.models.pull_request import PullRequest
 from app.models.trigger_repository import TriggerRepository
@@ -84,8 +84,8 @@ def get_pull_requests(repo_id):
     return page_of(paginated, PullRequestDTO), HTTPStatus.OK
 
 
-# TODO: called by Dagster only, like the per-project pull request routes
 @bp.route('/<int:repo_id>/pull_requests', methods=['POST'])
+@system_only
 def post_pull_requests_batch(repo_id):
     """
     POST /global/repositories/triggers/<id>/pull_requests — store up to 100 pull requests of the

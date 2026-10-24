@@ -1,8 +1,8 @@
-def test_full_flow(client, admin_headers, k8s_client, disabled_project, make_pr_batch, spec_raw):
+def test_full_flow(client, admin_headers, system_headers, k8s_client, disabled_project, make_pr_batch, spec_raw):
     pid = disabled_project.id  # a new project is disabled
 
-    def call(method, url, status, **kwargs):
-        r = getattr(client, method)(url, headers=admin_headers, **kwargs)
+    def call(method, url, status, headers=admin_headers, **kwargs):
+        r = getattr(client, method)(url, headers=headers, **kwargs)
         assert r.status_code == status, (url, r.json)
         return r.json
 
@@ -36,21 +36,23 @@ def test_full_flow(client, admin_headers, k8s_client, disabled_project, make_pr_
     # 12. Ingest pull requests: 1 and 2 match, 3 targets another branch (no trigger)
     batch = make_pr_batch(1, 2)
     batch["pull_requests"] += make_pr_batch(3, base_branch="dev")["pull_requests"]
-    assert call("post", f"/global/repositories/triggers/{T}/pull_requests", 201, json=batch)["created"] == [1, 2, 3]
+    assert call("post", f"/global/repositories/triggers/{T}/pull_requests", 201, headers=system_headers, json=batch)["created"] == [1, 2, 3]
 
     # 13. Project sees the states of the ingested pull requests
     body = call("get", f"/projects/{pid}/repositories/triggers/{T}/pull_requests", 200)
     assert body["total"] == 2 and {i["number"]: i["state"] for i in body["items"]} == {1: "UNKNOWN", 2: "UNKNOWN"}
 
     # 14-15. Create a task from pull request 1; it succeeds
-    task = call("post", f"/projects/{pid}/repositories/triggers/{T}/pull_requests/1/task", 201, json={"spec_raw": spec_raw})
+    task = call("post", f"/projects/{pid}/repositories/triggers/{T}/pull_requests/1/task", 201, headers=system_headers,
+                json={"spec_raw": spec_raw})
     assert task["spec"]["dataset_id"] == D
     tid = task["id"]
-    call("patch", f"/projects/{pid}/tasks/{tid}", 200, json={"status": "SUCCESS"})
+    call("patch", f"/projects/{pid}/tasks/{tid}", 200, headers=system_headers, json={"status": "SUCCESS"})
 
     # 16-17. Post a result for the task; it is delivered as an opened pull request
-    rid = call("post", f"/projects/{pid}/results", 201, json={"task_id": tid, "results_repository_id": R})["id"]
-    body = call("patch", f"/projects/{pid}/results/{rid}", 200, json={
+    rid = call("post", f"/projects/{pid}/results", 201, headers=system_headers,
+               json={"task_id": tid, "results_repository_id": R})["id"]
+    body = call("patch", f"/projects/{pid}/results/{rid}", 200, headers=system_headers, json={
         "step": "OPENED", "state": "DELIVERED", "number": 7, "url": "https://github.com/org/e2e-results/pull/7"})
     assert (body["step"], body["state"]) == ("OPENED", "DELIVERED")
 

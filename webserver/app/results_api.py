@@ -13,7 +13,7 @@ from app.dtos.result import dump_result
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.task_config import config_changes, results_link, revoked_resources
-from app.helpers.wrappers import audit, auth
+from app.helpers.wrappers import audit, auth, system_only
 from app.models.pull_request_result import PullRequestResult
 from app.models.pull_request_result_step import PullRequestResultStep
 from app.models.result_state import ResultState
@@ -97,6 +97,7 @@ def get_result(project_id: int, result_id: int):
 @bp.route('/<int:project_id>/results', methods=['POST'])
 @audit
 @auth(scope='can_admin_dataset')
+@system_only
 def post_result(project_id: int):
     """
     POST /projects/<project_id>/results endpoint. Creates the delivery of a task's results to a results
@@ -181,6 +182,7 @@ def post_result(project_id: int):
 @bp.route('/<int:project_id>/results/<int:result_id>', methods=['PATCH'])
 @audit
 @auth(scope='can_admin_dataset')
+@system_only
 def patch_result(project_id: int, result_id: int):
     """
     PATCH /projects/<project_id>/results/<result_id> endpoint. Records the progress of a task's delivery.

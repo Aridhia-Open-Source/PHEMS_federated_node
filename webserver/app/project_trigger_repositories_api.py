@@ -25,7 +25,7 @@ from app.helpers.project_state import require_accepts_tasks
 from app.helpers.pull_request_fanout import skip_gap
 from app.helpers.query_filters import arg_get
 from app.helpers.repository_loop import check_no_loop, normalise_dir
-from app.helpers.wrappers import audit, auth
+from app.helpers.wrappers import audit, auth, system_only
 from app.models.project import Project
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request import PullRequest
@@ -216,8 +216,8 @@ def _pull_request(project_id: int, repo_id: int, number: int) -> PullRequestTrig
     return pr
 
 
-# TODO: the pull_requests routes below are called by Dagster only. No user or admin is
-# expected to touch them, so they should be restricted to internal callers.
+# The pull_requests routes below are called by Dagster only. The writes are system user only; the reads are
+# still open to anyone with the scope, which should be restricted to internal callers too.
 @bp.route(f'{ASSIGNMENT_URL}/<int:repo_id>/pull_requests', methods=['GET'])
 @auth(scope='can_admin_dataset')
 def get_pull_requests(project_id: int, repo_id: int):
@@ -270,6 +270,7 @@ def get_pull_request(project_id: int, repo_id: int, number: int):
 
 @bp.route(f'{ASSIGNMENT_URL}/<int:repo_id>/pull_requests/<int:number>', methods=['PATCH'])
 @auth(scope='can_admin_dataset')
+@system_only
 def patch_pull_request(project_id: int, repo_id: int, number: int):
     """
     PATCH /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests/<number> —
@@ -288,6 +289,7 @@ def patch_pull_request(project_id: int, repo_id: int, number: int):
 
 @bp.route(f'{ASSIGNMENT_URL}/<int:repo_id>/pull_requests/<int:number>/task', methods=['POST'])
 @auth(scope='can_admin_dataset')
+@system_only
 def post_task(project_id: int, repo_id: int, number: int):
     """
     POST /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests/<number>/task
