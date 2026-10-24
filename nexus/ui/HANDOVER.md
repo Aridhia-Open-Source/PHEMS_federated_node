@@ -52,16 +52,20 @@ Read this, then `nexus/api/CONTRACT.md` on `origin/nexus/api`, then `PLAN.md`.
 8. Report API mismatches (spec vs what you needed) in your final message.
 
 ## Fan-out pages (one agent per folder)
+All eight planned pages are DONE (providers, trigger-repos, results-repos, datasets, project-links, project-health, project-activity, project-results). Don't re-spawn them.
+
+Remaining (the plan's "Later"):
 | Folder | Page | Endpoints |
 |---|---|---|
-| `providers` | Git providers | `/global/providers` list, create, delete; detail + healthcheck |
-| `trigger-repos` | Trigger repositories | `/global/repositories/triggers` list, create, enable toggle (PATCH), revoke (`/{id}/revoke`), delete with force; detail with read-only pull requests (`/{id}/pull_requests`, paged) |
-| `results-repos` | Results repositories | `/global/repositories/results`, same as trigger repos minus pull requests |
-| `datasets` | Datasets | `/global/datasets` paged list, create, view, delete with force |
-| `project-links` | Project links | trigger repo `PUT /projects/{id}/repositories/triggers/{rid}` (watch_dir, base_branch); results repo `PUT .../repositories/results/{rid}` (target_dir); datasets `PUT /projects/{id}/datasets/{did}`; secrets `PUT /projects/{id}/secrets/{label}`; list each kind and unlink (DELETE) |
-| `project-health` | Healthcheck panel | `GET /projects/{id}/healthcheck` |
-| `project-activity` | PRs and tasks (read-only) | `GET /projects/{id}/repositories/triggers` to pick a repo, then `.../{rid}/pull_requests` (paged), task detail `GET /projects/{id}/tasks/{tid}` |
-| `project-results` | Results (read-only) | `GET /projects/{id}/results` |
+| `users` | Users | `/global/users` list, create; `PUT /global/users/reset-password` |
+| `sensors` | Dagster sensors | `/dagster/sensors` list, PATCH (all); `/dagster/sensors/{name}` GET, PATCH |
+
+Lead does first (agents can't touch shared files): create `src/pages/users/index.tsx` and `src/pages/sensors/index.tsx` as stub default exports, add both to `src/routes.tsx` (paths `global/users`, `dagster/sensors`), commit, then spawn one Sonnet agent per folder.
+
+Agent prompt used (copy it, swap folder/endpoints):
+> Build one page of a React admin UI. Worktree (use absolute paths ONLY, never cd elsewhere, never run git, never npm install, never vite build): <abs path>/nexus/ui. Read first: HANDOVER.md ("How to add a page (checklist)"), then src/pages/secrets/index.tsx (the pattern to copy), src/shared/*.tsx, src/api/client.ts. Look up endpoints and body types in src/api/schema.d.ts or webserver/app/static/openapi.json. Your folder: src/pages/<name>/ — edit ONLY files there (replace the stub; keep its default export). Page: <endpoints>. Time is short: favour a working page over polish. No tests. Run `npx tsc --noEmit` once or twice at the end; fix errors in your folder only, ignore other folders. Final message: 2-4 lines — what you built, any API/spec mismatches.
+
+After the wave the lead runs `npx tsc --noEmit && npm run build && npm test`, commits and pushes.
 
 ## Tests
 - Kept minimal on purpose (time): 4 tests in `src/shared/shared.test.tsx` (DeleteButton force, ResourceTable paging, DtoForm parsing, errorText). No page tests.
