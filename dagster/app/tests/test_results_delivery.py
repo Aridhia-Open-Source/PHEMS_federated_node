@@ -217,7 +217,7 @@ def test_a_task_without_a_pull_request_fails_the_delivery(backend_api, remote, a
     assert fields["error"].startswith("HTTPError")
 
 
-def test_delivery_takes_the_target_dir_from_the_pinned_configuration_and_reads_no_link(
+def test_delivery_takes_the_target_dir_from_the_pinned_configuration_and_reads_no_resource(
     backend_api, remote, artifacts, git_apis
 ):
     deliver(backend_api, remote, artifacts, git_apis)
@@ -241,7 +241,7 @@ def test_a_404_is_final_logged_and_never_raised(backend_api, remote, artifacts, 
 
 
 @pytest.mark.parametrize("step, error", [
-    ("REVOKED", "results repository link revoked"),
+    ("REVOKED", "results repository resource revoked"),
     ("STALE", "task configuration changed since the task was created: image changed"),
 ])
 def test_a_result_the_backend_created_as_final_without_delivery_is_left_alone(backend_api, remote, artifacts, step, error):
@@ -256,7 +256,7 @@ def test_a_result_the_backend_created_as_final_without_delivery_is_left_alone(ba
 def test_a_result_just_recorded_as_switched_off_counts_an_attempt_and_waits_for_the_retry_sensor(
     backend_api, remote, artifacts
 ):
-    backend_api.create_result.return_value = result(state="FAILED", error="results link switched off")
+    backend_api.create_result.return_value = result(state="FAILED", error="results resource switched off")
 
     deliver(backend_api, remote, artifacts)
 
@@ -472,7 +472,7 @@ def test_the_retry_sensor_relaunches_a_failed_delivery_with_its_task_run():
     assert request.run_config == {"ops": {"deliver_results": {"config": {
         "project_id": 1, "task_id": 7, "run_id": "run-7"
     }}}}
-    backend_api.get_results_by_state.assert_called_once_with(1, "FAILED", active_link=True)
+    backend_api.get_results_by_state.assert_called_once_with(1, "FAILED", active_resource=True)
     backend_api.get_task.assert_called_once_with(1, 7)
     assert context.instance.get_runs.call_args.kwargs["filters"].job_name == "deliver_results_job"
 

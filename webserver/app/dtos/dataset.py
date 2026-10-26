@@ -51,7 +51,7 @@ class DatasetDTO(DTO):
 
 
 class ProjectDatasetDTO(DTO):
-    """A project's link to a global dataset, the dataset nested. Addressed by the dataset's id."""
+    """A project's resource for a global dataset, the dataset nested. Addressed by the dataset's id."""
     project_id: int
     dataset: DatasetDTO
     enabled: bool

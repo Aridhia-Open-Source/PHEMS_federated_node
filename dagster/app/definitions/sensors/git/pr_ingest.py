@@ -9,10 +9,10 @@ from app.models import TriggerRepository
 class PullRequestIngestSensor(LaunchingSensor, GitSensor):
     """
     Polls the git provider once per global trigger repository that is enabled, on an enabled
-    provider, with an enabled secret, whatever its project links. It uses the repository's own
+    provider, with an enabled secret, whatever its project resources. It uses the repository's own
     secret and the cursor the backend gives it, and launches ingest_pull_requests_job for each one
     with new merged PRs. The job posts them once for every project. The poll has no base branch
-    filter: each PR carries its base branch and the backend matches it per link. A disabled
+    filter: each PR carries its base branch and the backend matches it per project resource. A disabled
     project does not stop the poll, it gets no evaluation or launch.
 
     The run key names the repository and its cursor, see run_key: new merged PRs move the

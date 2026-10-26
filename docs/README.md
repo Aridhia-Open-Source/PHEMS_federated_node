@@ -1,6 +1,6 @@
 # Contents guide for reviewing the decisions and docs
 
-Start here. It lists every decision record (ADR) with what to check, the other docs by topic, and a reading order. Terms: a **GlobalResource** is a `Dataset`, `TriggerRepository`, `ResultsRepository` or `GitProvider` (a `Secret` is only used by GlobalResources). A **ProjectResource** is a project's link to one: `ProjectDataset`, `ProjectTriggerRepository`, `ProjectResultsRepository`.
+Start here. It lists every decision record (ADR) with what to check, the other docs by topic, and a reading order. Terms: a **GlobalResource** is a `Dataset`, `TriggerRepository`, `ResultsRepository` or `GitProvider` (a `Secret` is only used by GlobalResources). A **ProjectResource** is a project's own row for one: `ProjectDataset`, `ProjectTriggerRepository`, `ProjectResultsRepository`.
 
 ## Decision records
 
@@ -13,7 +13,7 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0003](../project/decisions/0003-task-status-written-by-run-status-sensors.md) | Task status written by the run-status and reconcile sensors | Delivery never writes the status; the launcher writes FAILED only for a rule. |
 | [0004](../project/decisions/0004-polymorphic-result-and-forward-only-state.md) | Polymorphic Result, forward-only step, separate state | A step only moves forward; MERGED, CLOSED, REVOKED and STALE are final. |
 | [0005](../project/decisions/0005-state-transition-tables.md) | State transition tables | `TRIGGER_MOVES`, `TASK_MOVES`, `RETRYABLE`, `RESULT_ORDER`; 409 on a refused move, 400 on a bad retry. |
-| [0006](../project/decisions/0006-global-resources-and-project-links.md) | Global resources linked to projects | The tables and links, the URL layout, datasets and the default dataset, cross-project loops. |
+| [0006](../project/decisions/0006-global-resources-and-project-resources.md) | Global resources and project resources | The tables and project resources, the URL layout, datasets and the default dataset, cross-project loops. |
 | [0007](../project/decisions/0007-secrets-and-secret-providers.md) | Generic Secret model and SecretProvider | A secret is a reference; the Secret rules are in [revoke-and-enabled.md](architecture/revoke-and-enabled.md#secrets). |
 | [0008](../project/decisions/0008-enabled-revoked-and-soft-delete.md) | Enabled, revoked and soft delete | The two flags, what each state does, soft delete, the listed gaps. |
 | [0009](../project/decisions/0009-task-pinned-to-its-configuration.md) | A task is pinned to its configuration | What the snapshot holds, the checks before launch and publish. |
@@ -58,7 +58,7 @@ Operations:
 
 1. This guide and [entities.md](architecture/entities.md): the schema and the three state machines.
 2. ADRs [0001](../project/decisions/0001-polymorphic-triggers.md), [0002](../project/decisions/0002-task-spec-and-derivation.md), [0003](../project/decisions/0003-task-status-written-by-run-status-sensors.md), [0004](../project/decisions/0004-polymorphic-result-and-forward-only-state.md) and [0005](../project/decisions/0005-state-transition-tables.md): triggers, tasks, results and who writes which state.
-3. ADRs [0006](../project/decisions/0006-global-resources-and-project-links.md) to [0009](../project/decisions/0009-task-pinned-to-its-configuration.md): global resources and their links, secrets, the two flags and soft delete, and task pinning. [revoke-and-enabled.md](architecture/revoke-and-enabled.md) shows what each flag does to each resource.
+3. ADRs [0006](../project/decisions/0006-global-resources-and-project-resources.md) to [0009](../project/decisions/0009-task-pinned-to-its-configuration.md): global resources and their project resources, secrets, the two flags and soft delete, and task pinning. [revoke-and-enabled.md](architecture/revoke-and-enabled.md) shows what each flag does to each resource.
 4. ADRs [0010](../project/decisions/0010-git-api-protocol-and-factory.md) to [0013](../project/decisions/0013-results-delivered-as-branch-and-pull-request.md): the git side, pull requests and cursors, and delivery.
 5. [flows.md](architecture/flows.md): the whole path from a merged pull request to a results pull request.
 6. ADRs [0014](../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md) and [0015](../project/decisions/0015-run-keys-retries-and-results-pr-sync.md) and the sensor and job inventory in [flows.md](architecture/flows.md#sensor-and-job-inventory): run keys, retries, the launcher rules. Then the [sensors docs](architecture/sensors/README.md), one per sensor.

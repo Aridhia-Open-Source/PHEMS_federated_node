@@ -101,7 +101,7 @@ None of the four limits what a task does with the dataset its credentials open. 
 
 ## Related
 
-- [0006](0006-global-resources-and-project-links.md) Global resources, linked to projects
+- [0006](0006-global-resources-and-project-resources.md) Global resources and project resources
 - [0007](0007-secrets-and-secret-providers.md) Generic Secret model and SecretProvider; per-repository tokens
 - [0008](0008-enabled-revoked-and-soft-delete.md) Enabled, revoked and soft delete
 - [0009](0009-task-pinned-to-its-configuration.md) A task is pinned to its configuration

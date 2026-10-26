@@ -4,7 +4,7 @@ Sensor `git_pull_request_evaluate_sensor` (`PullRequestEvaluateSensor`) and its 
 
 ## 1. Purpose
 
-Turns the UNKNOWN pull requests of a project into a task (the pull request becomes YIELDED) or a rejection (REJECTED, with a cause). The sensor finds the links that have UNKNOWN pull requests; the job reads each spec file from the git provider and hands it to the backend.
+Turns the UNKNOWN pull requests of a project into a task (the pull request becomes YIELDED) or a rejection (REJECTED, with a cause). The sensor finds the project resources that have UNKNOWN pull requests; the job reads each spec file from the git provider and hands it to the backend.
 
 ## 2. When it runs
 
@@ -20,10 +20,10 @@ Turns the UNKNOWN pull requests of a project into a task (the pull request becom
 | sensor | `GET /projects/{id}/repositories/triggers` | `active=true`: the ProjectTriggerRepository is enabled and not revoked, and its TriggerRepository and GitProvider are enabled and not revoked. |
 | sensor | `GET /projects/{id}/repositories/triggers/{repo}/pull_requests` | `state=UNKNOWN`, all pages. Only to know whether there are any and the newest number. |
 | job | same pull requests call | `state=UNKNOWN`, to load the pull requests. |
-| job | `GET /projects/{id}/repositories/triggers/{repo}` | The link, with its `watch_dir` and TriggerRepository. |
+| job | `GET /projects/{id}/repositories/triggers/{repo}` | The project resource, with its `watch_dir` and TriggerRepository. |
 | job | git provider: the spec file | Read at the pull request's `merge_commit_sha`, with the TriggerRepository's secret. |
 
-It considers enabled projects and their active ProjectTriggerRepositories. The GlobalResource TriggerRepository (with its GitProvider and secret) is read only by the job, through the link. The sensor does not call the git provider. The backend names the spec files of each pull request in `spec_files` (files the pull request adds, ending in `.json`, under `watch_dir`).
+It considers enabled projects and their active ProjectTriggerRepositories. The GlobalResource TriggerRepository (with its GitProvider and secret) is read only by the job, through the project resource. The sensor does not call the git provider. The backend names the spec files of each pull request in `spec_files` (files the pull request adds, ending in `.json`, under `watch_dir`).
 
 ## 4. Flow chart
 
@@ -32,13 +32,13 @@ Sensor:
 ```mermaid
 flowchart TD
     A([Tick]) --> B["GET /projects?enabled=true"]
-    B --> C["For each project: GET its trigger repository links, active=true"]
-    C --> D{"Next link?"}
+    B --> C["For each project: GET its trigger repository project resources, active=true"]
+    C --> D{"Next project resource?"}
     D -->|"none left"| Z{"Anything launched?"}
     D -->|yes| E{"Run in flight, tags repo_id and project_id?"}
     E -->|yes| D
-    E -->|no| F["GET pull requests of the link, state=UNKNOWN"]
-    F -->|error| G["Log it, remember the link as failed"]
+    E -->|no| F["GET pull requests of the project resource, state=UNKNOWN"]
+    F -->|error| G["Log it, remember the project resource as failed"]
     G --> D
     F --> H{"Any UNKNOWN?"}
     H -->|no| D
@@ -46,7 +46,7 @@ flowchart TD
     I --> D
     Z -->|yes| Y([Done])
     Z -->|"no, none failed"| X["SkipReason: no repositories with unknown pull requests"]
-    Z -->|"no, some failed"| W["Raise: Evaluation failed for the links"]
+    Z -->|"no, some failed"| W["Raise: Evaluation failed for the project resources"]
 ```
 
 Job:
@@ -55,7 +55,7 @@ Job:
 flowchart TD
     A(["load_unknown_pull_requests (project_id, repo_id)"]) --> B["Emit the UNKNOWN pull requests, oldest first, one output per number"]
     B --> C["evaluate_pull_request for each, 3 at a time, up to 3 retries"]
-    C --> D["GET the link. Build the git client from the TriggerRepository secret."]
+    C --> D["GET the project resource. Build the git client from the TriggerRepository secret."]
     D --> E{"spec_files of the pull request"}
     E -->|none| F["REJECTED: No new spec file under watch_dir"]
     E -->|"more than one"| G["REJECTED: Several new spec files under watch_dir"]
@@ -65,7 +65,7 @@ flowchart TD
     H --> J["POST .../pull_requests/n/task with spec_raw"]
     J -->|"200 or 201"| K(["Backend: pull request YIELDED, task PENDING"])
     J -->|400| L["Backend stored REJECTED with the cause. Log it."]
-    J -->|409| M["Skip, log it: no longer UNKNOWN, link inactive, project disabled or revoked"]
+    J -->|409| M["Skip, log it: no longer UNKNOWN, project resource inactive, project disabled or revoked"]
     J -->|"other error"| N["Raise: the op retries"]
 ```
 
@@ -73,7 +73,7 @@ flowchart TD
 
 | Output | Value |
 |---|---|
-| Run request | job `evaluate_repository_pull_requests_job`, one per link with UNKNOWN pull requests |
+| Run request | job `evaluate_repository_pull_requests_job`, one per project resource with UNKNOWN pull requests |
 | Run key | `evaluate/<project id>/<repository id>/<newest UNKNOWN number>/<slot>` |
 | Tags | `repo_id`, `project_id` |
 | Run config | `load_unknown_pull_requests: {project_id, repo_id}` |
@@ -86,18 +86,18 @@ The job runs up to 3 pull requests at once, to stay under the git provider's rat
 
 - A bad spec is an outcome, not an error. REJECTED is final and never re-evaluated.
 - A git or backend failure raises. The op retries 3 times with a growing delay (5 s, then doubling). After that the run fails and the pull request stays UNKNOWN.
-- A UNKNOWN pull request left behind keeps its link in the sensor's list. The next slot gives a new run key (the newest number is the same, the slot is not), so the link is evaluated again.
-- A 409 (the move is refused, [0005](../../../project/decisions/0005-state-transition-tables.md); the rule is skip, [0014](../../../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md)) leaves the pull request as it is. It is logged, not retried by the op. If the cause is still there (see section 7) the link is relaunched every retry interval.
-- A failing check of one link is logged and the others still launch. The tick fails only when nothing launched. A failure while listing projects or links fails the tick.
-- A link with a run queued or started is skipped.
+- A UNKNOWN pull request left behind keeps its project resource in the sensor's list. The next slot gives a new run key (the newest number is the same, the slot is not), so the project resource is evaluated again.
+- A 409 (the move is refused, [0005](../../../project/decisions/0005-state-transition-tables.md); the rule is skip, [0014](../../../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md)) leaves the pull request as it is. It is logged, not retried by the op. If the cause is still there (see section 7) the project resource is relaunched every retry interval.
+- A failing check of one project resource is logged and the others still launch. The tick fails only when nothing launched. A failure while listing projects or project resources fails the tick.
+- A project resource with a run queued or started is skipped.
 
 ## 7. How `enabled` and `revoked` change what it does
 
 | State | Effect |
 |---|---|
-| Project disabled | Not listed: its links are not looked at. Its UNKNOWN pull requests wait until it is enabled. |
+| Project disabled | Not listed: its project resources are not looked at. Its UNKNOWN pull requests wait until it is enabled. |
 | Project disabled after its triggers were created | Not listed, so nothing is launched; its UNKNOWN pull requests stay UNKNOWN and are evaluated once the project is enabled and not revoked. A run already started gets a 409 for a valid pull request, and skips. |
 | Project revoked (still enabled) | Still listed and still launched. A pull request without exactly one spec file is still marked REJECTED. A valid one gets a 409 from the backend (the project is revoked): it stays UNKNOWN and is relaunched every retry interval until the project is restored. The backend also creates no new triggers for it. |
 | ProjectTriggerRepository disabled or revoked | Not in the `active=true` list: skipped. A run already started gets a 409 for it, and skips. |
-| TriggerRepository or GitProvider disabled or revoked | Same: the link is not active. |
+| TriggerRepository or GitProvider disabled or revoked | Same: the project resource is not active. |
 | Secret disabled | Not checked by the sensor. The job fails when it reads the token (`PermissionError`), after its retries. The next slot tries again. |

@@ -1,4 +1,4 @@
-"""/projects API: CRUD, enabled and backfill semantics, link gating (datasets, secrets), delete cascade."""
+"""/projects API: CRUD, enabled and backfill semantics, resource gating (datasets, secrets), delete cascade."""
 import pytest
 
 from app.helpers.base_model import db
@@ -136,8 +136,8 @@ def test_enable_with_backfill_is_200_and_stores_no_backfill_field(client, admin_
     assert "backfill" not in client.get(f"/projects/{project.id}", headers=admin_headers).json
 
 
-def test_disable_keeps_links_and_the_repository_stays_pollable(
-        client, admin_headers, enabled_project, linked_trigger_repo, linked_secret, linked_dataset,
+def test_disable_keeps_resources_and_the_repository_stays_pollable(
+        client, admin_headers, enabled_project, assigned_trigger_repo, assigned_secret, assigned_dataset,
         global_trigger_repo):
     pid = enabled_project.id
     assert patch(client, admin_headers, pid, enabled=False).status_code == 200
@@ -145,18 +145,18 @@ def test_disable_keeps_links_and_the_repository_stays_pollable(
     assert triggers[0]["trigger_repository"]["id"] == global_trigger_repo.id
     assert len(client.get(f"/projects/{pid}/secrets", headers=admin_headers).json) == 1
     assert len(client.get(f"/projects/{pid}/datasets", headers=admin_headers).json) == 1
-    # polling ignores project links: the repository is still polled
+    # polling ignores project resources: the repository is still polled
     polled = client.get("/global/repositories/triggers?pollable=true", headers=admin_headers).json
     assert [r["id"] for r in polled] == [global_trigger_repo.id]
 
 
-# ---------------------------------------------------------------- secret links
+# ---------------------------------------------------------------- secret resources
 
-def test_secret_link_get_list_and_errors(client, admin_headers, project, other_project, global_secret):
+def test_secret_resource_get_list_and_errors(client, admin_headers, project, other_project, global_secret):
     url = f"/projects/{project.id}/secrets/test-creds"
-    linked = client.put(url, json={}, headers=admin_headers)
-    assert linked.status_code == 201, linked.json
-    assert linked.json["active"] is True and linked.json["secret"]["label"] == "test-creds"
+    resource = client.put(url, json={}, headers=admin_headers)
+    assert resource.status_code == 201, resource.json
+    assert resource.json["active"] is True and resource.json["secret"]["label"] == "test-creds"
     assert client.get(url, headers=admin_headers).status_code == 200
     assert len(client.get(f"/projects/{project.id}/secrets", headers=admin_headers).json) == 1
     assert client.put(f"/projects/{project.id}/secrets/nope", json={}, headers=admin_headers).status_code == 404
@@ -164,7 +164,7 @@ def test_secret_link_get_list_and_errors(client, admin_headers, project, other_p
     assert client.get(f"/projects/{other_project.id}/secrets/test-creds", headers=admin_headers).status_code == 404
 
 
-def test_link_changes_ignore_tasks_in_flight(client, admin_headers, project, linked_secret, make_task):
+def test_resource_changes_ignore_tasks_in_flight(client, admin_headers, project, assigned_secret, make_task):
     url = f"/projects/{project.id}/secrets/test-creds"
     make_task()  # in flight
     assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 200
@@ -174,19 +174,19 @@ def test_link_changes_ignore_tasks_in_flight(client, admin_headers, project, lin
     assert client.get(f"/projects/{project.id}/secrets", headers=admin_headers).json == []
 
 
-def test_a_trigger_link_to_an_enabled_project_is_201(client, admin_headers, project, global_trigger_repo):
+def test_assigning_a_trigger_repository_to_an_enabled_project_is_201(client, admin_headers, project, global_trigger_repo):
     response = client.put(f"/projects/{project.id}/repositories/triggers/{global_trigger_repo.id}",
                           json={"watch_dir": "triggers"}, headers=admin_headers)
     assert response.status_code == 201
 
 
-# ---------------------------------------------------------------- dataset links and default dataset
+# ---------------------------------------------------------------- dataset resources and default dataset
 
-def test_dataset_link_get_list_and_errors(client, admin_headers, project, other_project, global_dataset):
+def test_dataset_resource_get_list_and_errors(client, admin_headers, project, other_project, global_dataset):
     url = f"/projects/{project.id}/datasets/{global_dataset.id}"
-    linked = client.put(url, json={}, headers=admin_headers)
-    assert linked.status_code == 201, linked.json
-    assert linked.json["active"] is True and linked.json["dataset"]["id"] == global_dataset.id
+    resource = client.put(url, json={}, headers=admin_headers)
+    assert resource.status_code == 201, resource.json
+    assert resource.json["active"] is True and resource.json["dataset"]["id"] == global_dataset.id
     assert client.get(url, headers=admin_headers).status_code == 200
     assert len(client.get(f"/projects/{project.id}/datasets", headers=admin_headers).json) == 1
     assert client.put(f"/projects/{project.id}/datasets/999", json={}, headers=admin_headers).status_code == 404
@@ -197,14 +197,14 @@ def test_dataset_link_get_list_and_errors(client, admin_headers, project, other_
                       headers=admin_headers).status_code == 404
 
 
-def test_dataset_link_disable_unlink_and_default_dataset(
-        client, admin_headers, project, linked_dataset, global_dataset):
+def test_dataset_resource_disable_unassign_and_default_dataset(
+        client, admin_headers, project, assigned_dataset, global_dataset):
     url = f"/projects/{project.id}/datasets/{global_dataset.id}"
     assert client.get(f"/projects/{project.id}", headers=admin_headers).json["default_dataset_id"] == global_dataset.id
     disabled = client.patch(url, json={"enabled": False}, headers=admin_headers)
     assert disabled.status_code == 200 and disabled.json["active"] is False
     assert client.delete(url, headers=admin_headers).status_code == 204
-    # unlinking the default dataset clears the project default
+    # unassigning the default dataset clears the project default
     assert client.get(f"/projects/{project.id}", headers=admin_headers).json["default_dataset_id"] is None
 
 
@@ -230,18 +230,18 @@ def test_delete_with_a_task_in_flight_works_and_its_tasks_are_gone_from_the_api(
     assert client.get(f"/projects/{project.id}/tasks", headers=admin_headers).status_code == 404
 
 
-def test_delete_cascades_links_but_keeps_global_resources(
-        client, admin_headers, k8s_client, project, other_project, linked_secret, linked_dataset,
-        linked_trigger_repo, linked_results_repo, global_secret, global_dataset, global_trigger_repo):
+def test_delete_cascades_project_resources_but_keeps_global_resources(
+        client, admin_headers, k8s_client, project, other_project, assigned_secret, assigned_dataset,
+        assigned_trigger_repo, assigned_results_repo, global_secret, global_dataset, global_trigger_repo):
     assert client.put(f"/projects/{other_project.id}/secrets/test-creds", json={}, headers=admin_headers).status_code == 201
     assert client.delete("/global/secrets/test-creds", headers=admin_headers).status_code == 409
     assert client.delete(f"/projects/{project.id}", headers=admin_headers).status_code == 204
     assert client.get(f"/projects/{project.id}/secrets", headers=admin_headers).status_code == 404
-    links = (ProjectSecret, ProjectDataset, ProjectTriggerRepository, ProjectResultsRepository)
-    for model in links:  # soft deleted and revoked, not removed
+    resources = (ProjectSecret, ProjectDataset, ProjectTriggerRepository, ProjectResultsRepository)
+    for model in resources:  # soft deleted and revoked, not removed
         (row,) = db.session.query(model).filter_by(project_id=project.id).execution_options(include_deleted=True).all()
         assert row.deleted_at is not None and row.revoked is True
-    # global resources (incl. the project's default dataset) survive; other projects keep their links
+    # global resources (incl. the project's default dataset) survive; other projects keep their resources
     assert client.get(f"/global/datasets/{global_dataset.id}", headers=admin_headers).status_code == 200
     assert client.get(f"/global/repositories/triggers/{global_trigger_repo.id}", headers=admin_headers).status_code == 200
     assert client.get(f"/projects/{other_project.id}/secrets/test-creds", headers=admin_headers).status_code == 200

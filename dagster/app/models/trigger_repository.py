@@ -30,15 +30,15 @@ class TriggerRepository(BaseModel):
 
 class ProjectTriggerRepository(BaseModel):
     """
-    A project's link to a global trigger repository, from backend API. Addressed by the
+    A project's resource for a global trigger repository, from backend API. Addressed by the
     global repository's id, trigger_repository.id.
 
-    - project_id: the project the repository is linked to.
+    - project_id: the project the repository is assigned to.
     - trigger_repository: the global repository.
     - dataset_id: from the project's default dataset, so a project without one has none.
     - enabled: a person turned the repository on for the project.
     - revoked: the controller withdrew the project's access.
-    - active: the global repository is enabled, and the link is enabled and not revoked.
+    - active: the global repository is enabled, and the project resource is enabled and not revoked.
     """
 
     model_config = ConfigDict(extra="allow")

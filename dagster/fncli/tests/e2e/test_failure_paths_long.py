@@ -1,14 +1,14 @@
 """
 The long-running failure paths of the GlobalResource flow: the groups where a task runs to the end or a result is delivered.
 Same style as the happy path: one test per fncli command or expected state, in order, on one project, stopping at the first
-failure with the last snapshot. Each group of tests leaves the project as the next expects it: links active, tokens restored,
+failure with the last snapshot. Each group of tests leaves the project as the next expects it: resources active, tokens restored,
 everything switched back on. The quick groups, which never wait for a task to run, are in test_failure_paths.py (run with
 `--e2e failure`), and its docstring lists what no e2e suite covers for now.
 
 It starts with a second project on the same repository, a lost token and its recovery, and a failing task. Then a project that
 is disabled while a pull request is merged gets that pull request's task when it is enabled with backfill. The last group is
-work in flight: a results link switched off before delivery (the result is held FAILED and the delivery retry sensor delivers
-it once the link is on). The rules are in ../../../../docs/architecture/revoke-and-enabled.md.
+work in flight: a results resource switched off before delivery (the result is held FAILED and the delivery retry sensor delivers
+it once the resource is on). The rules are in ../../../../docs/architecture/revoke-and-enabled.md.
 
 It clears and sets up the project itself, so it runs on its own on a fresh project.
 
@@ -32,7 +32,7 @@ from fncli.cmds.secret import (
 )
 from fncli.cmds.sensor import DELIVERY_RETRY_SENSOR, sensor_status_command
 from fncli.cmds.state import (
-    link_set_command,
+    resource_set_command,
     project_set_command,
     second_project_setup_command,
     second_project_teardown_command,
@@ -68,7 +68,7 @@ from fncli.tests.e2e.conftest import (
     task_has_status,
     tasks_finished,
     teardown_step,
-    trigger_link,
+    trigger_resource,
     yielded_with_task,
 )
 
@@ -121,7 +121,7 @@ def test_verify_project_after_setup(fncli):
 def test_project_starts_empty(fncli):
     snapshot = fncli.snapshot()
     assert counts(snapshot) == (0, 0), f"expected a project with no PRs or tasks\n{summary(snapshot)}"
-    assert trigger_link(snapshot)["active"] is True
+    assert trigger_resource(snapshot)["active"] is True
 
 
 # --- a second project on the same repository ---------------------------------------------
@@ -163,8 +163,8 @@ def test_second_project_both_projects_get_a_task(fncli, flow):
     assert flow["second_project_task_one"] != flow["second_project_task_two"], "both projects share one task for the same PR"
 
 
-def test_second_project_revoke_second_projects_link(fncli):
-    fncli.call(link_set_command, kind="trigger", revoked="true", project=SECOND_PROJECT, expect=200)
+def test_second_project_revoke_second_projects_resource(fncli):
+    fncli.call(resource_set_command, kind="trigger", revoked="true", project=SECOND_PROJECT, expect=200)
 
 
 def test_second_project_wait_for_tasks_to_finish_again(fncli):
@@ -197,7 +197,7 @@ def test_second_project_only_the_test_project_gets_the_next_pr(fncli, flow):
     fncli.wait_for_state("the test project's next PR with a task (+1 each)", STEP_TIMEOUT, grew_by_one(flow, "second_project_variant_before"))
     quiet_wait(QUIET_TICKS)
     two = counts(fncli.snapshot(SECOND_PROJECT))
-    assert two == flow["second_project_variant_two_before"], f"{SECOND_PROJECT} got something through its revoked link: {two}"
+    assert two == flow["second_project_variant_two_before"], f"{SECOND_PROJECT} got something through its revoked resource: {two}"
 
 
 def test_second_project_wait_for_tasks_to_finish_before_teardown(fncli):
@@ -363,51 +363,51 @@ def test_backfill_task_finishes(fncli):
     fncli.wait_for_state("no task in flight", TASK_TIMEOUT, tasks_finished)
 
 
-# --- work in flight: a results link switched off before delivery is held FAILED, delivered once the link is on ----------------
+# --- work in flight: a results resource switched off before delivery is held FAILED, delivered once the resource is on ----------------
 
 
-def test_switched_off_results_link_wait_for_tasks_to_finish(fncli):
+def test_switched_off_results_resource_wait_for_tasks_to_finish(fncli):
     fncli.wait_for_state("no task in flight and every result settled", TASK_TIMEOUT, drained)
 
 
-def test_switched_off_results_link_switch_off_link(fncli):
-    fncli.call(link_set_command, kind="results", enabled="false", expect=200)
+def test_switched_off_results_resource_switch_off_resource(fncli):
+    fncli.call(resource_set_command, kind="results", enabled="false", expect=200)
 
 
-def test_switched_off_results_link_link_inactive(fncli):
-    fncli.wait_for_state("the results link inactive", STEP_TIMEOUT, lambda s: s["results_links"][0]["active"] is False)
+def test_switched_off_results_resource_inactive(fncli):
+    fncli.wait_for_state("the results resource inactive", STEP_TIMEOUT, lambda s: s["results_resources"][0]["active"] is False)
 
 
-def test_switched_off_results_link_merge_pr(fncli, flow):
-    """A switched off results link does not stop the task: it launches and runs."""
-    merge_pr_with_task(fncli, flow, "switched_off_results_link")
+def test_switched_off_results_resource_merge_pr(fncli, flow):
+    """A switched off results resource does not stop the task: it launches and runs."""
+    merge_pr_with_task(fncli, flow, "switched_off_results_resource")
 
 
-def test_switched_off_results_link_task_succeeds(fncli, flow):
-    fncli.wait_for_state("the task SUCCESS", TASK_TIMEOUT, task_has_status(flow, "switched_off_results_link_task", "SUCCESS"))
+def test_switched_off_results_resource_task_succeeds(fncli, flow):
+    fncli.wait_for_state("the task SUCCESS", TASK_TIMEOUT, task_has_status(flow, "switched_off_results_resource_task", "SUCCESS"))
 
 
-def test_switched_off_results_link_result_is_held_failed(fncli, flow):
-    """Recorded by the backend at step UNKNOWN, state FAILED ("results link switched off"): not final, nothing pushed."""
-    fncli.wait_for_state("the result FAILED, held", TASK_TIMEOUT, result_with(flow, "switched_off_results_link_task", "UNKNOWN", "FAILED"))
+def test_switched_off_results_resource_result_is_held_failed(fncli, flow):
+    """Recorded by the backend at step UNKNOWN, state FAILED ("results resource switched off"): not final, nothing pushed."""
+    fncli.wait_for_state("the result FAILED, held", TASK_TIMEOUT, result_with(flow, "switched_off_results_resource_task", "UNKNOWN", "FAILED"))
 
 
-def test_switched_off_results_link_not_delivered_while_off(fncli, flow):
-    """The retry sensor lists only the results whose link is active, so the result stays held."""
+def test_switched_off_results_resource_not_delivered_while_off(fncli, flow):
+    """The retry sensor lists only the results whose resource is active, so the result stays held."""
     quiet_wait(QUIET_TICKS, [*QUIET_SENSORS, DELIVERY_RETRY_SENSOR])
     snapshot = fncli.snapshot()
-    results = results_of(snapshot, flow["switched_off_results_link_task"])
+    results = results_of(snapshot, flow["switched_off_results_resource_task"])
     assert [(r["step"], r["state"]) for r in results] == [("UNKNOWN", "FAILED")], f"unexpected results\n{json.dumps(summary(snapshot), indent=2)}"
 
 
-def test_switched_off_results_link_switch_on_link(fncli):
-    fncli.call(link_set_command, kind="results", enabled="true", expect=200)
+def test_switched_off_results_resource_switch_on_resource(fncli):
+    fncli.call(resource_set_command, kind="results", enabled="true", expect=200)
 
 
-def test_switched_off_results_link_retry_sensor_delivers(fncli, flow):
+def test_switched_off_results_resource_retry_sensor_delivers(fncli, flow):
     def delivered(snapshot):
         return next(
-            (r for r in results_of(snapshot, flow["switched_off_results_link_task"]) if r["state"] == "DELIVERED" and r["step"] in DELIVERED_STEPS), None
+            (r for r in results_of(snapshot, flow["switched_off_results_resource_task"]) if r["state"] == "DELIVERED" and r["step"] in DELIVERED_STEPS), None
         )
 
     result = fncli.wait_for_state("the held result DELIVERED by the retry sensor", TASK_TIMEOUT, delivered)

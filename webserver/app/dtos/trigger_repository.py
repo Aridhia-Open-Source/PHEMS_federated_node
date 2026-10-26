@@ -44,7 +44,7 @@ class TriggerRepositoryRefDTO(DTO):
 
 
 class ProjectTriggerRepositoryDTO(DTO):
-    """A project's link to a global trigger repository, the repository nested. Addressed by the repository's id."""
+    """A project's resource for a global trigger repository, the repository nested. Addressed by the repository's id."""
     project_id: int
     trigger_repository: TriggerRepositoryDTO
     watch_dir: str
@@ -96,7 +96,7 @@ class PullRequestTriggerDTO(DTO):
     state: str
     state_cause: str | None
     task_id: int | None
-    # Paths of the new spec files under the link's watch_dir; the evaluate step reads from these
+    # Paths of the new spec files under the project resource's watch_dir; the evaluate step reads from these
     spec_files: list[str]
 
 

@@ -353,7 +353,7 @@ def get_task_config(project_id, task_id):
     GET /projects/<project_id>/tasks/id/config endpoint. Whether the configuration the task was created
     under (its results repository and target_dir, its dataset) is still the current one. If not, the task
     must not launch or publish, and changes lists what differs. A task without a stored snapshot is current.
-    config_snapshot is the pinned configuration itself: delivery takes its target_dir from it, as the link may be deleted by then.
+    config_snapshot is the pinned configuration itself: delivery takes its target_dir from it, as the project resource may be deleted by then.
     revoked names what the task uses that is revoked or deleted (its project, trigger, dataset or results repository): such a
     task must not launch either, and its results are never delivered.
     outcome is the decision for a PENDING task, "launch" or "fail", and cause says why when it fails: see

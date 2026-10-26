@@ -27,7 +27,7 @@ Check: this may leave a `SUCCESS` task with no result. Record what you see.
 3. Wait ten intervals. `fncli project-show`; look at the delivery run in the Dagster UI.
 
 - **Expected:** the sources do not say. The delivery job's first call is `POST /projects/<pid>/results`; if it fails the run fails before a result exists, and the retry sensor only retries results that are already `FAILED`. If the task ends `SUCCESS` with no result and no later delivery, record it as a finding. If a result appears, note which sensor and run delivered it.
-- **Rule:** the retry sensor lists `FAILED` results on active links ([Run keys, retries and the results pull request sync]).
+- **Rule:** the retry sensor lists `FAILED` results on active project resources ([Run keys, retries and the results pull request sync]).
 - **Automated by:** Manual only.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -144,7 +144,7 @@ Needs a short token life: the chart value `token.life` (seconds). Lower it on th
 3. Optionally repeat with twenty.
 
 - **Expected:** the stored count and the pull request count are each up by five, the task count is up by five, each pull request has exactly one trigger and one task, no duplicate, no `REJECTED`. Five results. Pull requests merged in the same second keep a stable order (merge time, then number).
-- **Rule:** a pull request is unique by repository and number and by repository, base branch and merge commit; one task per trigger; the cursor orders by `(merged_at, number)` ([Pull requests stored once per repository, fanned out to project links, with cursors]).
+- **Rule:** a pull request is unique by repository and number and by repository, base branch and merge commit; one task per trigger; the cursor orders by `(merged_at, number)` ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
 - **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_ingest_fans_out_and_is_idempotent`, the cursor and merge-commit tests) test a batch posted at once; `dagster/app/tests/test_ingest_job.py` the batching. Real parallel merges and parallel runs are not tested.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -180,7 +180,7 @@ Needs an image that sleeps for a long time, or a spec with an image that cannot 
 [Authorization detached from DAR, Keycloak and whitelisted images]: ../decisions/0017-authorization-detached-from-dar-and-keycloak.md
 [Generic Secret model and SecretProvider; per-repository tokens]: ../decisions/0007-secrets-and-secret-providers.md
 [GitAPI protocol and GitAPIFactory over Gitea and GitHub]: ../decisions/0010-git-api-protocol-and-factory.md
-[Pull requests stored once per repository, fanned out to project links, with cursors]: ../decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md
+[Pull requests stored once per repository, fanned out to project resources, with cursors]: ../decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md
 [Responsibility: the webserver owns the record and the rules; Dagster carries out decisions]: ../decisions/0021-webserver-owns-the-record-and-the-rules.md
 [Results delivered as a pushed branch plus a results pull request]: ../decisions/0013-results-delivered-as-branch-and-pull-request.md
 [Run keys, retries and the results pull request sync]: ../decisions/0015-run-keys-retries-and-results-pr-sync.md

@@ -88,7 +88,7 @@ fncli teardown-gitea -y [--project NAME]
 fncli teardown-backend -y
 ```
 
-- `setup-project`: builds the dev project. Side effects: creates two Gitea repos (trigger and results), a Gitea token for each (`fn-sensor`, `fn-results`), the K8s secrets holding them and the dataset's credentials (via the backend; dummies unless the `DATASET_*` env vars are set, see below), and the backend records: the project, the global git provider (the Gitea host), trigger repository, results repository and dataset, and the project's assignment of each. The project is created disabled and enabled at the end, once its links are set up.
+- `setup-project`: builds the dev project. Side effects: creates two Gitea repos (trigger and results), a Gitea token for each (`fn-sensor`, `fn-results`), the K8s secrets holding them and the dataset's credentials (via the backend; dummies unless the `DATASET_*` env vars are set, see below), and the backend records: the project, the global git provider (the Gitea host), trigger repository, results repository and dataset, and the project's assignment of each. The project is created disabled and enabled at the end, once its resources are set up.
 - `open-pr`: opens a PR in the trigger repo for the sensor to find. Side effects: a new branch, one new file and a PR in Gitea; with `--merge` the PR is merged, which is what the sensor picks up.
 - `teardown-project -y`: deletes the lot, side effects included: the backend project and its assignments, then the global dataset, repositories, git provider (unless another project's repositories are still on it) and secrets (backend and K8s), the Gitea tokens and both Gitea repos with all their PRs. `-y` skips the prompt.
 
@@ -122,7 +122,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 
 | Command | What it does |
 |---|---|
-| `init-backend-project` | Finds or creates the test project in the backend. A new project is disabled (a results repository can only be linked to a disabled project); enable it with `project-set --enabled true` |
+| `init-backend-project` | Finds or creates the test project in the backend. A new project is disabled (a results repository can only be assigned to a disabled project); enable it with `project-set --enabled true` |
 | `delete-backend-project` | Deletes the project with its tasks, triggers and assignments (`DELETE /projects/<id>`). The global secrets, datasets and repositories stay |
 | `project-healthcheck` | Prints the backend's healthcheck for the test project as JSON (can the repos be reached with their tokens?). Exits 1 unless the status is `ok` |
 
@@ -206,17 +206,17 @@ check the 409 rules. `KIND` is `trigger`, `results`, `dataset` or `secret`; `--p
 
 | Command | What it does |
 |---|---|
-| `project-show [--project]` | JSON of the project's links (enabled, revoked, active), their pull requests (state, task), tasks and results. Read-only; stdout is clean JSON, so it pipes into `jq` |
+| `project-show [--project]` | JSON of the project's resources (enabled, revoked, active), their pull requests (state, task), tasks and results. Read-only; stdout is clean JSON, so it pipes into `jq` |
 | `project-set [--enabled true\|false] [--revoked true\|false] [--backfill]` | Enables or disables the project, or revokes or restores it (admin only) (`PATCH /projects/<id>`). A new project is disabled; enabling it skips the pull requests stored while it was off, unless `--backfill` (with `--enabled true`, on a disabled project) creates their triggers |
-| `link-set KIND --enabled/--revoked true\|false` | Sets the flags of the project's link to a global resource. `--revoked` is admin only and immediate |
-| `global-set KIND [--enabled true\|false] [--revoked true\|false]` | Turns the global resource behind the link on or off; `--revoked` (admin only, trigger and results) withdraws it from every project |
+| `resource-set KIND --enabled/--revoked true\|false` | Sets the flags of the project's resource for a global resource. `--revoked` is admin only and immediate |
+| `global-set KIND [--enabled true\|false] [--revoked true\|false]` | Turns the global resource behind the project's resource on or off; `--revoked` (admin only, trigger and results) withdraws it from every project |
 | `secret-set [--entity trigger\|results\|dataset] --enabled true\|false` | Turns a secret on or off. Off also disables the repositories and datasets that use it, and they stay off when it is turned on |
-| `second-project-setup NAME` | Creates a second project linked to the same global resources (secrets, dataset, trigger and results repositories), enabled |
+| `second-project-setup NAME` | Creates a second project assigned the same global resources (secrets, dataset, trigger and results repositories), enabled |
 | `second-project-teardown NAME` | Deletes that project. The global resources stay |
 
 ## Demo
 
-`fncli demo` walks through setting up everything needed to watch a Gitea repo, then proves it works: the two Gitea repos, the secrets, the project and its links, a merged pull request and its results. Before each step it says what the step creates, shows the equivalent fncli command and asks: Enter runs it, `s` skips it, `q` quits. Steps are separated by a line of dashes. After each step it lists the webserver calls it made (`METHOD /path -> status`, repeats counted) and shows what the step made: links to open in the browser (`Open:` lines) and the backend objects as JSON. A step that changes the project waits for the change to show in the project's state, polling every second, and prints it when it changes. A last, optional step tears the demo down (it asks again, default No).
+`fncli demo` walks through setting up everything needed to watch a Gitea repo, then proves it works: the two Gitea repos, the secrets, the project and its resources, a merged pull request and its results. Before each step it says what the step creates, shows the equivalent fncli command and asks: Enter runs it, `s` skips it, `q` quits. Steps are separated by a line of dashes. After each step it lists the webserver calls it made (`METHOD /path -> status`, repeats counted) and shows what the step made: links to open in the browser (`Open:` lines) and the backend objects as JSON. A step that changes the project waits for the change to show in the project's state, polling every second, and prints it when it changes. A last, optional step tears the demo down (it asks again, default No).
 
 ```bash
 cp .demo.env.example .demo.env   # once, in the repo root
@@ -227,7 +227,7 @@ cp .demo-github.env.example .demo-github.env
 fncli demo -y --env-file .demo-github.env   # the same on GitHub (phems-sandbox)
 ```
 
-It needs the dev cluster with Tilt running and the Dagster sensors already running. The secrets, git provider, repository records and dataset are global (they belong to no project) and only the links to them belong to the project, while the Gitea repos live only in Gitea; each step says which it touches. The demo's own project, repos and dataset names are in `.demo.env`, which overrides `.dev.env`, so it never touches the e2e project; the steps are idempotent, so it can be rerun.
+It needs the dev cluster with Tilt running and the Dagster sensors already running. The secrets, git provider, repository records and dataset are global (they belong to no project) and only the project's resources for them belong to the project, while the Gitea repos live only in Gitea; each step says which it touches. The demo's own project, repos and dataset names are in `.demo.env`, which overrides `.dev.env`, so it never touches the e2e project; the steps are idempotent, so it can be rerun.
 
 On GitHub (`TEST_GIT_PROVIDER=github`, see `.demo-github.env.example`) the repo must already exist and `GH_TOKEN` in `.dev.env` is stored as both repos' secret; fncli never creates or deletes GitHub repos or tokens. It uses the sensors' own client, `app/github.py`. `GIT_PROVIDER` is not the switch: `.dev.env` sets that for other tools.
 
@@ -311,7 +311,7 @@ fncli imports the shared client code and models from `app` (`app.backend`, `app.
 ## Simulation (several providers, repositories and projects)
 
 `fncli simulate-setup`, `simulate-run`, `simulate-check` and `simulate-teardown` run a multi-provider simulation on the dev cluster
-(`fncli/cmds/simulate.py`, logic in `fncli/simulation.py`). Four projects (`SimOne` to `SimFour`) link three trigger repositories and
+(`fncli/cmds/simulate.py`, logic in `fncli/simulation.py`). Four projects (`SimOne` to `SimFour`) are assigned three trigger repositories and
 two results repositories over two `GitProvider`s: the cluster's Gitea under its own name, and under an alias host `gitea-b` (a
 Kubernetes ExternalName service the setup creates, so the providers' `uri` stay unique). One project watches repositories on both
 providers, one repository is shared by two projects, and the projects deliver to different results repositories.

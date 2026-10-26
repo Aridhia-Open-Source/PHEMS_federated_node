@@ -16,8 +16,8 @@ logger = logging.getLogger("project")
 
 def init_backend_project(config: ProjectConfig, backend_api: FncliBackendAPI) -> Project:
     """
-    Find or create the project, disabled when new: a results repository can only be linked to a
-    disabled project. Enable it once its links are set up (project-set --enabled true).
+    Find or create the project, disabled when new: a results repository can only be assigned to a
+    disabled project. Enable it once its resources are set up (project-set --enabled true).
     """
     project = backend_api.get_or_create_project(
         name=config.project_name,

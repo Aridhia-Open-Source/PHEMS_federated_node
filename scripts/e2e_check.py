@@ -2,7 +2,7 @@
 Checks the backend state during scripts/e2e_shared_resources.sh. Run with the python of the pipx venv fncli is installed in
 (the shell script does this), from the repo root, so fncli finds .dev.env.
 
-    e2e_check.py snapshot                     print the test project's links, PRs and tasks as JSON
+    e2e_check.py snapshot                     print the test project's resources, PRs and tasks as JSON
     e2e_check.py wait-prs [--timeout SECONDS] wait until the PRs the script opened are all evaluated, then check them
     e2e_check.py wait-tasks [--timeout SECONDS] wait until every task is finished (SUCCESS), warn if not
 
@@ -27,15 +27,15 @@ def snapshot(api, project_name):
     project = api.find_project(project_name)
     if project is None:
         raise SystemExit(f"project {project_name!r} not found: did setup-project run?")
-    links = get_json(api, f"/projects/{project.id}/repositories/triggers")
-    out = {"project": {"id": project.id, "enabled": project.enabled}, "trigger_links": [], "tasks": []}
-    for link in links:
-        repo_id = link["trigger_repository"]["id"]
+    resources = get_json(api, f"/projects/{project.id}/repositories/triggers")
+    out = {"project": {"id": project.id, "enabled": project.enabled}, "trigger_resources": [], "tasks": []}
+    for resource in resources:
+        repo_id = resource["trigger_repository"]["id"]
         prs = get_json(api, f"/projects/{project.id}/repositories/triggers/{repo_id}/pull_requests", per_page=100)
-        out["trigger_links"].append(
+        out["trigger_resources"].append(
             {
                 "repository_id": repo_id,
-                "active": link["active"],
+                "active": resource["active"],
                 "pull_requests": [
                     {k: pr.get(k) for k in ("number", "state", "state_cause", "task_id")} for pr in prs["items"]
                 ],
@@ -71,7 +71,7 @@ def command_wait_prs(api, config, args):
 
     def check():
         snap = snapshot(api, config.project_name)
-        states = {pr["state"] for link in snap["trigger_links"] for pr in link["pull_requests"]}
+        states = {pr["state"] for resource in snap["trigger_resources"] for pr in resource["pull_requests"]}
         return snap if want <= states else None
 
     snap = wait_for(check, args.timeout)
@@ -80,11 +80,11 @@ def command_wait_prs(api, config, args):
         print(json.dumps(snapshot(api, config.project_name), indent=2))
         print("Check: fncli sensor-status (ingest and evaluate running? errors in the ticks?)")
         return 1
-    prs = [pr for link in snap["trigger_links"] for pr in link["pull_requests"]]
+    prs = [pr for resource in snap["trigger_resources"] for pr in resource["pull_requests"]]
     problems = []
-    for link in snap["trigger_links"]:
-        if len(link["pull_requests"]) != 2:
-            problems.append(f"link {link.get('repository_id', '?')} has {len(link['pull_requests'])} pull requests, expected 2 (the watched and the invalid one: the unwatched PR creates no trigger)")
+    for resource in snap["trigger_resources"]:
+        if len(resource["pull_requests"]) != 2:
+            problems.append(f"trigger resource {resource.get('repository_id', '?')} has {len(resource['pull_requests'])} pull requests, expected 2 (the watched and the invalid one: the unwatched PR creates no trigger)")
     for pr in prs:
         if pr["state"] == "YIELDED" and not pr["task_id"]:
             problems.append(f"PR {pr['number']} is YIELDED but has no task_id")

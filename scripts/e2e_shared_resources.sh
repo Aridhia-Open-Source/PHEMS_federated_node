@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end check of the shared-resources flow against a real dev cluster: global resources and project links created
+# End-to-end check of the shared-resources flow against a real dev cluster: global resources and project resources created
 # with fncli, Gitea PRs ingested by Dagster, tasks created and run.
 #
 #   scripts/e2e_shared_resources.sh            run it, tear the project down at the end
@@ -41,7 +41,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-step "1. setup-project (global secrets, repos, dataset, project and its links, healthcheck)"
+step "1. setup-project (global secrets, repos, dataset, project and its resources, healthcheck)"
 fncli setup-project || { fail "setup-project"; exit 1; }
 fncli project-healthcheck || fail "project-healthcheck is not ok"
 
