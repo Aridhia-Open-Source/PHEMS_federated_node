@@ -178,7 +178,7 @@ local_resource(
 )
 
 # The experiments chart's database, in its own namespace and release rather than the node's.
-# Waits quietly until `make experiments setup NAME` has created it.
+# Waits quietly until `fncli experiment up` has created it.
 local_resource(
   'db-datasets-port-forward',
   serve_cmd='while true; do kubectl get svc db-datasets -n experiments >/dev/null 2>&1 && ' +
