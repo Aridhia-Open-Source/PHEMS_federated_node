@@ -112,7 +112,6 @@ flowchart LR
         subgraph FNNS["namespace fn"]
             BE["Backend (Flask, port 5000)"]
             DB[(Postgres db)]
-            DDB[(datasets db)]
             GITEA["Gitea service gitea.fn.svc:4000"]
             DWS[Dagster webserver]
             DD[Dagster daemon]
@@ -122,6 +121,7 @@ flowchart LR
         end
         TNS["Task pods (task namespace)"]
         KC["Keycloak (namespace keycloak)"]
+        DDB[("Datasets db (namespace experiments)")]
     end
     EXT[GitHub API]
 

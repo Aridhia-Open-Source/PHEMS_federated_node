@@ -147,7 +147,7 @@ done
 
 # Hook Jobs are untracked too.
 for ns in "$NAMESPACE" keycloak; do
-  kubectl delete job -n "$ns" backend-db-init keycloak-db-init dagster-db-init db-datasets-init \
+  kubectl delete job -n "$ns" backend-db-init keycloak-db-init dagster-db-init \
     --ignore-not-found 2>/dev/null || true
 done
 

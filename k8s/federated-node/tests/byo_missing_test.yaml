@@ -13,8 +13,6 @@ set:
     enabled: true
     postgresql:
       postgresqlHost: postgres.postgres.database.azure.com
-  datasetDb:
-    create: false
 kubernetesProvider:
   scheme:
     v1/Secret:
