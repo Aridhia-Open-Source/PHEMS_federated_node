@@ -42,7 +42,10 @@ function useSetEnabled() {
   return useMutation({
     mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
       call(api.PATCH("/global/repositories/triggers/{id}", { params: { path: { id } }, body: { enabled } })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ["projects"] }); // "Used by" shows the projects' resources
+    },
   });
 }
 
@@ -53,6 +56,7 @@ function useRevoke() {
     onSuccess: (resources) => {
       showToast(`Revoked ${resources.length} project resource(s)`, "info");
       qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ["projects"] });
     },
   });
 }

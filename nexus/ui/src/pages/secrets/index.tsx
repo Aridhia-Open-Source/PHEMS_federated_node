@@ -39,7 +39,10 @@ function useSetEnabled() {
   return useMutation({
     mutationFn: ({ label, enabled }: { label: string; enabled: boolean }) =>
       call(api.PATCH("/global/secrets/{label}", { params: { path: { label } }, body: { enabled } })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ["projects"] }); // "Used by" shows the projects' resources
+    },
   });
 }
 

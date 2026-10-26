@@ -32,7 +32,10 @@ function useSetEnabled() {
         // The spec types the PATCH body as the full POST body, but any subset of fields is valid
         body: { enabled } as Schemas["DatasetPostBody"],
       })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ["projects"] }); // "Used by" shows the projects' resources
+    },
   });
 }
 

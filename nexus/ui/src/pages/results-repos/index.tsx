@@ -46,7 +46,10 @@ export default function ResultsReposPage() {
 
 function useRepoActions(afterDelete?: () => void) {
   const qc = useQueryClient();
-  const refresh = () => qc.invalidateQueries({ queryKey: KEY });
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: KEY });
+    qc.invalidateQueries({ queryKey: ["projects"] }); // "Used by" shows the projects' resources
+  };
   const setEnabled = useMutation({
     mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
       call(api.PATCH("/global/repositories/results/{id}", { params: { path: { id } }, body: { enabled } })),

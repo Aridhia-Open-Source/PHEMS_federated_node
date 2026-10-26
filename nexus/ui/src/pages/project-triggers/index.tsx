@@ -12,7 +12,7 @@ import {
   pullRequestPath, resourcePath, stateText, taskPath, triggerPath, triggerResource, triggerResources,
 } from "../../shared/projectResources";
 
-type TriggerResource = Schemas["ProjectTriggerRepositoryObject"];
+type RepoResource = Schemas["ProjectTriggerRepositoryObject"];
 type PullRequest = Schemas["PullRequestTriggerObject"];
 type StateFilter = "UNKNOWN" | "REJECTED" | "YIELDED";
 
@@ -34,7 +34,7 @@ function RepoList({ projectId }: { projectId: number }) {
     <section>
       <h2>Triggers</h2>
       <p>The project's trigger repositories. Pick one for its pull requests.</p>
-      <ResourceTable<TriggerResource>
+      <ResourceTable<RepoResource>
         data={data}
         rowKey={(r) => r.trigger_repository!.id!}
         columns={[
