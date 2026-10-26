@@ -12,19 +12,18 @@ Dagster 3000), `fncli` on PATH, and `.dev.env` at the repo root.
 
 ```bash
 git clone https://github.com/PHDS-centralized-services/MVP-Code experiments/sources/uc1
-make experiments up          # the experiments release, with the uc1-omop database
-make experiments seed uc1    # dummy OMOP data + fncli setup-project (project "uc1")
+make experiments setup uc1   # release with the uc1-omop database, dummy OMOP data, project "uc1"
 make experiments build uc1   # localhost:5001/uc1-fn:latest (slow: R package restore)
 make experiments run uc1     # trigger PR -> task -> results PR in Gitea uc1-results-repo
 ```
 
-Every step can be rerun. `make experiments run-local uc1` runs the image in docker straight
-against the database, with no node involved, to tell an analysis failure from a node one.
+`setup` and `run` can be rerun after a failure. `make experiments run-local uc1` runs the
+image in docker straight against the database, with no node involved, to tell an analysis
+failure from a node one.
 
 | Step | What it does | Where |
 |---|---|---|
-| `up` | helm upgrade of the `experiments` release: Postgres, database `uc1-omop`, role `uc1_omop_user`, generated password | namespace `experiments` |
-| `seed` | loads the synthetic OMOP data over `kubectl exec`, then `fncli setup-project`: project `uc1`, Gitea repos `uc1-trigger-repo` and `uc1-results-repo`, their tokens, and the dataset at `db-datasets.experiments.svc` | backend + Gitea |
+| `setup` | helm upgrade of the `experiments` release (Postgres, database `uc1-omop`, role `uc1_omop_user`, generated password), then loads the synthetic OMOP data over `kubectl exec` (recreating its schemas), then `fncli setup-project`: project `uc1`, Gitea repos `uc1-trigger-repo` and `uc1-results-repo`, their tokens, and the dataset at `db-datasets.experiments.svc` | namespace `experiments`, backend + Gitea |
 | `build` | `docker build experiments/sources/uc1`, push to the kind registry | host Docker |
 | `run` | starts the sensors, opens and merges a spec PR, watches the task and the results PR | Gitea + Dagster |
 
@@ -49,11 +48,11 @@ Not built yet. It would run, in order:
 1. **Clone** when `sources/uc1` is missing: `SOURCE_REPO` and `SOURCE_REF` from
    `project.env`, authenticated with `GH_TOKEN` from `.dev.env` (it needs read access to
    MVP-Code), so nobody has to log in. An existing `sources/uc1` is left as it is.
-2. **`up`**, **`seed`**, **`build`**, **`run`** as above.
+2. **`setup`**, **`build`**, **`run`** as above.
 
 Each step is idempotent, so a failed `all` is fixed and run again.
 
-Also planned: `run-local` waits for its port-forward with bash's `/dev/tcp` instead of
+Also planned: `run-local` waits for its port-forward with a socket connect instead of
 `pg_isready`, so the host needs no Postgres client.
 
 Open:
