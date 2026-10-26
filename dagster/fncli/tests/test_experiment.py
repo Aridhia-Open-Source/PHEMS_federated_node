@@ -91,6 +91,7 @@ def steps(monkeypatch):
         ("setup-project", "setup_project_command"),
         ("start-sensor", "start_sensor_command"),
         ("open-pr", "open_pr_command"),
+        ("teardown-project", "teardown_project_command"),
     ):
         monkeypatch.setattr(experiment, attribute, step(name))
     monkeypatch.setattr(
@@ -216,9 +217,22 @@ def test_build_builds_and_pushes_the_image(repo, commands):
     ]
 
 
-def test_down_uninstalls_the_release(commands):
-    invoke("down")
+def test_teardown_tears_down_the_node_project_with_the_project_env(commands, steps):
+    invoke("teardown", "x", "-y")
 
+    assert [(name, env["TEST_PROJECT_NAME"]) for name, _, env in steps] == [("teardown-project", "exp")]
+    assert commands.calls == []
+
+
+def test_down_tears_down_every_project_then_uninstalls_the_release(repo, commands, steps):
+    (repo / "experiments" / "projects" / "y" / "project.env").write_text("TEST_PROJECT_NAME=y-project\n")
+
+    invoke("down", "-y")
+
+    assert [(name, env["TEST_PROJECT_NAME"]) for name, _, env in steps] == [
+        ("teardown-project", "exp"),
+        ("teardown-project", "y-project"),
+    ]
     assert commands.lines == ["helm uninstall experiments --namespace experiments"]
 
 
