@@ -102,7 +102,7 @@ tilt-open:
 	tilt open
 
 # Real experiments against the node, see experiments/README.md
-# make experiments setup uc1 | build uc1 | run uc1 | run-local uc1 | teardown uc1 | down
+# make experiments up | setup uc1 | build uc1 | run uc1 | teardown uc1 | down  (run --local: call fncli directly)
 .PHONY: experiments
 experiments:
 	@fncli experiment $(filter-out $@,$(MAKECMDGOALS))

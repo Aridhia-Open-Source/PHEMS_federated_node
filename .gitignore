@@ -35,7 +35,7 @@ debug.yaml
 # Ignore local model files
 .models/
 
-# Local experiment sources and run-local results (experiments/README.md)
+# Local experiment sources and `run --local` results (experiments/README.md)
 experiments/sources/
 experiments/results/
 # Committed: holds no secrets, the passwords come from the chart

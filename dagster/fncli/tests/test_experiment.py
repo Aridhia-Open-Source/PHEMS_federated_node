@@ -142,13 +142,22 @@ def test_the_committed_uc1_project_env_is_a_complete_config():
     assert config.database == "uc1-omop"
 
 
-def test_setup_installs_the_release_then_seeds_then_sets_up_the_node_project(repo, commands, steps):
-    invoke("setup", "x")
+def test_up_installs_the_release_with_every_project_database(repo, commands):
+    invoke("up")
 
     projects = repo / "experiments" / "projects"
     assert commands.lines == [
         f"helm upgrade --install experiments {repo}/experiments/chart --namespace experiments "
         f"--create-namespace -f {projects}/x/values.yaml -f {projects}/y/values.yaml --wait --timeout 5m",
+    ]
+
+
+def test_setup_checks_the_release_then_seeds_then_sets_up_the_node_project(repo, commands, steps):
+    invoke("setup", "x")
+
+    projects = repo / "experiments" / "projects"
+    assert commands.lines == [
+        "helm status experiments --namespace experiments",
         f"{projects}/x/seed.sh",
         "kubectl exec -i -n experiments deploy/db-datasets -- psql -v ON_ERROR_STOP=1 -q -U x_user -d x-db",
     ]
@@ -162,16 +171,27 @@ def test_setup_installs_the_release_then_seeds_then_sets_up_the_node_project(rep
     assert env["NAMESPACE"] == "fn"
 
 
-def test_setup_makes_the_database_directory_writable_for_postgres(repo, commands, steps):
-    invoke("setup", "x")
+def test_setup_without_the_release_tells_you_to_run_up(commands, steps):
+    commands.failing = "helm"
+
+    result = CliRunner().invoke(experiment_group, ["setup", "x"])
+
+    assert result.exit_code == 1
+    assert "fncli experiment up" in result.output
+    assert len(commands.calls) == 1
+    assert steps == []
+
+
+def test_up_makes_the_database_directory_writable_for_postgres(repo, commands):
+    invoke("up")
 
     assert (repo / "data" / "experiments" / "datasets").stat().st_mode & 0o777 == 0o777
 
 
-def test_setup_without_the_data_dir_stops_before_helm(repo, commands, steps):
+def test_up_without_the_data_dir_stops_before_helm(repo, commands):
     (repo / "data").rmdir()
 
-    result = CliRunner().invoke(experiment_group, ["setup", "x"])
+    result = CliRunner().invoke(experiment_group, ["up"])
 
     assert result.exit_code == 1
     assert "cluster.sh up" in result.output
@@ -241,7 +261,7 @@ def test_run_local_runs_the_image_against_the_port_forward_and_stops_it(repo, co
     popen = MagicMock(return_value=forward)
     monkeypatch.setattr(experiment.subprocess, "Popen", popen)
 
-    invoke("run-local", "x")
+    invoke("run", "x", "--local")
 
     results = repo / "experiments" / "results" / "x"
     assert popen.call_args.args[0] == ["kubectl", "port-forward", "-n", "experiments", "svc/db-datasets", "5434:5432"]
@@ -261,7 +281,7 @@ def test_a_failing_run_local_stops_the_port_forward_and_does_not_show_the_passwo
     monkeypatch.setattr(experiment.subprocess, "Popen", MagicMock(return_value=forward))
     commands.failing = "docker"
 
-    result = CliRunner().invoke(experiment_group, ["run-local", "x"])
+    result = CliRunner().invoke(experiment_group, ["run", "x", "--local"])
 
     assert result.exit_code == 3
     assert "pwd=" not in result.output
