@@ -1,4 +1,4 @@
-{{/* Copied from db-datasets-{pv,deployment,service}.yaml in the federated-node chart, local storage only. */}}
+{{/* Copied from the federated-node chart's old db-datasets-{pv,deployment,service}.yaml, local storage only. */}}
 apiVersion: v1
 kind: PersistentVolume
 metadata:

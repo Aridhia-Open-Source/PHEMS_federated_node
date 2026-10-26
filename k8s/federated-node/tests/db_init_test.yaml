@@ -64,36 +64,6 @@ tests:
           path: metadata.name
           value: backend-db-init
 
-  - it: defaults the dataset server host to its own in-cluster Service
-    values:
-      - values/values-local.yaml
-    set:
-      datasetDb:
-        create: true
-        dbs:
-          uc1:
-            name: uc1_omop
-            user: uc1_omop_user
-            secret:
-              name: db-datasets-uc1
-              key: password
-    asserts:
-      # Unset would render `psql -h  -p 5432`.
-      - equal:
-          path: spec.template.spec.initContainers[0].env[0].value
-          value: db-datasets
-        documentSelector:
-          path: metadata.name
-          value: db-datasets-init
-      # datasetDb.create also means "in-cluster", so this hook is post-install even
-      # when the shared server is external.
-      - equal:
-          path: metadata.annotations["helm.sh/hook"]
-          value: post-install,post-upgrade
-        documentSelector:
-          path: metadata.name
-          value: db-datasets-init
-
   - it: passes passwords to psql as variables rather than interpolating them
     values:
       - values/values-local.yaml

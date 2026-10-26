@@ -129,7 +129,7 @@ class ResultsRepoConfig(RepoConfig):
 class DatasetConfig(ProjectConfig):
     dataset_name: str = Field(default="", alias="DEFAULT_PROJECT_DATASET")
     # The defaults are the dummy stand-in dataset. experiments/experiments.sh seed sets these for a real experiment.
-    dataset_host: str = Field(default="db-datasets.fn.svc", alias="CLUSTER_DATASET_HOST")
+    dataset_host: str = Field(default="db-datasets.experiments.svc", alias="CLUSTER_DATASET_HOST")
     dataset_port: int = Field(default=5432, alias="DATASET_PORT")
     dataset_type: str = Field(default="postgres", alias="DATASET_TYPE")
     dataset_read_schema: str = Field(default="cdm", alias="DATASET_SCHEMA")

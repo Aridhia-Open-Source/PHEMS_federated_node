@@ -258,10 +258,6 @@
                                 "string",
                                 "null"
                             ]
-                        },
-                        "datasets": {
-                            "type": "object",
-                            "description": "Keyed by datasetDb.dbs key, plus 'superuser'"
                         }
                     }
                 },
@@ -398,10 +394,6 @@
                     "properties": {
                         "dbpath": {
                             "type": "string"
-                        },
-                        "datasetDbpath": {
-                            "type": "string",
-                            "description": "Host path for the dataset Postgres data directory (datasetDb.create)"
                         }
                     }
                 }
@@ -776,68 +768,6 @@
         "default_image_tag": {
             "$ref": "#/definitions/tag",
             "description": "Tag for every image this chart publishes. Unset means the chart's appVersion"
-        },
-        "datasetDb": {
-            "type": "object",
-            "description": "A second, in-cluster PostgreSQL holding dataset data. A development fixture: real datasets are registered through the /global/datasets API, which stores their credentials separately. `create` covers both deploying the server and creating the roles in `dbs`, so `dbs` without `create` is rejected",
-            "properties": {
-                "create": {
-                    "type": "boolean",
-                    "default": false
-                },
-                "host": {
-                    "type": "string",
-                    "default": "db-datasets",
-                    "description": "Defaults to the in-cluster Service created alongside it"
-                },
-                "port": {
-                    "type": "integer",
-                    "default": 5432
-                },
-                "superuser": {
-                    "type": "string",
-                    "default": "postgres"
-                },
-                "secret": {
-                    "type": "object",
-                    "properties": {
-                        "name": {
-                            "type": "string"
-                        },
-                        "key": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "dbs": {
-                    "type": "object",
-                    "description": "Keyed by a short name; each entry gets a database, a role and a generated password",
-                    "additionalProperties": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Database name"
-                            },
-                            "user": {
-                                "type": "string",
-                                "description": "Role name"
-                            },
-                            "secret": {
-                                "type": "object",
-                                "properties": {
-                                    "name": {
-                                        "type": "string"
-                                    },
-                                    "key": {
-                                        "type": "string"
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }
