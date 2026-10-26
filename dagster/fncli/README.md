@@ -240,7 +240,8 @@ fncli experiment setup NAME      # release + database + seed + setup-project; sa
 fncli experiment build NAME      # docker build + push of the image
 fncli experiment run NAME        # start-sensor, then open-pr --merge --watch; FULL=1 leaves out DEV_ENV
 fncli experiment run-local NAME  # the image in docker against the database, no node
-fncli experiment down            # uninstall the release (secrets and database files stay)
+fncli experiment teardown NAME   # remove NAME's node project, global resources and Gitea repos
+fncli experiment down            # teardown every experiment, then uninstall the release (secrets and database files stay)
 ```
 
 `setup` runs, in order: `helm upgrade --install` of the `experiments` release, the project's `seed.sh` over `kubectl exec` (which recreates its schemas), then `setup-project` with `CLUSTER_DATASET_HOST=db-datasets.experiments.svc`, `DATASET_PORT=5432` and the generated database password. `make experiments setup NAME` calls it. See [experiments/README.md](../../experiments/README.md).
