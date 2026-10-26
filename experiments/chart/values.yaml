@@ -1,5 +1,5 @@
 # Where the database files live inside the kind node. cluster.sh bind-mounts $FN_DATA_DIR
-# (~/.fn/data) there as /data, and experiments.sh up creates the host side.
+# (~/.fn/data) there as /data, and fncli experiment setup creates the host side.
 storagePath: /data/experiments/datasets
 
 postgres:
