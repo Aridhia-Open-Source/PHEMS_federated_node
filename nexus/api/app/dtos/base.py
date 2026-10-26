@@ -27,6 +27,15 @@ class DTO(BaseModel):
         return self.model_dump(mode="json", by_alias=True)
 
 
+class PageDTO[T](DTO):
+    """The response shape of a list route with pagination, see page_of."""
+    items: list[T]
+    page: int
+    per_page: int
+    total: int
+    pages: int
+
+
 def page_of(pagination: Page, dto: type[DTO]) -> dict:
     return {
         "items": [dto.from_model(obj).dump() for obj in pagination.items],

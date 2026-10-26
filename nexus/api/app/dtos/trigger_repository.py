@@ -85,6 +85,12 @@ class PullRequestDTO(DTO):
     files_truncated: bool
 
 
+class PullRequestBatchDTO(DTO):
+    """The response of storing a batch of pull requests: the numbers stored, and those already there."""
+    created: list[int]
+    existing: list[int]
+
+
 class PullRequestTriggerDTO(DTO):
     project_id: int
     trigger_repository_id: int

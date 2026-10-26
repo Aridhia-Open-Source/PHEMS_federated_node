@@ -8,6 +8,7 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Body, Depends
 
+from app.dtos.user import NewUserDTO, UserDTO
 from app.helpers.const import PUBLIC_URL
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.keycloak import KEYCLOAK_ADMIN, KEYCLOAK_SERVICE_USER, Keycloak
@@ -16,8 +17,14 @@ from app.helpers.wrappers import require_scope
 router = APIRouter(prefix='/global/users', tags=["users"])
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, dependencies=[Depends(require_scope('can_do_admin'))])
-@router.post('', status_code=HTTPStatus.CREATED, dependencies=[Depends(require_scope('can_do_admin'))])
+@router.post(
+    '/', status_code=HTTPStatus.CREATED, response_model=NewUserDTO,
+    dependencies=[Depends(require_scope('can_do_admin'))]
+)
+@router.post(
+    '', status_code=HTTPStatus.CREATED, response_model=NewUserDTO,
+    dependencies=[Depends(require_scope('can_do_admin'))]
+)
 def create_user(data: dict = Body(default_factory=dict)):
     """
     POST /global/users endpoint. Creates a KC user, and sets a temp
@@ -60,8 +67,8 @@ def reset_password(body: dict = Body(default_factory=dict)):
     )
 
 
-@router.get('/', dependencies=[Depends(require_scope('can_do_admin'))])
-@router.get('', dependencies=[Depends(require_scope('can_do_admin'))])
+@router.get('/', response_model=list[UserDTO], dependencies=[Depends(require_scope('can_do_admin'))])
+@router.get('', response_model=list[UserDTO], dependencies=[Depends(require_scope('can_do_admin'))])
 def get_users_list():
     """
     GET /global/users/ endpoint. This is a simplified version

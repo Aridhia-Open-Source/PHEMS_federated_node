@@ -36,9 +36,9 @@ from app.helpers.task_config import decide_launch
 from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.wrappers import Caller, get_caller, require_scope, system_only
 from app.dtos.dataset import DatasetDTO
-from app.dtos.task import NewTaskDTO, TaskDTO
+from app.dtos.task import NewTaskDTO, TaskConfigDTO, TaskCreatedDTO, TaskDTO, TaskLaunchDTO, TaskPageDTO
 from app.dtos.trigger_repository import TaskTriggerDTO
-from app.dtos.result import dump_result
+from app.dtos.result import PullRequestResultDTO, dump_result
 from app.models.api_request_trigger import ApiRequestTrigger
 from app.models.project import Project
 from app.models.pull_request_trigger import PullRequestTrigger
@@ -82,8 +82,8 @@ async def raw_body(request: Request) -> str:
     return (await request.body()).decode()
 
 
-@router.get('/', dependencies=[Depends(require_scope('can_admin_task'))])
-@router.get('', dependencies=[Depends(require_scope('can_admin_task'))])
+@router.get('/', response_model=TaskPageDTO, dependencies=[Depends(require_scope('can_admin_task'))])
+@router.get('', response_model=TaskPageDTO, dependencies=[Depends(require_scope('can_admin_task'))])
 def get_tasks(project_id: int, filters: QueryFilters = Depends(), status: str | None = None):
     """
     GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination
@@ -97,8 +97,8 @@ def get_tasks(project_id: int, filters: QueryFilters = Depends(), status: str | 
     return task_page(query, parse_statuses(status), filters)
 
 
-@all_router.get('/', dependencies=[Depends(require_scope('can_admin_task'))])
-@all_router.get('', dependencies=[Depends(require_scope('can_admin_task'))])
+@all_router.get('/', response_model=TaskPageDTO, dependencies=[Depends(require_scope('can_admin_task'))])
+@all_router.get('', response_model=TaskPageDTO, dependencies=[Depends(require_scope('can_admin_task'))])
 def get_all_tasks(filters: QueryFilters = Depends(), status: str | None = None, project_enabled: str | None = None):
     """
     GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of
@@ -242,8 +242,14 @@ def cancel_tasks(project_id: int, task_id: int):
     raise NotImplementedException()
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, dependencies=[Depends(require_scope('can_exec_task'))])
-@router.post('', status_code=HTTPStatus.CREATED, dependencies=[Depends(require_scope('can_exec_task'))])
+@router.post(
+    '/', status_code=HTTPStatus.CREATED, response_model=TaskCreatedDTO,
+    dependencies=[Depends(require_scope('can_exec_task'))]
+)
+@router.post(
+    '', status_code=HTTPStatus.CREATED, response_model=TaskCreatedDTO,
+    dependencies=[Depends(require_scope('can_exec_task'))]
+)
 def post_tasks(
     project_id: int, raw: str = Depends(raw_body), req_body: dict = Body(default_factory=dict),
     caller: Caller = Depends(get_caller)
@@ -322,7 +328,7 @@ def get_task_trigger(project_id: int, task_id: int, caller: Caller = Depends(get
     return TaskTriggerDTO.from_model(task.trigger)
 
 
-@router.get('/{task_id}/config', dependencies=[Depends(require_scope('can_exec_task'))])
+@router.get('/{task_id}/config', response_model=TaskConfigDTO, dependencies=[Depends(require_scope('can_exec_task'))])
 def get_task_config(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
     """
     GET /projects/<project_id>/tasks/id/config endpoint. Whether the configuration the task was created
@@ -345,7 +351,7 @@ def get_task_config(project_id: int, task_id: int, caller: Caller = Depends(get_
 
 
 @router.post(
-    '/{task_id}/launch',
+    '/{task_id}/launch', response_model=TaskLaunchDTO,
     dependencies=[Depends(require_scope('can_admin_dataset')), Depends(system_only)]
 )
 def launch_task(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
@@ -378,7 +384,9 @@ def launch_task(project_id: int, task_id: int, caller: Caller = Depends(get_call
     }
 
 
-@router.get('/{task_id}/results', dependencies=[Depends(require_scope('can_exec_task'))])
+@router.get(
+    '/{task_id}/results', response_model=list[PullRequestResultDTO], dependencies=[Depends(require_scope('can_exec_task'))]
+)
 def get_task_results(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
     """
     GET /projects/<project_id>/tasks/id/results endpoint. Lists the delivery of the task's results

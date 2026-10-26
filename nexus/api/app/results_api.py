@@ -9,7 +9,7 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Body, Depends, Query, Response
 
-from app.dtos.result import dump_result
+from app.dtos.result import PullRequestResultDTO, dump_result
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.task_config import config_changes, results_resource, revoked_resources
@@ -46,7 +46,10 @@ def _project_result(project_id: int, result_id: int) -> Result:
     return result
 
 
-@router.get('/{project_id}/results', dependencies=[Depends(require_scope('can_admin_dataset'))])
+@router.get(
+    '/{project_id}/results', response_model=list[PullRequestResultDTO],
+    dependencies=[Depends(require_scope('can_admin_dataset'))]
+)
 def get_results(
     project_id: int,
     step: list[str] = Query(default_factory=list),
@@ -83,7 +86,10 @@ def get_results(
     return [dump_result(r) for r in results]
 
 
-@router.get('/{project_id}/results/{result_id}', dependencies=[Depends(require_scope('can_exec_task'))])
+@router.get(
+    '/{project_id}/results/{result_id}', response_model=PullRequestResultDTO,
+    dependencies=[Depends(require_scope('can_exec_task'))]
+)
 def get_result(project_id: int, result_id: int, caller: Caller = Depends(get_caller)):
     """
     GET /projects/<project_id>/results/<result_id> endpoint. Gets a single result
@@ -94,7 +100,7 @@ def get_result(project_id: int, result_id: int, caller: Caller = Depends(get_cal
 
 
 @router.post(
-    '/{project_id}/results',
+    '/{project_id}/results', response_model=PullRequestResultDTO,
     dependencies=[Depends(require_scope('can_admin_dataset')), Depends(system_only)],
 )
 def post_result(
@@ -185,7 +191,7 @@ def post_result(
 
 
 @router.patch(
-    '/{project_id}/results/{result_id}',
+    '/{project_id}/results/{result_id}', response_model=PullRequestResultDTO,
     dependencies=[Depends(require_scope('can_admin_dataset')), Depends(system_only)],
 )
 def patch_result(

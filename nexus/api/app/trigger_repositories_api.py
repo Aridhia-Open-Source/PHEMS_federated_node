@@ -15,9 +15,11 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Body, Depends
 
-from app.dtos.base import page_of
+from app.dtos.base import PageDTO, page_of
 from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
-from app.dtos.trigger_repository import PullRequestDTO, PullRequestRequest, TriggerRepositoryDTO
+from app.dtos.trigger_repository import (
+    PullRequestBatchDTO, PullRequestDTO, PullRequestRequest, TriggerRepositoryDTO
+)
 from app.helpers.base_model import db, paginate
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.helpers.query_filters import QueryFilters, arg_get
@@ -64,7 +66,7 @@ def get_repository(repo_id: int):
     return TriggerRepositoryDTO.from_model(repo)
 
 
-@router.get('/{repo_id}/pull_requests')
+@router.get('/{repo_id}/pull_requests', response_model=PageDTO[PullRequestDTO])
 def get_pull_requests(repo_id: int, filters: QueryFilters = Depends()):
     """
     GET /global/repositories/triggers/<id>/pull_requests — the provider's facts of the pull requests
@@ -80,7 +82,10 @@ def get_pull_requests(repo_id: int, filters: QueryFilters = Depends()):
     return page_of(paginate(query, page, per_page), PullRequestDTO)
 
 
-@router.post('/{repo_id}/pull_requests', status_code=HTTPStatus.CREATED, dependencies=[Depends(system_only)])
+@router.post(
+    '/{repo_id}/pull_requests', status_code=HTTPStatus.CREATED, response_model=PullRequestBatchDTO,
+    dependencies=[Depends(system_only)]
+)
 def post_pull_requests_batch(repo_id: int, body: dict = Body(default_factory=dict)):
     """
     POST /global/repositories/triggers/<id>/pull_requests — store up to 100 pull requests of the

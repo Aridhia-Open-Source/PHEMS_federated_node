@@ -16,7 +16,7 @@ from http import HTTPStatus
 from fastapi import APIRouter, Body, Depends, Response
 from sqlalchemy.exc import IntegrityError
 
-from app.dtos.base import page_of
+from app.dtos.base import PageDTO, page_of
 from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.task_spec import TaskSpecRequest
 from app.dtos.trigger_repository import ProjectTriggerRepositoryDTO, PullRequestTriggerDTO
@@ -212,7 +212,7 @@ def _pull_request(project_id: int, repo_id: int, number: int) -> PullRequestTrig
 
 # The pull_requests routes below are called by Dagster only. The writes are system user only; the reads are
 # still open to anyone with the scope, which should be restricted to internal callers too.
-@router.get('/{repo_id}/pull_requests')
+@router.get('/{repo_id}/pull_requests', response_model=PageDTO[PullRequestTriggerDTO])
 def get_pull_requests(project_id: int, repo_id: int, state: str | None = None, filters: QueryFilters = Depends()):
     """
     GET /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests — list PRs

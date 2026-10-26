@@ -3,6 +3,12 @@ from app.dtos.project import HealthCheckDTO
 from app.models.secret_provider_type import SecretProviderType
 
 
+class NodeHealthDTO(DTO):
+    """GET /health_check: whether the node's Keycloak answers. "ok" or "non operational"."""
+    status: str
+    keycloak: bool
+
+
 class RepositoryConnectionDTO(DTO):
     """A global trigger or results repository, and whether it can be reached with its secret."""
     id: int
