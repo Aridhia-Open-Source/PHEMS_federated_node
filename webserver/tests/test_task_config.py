@@ -84,8 +84,8 @@ def reload_task(task_id) -> Task:
 
 
 def test_pr_task_is_pinned_at_creation_and_retry_does_not_repin(
-        client, admin_headers, project, pr_trigger, spec_raw, linked_results_repo, global_results_repo):
-    created = client.post(f"{pr_trigger}/task", json={"spec_raw": spec_raw}, headers=admin_headers)
+        client, admin_headers, system_headers, project, pr_trigger, spec_raw, linked_results_repo, global_results_repo):
+    created = client.post(f"{pr_trigger}/task", json={"spec_raw": spec_raw}, headers=system_headers)
     assert created.status_code == 201, created.json
     task = reload_task(created.json["id"])
     assert task.config_snapshot["results"]["target_dir"] == "results"
@@ -95,7 +95,7 @@ def test_pr_task_is_pinned_at_creation_and_retry_does_not_repin(
     url = f"/projects/{project.id}/repositories/results/{global_results_repo.id}"
     assert client.patch(url, json={"target_dir": "out"}, headers=admin_headers).status_code == 200
     tasks = f"/projects/{project.id}/tasks/{task.id}"
-    assert client.patch(tasks, json={"status": "FAILED"}, headers=admin_headers).status_code == 200
+    assert client.patch(tasks, json={"status": "FAILED"}, headers=system_headers).status_code == 200
     assert client.post(f"{tasks}/retry", json={}, headers=admin_headers).status_code == 200
     db.session.expire_all()
     task = reload_task(task.id)
@@ -170,58 +170,58 @@ def test_dataset_change_makes_the_task_stale(
     assert changes == [f"dataset.host: {old_host!r} -> 'elsewhere'"]
 
 
-def post_result(client, admin_headers, project, task, repo):
+def post_result(client, headers, project, task, repo):
     return client.post(f"/projects/{project.id}/results",
-                       json={"task_id": task.id, "results_repository_id": repo.id}, headers=admin_headers)
+                       json={"task_id": task.id, "results_repository_id": repo.id}, headers=headers)
 
 
 def test_post_result_is_stale_when_the_target_dir_changed_after_creation(
-        client, admin_headers, project, linked_results_repo, global_results_repo, make_task):
+        client, admin_headers, system_headers, project, linked_results_repo, global_results_repo, make_task):
     task = pinned_task(project, make_task)
     set_target_dir(client, admin_headers, project, global_results_repo, "out")
     task.status = "SUCCESS"
     db.session.commit()
 
-    response = post_result(client, admin_headers, project, task, global_results_repo)
+    response = post_result(client, system_headers, project, task, global_results_repo)
     assert response.status_code == 201, response.json
     assert response.json["step"] == "STALE" and response.json["state"] == "FAILED"
     assert response.json["error"].startswith("task configuration changed since the task was created: ")
     assert "results.target_dir" in response.json["error"]
     # final: it can not move, and a second post returns it
     patched = client.patch(f"/projects/{project.id}/results/{response.json['id']}", json={"step": "OPENED"},
-                           headers=admin_headers)
+                           headers=system_headers)
     assert patched.status_code == 409
-    again = post_result(client, admin_headers, project, task, global_results_repo)
+    again = post_result(client, system_headers, project, task, global_results_repo)
     assert again.status_code == 200 and again.json["id"] == response.json["id"]
 
 
 def test_post_result_of_a_current_task_is_not_stale(
-        client, admin_headers, project, linked_results_repo, global_results_repo, make_task):
+        client, system_headers, project, linked_results_repo, global_results_repo, make_task):
     task = pinned_task(project, make_task)
     task.status = "SUCCESS"
     db.session.commit()
-    response = post_result(client, admin_headers, project, task, global_results_repo)
+    response = post_result(client, system_headers, project, task, global_results_repo)
     assert response.status_code == 201 and response.json["step"] == "UNKNOWN"
 
 
 def test_revoked_link_is_checked_before_stale(
-        client, admin_headers, project, linked_results_repo, global_results_repo, make_task):
+        client, admin_headers, system_headers, project, linked_results_repo, global_results_repo, make_task):
     task = pinned_task(project, make_task)
     set_target_dir(client, admin_headers, project, global_results_repo, "out")
     url = f"/projects/{project.id}/repositories/results/{global_results_repo.id}"
     assert client.patch(url, json={"revoked": True}, headers=admin_headers).status_code == 200
     task.status = "SUCCESS"
     db.session.commit()
-    assert post_result(client, admin_headers, project, task, global_results_repo).json["step"] == "REVOKED"
+    assert post_result(client, system_headers, project, task, global_results_repo).json["step"] == "REVOKED"
 
 
 # --------------------------------------------------------------------------- revoked resources
 
 
 @pytest.fixture
-def full_task(client, admin_headers, project, pr_trigger, spec_raw, linked_dataset, linked_results_repo) -> Task:
+def full_task(client, system_headers, project, pr_trigger, spec_raw, linked_dataset, linked_results_repo) -> Task:
     """A task made from a pull request, on the project's dataset, with its results link: all three active."""
-    created = client.post(f"{pr_trigger}/task", json={"spec_raw": spec_raw}, headers=admin_headers)
+    created = client.post(f"{pr_trigger}/task", json={"spec_raw": spec_raw}, headers=system_headers)
     assert created.status_code == 201, created.json
     task = reload_task(created.json["id"])
     assert task.spec.dataset_id is not None and task.config_snapshot["results"] is not None

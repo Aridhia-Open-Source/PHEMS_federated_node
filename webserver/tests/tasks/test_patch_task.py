@@ -13,8 +13,8 @@ class TestPatchTask:
     def patch(self, client, headers, project, task_id, body):
         return client.patch(f"/projects/{project.id}/tasks/{task_id}", data=json.dumps(body), headers=headers)
 
-    def test_update_all_fields(self, client, post_json_admin_header, task, project):
-        response = self.patch(client, post_json_admin_header, project, task.id, {
+    def test_update_all_fields(self, client, system_headers, task, project):
+        response = self.patch(client, system_headers, project, task.id, {
             "status": "FAILED", "executor_run_id": "run-1", "exit_code": 2,
             "started_at": "2026-01-01T10:00:00Z", "completed_at": "2026-01-01T10:30:00",
         })
@@ -31,15 +31,15 @@ class TestPatchTask:
         assert task.started_at.isoformat() == "2026-01-01T10:00:00"
         assert task.completed_at.isoformat() == "2026-01-01T10:30:00"
 
-    def test_update_status_only(self, client, post_json_admin_header, task, project):
-        response = self.patch(client, post_json_admin_header, project, task.id, {"status": "RUNNING"})
+    def test_update_status_only(self, client, system_headers, task, project):
+        response = self.patch(client, system_headers, project, task.id, {"status": "RUNNING"})
         assert response.status_code == 200
         task = Task.query.get(task.id)
         assert task.status == "RUNNING"
         assert task.executor_run_id is None
 
-    def test_update_state_cause(self, client, post_json_admin_header, task, project):
-        response = self.patch(client, post_json_admin_header, project, task.id, {"status": "FAILED", "state_cause": "why"})
+    def test_update_state_cause(self, client, system_headers, task, project):
+        response = self.patch(client, system_headers, project, task.id, {"status": "FAILED", "state_cause": "why"})
         assert response.status_code == 200
         assert response.json["state_cause"] == "why"
         assert Task.query.get(task.id).state_cause == "why"
@@ -56,13 +56,13 @@ class TestPatchTask:
         {"started_at": "not-a-date"},
         {"completed_at": 1},
     ])
-    def test_invalid_body_fails(self, client, post_json_admin_header, task, body, project):
-        response = self.patch(client, post_json_admin_header, project, task.id, body)
+    def test_invalid_body_fails(self, client, system_headers, task, body, project):
+        response = self.patch(client, system_headers, project, task.id, body)
         assert response.status_code == 400
         assert Task.query.get(task.id).status == "PENDING"
 
-    def test_not_found(self, client, post_json_admin_header, project):
-        response = self.patch(client, post_json_admin_header, project, 999, {"status": "RUNNING"})
+    def test_not_found(self, client, system_headers, project):
+        response = self.patch(client, system_headers, project, 999, {"status": "RUNNING"})
         assert response.status_code == 404
 
     def test_requires_auth(self, client, task, project):

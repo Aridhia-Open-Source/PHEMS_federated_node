@@ -1,0 +1,9 @@
+# UC1's database in the experiments chart. The name is also the dataset's name in the node,
+# whose secret label is <name>-dataset-creds - a DNS name, so '-' rather than '_'.
+dbs:
+  uc1:
+    name: uc1-omop
+    user: uc1_omop_user
+    secret:
+      name: db-datasets-uc1
+      key: password

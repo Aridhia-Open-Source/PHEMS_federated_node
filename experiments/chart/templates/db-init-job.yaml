@@ -1,0 +1,69 @@
+{{/*
+Creates the role and database of each experiment. Copied from fn.dbInitJob in the
+federated-node chart: passwords reach psql via --set and every statement goes through
+format(%I/%L) + \gexec. post-install/post-upgrade because the Postgres it talks to is part
+of this release, and on upgrade so a new experiment can be added to a running cluster.
+*/}}
+{{- if .Values.dbs }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-datasets-init
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: db-init
+          image: {{ .Values.postgres.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            # The image's postgres user
+            runAsUser: 70
+            capabilities:
+              drop: [ "ALL" ]
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              until pg_isready -h db-datasets -p {{ .Values.postgres.port }}; do
+                echo "waiting for postgres..."
+                sleep 2
+              done
+              {{- range $key, $db := .Values.dbs }}
+              psql -v ON_ERROR_STOP=1 -h db-datasets -p {{ $.Values.postgres.port }} \
+                -U {{ $.Values.postgres.superuser }} -d postgres \
+                --set=role={{ $db.user | quote }} \
+                --set=dbname={{ $db.name | quote }} \
+                --set=pw="$ROLE_PASSWORD_{{ $key | upper }}" <<'SQL'
+              SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'role', :'pw')
+                WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'role')\gexec
+              SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L', :'role', :'pw')\gexec
+              SELECT format('CREATE DATABASE %I OWNER %I', :'dbname', :'role')
+                WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'dbname')\gexec
+              SELECT format('ALTER DATABASE %I OWNER TO %I', :'dbname', :'role')\gexec
+              SELECT format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', :'dbname', :'role')\gexec
+              SQL
+              {{- end }}
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.secret.name }}
+                  key: {{ .Values.postgres.secret.key }}
+            {{- range $key, $db := .Values.dbs }}
+            - name: ROLE_PASSWORD_{{ $key | upper }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $db.secret.name }}
+                  key: {{ $db.secret.key }}
+            {{- end }}
+{{- end }}

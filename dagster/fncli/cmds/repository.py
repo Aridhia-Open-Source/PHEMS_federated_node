@@ -14,31 +14,36 @@ from fncli.cmds.common import (
     ResultsRepoConfig,
     TriggerRepoConfig,
     build_backend_api,
-    build_gitea_api,
+    build_git_api,
     entity_option,
 )
 from fncli.cmds.project import find_project, init_backend_project
 from fncli.backend import FncliBackendAPI
 from app.git_uri import normalise_repo_uri
+from app.github import GithubAPI
 from fncli.gitea import GiteaAdminAPI
 from app.models import GitProvider, Project, ProjectResultsRepository, ProjectTriggerRepository
 
 logger = logging.getLogger("repository")
 
 
-def init_gitea_repo(config: RepoConfig, gitea_api: GiteaAdminAPI) -> dict:
-    gitea_repo = gitea_api.get_or_create_repo(config.repo, "Trigger-repository simulation")
+def init_gitea_repo(config: RepoConfig, gitea_api: GiteaAdminAPI | GithubAPI) -> dict:
+    """Find or create the repo. A GitHub repo must already exist."""
+    if config.is_github:
+        gitea_repo = gitea_api.get_repo(config.repo_path)
+    else:
+        gitea_repo = gitea_api.get_or_create_repo(config.repo, "Trigger-repository simulation")
     logger.info(f"Gitea repo: {gitea_repo['html_url']} (default branch {gitea_repo['default_branch']})")
     return gitea_repo
 
 
 def init_backend_provider(config: RepoConfig, backend_api: FncliBackendAPI) -> GitProvider:
-    """The backend's git provider for the Gitea the repo is on, shared by both repos and every project."""
+    """The backend's git provider for the host the repo is on, shared by both repos and every project."""
     return backend_api.get_or_create_git_provider(
         uri=config.provider_uri,
-        name=f"gitea-{config.provider_uri.split('://')[1]}",
-        type="gitea",
-        api_uri=config.gitea_api_uri,
+        name=f"{config.git_provider}-{config.provider_uri.split('://')[1]}",
+        type=config.git_provider,
+        api_uri=config.provider_api_uri,
     )
 
 
@@ -141,7 +146,7 @@ def load_repo_config(entity: str, from_backend: bool, project: str | None) -> Re
         gitea_api_uri=repository.provider.api_uri,
         backend_secret_label=repository.secret.label,
     )
-    if owner != config.gitea_admin_user:
+    if not config.is_github and owner != config.gitea_admin_user:
         raise click.ClickException(
             f"Backend {entity} repository {repository.uri} is owned by {owner}, not the Gitea "
             f"admin user {config.gitea_admin_user}: it is not a repo this tool can manage"
@@ -155,7 +160,7 @@ def load_repo_config(entity: str, from_backend: bool, project: str | None) -> Re
 def init_gitea_repo_command(entity, from_backend, project):
     """Find or create a repo in Gitea."""
     config = load_repo_config(entity, from_backend, project)
-    init_gitea_repo(config, build_gitea_api(config))
+    init_gitea_repo(config, build_git_api(config))
 
 
 @click.command("init-backend-trigger-repo")
@@ -169,7 +174,7 @@ def init_backend_trigger_repo_command(base_branch):
     config = TriggerRepoConfig()
     backend_api = build_backend_api(config)
     if base_branch is None:
-        gitea_repo = init_gitea_repo(config, build_gitea_api(config))
+        gitea_repo = init_gitea_repo(config, build_git_api(config))
         base_branch = gitea_repo["default_branch"]
     project = init_backend_project(config, backend_api)
     init_backend_trigger_repo(
@@ -242,7 +247,10 @@ def delete_backend_provider_command():
 def delete_gitea_repo_command(entity, from_backend, project):
     """Delete a repo from Gitea. The backend's records of it are left alone."""
     config = load_repo_config(entity, from_backend, project)
-    if build_gitea_api(config).delete_repo(config.repo):
+    if config.is_github:
+        logger.info(f"Not deleting GitHub repo {config.repo_path}: fncli never deletes GitHub repos")
+        return
+    if build_git_api(config).delete_repo(config.repo):
         logger.info(f"Deleted Gitea repo {config.gitea_admin_user}/{config.repo}")
     else:
         logger.info(f"Gitea repo {config.gitea_admin_user}/{config.repo} does not exist")
