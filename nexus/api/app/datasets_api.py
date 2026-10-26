@@ -1,7 +1,7 @@
 """
 datasets-related endpoints. Datasets are global: a project reaches one through its
-link, see projects_api (/projects/<id>/datasets). Creating, editing and deleting are
-admin-only. Deleting a dataset is a soft delete, refused with a 409 naming the projects it is linked to unless
+project resource, see projects_api (/projects/<id>/datasets). Creating, editing and deleting are
+admin-only. Deleting a dataset is a soft delete, refused with a 409 naming the projects it is assigned to unless
 ?force=true:
 - GET /global/datasets
 - POST /global/datasets
@@ -43,7 +43,7 @@ def _reject_project(body: dict):
     """A dataset belongs to no project, so naming one is a mistake, not something to ignore."""
     if "project_id" in body:
         raise InvalidRequest(
-            "project_id is not accepted, datasets are global. Link one with "
+            "project_id is not accepted, datasets are global. Assign one with "
             "PUT /projects/<id>/datasets/<dataset id>"
         )
 
@@ -119,8 +119,8 @@ def get_dataset(dataset_id: int):
                dependencies=[Depends(require_scope('can_do_admin'))])
 def delete_dataset(dataset_id: int, force: bool = False):
     """
-    DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is linked to,
-        unless ?force=true, which also revokes and deletes their links. Its k8s secret is left alone: it has its own lifecycle (/global/secrets) and
+    DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is assigned to,
+        unless ?force=true, which also revokes and deletes their project resources. Its k8s secret is left alone: it has its own lifecycle (/global/secrets) and
         other datasets may share it. Admin only.
     """
     ds = Dataset.get_by_id(dataset_id)

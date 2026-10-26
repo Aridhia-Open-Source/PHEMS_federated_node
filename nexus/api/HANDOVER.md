@@ -18,7 +18,7 @@ Read this, then `CONTRACT.md`, then `PLAN.md`. Branch `nexus/api`, worktree
   - `app/helpers/wrappers.py`: `get_caller` (`Caller(token, user_id, is_admin, is_system, kc_client)`,
     cached per request by FastAPI), `require_scope(scope)`, `system_only`. `@audit` is gone.
   - `app/helpers/query_filters.py`: `QueryFilters` dependency; `arg_get(filters, name, default, type)`.
-  - `app/helpers/soft_delete.py`: `delete_global(resource, links, force)`.
+  - `app/helpers/soft_delete.py`: `delete_global(resource, project_resources, force)`.
   - `app/helpers/keycloak.py`: `get_token_from_headers(headers)`.
   - `app/helpers/exceptions.py`: `LogAndException` is a plain `Exception` (no werkzeug).
   - `app/__init__.py`: `create_app()`, every router registered up front (`module.router`, plus
@@ -51,7 +51,7 @@ Read this, then `CONTRACT.md`, then `PLAN.md`. Branch `nexus/api`, worktree
 
 ## Test status (last run)
 - `tests/test_projects_api.py`: all pass except the ones needing trigger repositories
-  (`test_a_trigger_link_to_an_enabled_project_is_201` and 3 fixture errors) -> green after Wave A.
+  (`test_assigning_a_trigger_repository_to_an_enabled_project_is_201` and 3 fixture errors) -> green after Wave A.
 - `tests/test_secrets_quarantine.py`: the secret-only tests pass; the rest need datasets / trigger /
   results repositories / healthcheck routers -> recheck after Wave A.
 - `tests/test_smoke.py`: needs trigger repositories and users.
@@ -116,7 +116,7 @@ when the branches meet (`nexus.image`/`nexus.tag`/`nexus.port` are the API's; co
   - `datasets_api` POST/PATCH keep `body: dict` + `.parse(body)`: the credential/project_id rejections
     need the raw body (`DatasetRequest` ignores extras), and the `Invalid dataset: ...` message stays.
   - Typed-body routes (git providers, repositories) answer a bad body with 400 before a 404 for a missing id.
-  - `healthcheck_api` has a local `_trigger_link` in place of importing `_assignment` from
+  - `healthcheck_api` has a local `_trigger_resource` in place of importing `_assignment` from
     `project_trigger_repositories_api` (it was a stub then); can be swapped back now.
 - `run_local_tests.sh`: if `createdb` says the database already exists, rerun (race with a parallel run).
 - Tests are cross-cutting: one test file often hits several routers, so a failure can be another,
@@ -175,24 +175,24 @@ Before/after for one handler (`projects_api.py`):
 @audit
 @auth(scope='can_admin_dataset')
 def patch_project_dataset(project_id: int, dataset_id: int):
-    link = _dataset_link(project_id, dataset_id)
+    resource = _dataset_resource(project_id, dataset_id)
     body = request.json or {}
     ...
     if "revoked" in body and not g.caller_is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a dataset")
     ...
-    return ProjectDatasetDTO.from_model(link).dump(), HTTPStatus.OK
+    return ProjectDatasetDTO.from_model(resource).dump(), HTTPStatus.OK
 
 # after (FastAPI; can_admin_dataset is on the router)
 @router.patch('/{project_id}/datasets/{dataset_id}', response_model=ProjectDatasetDTO)
 def patch_project_dataset(project_id: int, dataset_id: int, body: dict = Body(default_factory=dict),
                           caller: Caller = Depends(get_caller)):
-    link = _dataset_link(project_id, dataset_id)
+    resource = _dataset_resource(project_id, dataset_id)
     ...
     if "revoked" in body and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a dataset")
     ...
-    return ProjectDatasetDTO.from_model(link)
+    return ProjectDatasetDTO.from_model(resource)
 ```
 
 ## Fan-out instructions (one Sonnet agent per router)
@@ -205,8 +205,8 @@ loop on test runs or chase flaky/minor failures; note them and stop.
 Wave A (parallel):
 | router module | test files to run |
 |---|---|
-| `trigger_repositories_api` | `test_trigger_repositories_and_links.py`, `test_pull_requests_and_tasks.py` (PR ingest parts) |
-| `project_trigger_repositories_api` | `test_trigger_repositories_and_links.py`, `test_triggers.py` |
+| `trigger_repositories_api` | `test_trigger_repositories_and_resources.py`, `test_pull_requests_and_tasks.py` (PR ingest parts) |
+| `project_trigger_repositories_api` | `test_trigger_repositories_and_resources.py`, `test_triggers.py` |
 | `tasks_api` | `tasks/`, `test_task_launch.py`, `test_all_tasks_list.py`, `test_pagination_and_filters.py` |
 | `results_api` | `test_results_and_delivery.py` |
 | `results_repositories_api` | `test_global_resources.py` (results parts) |

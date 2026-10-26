@@ -1,7 +1,7 @@
 """
-results repository endpoints, global: a project is linked to one under
+results repository endpoints, global: a project is assigned one under
 /projects/<id>/repositories/results (see projects_api.py). Create, edit and delete are admin
-only. Deleting one is a soft delete, refused with a 409 naming the projects it is linked to unless ?force=true. A secret_label naming a disabled secret is a 400 on POST and PATCH.
+only. Deleting one is a soft delete, refused with a 409 naming the projects it is assigned to unless ?force=true. A secret_label naming a disabled secret is a 400 on POST and PATCH.
 - GET /global/repositories/results
 - GET /global/repositories/results/<id>
 - POST /global/repositories/results
@@ -51,7 +51,7 @@ def get_repository(repo_id: int):
 @router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT, dependencies=[Depends(require_scope('can_do_admin'))])
 def delete_repository(repo_id: int, force: bool = False):
     """
-    DELETE /global/repositories/%s/<id> — soft delete the repository. A 409 names the projects it is linked to, unless ?force=true, which also revokes and deletes their links.
+    DELETE /global/repositories/%s/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.
     """
     repo = ResultsRepository.get_by_id(repo_id)
     delete_global(repo, repo.project_assignments, force)
@@ -63,8 +63,8 @@ def delete_repository(repo_id: int, force: bool = False):
              dependencies=[Depends(require_scope('can_do_admin'))])
 def post_repository(req: RepositoryRequest):
     """
-    POST /global/repositories/results/ — create a new repository, linked to no project yet. project_id
-    and target_dir are not accepted, results repositories are global: link one with
+    POST /global/repositories/results/ — create a new repository, assigned to no project yet. project_id
+    and target_dir are not accepted, results repositories are global: assign one with
     PUT /projects/<id>/repositories/results/<repository id>
     """
     provider = GitProvider.get_by_request_id(req.provider_id)

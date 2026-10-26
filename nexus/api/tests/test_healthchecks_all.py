@@ -193,7 +193,7 @@ def test_repository_http_status_and_exceptions_map_to_status(
 
 
 def test_dataset_connection_failures_are_reported_not_500(
-    client, admin_headers, k8s_client, mock_connection_checks, project, linked_dataset, global_dataset
+    client, admin_headers, k8s_client, mock_connection_checks, project, assigned_dataset, global_dataset
 ):
     global_dataset.host, global_dataset.port, global_dataset.type = "127.0.0.1", 1, "postgres"
     db.session.commit()
@@ -207,16 +207,16 @@ def test_dataset_connection_failures_are_reported_not_500(
     r = get(client, admin_headers, url)
     assert r.json()["status"] == "error" and "cannot be checked" in r.json()["health_check"]["message"]
 
-    # the failure shows in the global aggregate and in the project link, which stays active
+    # the failure shows in the global aggregate and in the project resource, which stays active
     mock_connection_checks["dataset"].return_value = bad(ConnectionStatus.ERROR, "password authentication failed")
     assert get(client, admin_headers, "/global/healthcheck").json()["status"] == "error"
-    link = get(client, admin_headers, f"/projects/{project.id}/datasets/{global_dataset.id}/healthcheck")
-    assert link.status_code == 200 and link.json()["active"] is True
-    assert link.json()["dataset"]["health_check"]["message"] == "password authentication failed"
+    resource = get(client, admin_headers, f"/projects/{project.id}/datasets/{global_dataset.id}/healthcheck")
+    assert resource.status_code == 200 and resource.json()["active"] is True
+    assert resource.json()["dataset"]["health_check"]["message"] == "password authentication failed"
 
 
 def test_network_exception_is_in_global_and_project_aggregate(
-    client, admin_headers, k8s_client, mock_connection_checks, mocker, project, linked_trigger_repo, linked_results_repo
+    client, admin_headers, k8s_client, mock_connection_checks, mocker, project, assigned_trigger_repo, assigned_results_repo
 ):
     mocker.patch("app.models.git_provider.requests.get", side_effect=requests.Timeout("slow"))
     real_repo_check(mock_connection_checks)
@@ -232,7 +232,7 @@ def test_network_exception_is_in_global_and_project_aggregate(
 
 def test_project_healthcheck_ok_shape(
     client, admin_headers, k8s_client, mock_connection_checks, project, global_trigger_repo, pr_trigger,
-    linked_trigger_repo, linked_results_repo, global_results_repo
+    assigned_trigger_repo, assigned_results_repo, global_results_repo
 ):
     r = get(client, admin_headers, f"/projects/{project.id}/healthcheck")
     assert r.status_code == 200 and r.json()["status"] == "ok"
@@ -245,23 +245,23 @@ def test_project_healthcheck_ok_shape(
     assert r.json()["results_repository"]["target_dir"] == "results"
 
 
-def test_project_without_trigger_link_is_error(
-    client, admin_headers, k8s_client, mock_connection_checks, project, other_project, linked_results_repo
+def test_project_without_trigger_resource_is_error(
+    client, admin_headers, k8s_client, mock_connection_checks, project, other_project, assigned_results_repo
 ):
     r = get(client, admin_headers, f"/projects/{project.id}/healthcheck")  # ok needs at least one trigger repository
     assert r.status_code == 200 and r.json()["status"] == "error"
     assert r.json()["trigger_repositories"] == [] and r.json()["results_repository"]["status"] == "ok"
-    # another project's links are not counted; no links at all is error too
+    # another project's resources are not counted; no resources at all is error too
     r = get(client, admin_headers, f"/projects/{other_project.id}/healthcheck")
     assert r.json()["status"] == "error" and r.json()["trigger_repositories"] == [] and r.json()["results_repository"] is None
     assert get(client, admin_headers, "/projects/99999/healthcheck").status_code == 404
 
 
-def test_project_aggregate_error_when_a_link_fails(
-    client, admin_headers, k8s_client, mock_connection_checks, project, linked_trigger_repo, linked_results_repo,
+def test_project_aggregate_error_when_a_resource_fails(
+    client, admin_headers, k8s_client, mock_connection_checks, project, assigned_trigger_repo, assigned_results_repo,
     global_results_repo
 ):
-    # trigger link is prepared first, then results
+    # trigger resource is prepared first, then results
     mock_connection_checks["repository"].side_effect = [OK, bad(ConnectionStatus.UNAUTHORIZED, "Bad credentials", 401)]
     r = get(client, admin_headers, f"/projects/{project.id}/healthcheck")
     assert r.json()["status"] == "error" and r.json()["trigger_repositories"][0]["status"] == "ok"
@@ -274,11 +274,11 @@ def test_project_aggregate_error_when_a_link_fails(
     assert r.json()["results_repository"]["status"] == "ok"
 
 
-# ---------- per-link healthchecks ----------
+# ---------- per-resource healthchecks ----------
 
-def test_link_healthcheck_shapes_and_flags(
-    client, admin_headers, k8s_client, mock_connection_checks, project, linked_dataset, linked_secret,
-    linked_trigger_repo, linked_results_repo, global_dataset, global_trigger_repo, global_results_repo
+def test_resource_healthcheck_shapes_and_flags(
+    client, admin_headers, k8s_client, mock_connection_checks, project, assigned_dataset, assigned_secret,
+    assigned_trigger_repo, assigned_results_repo, global_dataset, global_trigger_repo, global_results_repo
 ):
     pid = project.id
     urls = {
@@ -295,7 +295,7 @@ def test_link_healthcheck_shapes_and_flags(
         assert body["active"] is True and body["project_id"] == pid and body[key]["status"] == "ok"
     assert get(client, admin_headers, urls["results_repository"]).json()["results_repository"]["id"] == global_results_repo.id
 
-    # a revoked link is inactive but still checked
+    # a revoked resource is inactive but still checked
     assert client.patch(f"/projects/{pid}/datasets/{global_dataset.id}", json={"revoked": True}, headers=admin_headers).status_code == 200
     body = get(client, admin_headers, urls["dataset"]).json()
     assert (body["revoked"], body["active"], body["enabled"], body["dataset"]["status"]) == (True, False, True, "ok")
@@ -303,7 +303,7 @@ def test_link_healthcheck_shapes_and_flags(
     assert client.patch(f"/projects/{pid}/secrets/test-creds", json={"revoked": True}, headers=admin_headers).status_code == 200
     assert get(client, admin_headers, urls["secret"]).json()["revoked"] is True
 
-    # failures and missing secret keys appear in the link body, with a 200
+    # failures and missing secret keys appear in the resource body, with a 200
     mock_connection_checks["repository"].return_value = bad(ConnectionStatus.UNAUTHORIZED, "Bad credentials", 401)
     for key in ("trigger_repository", "results_repository"):
         r = get(client, admin_headers, urls[key])
@@ -313,13 +313,13 @@ def test_link_healthcheck_shapes_and_flags(
     assert body["secret"]["status"] == "secret_missing" and "TOKEN" in body["secret"]["missing_keys"]
 
 
-def test_link_healthchecks_404(
-    client, admin_headers, k8s_client, mock_connection_checks, project, other_project, linked_trigger_repo,
+def test_resource_healthchecks_404(
+    client, admin_headers, k8s_client, mock_connection_checks, project, other_project, assigned_trigger_repo,
     global_dataset, global_secret, global_trigger_repo, global_results_repo
 ):
     pid, oid = project.id, other_project.id
     urls = [
-        # the project has no such link (also: linked to another project only)
+        # the project has no such resource (also: assigned to another project only)
         f"/projects/{pid}/datasets/{global_dataset.id}/healthcheck",
         f"/projects/{pid}/secrets/test-creds/healthcheck",
         f"/projects/{pid}/repositories/results/{global_results_repo.id}/healthcheck",

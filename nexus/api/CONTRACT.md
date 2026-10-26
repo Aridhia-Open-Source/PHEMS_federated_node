@@ -4,7 +4,7 @@ Same wire contract as the Flask webserver. Read from `origin/nexus/api`.
 
 ## Errors
 - Every error body is `{"error": "<message>"}`, plus `"details"` when the error carries extra fields
-  (e.g. a 409 on deleting a linked global resource lists `[{"id", "name"}]` of the projects).
+  (e.g. a 409 on deleting a global resource that is assigned to projects lists `[{"id", "name"}]` of the projects).
 - Validation errors are **400** (not FastAPI's 422): `{"error": "<field>: <msg>; ..."}`.
 - A non-integer id in the path is a **404** `{"error": "Not Found"}`, as Flask's route converters gave.
 - Unknown route 404 and wrong method 405 are `{"error": "Not Found" | "Method Not Allowed"}`.

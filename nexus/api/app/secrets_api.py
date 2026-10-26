@@ -1,7 +1,7 @@
 """
 Secret endpoints. The values only ever go to the secret store; the database keeps a
 reference so that repositories and datasets can share a secret. A secret belongs to no
-project and is addressed by its label, which is unique. A project is linked to one under
+project and is addressed by its label, which is unique. A project is assigned one under
 /projects/<id>/secrets (see projects_api.py). Creating, editing and deleting are admin-only. A disabled
 secret's value is moved out of its namespace into a quarantine namespace (QUARANTINE_NAMESPACE), so nothing
 reading the secret where the row says it is can get it, and moved back when the secret is enabled again:
@@ -272,7 +272,7 @@ def patch_secret(label: str, body: dict = Body(default_factory=dict)):
 def delete_secret(label: str, force: bool = False):
     """
     DELETE /global/secrets/<label> — soft delete the reference and revoke and delete its project
-    links, and delete the stored secret, from its namespace and from quarantine. Admin only. Refused
+    resources, and delete the stored secret, from its namespace and from quarantine. Admin only. Refused
     with a 409 naming the enabled datasets and repositories that still use it: they have to be
     disabled first, unless ?force=true, which disables them and goes on. Disabled ones may stay
     pointing at it, and can be repointed with their secret_label.

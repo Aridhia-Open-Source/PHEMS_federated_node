@@ -145,13 +145,13 @@ def world(api, raw):
     )
     trigger = api.create_repository(provider.id, "org/live-triggers", "live-creds")
     results = api.create_results_repository(provider.id, "org/live-results", "live-creds")
-    link_ds = api.get_or_assign_dataset(project.id, dataset)
-    link_trigger = api.get_or_assign_repository(project.id, trigger, "triggers", "main")
-    link_results = api.get_or_assign_results_repository(project.id, results, "results")
+    resource_ds = api.get_or_assign_dataset(project.id, dataset)
+    resource_trigger = api.get_or_assign_repository(project.id, trigger, "triggers", "main")
+    resource_results = api.get_or_assign_results_repository(project.id, results, "results")
     project = api.patch_project(project.id, {"enabled": True})
     return dict(
         secret=secret, project=project, dataset=dataset, provider=provider, trigger=trigger, results=results,
-        link_ds=link_ds, link_trigger=link_trigger, link_results=link_results,
+        resource_ds=resource_ds, resource_trigger=resource_trigger, resource_results=resource_results,
     )
 
 
@@ -167,9 +167,9 @@ def test_fncli_setup_models_parse(api, world):
     assert isinstance(w["provider"], fn_models.GitProvider) and w["trigger"].provider.id == w["provider"].id
     assert w["trigger"].uri == "https://github.com/org/live-triggers" and w["trigger"].repo_path == "org/live-triggers"
     assert isinstance(w["results"], fn_models.ResultsRepository)
-    assert w["link_ds"].active and w["link_ds"].dataset.id == w["dataset"].id
-    assert w["link_trigger"].watch_dir == "triggers" and w["link_trigger"].base_branch == "main"
-    assert w["link_results"].target_dir == "results" and w["link_results"].results_repository.id == w["results"].id
+    assert w["resource_ds"].active and w["resource_ds"].dataset.id == w["dataset"].id
+    assert w["resource_trigger"].watch_dir == "triggers" and w["resource_trigger"].base_branch == "main"
+    assert w["resource_results"].target_dir == "results" and w["resource_results"].results_repository.id == w["results"].id
 
     # lookups, get_or_* reuse
     assert api.get_dataset(w["dataset"].id).id == w["dataset"].id
@@ -227,12 +227,12 @@ def test_fncli_login_returns_token(api):
     assert isinstance(data, dict)
 
 
-def test_fncli_project_trigger_links_and_prs(api, raw, world):
+def test_fncli_project_trigger_resources_and_prs(api, raw, world):
     w = world
     pid, tid = w["project"].id, w["trigger"].id
 
-    links = api.get_project_trigger_repositories(pid)
-    assert [link.trigger_repository.id for link in links] == [tid]
+    resources = api.get_project_trigger_repositories(pid)
+    assert [resource.trigger_repository.id for resource in resources] == [tid]
     assert api.get_project_trigger_repository(pid, tid).active is True
 
     # 101 PRs: two ingest batches, so get_pull_requests pages (per_page is fixed at 100 by the client)
@@ -256,7 +256,7 @@ def test_fncli_project_trigger_links_and_prs(api, raw, world):
     page = raw.ok("GET", f"/projects/{pid}/repositories/triggers/{tid}/pull_requests?per_page=40&page=3")
     assert len(page["items"]) == 21 and page["total"] == 101 and page["page"] == 3 and page["per_page"] == 40
 
-    # a PR on another base branch creates no trigger for the link
+    # a PR on another base branch creates no trigger for the resource
     api.create_pull_requests_batch(tid, [pr(200, base_branch="dev")])
     assert len(api.get_pull_requests(pid, tid)) == 101
 
@@ -264,8 +264,8 @@ def test_fncli_project_trigger_links_and_prs(api, raw, world):
     assert patched.state == fn_models.TriggerState.REJECTED and patched.state_cause == "bad"
     assert [p.number for p in api.get_pull_requests(pid, tid, state="REJECTED")] == [1]
 
-    link = api.patch_project_trigger_repository(pid, tid, {"enabled": False})
-    assert link.enabled is False and link.active is False
+    resource = api.patch_project_trigger_repository(pid, tid, {"enabled": False})
+    assert resource.enabled is False and resource.active is False
     assert api.get_project_trigger_repository(pid, tid).pr_count == 101
 
 
@@ -344,7 +344,7 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
     assert [r.id for r in d.get_pollable_trigger_repositories()] == [tid]
     active = d.get_pollable_trigger_repositories()[0]
     assert active.pr_cursor is not None
-    assert [link.trigger_repository.id for link in d.get_project_trigger_repositories(pid)] == [tid]
+    assert [resource.trigger_repository.id for resource in d.get_project_trigger_repositories(pid)] == [tid]
     assert d.get_project_trigger_repository(pid, tid).active
     assert d.get_project_dataset(pid, did).dataset.id == did
     assert d.get_dataset(did).id == did and [x.id for x in d.get_datasets()] == [did]
@@ -391,8 +391,8 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
     ds = d.create_dataset("DagDs", "db", 5432, "postgres", "live-creds")
     assert ds.name == "dagds"
     repo = d.create_repository(world["provider"].id, "org/dag-triggers", "live-creds")
-    link = d.assign_repository(pid, repo.id, "dag", "main")
-    assert link.watch_dir == "dag" and link.trigger_repository.id == repo.id
+    resource = d.assign_repository(pid, repo.id, "dag", "main")
+    assert resource.watch_dir == "dag" and resource.trigger_repository.id == repo.id
     api.patch_project_trigger_repository(pid, tid, {"enabled": False})
     assert [l.trigger_repository.id for l in d.get_project_trigger_repositories(pid, active=True)] == [repo.id]
     d.delete_dataset(ds.id)
@@ -425,8 +425,8 @@ def test_e2e_check_script_reads_the_real_routes(api, raw, world):
     api.patch_pull_request(pid, tid, 2, {"state": "REJECTED", "state_cause": "bad spec"})
 
     snap = e2e.snapshot(api, config.project_name)
-    assert len(snap["trigger_links"]) == 1 and snap["trigger_links"][0]["active"] is True
-    assert {p["number"]: p["state"] for p in snap["trigger_links"][0]["pull_requests"]} == {1: "YIELDED", 2: "REJECTED"}
+    assert len(snap["trigger_resources"]) == 1 and snap["trigger_resources"][0]["active"] is True
+    assert {p["number"]: p["state"] for p in snap["trigger_resources"][0]["pull_requests"]} == {1: "YIELDED", 2: "REJECTED"}
     assert [t["id"] for t in snap["tasks"]] == [task["id"]]
 
     assert e2e.command_wait_prs(api, config, args) == 0
@@ -443,7 +443,7 @@ def test_fncli_state_commands_against_the_real_routes(api, admin_api, raw, world
     name = w["project"].name
     config = SimpleNamespace(project_name=name)
 
-    raw.ok("PUT", f"/projects/{pid}/secrets/live-creds", 201, json={})  # `world` creates the secret but does not link it
+    raw.ok("PUT", f"/projects/{pid}/secrets/live-creds", 201, json={})  # `world` creates the secret but does not assign it
     api.create_pull_requests_batch(tid, [pr(1)])
     task = raw.ok("POST", f"/projects/{pid}/repositories/triggers/{tid}/pull_requests/1/task", 201,
                   json={"spec_raw": SPEC_RAW})
@@ -453,19 +453,19 @@ def test_fncli_state_commands_against_the_real_routes(api, admin_api, raw, world
 
     snap = state.snapshot(api, name)
     assert snap["project"]["id"] == pid
-    assert [(p["number"], p["state"]) for p in snap["trigger_links"][0]["pull_requests"]] == [(1, "YIELDED")]
+    assert [(p["number"], p["state"]) for p in snap["trigger_resources"][0]["pull_requests"]] == [(1, "YIELDED")]
     assert [t["status"] for t in snap["tasks"]] == ["SUCCESS"] and snap["results"][0]["step"] == "UNKNOWN"
-    assert snap["results_links"][0]["target_dir"] == "results" and snap["secret_links"][0]["secret"] == "live-creds"
+    assert snap["results_resources"][0]["target_dir"] == "results" and snap["secret_resources"][0]["secret"] == "live-creds"
 
-    # revoke and un-revoke a link: immediate
-    assert state.set_link(api, name, "trigger", None, "true", 200, admin_api=admin_api) == 0
-    assert state.snapshot(api, name)["trigger_links"][0]["active"] is False
-    assert state.set_link(api, name, "trigger", None, "false", 200, admin_api=admin_api) == 0
-    assert state.snapshot(api, name)["trigger_links"][0]["active"] is True
+    # revoke and un-revoke a resource: immediate
+    assert state.set_resource(api, name, "trigger", None, "true", 200, admin_api=admin_api) == 0
+    assert state.snapshot(api, name)["trigger_resources"][0]["active"] is False
+    assert state.set_resource(api, name, "trigger", None, "false", 200, admin_api=admin_api) == 0
+    assert state.snapshot(api, name)["trigger_resources"][0]["active"] is True
 
     # a global resource can be disabled and enabled at once
     assert state.set_global(api, name, "trigger", "false", 200) == 0
-    assert state.snapshot(api, name)["trigger_links"][0]["global_enabled"] is False
+    assert state.snapshot(api, name)["trigger_resources"][0]["global_enabled"] is False
     assert state.set_global(api, name, "trigger", "true", 200) == 0
 
     # the project: off and on, and --backfill only when switching a disabled project on
@@ -478,8 +478,8 @@ def test_fncli_state_commands_against_the_real_routes(api, admin_api, raw, world
     # a second project on the SAME global resources, then removed again (the global resources stay)
     assert state.setup_second_project(api, config, "QaTwo") == 0
     two = state.snapshot(api, "QaTwo")
-    assert two["trigger_links"][0]["repository_id"] == tid and two["project"]["enabled"] is True
-    assert two["results_links"] and two["dataset_links"] and two["secret_links"]
+    assert two["trigger_resources"][0]["repository_id"] == tid and two["project"]["enabled"] is True
+    assert two["results_resources"] and two["dataset_resources"] and two["secret_resources"]
     assert state.teardown_second_project(api, "QaTwo", 204) == 0
     assert api.find_project("QaTwo") is None
     assert api.find_project(name) is not None
