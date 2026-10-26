@@ -49,7 +49,7 @@ uc1` runs the whole study.
 ## Add an experiment
 
 1. Put the source in `sources/NAME`. Its image reads the task contract: `CONNECTION_STRING`
-   (`server=;database=;port=;uid=;pwd=;`), `CDM_SCHEMA`, `WRITE_SCHEMA`, and writes results
+   (a full ODBC string, e.g. `driver={PostgreSQL ANSI};Uid=;Pwd=;Server=host,port;Database=;`), `CDM_SCHEMA`, `WRITE_SCHEMA`, and writes results
    to `ARTIFACT_PATH`.
 2. Copy `projects/uc1` to `projects/NAME`, then change the names and the seed.
 3. Run `make experiments up` (it upgrades the release with the new database, so this works

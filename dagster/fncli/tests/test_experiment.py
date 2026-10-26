@@ -275,7 +275,7 @@ def test_run_local_runs_the_image_against_the_port_forward_and_stops_it(repo, co
     assert commands.lines == [
         "pg_isready -h localhost -p 5434",
         "docker run --rm --network host -e X_DEV=1 "
-        "-e CONNECTION_STRING=server=localhost;database=x-db;port=5434;uid=x_user;pwd=db-datasets-x/experiments/password; "
+        "-e CONNECTION_STRING=driver={PostgreSQL ANSI};Uid=x_user;Pwd=db-datasets-x/experiments/password;Server=localhost,5434;Database=x-db; "
         f"-e CDM_SCHEMA=cdm -e WRITE_SCHEMA=results -e ARTIFACT_PATH=/artifacts -v {results}:/artifacts "
         "localhost:5001/x-fn:latest",
     ]

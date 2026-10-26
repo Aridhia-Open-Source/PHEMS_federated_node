@@ -227,9 +227,10 @@ def run_local(name: str, config: ExperimentConfig):
         env = task_env(config)
         logger.info(f"Results: {out_dir}")
         logger.info(f"Task env: {json.dumps(env)}")
+        # The experiments database is Postgres; same form as the node's (app/definitions/pipes.py).
         connection = (
-            f"server=localhost;database={config.database};port={config.local_port};"
-            f"uid={config.username};pwd={password};"
+            f"driver={{PostgreSQL ANSI}};Uid={config.username};Pwd={password};"
+            f"Server=localhost,{config.local_port};Database={config.database};"
         )
         run([
             "docker", "run", "--rm", "--network", "host",

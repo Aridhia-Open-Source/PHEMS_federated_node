@@ -201,10 +201,22 @@ class TestEnvironment:
 
         connstr = next(e["value"] for e in env if e["name"] == "CONNECTION_STRING")
         assert connstr == (
-            "server=db.host;database=cdm;port=5432;uid=user;pwd=pass;"
+            "driver={PostgreSQL ANSI};Uid=user;Pwd=pass;Server=db.host,5432;Database=cdm;"
         )
         assert secret.call_args_list[0].args == ("db-host-cdm-creds", "fn", "USERNAME")
         assert secret.call_args_list[1].args == ("db-host-cdm-creds", "fn", "PASSWORD")
+
+
+    @pytest.mark.parametrize("db_type, expected", [
+        ("mssql", "driver={ODBC Driver 18 for SQL Server};Uid=u;Pwd=p;Server=db.host,5432;Database=cdm;"),
+        ("mysql", "driver={MySQL ODBC 9.3 ANSI Driver};Uid=u;Pwd=p;Server=db.host,5432;Database=cdm;"),
+        ("mariadb", "driver={MariaDB ODBC 3.2 Driver};Uid=u;Pwd=p;Server=db.host,5432;Database=cdm;"),
+        ("oracle", "driver={Oracle ODBC Driver};Uid=u;PSW=p;DBQ=db.host:5432/cdm;"),
+    ])
+    def test_connection_string_names_the_driver_for_the_dataset_type(self, pipes_env, db_type, expected):
+        pipe = make_pipe(dataset={**DATASET_CONFIG["dataset"], "type": db_type})
+
+        assert pipe._get_conn_str("u", "p") == expected
 
 
 class TestArtifactDir:
